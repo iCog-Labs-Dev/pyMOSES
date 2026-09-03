@@ -1,0 +1,3014 @@
+[
+  {
+    "dataset": "trainingBoolean.dat",
+    "tree": "or(and(or(!$1)) and())",
+    "row": [
+      0,
+      0,
+      0
+    ],
+    "expected": "1"
+  },
+  {
+    "dataset": "trainingBoolean.dat",
+    "tree": "or(and(or(!$1)) and())",
+    "row": [
+      0,
+      0,
+      1
+    ],
+    "expected": "1"
+  },
+  {
+    "dataset": "trainingBoolean.dat",
+    "tree": "or(and(or(!$1)) and())",
+    "row": [
+      0,
+      1,
+      0
+    ],
+    "expected": "1"
+  },
+  {
+    "dataset": "trainingBoolean.dat",
+    "tree": "or(and(or(!$1)) and())",
+    "row": [
+      0,
+      1,
+      1
+    ],
+    "expected": "1"
+  },
+  {
+    "dataset": "trainingBoolean.dat",
+    "tree": "or(and(or(!$1)) and())",
+    "row": [
+      1,
+      0,
+      0
+    ],
+    "expected": "0"
+  },
+  {
+    "dataset": "trainingBoolean.dat",
+    "tree": "or(and(or(!$1)) and())",
+    "row": [
+      1,
+      0,
+      1
+    ],
+    "expected": "0"
+  },
+  {
+    "dataset": "trainingBoolean.dat",
+    "tree": "or(and(or(!$1)) and())",
+    "row": [
+      1,
+      1,
+      0
+    ],
+    "expected": "0"
+  },
+  {
+    "dataset": "trainingBoolean.dat",
+    "tree": "or(and(or(!$1)) and())",
+    "row": [
+      1,
+      1,
+      1
+    ],
+    "expected": "0"
+  },
+  {
+    "dataset": "trainingBoolean.dat",
+    "tree": "or(and(or($1)) and())",
+    "row": [
+      0,
+      0,
+      0
+    ],
+    "expected": "0"
+  },
+  {
+    "dataset": "trainingBoolean.dat",
+    "tree": "or(and(or($1)) and())",
+    "row": [
+      0,
+      0,
+      1
+    ],
+    "expected": "0"
+  },
+  {
+    "dataset": "trainingBoolean.dat",
+    "tree": "or(and(or($1)) and())",
+    "row": [
+      0,
+      1,
+      0
+    ],
+    "expected": "0"
+  },
+  {
+    "dataset": "trainingBoolean.dat",
+    "tree": "or(and(or($1)) and())",
+    "row": [
+      0,
+      1,
+      1
+    ],
+    "expected": "0"
+  },
+  {
+    "dataset": "trainingBoolean.dat",
+    "tree": "or(and(or($1)) and())",
+    "row": [
+      1,
+      0,
+      0
+    ],
+    "expected": "1"
+  },
+  {
+    "dataset": "trainingBoolean.dat",
+    "tree": "or(and(or($1)) and())",
+    "row": [
+      1,
+      0,
+      1
+    ],
+    "expected": "1"
+  },
+  {
+    "dataset": "trainingBoolean.dat",
+    "tree": "or(and(or($1)) and())",
+    "row": [
+      1,
+      1,
+      0
+    ],
+    "expected": "1"
+  },
+  {
+    "dataset": "trainingBoolean.dat",
+    "tree": "or(and(or($1)) and())",
+    "row": [
+      1,
+      1,
+      1
+    ],
+    "expected": "1"
+  },
+  {
+    "dataset": "trainingBoolean.dat",
+    "tree": "or(and(or(!$2)) and())",
+    "row": [
+      0,
+      0,
+      0
+    ],
+    "expected": "1"
+  },
+  {
+    "dataset": "trainingBoolean.dat",
+    "tree": "or(and(or(!$2)) and())",
+    "row": [
+      0,
+      0,
+      1
+    ],
+    "expected": "1"
+  },
+  {
+    "dataset": "trainingBoolean.dat",
+    "tree": "or(and(or(!$2)) and())",
+    "row": [
+      0,
+      1,
+      0
+    ],
+    "expected": "0"
+  },
+  {
+    "dataset": "trainingBoolean.dat",
+    "tree": "or(and(or(!$2)) and())",
+    "row": [
+      0,
+      1,
+      1
+    ],
+    "expected": "0"
+  },
+  {
+    "dataset": "trainingBoolean.dat",
+    "tree": "or(and(or(!$2)) and())",
+    "row": [
+      1,
+      0,
+      0
+    ],
+    "expected": "1"
+  },
+  {
+    "dataset": "trainingBoolean.dat",
+    "tree": "or(and(or(!$2)) and())",
+    "row": [
+      1,
+      0,
+      1
+    ],
+    "expected": "1"
+  },
+  {
+    "dataset": "trainingBoolean.dat",
+    "tree": "or(and(or(!$2)) and())",
+    "row": [
+      1,
+      1,
+      0
+    ],
+    "expected": "0"
+  },
+  {
+    "dataset": "trainingBoolean.dat",
+    "tree": "or(and(or(!$2)) and())",
+    "row": [
+      1,
+      1,
+      1
+    ],
+    "expected": "0"
+  },
+  {
+    "dataset": "trainingBoolean.dat",
+    "tree": "or(and(or($2)) and())",
+    "row": [
+      0,
+      0,
+      0
+    ],
+    "expected": "0"
+  },
+  {
+    "dataset": "trainingBoolean.dat",
+    "tree": "or(and(or($2)) and())",
+    "row": [
+      0,
+      0,
+      1
+    ],
+    "expected": "0"
+  },
+  {
+    "dataset": "trainingBoolean.dat",
+    "tree": "or(and(or($2)) and())",
+    "row": [
+      0,
+      1,
+      0
+    ],
+    "expected": "1"
+  },
+  {
+    "dataset": "trainingBoolean.dat",
+    "tree": "or(and(or($2)) and())",
+    "row": [
+      0,
+      1,
+      1
+    ],
+    "expected": "1"
+  },
+  {
+    "dataset": "trainingBoolean.dat",
+    "tree": "or(and(or($2)) and())",
+    "row": [
+      1,
+      0,
+      0
+    ],
+    "expected": "0"
+  },
+  {
+    "dataset": "trainingBoolean.dat",
+    "tree": "or(and(or($2)) and())",
+    "row": [
+      1,
+      0,
+      1
+    ],
+    "expected": "0"
+  },
+  {
+    "dataset": "trainingBoolean.dat",
+    "tree": "or(and(or($2)) and())",
+    "row": [
+      1,
+      1,
+      0
+    ],
+    "expected": "1"
+  },
+  {
+    "dataset": "trainingBoolean.dat",
+    "tree": "or(and(or($2)) and())",
+    "row": [
+      1,
+      1,
+      1
+    ],
+    "expected": "1"
+  },
+  {
+    "dataset": "trainingBoolean.dat",
+    "tree": "or(and(and($1 !$3) or()) and())",
+    "row": [
+      0,
+      0,
+      0
+    ],
+    "expected": "0"
+  },
+  {
+    "dataset": "trainingBoolean.dat",
+    "tree": "or(and(and($1 !$3) or()) and())",
+    "row": [
+      0,
+      0,
+      1
+    ],
+    "expected": "0"
+  },
+  {
+    "dataset": "trainingBoolean.dat",
+    "tree": "or(and(and($1 !$3) or()) and())",
+    "row": [
+      0,
+      1,
+      0
+    ],
+    "expected": "0"
+  },
+  {
+    "dataset": "trainingBoolean.dat",
+    "tree": "or(and(and($1 !$3) or()) and())",
+    "row": [
+      0,
+      1,
+      1
+    ],
+    "expected": "0"
+  },
+  {
+    "dataset": "trainingBoolean.dat",
+    "tree": "or(and(and($1 !$3) or()) and())",
+    "row": [
+      1,
+      0,
+      0
+    ],
+    "expected": "1"
+  },
+  {
+    "dataset": "trainingBoolean.dat",
+    "tree": "or(and(and($1 !$3) or()) and())",
+    "row": [
+      1,
+      0,
+      1
+    ],
+    "expected": "0"
+  },
+  {
+    "dataset": "trainingBoolean.dat",
+    "tree": "or(and(and($1 !$3) or()) and())",
+    "row": [
+      1,
+      1,
+      0
+    ],
+    "expected": "1"
+  },
+  {
+    "dataset": "trainingBoolean.dat",
+    "tree": "or(and(and($1 !$3) or()) and())",
+    "row": [
+      1,
+      1,
+      1
+    ],
+    "expected": "0"
+  },
+  {
+    "dataset": "trainingBoolean.dat",
+    "tree": "or(and(or(!$1 $3) or()) and())",
+    "row": [
+      0,
+      0,
+      0
+    ],
+    "expected": "1"
+  },
+  {
+    "dataset": "trainingBoolean.dat",
+    "tree": "or(and(or(!$1 $3) or()) and())",
+    "row": [
+      0,
+      0,
+      1
+    ],
+    "expected": "1"
+  },
+  {
+    "dataset": "trainingBoolean.dat",
+    "tree": "or(and(or(!$1 $3) or()) and())",
+    "row": [
+      0,
+      1,
+      0
+    ],
+    "expected": "1"
+  },
+  {
+    "dataset": "trainingBoolean.dat",
+    "tree": "or(and(or(!$1 $3) or()) and())",
+    "row": [
+      0,
+      1,
+      1
+    ],
+    "expected": "1"
+  },
+  {
+    "dataset": "trainingBoolean.dat",
+    "tree": "or(and(or(!$1 $3) or()) and())",
+    "row": [
+      1,
+      0,
+      0
+    ],
+    "expected": "0"
+  },
+  {
+    "dataset": "trainingBoolean.dat",
+    "tree": "or(and(or(!$1 $3) or()) and())",
+    "row": [
+      1,
+      0,
+      1
+    ],
+    "expected": "1"
+  },
+  {
+    "dataset": "trainingBoolean.dat",
+    "tree": "or(and(or(!$1 $3) or()) and())",
+    "row": [
+      1,
+      1,
+      0
+    ],
+    "expected": "0"
+  },
+  {
+    "dataset": "trainingBoolean.dat",
+    "tree": "or(and(or(!$1 $3) or()) and())",
+    "row": [
+      1,
+      1,
+      1
+    ],
+    "expected": "1"
+  },
+  {
+    "dataset": "trainingBoolean.dat",
+    "tree": "or(and(and(!$2 !$3) or()) and())",
+    "row": [
+      0,
+      0,
+      0
+    ],
+    "expected": "1"
+  },
+  {
+    "dataset": "trainingBoolean.dat",
+    "tree": "or(and(and(!$2 !$3) or()) and())",
+    "row": [
+      0,
+      0,
+      1
+    ],
+    "expected": "0"
+  },
+  {
+    "dataset": "trainingBoolean.dat",
+    "tree": "or(and(and(!$2 !$3) or()) and())",
+    "row": [
+      0,
+      1,
+      0
+    ],
+    "expected": "0"
+  },
+  {
+    "dataset": "trainingBoolean.dat",
+    "tree": "or(and(and(!$2 !$3) or()) and())",
+    "row": [
+      0,
+      1,
+      1
+    ],
+    "expected": "0"
+  },
+  {
+    "dataset": "trainingBoolean.dat",
+    "tree": "or(and(and(!$2 !$3) or()) and())",
+    "row": [
+      1,
+      0,
+      0
+    ],
+    "expected": "1"
+  },
+  {
+    "dataset": "trainingBoolean.dat",
+    "tree": "or(and(and(!$2 !$3) or()) and())",
+    "row": [
+      1,
+      0,
+      1
+    ],
+    "expected": "0"
+  },
+  {
+    "dataset": "trainingBoolean.dat",
+    "tree": "or(and(and(!$2 !$3) or()) and())",
+    "row": [
+      1,
+      1,
+      0
+    ],
+    "expected": "0"
+  },
+  {
+    "dataset": "trainingBoolean.dat",
+    "tree": "or(and(and(!$2 !$3) or()) and())",
+    "row": [
+      1,
+      1,
+      1
+    ],
+    "expected": "0"
+  },
+  {
+    "dataset": "trainingBoolean.dat",
+    "tree": "or(and(or($2 $3) or()) and())",
+    "row": [
+      0,
+      0,
+      0
+    ],
+    "expected": "0"
+  },
+  {
+    "dataset": "trainingBoolean.dat",
+    "tree": "or(and(or($2 $3) or()) and())",
+    "row": [
+      0,
+      0,
+      1
+    ],
+    "expected": "1"
+  },
+  {
+    "dataset": "trainingBoolean.dat",
+    "tree": "or(and(or($2 $3) or()) and())",
+    "row": [
+      0,
+      1,
+      0
+    ],
+    "expected": "1"
+  },
+  {
+    "dataset": "trainingBoolean.dat",
+    "tree": "or(and(or($2 $3) or()) and())",
+    "row": [
+      0,
+      1,
+      1
+    ],
+    "expected": "1"
+  },
+  {
+    "dataset": "trainingBoolean.dat",
+    "tree": "or(and(or($2 $3) or()) and())",
+    "row": [
+      1,
+      0,
+      0
+    ],
+    "expected": "0"
+  },
+  {
+    "dataset": "trainingBoolean.dat",
+    "tree": "or(and(or($2 $3) or()) and())",
+    "row": [
+      1,
+      0,
+      1
+    ],
+    "expected": "1"
+  },
+  {
+    "dataset": "trainingBoolean.dat",
+    "tree": "or(and(or($2 $3) or()) and())",
+    "row": [
+      1,
+      1,
+      0
+    ],
+    "expected": "1"
+  },
+  {
+    "dataset": "trainingBoolean.dat",
+    "tree": "or(and(or($2 $3) or()) and())",
+    "row": [
+      1,
+      1,
+      1
+    ],
+    "expected": "1"
+  },
+  {
+    "dataset": "trainingBoolean.dat",
+    "tree": "or(and(and(!$2 !$1) or()) and())",
+    "row": [
+      0,
+      0,
+      0
+    ],
+    "expected": "1"
+  },
+  {
+    "dataset": "trainingBoolean.dat",
+    "tree": "or(and(and(!$2 !$1) or()) and())",
+    "row": [
+      0,
+      0,
+      1
+    ],
+    "expected": "1"
+  },
+  {
+    "dataset": "trainingBoolean.dat",
+    "tree": "or(and(and(!$2 !$1) or()) and())",
+    "row": [
+      0,
+      1,
+      0
+    ],
+    "expected": "0"
+  },
+  {
+    "dataset": "trainingBoolean.dat",
+    "tree": "or(and(and(!$2 !$1) or()) and())",
+    "row": [
+      0,
+      1,
+      1
+    ],
+    "expected": "0"
+  },
+  {
+    "dataset": "trainingBoolean.dat",
+    "tree": "or(and(and(!$2 !$1) or()) and())",
+    "row": [
+      1,
+      0,
+      0
+    ],
+    "expected": "0"
+  },
+  {
+    "dataset": "trainingBoolean.dat",
+    "tree": "or(and(and(!$2 !$1) or()) and())",
+    "row": [
+      1,
+      0,
+      1
+    ],
+    "expected": "0"
+  },
+  {
+    "dataset": "trainingBoolean.dat",
+    "tree": "or(and(and(!$2 !$1) or()) and())",
+    "row": [
+      1,
+      1,
+      0
+    ],
+    "expected": "0"
+  },
+  {
+    "dataset": "trainingBoolean.dat",
+    "tree": "or(and(and(!$2 !$1) or()) and())",
+    "row": [
+      1,
+      1,
+      1
+    ],
+    "expected": "0"
+  },
+  {
+    "dataset": "trainingBoolean.dat",
+    "tree": "or(and(or($2 $1) or()) and())",
+    "row": [
+      0,
+      0,
+      0
+    ],
+    "expected": "0"
+  },
+  {
+    "dataset": "trainingBoolean.dat",
+    "tree": "or(and(or($2 $1) or()) and())",
+    "row": [
+      0,
+      0,
+      1
+    ],
+    "expected": "0"
+  },
+  {
+    "dataset": "trainingBoolean.dat",
+    "tree": "or(and(or($2 $1) or()) and())",
+    "row": [
+      0,
+      1,
+      0
+    ],
+    "expected": "1"
+  },
+  {
+    "dataset": "trainingBoolean.dat",
+    "tree": "or(and(or($2 $1) or()) and())",
+    "row": [
+      0,
+      1,
+      1
+    ],
+    "expected": "1"
+  },
+  {
+    "dataset": "trainingBoolean.dat",
+    "tree": "or(and(or($2 $1) or()) and())",
+    "row": [
+      1,
+      0,
+      0
+    ],
+    "expected": "1"
+  },
+  {
+    "dataset": "trainingBoolean.dat",
+    "tree": "or(and(or($2 $1) or()) and())",
+    "row": [
+      1,
+      0,
+      1
+    ],
+    "expected": "1"
+  },
+  {
+    "dataset": "trainingBoolean.dat",
+    "tree": "or(and(or($2 $1) or()) and())",
+    "row": [
+      1,
+      1,
+      0
+    ],
+    "expected": "1"
+  },
+  {
+    "dataset": "trainingBoolean.dat",
+    "tree": "or(and(or($2 $1) or()) and())",
+    "row": [
+      1,
+      1,
+      1
+    ],
+    "expected": "1"
+  },
+  {
+    "dataset": "trainingBoolean.dat",
+    "tree": "or(and(!$3 or()) and())",
+    "row": [
+      0,
+      0,
+      0
+    ],
+    "expected": "1"
+  },
+  {
+    "dataset": "trainingBoolean.dat",
+    "tree": "or(and(!$3 or()) and())",
+    "row": [
+      0,
+      0,
+      1
+    ],
+    "expected": "0"
+  },
+  {
+    "dataset": "trainingBoolean.dat",
+    "tree": "or(and(!$3 or()) and())",
+    "row": [
+      0,
+      1,
+      0
+    ],
+    "expected": "1"
+  },
+  {
+    "dataset": "trainingBoolean.dat",
+    "tree": "or(and(!$3 or()) and())",
+    "row": [
+      0,
+      1,
+      1
+    ],
+    "expected": "0"
+  },
+  {
+    "dataset": "trainingBoolean.dat",
+    "tree": "or(and(!$3 or()) and())",
+    "row": [
+      1,
+      0,
+      0
+    ],
+    "expected": "1"
+  },
+  {
+    "dataset": "trainingBoolean.dat",
+    "tree": "or(and(!$3 or()) and())",
+    "row": [
+      1,
+      0,
+      1
+    ],
+    "expected": "0"
+  },
+  {
+    "dataset": "trainingBoolean.dat",
+    "tree": "or(and(!$3 or()) and())",
+    "row": [
+      1,
+      1,
+      0
+    ],
+    "expected": "1"
+  },
+  {
+    "dataset": "trainingBoolean.dat",
+    "tree": "or(and(!$3 or()) and())",
+    "row": [
+      1,
+      1,
+      1
+    ],
+    "expected": "0"
+  },
+  {
+    "dataset": "trainingBoolean.dat",
+    "tree": "or(and($3 or()) and())",
+    "row": [
+      0,
+      0,
+      0
+    ],
+    "expected": "0"
+  },
+  {
+    "dataset": "trainingBoolean.dat",
+    "tree": "or(and($3 or()) and())",
+    "row": [
+      0,
+      0,
+      1
+    ],
+    "expected": "1"
+  },
+  {
+    "dataset": "trainingBoolean.dat",
+    "tree": "or(and($3 or()) and())",
+    "row": [
+      0,
+      1,
+      0
+    ],
+    "expected": "0"
+  },
+  {
+    "dataset": "trainingBoolean.dat",
+    "tree": "or(and($3 or()) and())",
+    "row": [
+      0,
+      1,
+      1
+    ],
+    "expected": "1"
+  },
+  {
+    "dataset": "trainingBoolean.dat",
+    "tree": "or(and($3 or()) and())",
+    "row": [
+      1,
+      0,
+      0
+    ],
+    "expected": "0"
+  },
+  {
+    "dataset": "trainingBoolean.dat",
+    "tree": "or(and($3 or()) and())",
+    "row": [
+      1,
+      0,
+      1
+    ],
+    "expected": "1"
+  },
+  {
+    "dataset": "trainingBoolean.dat",
+    "tree": "or(and($3 or()) and())",
+    "row": [
+      1,
+      1,
+      0
+    ],
+    "expected": "0"
+  },
+  {
+    "dataset": "trainingBoolean.dat",
+    "tree": "or(and($3 or()) and())",
+    "row": [
+      1,
+      1,
+      1
+    ],
+    "expected": "1"
+  },
+  {
+    "dataset": "trainingBoolean.dat",
+    "tree": "or(and(!$1 or()) and())",
+    "row": [
+      0,
+      0,
+      0
+    ],
+    "expected": "1"
+  },
+  {
+    "dataset": "trainingBoolean.dat",
+    "tree": "or(and(!$1 or()) and())",
+    "row": [
+      0,
+      0,
+      1
+    ],
+    "expected": "1"
+  },
+  {
+    "dataset": "trainingBoolean.dat",
+    "tree": "or(and(!$1 or()) and())",
+    "row": [
+      0,
+      1,
+      0
+    ],
+    "expected": "1"
+  },
+  {
+    "dataset": "trainingBoolean.dat",
+    "tree": "or(and(!$1 or()) and())",
+    "row": [
+      0,
+      1,
+      1
+    ],
+    "expected": "1"
+  },
+  {
+    "dataset": "trainingBoolean.dat",
+    "tree": "or(and(!$1 or()) and())",
+    "row": [
+      1,
+      0,
+      0
+    ],
+    "expected": "0"
+  },
+  {
+    "dataset": "trainingBoolean.dat",
+    "tree": "or(and(!$1 or()) and())",
+    "row": [
+      1,
+      0,
+      1
+    ],
+    "expected": "0"
+  },
+  {
+    "dataset": "trainingBoolean.dat",
+    "tree": "or(and(!$1 or()) and())",
+    "row": [
+      1,
+      1,
+      0
+    ],
+    "expected": "0"
+  },
+  {
+    "dataset": "trainingBoolean.dat",
+    "tree": "or(and(!$1 or()) and())",
+    "row": [
+      1,
+      1,
+      1
+    ],
+    "expected": "0"
+  },
+  {
+    "dataset": "trainingBoolean.dat",
+    "tree": "or(and($1 or()) and())",
+    "row": [
+      0,
+      0,
+      0
+    ],
+    "expected": "0"
+  },
+  {
+    "dataset": "trainingBoolean.dat",
+    "tree": "or(and($1 or()) and())",
+    "row": [
+      0,
+      0,
+      1
+    ],
+    "expected": "0"
+  },
+  {
+    "dataset": "trainingBoolean.dat",
+    "tree": "or(and($1 or()) and())",
+    "row": [
+      0,
+      1,
+      0
+    ],
+    "expected": "0"
+  },
+  {
+    "dataset": "trainingBoolean.dat",
+    "tree": "or(and($1 or()) and())",
+    "row": [
+      0,
+      1,
+      1
+    ],
+    "expected": "0"
+  },
+  {
+    "dataset": "trainingBoolean.dat",
+    "tree": "or(and($1 or()) and())",
+    "row": [
+      1,
+      0,
+      0
+    ],
+    "expected": "1"
+  },
+  {
+    "dataset": "trainingBoolean.dat",
+    "tree": "or(and($1 or()) and())",
+    "row": [
+      1,
+      0,
+      1
+    ],
+    "expected": "1"
+  },
+  {
+    "dataset": "trainingBoolean.dat",
+    "tree": "or(and($1 or()) and())",
+    "row": [
+      1,
+      1,
+      0
+    ],
+    "expected": "1"
+  },
+  {
+    "dataset": "trainingBoolean.dat",
+    "tree": "or(and($1 or()) and())",
+    "row": [
+      1,
+      1,
+      1
+    ],
+    "expected": "1"
+  },
+  {
+    "dataset": "trainingBoolean.dat",
+    "tree": "or(and(!$2 or()) and())",
+    "row": [
+      0,
+      0,
+      0
+    ],
+    "expected": "1"
+  },
+  {
+    "dataset": "trainingBoolean.dat",
+    "tree": "or(and(!$2 or()) and())",
+    "row": [
+      0,
+      0,
+      1
+    ],
+    "expected": "1"
+  },
+  {
+    "dataset": "trainingBoolean.dat",
+    "tree": "or(and(!$2 or()) and())",
+    "row": [
+      0,
+      1,
+      0
+    ],
+    "expected": "0"
+  },
+  {
+    "dataset": "trainingBoolean.dat",
+    "tree": "or(and(!$2 or()) and())",
+    "row": [
+      0,
+      1,
+      1
+    ],
+    "expected": "0"
+  },
+  {
+    "dataset": "trainingBoolean.dat",
+    "tree": "or(and(!$2 or()) and())",
+    "row": [
+      1,
+      0,
+      0
+    ],
+    "expected": "1"
+  },
+  {
+    "dataset": "trainingBoolean.dat",
+    "tree": "or(and(!$2 or()) and())",
+    "row": [
+      1,
+      0,
+      1
+    ],
+    "expected": "1"
+  },
+  {
+    "dataset": "trainingBoolean.dat",
+    "tree": "or(and(!$2 or()) and())",
+    "row": [
+      1,
+      1,
+      0
+    ],
+    "expected": "0"
+  },
+  {
+    "dataset": "trainingBoolean.dat",
+    "tree": "or(and(!$2 or()) and())",
+    "row": [
+      1,
+      1,
+      1
+    ],
+    "expected": "0"
+  },
+  {
+    "dataset": "trainingBoolean.dat",
+    "tree": "or(and($2 or()) and())",
+    "row": [
+      0,
+      0,
+      0
+    ],
+    "expected": "0"
+  },
+  {
+    "dataset": "trainingBoolean.dat",
+    "tree": "or(and($2 or()) and())",
+    "row": [
+      0,
+      0,
+      1
+    ],
+    "expected": "0"
+  },
+  {
+    "dataset": "trainingBoolean.dat",
+    "tree": "or(and($2 or()) and())",
+    "row": [
+      0,
+      1,
+      0
+    ],
+    "expected": "1"
+  },
+  {
+    "dataset": "trainingBoolean.dat",
+    "tree": "or(and($2 or()) and())",
+    "row": [
+      0,
+      1,
+      1
+    ],
+    "expected": "1"
+  },
+  {
+    "dataset": "trainingBoolean.dat",
+    "tree": "or(and($2 or()) and())",
+    "row": [
+      1,
+      0,
+      0
+    ],
+    "expected": "0"
+  },
+  {
+    "dataset": "trainingBoolean.dat",
+    "tree": "or(and($2 or()) and())",
+    "row": [
+      1,
+      0,
+      1
+    ],
+    "expected": "0"
+  },
+  {
+    "dataset": "trainingBoolean.dat",
+    "tree": "or(and($2 or()) and())",
+    "row": [
+      1,
+      1,
+      0
+    ],
+    "expected": "1"
+  },
+  {
+    "dataset": "trainingBoolean.dat",
+    "tree": "or(and($2 or()) and())",
+    "row": [
+      1,
+      1,
+      1
+    ],
+    "expected": "1"
+  },
+  {
+    "dataset": "trainingBoolean.dat",
+    "tree": "or(and(or()) or(!$1 !$3) and())",
+    "row": [
+      0,
+      0,
+      0
+    ],
+    "expected": "1"
+  },
+  {
+    "dataset": "trainingBoolean.dat",
+    "tree": "or(and(or()) or(!$1 !$3) and())",
+    "row": [
+      0,
+      0,
+      1
+    ],
+    "expected": "1"
+  },
+  {
+    "dataset": "trainingBoolean.dat",
+    "tree": "or(and(or()) or(!$1 !$3) and())",
+    "row": [
+      0,
+      1,
+      0
+    ],
+    "expected": "1"
+  },
+  {
+    "dataset": "trainingBoolean.dat",
+    "tree": "or(and(or()) or(!$1 !$3) and())",
+    "row": [
+      0,
+      1,
+      1
+    ],
+    "expected": "1"
+  },
+  {
+    "dataset": "trainingBoolean.dat",
+    "tree": "or(and(or()) or(!$1 !$3) and())",
+    "row": [
+      1,
+      0,
+      0
+    ],
+    "expected": "1"
+  },
+  {
+    "dataset": "trainingBoolean.dat",
+    "tree": "or(and(or()) or(!$1 !$3) and())",
+    "row": [
+      1,
+      0,
+      1
+    ],
+    "expected": "1"
+  },
+  {
+    "dataset": "trainingBoolean.dat",
+    "tree": "or(and(or()) or(!$1 !$3) and())",
+    "row": [
+      1,
+      1,
+      0
+    ],
+    "expected": "1"
+  },
+  {
+    "dataset": "trainingBoolean.dat",
+    "tree": "or(and(or()) or(!$1 !$3) and())",
+    "row": [
+      1,
+      1,
+      1
+    ],
+    "expected": "1"
+  },
+  {
+    "dataset": "trainingBoolean.dat",
+    "tree": "or(and(or()) and($1 $3) and())",
+    "row": [
+      0,
+      0,
+      0
+    ],
+    "expected": "1"
+  },
+  {
+    "dataset": "trainingBoolean.dat",
+    "tree": "or(and(or()) and($1 $3) and())",
+    "row": [
+      0,
+      0,
+      1
+    ],
+    "expected": "1"
+  },
+  {
+    "dataset": "trainingBoolean.dat",
+    "tree": "or(and(or()) and($1 $3) and())",
+    "row": [
+      0,
+      1,
+      0
+    ],
+    "expected": "1"
+  },
+  {
+    "dataset": "trainingBoolean.dat",
+    "tree": "or(and(or()) and($1 $3) and())",
+    "row": [
+      0,
+      1,
+      1
+    ],
+    "expected": "1"
+  },
+  {
+    "dataset": "trainingBoolean.dat",
+    "tree": "or(and(or()) and($1 $3) and())",
+    "row": [
+      1,
+      0,
+      0
+    ],
+    "expected": "1"
+  },
+  {
+    "dataset": "trainingBoolean.dat",
+    "tree": "or(and(or()) and($1 $3) and())",
+    "row": [
+      1,
+      0,
+      1
+    ],
+    "expected": "1"
+  },
+  {
+    "dataset": "trainingBoolean.dat",
+    "tree": "or(and(or()) and($1 $3) and())",
+    "row": [
+      1,
+      1,
+      0
+    ],
+    "expected": "1"
+  },
+  {
+    "dataset": "trainingBoolean.dat",
+    "tree": "or(and(or()) and($1 $3) and())",
+    "row": [
+      1,
+      1,
+      1
+    ],
+    "expected": "1"
+  },
+  {
+    "dataset": "trainingBoolean.dat",
+    "tree": "or(and(or()) or($2 !$1) and())",
+    "row": [
+      0,
+      0,
+      0
+    ],
+    "expected": "1"
+  },
+  {
+    "dataset": "trainingBoolean.dat",
+    "tree": "or(and(or()) or($2 !$1) and())",
+    "row": [
+      0,
+      0,
+      1
+    ],
+    "expected": "1"
+  },
+  {
+    "dataset": "trainingBoolean.dat",
+    "tree": "or(and(or()) or($2 !$1) and())",
+    "row": [
+      0,
+      1,
+      0
+    ],
+    "expected": "1"
+  },
+  {
+    "dataset": "trainingBoolean.dat",
+    "tree": "or(and(or()) or($2 !$1) and())",
+    "row": [
+      0,
+      1,
+      1
+    ],
+    "expected": "1"
+  },
+  {
+    "dataset": "trainingBoolean.dat",
+    "tree": "or(and(or()) or($2 !$1) and())",
+    "row": [
+      1,
+      0,
+      0
+    ],
+    "expected": "1"
+  },
+  {
+    "dataset": "trainingBoolean.dat",
+    "tree": "or(and(or()) or($2 !$1) and())",
+    "row": [
+      1,
+      0,
+      1
+    ],
+    "expected": "1"
+  },
+  {
+    "dataset": "trainingBoolean.dat",
+    "tree": "or(and(or()) or($2 !$1) and())",
+    "row": [
+      1,
+      1,
+      0
+    ],
+    "expected": "1"
+  },
+  {
+    "dataset": "trainingBoolean.dat",
+    "tree": "or(and(or()) or($2 !$1) and())",
+    "row": [
+      1,
+      1,
+      1
+    ],
+    "expected": "1"
+  },
+  {
+    "dataset": "trainingBoolean.dat",
+    "tree": "or(and(or()) and(!$2 $1) and())",
+    "row": [
+      0,
+      0,
+      0
+    ],
+    "expected": "1"
+  },
+  {
+    "dataset": "trainingBoolean.dat",
+    "tree": "or(and(or()) and(!$2 $1) and())",
+    "row": [
+      0,
+      0,
+      1
+    ],
+    "expected": "1"
+  },
+  {
+    "dataset": "trainingBoolean.dat",
+    "tree": "or(and(or()) and(!$2 $1) and())",
+    "row": [
+      0,
+      1,
+      0
+    ],
+    "expected": "1"
+  },
+  {
+    "dataset": "trainingBoolean.dat",
+    "tree": "or(and(or()) and(!$2 $1) and())",
+    "row": [
+      0,
+      1,
+      1
+    ],
+    "expected": "1"
+  },
+  {
+    "dataset": "trainingBoolean.dat",
+    "tree": "or(and(or()) and(!$2 $1) and())",
+    "row": [
+      1,
+      0,
+      0
+    ],
+    "expected": "1"
+  },
+  {
+    "dataset": "trainingBoolean.dat",
+    "tree": "or(and(or()) and(!$2 $1) and())",
+    "row": [
+      1,
+      0,
+      1
+    ],
+    "expected": "1"
+  },
+  {
+    "dataset": "trainingBoolean.dat",
+    "tree": "or(and(or()) and(!$2 $1) and())",
+    "row": [
+      1,
+      1,
+      0
+    ],
+    "expected": "1"
+  },
+  {
+    "dataset": "trainingBoolean.dat",
+    "tree": "or(and(or()) and(!$2 $1) and())",
+    "row": [
+      1,
+      1,
+      1
+    ],
+    "expected": "1"
+  },
+  {
+    "dataset": "trainingBoolean.dat",
+    "tree": "or(and(or()) or(!$2 !$3) and())",
+    "row": [
+      0,
+      0,
+      0
+    ],
+    "expected": "1"
+  },
+  {
+    "dataset": "trainingBoolean.dat",
+    "tree": "or(and(or()) or(!$2 !$3) and())",
+    "row": [
+      0,
+      0,
+      1
+    ],
+    "expected": "1"
+  },
+  {
+    "dataset": "trainingBoolean.dat",
+    "tree": "or(and(or()) or(!$2 !$3) and())",
+    "row": [
+      0,
+      1,
+      0
+    ],
+    "expected": "1"
+  },
+  {
+    "dataset": "trainingBoolean.dat",
+    "tree": "or(and(or()) or(!$2 !$3) and())",
+    "row": [
+      0,
+      1,
+      1
+    ],
+    "expected": "1"
+  },
+  {
+    "dataset": "trainingBoolean.dat",
+    "tree": "or(and(or()) or(!$2 !$3) and())",
+    "row": [
+      1,
+      0,
+      0
+    ],
+    "expected": "1"
+  },
+  {
+    "dataset": "trainingBoolean.dat",
+    "tree": "or(and(or()) or(!$2 !$3) and())",
+    "row": [
+      1,
+      0,
+      1
+    ],
+    "expected": "1"
+  },
+  {
+    "dataset": "trainingBoolean.dat",
+    "tree": "or(and(or()) or(!$2 !$3) and())",
+    "row": [
+      1,
+      1,
+      0
+    ],
+    "expected": "1"
+  },
+  {
+    "dataset": "trainingBoolean.dat",
+    "tree": "or(and(or()) or(!$2 !$3) and())",
+    "row": [
+      1,
+      1,
+      1
+    ],
+    "expected": "1"
+  },
+  {
+    "dataset": "trainingBoolean.dat",
+    "tree": "or(and(or()) and($2 $3) and())",
+    "row": [
+      0,
+      0,
+      0
+    ],
+    "expected": "1"
+  },
+  {
+    "dataset": "trainingBoolean.dat",
+    "tree": "or(and(or()) and($2 $3) and())",
+    "row": [
+      0,
+      0,
+      1
+    ],
+    "expected": "1"
+  },
+  {
+    "dataset": "trainingBoolean.dat",
+    "tree": "or(and(or()) and($2 $3) and())",
+    "row": [
+      0,
+      1,
+      0
+    ],
+    "expected": "1"
+  },
+  {
+    "dataset": "trainingBoolean.dat",
+    "tree": "or(and(or()) and($2 $3) and())",
+    "row": [
+      0,
+      1,
+      1
+    ],
+    "expected": "1"
+  },
+  {
+    "dataset": "trainingBoolean.dat",
+    "tree": "or(and(or()) and($2 $3) and())",
+    "row": [
+      1,
+      0,
+      0
+    ],
+    "expected": "1"
+  },
+  {
+    "dataset": "trainingBoolean.dat",
+    "tree": "or(and(or()) and($2 $3) and())",
+    "row": [
+      1,
+      0,
+      1
+    ],
+    "expected": "1"
+  },
+  {
+    "dataset": "trainingBoolean.dat",
+    "tree": "or(and(or()) and($2 $3) and())",
+    "row": [
+      1,
+      1,
+      0
+    ],
+    "expected": "1"
+  },
+  {
+    "dataset": "trainingBoolean.dat",
+    "tree": "or(and(or()) and($2 $3) and())",
+    "row": [
+      1,
+      1,
+      1
+    ],
+    "expected": "1"
+  },
+  {
+    "dataset": "trainingBoolean.dat",
+    "tree": "or(and(or()) !$3 and())",
+    "row": [
+      0,
+      0,
+      0
+    ],
+    "expected": "1"
+  },
+  {
+    "dataset": "trainingBoolean.dat",
+    "tree": "or(and(or()) !$3 and())",
+    "row": [
+      0,
+      0,
+      1
+    ],
+    "expected": "1"
+  },
+  {
+    "dataset": "trainingBoolean.dat",
+    "tree": "or(and(or()) !$3 and())",
+    "row": [
+      0,
+      1,
+      0
+    ],
+    "expected": "1"
+  },
+  {
+    "dataset": "trainingBoolean.dat",
+    "tree": "or(and(or()) !$3 and())",
+    "row": [
+      0,
+      1,
+      1
+    ],
+    "expected": "1"
+  },
+  {
+    "dataset": "trainingBoolean.dat",
+    "tree": "or(and(or()) !$3 and())",
+    "row": [
+      1,
+      0,
+      0
+    ],
+    "expected": "1"
+  },
+  {
+    "dataset": "trainingBoolean.dat",
+    "tree": "or(and(or()) !$3 and())",
+    "row": [
+      1,
+      0,
+      1
+    ],
+    "expected": "1"
+  },
+  {
+    "dataset": "trainingBoolean.dat",
+    "tree": "or(and(or()) !$3 and())",
+    "row": [
+      1,
+      1,
+      0
+    ],
+    "expected": "1"
+  },
+  {
+    "dataset": "trainingBoolean.dat",
+    "tree": "or(and(or()) !$3 and())",
+    "row": [
+      1,
+      1,
+      1
+    ],
+    "expected": "1"
+  },
+  {
+    "dataset": "trainingBoolean.dat",
+    "tree": "or(and(or()) $3 and())",
+    "row": [
+      0,
+      0,
+      0
+    ],
+    "expected": "1"
+  },
+  {
+    "dataset": "trainingBoolean.dat",
+    "tree": "or(and(or()) $3 and())",
+    "row": [
+      0,
+      0,
+      1
+    ],
+    "expected": "1"
+  },
+  {
+    "dataset": "trainingBoolean.dat",
+    "tree": "or(and(or()) $3 and())",
+    "row": [
+      0,
+      1,
+      0
+    ],
+    "expected": "1"
+  },
+  {
+    "dataset": "trainingBoolean.dat",
+    "tree": "or(and(or()) $3 and())",
+    "row": [
+      0,
+      1,
+      1
+    ],
+    "expected": "1"
+  },
+  {
+    "dataset": "trainingBoolean.dat",
+    "tree": "or(and(or()) $3 and())",
+    "row": [
+      1,
+      0,
+      0
+    ],
+    "expected": "1"
+  },
+  {
+    "dataset": "trainingBoolean.dat",
+    "tree": "or(and(or()) $3 and())",
+    "row": [
+      1,
+      0,
+      1
+    ],
+    "expected": "1"
+  },
+  {
+    "dataset": "trainingBoolean.dat",
+    "tree": "or(and(or()) $3 and())",
+    "row": [
+      1,
+      1,
+      0
+    ],
+    "expected": "1"
+  },
+  {
+    "dataset": "trainingBoolean.dat",
+    "tree": "or(and(or()) $3 and())",
+    "row": [
+      1,
+      1,
+      1
+    ],
+    "expected": "1"
+  },
+  {
+    "dataset": "trainingBoolean.dat",
+    "tree": "or(and(or()) !$1 and())",
+    "row": [
+      0,
+      0,
+      0
+    ],
+    "expected": "1"
+  },
+  {
+    "dataset": "trainingBoolean.dat",
+    "tree": "or(and(or()) !$1 and())",
+    "row": [
+      0,
+      0,
+      1
+    ],
+    "expected": "1"
+  },
+  {
+    "dataset": "trainingBoolean.dat",
+    "tree": "or(and(or()) !$1 and())",
+    "row": [
+      0,
+      1,
+      0
+    ],
+    "expected": "1"
+  },
+  {
+    "dataset": "trainingBoolean.dat",
+    "tree": "or(and(or()) !$1 and())",
+    "row": [
+      0,
+      1,
+      1
+    ],
+    "expected": "1"
+  },
+  {
+    "dataset": "trainingBoolean.dat",
+    "tree": "or(and(or()) !$1 and())",
+    "row": [
+      1,
+      0,
+      0
+    ],
+    "expected": "1"
+  },
+  {
+    "dataset": "trainingBoolean.dat",
+    "tree": "or(and(or()) !$1 and())",
+    "row": [
+      1,
+      0,
+      1
+    ],
+    "expected": "1"
+  },
+  {
+    "dataset": "trainingBoolean.dat",
+    "tree": "or(and(or()) !$1 and())",
+    "row": [
+      1,
+      1,
+      0
+    ],
+    "expected": "1"
+  },
+  {
+    "dataset": "trainingBoolean.dat",
+    "tree": "or(and(or()) !$1 and())",
+    "row": [
+      1,
+      1,
+      1
+    ],
+    "expected": "1"
+  },
+  {
+    "dataset": "trainingBoolean.dat",
+    "tree": "or(and(or()) $1 and())",
+    "row": [
+      0,
+      0,
+      0
+    ],
+    "expected": "1"
+  },
+  {
+    "dataset": "trainingBoolean.dat",
+    "tree": "or(and(or()) $1 and())",
+    "row": [
+      0,
+      0,
+      1
+    ],
+    "expected": "1"
+  },
+  {
+    "dataset": "trainingBoolean.dat",
+    "tree": "or(and(or()) $1 and())",
+    "row": [
+      0,
+      1,
+      0
+    ],
+    "expected": "1"
+  },
+  {
+    "dataset": "trainingBoolean.dat",
+    "tree": "or(and(or()) $1 and())",
+    "row": [
+      0,
+      1,
+      1
+    ],
+    "expected": "1"
+  },
+  {
+    "dataset": "trainingBoolean.dat",
+    "tree": "or(and(or()) $1 and())",
+    "row": [
+      1,
+      0,
+      0
+    ],
+    "expected": "1"
+  },
+  {
+    "dataset": "trainingBoolean.dat",
+    "tree": "or(and(or()) $1 and())",
+    "row": [
+      1,
+      0,
+      1
+    ],
+    "expected": "1"
+  },
+  {
+    "dataset": "trainingBoolean.dat",
+    "tree": "or(and(or()) $1 and())",
+    "row": [
+      1,
+      1,
+      0
+    ],
+    "expected": "1"
+  },
+  {
+    "dataset": "trainingBoolean.dat",
+    "tree": "or(and(or()) $1 and())",
+    "row": [
+      1,
+      1,
+      1
+    ],
+    "expected": "1"
+  },
+  {
+    "dataset": "trainingBoolean.dat",
+    "tree": "or(and(or()) !$2 and())",
+    "row": [
+      0,
+      0,
+      0
+    ],
+    "expected": "1"
+  },
+  {
+    "dataset": "trainingBoolean.dat",
+    "tree": "or(and(or()) !$2 and())",
+    "row": [
+      0,
+      0,
+      1
+    ],
+    "expected": "1"
+  },
+  {
+    "dataset": "trainingBoolean.dat",
+    "tree": "or(and(or()) !$2 and())",
+    "row": [
+      0,
+      1,
+      0
+    ],
+    "expected": "1"
+  },
+  {
+    "dataset": "trainingBoolean.dat",
+    "tree": "or(and(or()) !$2 and())",
+    "row": [
+      0,
+      1,
+      1
+    ],
+    "expected": "1"
+  },
+  {
+    "dataset": "trainingBoolean.dat",
+    "tree": "or(and(or()) !$2 and())",
+    "row": [
+      1,
+      0,
+      0
+    ],
+    "expected": "1"
+  },
+  {
+    "dataset": "trainingBoolean.dat",
+    "tree": "or(and(or()) !$2 and())",
+    "row": [
+      1,
+      0,
+      1
+    ],
+    "expected": "1"
+  },
+  {
+    "dataset": "trainingBoolean.dat",
+    "tree": "or(and(or()) !$2 and())",
+    "row": [
+      1,
+      1,
+      0
+    ],
+    "expected": "1"
+  },
+  {
+    "dataset": "trainingBoolean.dat",
+    "tree": "or(and(or()) !$2 and())",
+    "row": [
+      1,
+      1,
+      1
+    ],
+    "expected": "1"
+  },
+  {
+    "dataset": "trainingBoolean.dat",
+    "tree": "or(and(or()) $2 and())",
+    "row": [
+      0,
+      0,
+      0
+    ],
+    "expected": "1"
+  },
+  {
+    "dataset": "trainingBoolean.dat",
+    "tree": "or(and(or()) $2 and())",
+    "row": [
+      0,
+      0,
+      1
+    ],
+    "expected": "1"
+  },
+  {
+    "dataset": "trainingBoolean.dat",
+    "tree": "or(and(or()) $2 and())",
+    "row": [
+      0,
+      1,
+      0
+    ],
+    "expected": "1"
+  },
+  {
+    "dataset": "trainingBoolean.dat",
+    "tree": "or(and(or()) $2 and())",
+    "row": [
+      0,
+      1,
+      1
+    ],
+    "expected": "1"
+  },
+  {
+    "dataset": "trainingBoolean.dat",
+    "tree": "or(and(or()) $2 and())",
+    "row": [
+      1,
+      0,
+      0
+    ],
+    "expected": "1"
+  },
+  {
+    "dataset": "trainingBoolean.dat",
+    "tree": "or(and(or()) $2 and())",
+    "row": [
+      1,
+      0,
+      1
+    ],
+    "expected": "1"
+  },
+  {
+    "dataset": "trainingBoolean.dat",
+    "tree": "or(and(or()) $2 and())",
+    "row": [
+      1,
+      1,
+      0
+    ],
+    "expected": "1"
+  },
+  {
+    "dataset": "trainingBoolean.dat",
+    "tree": "or(and(or()) $2 and())",
+    "row": [
+      1,
+      1,
+      1
+    ],
+    "expected": "1"
+  },
+  {
+    "dataset": "trainingBoolean.dat",
+    "tree": "or(and(or()) and($2))",
+    "row": [
+      0,
+      0,
+      0
+    ],
+    "expected": "1"
+  },
+  {
+    "dataset": "trainingBoolean.dat",
+    "tree": "or(and(or()) and($2))",
+    "row": [
+      0,
+      0,
+      1
+    ],
+    "expected": "1"
+  },
+  {
+    "dataset": "trainingBoolean.dat",
+    "tree": "or(and(or()) and($2))",
+    "row": [
+      0,
+      1,
+      0
+    ],
+    "expected": "1"
+  },
+  {
+    "dataset": "trainingBoolean.dat",
+    "tree": "or(and(or()) and($2))",
+    "row": [
+      0,
+      1,
+      1
+    ],
+    "expected": "1"
+  },
+  {
+    "dataset": "trainingBoolean.dat",
+    "tree": "or(and(or()) and($2))",
+    "row": [
+      1,
+      0,
+      0
+    ],
+    "expected": "1"
+  },
+  {
+    "dataset": "trainingBoolean.dat",
+    "tree": "or(and(or()) and($2))",
+    "row": [
+      1,
+      0,
+      1
+    ],
+    "expected": "1"
+  },
+  {
+    "dataset": "trainingBoolean.dat",
+    "tree": "or(and(or()) and($2))",
+    "row": [
+      1,
+      1,
+      0
+    ],
+    "expected": "1"
+  },
+  {
+    "dataset": "trainingBoolean.dat",
+    "tree": "or(and(or()) and($2))",
+    "row": [
+      1,
+      1,
+      1
+    ],
+    "expected": "1"
+  },
+  {
+    "dataset": "trainingBoolean.dat",
+    "tree": "and(or($1 $2) not($3))",
+    "row": [
+      0,
+      0,
+      0
+    ],
+    "expected": "0"
+  },
+  {
+    "dataset": "trainingBoolean.dat",
+    "tree": "and(or($1 $2) not($3))",
+    "row": [
+      0,
+      0,
+      1
+    ],
+    "expected": "0"
+  },
+  {
+    "dataset": "trainingBoolean.dat",
+    "tree": "and(or($1 $2) not($3))",
+    "row": [
+      0,
+      1,
+      0
+    ],
+    "expected": "1"
+  },
+  {
+    "dataset": "trainingBoolean.dat",
+    "tree": "and(or($1 $2) not($3))",
+    "row": [
+      0,
+      1,
+      1
+    ],
+    "expected": "0"
+  },
+  {
+    "dataset": "trainingBoolean.dat",
+    "tree": "and(or($1 $2) not($3))",
+    "row": [
+      1,
+      0,
+      0
+    ],
+    "expected": "1"
+  },
+  {
+    "dataset": "trainingBoolean.dat",
+    "tree": "and(or($1 $2) not($3))",
+    "row": [
+      1,
+      0,
+      1
+    ],
+    "expected": "0"
+  },
+  {
+    "dataset": "trainingBoolean.dat",
+    "tree": "and(or($1 $2) not($3))",
+    "row": [
+      1,
+      1,
+      0
+    ],
+    "expected": "1"
+  },
+  {
+    "dataset": "trainingBoolean.dat",
+    "tree": "and(or($1 $2) not($3))",
+    "row": [
+      1,
+      1,
+      1
+    ],
+    "expected": "0"
+  },
+  {
+    "dataset": "trainingBooleanXor.dat",
+    "tree": "or(and(or(!$1)) and())",
+    "row": [
+      0,
+      0
+    ],
+    "expected": "1"
+  },
+  {
+    "dataset": "trainingBooleanXor.dat",
+    "tree": "or(and(or(!$1)) and())",
+    "row": [
+      0,
+      1
+    ],
+    "expected": "1"
+  },
+  {
+    "dataset": "trainingBooleanXor.dat",
+    "tree": "or(and(or(!$1)) and())",
+    "row": [
+      1,
+      0
+    ],
+    "expected": "0"
+  },
+  {
+    "dataset": "trainingBooleanXor.dat",
+    "tree": "or(and(or(!$1)) and())",
+    "row": [
+      1,
+      1
+    ],
+    "expected": "0"
+  },
+  {
+    "dataset": "trainingBooleanXor.dat",
+    "tree": "or(and(or($1)) and())",
+    "row": [
+      0,
+      0
+    ],
+    "expected": "0"
+  },
+  {
+    "dataset": "trainingBooleanXor.dat",
+    "tree": "or(and(or($1)) and())",
+    "row": [
+      0,
+      1
+    ],
+    "expected": "0"
+  },
+  {
+    "dataset": "trainingBooleanXor.dat",
+    "tree": "or(and(or($1)) and())",
+    "row": [
+      1,
+      0
+    ],
+    "expected": "1"
+  },
+  {
+    "dataset": "trainingBooleanXor.dat",
+    "tree": "or(and(or($1)) and())",
+    "row": [
+      1,
+      1
+    ],
+    "expected": "1"
+  },
+  {
+    "dataset": "trainingBooleanXor.dat",
+    "tree": "or(and(or(!$2)) and())",
+    "row": [
+      0,
+      0
+    ],
+    "expected": "1"
+  },
+  {
+    "dataset": "trainingBooleanXor.dat",
+    "tree": "or(and(or(!$2)) and())",
+    "row": [
+      0,
+      1
+    ],
+    "expected": "0"
+  },
+  {
+    "dataset": "trainingBooleanXor.dat",
+    "tree": "or(and(or(!$2)) and())",
+    "row": [
+      1,
+      0
+    ],
+    "expected": "1"
+  },
+  {
+    "dataset": "trainingBooleanXor.dat",
+    "tree": "or(and(or(!$2)) and())",
+    "row": [
+      1,
+      1
+    ],
+    "expected": "0"
+  },
+  {
+    "dataset": "trainingBooleanXor.dat",
+    "tree": "or(and(or($2)) and())",
+    "row": [
+      0,
+      0
+    ],
+    "expected": "0"
+  },
+  {
+    "dataset": "trainingBooleanXor.dat",
+    "tree": "or(and(or($2)) and())",
+    "row": [
+      0,
+      1
+    ],
+    "expected": "1"
+  },
+  {
+    "dataset": "trainingBooleanXor.dat",
+    "tree": "or(and(or($2)) and())",
+    "row": [
+      1,
+      0
+    ],
+    "expected": "0"
+  },
+  {
+    "dataset": "trainingBooleanXor.dat",
+    "tree": "or(and(or($2)) and())",
+    "row": [
+      1,
+      1
+    ],
+    "expected": "1"
+  },
+  {
+    "dataset": "trainingBooleanXor.dat",
+    "tree": "or(and(and(!$2 !$1) or()) and())",
+    "row": [
+      0,
+      0
+    ],
+    "expected": "1"
+  },
+  {
+    "dataset": "trainingBooleanXor.dat",
+    "tree": "or(and(and(!$2 !$1) or()) and())",
+    "row": [
+      0,
+      1
+    ],
+    "expected": "0"
+  },
+  {
+    "dataset": "trainingBooleanXor.dat",
+    "tree": "or(and(and(!$2 !$1) or()) and())",
+    "row": [
+      1,
+      0
+    ],
+    "expected": "0"
+  },
+  {
+    "dataset": "trainingBooleanXor.dat",
+    "tree": "or(and(and(!$2 !$1) or()) and())",
+    "row": [
+      1,
+      1
+    ],
+    "expected": "0"
+  },
+  {
+    "dataset": "trainingBooleanXor.dat",
+    "tree": "or(and(or($2 $1) or()) and())",
+    "row": [
+      0,
+      0
+    ],
+    "expected": "0"
+  },
+  {
+    "dataset": "trainingBooleanXor.dat",
+    "tree": "or(and(or($2 $1) or()) and())",
+    "row": [
+      0,
+      1
+    ],
+    "expected": "1"
+  },
+  {
+    "dataset": "trainingBooleanXor.dat",
+    "tree": "or(and(or($2 $1) or()) and())",
+    "row": [
+      1,
+      0
+    ],
+    "expected": "1"
+  },
+  {
+    "dataset": "trainingBooleanXor.dat",
+    "tree": "or(and(or($2 $1) or()) and())",
+    "row": [
+      1,
+      1
+    ],
+    "expected": "1"
+  },
+  {
+    "dataset": "trainingBooleanXor.dat",
+    "tree": "or(and(!$1 or()) and())",
+    "row": [
+      0,
+      0
+    ],
+    "expected": "1"
+  },
+  {
+    "dataset": "trainingBooleanXor.dat",
+    "tree": "or(and(!$1 or()) and())",
+    "row": [
+      0,
+      1
+    ],
+    "expected": "1"
+  },
+  {
+    "dataset": "trainingBooleanXor.dat",
+    "tree": "or(and(!$1 or()) and())",
+    "row": [
+      1,
+      0
+    ],
+    "expected": "0"
+  },
+  {
+    "dataset": "trainingBooleanXor.dat",
+    "tree": "or(and(!$1 or()) and())",
+    "row": [
+      1,
+      1
+    ],
+    "expected": "0"
+  },
+  {
+    "dataset": "trainingBooleanXor.dat",
+    "tree": "or(and($1 or()) and())",
+    "row": [
+      0,
+      0
+    ],
+    "expected": "0"
+  },
+  {
+    "dataset": "trainingBooleanXor.dat",
+    "tree": "or(and($1 or()) and())",
+    "row": [
+      0,
+      1
+    ],
+    "expected": "0"
+  },
+  {
+    "dataset": "trainingBooleanXor.dat",
+    "tree": "or(and($1 or()) and())",
+    "row": [
+      1,
+      0
+    ],
+    "expected": "1"
+  },
+  {
+    "dataset": "trainingBooleanXor.dat",
+    "tree": "or(and($1 or()) and())",
+    "row": [
+      1,
+      1
+    ],
+    "expected": "1"
+  },
+  {
+    "dataset": "trainingBooleanXor.dat",
+    "tree": "or(and(!$2 or()) and())",
+    "row": [
+      0,
+      0
+    ],
+    "expected": "1"
+  },
+  {
+    "dataset": "trainingBooleanXor.dat",
+    "tree": "or(and(!$2 or()) and())",
+    "row": [
+      0,
+      1
+    ],
+    "expected": "0"
+  },
+  {
+    "dataset": "trainingBooleanXor.dat",
+    "tree": "or(and(!$2 or()) and())",
+    "row": [
+      1,
+      0
+    ],
+    "expected": "1"
+  },
+  {
+    "dataset": "trainingBooleanXor.dat",
+    "tree": "or(and(!$2 or()) and())",
+    "row": [
+      1,
+      1
+    ],
+    "expected": "0"
+  },
+  {
+    "dataset": "trainingBooleanXor.dat",
+    "tree": "or(and($2 or()) and())",
+    "row": [
+      0,
+      0
+    ],
+    "expected": "0"
+  },
+  {
+    "dataset": "trainingBooleanXor.dat",
+    "tree": "or(and($2 or()) and())",
+    "row": [
+      0,
+      1
+    ],
+    "expected": "1"
+  },
+  {
+    "dataset": "trainingBooleanXor.dat",
+    "tree": "or(and($2 or()) and())",
+    "row": [
+      1,
+      0
+    ],
+    "expected": "0"
+  },
+  {
+    "dataset": "trainingBooleanXor.dat",
+    "tree": "or(and($2 or()) and())",
+    "row": [
+      1,
+      1
+    ],
+    "expected": "1"
+  },
+  {
+    "dataset": "trainingBooleanXor.dat",
+    "tree": "or(and(or()) or($2 !$1) and())",
+    "row": [
+      0,
+      0
+    ],
+    "expected": "1"
+  },
+  {
+    "dataset": "trainingBooleanXor.dat",
+    "tree": "or(and(or()) or($2 !$1) and())",
+    "row": [
+      0,
+      1
+    ],
+    "expected": "1"
+  },
+  {
+    "dataset": "trainingBooleanXor.dat",
+    "tree": "or(and(or()) or($2 !$1) and())",
+    "row": [
+      1,
+      0
+    ],
+    "expected": "1"
+  },
+  {
+    "dataset": "trainingBooleanXor.dat",
+    "tree": "or(and(or()) or($2 !$1) and())",
+    "row": [
+      1,
+      1
+    ],
+    "expected": "1"
+  },
+  {
+    "dataset": "trainingBooleanXor.dat",
+    "tree": "or(and(or()) and(!$2 $1) and())",
+    "row": [
+      0,
+      0
+    ],
+    "expected": "1"
+  },
+  {
+    "dataset": "trainingBooleanXor.dat",
+    "tree": "or(and(or()) and(!$2 $1) and())",
+    "row": [
+      0,
+      1
+    ],
+    "expected": "1"
+  },
+  {
+    "dataset": "trainingBooleanXor.dat",
+    "tree": "or(and(or()) and(!$2 $1) and())",
+    "row": [
+      1,
+      0
+    ],
+    "expected": "1"
+  },
+  {
+    "dataset": "trainingBooleanXor.dat",
+    "tree": "or(and(or()) and(!$2 $1) and())",
+    "row": [
+      1,
+      1
+    ],
+    "expected": "1"
+  },
+  {
+    "dataset": "trainingBooleanXor.dat",
+    "tree": "or(and(or()) !$1 and())",
+    "row": [
+      0,
+      0
+    ],
+    "expected": "1"
+  },
+  {
+    "dataset": "trainingBooleanXor.dat",
+    "tree": "or(and(or()) !$1 and())",
+    "row": [
+      0,
+      1
+    ],
+    "expected": "1"
+  },
+  {
+    "dataset": "trainingBooleanXor.dat",
+    "tree": "or(and(or()) !$1 and())",
+    "row": [
+      1,
+      0
+    ],
+    "expected": "1"
+  },
+  {
+    "dataset": "trainingBooleanXor.dat",
+    "tree": "or(and(or()) !$1 and())",
+    "row": [
+      1,
+      1
+    ],
+    "expected": "1"
+  },
+  {
+    "dataset": "trainingBooleanXor.dat",
+    "tree": "or(and(or()) $1 and())",
+    "row": [
+      0,
+      0
+    ],
+    "expected": "1"
+  },
+  {
+    "dataset": "trainingBooleanXor.dat",
+    "tree": "or(and(or()) $1 and())",
+    "row": [
+      0,
+      1
+    ],
+    "expected": "1"
+  },
+  {
+    "dataset": "trainingBooleanXor.dat",
+    "tree": "or(and(or()) $1 and())",
+    "row": [
+      1,
+      0
+    ],
+    "expected": "1"
+  },
+  {
+    "dataset": "trainingBooleanXor.dat",
+    "tree": "or(and(or()) $1 and())",
+    "row": [
+      1,
+      1
+    ],
+    "expected": "1"
+  },
+  {
+    "dataset": "trainingBooleanXor.dat",
+    "tree": "or(and(or()) !$2 and())",
+    "row": [
+      0,
+      0
+    ],
+    "expected": "1"
+  },
+  {
+    "dataset": "trainingBooleanXor.dat",
+    "tree": "or(and(or()) !$2 and())",
+    "row": [
+      0,
+      1
+    ],
+    "expected": "1"
+  },
+  {
+    "dataset": "trainingBooleanXor.dat",
+    "tree": "or(and(or()) !$2 and())",
+    "row": [
+      1,
+      0
+    ],
+    "expected": "1"
+  },
+  {
+    "dataset": "trainingBooleanXor.dat",
+    "tree": "or(and(or()) !$2 and())",
+    "row": [
+      1,
+      1
+    ],
+    "expected": "1"
+  },
+  {
+    "dataset": "trainingBooleanXor.dat",
+    "tree": "or(and(or()) $2 and())",
+    "row": [
+      0,
+      0
+    ],
+    "expected": "1"
+  },
+  {
+    "dataset": "trainingBooleanXor.dat",
+    "tree": "or(and(or()) $2 and())",
+    "row": [
+      0,
+      1
+    ],
+    "expected": "1"
+  },
+  {
+    "dataset": "trainingBooleanXor.dat",
+    "tree": "or(and(or()) $2 and())",
+    "row": [
+      1,
+      0
+    ],
+    "expected": "1"
+  },
+  {
+    "dataset": "trainingBooleanXor.dat",
+    "tree": "or(and(or()) $2 and())",
+    "row": [
+      1,
+      1
+    ],
+    "expected": "1"
+  },
+  {
+    "dataset": "trainingBooleanXor.dat",
+    "tree": "or(and(or()) and($2))",
+    "row": [
+      0,
+      0
+    ],
+    "expected": "1"
+  },
+  {
+    "dataset": "trainingBooleanXor.dat",
+    "tree": "or(and(or()) and($2))",
+    "row": [
+      0,
+      1
+    ],
+    "expected": "1"
+  },
+  {
+    "dataset": "trainingBooleanXor.dat",
+    "tree": "or(and(or()) and($2))",
+    "row": [
+      1,
+      0
+    ],
+    "expected": "1"
+  },
+  {
+    "dataset": "trainingBooleanXor.dat",
+    "tree": "or(and(or()) and($2))",
+    "row": [
+      1,
+      1
+    ],
+    "expected": "1"
+  }
+]

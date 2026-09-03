@@ -122,6 +122,38 @@ def is_contin(v: vertex) -> bool:
     return isinstance(v, contin_t)
 
 
+def is_contin_expr(v: vertex) -> bool:
+    """C++: moses/comboreduct/combo/vertex.h:764 is_contin_expr
+
+    Added for task 4 (`interpreter_visitor`'s `mixed` computation at
+    table.h:306-317, which calls this on every vertex of the tree to decide
+    whether the boolean or the mixed interpreter is needed) -- not in
+    task-3-brief.md's file list, but a direct, narrow port of a template
+    function vertex.h itself declares, scoped the same way every other
+    helper in this module is scoped (narrowed to `builtin | argument |
+    contin_t`; `is_contin(v)` alone covers the `contin_t` alternative,
+    `argument` never matches any branch below, so only `builtin` members
+    are actually distinguished here).
+
+    Returns true if `v` is itself contin-typed, or is a builtin operator
+    that takes/returns contin (`div`, `exp`, `impulse`, `log`, `plus`,
+    `rand`, `sin`, `times`). Deliberately excludes `greater_than_zero`
+    (a predicate, not a contin expression) -- table.h's mixed check tests
+    that separately, right after this one.
+    """
+    return (
+        is_contin(v)
+        or v == builtin.div
+        or v == builtin.exp
+        or v == builtin.impulse
+        or v == builtin.log
+        or v == builtin.plus
+        or v == builtin.rand
+        or v == builtin.sin
+        or v == builtin.times
+    )
+
+
 def negate_vertex(v: vertex) -> vertex:
     """C++: moses/comboreduct/combo/vertex.cc:236 negate_vertex
 
