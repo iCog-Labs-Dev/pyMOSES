@@ -23,17 +23,40 @@ def validate(t, node=None):
     of the public API surface tested by to_sexpr, which walks only
     first_child/next_sibling and so can never notice a broken back-link).
 
+    Note this is a deliberately *stronger* check than C++'s own
+    tree.h:2174 validate(), which shares the blind spot fixed below (it
+    never independently checks first_child/last_child against the sibling
+    chain reached by forward traversal -- see the round-2 review). That is
+    fine: validate() is a test instrument, not ported production code.
+    Fidelity binds what this module ports; it does not bind the tools used
+    to check the port, and inheriting a C++ blind spot here would only
+    cost detection for nothing in return.
+
     For every node in `node`'s subtree (the whole tree if `node` is
-    omitted): each child's `parent` points back to it; `first_child` /
-    `last_child` are the true ends of the sibling chain; `next_sibling` /
-    `prev_sibling` are mutual inverses. Do not call this on a tree known to
-    contain the move_ontop adjacent-sibling self-cycle (see
+    omitted): `first_child`/`last_child` genuinely have no prev/next
+    sibling of their own (independent of forward traversal -- this is what
+    catches a corrupted `first_child`/`last_child` pointer that quietly
+    orphans the true first/last child); each child's `parent` points back
+    to it; `first_child`/`last_child` are the true ends of the sibling
+    chain as seen from a child looking up; `next_sibling`/`prev_sibling`
+    are mutual inverses. Do not call this on a tree known to contain the
+    move_ontop adjacent-sibling self-cycle (see
     test_move_ontop_adjacent_sibling_self_cycle_is_an_inherited_bug) --
     walking children() there does not terminate, by design.
     """
     node = node if node is not None else t.begin()
     if node is None:
         return
+    if node.first_child is not None:
+        assert node.first_child.prev_sibling is None, (
+            f"{node.data!r}.first_child ({node.first_child.data!r}) has a "
+            f"non-None prev_sibling -- the true first child was skipped"
+        )
+    if node.last_child is not None:
+        assert node.last_child.next_sibling is None, (
+            f"{node.data!r}.last_child ({node.last_child.data!r}) has a "
+            f"non-None next_sibling -- the true last child was skipped"
+        )
     for child in t.children(node):
         assert child.parent is node, (
             f"{child.data!r}.parent does not point back to {node.data!r}"
@@ -593,6 +616,8 @@ def test_children_generator_is_live_not_a_snapshot():
     t.append_child(t.begin(), "c")  # mutate before resuming the generator
     rest = [n.data for n in gen]
     assert rest == ["b", "c"]  # sees the mutation -- not a stale snapshot
+    validate(t)  # live splices mid-iteration are exactly where a
+    # malformed tree would most likely slip through unnoticed
 
 
 # ---- new edge cases from the round-1 review ----
@@ -613,6 +638,30 @@ def test_validate_helper_catches_a_broken_back_link():
     validate(t)  # sane before corruption
 
     a.parent = None  # corrupt: "a" still lives under root, but forgot to say so
+    with pytest.raises(AssertionError):
+        validate(t)
+
+
+def test_validate_catches_a_skipped_first_child():
+    """The exact corruption from the round-2 review: set root.first_child
+    to `b`, skipping the true first child `a`, while leaving `a`'s own
+    links (prev_sibling=None, next_sibling=b, parent=root) untouched.
+    validate()'s original version passed this silently -- it only checked
+    the reverse direction (parent->first_child/last_child pointing at a
+    node reached by forward traversal from first_child), never
+    first_child/last_child's own prev/next_sibling independently. `a`
+    becomes an invisible orphan and number_of_children quietly drops from
+    3 to 2, with nothing catching it.
+    """
+    t = tree("root")
+    t.append_child(t.begin(), "a")
+    b = t.append_child(t.begin(), "b")
+    t.append_child(t.begin(), "c")
+    validate(t)  # sane before corruption
+    assert t.number_of_children(t.begin()) == 3
+
+    t.begin().first_child = b  # corrupt: skips `a` entirely
+    assert t.number_of_children(t.begin()) == 2  # the silent symptom
     with pytest.raises(AssertionError):
         validate(t)
 
@@ -718,3 +767,62 @@ def test_reparent_into_its_own_first_child_is_rejected():
     # rejected call must leave the tree structurally sound
     validate(t)
     assert t.number_of_children(from_node) == 2
+
+
+# ---- round-2 review: null-node guards restoring tree.h's own asserts ----
+# See tree.py's docstrings for the exact tree.h line each of these mirrors;
+# enumerated by grepping every `tree_assert` in tree.h and checking each
+# hit's enclosing function against our ported API surface (see the task
+# report for the full method-by-method sweep, including what was
+# deliberately left unguarded because tree.h itself has no check there).
+
+
+def test_append_child_rejects_none_node():
+    t = tree("root")
+    with pytest.raises(ValueError):
+        t.append_child(None, "x")
+
+
+def test_prepend_child_rejects_none_node():
+    t = tree("root")
+    with pytest.raises(ValueError):
+        t.prepend_child(None, "x")
+
+
+def test_append_children_rejects_none_node():
+    t = tree("root")
+    with pytest.raises(ValueError):
+        t.append_children(None, ["x", "y"])
+    # the gap C++ itself doesn't close: an empty iterable used to skip
+    # straight past the loop to a null deref
+    with pytest.raises(ValueError):
+        t.append_children(None, [])
+
+
+def test_children_rejects_none_node():
+    t = tree("root")
+    with pytest.raises(ValueError):
+        t.children(None)
+    with pytest.raises(ValueError):
+        list(t.children(None))
+
+
+def test_next_sibling_rejects_none_node():
+    t = tree("root")
+    with pytest.raises(ValueError):
+        t.next_sibling(None)
+
+
+def test_previous_sibling_rejects_none_node():
+    t = tree("root")
+    with pytest.raises(ValueError):
+        t.previous_sibling(None)
+
+
+def test_replace_rejects_none_node():
+    t = tree("root")
+    src = tree("s")
+    with pytest.raises(ValueError):
+        t.replace(None, "x")
+    with pytest.raises(ValueError):
+        t.replace(None, src.begin())

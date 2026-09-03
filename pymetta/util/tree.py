@@ -244,7 +244,21 @@ class tree:
         generator over live links -- deliberately not a snapshot: see the
         module docstring / task report on preserving the
         mutate-while-iterating hazard.
+
+        Restores `tree.h:914`'s `tree_assert(pos.node != 0)`. Split into
+        this eager-checking wrapper plus `_children_iter` rather than
+        putting the check inline in the generator body: a generator's body
+        does not run at all until the first `next()`, so a bare `if node is
+        None: raise` inside one would let `t.children(None)` return
+        successfully and only blow up later, on first iteration --
+        inconsistent with every other guard in this module, which raises
+        on the call itself.
         """
+        if node is None:
+            raise ValueError("children: node must not be None")
+        return self._children_iter(node)
+
+    def _children_iter(self, node):
         child = node.first_child
         while child is not None:
             yield child
@@ -273,11 +287,21 @@ class tree:
         return n
 
     def next_sibling(self, node):
-        """C++: opencog/util/tree.h:974 next_sibling"""
+        """C++: opencog/util/tree.h:974 next_sibling
+
+        Restores `tree.h:978`'s `tree_assert(position.node != 0)`.
+        """
+        if node is None:
+            raise ValueError("next_sibling: node must not be None")
         return node.next_sibling
 
     def previous_sibling(self, node):
-        """C++: opencog/util/tree.h:964 previous_sibling"""
+        """C++: opencog/util/tree.h:964 previous_sibling
+
+        Restores `tree.h:968`'s `tree_assert(position.node != 0)`.
+        """
+        if node is None:
+            raise ValueError("previous_sibling: node must not be None")
         return node.prev_sibling
 
     def max_depth(self, node=None):
@@ -473,7 +497,15 @@ class tree:
         append_child(iter, iter), itself implemented via tree.h:1397
         replace(iter, const iterator_base&)'s copy loop -- ported here as
         `_copy_descendants`.
+
+        Restores `tree.h:1097-1098`'s `tree_assert(position.node != head);
+        tree_assert(position.node);` (the plain-data overload) and
+        `tree.h:1185-1186`'s identical pair on the subtree-copy overload --
+        one check here covers both, since Python dispatches on
+        `data_or_subtree`'s type rather than overloading.
         """
+        if node is None:
+            raise ValueError("append_child: node must not be None")
         if isinstance(data_or_subtree, tree_node):
             new_child = self._append_child_leaf(node, data_or_subtree.data)
             self._copy_descendants(new_child, data_or_subtree)
@@ -486,7 +518,12 @@ class tree:
         Plain data only, matching the brief's signature -- unlike
         append_child, prepend_child's subtree-copy overload
         (tree.h:1194) is not in the brief's API list.
+
+        Restores `tree.h:1121-1122`'s `tree_assert(position.node != head);
+        tree_assert(position.node);`.
         """
+        if node is None:
+            raise ValueError("prepend_child: node must not be None")
         new_node = tree_node(data)
         new_node.parent = node
         if node.first_child is not None:
@@ -500,7 +537,20 @@ class tree:
 
     def append_children(self, node, iterable):
         """C++: opencog/util/tree.h:1162 append_children (initializer_list
-        overload)"""
+        overload)
+
+        The initializer_list overload we port has no `tree_assert` of its
+        own in C++ -- it delegates per-element to `append_child`
+        (tree.h:1097-1098), which does. That leaves one gap C++ itself
+        does not close: an empty `iterable` skips the loop entirely and
+        falls straight through to `position.node->last_child`, a null
+        deref with nothing guarding it. Guarded directly here instead of
+        only inheriting the per-element check, so `append_children(None,
+        [])` raises the same way `append_children(None, [x])` already
+        would via the delegated call.
+        """
+        if node is None:
+            raise ValueError("append_children: node must not be None")
         for data in iterable:
             self.append_child(node, data)
         return node.last_child
@@ -625,7 +675,17 @@ class tree:
         replace(iter, const iterator_base&), which allocates a brand-new
         node -- `node` becomes invalid in that branch, matching the C++
         docs' "'position' becomes invalid."
+
+        Restores `tree.h:1399`'s `tree_assert(position.node != head)`.
+        C++'s check there is strictly "not the head sentinel," not "not
+        null" (a genuinely null `position.node` would slip past it and
+        crash later); applied here as a plain null guard regardless, for
+        the same reason `append_children` guards past what its own
+        delegation covers -- one consistent check per public entry point,
+        covering both the plain-data and subtree-copy branches below.
         """
+        if node is None:
+            raise ValueError("replace: node must not be None")
         if isinstance(data_or_subtree, tree_node):
             if node is data_or_subtree:
                 return node
