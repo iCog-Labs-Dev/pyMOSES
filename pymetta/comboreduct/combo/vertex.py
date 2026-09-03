@@ -1,12 +1,28 @@
 """C++: moses/comboreduct/combo/vertex.h
 
 `builtin` (vertex.h:69-105) and `vertex` (vertex.h:128-141), narrowed to the
-subset this port carries: `builtin | argument | contin_t`. The C++
-`vertex` is a 14-way `boost::variant`; the other ten alternatives --
-enum_t, wild_card, action, builtin_action, perception, definite_object,
+subset this port carries: `builtin | argument | contin_t | str`. The C++
+`vertex` is a 14-way `boost::variant`; the other nine alternatives --
+wild_card, action, builtin_action, perception, definite_object,
 indefinite_object, message, procedure_call, action_symbol, ann_type -- are
 out of scope for this task (see task-3-brief.md) and are not constructed
 anywhere in this port.
+
+Task 5 (comboreduct/table) widens this beyond Task 3's original
+`builtin | argument | contin_t`: classic's type inference over CSV columns
+(table_io.cc's `token_to_vertex`) produces `enum_t` values for both
+genuinely enum-typed columns and, via what table_io.cc's own comment calls
+"an ugly hack", for columns that fail every other type guess (dates,
+free text -- see `id::ill_formed_type` in table_io.cc:298-301). `enum_t`
+itself (moses/comboreduct/combo/enum_type.h:39) is, by its own header
+comment, "essentially a string... coded as a different type... because it
+semantically denotes something else" -- an interned wrapper around
+`std::string` whose `operator==`/`operator<` (enum_type.h:75-82) reduce to
+string identity/lexicographic order. Since this port has no use for the
+interning (a performance optimisation for C++'s `boost::get<T>` dispatch,
+irrelevant in Python) or for `enum_t` as a distinct wrapper type, it is
+narrowed to plain `str` here -- disclosed scope decision, see
+task-5-report.md.
 """
 
 from enum import IntEnum
@@ -86,11 +102,12 @@ class builtin(IntEnum):
 #
 # `boost::variant<contin_t, enum_t, builtin, wild_card, argument, action,
 # builtin_action, perception, definite_object, indefinite_object, message,
-# procedure_call, action_symbol, ann_type>`, narrowed to this port's three
-# live alternatives (see module docstring). `X | Y` (PEP 604) builds a
-# runtime `types.UnionType`, so `isinstance(v, vertex)` works exactly like
-# a manual `isinstance(v, (builtin, argument, contin_t))` would.
-vertex = builtin | argument | contin_t
+# procedure_call, action_symbol, ann_type>`, narrowed to this port's four
+# live alternatives (see module docstring, `str` standing in for `enum_t`).
+# `X | Y` (PEP 604) builds a runtime `types.UnionType`, so
+# `isinstance(v, vertex)` works exactly like a manual
+# `isinstance(v, (builtin, argument, contin_t, str))` would.
+vertex = builtin | argument | contin_t | str
 
 # C++: moses/comboreduct/combo/vertex.h:527 combo_tree
 #
@@ -120,6 +137,19 @@ def is_argument(v: vertex) -> bool:
 def is_contin(v: vertex) -> bool:
     """C++: moses/comboreduct/combo/vertex.cc:118 is_contin"""
     return isinstance(v, contin_t)
+
+
+def get_contin(v: vertex) -> contin_t:
+    """C++: moses/comboreduct/combo/vertex.cc:122 get_contin
+
+    `boost::get<contin_t>(v)` -- throws `boost::bad_get` (ported as
+    `TypeError`) if `v` does not hold a `contin_t`. Added for Task 5's
+    `Table.compressed()` (table.cc:501), which uses this exact function
+    to pull a row's weight out of its weighting-feature column.
+    """
+    if not is_contin(v):
+        raise TypeError(f"vertex {v!r} does not hold a contin_t")
+    return v
 
 
 def is_contin_expr(v: vertex) -> bool:

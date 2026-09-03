@@ -4,6 +4,7 @@ from pymetta.comboreduct.combo.argument import argument
 from pymetta.comboreduct.combo.vertex import (
     builtin,
     combo_tree,
+    get_contin,
     is_argument,
     is_builtin,
     is_contin,
@@ -64,11 +65,16 @@ def test_builtin_is_int_enum_and_comparable_as_int():
     assert int(builtin.cond) == 21
 
 
-def test_vertex_is_a_three_way_union():
+def test_vertex_is_a_four_way_union():
+    # Widened from three to four alternatives by Task 5 (comboreduct/table):
+    # `str` stands in for `enum_t` (out of scope for Task 3, but needed by
+    # table.py's type inference over CSV columns) -- see vertex.py's module
+    # docstring.
     assert isinstance(builtin.plus, vertex)
     assert isinstance(argument(1), vertex)
     assert isinstance(3.14, vertex)
-    assert not isinstance("not a vertex", vertex)
+    assert isinstance("sad", vertex)
+    assert not isinstance([], vertex)
 
 
 def test_combo_tree_is_tree_subscripted_with_vertex():
@@ -102,3 +108,16 @@ def test_negate_vertex_rejects_non_builtin_vertex():
         negate_vertex(argument(1))
     with pytest.raises(TypeError):
         negate_vertex(1.0)
+
+
+def test_get_contin_returns_the_held_float():
+    assert get_contin(2.5) == 2.5
+
+
+def test_get_contin_rejects_non_contin_vertex():
+    with pytest.raises(TypeError):
+        get_contin(builtin.logical_true)
+    with pytest.raises(TypeError):
+        get_contin(argument(1))
+    with pytest.raises(TypeError):
+        get_contin("sad")

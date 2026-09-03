@@ -1,0 +1,1131 @@
+{
+  "dataset.csv": {
+    "itable_labels": [
+      "i1",
+      "i2"
+    ],
+    "itable_types": [
+      "boolean_type",
+      "boolean_type"
+    ],
+    "otable_label": "output",
+    "otable_type": "boolean_type",
+    "arity": 2,
+    "target_pos": 0,
+    "itable": [
+      [
+        true,
+        true
+      ],
+      [
+        true,
+        true
+      ],
+      [
+        true,
+        false
+      ],
+      [
+        true,
+        true
+      ],
+      [
+        false,
+        false
+      ]
+    ],
+    "otable": [
+      true,
+      true,
+      false,
+      false,
+      false
+    ],
+    "ctable_labels": [
+      "output",
+      "i1",
+      "i2"
+    ],
+    "ctable_uncompressed_size": 5,
+    "ctable": [
+      {
+        "inputs": [
+          true,
+          true
+        ],
+        "counts": [
+          [
+            true,
+            2
+          ],
+          [
+            false,
+            1
+          ]
+        ]
+      },
+      {
+        "inputs": [
+          true,
+          false
+        ],
+        "counts": [
+          [
+            false,
+            1
+          ]
+        ]
+      },
+      {
+        "inputs": [
+          false,
+          false
+        ],
+        "counts": [
+          [
+            false,
+            1
+          ]
+        ]
+      }
+    ],
+    "file": "dataset.csv",
+    "target_feature": "",
+    "timestamp_feature": "",
+    "ignore_features": []
+  },
+  "dataset_force_feature.csv": {
+    "itable_labels": [
+      "target",
+      "f1",
+      "f2"
+    ],
+    "itable_types": [
+      "boolean_type",
+      "boolean_type",
+      "boolean_type"
+    ],
+    "otable_label": "time",
+    "otable_type": "ill_formed_type",
+    "arity": 3,
+    "target_pos": 0,
+    "itable": [
+      [
+        true,
+        false,
+        false
+      ]
+    ],
+    "otable": [
+      "12-04-2012"
+    ],
+    "ctable_labels": [
+      "time",
+      "target",
+      "f1",
+      "f2"
+    ],
+    "ctable_uncompressed_size": 1,
+    "ctable": [
+      {
+        "inputs": [
+          true,
+          false,
+          false
+        ],
+        "counts": [
+          [
+            "12-04-2012",
+            1
+          ]
+        ]
+      }
+    ],
+    "file": "dataset_force_feature.csv",
+    "target_feature": "",
+    "timestamp_feature": "",
+    "ignore_features": []
+  },
+  "sparse.data:target1": {
+    "itable_labels": [
+      "date",
+      "d",
+      "e",
+      "f",
+      "g",
+      "x",
+      "y",
+      "z"
+    ],
+    "itable_types": [
+      "ill_formed_type",
+      "contin_type",
+      "contin_type",
+      "contin_type",
+      "contin_type",
+      "contin_type",
+      "contin_type",
+      "contin_type"
+    ],
+    "otable_label": "target1",
+    "otable_type": "enum_type",
+    "arity": 8,
+    "target_pos": 0,
+    "itable": [
+      [
+        "12-04-2012",
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      [
+        "12-05-2012",
+        4,
+        0,
+        6,
+        0,
+        0,
+        0,
+        0
+      ],
+      [
+        "12-06-2012T14:35:02-0500",
+        0,
+        5,
+        0,
+        7,
+        0,
+        0,
+        0
+      ],
+      [
+        "12-07-2012T16:00:00-0500",
+        4,
+        5,
+        0,
+        0,
+        24,
+        25,
+        26
+      ]
+    ],
+    "otable": [
+      "thing",
+      "some",
+      "other",
+      "last"
+    ],
+    "ctable_labels": [
+      "target1",
+      "date",
+      "d",
+      "e",
+      "f",
+      "g",
+      "x",
+      "y",
+      "z"
+    ],
+    "ctable_uncompressed_size": 4,
+    "ctable": [
+      {
+        "inputs": [
+          "12-04-2012",
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ],
+        "counts": [
+          [
+            "thing",
+            1
+          ]
+        ]
+      },
+      {
+        "inputs": [
+          "12-05-2012",
+          4,
+          0,
+          6,
+          0,
+          0,
+          0,
+          0
+        ],
+        "counts": [
+          [
+            "some",
+            1
+          ]
+        ]
+      },
+      {
+        "inputs": [
+          "12-06-2012T14:35:02-0500",
+          0,
+          5,
+          0,
+          7,
+          0,
+          0,
+          0
+        ],
+        "counts": [
+          [
+            "other",
+            1
+          ]
+        ]
+      },
+      {
+        "inputs": [
+          "12-07-2012T16:00:00-0500",
+          4,
+          5,
+          0,
+          0,
+          24,
+          25,
+          26
+        ],
+        "counts": [
+          [
+            "last",
+            1
+          ]
+        ]
+      }
+    ],
+    "file": "sparse.data",
+    "target_feature": "target1",
+    "timestamp_feature": "",
+    "ignore_features": [
+      "a",
+      "b",
+      "c",
+      "target2"
+    ]
+  },
+  "sparse.data:target2": {
+    "itable_labels": [
+      "date",
+      "d",
+      "e",
+      "f",
+      "g",
+      "x",
+      "y",
+      "z"
+    ],
+    "itable_types": [
+      "ill_formed_type",
+      "contin_type",
+      "contin_type",
+      "contin_type",
+      "contin_type",
+      "contin_type",
+      "contin_type",
+      "contin_type"
+    ],
+    "otable_label": "target2",
+    "otable_type": "contin_type",
+    "arity": 8,
+    "target_pos": 0,
+    "itable": [
+      [
+        "12-04-2012",
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      [
+        "12-05-2012",
+        4,
+        0,
+        6,
+        0,
+        0,
+        0,
+        0
+      ],
+      [
+        "12-06-2012T14:35:02-0500",
+        0,
+        5,
+        0,
+        7,
+        0,
+        0,
+        0
+      ],
+      [
+        "12-07-2012T16:00:00-0500",
+        4,
+        5,
+        0,
+        0,
+        24,
+        25,
+        26
+      ]
+    ],
+    "otable": [
+      3,
+      4.4,
+      5.5,
+      6.6
+    ],
+    "ctable_labels": [
+      "target2",
+      "date",
+      "d",
+      "e",
+      "f",
+      "g",
+      "x",
+      "y",
+      "z"
+    ],
+    "ctable_uncompressed_size": 4,
+    "ctable": [
+      {
+        "inputs": [
+          "12-04-2012",
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ],
+        "counts": [
+          [
+            3,
+            1
+          ]
+        ]
+      },
+      {
+        "inputs": [
+          "12-05-2012",
+          4,
+          0,
+          6,
+          0,
+          0,
+          0,
+          0
+        ],
+        "counts": [
+          [
+            4.4,
+            1
+          ]
+        ]
+      },
+      {
+        "inputs": [
+          "12-06-2012T14:35:02-0500",
+          0,
+          5,
+          0,
+          7,
+          0,
+          0,
+          0
+        ],
+        "counts": [
+          [
+            5.5,
+            1
+          ]
+        ]
+      },
+      {
+        "inputs": [
+          "12-07-2012T16:00:00-0500",
+          4,
+          5,
+          0,
+          0,
+          24,
+          25,
+          26
+        ],
+        "counts": [
+          [
+            6.6,
+            1
+          ]
+        ]
+      }
+    ],
+    "file": "sparse.data",
+    "target_feature": "target2",
+    "timestamp_feature": "",
+    "ignore_features": [
+      "a",
+      "b",
+      "c",
+      "target1"
+    ]
+  },
+  "weighted.csv": {
+    "itable_labels": [
+      "wgt",
+      "a",
+      "b",
+      "c",
+      "d",
+      "e"
+    ],
+    "itable_types": [
+      "contin_type",
+      "boolean_type",
+      "boolean_type",
+      "boolean_type",
+      "boolean_type",
+      "boolean_type"
+    ],
+    "otable_label": "r",
+    "otable_type": "boolean_type",
+    "arity": 6,
+    "target_pos": 6,
+    "itable": [
+      [
+        0.4,
+        false,
+        false,
+        false,
+        false,
+        false
+      ],
+      [
+        3.5,
+        true,
+        true,
+        true,
+        true,
+        true
+      ],
+      [
+        1.33,
+        true,
+        true,
+        true,
+        false,
+        false
+      ],
+      [
+        2.5,
+        false,
+        true,
+        true,
+        true,
+        true
+      ],
+      [
+        1.33,
+        true,
+        true,
+        true,
+        false,
+        false
+      ],
+      [
+        0.4,
+        false,
+        false,
+        false,
+        false,
+        false
+      ],
+      [
+        0.4,
+        false,
+        false,
+        false,
+        false,
+        false
+      ]
+    ],
+    "otable": [
+      false,
+      true,
+      true,
+      false,
+      true,
+      true,
+      false
+    ],
+    "ctable_labels": [
+      "r",
+      "wgt",
+      "a",
+      "b",
+      "c",
+      "d",
+      "e"
+    ],
+    "ctable_uncompressed_size": 7,
+    "ctable": [
+      {
+        "inputs": [
+          0.4,
+          false,
+          false,
+          false,
+          false,
+          false
+        ],
+        "counts": [
+          [
+            true,
+            1
+          ],
+          [
+            false,
+            2
+          ]
+        ]
+      },
+      {
+        "inputs": [
+          1.33,
+          true,
+          true,
+          true,
+          false,
+          false
+        ],
+        "counts": [
+          [
+            true,
+            2
+          ]
+        ]
+      },
+      {
+        "inputs": [
+          2.5,
+          false,
+          true,
+          true,
+          true,
+          true
+        ],
+        "counts": [
+          [
+            false,
+            1
+          ]
+        ]
+      },
+      {
+        "inputs": [
+          3.5,
+          true,
+          true,
+          true,
+          true,
+          true
+        ],
+        "counts": [
+          [
+            true,
+            1
+          ]
+        ]
+      }
+    ],
+    "file": "weighted.csv",
+    "target_feature": "r",
+    "timestamp_feature": "",
+    "ignore_features": []
+  },
+  "timestamp_table.csv": {
+    "itable_labels": [
+      "width"
+    ],
+    "itable_types": [
+      "contin_type"
+    ],
+    "otable_label": "length",
+    "otable_type": "contin_type",
+    "arity": 1,
+    "target_pos": 1,
+    "itable": [
+      [
+        6
+      ],
+      [
+        3
+      ],
+      [
+        8
+      ]
+    ],
+    "otable": [
+      12,
+      10,
+      14
+    ],
+    "ctable_labels": [
+      "length",
+      "width"
+    ],
+    "ctable_uncompressed_size": 3,
+    "ctable": [
+      {
+        "inputs": [
+          3
+        ],
+        "counts": [
+          [
+            10,
+            1
+          ]
+        ]
+      },
+      {
+        "inputs": [
+          6
+        ],
+        "counts": [
+          [
+            12,
+            1
+          ]
+        ]
+      },
+      {
+        "inputs": [
+          8
+        ],
+        "counts": [
+          [
+            14,
+            1
+          ]
+        ]
+      }
+    ],
+    "file": "timestamp_table.csv",
+    "target_feature": "length",
+    "timestamp_feature": "time",
+    "ignore_features": []
+  },
+  "timestamp_table2.csv": {
+    "itable_labels": [
+      "input0"
+    ],
+    "itable_types": [
+      "boolean_type"
+    ],
+    "otable_label": "target",
+    "otable_type": "contin_type",
+    "arity": 1,
+    "target_pos": 2,
+    "itable": [
+      [
+        false
+      ],
+      [
+        true
+      ]
+    ],
+    "otable": [
+      6,
+      7
+    ],
+    "ctable_labels": [
+      "target",
+      "input0"
+    ],
+    "ctable_uncompressed_size": 2,
+    "ctable": [
+      {
+        "inputs": [
+          true
+        ],
+        "counts": [
+          [
+            7,
+            1
+          ]
+        ]
+      },
+      {
+        "inputs": [
+          false
+        ],
+        "counts": [
+          [
+            6,
+            1
+          ]
+        ]
+      }
+    ],
+    "file": "timestamp_table2.csv",
+    "target_feature": "target",
+    "timestamp_feature": "time",
+    "ignore_features": [
+      "input1"
+    ]
+  },
+  "timestamp_table3.csv": {
+    "itable_labels": [
+      "input1"
+    ],
+    "itable_types": [
+      "boolean_type"
+    ],
+    "otable_label": "target",
+    "otable_type": "contin_type",
+    "arity": 1,
+    "target_pos": 1,
+    "itable": [
+      [
+        true
+      ],
+      [
+        false
+      ]
+    ],
+    "otable": [
+      6,
+      7
+    ],
+    "ctable_labels": [
+      "target",
+      "input1"
+    ],
+    "ctable_uncompressed_size": 2,
+    "ctable": [
+      {
+        "inputs": [
+          true
+        ],
+        "counts": [
+          [
+            6,
+            1
+          ]
+        ]
+      },
+      {
+        "inputs": [
+          false
+        ],
+        "counts": [
+          [
+            7,
+            1
+          ]
+        ]
+      }
+    ],
+    "file": "timestamp_table3.csv",
+    "target_feature": "target",
+    "timestamp_feature": "time",
+    "ignore_features": []
+  },
+  "trainingBoolean.dat": {
+    "itable_labels": [
+      "x1",
+      "x2",
+      "x3"
+    ],
+    "itable_types": [
+      "boolean_type",
+      "boolean_type",
+      "boolean_type"
+    ],
+    "otable_label": "y",
+    "otable_type": "boolean_type",
+    "arity": 3,
+    "target_pos": 3,
+    "itable": [
+      [
+        false,
+        false,
+        false
+      ],
+      [
+        false,
+        false,
+        true
+      ],
+      [
+        false,
+        true,
+        false
+      ],
+      [
+        false,
+        true,
+        true
+      ],
+      [
+        true,
+        false,
+        false
+      ],
+      [
+        true,
+        false,
+        true
+      ],
+      [
+        true,
+        true,
+        false
+      ],
+      [
+        true,
+        true,
+        true
+      ]
+    ],
+    "otable": [
+      true,
+      false,
+      true,
+      false,
+      true,
+      false,
+      true,
+      true
+    ],
+    "ctable_labels": [
+      "y",
+      "x1",
+      "x2",
+      "x3"
+    ],
+    "ctable_uncompressed_size": 8,
+    "ctable": [
+      {
+        "inputs": [
+          true,
+          true,
+          true
+        ],
+        "counts": [
+          [
+            true,
+            1
+          ]
+        ]
+      },
+      {
+        "inputs": [
+          true,
+          true,
+          false
+        ],
+        "counts": [
+          [
+            true,
+            1
+          ]
+        ]
+      },
+      {
+        "inputs": [
+          true,
+          false,
+          true
+        ],
+        "counts": [
+          [
+            false,
+            1
+          ]
+        ]
+      },
+      {
+        "inputs": [
+          true,
+          false,
+          false
+        ],
+        "counts": [
+          [
+            true,
+            1
+          ]
+        ]
+      },
+      {
+        "inputs": [
+          false,
+          true,
+          true
+        ],
+        "counts": [
+          [
+            false,
+            1
+          ]
+        ]
+      },
+      {
+        "inputs": [
+          false,
+          true,
+          false
+        ],
+        "counts": [
+          [
+            true,
+            1
+          ]
+        ]
+      },
+      {
+        "inputs": [
+          false,
+          false,
+          true
+        ],
+        "counts": [
+          [
+            false,
+            1
+          ]
+        ]
+      },
+      {
+        "inputs": [
+          false,
+          false,
+          false
+        ],
+        "counts": [
+          [
+            true,
+            1
+          ]
+        ]
+      }
+    ],
+    "file": "trainingBoolean.dat",
+    "target_feature": "y",
+    "timestamp_feature": "",
+    "ignore_features": []
+  },
+  "trainingBooleanXor.dat": {
+    "itable_labels": [
+      "x1",
+      "x2"
+    ],
+    "itable_types": [
+      "boolean_type",
+      "boolean_type"
+    ],
+    "otable_label": "y",
+    "otable_type": "boolean_type",
+    "arity": 2,
+    "target_pos": 2,
+    "itable": [
+      [
+        false,
+        false
+      ],
+      [
+        false,
+        true
+      ],
+      [
+        true,
+        false
+      ],
+      [
+        true,
+        true
+      ]
+    ],
+    "otable": [
+      true,
+      true,
+      true,
+      false
+    ],
+    "ctable_labels": [
+      "y",
+      "x1",
+      "x2"
+    ],
+    "ctable_uncompressed_size": 4,
+    "ctable": [
+      {
+        "inputs": [
+          true,
+          true
+        ],
+        "counts": [
+          [
+            false,
+            1
+          ]
+        ]
+      },
+      {
+        "inputs": [
+          true,
+          false
+        ],
+        "counts": [
+          [
+            true,
+            1
+          ]
+        ]
+      },
+      {
+        "inputs": [
+          false,
+          true
+        ],
+        "counts": [
+          [
+            true,
+            1
+          ]
+        ]
+      },
+      {
+        "inputs": [
+          false,
+          false
+        ],
+        "counts": [
+          [
+            true,
+            1
+          ]
+        ]
+      }
+    ],
+    "file": "trainingBooleanXor.dat",
+    "target_feature": "y",
+    "timestamp_feature": "",
+    "ignore_features": []
+  }
+}
