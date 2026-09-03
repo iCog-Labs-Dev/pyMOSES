@@ -26,12 +26,15 @@ combo_tree is always single-rooted, so this port tracks the root directly as
 `self._root` instead.
 
 # DIVERGENCE(C++ opencog/util/tree.h:111): no head/feet sentinels -- a
-# single root is tracked directly as `self._root`. Consequence: `insert`
-# and `insert_after` raise ValueError if asked to give the tree's own root
-# a new sibling, since that would require a forest (multiple top-level
-# roots), which this port does not support. `insert_above` and `wrap` are
-# unaffected -- they replace the root in place rather than adding a
-# sibling of it, which stays well-defined without sentinels.
+# single root is tracked directly as `self._root`. Consequence: `insert`,
+# `insert_after`, `move_after`, `move_before` and `move_ontop` all raise
+# ValueError if asked to give the tree's own root a new sibling (or to move
+# the root itself into a sibling position), since either would require a
+# forest (multiple top-level roots), which this port does not support. In
+# C++ these same calls quietly succeed by growing a momentary or permanent
+# forest under head/feet. `insert_above` and `wrap` are unaffected -- they
+# replace the root in place rather than adding a sibling of it, which
+# stays well-defined without sentinels.
 """
 
 
@@ -211,10 +214,27 @@ class tree:
         return node is not None
 
     def child(self, node, i):
-        """C++: opencog/util/tree.h:2215 child"""
+        """C++: opencog/util/tree.h:2215 child
+
+        C++'s `tree_assert(tmp != 0)` inside the walk only ever fires one
+        step *past* the true out-of-range boundary (an artifact of the
+        post-decrementing `while(num--)` loop: asking for exactly
+        `number_of_children(node)` silently returns null in C++, with no
+        assert at all). Restored here as a full, symmetric bounds check
+        instead of reproducing that gap -- raise for any `i` that is not a
+        real child index, which is strictly more of what the "raise rather
+        than assert-away" instruction asks for than the letter of the
+        C++ loop.
+        """
+        if i < 0:
+            raise IndexError(f"child: index {i} out of range")
         n = node.first_child
         for _ in range(i):
+            if n is None:
+                raise IndexError(f"child: index {i} out of range")
             n = n.next_sibling
+        if n is None:
+            raise IndexError(f"child: index {i} out of range")
         return n
 
     def children(self, node):
@@ -399,7 +419,20 @@ class tree:
         `position` (end excluded, may be None for "through the last
         sibling").
         C++: opencog/util/tree.h:1525 reparent
+
+        Restores `tree.h:1531`'s `tree_assert(first != position.node)`:
+        `position` must not be the very first node of the range being
+        moved -- that specific self-containment (reparenting a node's
+        children onto one of those same children) would relink `first`'s
+        own prev/next pointers into a self-referential cycle. Raises
+        rather than silently detaching the subtree.
         """
+        if first is position:
+            raise ValueError(
+                "reparent: new_parent cannot be from_node's own first "
+                "child -- that would reparent a node's children onto one "
+                "of those very children"
+            )
         if first is end:
             return first
         last = first
@@ -647,7 +680,11 @@ class tree:
         sentinel-forest trick that is what lets plain `insert()` work on
         the tree's actual root in C++ (this port has none -- see the
         module docstring).
+
+        Restores `tree.h:1582`'s `tree_assert(position.node != 0)`.
         """
+        if node is None:
+            raise ValueError("wrap: node must not be None")
         return self.insert_above(node, data)
 
     def reparent(self, new_parent, from_node):
@@ -661,11 +698,27 @@ class tree:
         return self._reparent_range(new_parent, from_node.first_child, None)
 
     def move_after(self, target, source):
-        """C++: opencog/util/tree.h:1592 move_after"""
+        """C++: opencog/util/tree.h:1592 move_after
+
+        Restores `tree.h:1596-1597`'s `tree_assert(dst); tree_assert(src);`
+        (null checks). See the module-level DIVERGENCE note: also raises
+        if `target` or `source` is the tree's own root, since either would
+        require a forest -- unlike C++, which has head/feet sentinels
+        giving the root a real (non-null) prev/next_sibling to splice
+        through the very same code path.
+        """
+        if target is None or source is None:
+            raise ValueError("move_after: target and source must not be None")
         if target is source:
             return source
         if target.next_sibling is not None and target.next_sibling is source:
             return source
+        if target is self._root or source is self._root:
+            raise ValueError(
+                "move_after: cannot move the tree root, or move a node to "
+                "become a sibling of the tree root -- forests of multiple "
+                "roots are out of scope for this port"
+            )
         if source.prev_sibling is not None:
             source.prev_sibling.next_sibling = source.next_sibling
         else:
@@ -685,11 +738,25 @@ class tree:
         return source
 
     def move_before(self, target, source):
-        """C++: opencog/util/tree.h:1628 move_before"""
+        """C++: opencog/util/tree.h:1628 move_before
+
+        Restores `tree.h:1632-1633`'s `tree_assert(dst); tree_assert(src);`
+        (null checks). See the module-level DIVERGENCE note: also raises
+        if `target` or `source` is the tree's own root, for the same
+        reason as `move_after`.
+        """
+        if target is None or source is None:
+            raise ValueError("move_before: target and source must not be None")
         if target is source:
             return source
         if target.prev_sibling is not None and target.prev_sibling is source:
             return source
+        if target is self._root or source is self._root:
+            raise ValueError(
+                "move_before: cannot move the tree root, or move a node to "
+                "become a sibling of the tree root -- forests of multiple "
+                "roots are out of scope for this port"
+            )
         if source.prev_sibling is not None:
             source.prev_sibling.next_sibling = source.next_sibling
         else:
@@ -732,8 +799,29 @@ class tree:
         # baseline it exists to mirror. If upstream tree.h is ever
         # corrected, port that fix here in the same change, not before,
         # and update the regression test above to match.
+        #
+        # Restores `tree.h:1714-1715`'s `tree_assert(dst); tree_assert(src);`
+        # (null checks), and adds the module-level root guard (see the
+        # DIVERGENCE note) -- both checked BEFORE any mutation, so a
+        # rejected call leaves the tree untouched. `target == self._root`
+        # is also exactly the case tree.h's own docs warn against ("only
+        # use if source is not included in the subtree of target"): if
+        # target is the root, source -- not being target -- is necessarily
+        # a descendant of it, so erasing target would always destroy
+        # source before it could be rescued. This is a guard-ordering
+        # question, not a fidelity one: C++ has the identical precondition
+        # violation here, just reached through its head/feet sentinels
+        # instead of a `self._root` check.
+        if target is None or source is None:
+            raise ValueError("move_ontop: target and source must not be None")
         if target is source:
             return source
+        if target is self._root or source is self._root:
+            raise ValueError(
+                "move_ontop: cannot move the tree root, or move a node to "
+                "replace the tree root -- forests of multiple roots are "
+                "out of scope for this port"
+            )
         b_prev_sibling = target.prev_sibling
         b_next_sibling = target.next_sibling
         b_parent = target.parent
