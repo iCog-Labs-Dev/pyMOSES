@@ -22,7 +22,7 @@ def test_reports_symbol_missing_from_cpp(tmp_path, classic_root):
     f = tmp_path / "m.py"
     f.write_text('def f():\n    """C++: moses/comboreduct/combo/vertex.h:69 no_such_symbol_xyz"""\n')  # noqa: E501
     from tools.check_alignment import validate
-    problems = validate(parse_breadcrumbs(f), classic_root)
+    problems = validate(parse_breadcrumbs(f), [classic_root])
     assert len(problems) == 1
     assert "no_such_symbol_xyz" in problems[0]
 
@@ -31,4 +31,36 @@ def test_accepts_symbol_within_drift_tolerance(tmp_path, classic_root):
     f = tmp_path / "m.py"
     f.write_text('def f():\n    """C++: moses/comboreduct/combo/vertex.h:79 builtin"""\n')
     from tools.check_alignment import validate
-    assert validate(parse_breadcrumbs(f), classic_root) == []
+    assert validate(parse_breadcrumbs(f), [classic_root]) == []
+
+def test_validates_cogutil_rooted_breadcrumb(tmp_path, classic_root, cogutil_root):
+    # Regression: pymetta/util/rng.py ports CogUtil (opencog/util/...), not Moses.
+    # A single classic_root can never see this file; this is the exact gap that let
+    # 11 accurate breadcrumbs in rng.py go unverified.
+    f = tmp_path / "m.py"
+    f.write_text(
+        'def f():\n    """C++: opencog/util/mt19937ar.cc:44 MT19937RandGen::randint"""\n'
+    )
+    from tools.check_alignment import validate
+    assert validate(parse_breadcrumbs(f), [classic_root, cogutil_root]) == []
+
+def test_reports_every_root_tried_when_file_not_found(tmp_path, classic_root, cogutil_root):
+    f = tmp_path / "m.py"
+    f.write_text('def f():\n    """C++: no/such/file.cc:1 whatever"""\n')
+    from tools.check_alignment import validate
+    problems = validate(parse_breadcrumbs(f), [classic_root, cogutil_root])
+    assert len(problems) == 1
+    assert str(classic_root) in problems[0]
+    assert str(cogutil_root) in problems[0]
+
+def test_strips_parameter_list_before_matching_symbol(tmp_path, cogutil_root):
+    # Regression: mt19937ar.cc:66 really is `int MT19937RandGen::randint(int n) {`,
+    # but a bare \b-anchored match on "randint(int n)" can never succeed -- `\b`
+    # is not a boundary right after `)` when the next character is a space. The
+    # checker must strip the parameter list and match on the bare identifier.
+    f = tmp_path / "m.py"
+    f.write_text(
+        'def f():\n    """C++: opencog/util/mt19937ar.cc:66 MT19937RandGen::randint(int n)"""\n'  # noqa: E501
+    )
+    from tools.check_alignment import validate
+    assert validate(parse_breadcrumbs(f), [cogutil_root]) == []

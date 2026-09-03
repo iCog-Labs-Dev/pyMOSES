@@ -23,7 +23,15 @@ class MT19937RandGen:
         self.seed(seed)
 
     def seed(self, s: int) -> None:
-        """C++: opencog/util/RandGen.h:49 std::mt19937::seed (init_genrand)"""
+        """C++: opencog/util/RandGen.h:49 RandGen
+
+        RandGen.h:49 is `class RandGen : public std::mt19937` -- the most
+        precise citation available, since seed() is std::mt19937::seed
+        (init_genrand), inherited from the standard-library base and never
+        itself declared anywhere in RandGen.h. init_genrand is not
+        init_by_array: Python's random.seed(int) uses the latter, and the two
+        streams diverge from the first draw (see the class docstring).
+        """
         mt = self._mt
         mt[0] = s & _UINT32_MAX
         for i in range(1, _N):
@@ -31,7 +39,13 @@ class MT19937RandGen:
         self._mti = _N
 
     def genrand_int32(self) -> int:
-        """C++: opencog/util/RandGen.h:49 std::mt19937::operator()"""
+        """C++: opencog/util/RandGen.h:49 RandGen
+
+        RandGen.h:49 is `class RandGen : public std::mt19937` -- the most
+        precise citation available, since this is std::mt19937::operator(),
+        inherited from the standard-library base and never itself declared
+        anywhere in RandGen.h.
+        """
         mt = self._mt
         if self._mti >= _N:
             for i in range(_N):
@@ -94,14 +108,12 @@ class MT19937RandGen:
 _instance: MT19937RandGen | None = None
 
 
+# DIVERGENCE(C++ opencog/util/mt19937ar.cc:90): classic's singleton is
+# thread_local; ours is process-global. The MOSES core paths in scope are
+# single-threaded, and a process-global singleton is what makes a seeded run
+# reproducible at all in Python.
 def randGen() -> MT19937RandGen:
-    """C++: opencog/util/mt19937ar.cc:90 opencog::randGen
-
-    DIVERGENCE(C++ opencog/util/mt19937ar.cc:90): classic's singleton is
-    thread_local; ours is process-global. The MOSES core paths in scope are
-    single-threaded, and a process-global singleton is what makes a seeded run
-    reproducible at all in Python.
-    """
+    """C++: opencog/util/mt19937ar.cc:90 opencog::randGen"""
     global _instance
     if _instance is None:
         _instance = MT19937RandGen(0)

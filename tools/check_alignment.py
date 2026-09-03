@@ -1,10 +1,11 @@
 """Alignment checker for pyMeTTa's C++ breadcrumbs and DIVERGENCE markers.
 
 Every ported symbol carries a docstring breadcrumb of the form
-`C++: <path relative to classic repo root>:<line> <C++ qualified symbol>` as
+`C++: <path relative to a classic repo root>:<line> <C++ qualified symbol>` as
 the first line of its docstring. This tool parses those breadcrumbs (and the
-`# DIVERGENCE(...)` markers), validates each breadcrumb against the classic
-MOSES checkout, and generates docs/ALIGNMENT.md.
+`# DIVERGENCE(...)` markers), validates each breadcrumb against whichever of
+the classic checkouts (Moses, CogUtil) actually contains its cited file, and
+generates docs/ALIGNMENT.md.
 """
 
 import ast
@@ -22,10 +23,18 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 PYMETTA_ROOT = REPO_ROOT / "pymetta"
 ALIGNMENT_DOC = REPO_ROOT / "docs" / "ALIGNMENT.md"
 
-# The classic checkout that every breadcrumb is validated against. Hardcoded
-# for the same reason tests/conftest.py hardcodes it: this is a single-machine
-# fork used to build one specific port, not a general-purpose tool.
-CLASSIC_ROOT = Path("/home/yab/Documents/Projects/iCog/HyperonRelated/MOSES/OpenCog/Moses")
+# The classic checkouts that every breadcrumb is validated against, tried in
+# order. Hardcoded for the same reason tests/conftest.py hardcodes them: this
+# is a single-machine fork used to build one specific port, not a
+# general-purpose tool. pymetta/ ports two upstream repos -- Moses proper
+# (breadcrumb paths starting `moses/`) and its CogUtil dependency (paths
+# starting `opencog/`) -- so a breadcrumb resolves under whichever root
+# actually contains its cited file. The two prefixes are disjoint, so there
+# is no ambiguity about which root a given breadcrumb belongs to.
+CLASSIC_ROOTS = [
+    Path("/home/yab/Documents/Projects/iCog/HyperonRelated/MOSES/OpenCog/Moses"),
+    Path("/home/yab/Documents/Projects/iCog/HyperonRelated/MOSES/OpenCog/CogUtil"),
+]
 
 
 @dataclass(frozen=True)
@@ -74,22 +83,36 @@ def parse_breadcrumbs(path: Path) -> list[Breadcrumb]:
     return crumbs
 
 
-def validate(crumbs: list[Breadcrumb], classic_root: Path) -> list[str]:
+def validate(crumbs: list[Breadcrumb], roots: list[Path]) -> list[str]:
     """Return a human-readable problem per breadcrumb that fails to check out
-    against `classic_root`: either the cited C++ file does not exist, or the
-    last `::`-separated component of `cpp_symbol` is not present as a whole
-    word within +/-DRIFT_TOLERANCE lines of `cpp_line`.
+    against `roots`: either the cited C++ file does not exist under any of
+    `roots` (tried in order), or -- at whichever root does contain it -- the
+    last `::`-separated component of `cpp_symbol`, with any trailing
+    parameter list stripped, is not present as a whole word within
+    +/-DRIFT_TOLERANCE lines of `cpp_line`.
     """
     problems = []
     for crumb in crumbs:
-        cpp_path = classic_root / crumb.cpp_file
-        if not cpp_path.is_file():
+        cpp_path = next(
+            (root / crumb.cpp_file for root in roots if (root / crumb.cpp_file).is_file()),
+            None,
+        )
+        if cpp_path is None:
+            tried = ", ".join(str(root) for root in roots)
             problems.append(
-                f"{crumb.py_file}: {crumb.py_symbol}: C++ file not found: {crumb.cpp_file}"
+                f"{crumb.py_file}: {crumb.py_symbol}: C++ file not found: {crumb.cpp_file} "
+                f"(tried: {tried})"
             )
             continue
 
+        # MOSES is full of overloads, so a breadcrumb's cited symbol commonly
+        # carries a parameter list, e.g. `randint(int n)` or
+        # `build_logical(pre_it, pre_it)`. `\b` does not anchor reliably right
+        # after a `)` (it is only a boundary if the next character is a word
+        # character), so strip everything from the first `(` onward and match
+        # on the bare identifier instead.
         symbol = crumb.cpp_symbol.rsplit("::", 1)[-1]
+        symbol = symbol.split("(", 1)[0].strip()
         lines = cpp_path.read_text(errors="replace").splitlines()
         lo = max(0, crumb.cpp_line - 1 - DRIFT_TOLERANCE)
         hi = min(len(lines), crumb.cpp_line - 1 + DRIFT_TOLERANCE + 1)
@@ -206,10 +229,10 @@ def _render_alignment_doc(
 
 
 def main(argv: list[str]) -> int:
-    """Walk pymetta/, validate every breadcrumb against CLASSIC_ROOT, write
+    """Walk pymetta/, validate every breadcrumb against CLASSIC_ROOTS, write
     docs/ALIGNMENT.md, print any problems, and return 1 if any were found.
     """
-    del argv  # no CLI options yet; the classic checkout path is a fixed constant
+    del argv  # no CLI options yet; the classic checkout paths are fixed constants
 
     crumbs: list[Breadcrumb] = []
     divergences: list[Divergence] = []
@@ -217,7 +240,7 @@ def main(argv: list[str]) -> int:
         crumbs.extend(parse_breadcrumbs(py_file))
         divergences.extend(parse_divergences(py_file))
 
-    problems = validate(crumbs, CLASSIC_ROOT)
+    problems = validate(crumbs, CLASSIC_ROOTS)
     for problem in problems:
         print(problem)
 
