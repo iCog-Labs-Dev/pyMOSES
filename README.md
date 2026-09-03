@@ -27,9 +27,13 @@ Python 3.14, standard library only at runtime. Dev tools: `pytest`, `ruff`.
 ## Development
 
 ```bash
-python3 -m venv .venv && .venv/bin/pip install -e ".[dev]"
 bash tools/ci.sh   # ruff + pytest + alignment checker
 ```
+
+`tools/ci.sh` is self-bootstrapping: on first run it creates a local `.venv`
+and installs the pinned dev tools (`pytest`, `ruff`) into it; later runs
+reuse that `.venv` and skip installation entirely. No manual venv creation
+or activation, and no `PATH`/`pip install` step, is required first.
 
 See `docs/superpowers/specs/2026-09-02-pymetta-foundation-design.md` for the
 full design and `docs/superpowers/plans/2026-09-03-pymetta-s0-s6-foundation.md`
