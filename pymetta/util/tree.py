@@ -71,6 +71,21 @@ class tree:
         """
         self._root = None if root_data is None else tree_node(root_data)
 
+    def __class_getitem__(cls, item):
+        """C++: opencog/util/tree.h:111 tree
+
+        C++'s `tree` is a class template, so a specific element type is
+        named by instantiating it: `tree<vertex>` (vertex.h:527's
+        `combo_tree` typedef). This class carries no runtime type
+        parameter of its own -- like the C++ template, it is duck-typed
+        over whatever `.data` each tree_node happens to hold -- so the
+        subscript is accepted purely so a consumer can write `tree[vertex]`
+        (task-3-brief.md's `combo_tree = tree[vertex]`) and have it read as
+        that same instantiation, without this module needing to become
+        Generic[T] to support it.
+        """
+        return cls
+
     # ---- traversal bounds -------------------------------------------------
 
     def begin(self):
