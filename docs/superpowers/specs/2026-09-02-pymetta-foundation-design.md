@@ -142,7 +142,21 @@ def build_logical(self, subtree, it):
     """
 ```
 
-Format: `C++: <path relative to classic repo root>:<line> <C++ qualified symbol>`.
+Format: `C++: <path relative to a source root>:<line> <C++ qualified symbol>`.
+
+**Two source roots, not one** (amended 2026-09-03, during Task 1). `pymetta/util/`
+ports CogUtil, not Moses, so a breadcrumb path resolves against either:
+
+| Root | Path prefix | Example |
+|---|---|---|
+| `$CLASSIC` — the Moses checkout | `moses/` | `moses/moses/representation/build_knobs.cc:602` |
+| `$COGUTIL` — the CogUtil checkout | `opencog/` | `opencog/util/mt19937ar.cc:66` |
+
+The prefixes are disjoint, so there is no ambiguity about which root a path
+belongs to. `check_alignment.py` tries each root in turn and reports every root
+it tried when a path resolves under none. The original single-root wording was
+written before it was noticed that `tree.h` and `mt19937ar.cc` — two of the
+first three files ported — live in CogUtil.
 
 ### 5.3 Divergence markers
 
