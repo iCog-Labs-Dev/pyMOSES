@@ -64,3 +64,19 @@ def test_strips_parameter_list_before_matching_symbol(tmp_path, cogutil_root):
     )
     from tools.check_alignment import validate
     assert validate(parse_breadcrumbs(f), [cogutil_root]) == []
+
+def test_rejects_symbol_that_strips_to_empty(tmp_path, classic_root):
+    # Regression: a cpp_symbol whose last "::"-component begins with "(" (e.g.
+    # "()", "(x)") or is pure whitespace strips to "". An empty pattern would
+    # make the \b-anchored search match almost any non-empty C++ text, so a
+    # malformed breadcrumb must be reported as a problem, never pass silently.
+    from tools.check_alignment import validate
+    for cpp_symbol in ("()", "(x)", "   "):
+        crumb = Breadcrumb(
+            py_file=tmp_path / "m.py", py_symbol="f",
+            cpp_file="moses/comboreduct/combo/vertex.h", cpp_line=69,
+            cpp_symbol=cpp_symbol,
+        )
+        problems = validate([crumb], [classic_root])
+        assert len(problems) == 1, f"cpp_symbol={cpp_symbol!r} should be one problem, not pass"
+        assert repr(cpp_symbol) in problems[0], f"problem should name {cpp_symbol!r}: {problems[0]}"

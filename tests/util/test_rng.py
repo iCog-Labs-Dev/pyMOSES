@@ -6,6 +6,31 @@ from pymetta.util.rng import MT19937RandGen, randGen
 def golden(fixture_dir):
     return json.loads((fixture_dir / "rng.json").read_text())["draws"]
 
+# The oracle tests below derive their draw count from the fixture itself
+# (`[... for _ in golden[seed][key]]`), so a truncated or empty rng.json would
+# silently reduce every one of them to `[] == []` and pass. This test pins
+# down the fixture's shape independently of what any test happens to consume,
+# so a corrupted golden file fails loudly here instead of nowhere.
+_ALL_SEEDS = ["0", "1", "7", "42", "12345", "4294967295"]
+_EXPECTED_DRAWS = 2000
+_SERIES_SEEDS = {
+    "raw": _ALL_SEEDS,
+    "randint": _ALL_SEEDS,
+    "randint_7": ["0", "42"],
+    "randbool": ["0", "42"],
+    "randdouble": ["0", "42"],
+}
+
+def test_golden_fixture_has_expected_shape(golden):
+    assert sorted(golden) == sorted(_ALL_SEEDS)
+    for series, seeds in _SERIES_SEEDS.items():
+        for seed in seeds:
+            assert series in golden[seed], f"seed {seed!r} is missing series {series!r}"
+            n = len(golden[seed][series])
+            assert n == _EXPECTED_DRAWS, (
+                f"seed {seed!r} series {series!r} has {n} draws, expected {_EXPECTED_DRAWS}"
+            )
+
 @pytest.mark.oracle
 @pytest.mark.parametrize("seed", ["0", "1", "7", "42", "12345", "4294967295"])
 def test_raw_stream_matches_cpp(golden, seed):

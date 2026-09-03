@@ -19,6 +19,12 @@ DRIFT_TOLERANCE = 25
 BREADCRUMB_RE = re.compile(r"^C\+\+: (?P<file>\S+):(?P<line>\d+) (?P<symbol>.+)$")
 DIVERGENCE_RE = re.compile(r"# DIVERGENCE\((?P<ref>C\+\+ [^)]+)\): (?P<reason>.+)")
 
+# What a stripped cpp_symbol must look like to be worth searching for at all.
+# Guards against `symbol.split("(", 1)[0]` collapsing to "" -- e.g. a cited
+# symbol of "()" or "(x)" -- which would otherwise turn the match into
+# `re.search(r"\b\b", window)` and pass against almost any non-empty C++ text.
+IDENTIFIER_RE = re.compile(r"^[A-Za-z_]\w*$")
+
 REPO_ROOT = Path(__file__).resolve().parent.parent
 PYMETTA_ROOT = REPO_ROOT / "pymetta"
 ALIGNMENT_DOC = REPO_ROOT / "docs" / "ALIGNMENT.md"
@@ -113,6 +119,17 @@ def validate(crumbs: list[Breadcrumb], roots: list[Path]) -> list[str]:
         # on the bare identifier instead.
         symbol = crumb.cpp_symbol.rsplit("::", 1)[-1]
         symbol = symbol.split("(", 1)[0].strip()
+        if not IDENTIFIER_RE.match(symbol):
+            # A symbol like "()" or "(x)" strips to "": an empty pattern would
+            # otherwise make the \b-anchored search below (`\b\b`) match
+            # almost any non-empty text -- a malformed breadcrumb must not
+            # pass silently just because it happened to cite a real file.
+            problems.append(
+                f"{crumb.py_file}: {crumb.py_symbol}: cpp_symbol {crumb.cpp_symbol!r} has no "
+                f"plausible identifier to match (stripped to {symbol!r})"
+            )
+            continue
+
         lines = cpp_path.read_text(errors="replace").splitlines()
         lo = max(0, crumb.cpp_line - 1 - DRIFT_TOLERANCE)
         hi = min(len(lines), crumb.cpp_line - 1 + DRIFT_TOLERANCE + 1)
