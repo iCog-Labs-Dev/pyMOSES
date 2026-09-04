@@ -494,6 +494,39 @@ def test_traversal_orders(golden):
     assert [n.data for n in t.iter_leaf()] == expected["leaf_order"]
 
 
+def test_iter_post_at_walks_only_the_given_subtree_in_post_order():
+    """CARRY-FORWARD 1.4: `reduct::upwards` (meta_rules.cc:111) needs a
+    post-order walk rooted at a subtree, not at the whole tree, which
+    `iter_post()` does not offer. Same tree shape as `test_traversal_orders`
+    so the whole-tree case (`t.begin()`) can be checked directly against
+    `iter_post()`.
+    """
+    t = tree("root")
+    a = t.append_child(t.begin(), "a")
+    t.append_child(a, "a1")
+    t.append_child(a, "a2")
+    b = t.append_child(t.begin(), "b")
+    t.append_child(b, "b1")
+    validate(t)
+
+    assert [n.data for n in t.iter_post_at(a)] == ["a1", "a2", "a"]
+    assert [n.data for n in t.iter_post_at(b)] == ["b1", "b"]
+    assert [n.data for n in t.iter_post_at(t.begin())] == [n.data for n in t.iter_post()]
+
+
+def test_iter_post_at_of_a_leaf_yields_only_itself():
+    t = tree("root")
+    a = t.append_child(t.begin(), "a")
+    validate(t)
+    assert [n.data for n in t.iter_post_at(a)] == ["a"]
+
+
+def test_iter_post_at_rejects_none_node():
+    t = tree("root")
+    with pytest.raises(ValueError):
+        list(t.iter_post_at(None))
+
+
 @pytest.mark.oracle
 def test_hazard_erase_next_sibling(golden):
     t = tree("root")
@@ -826,3 +859,76 @@ def test_replace_rejects_none_node():
         t.replace(None, "x")
     with pytest.raises(ValueError):
         t.replace(None, src.begin())
+
+
+# ---------------------------------------------------------------------------
+# CARRY-FORWARD 1.3: erase()/replace() must not leave a discarded node's own
+# links pointing into the live tree. Not cxxtest ports -- regression tests
+# for the DIVERGENCE fix (C++ dangles here; this port fails fast instead).
+# ---------------------------------------------------------------------------
+
+
+def test_erase_leaves_the_discarded_nodes_own_links_dead():
+    t = tree("root")
+    t.append_child(t.begin(), "a")
+    b = t.append_child(t.begin(), "b")
+    t.append_child(t.begin(), "c")
+    t.erase(b)
+    validate(t)
+
+    # The tree itself is intact and does not route through the erased node.
+    assert [n.data for n in t] == ["root", "a", "c"]
+
+    # But a handle retained past the erase() cannot navigate through it:
+    # its own parent/prev_sibling/next_sibling are poisoned, not left
+    # pointing at the (still live) neighbors they used to point at.
+    with pytest.raises(AttributeError):
+        _ = b.next_sibling.data
+    with pytest.raises(AttributeError):
+        _ = b.prev_sibling.data
+    with pytest.raises(AttributeError):
+        _ = b.parent.data
+
+
+def test_replace_subtree_leaves_the_discarded_nodes_own_links_dead():
+    t = tree("root")
+    t.append_child(t.begin(), "a")
+    b = t.append_child(t.begin(), "b")
+    t.append_child(b, "b1")
+    t.append_child(t.begin(), "c")
+    src = tree("s")
+    src.append_child(src.begin(), "s1")
+    new_node = t.replace(b, src.begin())
+    validate(t)
+
+    assert new_node is not b
+    assert [n.data for n in t] == ["root", "a", "s", "s1", "c"]
+
+    with pytest.raises(AttributeError):
+        _ = b.next_sibling.data
+    with pytest.raises(AttributeError):
+        _ = b.prev_sibling.data
+    with pytest.raises(AttributeError):
+        _ = b.parent.data
+
+    # Only the discarded node's OWN outward links are poisoned -- its own
+    # (now orphaned) subtree is still self-consistent and readable.
+    assert b.data == "b"
+    assert b.first_child.data == "b1"
+
+
+def test_replace_data_in_place_does_not_poison_the_reused_node():
+    """The plain-data overload of replace() mutates `node` in place and
+    returns the SAME object (tree.py's replace() docstring) -- unlike the
+    subtree-copy overload, there is no discarded handle here to poison.
+    """
+    t = tree("root")
+    t.append_child(t.begin(), "a")
+    b = t.append_child(t.begin(), "b")
+    t.append_child(t.begin(), "c")
+    same = t.replace(b, "B2")
+    validate(t)
+    assert same is b
+    assert b.data == "B2"
+    assert b.next_sibling.data == "c"
+    assert b.prev_sibling.data == "a"

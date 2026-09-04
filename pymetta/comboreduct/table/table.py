@@ -608,9 +608,22 @@ class Table:
     def __init__(self, otable: OTable | None = None, itable: ITable | None = None) -> None:
         """C++: moses/comboreduct/table/table.cc:482 Table
         and moses/comboreduct/table/table.cc:484 Table(const OTable&, const ITable&)
+
+        Copies both arguments. table.cc:484's member-initializer list
+        (`itable(itable_), otable(otable_)`) copy-constructs each field
+        from a `const&` -- `ITable`/`OTable` are C++ value types
+        (`std::vector`-derived), so mutating the caller's argument object
+        after this call can never be observed through the constructed
+        `Table`. A prior version of this port aliased both (`self.itable
+        = itable`), which `_load_table_old` (table_io.py) depended on to
+        observe `ITable.delete_column` through the constructed `Table` --
+        see that function's docstring for how the dependency was removed
+        by mirroring `istreamTable_OLD` (table_io.cc:856), which never
+        calls this constructor at all: it fills `tab.itable` IN PLACE.
+        docs/CARRY-FORWARD.md section 1.1.
         """
-        self.itable: ITable = itable if itable is not None else ITable()
-        self.otable: OTable = otable if otable is not None else OTable()
+        self.itable: ITable = itable.copy() if itable is not None else ITable()
+        self.otable: OTable = otable.copy() if otable is not None else OTable()
         self.target_pos: int = 0
 
     def size(self) -> int:

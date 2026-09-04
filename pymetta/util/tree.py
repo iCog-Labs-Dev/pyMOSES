@@ -38,6 +38,28 @@ combo_tree is always single-rooted, so this port tracks the root directly as
 """
 
 
+class _DeadLink:
+    """Sentinel poisoning a discarded node's own `parent`/`prev_sibling`/
+    `next_sibling` after `tree.erase()` or the subtree-copy branch of
+    `tree.replace()` detaches it -- see the DIVERGENCE markers on those two
+    methods. `__slots__ = ()` gives every attribute access (or assignment)
+    on this object an immediate `AttributeError`: there is deliberately no
+    `.data`, no `.parent`, nothing to read -- so a stale handle that tries
+    to navigate one step further through a poisoned link fails loudly at
+    that exact point, rather than silently returning `None` (which already
+    means "no parent"/"no sibling" for a perfectly live node) or a real
+    neighbor object still attached to the live tree.
+    """
+
+    __slots__ = ()
+
+    def __repr__(self) -> str:
+        return "<erased tree_node link>"
+
+
+_DEAD = _DeadLink()
+
+
 class tree_node:
     """C++: opencog/util/tree.h:102 tree_node_
 
@@ -200,6 +222,50 @@ class tree:
         while node is not end:
             yield node
             node = self._postorder_step(node)
+
+    def iter_post_at(self, node):
+        """C++: opencog/util/tree.h:2610 post_order_iterator::descend_all
+
+        A post-order walk rooted at an arbitrary SUBTREE rather than the
+        whole tree -- `iter_post()` only ever starts from `begin_post()`/
+        `end_post()`, the tree's own root. `reduct::upwards`
+        (moses/comboreduct/reduct/meta_rules.cc:111) needs exactly this:
+        `post_order_iterator at=it, end=it; ++end; at.descend_all(); for
+        (;at!=end;++at) ...`. `at` starts at `node`'s own
+        leftmost-deepest descendant (`descend_all`, tree.h:2610 -- follow
+        `first_child` until there is none) and steps with the ordinary
+        post-order `operator++` (`_postorder_step`) until it reaches
+        `end`: `node`'s own post-order successor, computed by stepping
+        ONCE from `node` itself, UNDESCENDED (`++end` on a copy still
+        sitting at `node`, before `at.descend_all()` touches the other
+        copy) -- i.e. exactly the node that would follow `node` in a
+        post-order walk of the WHOLE enclosing tree, continued past
+        `node`. A node's post-order position is fixed by its own
+        descendants alone, regardless of what encloses it, so walking
+        from `node`'s leftmost-deepest descendant up to that successor
+        visits precisely `node`'s own subtree, in standard post-order,
+        ending on `node` itself -- never touching anything outside it.
+
+        Restores the same `node is not None` guard `children()` restores
+        for `tree.h:914`'s `tree_assert(pos.node != 0)` -- split into this
+        eager-checking wrapper plus `_iter_post_at_iter` for the identical
+        reason `children()`/`_children_iter()` are split (see that
+        docstring): a generator's body does not run until the first
+        `next()`, so the check must live outside it to raise on the call
+        itself rather than on first iteration.
+        """
+        if node is None:
+            raise ValueError("iter_post_at: node must not be None")
+        return self._iter_post_at_iter(node)
+
+    def _iter_post_at_iter(self, node):
+        end = self._postorder_step(node)
+        cur = node
+        while cur.first_child is not None:
+            cur = cur.first_child
+        while cur is not end:
+            yield cur
+            cur = self._postorder_step(cur)
 
     def iter_leaf(self):
         """C++: opencog/util/tree.h:3023 leaf_iterator
@@ -672,6 +738,27 @@ class tree:
             node.next_sibling.prev_sibling = node.prev_sibling
         if node is self._root:
             self._root = None
+        # DIVERGENCE(C++ opencog/util/tree.h:805): C++ `delete`s the erased
+        # `tree_node` (tree.h:823) after unlinking it -- any pointer a
+        # caller kept is now dangling, and dereferencing it is undefined
+        # behaviour (typically a crash, sometimes silent corruption).
+        # Python cannot reproduce "dangling": the object stays alive as
+        # long as anything references it, so a naive port would leave
+        # `node.parent`/`node.prev_sibling`/`node.next_sibling` pointing,
+        # correctly, at whatever they pointed at before the erase -- a
+        # stale handle would then silently navigate back into the LIVE
+        # tree instead of crashing. That is exactly the hazard S8's
+        # knob_mapper (one retained iterator per knob) must not hit:
+        # ported knob code would silently reattach where C++ crashes.
+        # Poisoning those three links with `_DEAD` below makes the
+        # failure loud (`AttributeError`, from `_DEAD`'s empty
+        # `__slots__`) at the first attempt to navigate through them --
+        # safer than C++'s silent corruption, but a deliberate, disclosed
+        # divergence from it, not an equivalent implementation of the
+        # same dangling-pointer behaviour.
+        node.parent = _DEAD
+        node.prev_sibling = _DEAD
+        node.next_sibling = _DEAD
         return successor
 
     def erase_children(self, node):
@@ -719,6 +806,24 @@ class tree:
             if node is self._root:
                 self._root = new_node
             self._copy_descendants(new_node, data_or_subtree)
+            # DIVERGENCE(C++ opencog/util/tree.h:1397): this subtree-copy
+            # branch allocates a brand-new node and detaches `node` from
+            # the tree -- C++'s own docs call `position` "invalid"
+            # afterwards, but never touch `node`'s own parent/
+            # prev_sibling/next_sibling, which still point, correctly,
+            # into the live tree (just no longer the linkage the tree
+            # itself uses). A retained handle could silently navigate
+            # through them and land back in the live tree exactly as if
+            # nothing had happened -- the same "quietly wrong instead of
+            # dangling" hazard `erase()`'s DIVERGENCE marker documents in
+            # full (safer than C++'s dangling pointer, not equivalent to
+            # it). Poisoned with the same `_DEAD` sentinel, for the same
+            # reason. `node`'s own first_child/last_child are left
+            # untouched -- its now-orphaned subtree stays intact and
+            # self-consistent, only its outward links are dead.
+            node.parent = _DEAD
+            node.prev_sibling = _DEAD
+            node.next_sibling = _DEAD
             return new_node
         node.data = data_or_subtree
         return node
