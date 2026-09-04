@@ -1,0 +1,7633 @@
+{
+  "trainingBoolean.dat::or(and(or(!$1)) and())": {
+    "rows": [
+      {
+        "inputs": [
+          true,
+          true,
+          true
+        ],
+        "bscore": -1,
+        "best_possible_bscore": 0,
+        "worst_possible_bscore": -1
+      },
+      {
+        "inputs": [
+          true,
+          true,
+          false
+        ],
+        "bscore": -1,
+        "best_possible_bscore": 0,
+        "worst_possible_bscore": -1
+      },
+      {
+        "inputs": [
+          true,
+          false,
+          true
+        ],
+        "bscore": 0,
+        "best_possible_bscore": 0,
+        "worst_possible_bscore": -1
+      },
+      {
+        "inputs": [
+          true,
+          false,
+          false
+        ],
+        "bscore": -1,
+        "best_possible_bscore": 0,
+        "worst_possible_bscore": -1
+      },
+      {
+        "inputs": [
+          false,
+          true,
+          true
+        ],
+        "bscore": -1,
+        "best_possible_bscore": 0,
+        "worst_possible_bscore": -1
+      },
+      {
+        "inputs": [
+          false,
+          true,
+          false
+        ],
+        "bscore": 0,
+        "best_possible_bscore": 0,
+        "worst_possible_bscore": -1
+      },
+      {
+        "inputs": [
+          false,
+          false,
+          true
+        ],
+        "bscore": -1,
+        "best_possible_bscore": 0,
+        "worst_possible_bscore": -1
+      },
+      {
+        "inputs": [
+          false,
+          false,
+          false
+        ],
+        "bscore": 0,
+        "best_possible_bscore": 0,
+        "worst_possible_bscore": -1
+      }
+    ],
+    "sum_bscore": -5,
+    "tree_complexity": 1,
+    "complexity_coef": 0,
+    "min_improv": 0.5,
+    "composite_score": {
+      "score": -5,
+      "complexity": 1,
+      "complexity_penalty": 0,
+      "uniformity_penalty": 0,
+      "penalized_score": -5
+    },
+    "file": "trainingBoolean.dat",
+    "target_feature": "y",
+    "weighting_feature": "",
+    "complexity_ratio": null,
+    "tree": "or(and(or(!$1)) and())"
+  },
+  "trainingBoolean.dat::or(and(or($1)) and())": {
+    "rows": [
+      {
+        "inputs": [
+          true,
+          true,
+          true
+        ],
+        "bscore": 0,
+        "best_possible_bscore": 0,
+        "worst_possible_bscore": -1
+      },
+      {
+        "inputs": [
+          true,
+          true,
+          false
+        ],
+        "bscore": 0,
+        "best_possible_bscore": 0,
+        "worst_possible_bscore": -1
+      },
+      {
+        "inputs": [
+          true,
+          false,
+          true
+        ],
+        "bscore": -1,
+        "best_possible_bscore": 0,
+        "worst_possible_bscore": -1
+      },
+      {
+        "inputs": [
+          true,
+          false,
+          false
+        ],
+        "bscore": 0,
+        "best_possible_bscore": 0,
+        "worst_possible_bscore": -1
+      },
+      {
+        "inputs": [
+          false,
+          true,
+          true
+        ],
+        "bscore": 0,
+        "best_possible_bscore": 0,
+        "worst_possible_bscore": -1
+      },
+      {
+        "inputs": [
+          false,
+          true,
+          false
+        ],
+        "bscore": -1,
+        "best_possible_bscore": 0,
+        "worst_possible_bscore": -1
+      },
+      {
+        "inputs": [
+          false,
+          false,
+          true
+        ],
+        "bscore": 0,
+        "best_possible_bscore": 0,
+        "worst_possible_bscore": -1
+      },
+      {
+        "inputs": [
+          false,
+          false,
+          false
+        ],
+        "bscore": -1,
+        "best_possible_bscore": 0,
+        "worst_possible_bscore": -1
+      }
+    ],
+    "sum_bscore": -3,
+    "tree_complexity": 1,
+    "complexity_coef": 0,
+    "min_improv": 0.5,
+    "composite_score": {
+      "score": -3,
+      "complexity": 1,
+      "complexity_penalty": 0,
+      "uniformity_penalty": 0,
+      "penalized_score": -3
+    },
+    "file": "trainingBoolean.dat",
+    "target_feature": "y",
+    "weighting_feature": "",
+    "complexity_ratio": null,
+    "tree": "or(and(or($1)) and())"
+  },
+  "trainingBoolean.dat::or(and(or(!$2)) and())": {
+    "rows": [
+      {
+        "inputs": [
+          true,
+          true,
+          true
+        ],
+        "bscore": -1,
+        "best_possible_bscore": 0,
+        "worst_possible_bscore": -1
+      },
+      {
+        "inputs": [
+          true,
+          true,
+          false
+        ],
+        "bscore": -1,
+        "best_possible_bscore": 0,
+        "worst_possible_bscore": -1
+      },
+      {
+        "inputs": [
+          true,
+          false,
+          true
+        ],
+        "bscore": -1,
+        "best_possible_bscore": 0,
+        "worst_possible_bscore": -1
+      },
+      {
+        "inputs": [
+          true,
+          false,
+          false
+        ],
+        "bscore": 0,
+        "best_possible_bscore": 0,
+        "worst_possible_bscore": -1
+      },
+      {
+        "inputs": [
+          false,
+          true,
+          true
+        ],
+        "bscore": 0,
+        "best_possible_bscore": 0,
+        "worst_possible_bscore": -1
+      },
+      {
+        "inputs": [
+          false,
+          true,
+          false
+        ],
+        "bscore": -1,
+        "best_possible_bscore": 0,
+        "worst_possible_bscore": -1
+      },
+      {
+        "inputs": [
+          false,
+          false,
+          true
+        ],
+        "bscore": -1,
+        "best_possible_bscore": 0,
+        "worst_possible_bscore": -1
+      },
+      {
+        "inputs": [
+          false,
+          false,
+          false
+        ],
+        "bscore": 0,
+        "best_possible_bscore": 0,
+        "worst_possible_bscore": -1
+      }
+    ],
+    "sum_bscore": -5,
+    "tree_complexity": 1,
+    "complexity_coef": 0,
+    "min_improv": 0.5,
+    "composite_score": {
+      "score": -5,
+      "complexity": 1,
+      "complexity_penalty": 0,
+      "uniformity_penalty": 0,
+      "penalized_score": -5
+    },
+    "file": "trainingBoolean.dat",
+    "target_feature": "y",
+    "weighting_feature": "",
+    "complexity_ratio": null,
+    "tree": "or(and(or(!$2)) and())"
+  },
+  "trainingBoolean.dat::or(and(or($2)) and())": {
+    "rows": [
+      {
+        "inputs": [
+          true,
+          true,
+          true
+        ],
+        "bscore": 0,
+        "best_possible_bscore": 0,
+        "worst_possible_bscore": -1
+      },
+      {
+        "inputs": [
+          true,
+          true,
+          false
+        ],
+        "bscore": 0,
+        "best_possible_bscore": 0,
+        "worst_possible_bscore": -1
+      },
+      {
+        "inputs": [
+          true,
+          false,
+          true
+        ],
+        "bscore": 0,
+        "best_possible_bscore": 0,
+        "worst_possible_bscore": -1
+      },
+      {
+        "inputs": [
+          true,
+          false,
+          false
+        ],
+        "bscore": -1,
+        "best_possible_bscore": 0,
+        "worst_possible_bscore": -1
+      },
+      {
+        "inputs": [
+          false,
+          true,
+          true
+        ],
+        "bscore": -1,
+        "best_possible_bscore": 0,
+        "worst_possible_bscore": -1
+      },
+      {
+        "inputs": [
+          false,
+          true,
+          false
+        ],
+        "bscore": 0,
+        "best_possible_bscore": 0,
+        "worst_possible_bscore": -1
+      },
+      {
+        "inputs": [
+          false,
+          false,
+          true
+        ],
+        "bscore": 0,
+        "best_possible_bscore": 0,
+        "worst_possible_bscore": -1
+      },
+      {
+        "inputs": [
+          false,
+          false,
+          false
+        ],
+        "bscore": -1,
+        "best_possible_bscore": 0,
+        "worst_possible_bscore": -1
+      }
+    ],
+    "sum_bscore": -3,
+    "tree_complexity": 1,
+    "complexity_coef": 0,
+    "min_improv": 0.5,
+    "composite_score": {
+      "score": -3,
+      "complexity": 1,
+      "complexity_penalty": 0,
+      "uniformity_penalty": 0,
+      "penalized_score": -3
+    },
+    "file": "trainingBoolean.dat",
+    "target_feature": "y",
+    "weighting_feature": "",
+    "complexity_ratio": null,
+    "tree": "or(and(or($2)) and())"
+  },
+  "trainingBoolean.dat::or(and(and($1 !$3) or()) and())": {
+    "rows": [
+      {
+        "inputs": [
+          true,
+          true,
+          true
+        ],
+        "bscore": -1,
+        "best_possible_bscore": 0,
+        "worst_possible_bscore": -1
+      },
+      {
+        "inputs": [
+          true,
+          true,
+          false
+        ],
+        "bscore": 0,
+        "best_possible_bscore": 0,
+        "worst_possible_bscore": -1
+      },
+      {
+        "inputs": [
+          true,
+          false,
+          true
+        ],
+        "bscore": 0,
+        "best_possible_bscore": 0,
+        "worst_possible_bscore": -1
+      },
+      {
+        "inputs": [
+          true,
+          false,
+          false
+        ],
+        "bscore": 0,
+        "best_possible_bscore": 0,
+        "worst_possible_bscore": -1
+      },
+      {
+        "inputs": [
+          false,
+          true,
+          true
+        ],
+        "bscore": 0,
+        "best_possible_bscore": 0,
+        "worst_possible_bscore": -1
+      },
+      {
+        "inputs": [
+          false,
+          true,
+          false
+        ],
+        "bscore": -1,
+        "best_possible_bscore": 0,
+        "worst_possible_bscore": -1
+      },
+      {
+        "inputs": [
+          false,
+          false,
+          true
+        ],
+        "bscore": 0,
+        "best_possible_bscore": 0,
+        "worst_possible_bscore": -1
+      },
+      {
+        "inputs": [
+          false,
+          false,
+          false
+        ],
+        "bscore": -1,
+        "best_possible_bscore": 0,
+        "worst_possible_bscore": -1
+      }
+    ],
+    "sum_bscore": -3,
+    "tree_complexity": 2,
+    "complexity_coef": 0,
+    "min_improv": 0.5,
+    "composite_score": {
+      "score": -3,
+      "complexity": 2,
+      "complexity_penalty": 0,
+      "uniformity_penalty": 0,
+      "penalized_score": -3
+    },
+    "file": "trainingBoolean.dat",
+    "target_feature": "y",
+    "weighting_feature": "",
+    "complexity_ratio": null,
+    "tree": "or(and(and($1 !$3) or()) and())"
+  },
+  "trainingBoolean.dat::or(and(or(!$1 $3) or()) and())": {
+    "rows": [
+      {
+        "inputs": [
+          true,
+          true,
+          true
+        ],
+        "bscore": 0,
+        "best_possible_bscore": 0,
+        "worst_possible_bscore": -1
+      },
+      {
+        "inputs": [
+          true,
+          true,
+          false
+        ],
+        "bscore": -1,
+        "best_possible_bscore": 0,
+        "worst_possible_bscore": -1
+      },
+      {
+        "inputs": [
+          true,
+          false,
+          true
+        ],
+        "bscore": -1,
+        "best_possible_bscore": 0,
+        "worst_possible_bscore": -1
+      },
+      {
+        "inputs": [
+          true,
+          false,
+          false
+        ],
+        "bscore": -1,
+        "best_possible_bscore": 0,
+        "worst_possible_bscore": -1
+      },
+      {
+        "inputs": [
+          false,
+          true,
+          true
+        ],
+        "bscore": -1,
+        "best_possible_bscore": 0,
+        "worst_possible_bscore": -1
+      },
+      {
+        "inputs": [
+          false,
+          true,
+          false
+        ],
+        "bscore": 0,
+        "best_possible_bscore": 0,
+        "worst_possible_bscore": -1
+      },
+      {
+        "inputs": [
+          false,
+          false,
+          true
+        ],
+        "bscore": -1,
+        "best_possible_bscore": 0,
+        "worst_possible_bscore": -1
+      },
+      {
+        "inputs": [
+          false,
+          false,
+          false
+        ],
+        "bscore": 0,
+        "best_possible_bscore": 0,
+        "worst_possible_bscore": -1
+      }
+    ],
+    "sum_bscore": -5,
+    "tree_complexity": 2,
+    "complexity_coef": 0,
+    "min_improv": 0.5,
+    "composite_score": {
+      "score": -5,
+      "complexity": 2,
+      "complexity_penalty": 0,
+      "uniformity_penalty": 0,
+      "penalized_score": -5
+    },
+    "file": "trainingBoolean.dat",
+    "target_feature": "y",
+    "weighting_feature": "",
+    "complexity_ratio": null,
+    "tree": "or(and(or(!$1 $3) or()) and())"
+  },
+  "trainingBoolean.dat::or(and(and(!$2 !$3) or()) and())": {
+    "rows": [
+      {
+        "inputs": [
+          true,
+          true,
+          true
+        ],
+        "bscore": -1,
+        "best_possible_bscore": 0,
+        "worst_possible_bscore": -1
+      },
+      {
+        "inputs": [
+          true,
+          true,
+          false
+        ],
+        "bscore": -1,
+        "best_possible_bscore": 0,
+        "worst_possible_bscore": -1
+      },
+      {
+        "inputs": [
+          true,
+          false,
+          true
+        ],
+        "bscore": 0,
+        "best_possible_bscore": 0,
+        "worst_possible_bscore": -1
+      },
+      {
+        "inputs": [
+          true,
+          false,
+          false
+        ],
+        "bscore": 0,
+        "best_possible_bscore": 0,
+        "worst_possible_bscore": -1
+      },
+      {
+        "inputs": [
+          false,
+          true,
+          true
+        ],
+        "bscore": 0,
+        "best_possible_bscore": 0,
+        "worst_possible_bscore": -1
+      },
+      {
+        "inputs": [
+          false,
+          true,
+          false
+        ],
+        "bscore": -1,
+        "best_possible_bscore": 0,
+        "worst_possible_bscore": -1
+      },
+      {
+        "inputs": [
+          false,
+          false,
+          true
+        ],
+        "bscore": 0,
+        "best_possible_bscore": 0,
+        "worst_possible_bscore": -1
+      },
+      {
+        "inputs": [
+          false,
+          false,
+          false
+        ],
+        "bscore": 0,
+        "best_possible_bscore": 0,
+        "worst_possible_bscore": -1
+      }
+    ],
+    "sum_bscore": -3,
+    "tree_complexity": 2,
+    "complexity_coef": 0,
+    "min_improv": 0.5,
+    "composite_score": {
+      "score": -3,
+      "complexity": 2,
+      "complexity_penalty": 0,
+      "uniformity_penalty": 0,
+      "penalized_score": -3
+    },
+    "file": "trainingBoolean.dat",
+    "target_feature": "y",
+    "weighting_feature": "",
+    "complexity_ratio": null,
+    "tree": "or(and(and(!$2 !$3) or()) and())"
+  },
+  "trainingBoolean.dat::or(and(or($2 $3) or()) and())": {
+    "rows": [
+      {
+        "inputs": [
+          true,
+          true,
+          true
+        ],
+        "bscore": 0,
+        "best_possible_bscore": 0,
+        "worst_possible_bscore": -1
+      },
+      {
+        "inputs": [
+          true,
+          true,
+          false
+        ],
+        "bscore": 0,
+        "best_possible_bscore": 0,
+        "worst_possible_bscore": -1
+      },
+      {
+        "inputs": [
+          true,
+          false,
+          true
+        ],
+        "bscore": -1,
+        "best_possible_bscore": 0,
+        "worst_possible_bscore": -1
+      },
+      {
+        "inputs": [
+          true,
+          false,
+          false
+        ],
+        "bscore": -1,
+        "best_possible_bscore": 0,
+        "worst_possible_bscore": -1
+      },
+      {
+        "inputs": [
+          false,
+          true,
+          true
+        ],
+        "bscore": -1,
+        "best_possible_bscore": 0,
+        "worst_possible_bscore": -1
+      },
+      {
+        "inputs": [
+          false,
+          true,
+          false
+        ],
+        "bscore": 0,
+        "best_possible_bscore": 0,
+        "worst_possible_bscore": -1
+      },
+      {
+        "inputs": [
+          false,
+          false,
+          true
+        ],
+        "bscore": -1,
+        "best_possible_bscore": 0,
+        "worst_possible_bscore": -1
+      },
+      {
+        "inputs": [
+          false,
+          false,
+          false
+        ],
+        "bscore": -1,
+        "best_possible_bscore": 0,
+        "worst_possible_bscore": -1
+      }
+    ],
+    "sum_bscore": -5,
+    "tree_complexity": 2,
+    "complexity_coef": 0,
+    "min_improv": 0.5,
+    "composite_score": {
+      "score": -5,
+      "complexity": 2,
+      "complexity_penalty": 0,
+      "uniformity_penalty": 0,
+      "penalized_score": -5
+    },
+    "file": "trainingBoolean.dat",
+    "target_feature": "y",
+    "weighting_feature": "",
+    "complexity_ratio": null,
+    "tree": "or(and(or($2 $3) or()) and())"
+  },
+  "trainingBoolean.dat::or(and(and(!$2 !$1) or()) and())": {
+    "rows": [
+      {
+        "inputs": [
+          true,
+          true,
+          true
+        ],
+        "bscore": -1,
+        "best_possible_bscore": 0,
+        "worst_possible_bscore": -1
+      },
+      {
+        "inputs": [
+          true,
+          true,
+          false
+        ],
+        "bscore": -1,
+        "best_possible_bscore": 0,
+        "worst_possible_bscore": -1
+      },
+      {
+        "inputs": [
+          true,
+          false,
+          true
+        ],
+        "bscore": 0,
+        "best_possible_bscore": 0,
+        "worst_possible_bscore": -1
+      },
+      {
+        "inputs": [
+          true,
+          false,
+          false
+        ],
+        "bscore": -1,
+        "best_possible_bscore": 0,
+        "worst_possible_bscore": -1
+      },
+      {
+        "inputs": [
+          false,
+          true,
+          true
+        ],
+        "bscore": 0,
+        "best_possible_bscore": 0,
+        "worst_possible_bscore": -1
+      },
+      {
+        "inputs": [
+          false,
+          true,
+          false
+        ],
+        "bscore": -1,
+        "best_possible_bscore": 0,
+        "worst_possible_bscore": -1
+      },
+      {
+        "inputs": [
+          false,
+          false,
+          true
+        ],
+        "bscore": -1,
+        "best_possible_bscore": 0,
+        "worst_possible_bscore": -1
+      },
+      {
+        "inputs": [
+          false,
+          false,
+          false
+        ],
+        "bscore": 0,
+        "best_possible_bscore": 0,
+        "worst_possible_bscore": -1
+      }
+    ],
+    "sum_bscore": -5,
+    "tree_complexity": 2,
+    "complexity_coef": 0,
+    "min_improv": 0.5,
+    "composite_score": {
+      "score": -5,
+      "complexity": 2,
+      "complexity_penalty": 0,
+      "uniformity_penalty": 0,
+      "penalized_score": -5
+    },
+    "file": "trainingBoolean.dat",
+    "target_feature": "y",
+    "weighting_feature": "",
+    "complexity_ratio": null,
+    "tree": "or(and(and(!$2 !$1) or()) and())"
+  },
+  "trainingBoolean.dat::or(and(or($2 $1) or()) and())": {
+    "rows": [
+      {
+        "inputs": [
+          true,
+          true,
+          true
+        ],
+        "bscore": 0,
+        "best_possible_bscore": 0,
+        "worst_possible_bscore": -1
+      },
+      {
+        "inputs": [
+          true,
+          true,
+          false
+        ],
+        "bscore": 0,
+        "best_possible_bscore": 0,
+        "worst_possible_bscore": -1
+      },
+      {
+        "inputs": [
+          true,
+          false,
+          true
+        ],
+        "bscore": -1,
+        "best_possible_bscore": 0,
+        "worst_possible_bscore": -1
+      },
+      {
+        "inputs": [
+          true,
+          false,
+          false
+        ],
+        "bscore": 0,
+        "best_possible_bscore": 0,
+        "worst_possible_bscore": -1
+      },
+      {
+        "inputs": [
+          false,
+          true,
+          true
+        ],
+        "bscore": -1,
+        "best_possible_bscore": 0,
+        "worst_possible_bscore": -1
+      },
+      {
+        "inputs": [
+          false,
+          true,
+          false
+        ],
+        "bscore": 0,
+        "best_possible_bscore": 0,
+        "worst_possible_bscore": -1
+      },
+      {
+        "inputs": [
+          false,
+          false,
+          true
+        ],
+        "bscore": 0,
+        "best_possible_bscore": 0,
+        "worst_possible_bscore": -1
+      },
+      {
+        "inputs": [
+          false,
+          false,
+          false
+        ],
+        "bscore": -1,
+        "best_possible_bscore": 0,
+        "worst_possible_bscore": -1
+      }
+    ],
+    "sum_bscore": -3,
+    "tree_complexity": 2,
+    "complexity_coef": 0,
+    "min_improv": 0.5,
+    "composite_score": {
+      "score": -3,
+      "complexity": 2,
+      "complexity_penalty": 0,
+      "uniformity_penalty": 0,
+      "penalized_score": -3
+    },
+    "file": "trainingBoolean.dat",
+    "target_feature": "y",
+    "weighting_feature": "",
+    "complexity_ratio": null,
+    "tree": "or(and(or($2 $1) or()) and())"
+  },
+  "trainingBoolean.dat::or(and(!$3 or()) and())": {
+    "rows": [
+      {
+        "inputs": [
+          true,
+          true,
+          true
+        ],
+        "bscore": -1,
+        "best_possible_bscore": 0,
+        "worst_possible_bscore": -1
+      },
+      {
+        "inputs": [
+          true,
+          true,
+          false
+        ],
+        "bscore": 0,
+        "best_possible_bscore": 0,
+        "worst_possible_bscore": -1
+      },
+      {
+        "inputs": [
+          true,
+          false,
+          true
+        ],
+        "bscore": 0,
+        "best_possible_bscore": 0,
+        "worst_possible_bscore": -1
+      },
+      {
+        "inputs": [
+          true,
+          false,
+          false
+        ],
+        "bscore": 0,
+        "best_possible_bscore": 0,
+        "worst_possible_bscore": -1
+      },
+      {
+        "inputs": [
+          false,
+          true,
+          true
+        ],
+        "bscore": 0,
+        "best_possible_bscore": 0,
+        "worst_possible_bscore": -1
+      },
+      {
+        "inputs": [
+          false,
+          true,
+          false
+        ],
+        "bscore": 0,
+        "best_possible_bscore": 0,
+        "worst_possible_bscore": -1
+      },
+      {
+        "inputs": [
+          false,
+          false,
+          true
+        ],
+        "bscore": 0,
+        "best_possible_bscore": 0,
+        "worst_possible_bscore": -1
+      },
+      {
+        "inputs": [
+          false,
+          false,
+          false
+        ],
+        "bscore": 0,
+        "best_possible_bscore": 0,
+        "worst_possible_bscore": -1
+      }
+    ],
+    "sum_bscore": -1,
+    "tree_complexity": 1,
+    "complexity_coef": 0,
+    "min_improv": 0.5,
+    "composite_score": {
+      "score": -1,
+      "complexity": 1,
+      "complexity_penalty": 0,
+      "uniformity_penalty": 0,
+      "penalized_score": -1
+    },
+    "file": "trainingBoolean.dat",
+    "target_feature": "y",
+    "weighting_feature": "",
+    "complexity_ratio": null,
+    "tree": "or(and(!$3 or()) and())"
+  },
+  "trainingBoolean.dat::or(and($3 or()) and())": {
+    "rows": [
+      {
+        "inputs": [
+          true,
+          true,
+          true
+        ],
+        "bscore": 0,
+        "best_possible_bscore": 0,
+        "worst_possible_bscore": -1
+      },
+      {
+        "inputs": [
+          true,
+          true,
+          false
+        ],
+        "bscore": -1,
+        "best_possible_bscore": 0,
+        "worst_possible_bscore": -1
+      },
+      {
+        "inputs": [
+          true,
+          false,
+          true
+        ],
+        "bscore": -1,
+        "best_possible_bscore": 0,
+        "worst_possible_bscore": -1
+      },
+      {
+        "inputs": [
+          true,
+          false,
+          false
+        ],
+        "bscore": -1,
+        "best_possible_bscore": 0,
+        "worst_possible_bscore": -1
+      },
+      {
+        "inputs": [
+          false,
+          true,
+          true
+        ],
+        "bscore": -1,
+        "best_possible_bscore": 0,
+        "worst_possible_bscore": -1
+      },
+      {
+        "inputs": [
+          false,
+          true,
+          false
+        ],
+        "bscore": -1,
+        "best_possible_bscore": 0,
+        "worst_possible_bscore": -1
+      },
+      {
+        "inputs": [
+          false,
+          false,
+          true
+        ],
+        "bscore": -1,
+        "best_possible_bscore": 0,
+        "worst_possible_bscore": -1
+      },
+      {
+        "inputs": [
+          false,
+          false,
+          false
+        ],
+        "bscore": -1,
+        "best_possible_bscore": 0,
+        "worst_possible_bscore": -1
+      }
+    ],
+    "sum_bscore": -7,
+    "tree_complexity": 1,
+    "complexity_coef": 0,
+    "min_improv": 0.5,
+    "composite_score": {
+      "score": -7,
+      "complexity": 1,
+      "complexity_penalty": 0,
+      "uniformity_penalty": 0,
+      "penalized_score": -7
+    },
+    "file": "trainingBoolean.dat",
+    "target_feature": "y",
+    "weighting_feature": "",
+    "complexity_ratio": null,
+    "tree": "or(and($3 or()) and())"
+  },
+  "trainingBoolean.dat::or(and(!$1 or()) and())": {
+    "rows": [
+      {
+        "inputs": [
+          true,
+          true,
+          true
+        ],
+        "bscore": -1,
+        "best_possible_bscore": 0,
+        "worst_possible_bscore": -1
+      },
+      {
+        "inputs": [
+          true,
+          true,
+          false
+        ],
+        "bscore": -1,
+        "best_possible_bscore": 0,
+        "worst_possible_bscore": -1
+      },
+      {
+        "inputs": [
+          true,
+          false,
+          true
+        ],
+        "bscore": 0,
+        "best_possible_bscore": 0,
+        "worst_possible_bscore": -1
+      },
+      {
+        "inputs": [
+          true,
+          false,
+          false
+        ],
+        "bscore": -1,
+        "best_possible_bscore": 0,
+        "worst_possible_bscore": -1
+      },
+      {
+        "inputs": [
+          false,
+          true,
+          true
+        ],
+        "bscore": -1,
+        "best_possible_bscore": 0,
+        "worst_possible_bscore": -1
+      },
+      {
+        "inputs": [
+          false,
+          true,
+          false
+        ],
+        "bscore": 0,
+        "best_possible_bscore": 0,
+        "worst_possible_bscore": -1
+      },
+      {
+        "inputs": [
+          false,
+          false,
+          true
+        ],
+        "bscore": -1,
+        "best_possible_bscore": 0,
+        "worst_possible_bscore": -1
+      },
+      {
+        "inputs": [
+          false,
+          false,
+          false
+        ],
+        "bscore": 0,
+        "best_possible_bscore": 0,
+        "worst_possible_bscore": -1
+      }
+    ],
+    "sum_bscore": -5,
+    "tree_complexity": 1,
+    "complexity_coef": 0,
+    "min_improv": 0.5,
+    "composite_score": {
+      "score": -5,
+      "complexity": 1,
+      "complexity_penalty": 0,
+      "uniformity_penalty": 0,
+      "penalized_score": -5
+    },
+    "file": "trainingBoolean.dat",
+    "target_feature": "y",
+    "weighting_feature": "",
+    "complexity_ratio": null,
+    "tree": "or(and(!$1 or()) and())"
+  },
+  "trainingBoolean.dat::or(and($1 or()) and())": {
+    "rows": [
+      {
+        "inputs": [
+          true,
+          true,
+          true
+        ],
+        "bscore": 0,
+        "best_possible_bscore": 0,
+        "worst_possible_bscore": -1
+      },
+      {
+        "inputs": [
+          true,
+          true,
+          false
+        ],
+        "bscore": 0,
+        "best_possible_bscore": 0,
+        "worst_possible_bscore": -1
+      },
+      {
+        "inputs": [
+          true,
+          false,
+          true
+        ],
+        "bscore": -1,
+        "best_possible_bscore": 0,
+        "worst_possible_bscore": -1
+      },
+      {
+        "inputs": [
+          true,
+          false,
+          false
+        ],
+        "bscore": 0,
+        "best_possible_bscore": 0,
+        "worst_possible_bscore": -1
+      },
+      {
+        "inputs": [
+          false,
+          true,
+          true
+        ],
+        "bscore": 0,
+        "best_possible_bscore": 0,
+        "worst_possible_bscore": -1
+      },
+      {
+        "inputs": [
+          false,
+          true,
+          false
+        ],
+        "bscore": -1,
+        "best_possible_bscore": 0,
+        "worst_possible_bscore": -1
+      },
+      {
+        "inputs": [
+          false,
+          false,
+          true
+        ],
+        "bscore": 0,
+        "best_possible_bscore": 0,
+        "worst_possible_bscore": -1
+      },
+      {
+        "inputs": [
+          false,
+          false,
+          false
+        ],
+        "bscore": -1,
+        "best_possible_bscore": 0,
+        "worst_possible_bscore": -1
+      }
+    ],
+    "sum_bscore": -3,
+    "tree_complexity": 1,
+    "complexity_coef": 0,
+    "min_improv": 0.5,
+    "composite_score": {
+      "score": -3,
+      "complexity": 1,
+      "complexity_penalty": 0,
+      "uniformity_penalty": 0,
+      "penalized_score": -3
+    },
+    "file": "trainingBoolean.dat",
+    "target_feature": "y",
+    "weighting_feature": "",
+    "complexity_ratio": null,
+    "tree": "or(and($1 or()) and())"
+  },
+  "trainingBoolean.dat::or(and(!$2 or()) and())": {
+    "rows": [
+      {
+        "inputs": [
+          true,
+          true,
+          true
+        ],
+        "bscore": -1,
+        "best_possible_bscore": 0,
+        "worst_possible_bscore": -1
+      },
+      {
+        "inputs": [
+          true,
+          true,
+          false
+        ],
+        "bscore": -1,
+        "best_possible_bscore": 0,
+        "worst_possible_bscore": -1
+      },
+      {
+        "inputs": [
+          true,
+          false,
+          true
+        ],
+        "bscore": -1,
+        "best_possible_bscore": 0,
+        "worst_possible_bscore": -1
+      },
+      {
+        "inputs": [
+          true,
+          false,
+          false
+        ],
+        "bscore": 0,
+        "best_possible_bscore": 0,
+        "worst_possible_bscore": -1
+      },
+      {
+        "inputs": [
+          false,
+          true,
+          true
+        ],
+        "bscore": 0,
+        "best_possible_bscore": 0,
+        "worst_possible_bscore": -1
+      },
+      {
+        "inputs": [
+          false,
+          true,
+          false
+        ],
+        "bscore": -1,
+        "best_possible_bscore": 0,
+        "worst_possible_bscore": -1
+      },
+      {
+        "inputs": [
+          false,
+          false,
+          true
+        ],
+        "bscore": -1,
+        "best_possible_bscore": 0,
+        "worst_possible_bscore": -1
+      },
+      {
+        "inputs": [
+          false,
+          false,
+          false
+        ],
+        "bscore": 0,
+        "best_possible_bscore": 0,
+        "worst_possible_bscore": -1
+      }
+    ],
+    "sum_bscore": -5,
+    "tree_complexity": 1,
+    "complexity_coef": 0,
+    "min_improv": 0.5,
+    "composite_score": {
+      "score": -5,
+      "complexity": 1,
+      "complexity_penalty": 0,
+      "uniformity_penalty": 0,
+      "penalized_score": -5
+    },
+    "file": "trainingBoolean.dat",
+    "target_feature": "y",
+    "weighting_feature": "",
+    "complexity_ratio": null,
+    "tree": "or(and(!$2 or()) and())"
+  },
+  "trainingBoolean.dat::or(and($2 or()) and())": {
+    "rows": [
+      {
+        "inputs": [
+          true,
+          true,
+          true
+        ],
+        "bscore": 0,
+        "best_possible_bscore": 0,
+        "worst_possible_bscore": -1
+      },
+      {
+        "inputs": [
+          true,
+          true,
+          false
+        ],
+        "bscore": 0,
+        "best_possible_bscore": 0,
+        "worst_possible_bscore": -1
+      },
+      {
+        "inputs": [
+          true,
+          false,
+          true
+        ],
+        "bscore": 0,
+        "best_possible_bscore": 0,
+        "worst_possible_bscore": -1
+      },
+      {
+        "inputs": [
+          true,
+          false,
+          false
+        ],
+        "bscore": -1,
+        "best_possible_bscore": 0,
+        "worst_possible_bscore": -1
+      },
+      {
+        "inputs": [
+          false,
+          true,
+          true
+        ],
+        "bscore": -1,
+        "best_possible_bscore": 0,
+        "worst_possible_bscore": -1
+      },
+      {
+        "inputs": [
+          false,
+          true,
+          false
+        ],
+        "bscore": 0,
+        "best_possible_bscore": 0,
+        "worst_possible_bscore": -1
+      },
+      {
+        "inputs": [
+          false,
+          false,
+          true
+        ],
+        "bscore": 0,
+        "best_possible_bscore": 0,
+        "worst_possible_bscore": -1
+      },
+      {
+        "inputs": [
+          false,
+          false,
+          false
+        ],
+        "bscore": -1,
+        "best_possible_bscore": 0,
+        "worst_possible_bscore": -1
+      }
+    ],
+    "sum_bscore": -3,
+    "tree_complexity": 1,
+    "complexity_coef": 0,
+    "min_improv": 0.5,
+    "composite_score": {
+      "score": -3,
+      "complexity": 1,
+      "complexity_penalty": 0,
+      "uniformity_penalty": 0,
+      "penalized_score": -3
+    },
+    "file": "trainingBoolean.dat",
+    "target_feature": "y",
+    "weighting_feature": "",
+    "complexity_ratio": null,
+    "tree": "or(and($2 or()) and())"
+  },
+  "trainingBoolean.dat::or(and(or()) or(!$1 !$3) and())": {
+    "rows": [
+      {
+        "inputs": [
+          true,
+          true,
+          true
+        ],
+        "bscore": 0,
+        "best_possible_bscore": 0,
+        "worst_possible_bscore": -1
+      },
+      {
+        "inputs": [
+          true,
+          true,
+          false
+        ],
+        "bscore": 0,
+        "best_possible_bscore": 0,
+        "worst_possible_bscore": -1
+      },
+      {
+        "inputs": [
+          true,
+          false,
+          true
+        ],
+        "bscore": -1,
+        "best_possible_bscore": 0,
+        "worst_possible_bscore": -1
+      },
+      {
+        "inputs": [
+          true,
+          false,
+          false
+        ],
+        "bscore": 0,
+        "best_possible_bscore": 0,
+        "worst_possible_bscore": -1
+      },
+      {
+        "inputs": [
+          false,
+          true,
+          true
+        ],
+        "bscore": -1,
+        "best_possible_bscore": 0,
+        "worst_possible_bscore": -1
+      },
+      {
+        "inputs": [
+          false,
+          true,
+          false
+        ],
+        "bscore": 0,
+        "best_possible_bscore": 0,
+        "worst_possible_bscore": -1
+      },
+      {
+        "inputs": [
+          false,
+          false,
+          true
+        ],
+        "bscore": -1,
+        "best_possible_bscore": 0,
+        "worst_possible_bscore": -1
+      },
+      {
+        "inputs": [
+          false,
+          false,
+          false
+        ],
+        "bscore": 0,
+        "best_possible_bscore": 0,
+        "worst_possible_bscore": -1
+      }
+    ],
+    "sum_bscore": -3,
+    "tree_complexity": 2,
+    "complexity_coef": 0,
+    "min_improv": 0.5,
+    "composite_score": {
+      "score": -3,
+      "complexity": 2,
+      "complexity_penalty": 0,
+      "uniformity_penalty": 0,
+      "penalized_score": -3
+    },
+    "file": "trainingBoolean.dat",
+    "target_feature": "y",
+    "weighting_feature": "",
+    "complexity_ratio": null,
+    "tree": "or(and(or()) or(!$1 !$3) and())"
+  },
+  "trainingBoolean.dat::or(and(or()) and($1 $3) and())": {
+    "rows": [
+      {
+        "inputs": [
+          true,
+          true,
+          true
+        ],
+        "bscore": 0,
+        "best_possible_bscore": 0,
+        "worst_possible_bscore": -1
+      },
+      {
+        "inputs": [
+          true,
+          true,
+          false
+        ],
+        "bscore": 0,
+        "best_possible_bscore": 0,
+        "worst_possible_bscore": -1
+      },
+      {
+        "inputs": [
+          true,
+          false,
+          true
+        ],
+        "bscore": -1,
+        "best_possible_bscore": 0,
+        "worst_possible_bscore": -1
+      },
+      {
+        "inputs": [
+          true,
+          false,
+          false
+        ],
+        "bscore": 0,
+        "best_possible_bscore": 0,
+        "worst_possible_bscore": -1
+      },
+      {
+        "inputs": [
+          false,
+          true,
+          true
+        ],
+        "bscore": -1,
+        "best_possible_bscore": 0,
+        "worst_possible_bscore": -1
+      },
+      {
+        "inputs": [
+          false,
+          true,
+          false
+        ],
+        "bscore": 0,
+        "best_possible_bscore": 0,
+        "worst_possible_bscore": -1
+      },
+      {
+        "inputs": [
+          false,
+          false,
+          true
+        ],
+        "bscore": -1,
+        "best_possible_bscore": 0,
+        "worst_possible_bscore": -1
+      },
+      {
+        "inputs": [
+          false,
+          false,
+          false
+        ],
+        "bscore": 0,
+        "best_possible_bscore": 0,
+        "worst_possible_bscore": -1
+      }
+    ],
+    "sum_bscore": -3,
+    "tree_complexity": 2,
+    "complexity_coef": 0,
+    "min_improv": 0.5,
+    "composite_score": {
+      "score": -3,
+      "complexity": 2,
+      "complexity_penalty": 0,
+      "uniformity_penalty": 0,
+      "penalized_score": -3
+    },
+    "file": "trainingBoolean.dat",
+    "target_feature": "y",
+    "weighting_feature": "",
+    "complexity_ratio": null,
+    "tree": "or(and(or()) and($1 $3) and())"
+  },
+  "trainingBoolean.dat::or(and(or()) or($2 !$1) and())": {
+    "rows": [
+      {
+        "inputs": [
+          true,
+          true,
+          true
+        ],
+        "bscore": 0,
+        "best_possible_bscore": 0,
+        "worst_possible_bscore": -1
+      },
+      {
+        "inputs": [
+          true,
+          true,
+          false
+        ],
+        "bscore": 0,
+        "best_possible_bscore": 0,
+        "worst_possible_bscore": -1
+      },
+      {
+        "inputs": [
+          true,
+          false,
+          true
+        ],
+        "bscore": -1,
+        "best_possible_bscore": 0,
+        "worst_possible_bscore": -1
+      },
+      {
+        "inputs": [
+          true,
+          false,
+          false
+        ],
+        "bscore": 0,
+        "best_possible_bscore": 0,
+        "worst_possible_bscore": -1
+      },
+      {
+        "inputs": [
+          false,
+          true,
+          true
+        ],
+        "bscore": -1,
+        "best_possible_bscore": 0,
+        "worst_possible_bscore": -1
+      },
+      {
+        "inputs": [
+          false,
+          true,
+          false
+        ],
+        "bscore": 0,
+        "best_possible_bscore": 0,
+        "worst_possible_bscore": -1
+      },
+      {
+        "inputs": [
+          false,
+          false,
+          true
+        ],
+        "bscore": -1,
+        "best_possible_bscore": 0,
+        "worst_possible_bscore": -1
+      },
+      {
+        "inputs": [
+          false,
+          false,
+          false
+        ],
+        "bscore": 0,
+        "best_possible_bscore": 0,
+        "worst_possible_bscore": -1
+      }
+    ],
+    "sum_bscore": -3,
+    "tree_complexity": 2,
+    "complexity_coef": 0,
+    "min_improv": 0.5,
+    "composite_score": {
+      "score": -3,
+      "complexity": 2,
+      "complexity_penalty": 0,
+      "uniformity_penalty": 0,
+      "penalized_score": -3
+    },
+    "file": "trainingBoolean.dat",
+    "target_feature": "y",
+    "weighting_feature": "",
+    "complexity_ratio": null,
+    "tree": "or(and(or()) or($2 !$1) and())"
+  },
+  "trainingBoolean.dat::or(and(or()) and(!$2 $1) and())": {
+    "rows": [
+      {
+        "inputs": [
+          true,
+          true,
+          true
+        ],
+        "bscore": 0,
+        "best_possible_bscore": 0,
+        "worst_possible_bscore": -1
+      },
+      {
+        "inputs": [
+          true,
+          true,
+          false
+        ],
+        "bscore": 0,
+        "best_possible_bscore": 0,
+        "worst_possible_bscore": -1
+      },
+      {
+        "inputs": [
+          true,
+          false,
+          true
+        ],
+        "bscore": -1,
+        "best_possible_bscore": 0,
+        "worst_possible_bscore": -1
+      },
+      {
+        "inputs": [
+          true,
+          false,
+          false
+        ],
+        "bscore": 0,
+        "best_possible_bscore": 0,
+        "worst_possible_bscore": -1
+      },
+      {
+        "inputs": [
+          false,
+          true,
+          true
+        ],
+        "bscore": -1,
+        "best_possible_bscore": 0,
+        "worst_possible_bscore": -1
+      },
+      {
+        "inputs": [
+          false,
+          true,
+          false
+        ],
+        "bscore": 0,
+        "best_possible_bscore": 0,
+        "worst_possible_bscore": -1
+      },
+      {
+        "inputs": [
+          false,
+          false,
+          true
+        ],
+        "bscore": -1,
+        "best_possible_bscore": 0,
+        "worst_possible_bscore": -1
+      },
+      {
+        "inputs": [
+          false,
+          false,
+          false
+        ],
+        "bscore": 0,
+        "best_possible_bscore": 0,
+        "worst_possible_bscore": -1
+      }
+    ],
+    "sum_bscore": -3,
+    "tree_complexity": 2,
+    "complexity_coef": 0,
+    "min_improv": 0.5,
+    "composite_score": {
+      "score": -3,
+      "complexity": 2,
+      "complexity_penalty": 0,
+      "uniformity_penalty": 0,
+      "penalized_score": -3
+    },
+    "file": "trainingBoolean.dat",
+    "target_feature": "y",
+    "weighting_feature": "",
+    "complexity_ratio": null,
+    "tree": "or(and(or()) and(!$2 $1) and())"
+  },
+  "trainingBoolean.dat::or(and(or()) or(!$2 !$3) and())": {
+    "rows": [
+      {
+        "inputs": [
+          true,
+          true,
+          true
+        ],
+        "bscore": 0,
+        "best_possible_bscore": 0,
+        "worst_possible_bscore": -1
+      },
+      {
+        "inputs": [
+          true,
+          true,
+          false
+        ],
+        "bscore": 0,
+        "best_possible_bscore": 0,
+        "worst_possible_bscore": -1
+      },
+      {
+        "inputs": [
+          true,
+          false,
+          true
+        ],
+        "bscore": -1,
+        "best_possible_bscore": 0,
+        "worst_possible_bscore": -1
+      },
+      {
+        "inputs": [
+          true,
+          false,
+          false
+        ],
+        "bscore": 0,
+        "best_possible_bscore": 0,
+        "worst_possible_bscore": -1
+      },
+      {
+        "inputs": [
+          false,
+          true,
+          true
+        ],
+        "bscore": -1,
+        "best_possible_bscore": 0,
+        "worst_possible_bscore": -1
+      },
+      {
+        "inputs": [
+          false,
+          true,
+          false
+        ],
+        "bscore": 0,
+        "best_possible_bscore": 0,
+        "worst_possible_bscore": -1
+      },
+      {
+        "inputs": [
+          false,
+          false,
+          true
+        ],
+        "bscore": -1,
+        "best_possible_bscore": 0,
+        "worst_possible_bscore": -1
+      },
+      {
+        "inputs": [
+          false,
+          false,
+          false
+        ],
+        "bscore": 0,
+        "best_possible_bscore": 0,
+        "worst_possible_bscore": -1
+      }
+    ],
+    "sum_bscore": -3,
+    "tree_complexity": 2,
+    "complexity_coef": 0,
+    "min_improv": 0.5,
+    "composite_score": {
+      "score": -3,
+      "complexity": 2,
+      "complexity_penalty": 0,
+      "uniformity_penalty": 0,
+      "penalized_score": -3
+    },
+    "file": "trainingBoolean.dat",
+    "target_feature": "y",
+    "weighting_feature": "",
+    "complexity_ratio": null,
+    "tree": "or(and(or()) or(!$2 !$3) and())"
+  },
+  "trainingBoolean.dat::or(and(or()) and($2 $3) and())": {
+    "rows": [
+      {
+        "inputs": [
+          true,
+          true,
+          true
+        ],
+        "bscore": 0,
+        "best_possible_bscore": 0,
+        "worst_possible_bscore": -1
+      },
+      {
+        "inputs": [
+          true,
+          true,
+          false
+        ],
+        "bscore": 0,
+        "best_possible_bscore": 0,
+        "worst_possible_bscore": -1
+      },
+      {
+        "inputs": [
+          true,
+          false,
+          true
+        ],
+        "bscore": -1,
+        "best_possible_bscore": 0,
+        "worst_possible_bscore": -1
+      },
+      {
+        "inputs": [
+          true,
+          false,
+          false
+        ],
+        "bscore": 0,
+        "best_possible_bscore": 0,
+        "worst_possible_bscore": -1
+      },
+      {
+        "inputs": [
+          false,
+          true,
+          true
+        ],
+        "bscore": -1,
+        "best_possible_bscore": 0,
+        "worst_possible_bscore": -1
+      },
+      {
+        "inputs": [
+          false,
+          true,
+          false
+        ],
+        "bscore": 0,
+        "best_possible_bscore": 0,
+        "worst_possible_bscore": -1
+      },
+      {
+        "inputs": [
+          false,
+          false,
+          true
+        ],
+        "bscore": -1,
+        "best_possible_bscore": 0,
+        "worst_possible_bscore": -1
+      },
+      {
+        "inputs": [
+          false,
+          false,
+          false
+        ],
+        "bscore": 0,
+        "best_possible_bscore": 0,
+        "worst_possible_bscore": -1
+      }
+    ],
+    "sum_bscore": -3,
+    "tree_complexity": 2,
+    "complexity_coef": 0,
+    "min_improv": 0.5,
+    "composite_score": {
+      "score": -3,
+      "complexity": 2,
+      "complexity_penalty": 0,
+      "uniformity_penalty": 0,
+      "penalized_score": -3
+    },
+    "file": "trainingBoolean.dat",
+    "target_feature": "y",
+    "weighting_feature": "",
+    "complexity_ratio": null,
+    "tree": "or(and(or()) and($2 $3) and())"
+  },
+  "trainingBoolean.dat::or(and(or()) !$3 and())": {
+    "rows": [
+      {
+        "inputs": [
+          true,
+          true,
+          true
+        ],
+        "bscore": 0,
+        "best_possible_bscore": 0,
+        "worst_possible_bscore": -1
+      },
+      {
+        "inputs": [
+          true,
+          true,
+          false
+        ],
+        "bscore": 0,
+        "best_possible_bscore": 0,
+        "worst_possible_bscore": -1
+      },
+      {
+        "inputs": [
+          true,
+          false,
+          true
+        ],
+        "bscore": -1,
+        "best_possible_bscore": 0,
+        "worst_possible_bscore": -1
+      },
+      {
+        "inputs": [
+          true,
+          false,
+          false
+        ],
+        "bscore": 0,
+        "best_possible_bscore": 0,
+        "worst_possible_bscore": -1
+      },
+      {
+        "inputs": [
+          false,
+          true,
+          true
+        ],
+        "bscore": -1,
+        "best_possible_bscore": 0,
+        "worst_possible_bscore": -1
+      },
+      {
+        "inputs": [
+          false,
+          true,
+          false
+        ],
+        "bscore": 0,
+        "best_possible_bscore": 0,
+        "worst_possible_bscore": -1
+      },
+      {
+        "inputs": [
+          false,
+          false,
+          true
+        ],
+        "bscore": -1,
+        "best_possible_bscore": 0,
+        "worst_possible_bscore": -1
+      },
+      {
+        "inputs": [
+          false,
+          false,
+          false
+        ],
+        "bscore": 0,
+        "best_possible_bscore": 0,
+        "worst_possible_bscore": -1
+      }
+    ],
+    "sum_bscore": -3,
+    "tree_complexity": 1,
+    "complexity_coef": 0,
+    "min_improv": 0.5,
+    "composite_score": {
+      "score": -3,
+      "complexity": 1,
+      "complexity_penalty": 0,
+      "uniformity_penalty": 0,
+      "penalized_score": -3
+    },
+    "file": "trainingBoolean.dat",
+    "target_feature": "y",
+    "weighting_feature": "",
+    "complexity_ratio": null,
+    "tree": "or(and(or()) !$3 and())"
+  },
+  "trainingBoolean.dat::or(and(or()) $3 and())": {
+    "rows": [
+      {
+        "inputs": [
+          true,
+          true,
+          true
+        ],
+        "bscore": 0,
+        "best_possible_bscore": 0,
+        "worst_possible_bscore": -1
+      },
+      {
+        "inputs": [
+          true,
+          true,
+          false
+        ],
+        "bscore": 0,
+        "best_possible_bscore": 0,
+        "worst_possible_bscore": -1
+      },
+      {
+        "inputs": [
+          true,
+          false,
+          true
+        ],
+        "bscore": -1,
+        "best_possible_bscore": 0,
+        "worst_possible_bscore": -1
+      },
+      {
+        "inputs": [
+          true,
+          false,
+          false
+        ],
+        "bscore": 0,
+        "best_possible_bscore": 0,
+        "worst_possible_bscore": -1
+      },
+      {
+        "inputs": [
+          false,
+          true,
+          true
+        ],
+        "bscore": -1,
+        "best_possible_bscore": 0,
+        "worst_possible_bscore": -1
+      },
+      {
+        "inputs": [
+          false,
+          true,
+          false
+        ],
+        "bscore": 0,
+        "best_possible_bscore": 0,
+        "worst_possible_bscore": -1
+      },
+      {
+        "inputs": [
+          false,
+          false,
+          true
+        ],
+        "bscore": -1,
+        "best_possible_bscore": 0,
+        "worst_possible_bscore": -1
+      },
+      {
+        "inputs": [
+          false,
+          false,
+          false
+        ],
+        "bscore": 0,
+        "best_possible_bscore": 0,
+        "worst_possible_bscore": -1
+      }
+    ],
+    "sum_bscore": -3,
+    "tree_complexity": 1,
+    "complexity_coef": 0,
+    "min_improv": 0.5,
+    "composite_score": {
+      "score": -3,
+      "complexity": 1,
+      "complexity_penalty": 0,
+      "uniformity_penalty": 0,
+      "penalized_score": -3
+    },
+    "file": "trainingBoolean.dat",
+    "target_feature": "y",
+    "weighting_feature": "",
+    "complexity_ratio": null,
+    "tree": "or(and(or()) $3 and())"
+  },
+  "trainingBoolean.dat::or(and(or()) !$1 and())": {
+    "rows": [
+      {
+        "inputs": [
+          true,
+          true,
+          true
+        ],
+        "bscore": 0,
+        "best_possible_bscore": 0,
+        "worst_possible_bscore": -1
+      },
+      {
+        "inputs": [
+          true,
+          true,
+          false
+        ],
+        "bscore": 0,
+        "best_possible_bscore": 0,
+        "worst_possible_bscore": -1
+      },
+      {
+        "inputs": [
+          true,
+          false,
+          true
+        ],
+        "bscore": -1,
+        "best_possible_bscore": 0,
+        "worst_possible_bscore": -1
+      },
+      {
+        "inputs": [
+          true,
+          false,
+          false
+        ],
+        "bscore": 0,
+        "best_possible_bscore": 0,
+        "worst_possible_bscore": -1
+      },
+      {
+        "inputs": [
+          false,
+          true,
+          true
+        ],
+        "bscore": -1,
+        "best_possible_bscore": 0,
+        "worst_possible_bscore": -1
+      },
+      {
+        "inputs": [
+          false,
+          true,
+          false
+        ],
+        "bscore": 0,
+        "best_possible_bscore": 0,
+        "worst_possible_bscore": -1
+      },
+      {
+        "inputs": [
+          false,
+          false,
+          true
+        ],
+        "bscore": -1,
+        "best_possible_bscore": 0,
+        "worst_possible_bscore": -1
+      },
+      {
+        "inputs": [
+          false,
+          false,
+          false
+        ],
+        "bscore": 0,
+        "best_possible_bscore": 0,
+        "worst_possible_bscore": -1
+      }
+    ],
+    "sum_bscore": -3,
+    "tree_complexity": 1,
+    "complexity_coef": 0,
+    "min_improv": 0.5,
+    "composite_score": {
+      "score": -3,
+      "complexity": 1,
+      "complexity_penalty": 0,
+      "uniformity_penalty": 0,
+      "penalized_score": -3
+    },
+    "file": "trainingBoolean.dat",
+    "target_feature": "y",
+    "weighting_feature": "",
+    "complexity_ratio": null,
+    "tree": "or(and(or()) !$1 and())"
+  },
+  "trainingBoolean.dat::or(and(or()) $1 and())": {
+    "rows": [
+      {
+        "inputs": [
+          true,
+          true,
+          true
+        ],
+        "bscore": 0,
+        "best_possible_bscore": 0,
+        "worst_possible_bscore": -1
+      },
+      {
+        "inputs": [
+          true,
+          true,
+          false
+        ],
+        "bscore": 0,
+        "best_possible_bscore": 0,
+        "worst_possible_bscore": -1
+      },
+      {
+        "inputs": [
+          true,
+          false,
+          true
+        ],
+        "bscore": -1,
+        "best_possible_bscore": 0,
+        "worst_possible_bscore": -1
+      },
+      {
+        "inputs": [
+          true,
+          false,
+          false
+        ],
+        "bscore": 0,
+        "best_possible_bscore": 0,
+        "worst_possible_bscore": -1
+      },
+      {
+        "inputs": [
+          false,
+          true,
+          true
+        ],
+        "bscore": -1,
+        "best_possible_bscore": 0,
+        "worst_possible_bscore": -1
+      },
+      {
+        "inputs": [
+          false,
+          true,
+          false
+        ],
+        "bscore": 0,
+        "best_possible_bscore": 0,
+        "worst_possible_bscore": -1
+      },
+      {
+        "inputs": [
+          false,
+          false,
+          true
+        ],
+        "bscore": -1,
+        "best_possible_bscore": 0,
+        "worst_possible_bscore": -1
+      },
+      {
+        "inputs": [
+          false,
+          false,
+          false
+        ],
+        "bscore": 0,
+        "best_possible_bscore": 0,
+        "worst_possible_bscore": -1
+      }
+    ],
+    "sum_bscore": -3,
+    "tree_complexity": 1,
+    "complexity_coef": 0,
+    "min_improv": 0.5,
+    "composite_score": {
+      "score": -3,
+      "complexity": 1,
+      "complexity_penalty": 0,
+      "uniformity_penalty": 0,
+      "penalized_score": -3
+    },
+    "file": "trainingBoolean.dat",
+    "target_feature": "y",
+    "weighting_feature": "",
+    "complexity_ratio": null,
+    "tree": "or(and(or()) $1 and())"
+  },
+  "trainingBoolean.dat::or(and(or()) !$2 and())": {
+    "rows": [
+      {
+        "inputs": [
+          true,
+          true,
+          true
+        ],
+        "bscore": 0,
+        "best_possible_bscore": 0,
+        "worst_possible_bscore": -1
+      },
+      {
+        "inputs": [
+          true,
+          true,
+          false
+        ],
+        "bscore": 0,
+        "best_possible_bscore": 0,
+        "worst_possible_bscore": -1
+      },
+      {
+        "inputs": [
+          true,
+          false,
+          true
+        ],
+        "bscore": -1,
+        "best_possible_bscore": 0,
+        "worst_possible_bscore": -1
+      },
+      {
+        "inputs": [
+          true,
+          false,
+          false
+        ],
+        "bscore": 0,
+        "best_possible_bscore": 0,
+        "worst_possible_bscore": -1
+      },
+      {
+        "inputs": [
+          false,
+          true,
+          true
+        ],
+        "bscore": -1,
+        "best_possible_bscore": 0,
+        "worst_possible_bscore": -1
+      },
+      {
+        "inputs": [
+          false,
+          true,
+          false
+        ],
+        "bscore": 0,
+        "best_possible_bscore": 0,
+        "worst_possible_bscore": -1
+      },
+      {
+        "inputs": [
+          false,
+          false,
+          true
+        ],
+        "bscore": -1,
+        "best_possible_bscore": 0,
+        "worst_possible_bscore": -1
+      },
+      {
+        "inputs": [
+          false,
+          false,
+          false
+        ],
+        "bscore": 0,
+        "best_possible_bscore": 0,
+        "worst_possible_bscore": -1
+      }
+    ],
+    "sum_bscore": -3,
+    "tree_complexity": 1,
+    "complexity_coef": 0,
+    "min_improv": 0.5,
+    "composite_score": {
+      "score": -3,
+      "complexity": 1,
+      "complexity_penalty": 0,
+      "uniformity_penalty": 0,
+      "penalized_score": -3
+    },
+    "file": "trainingBoolean.dat",
+    "target_feature": "y",
+    "weighting_feature": "",
+    "complexity_ratio": null,
+    "tree": "or(and(or()) !$2 and())"
+  },
+  "trainingBoolean.dat::or(and(or()) $2 and())": {
+    "rows": [
+      {
+        "inputs": [
+          true,
+          true,
+          true
+        ],
+        "bscore": 0,
+        "best_possible_bscore": 0,
+        "worst_possible_bscore": -1
+      },
+      {
+        "inputs": [
+          true,
+          true,
+          false
+        ],
+        "bscore": 0,
+        "best_possible_bscore": 0,
+        "worst_possible_bscore": -1
+      },
+      {
+        "inputs": [
+          true,
+          false,
+          true
+        ],
+        "bscore": -1,
+        "best_possible_bscore": 0,
+        "worst_possible_bscore": -1
+      },
+      {
+        "inputs": [
+          true,
+          false,
+          false
+        ],
+        "bscore": 0,
+        "best_possible_bscore": 0,
+        "worst_possible_bscore": -1
+      },
+      {
+        "inputs": [
+          false,
+          true,
+          true
+        ],
+        "bscore": -1,
+        "best_possible_bscore": 0,
+        "worst_possible_bscore": -1
+      },
+      {
+        "inputs": [
+          false,
+          true,
+          false
+        ],
+        "bscore": 0,
+        "best_possible_bscore": 0,
+        "worst_possible_bscore": -1
+      },
+      {
+        "inputs": [
+          false,
+          false,
+          true
+        ],
+        "bscore": -1,
+        "best_possible_bscore": 0,
+        "worst_possible_bscore": -1
+      },
+      {
+        "inputs": [
+          false,
+          false,
+          false
+        ],
+        "bscore": 0,
+        "best_possible_bscore": 0,
+        "worst_possible_bscore": -1
+      }
+    ],
+    "sum_bscore": -3,
+    "tree_complexity": 1,
+    "complexity_coef": 0,
+    "min_improv": 0.5,
+    "composite_score": {
+      "score": -3,
+      "complexity": 1,
+      "complexity_penalty": 0,
+      "uniformity_penalty": 0,
+      "penalized_score": -3
+    },
+    "file": "trainingBoolean.dat",
+    "target_feature": "y",
+    "weighting_feature": "",
+    "complexity_ratio": null,
+    "tree": "or(and(or()) $2 and())"
+  },
+  "trainingBoolean.dat::or(and(or()) and($2))": {
+    "rows": [
+      {
+        "inputs": [
+          true,
+          true,
+          true
+        ],
+        "bscore": 0,
+        "best_possible_bscore": 0,
+        "worst_possible_bscore": -1
+      },
+      {
+        "inputs": [
+          true,
+          true,
+          false
+        ],
+        "bscore": 0,
+        "best_possible_bscore": 0,
+        "worst_possible_bscore": -1
+      },
+      {
+        "inputs": [
+          true,
+          false,
+          true
+        ],
+        "bscore": -1,
+        "best_possible_bscore": 0,
+        "worst_possible_bscore": -1
+      },
+      {
+        "inputs": [
+          true,
+          false,
+          false
+        ],
+        "bscore": 0,
+        "best_possible_bscore": 0,
+        "worst_possible_bscore": -1
+      },
+      {
+        "inputs": [
+          false,
+          true,
+          true
+        ],
+        "bscore": -1,
+        "best_possible_bscore": 0,
+        "worst_possible_bscore": -1
+      },
+      {
+        "inputs": [
+          false,
+          true,
+          false
+        ],
+        "bscore": 0,
+        "best_possible_bscore": 0,
+        "worst_possible_bscore": -1
+      },
+      {
+        "inputs": [
+          false,
+          false,
+          true
+        ],
+        "bscore": -1,
+        "best_possible_bscore": 0,
+        "worst_possible_bscore": -1
+      },
+      {
+        "inputs": [
+          false,
+          false,
+          false
+        ],
+        "bscore": 0,
+        "best_possible_bscore": 0,
+        "worst_possible_bscore": -1
+      }
+    ],
+    "sum_bscore": -3,
+    "tree_complexity": 1,
+    "complexity_coef": 0,
+    "min_improv": 0.5,
+    "composite_score": {
+      "score": -3,
+      "complexity": 1,
+      "complexity_penalty": 0,
+      "uniformity_penalty": 0,
+      "penalized_score": -3
+    },
+    "file": "trainingBoolean.dat",
+    "target_feature": "y",
+    "weighting_feature": "",
+    "complexity_ratio": null,
+    "tree": "or(and(or()) and($2))"
+  },
+  "trainingBoolean.dat::and(or($1 $2) not($3))": {
+    "rows": [
+      {
+        "inputs": [
+          true,
+          true,
+          true
+        ],
+        "bscore": -1,
+        "best_possible_bscore": 0,
+        "worst_possible_bscore": -1
+      },
+      {
+        "inputs": [
+          true,
+          true,
+          false
+        ],
+        "bscore": 0,
+        "best_possible_bscore": 0,
+        "worst_possible_bscore": -1
+      },
+      {
+        "inputs": [
+          true,
+          false,
+          true
+        ],
+        "bscore": 0,
+        "best_possible_bscore": 0,
+        "worst_possible_bscore": -1
+      },
+      {
+        "inputs": [
+          true,
+          false,
+          false
+        ],
+        "bscore": 0,
+        "best_possible_bscore": 0,
+        "worst_possible_bscore": -1
+      },
+      {
+        "inputs": [
+          false,
+          true,
+          true
+        ],
+        "bscore": 0,
+        "best_possible_bscore": 0,
+        "worst_possible_bscore": -1
+      },
+      {
+        "inputs": [
+          false,
+          true,
+          false
+        ],
+        "bscore": 0,
+        "best_possible_bscore": 0,
+        "worst_possible_bscore": -1
+      },
+      {
+        "inputs": [
+          false,
+          false,
+          true
+        ],
+        "bscore": 0,
+        "best_possible_bscore": 0,
+        "worst_possible_bscore": -1
+      },
+      {
+        "inputs": [
+          false,
+          false,
+          false
+        ],
+        "bscore": -1,
+        "best_possible_bscore": 0,
+        "worst_possible_bscore": -1
+      }
+    ],
+    "sum_bscore": -2,
+    "tree_complexity": 3,
+    "complexity_coef": 0,
+    "min_improv": 0.5,
+    "composite_score": {
+      "score": -2,
+      "complexity": 3,
+      "complexity_penalty": 0,
+      "uniformity_penalty": 0,
+      "penalized_score": -2
+    },
+    "file": "trainingBoolean.dat",
+    "target_feature": "y",
+    "weighting_feature": "",
+    "complexity_ratio": null,
+    "tree": "and(or($1 $2) not($3))"
+  },
+  "trainingBooleanXor.dat::or(and(or(!$1)) and())": {
+    "rows": [
+      {
+        "inputs": [
+          true,
+          true
+        ],
+        "bscore": 0,
+        "best_possible_bscore": 0,
+        "worst_possible_bscore": -1
+      },
+      {
+        "inputs": [
+          true,
+          false
+        ],
+        "bscore": -1,
+        "best_possible_bscore": 0,
+        "worst_possible_bscore": -1
+      },
+      {
+        "inputs": [
+          false,
+          true
+        ],
+        "bscore": 0,
+        "best_possible_bscore": 0,
+        "worst_possible_bscore": -1
+      },
+      {
+        "inputs": [
+          false,
+          false
+        ],
+        "bscore": 0,
+        "best_possible_bscore": 0,
+        "worst_possible_bscore": -1
+      }
+    ],
+    "sum_bscore": -1,
+    "tree_complexity": 1,
+    "complexity_coef": 0,
+    "min_improv": 0.5,
+    "composite_score": {
+      "score": -1,
+      "complexity": 1,
+      "complexity_penalty": 0,
+      "uniformity_penalty": 0,
+      "penalized_score": -1
+    },
+    "file": "trainingBooleanXor.dat",
+    "target_feature": "y",
+    "weighting_feature": "",
+    "complexity_ratio": null,
+    "tree": "or(and(or(!$1)) and())"
+  },
+  "trainingBooleanXor.dat::or(and(or($1)) and())": {
+    "rows": [
+      {
+        "inputs": [
+          true,
+          true
+        ],
+        "bscore": -1,
+        "best_possible_bscore": 0,
+        "worst_possible_bscore": -1
+      },
+      {
+        "inputs": [
+          true,
+          false
+        ],
+        "bscore": 0,
+        "best_possible_bscore": 0,
+        "worst_possible_bscore": -1
+      },
+      {
+        "inputs": [
+          false,
+          true
+        ],
+        "bscore": -1,
+        "best_possible_bscore": 0,
+        "worst_possible_bscore": -1
+      },
+      {
+        "inputs": [
+          false,
+          false
+        ],
+        "bscore": -1,
+        "best_possible_bscore": 0,
+        "worst_possible_bscore": -1
+      }
+    ],
+    "sum_bscore": -3,
+    "tree_complexity": 1,
+    "complexity_coef": 0,
+    "min_improv": 0.5,
+    "composite_score": {
+      "score": -3,
+      "complexity": 1,
+      "complexity_penalty": 0,
+      "uniformity_penalty": 0,
+      "penalized_score": -3
+    },
+    "file": "trainingBooleanXor.dat",
+    "target_feature": "y",
+    "weighting_feature": "",
+    "complexity_ratio": null,
+    "tree": "or(and(or($1)) and())"
+  },
+  "trainingBooleanXor.dat::or(and(or(!$2)) and())": {
+    "rows": [
+      {
+        "inputs": [
+          true,
+          true
+        ],
+        "bscore": 0,
+        "best_possible_bscore": 0,
+        "worst_possible_bscore": -1
+      },
+      {
+        "inputs": [
+          true,
+          false
+        ],
+        "bscore": 0,
+        "best_possible_bscore": 0,
+        "worst_possible_bscore": -1
+      },
+      {
+        "inputs": [
+          false,
+          true
+        ],
+        "bscore": -1,
+        "best_possible_bscore": 0,
+        "worst_possible_bscore": -1
+      },
+      {
+        "inputs": [
+          false,
+          false
+        ],
+        "bscore": 0,
+        "best_possible_bscore": 0,
+        "worst_possible_bscore": -1
+      }
+    ],
+    "sum_bscore": -1,
+    "tree_complexity": 1,
+    "complexity_coef": 0,
+    "min_improv": 0.5,
+    "composite_score": {
+      "score": -1,
+      "complexity": 1,
+      "complexity_penalty": 0,
+      "uniformity_penalty": 0,
+      "penalized_score": -1
+    },
+    "file": "trainingBooleanXor.dat",
+    "target_feature": "y",
+    "weighting_feature": "",
+    "complexity_ratio": null,
+    "tree": "or(and(or(!$2)) and())"
+  },
+  "trainingBooleanXor.dat::or(and(or($2)) and())": {
+    "rows": [
+      {
+        "inputs": [
+          true,
+          true
+        ],
+        "bscore": -1,
+        "best_possible_bscore": 0,
+        "worst_possible_bscore": -1
+      },
+      {
+        "inputs": [
+          true,
+          false
+        ],
+        "bscore": -1,
+        "best_possible_bscore": 0,
+        "worst_possible_bscore": -1
+      },
+      {
+        "inputs": [
+          false,
+          true
+        ],
+        "bscore": 0,
+        "best_possible_bscore": 0,
+        "worst_possible_bscore": -1
+      },
+      {
+        "inputs": [
+          false,
+          false
+        ],
+        "bscore": -1,
+        "best_possible_bscore": 0,
+        "worst_possible_bscore": -1
+      }
+    ],
+    "sum_bscore": -3,
+    "tree_complexity": 1,
+    "complexity_coef": 0,
+    "min_improv": 0.5,
+    "composite_score": {
+      "score": -3,
+      "complexity": 1,
+      "complexity_penalty": 0,
+      "uniformity_penalty": 0,
+      "penalized_score": -3
+    },
+    "file": "trainingBooleanXor.dat",
+    "target_feature": "y",
+    "weighting_feature": "",
+    "complexity_ratio": null,
+    "tree": "or(and(or($2)) and())"
+  },
+  "trainingBooleanXor.dat::or(and(and(!$2 !$1) or()) and())": {
+    "rows": [
+      {
+        "inputs": [
+          true,
+          true
+        ],
+        "bscore": 0,
+        "best_possible_bscore": 0,
+        "worst_possible_bscore": -1
+      },
+      {
+        "inputs": [
+          true,
+          false
+        ],
+        "bscore": -1,
+        "best_possible_bscore": 0,
+        "worst_possible_bscore": -1
+      },
+      {
+        "inputs": [
+          false,
+          true
+        ],
+        "bscore": -1,
+        "best_possible_bscore": 0,
+        "worst_possible_bscore": -1
+      },
+      {
+        "inputs": [
+          false,
+          false
+        ],
+        "bscore": 0,
+        "best_possible_bscore": 0,
+        "worst_possible_bscore": -1
+      }
+    ],
+    "sum_bscore": -2,
+    "tree_complexity": 2,
+    "complexity_coef": 0,
+    "min_improv": 0.5,
+    "composite_score": {
+      "score": -2,
+      "complexity": 2,
+      "complexity_penalty": 0,
+      "uniformity_penalty": 0,
+      "penalized_score": -2
+    },
+    "file": "trainingBooleanXor.dat",
+    "target_feature": "y",
+    "weighting_feature": "",
+    "complexity_ratio": null,
+    "tree": "or(and(and(!$2 !$1) or()) and())"
+  },
+  "trainingBooleanXor.dat::or(and(or($2 $1) or()) and())": {
+    "rows": [
+      {
+        "inputs": [
+          true,
+          true
+        ],
+        "bscore": -1,
+        "best_possible_bscore": 0,
+        "worst_possible_bscore": -1
+      },
+      {
+        "inputs": [
+          true,
+          false
+        ],
+        "bscore": 0,
+        "best_possible_bscore": 0,
+        "worst_possible_bscore": -1
+      },
+      {
+        "inputs": [
+          false,
+          true
+        ],
+        "bscore": 0,
+        "best_possible_bscore": 0,
+        "worst_possible_bscore": -1
+      },
+      {
+        "inputs": [
+          false,
+          false
+        ],
+        "bscore": -1,
+        "best_possible_bscore": 0,
+        "worst_possible_bscore": -1
+      }
+    ],
+    "sum_bscore": -2,
+    "tree_complexity": 2,
+    "complexity_coef": 0,
+    "min_improv": 0.5,
+    "composite_score": {
+      "score": -2,
+      "complexity": 2,
+      "complexity_penalty": 0,
+      "uniformity_penalty": 0,
+      "penalized_score": -2
+    },
+    "file": "trainingBooleanXor.dat",
+    "target_feature": "y",
+    "weighting_feature": "",
+    "complexity_ratio": null,
+    "tree": "or(and(or($2 $1) or()) and())"
+  },
+  "trainingBooleanXor.dat::or(and(!$1 or()) and())": {
+    "rows": [
+      {
+        "inputs": [
+          true,
+          true
+        ],
+        "bscore": 0,
+        "best_possible_bscore": 0,
+        "worst_possible_bscore": -1
+      },
+      {
+        "inputs": [
+          true,
+          false
+        ],
+        "bscore": -1,
+        "best_possible_bscore": 0,
+        "worst_possible_bscore": -1
+      },
+      {
+        "inputs": [
+          false,
+          true
+        ],
+        "bscore": 0,
+        "best_possible_bscore": 0,
+        "worst_possible_bscore": -1
+      },
+      {
+        "inputs": [
+          false,
+          false
+        ],
+        "bscore": 0,
+        "best_possible_bscore": 0,
+        "worst_possible_bscore": -1
+      }
+    ],
+    "sum_bscore": -1,
+    "tree_complexity": 1,
+    "complexity_coef": 0,
+    "min_improv": 0.5,
+    "composite_score": {
+      "score": -1,
+      "complexity": 1,
+      "complexity_penalty": 0,
+      "uniformity_penalty": 0,
+      "penalized_score": -1
+    },
+    "file": "trainingBooleanXor.dat",
+    "target_feature": "y",
+    "weighting_feature": "",
+    "complexity_ratio": null,
+    "tree": "or(and(!$1 or()) and())"
+  },
+  "trainingBooleanXor.dat::or(and($1 or()) and())": {
+    "rows": [
+      {
+        "inputs": [
+          true,
+          true
+        ],
+        "bscore": -1,
+        "best_possible_bscore": 0,
+        "worst_possible_bscore": -1
+      },
+      {
+        "inputs": [
+          true,
+          false
+        ],
+        "bscore": 0,
+        "best_possible_bscore": 0,
+        "worst_possible_bscore": -1
+      },
+      {
+        "inputs": [
+          false,
+          true
+        ],
+        "bscore": -1,
+        "best_possible_bscore": 0,
+        "worst_possible_bscore": -1
+      },
+      {
+        "inputs": [
+          false,
+          false
+        ],
+        "bscore": -1,
+        "best_possible_bscore": 0,
+        "worst_possible_bscore": -1
+      }
+    ],
+    "sum_bscore": -3,
+    "tree_complexity": 1,
+    "complexity_coef": 0,
+    "min_improv": 0.5,
+    "composite_score": {
+      "score": -3,
+      "complexity": 1,
+      "complexity_penalty": 0,
+      "uniformity_penalty": 0,
+      "penalized_score": -3
+    },
+    "file": "trainingBooleanXor.dat",
+    "target_feature": "y",
+    "weighting_feature": "",
+    "complexity_ratio": null,
+    "tree": "or(and($1 or()) and())"
+  },
+  "trainingBooleanXor.dat::or(and(!$2 or()) and())": {
+    "rows": [
+      {
+        "inputs": [
+          true,
+          true
+        ],
+        "bscore": 0,
+        "best_possible_bscore": 0,
+        "worst_possible_bscore": -1
+      },
+      {
+        "inputs": [
+          true,
+          false
+        ],
+        "bscore": 0,
+        "best_possible_bscore": 0,
+        "worst_possible_bscore": -1
+      },
+      {
+        "inputs": [
+          false,
+          true
+        ],
+        "bscore": -1,
+        "best_possible_bscore": 0,
+        "worst_possible_bscore": -1
+      },
+      {
+        "inputs": [
+          false,
+          false
+        ],
+        "bscore": 0,
+        "best_possible_bscore": 0,
+        "worst_possible_bscore": -1
+      }
+    ],
+    "sum_bscore": -1,
+    "tree_complexity": 1,
+    "complexity_coef": 0,
+    "min_improv": 0.5,
+    "composite_score": {
+      "score": -1,
+      "complexity": 1,
+      "complexity_penalty": 0,
+      "uniformity_penalty": 0,
+      "penalized_score": -1
+    },
+    "file": "trainingBooleanXor.dat",
+    "target_feature": "y",
+    "weighting_feature": "",
+    "complexity_ratio": null,
+    "tree": "or(and(!$2 or()) and())"
+  },
+  "trainingBooleanXor.dat::or(and($2 or()) and())": {
+    "rows": [
+      {
+        "inputs": [
+          true,
+          true
+        ],
+        "bscore": -1,
+        "best_possible_bscore": 0,
+        "worst_possible_bscore": -1
+      },
+      {
+        "inputs": [
+          true,
+          false
+        ],
+        "bscore": -1,
+        "best_possible_bscore": 0,
+        "worst_possible_bscore": -1
+      },
+      {
+        "inputs": [
+          false,
+          true
+        ],
+        "bscore": 0,
+        "best_possible_bscore": 0,
+        "worst_possible_bscore": -1
+      },
+      {
+        "inputs": [
+          false,
+          false
+        ],
+        "bscore": -1,
+        "best_possible_bscore": 0,
+        "worst_possible_bscore": -1
+      }
+    ],
+    "sum_bscore": -3,
+    "tree_complexity": 1,
+    "complexity_coef": 0,
+    "min_improv": 0.5,
+    "composite_score": {
+      "score": -3,
+      "complexity": 1,
+      "complexity_penalty": 0,
+      "uniformity_penalty": 0,
+      "penalized_score": -3
+    },
+    "file": "trainingBooleanXor.dat",
+    "target_feature": "y",
+    "weighting_feature": "",
+    "complexity_ratio": null,
+    "tree": "or(and($2 or()) and())"
+  },
+  "trainingBooleanXor.dat::or(and(or()) or($2 !$1) and())": {
+    "rows": [
+      {
+        "inputs": [
+          true,
+          true
+        ],
+        "bscore": -1,
+        "best_possible_bscore": 0,
+        "worst_possible_bscore": -1
+      },
+      {
+        "inputs": [
+          true,
+          false
+        ],
+        "bscore": 0,
+        "best_possible_bscore": 0,
+        "worst_possible_bscore": -1
+      },
+      {
+        "inputs": [
+          false,
+          true
+        ],
+        "bscore": 0,
+        "best_possible_bscore": 0,
+        "worst_possible_bscore": -1
+      },
+      {
+        "inputs": [
+          false,
+          false
+        ],
+        "bscore": 0,
+        "best_possible_bscore": 0,
+        "worst_possible_bscore": -1
+      }
+    ],
+    "sum_bscore": -1,
+    "tree_complexity": 2,
+    "complexity_coef": 0,
+    "min_improv": 0.5,
+    "composite_score": {
+      "score": -1,
+      "complexity": 2,
+      "complexity_penalty": 0,
+      "uniformity_penalty": 0,
+      "penalized_score": -1
+    },
+    "file": "trainingBooleanXor.dat",
+    "target_feature": "y",
+    "weighting_feature": "",
+    "complexity_ratio": null,
+    "tree": "or(and(or()) or($2 !$1) and())"
+  },
+  "trainingBooleanXor.dat::or(and(or()) and(!$2 $1) and())": {
+    "rows": [
+      {
+        "inputs": [
+          true,
+          true
+        ],
+        "bscore": -1,
+        "best_possible_bscore": 0,
+        "worst_possible_bscore": -1
+      },
+      {
+        "inputs": [
+          true,
+          false
+        ],
+        "bscore": 0,
+        "best_possible_bscore": 0,
+        "worst_possible_bscore": -1
+      },
+      {
+        "inputs": [
+          false,
+          true
+        ],
+        "bscore": 0,
+        "best_possible_bscore": 0,
+        "worst_possible_bscore": -1
+      },
+      {
+        "inputs": [
+          false,
+          false
+        ],
+        "bscore": 0,
+        "best_possible_bscore": 0,
+        "worst_possible_bscore": -1
+      }
+    ],
+    "sum_bscore": -1,
+    "tree_complexity": 2,
+    "complexity_coef": 0,
+    "min_improv": 0.5,
+    "composite_score": {
+      "score": -1,
+      "complexity": 2,
+      "complexity_penalty": 0,
+      "uniformity_penalty": 0,
+      "penalized_score": -1
+    },
+    "file": "trainingBooleanXor.dat",
+    "target_feature": "y",
+    "weighting_feature": "",
+    "complexity_ratio": null,
+    "tree": "or(and(or()) and(!$2 $1) and())"
+  },
+  "trainingBooleanXor.dat::or(and(or()) !$1 and())": {
+    "rows": [
+      {
+        "inputs": [
+          true,
+          true
+        ],
+        "bscore": -1,
+        "best_possible_bscore": 0,
+        "worst_possible_bscore": -1
+      },
+      {
+        "inputs": [
+          true,
+          false
+        ],
+        "bscore": 0,
+        "best_possible_bscore": 0,
+        "worst_possible_bscore": -1
+      },
+      {
+        "inputs": [
+          false,
+          true
+        ],
+        "bscore": 0,
+        "best_possible_bscore": 0,
+        "worst_possible_bscore": -1
+      },
+      {
+        "inputs": [
+          false,
+          false
+        ],
+        "bscore": 0,
+        "best_possible_bscore": 0,
+        "worst_possible_bscore": -1
+      }
+    ],
+    "sum_bscore": -1,
+    "tree_complexity": 1,
+    "complexity_coef": 0,
+    "min_improv": 0.5,
+    "composite_score": {
+      "score": -1,
+      "complexity": 1,
+      "complexity_penalty": 0,
+      "uniformity_penalty": 0,
+      "penalized_score": -1
+    },
+    "file": "trainingBooleanXor.dat",
+    "target_feature": "y",
+    "weighting_feature": "",
+    "complexity_ratio": null,
+    "tree": "or(and(or()) !$1 and())"
+  },
+  "trainingBooleanXor.dat::or(and(or()) $1 and())": {
+    "rows": [
+      {
+        "inputs": [
+          true,
+          true
+        ],
+        "bscore": -1,
+        "best_possible_bscore": 0,
+        "worst_possible_bscore": -1
+      },
+      {
+        "inputs": [
+          true,
+          false
+        ],
+        "bscore": 0,
+        "best_possible_bscore": 0,
+        "worst_possible_bscore": -1
+      },
+      {
+        "inputs": [
+          false,
+          true
+        ],
+        "bscore": 0,
+        "best_possible_bscore": 0,
+        "worst_possible_bscore": -1
+      },
+      {
+        "inputs": [
+          false,
+          false
+        ],
+        "bscore": 0,
+        "best_possible_bscore": 0,
+        "worst_possible_bscore": -1
+      }
+    ],
+    "sum_bscore": -1,
+    "tree_complexity": 1,
+    "complexity_coef": 0,
+    "min_improv": 0.5,
+    "composite_score": {
+      "score": -1,
+      "complexity": 1,
+      "complexity_penalty": 0,
+      "uniformity_penalty": 0,
+      "penalized_score": -1
+    },
+    "file": "trainingBooleanXor.dat",
+    "target_feature": "y",
+    "weighting_feature": "",
+    "complexity_ratio": null,
+    "tree": "or(and(or()) $1 and())"
+  },
+  "trainingBooleanXor.dat::or(and(or()) !$2 and())": {
+    "rows": [
+      {
+        "inputs": [
+          true,
+          true
+        ],
+        "bscore": -1,
+        "best_possible_bscore": 0,
+        "worst_possible_bscore": -1
+      },
+      {
+        "inputs": [
+          true,
+          false
+        ],
+        "bscore": 0,
+        "best_possible_bscore": 0,
+        "worst_possible_bscore": -1
+      },
+      {
+        "inputs": [
+          false,
+          true
+        ],
+        "bscore": 0,
+        "best_possible_bscore": 0,
+        "worst_possible_bscore": -1
+      },
+      {
+        "inputs": [
+          false,
+          false
+        ],
+        "bscore": 0,
+        "best_possible_bscore": 0,
+        "worst_possible_bscore": -1
+      }
+    ],
+    "sum_bscore": -1,
+    "tree_complexity": 1,
+    "complexity_coef": 0,
+    "min_improv": 0.5,
+    "composite_score": {
+      "score": -1,
+      "complexity": 1,
+      "complexity_penalty": 0,
+      "uniformity_penalty": 0,
+      "penalized_score": -1
+    },
+    "file": "trainingBooleanXor.dat",
+    "target_feature": "y",
+    "weighting_feature": "",
+    "complexity_ratio": null,
+    "tree": "or(and(or()) !$2 and())"
+  },
+  "trainingBooleanXor.dat::or(and(or()) $2 and())": {
+    "rows": [
+      {
+        "inputs": [
+          true,
+          true
+        ],
+        "bscore": -1,
+        "best_possible_bscore": 0,
+        "worst_possible_bscore": -1
+      },
+      {
+        "inputs": [
+          true,
+          false
+        ],
+        "bscore": 0,
+        "best_possible_bscore": 0,
+        "worst_possible_bscore": -1
+      },
+      {
+        "inputs": [
+          false,
+          true
+        ],
+        "bscore": 0,
+        "best_possible_bscore": 0,
+        "worst_possible_bscore": -1
+      },
+      {
+        "inputs": [
+          false,
+          false
+        ],
+        "bscore": 0,
+        "best_possible_bscore": 0,
+        "worst_possible_bscore": -1
+      }
+    ],
+    "sum_bscore": -1,
+    "tree_complexity": 1,
+    "complexity_coef": 0,
+    "min_improv": 0.5,
+    "composite_score": {
+      "score": -1,
+      "complexity": 1,
+      "complexity_penalty": 0,
+      "uniformity_penalty": 0,
+      "penalized_score": -1
+    },
+    "file": "trainingBooleanXor.dat",
+    "target_feature": "y",
+    "weighting_feature": "",
+    "complexity_ratio": null,
+    "tree": "or(and(or()) $2 and())"
+  },
+  "trainingBooleanXor.dat::or(and(or()) and($2))": {
+    "rows": [
+      {
+        "inputs": [
+          true,
+          true
+        ],
+        "bscore": -1,
+        "best_possible_bscore": 0,
+        "worst_possible_bscore": -1
+      },
+      {
+        "inputs": [
+          true,
+          false
+        ],
+        "bscore": 0,
+        "best_possible_bscore": 0,
+        "worst_possible_bscore": -1
+      },
+      {
+        "inputs": [
+          false,
+          true
+        ],
+        "bscore": 0,
+        "best_possible_bscore": 0,
+        "worst_possible_bscore": -1
+      },
+      {
+        "inputs": [
+          false,
+          false
+        ],
+        "bscore": 0,
+        "best_possible_bscore": 0,
+        "worst_possible_bscore": -1
+      }
+    ],
+    "sum_bscore": -1,
+    "tree_complexity": 1,
+    "complexity_coef": 0,
+    "min_improv": 0.5,
+    "composite_score": {
+      "score": -1,
+      "complexity": 1,
+      "complexity_penalty": 0,
+      "uniformity_penalty": 0,
+      "penalized_score": -1
+    },
+    "file": "trainingBooleanXor.dat",
+    "target_feature": "y",
+    "weighting_feature": "",
+    "complexity_ratio": null,
+    "tree": "or(and(or()) and($2))"
+  },
+  "weighted.csv::or(and(or(!$1)) and())": {
+    "rows": [
+      {
+        "inputs": [
+          true,
+          true,
+          true,
+          true,
+          true
+        ],
+        "bscore": -3.5,
+        "best_possible_bscore": 0,
+        "worst_possible_bscore": -3.5
+      },
+      {
+        "inputs": [
+          true,
+          true,
+          true,
+          false,
+          false
+        ],
+        "bscore": -2.6600000858306885,
+        "best_possible_bscore": 0,
+        "worst_possible_bscore": -2.6600000858306885
+      },
+      {
+        "inputs": [
+          false,
+          true,
+          true,
+          true,
+          true
+        ],
+        "bscore": -2.5,
+        "best_possible_bscore": 0,
+        "worst_possible_bscore": -2.5
+      },
+      {
+        "inputs": [
+          false,
+          false,
+          false,
+          false,
+          false
+        ],
+        "bscore": -0.800000011920929,
+        "best_possible_bscore": -0.4000000059604645,
+        "worst_possible_bscore": -0.4000000059604645
+      }
+    ],
+    "sum_bscore": -9.460000038146973,
+    "tree_complexity": 1,
+    "complexity_coef": 0,
+    "min_improv": 0.20000000298023224,
+    "composite_score": {
+      "score": -9.460000038146973,
+      "complexity": 1,
+      "complexity_penalty": 0,
+      "uniformity_penalty": 0,
+      "penalized_score": -9.460000038146973
+    },
+    "file": "weighted.csv",
+    "target_feature": "r",
+    "weighting_feature": "wgt",
+    "complexity_ratio": null,
+    "tree": "or(and(or(!$1)) and())"
+  },
+  "weighted.csv::or(and(or($1)) and())": {
+    "rows": [
+      {
+        "inputs": [
+          true,
+          true,
+          true,
+          true,
+          true
+        ],
+        "bscore": 0,
+        "best_possible_bscore": 0,
+        "worst_possible_bscore": -3.5
+      },
+      {
+        "inputs": [
+          true,
+          true,
+          true,
+          false,
+          false
+        ],
+        "bscore": 0,
+        "best_possible_bscore": 0,
+        "worst_possible_bscore": -2.6600000858306885
+      },
+      {
+        "inputs": [
+          false,
+          true,
+          true,
+          true,
+          true
+        ],
+        "bscore": 0,
+        "best_possible_bscore": 0,
+        "worst_possible_bscore": -2.5
+      },
+      {
+        "inputs": [
+          false,
+          false,
+          false,
+          false,
+          false
+        ],
+        "bscore": -0.4000000059604645,
+        "best_possible_bscore": -0.4000000059604645,
+        "worst_possible_bscore": -0.4000000059604645
+      }
+    ],
+    "sum_bscore": -0.4000000059604645,
+    "tree_complexity": 1,
+    "complexity_coef": 0,
+    "min_improv": 0.20000000298023224,
+    "composite_score": {
+      "score": -0.4000000059604645,
+      "complexity": 1,
+      "complexity_penalty": 0,
+      "uniformity_penalty": 0,
+      "penalized_score": -0.4000000059604645
+    },
+    "file": "weighted.csv",
+    "target_feature": "r",
+    "weighting_feature": "wgt",
+    "complexity_ratio": null,
+    "tree": "or(and(or($1)) and())"
+  },
+  "weighted.csv::or(and(or(!$2)) and())": {
+    "rows": [
+      {
+        "inputs": [
+          true,
+          true,
+          true,
+          true,
+          true
+        ],
+        "bscore": -3.5,
+        "best_possible_bscore": 0,
+        "worst_possible_bscore": -3.5
+      },
+      {
+        "inputs": [
+          true,
+          true,
+          true,
+          false,
+          false
+        ],
+        "bscore": -2.6600000858306885,
+        "best_possible_bscore": 0,
+        "worst_possible_bscore": -2.6600000858306885
+      },
+      {
+        "inputs": [
+          false,
+          true,
+          true,
+          true,
+          true
+        ],
+        "bscore": 0,
+        "best_possible_bscore": 0,
+        "worst_possible_bscore": -2.5
+      },
+      {
+        "inputs": [
+          false,
+          false,
+          false,
+          false,
+          false
+        ],
+        "bscore": -0.800000011920929,
+        "best_possible_bscore": -0.4000000059604645,
+        "worst_possible_bscore": -0.4000000059604645
+      }
+    ],
+    "sum_bscore": -6.960000038146973,
+    "tree_complexity": 1,
+    "complexity_coef": 0,
+    "min_improv": 0.20000000298023224,
+    "composite_score": {
+      "score": -6.960000038146973,
+      "complexity": 1,
+      "complexity_penalty": 0,
+      "uniformity_penalty": 0,
+      "penalized_score": -6.960000038146973
+    },
+    "file": "weighted.csv",
+    "target_feature": "r",
+    "weighting_feature": "wgt",
+    "complexity_ratio": null,
+    "tree": "or(and(or(!$2)) and())"
+  },
+  "weighted.csv::or(and(or($2)) and())": {
+    "rows": [
+      {
+        "inputs": [
+          true,
+          true,
+          true,
+          true,
+          true
+        ],
+        "bscore": 0,
+        "best_possible_bscore": 0,
+        "worst_possible_bscore": -3.5
+      },
+      {
+        "inputs": [
+          true,
+          true,
+          true,
+          false,
+          false
+        ],
+        "bscore": 0,
+        "best_possible_bscore": 0,
+        "worst_possible_bscore": -2.6600000858306885
+      },
+      {
+        "inputs": [
+          false,
+          true,
+          true,
+          true,
+          true
+        ],
+        "bscore": -2.5,
+        "best_possible_bscore": 0,
+        "worst_possible_bscore": -2.5
+      },
+      {
+        "inputs": [
+          false,
+          false,
+          false,
+          false,
+          false
+        ],
+        "bscore": -0.4000000059604645,
+        "best_possible_bscore": -0.4000000059604645,
+        "worst_possible_bscore": -0.4000000059604645
+      }
+    ],
+    "sum_bscore": -2.9000000953674316,
+    "tree_complexity": 1,
+    "complexity_coef": 0,
+    "min_improv": 0.20000000298023224,
+    "composite_score": {
+      "score": -2.9000000953674316,
+      "complexity": 1,
+      "complexity_penalty": 0,
+      "uniformity_penalty": 0,
+      "penalized_score": -2.9000000953674316
+    },
+    "file": "weighted.csv",
+    "target_feature": "r",
+    "weighting_feature": "wgt",
+    "complexity_ratio": null,
+    "tree": "or(and(or($2)) and())"
+  },
+  "weighted.csv::or(and(and($1 !$3) or()) and())": {
+    "rows": [
+      {
+        "inputs": [
+          true,
+          true,
+          true,
+          true,
+          true
+        ],
+        "bscore": -3.5,
+        "best_possible_bscore": 0,
+        "worst_possible_bscore": -3.5
+      },
+      {
+        "inputs": [
+          true,
+          true,
+          true,
+          false,
+          false
+        ],
+        "bscore": -2.6600000858306885,
+        "best_possible_bscore": 0,
+        "worst_possible_bscore": -2.6600000858306885
+      },
+      {
+        "inputs": [
+          false,
+          true,
+          true,
+          true,
+          true
+        ],
+        "bscore": 0,
+        "best_possible_bscore": 0,
+        "worst_possible_bscore": -2.5
+      },
+      {
+        "inputs": [
+          false,
+          false,
+          false,
+          false,
+          false
+        ],
+        "bscore": -0.4000000059604645,
+        "best_possible_bscore": -0.4000000059604645,
+        "worst_possible_bscore": -0.4000000059604645
+      }
+    ],
+    "sum_bscore": -6.559999942779541,
+    "tree_complexity": 2,
+    "complexity_coef": 0,
+    "min_improv": 0.20000000298023224,
+    "composite_score": {
+      "score": -6.559999942779541,
+      "complexity": 2,
+      "complexity_penalty": 0,
+      "uniformity_penalty": 0,
+      "penalized_score": -6.559999942779541
+    },
+    "file": "weighted.csv",
+    "target_feature": "r",
+    "weighting_feature": "wgt",
+    "complexity_ratio": null,
+    "tree": "or(and(and($1 !$3) or()) and())"
+  },
+  "weighted.csv::or(and(or(!$1 $3) or()) and())": {
+    "rows": [
+      {
+        "inputs": [
+          true,
+          true,
+          true,
+          true,
+          true
+        ],
+        "bscore": 0,
+        "best_possible_bscore": 0,
+        "worst_possible_bscore": -3.5
+      },
+      {
+        "inputs": [
+          true,
+          true,
+          true,
+          false,
+          false
+        ],
+        "bscore": 0,
+        "best_possible_bscore": 0,
+        "worst_possible_bscore": -2.6600000858306885
+      },
+      {
+        "inputs": [
+          false,
+          true,
+          true,
+          true,
+          true
+        ],
+        "bscore": -2.5,
+        "best_possible_bscore": 0,
+        "worst_possible_bscore": -2.5
+      },
+      {
+        "inputs": [
+          false,
+          false,
+          false,
+          false,
+          false
+        ],
+        "bscore": -0.800000011920929,
+        "best_possible_bscore": -0.4000000059604645,
+        "worst_possible_bscore": -0.4000000059604645
+      }
+    ],
+    "sum_bscore": -3.299999952316284,
+    "tree_complexity": 2,
+    "complexity_coef": 0,
+    "min_improv": 0.20000000298023224,
+    "composite_score": {
+      "score": -3.299999952316284,
+      "complexity": 2,
+      "complexity_penalty": 0,
+      "uniformity_penalty": 0,
+      "penalized_score": -3.299999952316284
+    },
+    "file": "weighted.csv",
+    "target_feature": "r",
+    "weighting_feature": "wgt",
+    "complexity_ratio": null,
+    "tree": "or(and(or(!$1 $3) or()) and())"
+  },
+  "weighted.csv::or(and(and(!$2 !$3) or()) and())": {
+    "rows": [
+      {
+        "inputs": [
+          true,
+          true,
+          true,
+          true,
+          true
+        ],
+        "bscore": -3.5,
+        "best_possible_bscore": 0,
+        "worst_possible_bscore": -3.5
+      },
+      {
+        "inputs": [
+          true,
+          true,
+          true,
+          false,
+          false
+        ],
+        "bscore": -2.6600000858306885,
+        "best_possible_bscore": 0,
+        "worst_possible_bscore": -2.6600000858306885
+      },
+      {
+        "inputs": [
+          false,
+          true,
+          true,
+          true,
+          true
+        ],
+        "bscore": 0,
+        "best_possible_bscore": 0,
+        "worst_possible_bscore": -2.5
+      },
+      {
+        "inputs": [
+          false,
+          false,
+          false,
+          false,
+          false
+        ],
+        "bscore": -0.800000011920929,
+        "best_possible_bscore": -0.4000000059604645,
+        "worst_possible_bscore": -0.4000000059604645
+      }
+    ],
+    "sum_bscore": -6.960000038146973,
+    "tree_complexity": 2,
+    "complexity_coef": 0,
+    "min_improv": 0.20000000298023224,
+    "composite_score": {
+      "score": -6.960000038146973,
+      "complexity": 2,
+      "complexity_penalty": 0,
+      "uniformity_penalty": 0,
+      "penalized_score": -6.960000038146973
+    },
+    "file": "weighted.csv",
+    "target_feature": "r",
+    "weighting_feature": "wgt",
+    "complexity_ratio": null,
+    "tree": "or(and(and(!$2 !$3) or()) and())"
+  },
+  "weighted.csv::or(and(or($2 $3) or()) and())": {
+    "rows": [
+      {
+        "inputs": [
+          true,
+          true,
+          true,
+          true,
+          true
+        ],
+        "bscore": 0,
+        "best_possible_bscore": 0,
+        "worst_possible_bscore": -3.5
+      },
+      {
+        "inputs": [
+          true,
+          true,
+          true,
+          false,
+          false
+        ],
+        "bscore": 0,
+        "best_possible_bscore": 0,
+        "worst_possible_bscore": -2.6600000858306885
+      },
+      {
+        "inputs": [
+          false,
+          true,
+          true,
+          true,
+          true
+        ],
+        "bscore": -2.5,
+        "best_possible_bscore": 0,
+        "worst_possible_bscore": -2.5
+      },
+      {
+        "inputs": [
+          false,
+          false,
+          false,
+          false,
+          false
+        ],
+        "bscore": -0.4000000059604645,
+        "best_possible_bscore": -0.4000000059604645,
+        "worst_possible_bscore": -0.4000000059604645
+      }
+    ],
+    "sum_bscore": -2.9000000953674316,
+    "tree_complexity": 2,
+    "complexity_coef": 0,
+    "min_improv": 0.20000000298023224,
+    "composite_score": {
+      "score": -2.9000000953674316,
+      "complexity": 2,
+      "complexity_penalty": 0,
+      "uniformity_penalty": 0,
+      "penalized_score": -2.9000000953674316
+    },
+    "file": "weighted.csv",
+    "target_feature": "r",
+    "weighting_feature": "wgt",
+    "complexity_ratio": null,
+    "tree": "or(and(or($2 $3) or()) and())"
+  },
+  "weighted.csv::or(and(and(!$2 !$1) or()) and())": {
+    "rows": [
+      {
+        "inputs": [
+          true,
+          true,
+          true,
+          true,
+          true
+        ],
+        "bscore": -3.5,
+        "best_possible_bscore": 0,
+        "worst_possible_bscore": -3.5
+      },
+      {
+        "inputs": [
+          true,
+          true,
+          true,
+          false,
+          false
+        ],
+        "bscore": -2.6600000858306885,
+        "best_possible_bscore": 0,
+        "worst_possible_bscore": -2.6600000858306885
+      },
+      {
+        "inputs": [
+          false,
+          true,
+          true,
+          true,
+          true
+        ],
+        "bscore": 0,
+        "best_possible_bscore": 0,
+        "worst_possible_bscore": -2.5
+      },
+      {
+        "inputs": [
+          false,
+          false,
+          false,
+          false,
+          false
+        ],
+        "bscore": -0.800000011920929,
+        "best_possible_bscore": -0.4000000059604645,
+        "worst_possible_bscore": -0.4000000059604645
+      }
+    ],
+    "sum_bscore": -6.960000038146973,
+    "tree_complexity": 2,
+    "complexity_coef": 0,
+    "min_improv": 0.20000000298023224,
+    "composite_score": {
+      "score": -6.960000038146973,
+      "complexity": 2,
+      "complexity_penalty": 0,
+      "uniformity_penalty": 0,
+      "penalized_score": -6.960000038146973
+    },
+    "file": "weighted.csv",
+    "target_feature": "r",
+    "weighting_feature": "wgt",
+    "complexity_ratio": null,
+    "tree": "or(and(and(!$2 !$1) or()) and())"
+  },
+  "weighted.csv::or(and(or($2 $1) or()) and())": {
+    "rows": [
+      {
+        "inputs": [
+          true,
+          true,
+          true,
+          true,
+          true
+        ],
+        "bscore": 0,
+        "best_possible_bscore": 0,
+        "worst_possible_bscore": -3.5
+      },
+      {
+        "inputs": [
+          true,
+          true,
+          true,
+          false,
+          false
+        ],
+        "bscore": 0,
+        "best_possible_bscore": 0,
+        "worst_possible_bscore": -2.6600000858306885
+      },
+      {
+        "inputs": [
+          false,
+          true,
+          true,
+          true,
+          true
+        ],
+        "bscore": -2.5,
+        "best_possible_bscore": 0,
+        "worst_possible_bscore": -2.5
+      },
+      {
+        "inputs": [
+          false,
+          false,
+          false,
+          false,
+          false
+        ],
+        "bscore": -0.4000000059604645,
+        "best_possible_bscore": -0.4000000059604645,
+        "worst_possible_bscore": -0.4000000059604645
+      }
+    ],
+    "sum_bscore": -2.9000000953674316,
+    "tree_complexity": 2,
+    "complexity_coef": 0,
+    "min_improv": 0.20000000298023224,
+    "composite_score": {
+      "score": -2.9000000953674316,
+      "complexity": 2,
+      "complexity_penalty": 0,
+      "uniformity_penalty": 0,
+      "penalized_score": -2.9000000953674316
+    },
+    "file": "weighted.csv",
+    "target_feature": "r",
+    "weighting_feature": "wgt",
+    "complexity_ratio": null,
+    "tree": "or(and(or($2 $1) or()) and())"
+  },
+  "weighted.csv::or(and(!$3 or()) and())": {
+    "rows": [
+      {
+        "inputs": [
+          true,
+          true,
+          true,
+          true,
+          true
+        ],
+        "bscore": -3.5,
+        "best_possible_bscore": 0,
+        "worst_possible_bscore": -3.5
+      },
+      {
+        "inputs": [
+          true,
+          true,
+          true,
+          false,
+          false
+        ],
+        "bscore": -2.6600000858306885,
+        "best_possible_bscore": 0,
+        "worst_possible_bscore": -2.6600000858306885
+      },
+      {
+        "inputs": [
+          false,
+          true,
+          true,
+          true,
+          true
+        ],
+        "bscore": 0,
+        "best_possible_bscore": 0,
+        "worst_possible_bscore": -2.5
+      },
+      {
+        "inputs": [
+          false,
+          false,
+          false,
+          false,
+          false
+        ],
+        "bscore": -0.800000011920929,
+        "best_possible_bscore": -0.4000000059604645,
+        "worst_possible_bscore": -0.4000000059604645
+      }
+    ],
+    "sum_bscore": -6.960000038146973,
+    "tree_complexity": 1,
+    "complexity_coef": 0,
+    "min_improv": 0.20000000298023224,
+    "composite_score": {
+      "score": -6.960000038146973,
+      "complexity": 1,
+      "complexity_penalty": 0,
+      "uniformity_penalty": 0,
+      "penalized_score": -6.960000038146973
+    },
+    "file": "weighted.csv",
+    "target_feature": "r",
+    "weighting_feature": "wgt",
+    "complexity_ratio": null,
+    "tree": "or(and(!$3 or()) and())"
+  },
+  "weighted.csv::or(and($3 or()) and())": {
+    "rows": [
+      {
+        "inputs": [
+          true,
+          true,
+          true,
+          true,
+          true
+        ],
+        "bscore": 0,
+        "best_possible_bscore": 0,
+        "worst_possible_bscore": -3.5
+      },
+      {
+        "inputs": [
+          true,
+          true,
+          true,
+          false,
+          false
+        ],
+        "bscore": 0,
+        "best_possible_bscore": 0,
+        "worst_possible_bscore": -2.6600000858306885
+      },
+      {
+        "inputs": [
+          false,
+          true,
+          true,
+          true,
+          true
+        ],
+        "bscore": -2.5,
+        "best_possible_bscore": 0,
+        "worst_possible_bscore": -2.5
+      },
+      {
+        "inputs": [
+          false,
+          false,
+          false,
+          false,
+          false
+        ],
+        "bscore": -0.4000000059604645,
+        "best_possible_bscore": -0.4000000059604645,
+        "worst_possible_bscore": -0.4000000059604645
+      }
+    ],
+    "sum_bscore": -2.9000000953674316,
+    "tree_complexity": 1,
+    "complexity_coef": 0,
+    "min_improv": 0.20000000298023224,
+    "composite_score": {
+      "score": -2.9000000953674316,
+      "complexity": 1,
+      "complexity_penalty": 0,
+      "uniformity_penalty": 0,
+      "penalized_score": -2.9000000953674316
+    },
+    "file": "weighted.csv",
+    "target_feature": "r",
+    "weighting_feature": "wgt",
+    "complexity_ratio": null,
+    "tree": "or(and($3 or()) and())"
+  },
+  "weighted.csv::or(and(!$1 or()) and())": {
+    "rows": [
+      {
+        "inputs": [
+          true,
+          true,
+          true,
+          true,
+          true
+        ],
+        "bscore": -3.5,
+        "best_possible_bscore": 0,
+        "worst_possible_bscore": -3.5
+      },
+      {
+        "inputs": [
+          true,
+          true,
+          true,
+          false,
+          false
+        ],
+        "bscore": -2.6600000858306885,
+        "best_possible_bscore": 0,
+        "worst_possible_bscore": -2.6600000858306885
+      },
+      {
+        "inputs": [
+          false,
+          true,
+          true,
+          true,
+          true
+        ],
+        "bscore": -2.5,
+        "best_possible_bscore": 0,
+        "worst_possible_bscore": -2.5
+      },
+      {
+        "inputs": [
+          false,
+          false,
+          false,
+          false,
+          false
+        ],
+        "bscore": -0.800000011920929,
+        "best_possible_bscore": -0.4000000059604645,
+        "worst_possible_bscore": -0.4000000059604645
+      }
+    ],
+    "sum_bscore": -9.460000038146973,
+    "tree_complexity": 1,
+    "complexity_coef": 0,
+    "min_improv": 0.20000000298023224,
+    "composite_score": {
+      "score": -9.460000038146973,
+      "complexity": 1,
+      "complexity_penalty": 0,
+      "uniformity_penalty": 0,
+      "penalized_score": -9.460000038146973
+    },
+    "file": "weighted.csv",
+    "target_feature": "r",
+    "weighting_feature": "wgt",
+    "complexity_ratio": null,
+    "tree": "or(and(!$1 or()) and())"
+  },
+  "weighted.csv::or(and($1 or()) and())": {
+    "rows": [
+      {
+        "inputs": [
+          true,
+          true,
+          true,
+          true,
+          true
+        ],
+        "bscore": 0,
+        "best_possible_bscore": 0,
+        "worst_possible_bscore": -3.5
+      },
+      {
+        "inputs": [
+          true,
+          true,
+          true,
+          false,
+          false
+        ],
+        "bscore": 0,
+        "best_possible_bscore": 0,
+        "worst_possible_bscore": -2.6600000858306885
+      },
+      {
+        "inputs": [
+          false,
+          true,
+          true,
+          true,
+          true
+        ],
+        "bscore": 0,
+        "best_possible_bscore": 0,
+        "worst_possible_bscore": -2.5
+      },
+      {
+        "inputs": [
+          false,
+          false,
+          false,
+          false,
+          false
+        ],
+        "bscore": -0.4000000059604645,
+        "best_possible_bscore": -0.4000000059604645,
+        "worst_possible_bscore": -0.4000000059604645
+      }
+    ],
+    "sum_bscore": -0.4000000059604645,
+    "tree_complexity": 1,
+    "complexity_coef": 0,
+    "min_improv": 0.20000000298023224,
+    "composite_score": {
+      "score": -0.4000000059604645,
+      "complexity": 1,
+      "complexity_penalty": 0,
+      "uniformity_penalty": 0,
+      "penalized_score": -0.4000000059604645
+    },
+    "file": "weighted.csv",
+    "target_feature": "r",
+    "weighting_feature": "wgt",
+    "complexity_ratio": null,
+    "tree": "or(and($1 or()) and())"
+  },
+  "weighted.csv::or(and(!$2 or()) and())": {
+    "rows": [
+      {
+        "inputs": [
+          true,
+          true,
+          true,
+          true,
+          true
+        ],
+        "bscore": -3.5,
+        "best_possible_bscore": 0,
+        "worst_possible_bscore": -3.5
+      },
+      {
+        "inputs": [
+          true,
+          true,
+          true,
+          false,
+          false
+        ],
+        "bscore": -2.6600000858306885,
+        "best_possible_bscore": 0,
+        "worst_possible_bscore": -2.6600000858306885
+      },
+      {
+        "inputs": [
+          false,
+          true,
+          true,
+          true,
+          true
+        ],
+        "bscore": 0,
+        "best_possible_bscore": 0,
+        "worst_possible_bscore": -2.5
+      },
+      {
+        "inputs": [
+          false,
+          false,
+          false,
+          false,
+          false
+        ],
+        "bscore": -0.800000011920929,
+        "best_possible_bscore": -0.4000000059604645,
+        "worst_possible_bscore": -0.4000000059604645
+      }
+    ],
+    "sum_bscore": -6.960000038146973,
+    "tree_complexity": 1,
+    "complexity_coef": 0,
+    "min_improv": 0.20000000298023224,
+    "composite_score": {
+      "score": -6.960000038146973,
+      "complexity": 1,
+      "complexity_penalty": 0,
+      "uniformity_penalty": 0,
+      "penalized_score": -6.960000038146973
+    },
+    "file": "weighted.csv",
+    "target_feature": "r",
+    "weighting_feature": "wgt",
+    "complexity_ratio": null,
+    "tree": "or(and(!$2 or()) and())"
+  },
+  "weighted.csv::or(and($2 or()) and())": {
+    "rows": [
+      {
+        "inputs": [
+          true,
+          true,
+          true,
+          true,
+          true
+        ],
+        "bscore": 0,
+        "best_possible_bscore": 0,
+        "worst_possible_bscore": -3.5
+      },
+      {
+        "inputs": [
+          true,
+          true,
+          true,
+          false,
+          false
+        ],
+        "bscore": 0,
+        "best_possible_bscore": 0,
+        "worst_possible_bscore": -2.6600000858306885
+      },
+      {
+        "inputs": [
+          false,
+          true,
+          true,
+          true,
+          true
+        ],
+        "bscore": -2.5,
+        "best_possible_bscore": 0,
+        "worst_possible_bscore": -2.5
+      },
+      {
+        "inputs": [
+          false,
+          false,
+          false,
+          false,
+          false
+        ],
+        "bscore": -0.4000000059604645,
+        "best_possible_bscore": -0.4000000059604645,
+        "worst_possible_bscore": -0.4000000059604645
+      }
+    ],
+    "sum_bscore": -2.9000000953674316,
+    "tree_complexity": 1,
+    "complexity_coef": 0,
+    "min_improv": 0.20000000298023224,
+    "composite_score": {
+      "score": -2.9000000953674316,
+      "complexity": 1,
+      "complexity_penalty": 0,
+      "uniformity_penalty": 0,
+      "penalized_score": -2.9000000953674316
+    },
+    "file": "weighted.csv",
+    "target_feature": "r",
+    "weighting_feature": "wgt",
+    "complexity_ratio": null,
+    "tree": "or(and($2 or()) and())"
+  },
+  "weighted.csv::or(and(or()) or(!$1 !$3) and())": {
+    "rows": [
+      {
+        "inputs": [
+          true,
+          true,
+          true,
+          true,
+          true
+        ],
+        "bscore": 0,
+        "best_possible_bscore": 0,
+        "worst_possible_bscore": -3.5
+      },
+      {
+        "inputs": [
+          true,
+          true,
+          true,
+          false,
+          false
+        ],
+        "bscore": 0,
+        "best_possible_bscore": 0,
+        "worst_possible_bscore": -2.6600000858306885
+      },
+      {
+        "inputs": [
+          false,
+          true,
+          true,
+          true,
+          true
+        ],
+        "bscore": -2.5,
+        "best_possible_bscore": 0,
+        "worst_possible_bscore": -2.5
+      },
+      {
+        "inputs": [
+          false,
+          false,
+          false,
+          false,
+          false
+        ],
+        "bscore": -0.800000011920929,
+        "best_possible_bscore": -0.4000000059604645,
+        "worst_possible_bscore": -0.4000000059604645
+      }
+    ],
+    "sum_bscore": -3.299999952316284,
+    "tree_complexity": 2,
+    "complexity_coef": 0,
+    "min_improv": 0.20000000298023224,
+    "composite_score": {
+      "score": -3.299999952316284,
+      "complexity": 2,
+      "complexity_penalty": 0,
+      "uniformity_penalty": 0,
+      "penalized_score": -3.299999952316284
+    },
+    "file": "weighted.csv",
+    "target_feature": "r",
+    "weighting_feature": "wgt",
+    "complexity_ratio": null,
+    "tree": "or(and(or()) or(!$1 !$3) and())"
+  },
+  "weighted.csv::or(and(or()) and($1 $3) and())": {
+    "rows": [
+      {
+        "inputs": [
+          true,
+          true,
+          true,
+          true,
+          true
+        ],
+        "bscore": 0,
+        "best_possible_bscore": 0,
+        "worst_possible_bscore": -3.5
+      },
+      {
+        "inputs": [
+          true,
+          true,
+          true,
+          false,
+          false
+        ],
+        "bscore": 0,
+        "best_possible_bscore": 0,
+        "worst_possible_bscore": -2.6600000858306885
+      },
+      {
+        "inputs": [
+          false,
+          true,
+          true,
+          true,
+          true
+        ],
+        "bscore": -2.5,
+        "best_possible_bscore": 0,
+        "worst_possible_bscore": -2.5
+      },
+      {
+        "inputs": [
+          false,
+          false,
+          false,
+          false,
+          false
+        ],
+        "bscore": -0.800000011920929,
+        "best_possible_bscore": -0.4000000059604645,
+        "worst_possible_bscore": -0.4000000059604645
+      }
+    ],
+    "sum_bscore": -3.299999952316284,
+    "tree_complexity": 2,
+    "complexity_coef": 0,
+    "min_improv": 0.20000000298023224,
+    "composite_score": {
+      "score": -3.299999952316284,
+      "complexity": 2,
+      "complexity_penalty": 0,
+      "uniformity_penalty": 0,
+      "penalized_score": -3.299999952316284
+    },
+    "file": "weighted.csv",
+    "target_feature": "r",
+    "weighting_feature": "wgt",
+    "complexity_ratio": null,
+    "tree": "or(and(or()) and($1 $3) and())"
+  },
+  "weighted.csv::or(and(or()) or($2 !$1) and())": {
+    "rows": [
+      {
+        "inputs": [
+          true,
+          true,
+          true,
+          true,
+          true
+        ],
+        "bscore": 0,
+        "best_possible_bscore": 0,
+        "worst_possible_bscore": -3.5
+      },
+      {
+        "inputs": [
+          true,
+          true,
+          true,
+          false,
+          false
+        ],
+        "bscore": 0,
+        "best_possible_bscore": 0,
+        "worst_possible_bscore": -2.6600000858306885
+      },
+      {
+        "inputs": [
+          false,
+          true,
+          true,
+          true,
+          true
+        ],
+        "bscore": -2.5,
+        "best_possible_bscore": 0,
+        "worst_possible_bscore": -2.5
+      },
+      {
+        "inputs": [
+          false,
+          false,
+          false,
+          false,
+          false
+        ],
+        "bscore": -0.800000011920929,
+        "best_possible_bscore": -0.4000000059604645,
+        "worst_possible_bscore": -0.4000000059604645
+      }
+    ],
+    "sum_bscore": -3.299999952316284,
+    "tree_complexity": 2,
+    "complexity_coef": 0,
+    "min_improv": 0.20000000298023224,
+    "composite_score": {
+      "score": -3.299999952316284,
+      "complexity": 2,
+      "complexity_penalty": 0,
+      "uniformity_penalty": 0,
+      "penalized_score": -3.299999952316284
+    },
+    "file": "weighted.csv",
+    "target_feature": "r",
+    "weighting_feature": "wgt",
+    "complexity_ratio": null,
+    "tree": "or(and(or()) or($2 !$1) and())"
+  },
+  "weighted.csv::or(and(or()) and(!$2 $1) and())": {
+    "rows": [
+      {
+        "inputs": [
+          true,
+          true,
+          true,
+          true,
+          true
+        ],
+        "bscore": 0,
+        "best_possible_bscore": 0,
+        "worst_possible_bscore": -3.5
+      },
+      {
+        "inputs": [
+          true,
+          true,
+          true,
+          false,
+          false
+        ],
+        "bscore": 0,
+        "best_possible_bscore": 0,
+        "worst_possible_bscore": -2.6600000858306885
+      },
+      {
+        "inputs": [
+          false,
+          true,
+          true,
+          true,
+          true
+        ],
+        "bscore": -2.5,
+        "best_possible_bscore": 0,
+        "worst_possible_bscore": -2.5
+      },
+      {
+        "inputs": [
+          false,
+          false,
+          false,
+          false,
+          false
+        ],
+        "bscore": -0.800000011920929,
+        "best_possible_bscore": -0.4000000059604645,
+        "worst_possible_bscore": -0.4000000059604645
+      }
+    ],
+    "sum_bscore": -3.299999952316284,
+    "tree_complexity": 2,
+    "complexity_coef": 0,
+    "min_improv": 0.20000000298023224,
+    "composite_score": {
+      "score": -3.299999952316284,
+      "complexity": 2,
+      "complexity_penalty": 0,
+      "uniformity_penalty": 0,
+      "penalized_score": -3.299999952316284
+    },
+    "file": "weighted.csv",
+    "target_feature": "r",
+    "weighting_feature": "wgt",
+    "complexity_ratio": null,
+    "tree": "or(and(or()) and(!$2 $1) and())"
+  },
+  "weighted.csv::or(and(or()) or(!$2 !$3) and())": {
+    "rows": [
+      {
+        "inputs": [
+          true,
+          true,
+          true,
+          true,
+          true
+        ],
+        "bscore": 0,
+        "best_possible_bscore": 0,
+        "worst_possible_bscore": -3.5
+      },
+      {
+        "inputs": [
+          true,
+          true,
+          true,
+          false,
+          false
+        ],
+        "bscore": 0,
+        "best_possible_bscore": 0,
+        "worst_possible_bscore": -2.6600000858306885
+      },
+      {
+        "inputs": [
+          false,
+          true,
+          true,
+          true,
+          true
+        ],
+        "bscore": -2.5,
+        "best_possible_bscore": 0,
+        "worst_possible_bscore": -2.5
+      },
+      {
+        "inputs": [
+          false,
+          false,
+          false,
+          false,
+          false
+        ],
+        "bscore": -0.800000011920929,
+        "best_possible_bscore": -0.4000000059604645,
+        "worst_possible_bscore": -0.4000000059604645
+      }
+    ],
+    "sum_bscore": -3.299999952316284,
+    "tree_complexity": 2,
+    "complexity_coef": 0,
+    "min_improv": 0.20000000298023224,
+    "composite_score": {
+      "score": -3.299999952316284,
+      "complexity": 2,
+      "complexity_penalty": 0,
+      "uniformity_penalty": 0,
+      "penalized_score": -3.299999952316284
+    },
+    "file": "weighted.csv",
+    "target_feature": "r",
+    "weighting_feature": "wgt",
+    "complexity_ratio": null,
+    "tree": "or(and(or()) or(!$2 !$3) and())"
+  },
+  "weighted.csv::or(and(or()) and($2 $3) and())": {
+    "rows": [
+      {
+        "inputs": [
+          true,
+          true,
+          true,
+          true,
+          true
+        ],
+        "bscore": 0,
+        "best_possible_bscore": 0,
+        "worst_possible_bscore": -3.5
+      },
+      {
+        "inputs": [
+          true,
+          true,
+          true,
+          false,
+          false
+        ],
+        "bscore": 0,
+        "best_possible_bscore": 0,
+        "worst_possible_bscore": -2.6600000858306885
+      },
+      {
+        "inputs": [
+          false,
+          true,
+          true,
+          true,
+          true
+        ],
+        "bscore": -2.5,
+        "best_possible_bscore": 0,
+        "worst_possible_bscore": -2.5
+      },
+      {
+        "inputs": [
+          false,
+          false,
+          false,
+          false,
+          false
+        ],
+        "bscore": -0.800000011920929,
+        "best_possible_bscore": -0.4000000059604645,
+        "worst_possible_bscore": -0.4000000059604645
+      }
+    ],
+    "sum_bscore": -3.299999952316284,
+    "tree_complexity": 2,
+    "complexity_coef": 0,
+    "min_improv": 0.20000000298023224,
+    "composite_score": {
+      "score": -3.299999952316284,
+      "complexity": 2,
+      "complexity_penalty": 0,
+      "uniformity_penalty": 0,
+      "penalized_score": -3.299999952316284
+    },
+    "file": "weighted.csv",
+    "target_feature": "r",
+    "weighting_feature": "wgt",
+    "complexity_ratio": null,
+    "tree": "or(and(or()) and($2 $3) and())"
+  },
+  "weighted.csv::or(and(or()) !$3 and())": {
+    "rows": [
+      {
+        "inputs": [
+          true,
+          true,
+          true,
+          true,
+          true
+        ],
+        "bscore": 0,
+        "best_possible_bscore": 0,
+        "worst_possible_bscore": -3.5
+      },
+      {
+        "inputs": [
+          true,
+          true,
+          true,
+          false,
+          false
+        ],
+        "bscore": 0,
+        "best_possible_bscore": 0,
+        "worst_possible_bscore": -2.6600000858306885
+      },
+      {
+        "inputs": [
+          false,
+          true,
+          true,
+          true,
+          true
+        ],
+        "bscore": -2.5,
+        "best_possible_bscore": 0,
+        "worst_possible_bscore": -2.5
+      },
+      {
+        "inputs": [
+          false,
+          false,
+          false,
+          false,
+          false
+        ],
+        "bscore": -0.800000011920929,
+        "best_possible_bscore": -0.4000000059604645,
+        "worst_possible_bscore": -0.4000000059604645
+      }
+    ],
+    "sum_bscore": -3.299999952316284,
+    "tree_complexity": 1,
+    "complexity_coef": 0,
+    "min_improv": 0.20000000298023224,
+    "composite_score": {
+      "score": -3.299999952316284,
+      "complexity": 1,
+      "complexity_penalty": 0,
+      "uniformity_penalty": 0,
+      "penalized_score": -3.299999952316284
+    },
+    "file": "weighted.csv",
+    "target_feature": "r",
+    "weighting_feature": "wgt",
+    "complexity_ratio": null,
+    "tree": "or(and(or()) !$3 and())"
+  },
+  "weighted.csv::or(and(or()) $3 and())": {
+    "rows": [
+      {
+        "inputs": [
+          true,
+          true,
+          true,
+          true,
+          true
+        ],
+        "bscore": 0,
+        "best_possible_bscore": 0,
+        "worst_possible_bscore": -3.5
+      },
+      {
+        "inputs": [
+          true,
+          true,
+          true,
+          false,
+          false
+        ],
+        "bscore": 0,
+        "best_possible_bscore": 0,
+        "worst_possible_bscore": -2.6600000858306885
+      },
+      {
+        "inputs": [
+          false,
+          true,
+          true,
+          true,
+          true
+        ],
+        "bscore": -2.5,
+        "best_possible_bscore": 0,
+        "worst_possible_bscore": -2.5
+      },
+      {
+        "inputs": [
+          false,
+          false,
+          false,
+          false,
+          false
+        ],
+        "bscore": -0.800000011920929,
+        "best_possible_bscore": -0.4000000059604645,
+        "worst_possible_bscore": -0.4000000059604645
+      }
+    ],
+    "sum_bscore": -3.299999952316284,
+    "tree_complexity": 1,
+    "complexity_coef": 0,
+    "min_improv": 0.20000000298023224,
+    "composite_score": {
+      "score": -3.299999952316284,
+      "complexity": 1,
+      "complexity_penalty": 0,
+      "uniformity_penalty": 0,
+      "penalized_score": -3.299999952316284
+    },
+    "file": "weighted.csv",
+    "target_feature": "r",
+    "weighting_feature": "wgt",
+    "complexity_ratio": null,
+    "tree": "or(and(or()) $3 and())"
+  },
+  "weighted.csv::or(and(or()) !$1 and())": {
+    "rows": [
+      {
+        "inputs": [
+          true,
+          true,
+          true,
+          true,
+          true
+        ],
+        "bscore": 0,
+        "best_possible_bscore": 0,
+        "worst_possible_bscore": -3.5
+      },
+      {
+        "inputs": [
+          true,
+          true,
+          true,
+          false,
+          false
+        ],
+        "bscore": 0,
+        "best_possible_bscore": 0,
+        "worst_possible_bscore": -2.6600000858306885
+      },
+      {
+        "inputs": [
+          false,
+          true,
+          true,
+          true,
+          true
+        ],
+        "bscore": -2.5,
+        "best_possible_bscore": 0,
+        "worst_possible_bscore": -2.5
+      },
+      {
+        "inputs": [
+          false,
+          false,
+          false,
+          false,
+          false
+        ],
+        "bscore": -0.800000011920929,
+        "best_possible_bscore": -0.4000000059604645,
+        "worst_possible_bscore": -0.4000000059604645
+      }
+    ],
+    "sum_bscore": -3.299999952316284,
+    "tree_complexity": 1,
+    "complexity_coef": 0,
+    "min_improv": 0.20000000298023224,
+    "composite_score": {
+      "score": -3.299999952316284,
+      "complexity": 1,
+      "complexity_penalty": 0,
+      "uniformity_penalty": 0,
+      "penalized_score": -3.299999952316284
+    },
+    "file": "weighted.csv",
+    "target_feature": "r",
+    "weighting_feature": "wgt",
+    "complexity_ratio": null,
+    "tree": "or(and(or()) !$1 and())"
+  },
+  "weighted.csv::or(and(or()) $1 and())": {
+    "rows": [
+      {
+        "inputs": [
+          true,
+          true,
+          true,
+          true,
+          true
+        ],
+        "bscore": 0,
+        "best_possible_bscore": 0,
+        "worst_possible_bscore": -3.5
+      },
+      {
+        "inputs": [
+          true,
+          true,
+          true,
+          false,
+          false
+        ],
+        "bscore": 0,
+        "best_possible_bscore": 0,
+        "worst_possible_bscore": -2.6600000858306885
+      },
+      {
+        "inputs": [
+          false,
+          true,
+          true,
+          true,
+          true
+        ],
+        "bscore": -2.5,
+        "best_possible_bscore": 0,
+        "worst_possible_bscore": -2.5
+      },
+      {
+        "inputs": [
+          false,
+          false,
+          false,
+          false,
+          false
+        ],
+        "bscore": -0.800000011920929,
+        "best_possible_bscore": -0.4000000059604645,
+        "worst_possible_bscore": -0.4000000059604645
+      }
+    ],
+    "sum_bscore": -3.299999952316284,
+    "tree_complexity": 1,
+    "complexity_coef": 0,
+    "min_improv": 0.20000000298023224,
+    "composite_score": {
+      "score": -3.299999952316284,
+      "complexity": 1,
+      "complexity_penalty": 0,
+      "uniformity_penalty": 0,
+      "penalized_score": -3.299999952316284
+    },
+    "file": "weighted.csv",
+    "target_feature": "r",
+    "weighting_feature": "wgt",
+    "complexity_ratio": null,
+    "tree": "or(and(or()) $1 and())"
+  },
+  "weighted.csv::or(and(or()) !$2 and())": {
+    "rows": [
+      {
+        "inputs": [
+          true,
+          true,
+          true,
+          true,
+          true
+        ],
+        "bscore": 0,
+        "best_possible_bscore": 0,
+        "worst_possible_bscore": -3.5
+      },
+      {
+        "inputs": [
+          true,
+          true,
+          true,
+          false,
+          false
+        ],
+        "bscore": 0,
+        "best_possible_bscore": 0,
+        "worst_possible_bscore": -2.6600000858306885
+      },
+      {
+        "inputs": [
+          false,
+          true,
+          true,
+          true,
+          true
+        ],
+        "bscore": -2.5,
+        "best_possible_bscore": 0,
+        "worst_possible_bscore": -2.5
+      },
+      {
+        "inputs": [
+          false,
+          false,
+          false,
+          false,
+          false
+        ],
+        "bscore": -0.800000011920929,
+        "best_possible_bscore": -0.4000000059604645,
+        "worst_possible_bscore": -0.4000000059604645
+      }
+    ],
+    "sum_bscore": -3.299999952316284,
+    "tree_complexity": 1,
+    "complexity_coef": 0,
+    "min_improv": 0.20000000298023224,
+    "composite_score": {
+      "score": -3.299999952316284,
+      "complexity": 1,
+      "complexity_penalty": 0,
+      "uniformity_penalty": 0,
+      "penalized_score": -3.299999952316284
+    },
+    "file": "weighted.csv",
+    "target_feature": "r",
+    "weighting_feature": "wgt",
+    "complexity_ratio": null,
+    "tree": "or(and(or()) !$2 and())"
+  },
+  "weighted.csv::or(and(or()) $2 and())": {
+    "rows": [
+      {
+        "inputs": [
+          true,
+          true,
+          true,
+          true,
+          true
+        ],
+        "bscore": 0,
+        "best_possible_bscore": 0,
+        "worst_possible_bscore": -3.5
+      },
+      {
+        "inputs": [
+          true,
+          true,
+          true,
+          false,
+          false
+        ],
+        "bscore": 0,
+        "best_possible_bscore": 0,
+        "worst_possible_bscore": -2.6600000858306885
+      },
+      {
+        "inputs": [
+          false,
+          true,
+          true,
+          true,
+          true
+        ],
+        "bscore": -2.5,
+        "best_possible_bscore": 0,
+        "worst_possible_bscore": -2.5
+      },
+      {
+        "inputs": [
+          false,
+          false,
+          false,
+          false,
+          false
+        ],
+        "bscore": -0.800000011920929,
+        "best_possible_bscore": -0.4000000059604645,
+        "worst_possible_bscore": -0.4000000059604645
+      }
+    ],
+    "sum_bscore": -3.299999952316284,
+    "tree_complexity": 1,
+    "complexity_coef": 0,
+    "min_improv": 0.20000000298023224,
+    "composite_score": {
+      "score": -3.299999952316284,
+      "complexity": 1,
+      "complexity_penalty": 0,
+      "uniformity_penalty": 0,
+      "penalized_score": -3.299999952316284
+    },
+    "file": "weighted.csv",
+    "target_feature": "r",
+    "weighting_feature": "wgt",
+    "complexity_ratio": null,
+    "tree": "or(and(or()) $2 and())"
+  },
+  "weighted.csv::or(and(or()) and($2))": {
+    "rows": [
+      {
+        "inputs": [
+          true,
+          true,
+          true,
+          true,
+          true
+        ],
+        "bscore": 0,
+        "best_possible_bscore": 0,
+        "worst_possible_bscore": -3.5
+      },
+      {
+        "inputs": [
+          true,
+          true,
+          true,
+          false,
+          false
+        ],
+        "bscore": 0,
+        "best_possible_bscore": 0,
+        "worst_possible_bscore": -2.6600000858306885
+      },
+      {
+        "inputs": [
+          false,
+          true,
+          true,
+          true,
+          true
+        ],
+        "bscore": -2.5,
+        "best_possible_bscore": 0,
+        "worst_possible_bscore": -2.5
+      },
+      {
+        "inputs": [
+          false,
+          false,
+          false,
+          false,
+          false
+        ],
+        "bscore": -0.800000011920929,
+        "best_possible_bscore": -0.4000000059604645,
+        "worst_possible_bscore": -0.4000000059604645
+      }
+    ],
+    "sum_bscore": -3.299999952316284,
+    "tree_complexity": 1,
+    "complexity_coef": 0,
+    "min_improv": 0.20000000298023224,
+    "composite_score": {
+      "score": -3.299999952316284,
+      "complexity": 1,
+      "complexity_penalty": 0,
+      "uniformity_penalty": 0,
+      "penalized_score": -3.299999952316284
+    },
+    "file": "weighted.csv",
+    "target_feature": "r",
+    "weighting_feature": "wgt",
+    "complexity_ratio": null,
+    "tree": "or(and(or()) and($2))"
+  },
+  "weighted.csv::and(or($1 $2) not($3))": {
+    "rows": [
+      {
+        "inputs": [
+          true,
+          true,
+          true,
+          true,
+          true
+        ],
+        "bscore": -3.5,
+        "best_possible_bscore": 0,
+        "worst_possible_bscore": -3.5
+      },
+      {
+        "inputs": [
+          true,
+          true,
+          true,
+          false,
+          false
+        ],
+        "bscore": -2.6600000858306885,
+        "best_possible_bscore": 0,
+        "worst_possible_bscore": -2.6600000858306885
+      },
+      {
+        "inputs": [
+          false,
+          true,
+          true,
+          true,
+          true
+        ],
+        "bscore": 0,
+        "best_possible_bscore": 0,
+        "worst_possible_bscore": -2.5
+      },
+      {
+        "inputs": [
+          false,
+          false,
+          false,
+          false,
+          false
+        ],
+        "bscore": -0.4000000059604645,
+        "best_possible_bscore": -0.4000000059604645,
+        "worst_possible_bscore": -0.4000000059604645
+      }
+    ],
+    "sum_bscore": -6.559999942779541,
+    "tree_complexity": 3,
+    "complexity_coef": 0,
+    "min_improv": 0.20000000298023224,
+    "composite_score": {
+      "score": -6.559999942779541,
+      "complexity": 3,
+      "complexity_penalty": 0,
+      "uniformity_penalty": 0,
+      "penalized_score": -6.559999942779541
+    },
+    "file": "weighted.csv",
+    "target_feature": "r",
+    "weighting_feature": "wgt",
+    "complexity_ratio": null,
+    "tree": "and(or($1 $2) not($3))"
+  },
+  "precision.csv::or(and(or(!$1)) and())": {
+    "rows": [
+      {
+        "inputs": [
+          true,
+          false
+        ],
+        "bscore": 0,
+        "best_possible_bscore": 0,
+        "worst_possible_bscore": -3
+      },
+      {
+        "inputs": [
+          false,
+          true
+        ],
+        "bscore": 0,
+        "best_possible_bscore": 0,
+        "worst_possible_bscore": -3
+      },
+      {
+        "inputs": [
+          false,
+          false
+        ],
+        "bscore": -2,
+        "best_possible_bscore": -2,
+        "worst_possible_bscore": 0
+      }
+    ],
+    "sum_bscore": -2,
+    "tree_complexity": 1,
+    "complexity_coef": 0,
+    "min_improv": 1.5,
+    "composite_score": {
+      "score": -2,
+      "complexity": 1,
+      "complexity_penalty": 0,
+      "uniformity_penalty": 0,
+      "penalized_score": -2
+    },
+    "file": "precision.csv",
+    "target_feature": "target",
+    "weighting_feature": "",
+    "complexity_ratio": null,
+    "tree": "or(and(or(!$1)) and())"
+  },
+  "precision.csv::or(and(or($1)) and())": {
+    "rows": [
+      {
+        "inputs": [
+          true,
+          false
+        ],
+        "bscore": -3,
+        "best_possible_bscore": 0,
+        "worst_possible_bscore": -3
+      },
+      {
+        "inputs": [
+          false,
+          true
+        ],
+        "bscore": -3,
+        "best_possible_bscore": 0,
+        "worst_possible_bscore": -3
+      },
+      {
+        "inputs": [
+          false,
+          false
+        ],
+        "bscore": -2,
+        "best_possible_bscore": -2,
+        "worst_possible_bscore": 0
+      }
+    ],
+    "sum_bscore": -8,
+    "tree_complexity": 1,
+    "complexity_coef": 0,
+    "min_improv": 1.5,
+    "composite_score": {
+      "score": -8,
+      "complexity": 1,
+      "complexity_penalty": 0,
+      "uniformity_penalty": 0,
+      "penalized_score": -8
+    },
+    "file": "precision.csv",
+    "target_feature": "target",
+    "weighting_feature": "",
+    "complexity_ratio": null,
+    "tree": "or(and(or($1)) and())"
+  },
+  "precision.csv::or(and(or(!$2)) and())": {
+    "rows": [
+      {
+        "inputs": [
+          true,
+          false
+        ],
+        "bscore": -3,
+        "best_possible_bscore": 0,
+        "worst_possible_bscore": -3
+      },
+      {
+        "inputs": [
+          false,
+          true
+        ],
+        "bscore": -3,
+        "best_possible_bscore": 0,
+        "worst_possible_bscore": -3
+      },
+      {
+        "inputs": [
+          false,
+          false
+        ],
+        "bscore": -2,
+        "best_possible_bscore": -2,
+        "worst_possible_bscore": 0
+      }
+    ],
+    "sum_bscore": -8,
+    "tree_complexity": 1,
+    "complexity_coef": 0,
+    "min_improv": 1.5,
+    "composite_score": {
+      "score": -8,
+      "complexity": 1,
+      "complexity_penalty": 0,
+      "uniformity_penalty": 0,
+      "penalized_score": -8
+    },
+    "file": "precision.csv",
+    "target_feature": "target",
+    "weighting_feature": "",
+    "complexity_ratio": null,
+    "tree": "or(and(or(!$2)) and())"
+  },
+  "precision.csv::or(and(or($2)) and())": {
+    "rows": [
+      {
+        "inputs": [
+          true,
+          false
+        ],
+        "bscore": 0,
+        "best_possible_bscore": 0,
+        "worst_possible_bscore": -3
+      },
+      {
+        "inputs": [
+          false,
+          true
+        ],
+        "bscore": 0,
+        "best_possible_bscore": 0,
+        "worst_possible_bscore": -3
+      },
+      {
+        "inputs": [
+          false,
+          false
+        ],
+        "bscore": -2,
+        "best_possible_bscore": -2,
+        "worst_possible_bscore": 0
+      }
+    ],
+    "sum_bscore": -2,
+    "tree_complexity": 1,
+    "complexity_coef": 0,
+    "min_improv": 1.5,
+    "composite_score": {
+      "score": -2,
+      "complexity": 1,
+      "complexity_penalty": 0,
+      "uniformity_penalty": 0,
+      "penalized_score": -2
+    },
+    "file": "precision.csv",
+    "target_feature": "target",
+    "weighting_feature": "",
+    "complexity_ratio": null,
+    "tree": "or(and(or($2)) and())"
+  },
+  "precision.csv::or(and(and(!$2 !$1) or()) and())": {
+    "rows": [
+      {
+        "inputs": [
+          true,
+          false
+        ],
+        "bscore": 0,
+        "best_possible_bscore": 0,
+        "worst_possible_bscore": -3
+      },
+      {
+        "inputs": [
+          false,
+          true
+        ],
+        "bscore": -3,
+        "best_possible_bscore": 0,
+        "worst_possible_bscore": -3
+      },
+      {
+        "inputs": [
+          false,
+          false
+        ],
+        "bscore": -2,
+        "best_possible_bscore": -2,
+        "worst_possible_bscore": 0
+      }
+    ],
+    "sum_bscore": -5,
+    "tree_complexity": 2,
+    "complexity_coef": 0,
+    "min_improv": 1.5,
+    "composite_score": {
+      "score": -5,
+      "complexity": 2,
+      "complexity_penalty": 0,
+      "uniformity_penalty": 0,
+      "penalized_score": -5
+    },
+    "file": "precision.csv",
+    "target_feature": "target",
+    "weighting_feature": "",
+    "complexity_ratio": null,
+    "tree": "or(and(and(!$2 !$1) or()) and())"
+  },
+  "precision.csv::or(and(or($2 $1) or()) and())": {
+    "rows": [
+      {
+        "inputs": [
+          true,
+          false
+        ],
+        "bscore": -3,
+        "best_possible_bscore": 0,
+        "worst_possible_bscore": -3
+      },
+      {
+        "inputs": [
+          false,
+          true
+        ],
+        "bscore": 0,
+        "best_possible_bscore": 0,
+        "worst_possible_bscore": -3
+      },
+      {
+        "inputs": [
+          false,
+          false
+        ],
+        "bscore": -2,
+        "best_possible_bscore": -2,
+        "worst_possible_bscore": 0
+      }
+    ],
+    "sum_bscore": -5,
+    "tree_complexity": 2,
+    "complexity_coef": 0,
+    "min_improv": 1.5,
+    "composite_score": {
+      "score": -5,
+      "complexity": 2,
+      "complexity_penalty": 0,
+      "uniformity_penalty": 0,
+      "penalized_score": -5
+    },
+    "file": "precision.csv",
+    "target_feature": "target",
+    "weighting_feature": "",
+    "complexity_ratio": null,
+    "tree": "or(and(or($2 $1) or()) and())"
+  },
+  "precision.csv::or(and(!$1 or()) and())": {
+    "rows": [
+      {
+        "inputs": [
+          true,
+          false
+        ],
+        "bscore": 0,
+        "best_possible_bscore": 0,
+        "worst_possible_bscore": -3
+      },
+      {
+        "inputs": [
+          false,
+          true
+        ],
+        "bscore": 0,
+        "best_possible_bscore": 0,
+        "worst_possible_bscore": -3
+      },
+      {
+        "inputs": [
+          false,
+          false
+        ],
+        "bscore": -2,
+        "best_possible_bscore": -2,
+        "worst_possible_bscore": 0
+      }
+    ],
+    "sum_bscore": -2,
+    "tree_complexity": 1,
+    "complexity_coef": 0,
+    "min_improv": 1.5,
+    "composite_score": {
+      "score": -2,
+      "complexity": 1,
+      "complexity_penalty": 0,
+      "uniformity_penalty": 0,
+      "penalized_score": -2
+    },
+    "file": "precision.csv",
+    "target_feature": "target",
+    "weighting_feature": "",
+    "complexity_ratio": null,
+    "tree": "or(and(!$1 or()) and())"
+  },
+  "precision.csv::or(and($1 or()) and())": {
+    "rows": [
+      {
+        "inputs": [
+          true,
+          false
+        ],
+        "bscore": -3,
+        "best_possible_bscore": 0,
+        "worst_possible_bscore": -3
+      },
+      {
+        "inputs": [
+          false,
+          true
+        ],
+        "bscore": -3,
+        "best_possible_bscore": 0,
+        "worst_possible_bscore": -3
+      },
+      {
+        "inputs": [
+          false,
+          false
+        ],
+        "bscore": -2,
+        "best_possible_bscore": -2,
+        "worst_possible_bscore": 0
+      }
+    ],
+    "sum_bscore": -8,
+    "tree_complexity": 1,
+    "complexity_coef": 0,
+    "min_improv": 1.5,
+    "composite_score": {
+      "score": -8,
+      "complexity": 1,
+      "complexity_penalty": 0,
+      "uniformity_penalty": 0,
+      "penalized_score": -8
+    },
+    "file": "precision.csv",
+    "target_feature": "target",
+    "weighting_feature": "",
+    "complexity_ratio": null,
+    "tree": "or(and($1 or()) and())"
+  },
+  "precision.csv::or(and(!$2 or()) and())": {
+    "rows": [
+      {
+        "inputs": [
+          true,
+          false
+        ],
+        "bscore": -3,
+        "best_possible_bscore": 0,
+        "worst_possible_bscore": -3
+      },
+      {
+        "inputs": [
+          false,
+          true
+        ],
+        "bscore": -3,
+        "best_possible_bscore": 0,
+        "worst_possible_bscore": -3
+      },
+      {
+        "inputs": [
+          false,
+          false
+        ],
+        "bscore": -2,
+        "best_possible_bscore": -2,
+        "worst_possible_bscore": 0
+      }
+    ],
+    "sum_bscore": -8,
+    "tree_complexity": 1,
+    "complexity_coef": 0,
+    "min_improv": 1.5,
+    "composite_score": {
+      "score": -8,
+      "complexity": 1,
+      "complexity_penalty": 0,
+      "uniformity_penalty": 0,
+      "penalized_score": -8
+    },
+    "file": "precision.csv",
+    "target_feature": "target",
+    "weighting_feature": "",
+    "complexity_ratio": null,
+    "tree": "or(and(!$2 or()) and())"
+  },
+  "precision.csv::or(and($2 or()) and())": {
+    "rows": [
+      {
+        "inputs": [
+          true,
+          false
+        ],
+        "bscore": 0,
+        "best_possible_bscore": 0,
+        "worst_possible_bscore": -3
+      },
+      {
+        "inputs": [
+          false,
+          true
+        ],
+        "bscore": 0,
+        "best_possible_bscore": 0,
+        "worst_possible_bscore": -3
+      },
+      {
+        "inputs": [
+          false,
+          false
+        ],
+        "bscore": -2,
+        "best_possible_bscore": -2,
+        "worst_possible_bscore": 0
+      }
+    ],
+    "sum_bscore": -2,
+    "tree_complexity": 1,
+    "complexity_coef": 0,
+    "min_improv": 1.5,
+    "composite_score": {
+      "score": -2,
+      "complexity": 1,
+      "complexity_penalty": 0,
+      "uniformity_penalty": 0,
+      "penalized_score": -2
+    },
+    "file": "precision.csv",
+    "target_feature": "target",
+    "weighting_feature": "",
+    "complexity_ratio": null,
+    "tree": "or(and($2 or()) and())"
+  },
+  "precision.csv::or(and(or()) or($2 !$1) and())": {
+    "rows": [
+      {
+        "inputs": [
+          true,
+          false
+        ],
+        "bscore": -3,
+        "best_possible_bscore": 0,
+        "worst_possible_bscore": -3
+      },
+      {
+        "inputs": [
+          false,
+          true
+        ],
+        "bscore": 0,
+        "best_possible_bscore": 0,
+        "worst_possible_bscore": -3
+      },
+      {
+        "inputs": [
+          false,
+          false
+        ],
+        "bscore": -2,
+        "best_possible_bscore": -2,
+        "worst_possible_bscore": 0
+      }
+    ],
+    "sum_bscore": -5,
+    "tree_complexity": 2,
+    "complexity_coef": 0,
+    "min_improv": 1.5,
+    "composite_score": {
+      "score": -5,
+      "complexity": 2,
+      "complexity_penalty": 0,
+      "uniformity_penalty": 0,
+      "penalized_score": -5
+    },
+    "file": "precision.csv",
+    "target_feature": "target",
+    "weighting_feature": "",
+    "complexity_ratio": null,
+    "tree": "or(and(or()) or($2 !$1) and())"
+  },
+  "precision.csv::or(and(or()) and(!$2 $1) and())": {
+    "rows": [
+      {
+        "inputs": [
+          true,
+          false
+        ],
+        "bscore": -3,
+        "best_possible_bscore": 0,
+        "worst_possible_bscore": -3
+      },
+      {
+        "inputs": [
+          false,
+          true
+        ],
+        "bscore": 0,
+        "best_possible_bscore": 0,
+        "worst_possible_bscore": -3
+      },
+      {
+        "inputs": [
+          false,
+          false
+        ],
+        "bscore": -2,
+        "best_possible_bscore": -2,
+        "worst_possible_bscore": 0
+      }
+    ],
+    "sum_bscore": -5,
+    "tree_complexity": 2,
+    "complexity_coef": 0,
+    "min_improv": 1.5,
+    "composite_score": {
+      "score": -5,
+      "complexity": 2,
+      "complexity_penalty": 0,
+      "uniformity_penalty": 0,
+      "penalized_score": -5
+    },
+    "file": "precision.csv",
+    "target_feature": "target",
+    "weighting_feature": "",
+    "complexity_ratio": null,
+    "tree": "or(and(or()) and(!$2 $1) and())"
+  },
+  "precision.csv::or(and(or()) !$1 and())": {
+    "rows": [
+      {
+        "inputs": [
+          true,
+          false
+        ],
+        "bscore": -3,
+        "best_possible_bscore": 0,
+        "worst_possible_bscore": -3
+      },
+      {
+        "inputs": [
+          false,
+          true
+        ],
+        "bscore": 0,
+        "best_possible_bscore": 0,
+        "worst_possible_bscore": -3
+      },
+      {
+        "inputs": [
+          false,
+          false
+        ],
+        "bscore": -2,
+        "best_possible_bscore": -2,
+        "worst_possible_bscore": 0
+      }
+    ],
+    "sum_bscore": -5,
+    "tree_complexity": 1,
+    "complexity_coef": 0,
+    "min_improv": 1.5,
+    "composite_score": {
+      "score": -5,
+      "complexity": 1,
+      "complexity_penalty": 0,
+      "uniformity_penalty": 0,
+      "penalized_score": -5
+    },
+    "file": "precision.csv",
+    "target_feature": "target",
+    "weighting_feature": "",
+    "complexity_ratio": null,
+    "tree": "or(and(or()) !$1 and())"
+  },
+  "precision.csv::or(and(or()) $1 and())": {
+    "rows": [
+      {
+        "inputs": [
+          true,
+          false
+        ],
+        "bscore": -3,
+        "best_possible_bscore": 0,
+        "worst_possible_bscore": -3
+      },
+      {
+        "inputs": [
+          false,
+          true
+        ],
+        "bscore": 0,
+        "best_possible_bscore": 0,
+        "worst_possible_bscore": -3
+      },
+      {
+        "inputs": [
+          false,
+          false
+        ],
+        "bscore": -2,
+        "best_possible_bscore": -2,
+        "worst_possible_bscore": 0
+      }
+    ],
+    "sum_bscore": -5,
+    "tree_complexity": 1,
+    "complexity_coef": 0,
+    "min_improv": 1.5,
+    "composite_score": {
+      "score": -5,
+      "complexity": 1,
+      "complexity_penalty": 0,
+      "uniformity_penalty": 0,
+      "penalized_score": -5
+    },
+    "file": "precision.csv",
+    "target_feature": "target",
+    "weighting_feature": "",
+    "complexity_ratio": null,
+    "tree": "or(and(or()) $1 and())"
+  },
+  "precision.csv::or(and(or()) !$2 and())": {
+    "rows": [
+      {
+        "inputs": [
+          true,
+          false
+        ],
+        "bscore": -3,
+        "best_possible_bscore": 0,
+        "worst_possible_bscore": -3
+      },
+      {
+        "inputs": [
+          false,
+          true
+        ],
+        "bscore": 0,
+        "best_possible_bscore": 0,
+        "worst_possible_bscore": -3
+      },
+      {
+        "inputs": [
+          false,
+          false
+        ],
+        "bscore": -2,
+        "best_possible_bscore": -2,
+        "worst_possible_bscore": 0
+      }
+    ],
+    "sum_bscore": -5,
+    "tree_complexity": 1,
+    "complexity_coef": 0,
+    "min_improv": 1.5,
+    "composite_score": {
+      "score": -5,
+      "complexity": 1,
+      "complexity_penalty": 0,
+      "uniformity_penalty": 0,
+      "penalized_score": -5
+    },
+    "file": "precision.csv",
+    "target_feature": "target",
+    "weighting_feature": "",
+    "complexity_ratio": null,
+    "tree": "or(and(or()) !$2 and())"
+  },
+  "precision.csv::or(and(or()) $2 and())": {
+    "rows": [
+      {
+        "inputs": [
+          true,
+          false
+        ],
+        "bscore": -3,
+        "best_possible_bscore": 0,
+        "worst_possible_bscore": -3
+      },
+      {
+        "inputs": [
+          false,
+          true
+        ],
+        "bscore": 0,
+        "best_possible_bscore": 0,
+        "worst_possible_bscore": -3
+      },
+      {
+        "inputs": [
+          false,
+          false
+        ],
+        "bscore": -2,
+        "best_possible_bscore": -2,
+        "worst_possible_bscore": 0
+      }
+    ],
+    "sum_bscore": -5,
+    "tree_complexity": 1,
+    "complexity_coef": 0,
+    "min_improv": 1.5,
+    "composite_score": {
+      "score": -5,
+      "complexity": 1,
+      "complexity_penalty": 0,
+      "uniformity_penalty": 0,
+      "penalized_score": -5
+    },
+    "file": "precision.csv",
+    "target_feature": "target",
+    "weighting_feature": "",
+    "complexity_ratio": null,
+    "tree": "or(and(or()) $2 and())"
+  },
+  "precision.csv::or(and(or()) and($2))": {
+    "rows": [
+      {
+        "inputs": [
+          true,
+          false
+        ],
+        "bscore": -3,
+        "best_possible_bscore": 0,
+        "worst_possible_bscore": -3
+      },
+      {
+        "inputs": [
+          false,
+          true
+        ],
+        "bscore": 0,
+        "best_possible_bscore": 0,
+        "worst_possible_bscore": -3
+      },
+      {
+        "inputs": [
+          false,
+          false
+        ],
+        "bscore": -2,
+        "best_possible_bscore": -2,
+        "worst_possible_bscore": 0
+      }
+    ],
+    "sum_bscore": -5,
+    "tree_complexity": 1,
+    "complexity_coef": 0,
+    "min_improv": 1.5,
+    "composite_score": {
+      "score": -5,
+      "complexity": 1,
+      "complexity_penalty": 0,
+      "uniformity_penalty": 0,
+      "penalized_score": -5
+    },
+    "file": "precision.csv",
+    "target_feature": "target",
+    "weighting_feature": "",
+    "complexity_ratio": null,
+    "tree": "or(and(or()) and($2))"
+  },
+  "trainingBoolean.dat::or(and($1 !$3) or())::ratio=2.0": {
+    "rows": [
+      {
+        "inputs": [
+          true,
+          true,
+          true
+        ],
+        "bscore": -1,
+        "best_possible_bscore": 0,
+        "worst_possible_bscore": -1
+      },
+      {
+        "inputs": [
+          true,
+          true,
+          false
+        ],
+        "bscore": 0,
+        "best_possible_bscore": 0,
+        "worst_possible_bscore": -1
+      },
+      {
+        "inputs": [
+          true,
+          false,
+          true
+        ],
+        "bscore": 0,
+        "best_possible_bscore": 0,
+        "worst_possible_bscore": -1
+      },
+      {
+        "inputs": [
+          true,
+          false,
+          false
+        ],
+        "bscore": 0,
+        "best_possible_bscore": 0,
+        "worst_possible_bscore": -1
+      },
+      {
+        "inputs": [
+          false,
+          true,
+          true
+        ],
+        "bscore": 0,
+        "best_possible_bscore": 0,
+        "worst_possible_bscore": -1
+      },
+      {
+        "inputs": [
+          false,
+          true,
+          false
+        ],
+        "bscore": -1,
+        "best_possible_bscore": 0,
+        "worst_possible_bscore": -1
+      },
+      {
+        "inputs": [
+          false,
+          false,
+          true
+        ],
+        "bscore": 0,
+        "best_possible_bscore": 0,
+        "worst_possible_bscore": -1
+      },
+      {
+        "inputs": [
+          false,
+          false,
+          false
+        ],
+        "bscore": -1,
+        "best_possible_bscore": 0,
+        "worst_possible_bscore": -1
+      }
+    ],
+    "sum_bscore": -3,
+    "tree_complexity": 2,
+    "complexity_coef": 0.5,
+    "min_improv": 0.5,
+    "composite_score": {
+      "score": -3,
+      "complexity": 2,
+      "complexity_penalty": 1,
+      "uniformity_penalty": 0,
+      "penalized_score": -4
+    },
+    "file": "trainingBoolean.dat",
+    "target_feature": "y",
+    "weighting_feature": "",
+    "complexity_ratio": 2.0,
+    "tree": "or(and($1 !$3) or())"
+  },
+  "weighted.csv::and($1 $2)::ratio=2.0": {
+    "rows": [
+      {
+        "inputs": [
+          true,
+          true,
+          true,
+          true,
+          true
+        ],
+        "bscore": 0,
+        "best_possible_bscore": 0,
+        "worst_possible_bscore": -3.5
+      },
+      {
+        "inputs": [
+          true,
+          true,
+          true,
+          false,
+          false
+        ],
+        "bscore": 0,
+        "best_possible_bscore": 0,
+        "worst_possible_bscore": -2.6600000858306885
+      },
+      {
+        "inputs": [
+          false,
+          true,
+          true,
+          true,
+          true
+        ],
+        "bscore": 0,
+        "best_possible_bscore": 0,
+        "worst_possible_bscore": -2.5
+      },
+      {
+        "inputs": [
+          false,
+          false,
+          false,
+          false,
+          false
+        ],
+        "bscore": -0.4000000059604645,
+        "best_possible_bscore": -0.4000000059604645,
+        "worst_possible_bscore": -0.4000000059604645
+      }
+    ],
+    "sum_bscore": -0.4000000059604645,
+    "tree_complexity": 2,
+    "complexity_coef": 0.5,
+    "min_improv": 0.20000000298023224,
+    "composite_score": {
+      "score": -0.4000000059604645,
+      "complexity": 2,
+      "complexity_penalty": 1,
+      "uniformity_penalty": 0,
+      "penalized_score": -1.399999976158142
+    },
+    "file": "weighted.csv",
+    "target_feature": "r",
+    "weighting_feature": "wgt",
+    "complexity_ratio": 2.0,
+    "tree": "and($1 $2)"
+  },
+  "trainingBoolean.dat::or(and($1 !$3) or())::ratio=3.5": {
+    "rows": [
+      {
+        "inputs": [
+          true,
+          true,
+          true
+        ],
+        "bscore": -1,
+        "best_possible_bscore": 0,
+        "worst_possible_bscore": -1
+      },
+      {
+        "inputs": [
+          true,
+          true,
+          false
+        ],
+        "bscore": 0,
+        "best_possible_bscore": 0,
+        "worst_possible_bscore": -1
+      },
+      {
+        "inputs": [
+          true,
+          false,
+          true
+        ],
+        "bscore": 0,
+        "best_possible_bscore": 0,
+        "worst_possible_bscore": -1
+      },
+      {
+        "inputs": [
+          true,
+          false,
+          false
+        ],
+        "bscore": 0,
+        "best_possible_bscore": 0,
+        "worst_possible_bscore": -1
+      },
+      {
+        "inputs": [
+          false,
+          true,
+          true
+        ],
+        "bscore": 0,
+        "best_possible_bscore": 0,
+        "worst_possible_bscore": -1
+      },
+      {
+        "inputs": [
+          false,
+          true,
+          false
+        ],
+        "bscore": -1,
+        "best_possible_bscore": 0,
+        "worst_possible_bscore": -1
+      },
+      {
+        "inputs": [
+          false,
+          false,
+          true
+        ],
+        "bscore": 0,
+        "best_possible_bscore": 0,
+        "worst_possible_bscore": -1
+      },
+      {
+        "inputs": [
+          false,
+          false,
+          false
+        ],
+        "bscore": -1,
+        "best_possible_bscore": 0,
+        "worst_possible_bscore": -1
+      }
+    ],
+    "sum_bscore": -3,
+    "tree_complexity": 2,
+    "complexity_coef": 0.2857142984867096,
+    "min_improv": 0.5,
+    "composite_score": {
+      "score": -3,
+      "complexity": 2,
+      "complexity_penalty": 0.5714285969734192,
+      "uniformity_penalty": 0,
+      "penalized_score": -3.5714285373687744
+    },
+    "file": "trainingBoolean.dat",
+    "target_feature": "y",
+    "weighting_feature": "",
+    "complexity_ratio": 3.5,
+    "tree": "or(and($1 !$3) or())"
+  },
+  "weighted.csv::and($1 $2)::ratio=3.5": {
+    "rows": [
+      {
+        "inputs": [
+          true,
+          true,
+          true,
+          true,
+          true
+        ],
+        "bscore": 0,
+        "best_possible_bscore": 0,
+        "worst_possible_bscore": -3.5
+      },
+      {
+        "inputs": [
+          true,
+          true,
+          true,
+          false,
+          false
+        ],
+        "bscore": 0,
+        "best_possible_bscore": 0,
+        "worst_possible_bscore": -2.6600000858306885
+      },
+      {
+        "inputs": [
+          false,
+          true,
+          true,
+          true,
+          true
+        ],
+        "bscore": 0,
+        "best_possible_bscore": 0,
+        "worst_possible_bscore": -2.5
+      },
+      {
+        "inputs": [
+          false,
+          false,
+          false,
+          false,
+          false
+        ],
+        "bscore": -0.4000000059604645,
+        "best_possible_bscore": -0.4000000059604645,
+        "worst_possible_bscore": -0.4000000059604645
+      }
+    ],
+    "sum_bscore": -0.4000000059604645,
+    "tree_complexity": 2,
+    "complexity_coef": 0.2857142984867096,
+    "min_improv": 0.20000000298023224,
+    "composite_score": {
+      "score": -0.4000000059604645,
+      "complexity": 2,
+      "complexity_penalty": 0.5714285969734192,
+      "uniformity_penalty": 0,
+      "penalized_score": -0.971428632736206
+    },
+    "file": "weighted.csv",
+    "target_feature": "r",
+    "weighting_feature": "wgt",
+    "complexity_ratio": 3.5,
+    "tree": "and($1 $2)"
+  },
+  "trainingBoolean.dat::or(and($1 !$3) or())::ratio=7.0": {
+    "rows": [
+      {
+        "inputs": [
+          true,
+          true,
+          true
+        ],
+        "bscore": -1,
+        "best_possible_bscore": 0,
+        "worst_possible_bscore": -1
+      },
+      {
+        "inputs": [
+          true,
+          true,
+          false
+        ],
+        "bscore": 0,
+        "best_possible_bscore": 0,
+        "worst_possible_bscore": -1
+      },
+      {
+        "inputs": [
+          true,
+          false,
+          true
+        ],
+        "bscore": 0,
+        "best_possible_bscore": 0,
+        "worst_possible_bscore": -1
+      },
+      {
+        "inputs": [
+          true,
+          false,
+          false
+        ],
+        "bscore": 0,
+        "best_possible_bscore": 0,
+        "worst_possible_bscore": -1
+      },
+      {
+        "inputs": [
+          false,
+          true,
+          true
+        ],
+        "bscore": 0,
+        "best_possible_bscore": 0,
+        "worst_possible_bscore": -1
+      },
+      {
+        "inputs": [
+          false,
+          true,
+          false
+        ],
+        "bscore": -1,
+        "best_possible_bscore": 0,
+        "worst_possible_bscore": -1
+      },
+      {
+        "inputs": [
+          false,
+          false,
+          true
+        ],
+        "bscore": 0,
+        "best_possible_bscore": 0,
+        "worst_possible_bscore": -1
+      },
+      {
+        "inputs": [
+          false,
+          false,
+          false
+        ],
+        "bscore": -1,
+        "best_possible_bscore": 0,
+        "worst_possible_bscore": -1
+      }
+    ],
+    "sum_bscore": -3,
+    "tree_complexity": 2,
+    "complexity_coef": 0.1428571492433548,
+    "min_improv": 0.5,
+    "composite_score": {
+      "score": -3,
+      "complexity": 2,
+      "complexity_penalty": 0.2857142984867096,
+      "uniformity_penalty": 0,
+      "penalized_score": -3.2857143878936768
+    },
+    "file": "trainingBoolean.dat",
+    "target_feature": "y",
+    "weighting_feature": "",
+    "complexity_ratio": 7.0,
+    "tree": "or(and($1 !$3) or())"
+  },
+  "weighted.csv::and($1 $2)::ratio=7.0": {
+    "rows": [
+      {
+        "inputs": [
+          true,
+          true,
+          true,
+          true,
+          true
+        ],
+        "bscore": 0,
+        "best_possible_bscore": 0,
+        "worst_possible_bscore": -3.5
+      },
+      {
+        "inputs": [
+          true,
+          true,
+          true,
+          false,
+          false
+        ],
+        "bscore": 0,
+        "best_possible_bscore": 0,
+        "worst_possible_bscore": -2.6600000858306885
+      },
+      {
+        "inputs": [
+          false,
+          true,
+          true,
+          true,
+          true
+        ],
+        "bscore": 0,
+        "best_possible_bscore": 0,
+        "worst_possible_bscore": -2.5
+      },
+      {
+        "inputs": [
+          false,
+          false,
+          false,
+          false,
+          false
+        ],
+        "bscore": -0.4000000059604645,
+        "best_possible_bscore": -0.4000000059604645,
+        "worst_possible_bscore": -0.4000000059604645
+      }
+    ],
+    "sum_bscore": -0.4000000059604645,
+    "tree_complexity": 2,
+    "complexity_coef": 0.1428571492433548,
+    "min_improv": 0.20000000298023224,
+    "composite_score": {
+      "score": -0.4000000059604645,
+      "complexity": 2,
+      "complexity_penalty": 0.2857142984867096,
+      "uniformity_penalty": 0,
+      "penalized_score": -0.6857143044471741
+    },
+    "file": "weighted.csv",
+    "target_feature": "r",
+    "weighting_feature": "wgt",
+    "complexity_ratio": 7.0,
+    "tree": "and($1 $2)"
+  },
+  "trainingBoolean.dat::and($1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1)::ratio=3.5": {
+    "rows": [
+      {
+        "inputs": [
+          true,
+          true,
+          true
+        ],
+        "bscore": 0,
+        "best_possible_bscore": 0,
+        "worst_possible_bscore": -1
+      },
+      {
+        "inputs": [
+          true,
+          true,
+          false
+        ],
+        "bscore": 0,
+        "best_possible_bscore": 0,
+        "worst_possible_bscore": -1
+      },
+      {
+        "inputs": [
+          true,
+          false,
+          true
+        ],
+        "bscore": -1,
+        "best_possible_bscore": 0,
+        "worst_possible_bscore": -1
+      },
+      {
+        "inputs": [
+          true,
+          false,
+          false
+        ],
+        "bscore": 0,
+        "best_possible_bscore": 0,
+        "worst_possible_bscore": -1
+      },
+      {
+        "inputs": [
+          false,
+          true,
+          true
+        ],
+        "bscore": 0,
+        "best_possible_bscore": 0,
+        "worst_possible_bscore": -1
+      },
+      {
+        "inputs": [
+          false,
+          true,
+          false
+        ],
+        "bscore": -1,
+        "best_possible_bscore": 0,
+        "worst_possible_bscore": -1
+      },
+      {
+        "inputs": [
+          false,
+          false,
+          true
+        ],
+        "bscore": 0,
+        "best_possible_bscore": 0,
+        "worst_possible_bscore": -1
+      },
+      {
+        "inputs": [
+          false,
+          false,
+          false
+        ],
+        "bscore": -1,
+        "best_possible_bscore": 0,
+        "worst_possible_bscore": -1
+      }
+    ],
+    "sum_bscore": -3,
+    "tree_complexity": 80,
+    "complexity_coef": 0.2857142984867096,
+    "min_improv": 0.5,
+    "composite_score": {
+      "score": -3,
+      "complexity": 80,
+      "complexity_penalty": 22.85714340209961,
+      "uniformity_penalty": 0,
+      "penalized_score": -25.85714340209961
+    },
+    "file": "trainingBoolean.dat",
+    "target_feature": "y",
+    "weighting_feature": "",
+    "complexity_ratio": 3.5,
+    "tree": "and($1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1)"
+  },
+  "trainingBoolean.dat::and($1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1)::ratio=7.0": {
+    "rows": [
+      {
+        "inputs": [
+          true,
+          true,
+          true
+        ],
+        "bscore": 0,
+        "best_possible_bscore": 0,
+        "worst_possible_bscore": -1
+      },
+      {
+        "inputs": [
+          true,
+          true,
+          false
+        ],
+        "bscore": 0,
+        "best_possible_bscore": 0,
+        "worst_possible_bscore": -1
+      },
+      {
+        "inputs": [
+          true,
+          false,
+          true
+        ],
+        "bscore": -1,
+        "best_possible_bscore": 0,
+        "worst_possible_bscore": -1
+      },
+      {
+        "inputs": [
+          true,
+          false,
+          false
+        ],
+        "bscore": 0,
+        "best_possible_bscore": 0,
+        "worst_possible_bscore": -1
+      },
+      {
+        "inputs": [
+          false,
+          true,
+          true
+        ],
+        "bscore": 0,
+        "best_possible_bscore": 0,
+        "worst_possible_bscore": -1
+      },
+      {
+        "inputs": [
+          false,
+          true,
+          false
+        ],
+        "bscore": -1,
+        "best_possible_bscore": 0,
+        "worst_possible_bscore": -1
+      },
+      {
+        "inputs": [
+          false,
+          false,
+          true
+        ],
+        "bscore": 0,
+        "best_possible_bscore": 0,
+        "worst_possible_bscore": -1
+      },
+      {
+        "inputs": [
+          false,
+          false,
+          false
+        ],
+        "bscore": -1,
+        "best_possible_bscore": 0,
+        "worst_possible_bscore": -1
+      }
+    ],
+    "sum_bscore": -3,
+    "tree_complexity": 80,
+    "complexity_coef": 0.1428571492433548,
+    "min_improv": 0.5,
+    "composite_score": {
+      "score": -3,
+      "complexity": 80,
+      "complexity_penalty": 11.428571701049805,
+      "uniformity_penalty": 0,
+      "penalized_score": -14.428571701049805
+    },
+    "file": "trainingBoolean.dat",
+    "target_feature": "y",
+    "weighting_feature": "",
+    "complexity_ratio": 7.0,
+    "tree": "and($1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1)"
+  },
+  "weighted.csv::and($1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1)::ratio=3.5": {
+    "rows": [
+      {
+        "inputs": [
+          true,
+          true,
+          true,
+          true,
+          true
+        ],
+        "bscore": 0,
+        "best_possible_bscore": 0,
+        "worst_possible_bscore": -3.5
+      },
+      {
+        "inputs": [
+          true,
+          true,
+          true,
+          false,
+          false
+        ],
+        "bscore": 0,
+        "best_possible_bscore": 0,
+        "worst_possible_bscore": -2.6600000858306885
+      },
+      {
+        "inputs": [
+          false,
+          true,
+          true,
+          true,
+          true
+        ],
+        "bscore": 0,
+        "best_possible_bscore": 0,
+        "worst_possible_bscore": -2.5
+      },
+      {
+        "inputs": [
+          false,
+          false,
+          false,
+          false,
+          false
+        ],
+        "bscore": -0.4000000059604645,
+        "best_possible_bscore": -0.4000000059604645,
+        "worst_possible_bscore": -0.4000000059604645
+      }
+    ],
+    "sum_bscore": -0.4000000059604645,
+    "tree_complexity": 80,
+    "complexity_coef": 0.2857142984867096,
+    "min_improv": 0.20000000298023224,
+    "composite_score": {
+      "score": -0.4000000059604645,
+      "complexity": 80,
+      "complexity_penalty": 22.85714340209961,
+      "uniformity_penalty": 0,
+      "penalized_score": -23.257143020629883
+    },
+    "file": "weighted.csv",
+    "target_feature": "r",
+    "weighting_feature": "wgt",
+    "complexity_ratio": 3.5,
+    "tree": "and($1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1)"
+  },
+  "weighted.csv::and($1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1)::ratio=7.0": {
+    "rows": [
+      {
+        "inputs": [
+          true,
+          true,
+          true,
+          true,
+          true
+        ],
+        "bscore": 0,
+        "best_possible_bscore": 0,
+        "worst_possible_bscore": -3.5
+      },
+      {
+        "inputs": [
+          true,
+          true,
+          true,
+          false,
+          false
+        ],
+        "bscore": 0,
+        "best_possible_bscore": 0,
+        "worst_possible_bscore": -2.6600000858306885
+      },
+      {
+        "inputs": [
+          false,
+          true,
+          true,
+          true,
+          true
+        ],
+        "bscore": 0,
+        "best_possible_bscore": 0,
+        "worst_possible_bscore": -2.5
+      },
+      {
+        "inputs": [
+          false,
+          false,
+          false,
+          false,
+          false
+        ],
+        "bscore": -0.4000000059604645,
+        "best_possible_bscore": -0.4000000059604645,
+        "worst_possible_bscore": -0.4000000059604645
+      }
+    ],
+    "sum_bscore": -0.4000000059604645,
+    "tree_complexity": 80,
+    "complexity_coef": 0.1428571492433548,
+    "min_improv": 0.20000000298023224,
+    "composite_score": {
+      "score": -0.4000000059604645,
+      "complexity": 80,
+      "complexity_penalty": 11.428571701049805,
+      "uniformity_penalty": 0,
+      "penalized_score": -11.828571319580078
+    },
+    "file": "weighted.csv",
+    "target_feature": "r",
+    "weighting_feature": "wgt",
+    "complexity_ratio": 7.0,
+    "tree": "and($1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1 $1)"
+  }
+}

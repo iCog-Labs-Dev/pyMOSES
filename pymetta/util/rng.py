@@ -1,0 +1,120 @@
+"""MT19937 random generator, bit-compatible with cogutil's RandGen.
+
+C++: opencog/util/mt19937ar.cc:44 MT19937RandGen
+"""
+
+_N, _M = 624, 397
+_MATRIX_A, _UPPER_MASK, _LOWER_MASK = 0x9908B0DF, 0x80000000, 0x7FFFFFFF
+_UINT32_MAX = 0xFFFFFFFF
+
+
+class MT19937RandGen:
+    """C++: opencog/util/RandGen.h:49 RandGen
+
+    cogutil's RandGen *is* std::mt19937 with convenience methods layered on.
+    Python's `random` module cannot be substituted: random.seed(int) routes
+    through init_by_array, while std::mt19937::seed(unsigned) uses
+    init_genrand, and the two streams diverge from the first draw.
+    """
+
+    def __init__(self, seed: int = 0) -> None:
+        self._mt = [0] * _N
+        self._mti = _N + 1
+        self.seed(seed)
+
+    def seed(self, s: int) -> None:
+        """C++: opencog/util/RandGen.h:49 RandGen
+
+        RandGen.h:49 is `class RandGen : public std::mt19937` -- the most
+        precise citation available, since seed() is std::mt19937::seed
+        (init_genrand), inherited from the standard-library base and never
+        itself declared anywhere in RandGen.h. init_genrand is not
+        init_by_array: Python's random.seed(int) uses the latter, and the two
+        streams diverge from the first draw (see the class docstring).
+        """
+        mt = self._mt
+        mt[0] = s & _UINT32_MAX
+        for i in range(1, _N):
+            mt[i] = (1812433253 * (mt[i - 1] ^ (mt[i - 1] >> 30)) + i) & _UINT32_MAX
+        self._mti = _N
+
+    def genrand_int32(self) -> int:
+        """C++: opencog/util/RandGen.h:49 RandGen
+
+        RandGen.h:49 is `class RandGen : public std::mt19937` -- the most
+        precise citation available, since this is std::mt19937::operator(),
+        inherited from the standard-library base and never itself declared
+        anywhere in RandGen.h.
+        """
+        mt = self._mt
+        if self._mti >= _N:
+            for i in range(_N):
+                y = (mt[i] & _UPPER_MASK) | (mt[(i + 1) % _N] & _LOWER_MASK)
+                mt[i] = mt[(i + _M) % _N] ^ (y >> 1) ^ (_MATRIX_A if y & 1 else 0)
+            self._mti = 0
+        y = mt[self._mti]
+        self._mti += 1
+        y ^= y >> 11
+        y ^= (y << 7) & 0x9D2C5680
+        y ^= (y << 15) & 0xEFC60000
+        y ^= y >> 18
+        return y & _UINT32_MAX
+
+    def randint(self) -> int:
+        """C++: opencog/util/mt19937ar.cc:44 MT19937RandGen::randint
+
+        std::uniform_int_distribution<int> over [0, INT_MAX] against a 2^32
+        generator: scaling is exactly 2 and the rejection branch is
+        unreachable, so this is `raw >> 1` on any libstdc++, consuming one
+        draw. Verified against a C++ probe over 12000 draws / 6 seeds.
+        """
+        return self.genrand_int32() >> 1
+
+    def randint_n(self, n: int) -> int:
+        """C++: opencog/util/mt19937ar.cc:66 MT19937RandGen::randint(int n)"""
+        return 0 if n == 0 else self.randint() % n
+
+    def randdouble(self) -> float:
+        """C++: opencog/util/mt19937ar.cc:55 MT19937RandGen::randdouble"""
+        return self.genrand_int32() / float(_UINT32_MAX)
+
+    def randbool(self) -> bool:
+        """C++: opencog/util/mt19937ar.cc:78 MT19937RandGen::randbool"""
+        return self.randint() % 2 == 0
+
+    def randfloat(self) -> float:
+        """C++: opencog/util/mt19937ar.cc:50 MT19937RandGen::randfloat"""
+        raise NotImplementedError(
+            "randfloat() returns a C float32 and is only reachable via the combo "
+            "`rand` builtin (P2). Reproducing it needs struct.pack('f', ...). "
+            "See spec section 6.2."
+        )
+
+    def randdouble_one_excluded(self) -> float:
+        """C++: opencog/util/mt19937ar.cc:60 MT19937RandGen::randdouble_one_excluded"""
+        raise NotImplementedError(
+            "Zero call sites in the MOSES core, and std::uniform_real_distribution "
+            "is implementation-defined. See spec section 6.2."
+        )
+
+    def rand_discrete(self, weights) -> int:
+        """C++: opencog/util/mt19937ar.cc:84 MT19937RandGen::rand_discrete"""
+        raise NotImplementedError(
+            "Zero call sites in the MOSES core, and std::discrete_distribution "
+            "is implementation-defined. See spec section 6.2."
+        )
+
+
+_instance: MT19937RandGen | None = None
+
+
+# DIVERGENCE(C++ opencog/util/mt19937ar.cc:90): classic's singleton is
+# thread_local; ours is process-global. The MOSES core paths in scope are
+# single-threaded, and a process-global singleton is what makes a seeded run
+# reproducible at all in Python.
+def randGen() -> MT19937RandGen:
+    """C++: opencog/util/mt19937ar.cc:90 opencog::randGen"""
+    global _instance
+    if _instance is None:
+        _instance = MT19937RandGen(0)
+    return _instance

@@ -11,3 +11,11 @@ venv/
 
 # compiled C++ oracle probes (rebuilt on demand from tools/cpp_probe/)
 tools/cpp_probe/build/
+
+# SDD scratch workspace (ledger, briefs, review packages)
+.superpowers/
+
+# cogutil's logger() writes here (cwd-relative) whenever a linked C++
+# probe runs from the repo root -- e.g. tools/cpp_probe/table_probe.cc,
+# which links libcogutil and calls loadTable()/istreamSparseITable().
+opencog.log

@@ -1,0 +1,41 @@
+[project]
+name = "pymetta"
+version = "0.0.1"
+description = "Python port of classic OpenCog MOSES, aligned to the C++ source"
+requires-python = ">=3.14"
+dependencies = []
+
+[project.optional-dependencies]
+dev = ["pytest>=9.0", "ruff>=0.6"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q --strict-markers"
+# A @pytest.mark.parametrize collection over an EMPTY sequence (e.g. a
+# corpus fixture JSON that failed to load, or was silently truncated to
+# `{}`) is not an error by pytest's own default -- it just produces zero
+# tests, and `ci.sh` exits 0 having "run" nothing. This project's whole
+# oracle-testing strategy depends on parametrized corpora actually
+# containing cases, so an empty parameter set is promoted to a hard
+# failure globally, project-wide -- not just for the one test module a
+# prior fix round happened to notice it in (tests/util/test_rng.py).
+# `"fail_at_collect"` is this pytest version's (9.1.0) actual spelling of
+# the "hard failure" option -- `pytest --help` rejects a bare `"fail"`
+# outright ("must be one of skip, xfail or fail_at_collect"); confirmed
+# by trying it.
+empty_parameter_set_mark = "fail_at_collect"
+markers = [
+  "oracle: differential test comparing against committed C++ golden fixtures",
+  "live: requires rebuilding the C++ probes; excluded from the default run",
+]
+
+[tool.ruff]
+line-length = 100
+target-version = "py314"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "N", "UP", "B"]
+# C++ identifiers are preserved verbatim so the Python can be diffed against the
+# C++ by eye. See docs/superpowers/specs/2026-09-02-pymetta-foundation-design.md
+# section 5.1. This is the single most load-bearing convention in the project.
+ignore = ["N801", "N802", "N803", "N806", "N815", "N818"]

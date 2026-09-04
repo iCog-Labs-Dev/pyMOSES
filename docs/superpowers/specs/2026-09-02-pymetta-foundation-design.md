@@ -142,7 +142,47 @@ def build_logical(self, subtree, it):
     """
 ```
 
-Format: `C++: <path relative to classic repo root>:<line> <C++ qualified symbol>`.
+Format: `C++: <path relative to a source root>:<line> <C++ qualified symbol>`.
+
+**Two source roots, not one** (amended 2026-09-03, during Task 1). `pymetta/util/`
+ports CogUtil, not Moses, so a breadcrumb path resolves against either:
+
+| Root | Path prefix | Example |
+|---|---|---|
+| `$CLASSIC` — the Moses checkout | `moses/` | `moses/moses/representation/build_knobs.cc:602` |
+| `$COGUTIL` — the CogUtil checkout | `opencog/` | `opencog/util/mt19937ar.cc:66` |
+
+The prefixes are disjoint, so there is no ambiguity about which root a path
+belongs to. `check_alignment.py` tries each root in turn and reports every root
+it tried when a path resolves under none. The original single-root wording was
+written before it was noticed that `tree.h` and `mt19937ar.cc` — two of the
+first three files ported — live in CogUtil.
+
+**Symbols the matcher cannot verify** (amended 2026-09-03, during Task 1). The
+checker locates a symbol by a whole-word search for a plain identifier. Three
+real C++ forms therefore cannot be matched, because they are not plain
+identifiers:
+
+- operators — `operator<`, `operator==`, `operator[]`, `operator->`
+- destructors — `~RandGen`
+- templated names — `Counter<vertex, count_t>`
+- members inherited rather than declared — `std::mt19937::seed`
+
+For all of these, **cite the enclosing class (or nearest declared plain
+identifier) at the line where the member actually lives**, and name the real
+member in the docstring body. So `composite_score::operator<` at
+`moses/moses/moses/types.h:140` is cited:
+
+    C++: moses/moses/moses/types.h:140 composite_score
+
+    Ordering for the metapopulation. Mirrors composite_score::operator<;
+    the breadcrumb cites the class because the checker matches plain
+    identifiers only.
+
+This keeps the line reference exact — which is what a reader diffing the two
+files needs — while staying verifiable. The alternative, teaching the matcher
+C++ declarator syntax, buys precision the port does not need and adds a parser
+that could itself be wrong.
 
 ### 5.3 Divergence markers
 

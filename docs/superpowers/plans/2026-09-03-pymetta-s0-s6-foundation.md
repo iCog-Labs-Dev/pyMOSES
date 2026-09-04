@@ -13,7 +13,7 @@
 - **Runtime dependencies: Python standard library only.** No numpy, no hyperon, nothing. Dev dependencies are `pytest` and `ruff` only.
 - **Python 3.14.** `match` statements are used for `vertex` dispatch.
 - **C++ identifiers are preserved verbatim, including class names.** `field_set` not `FieldSet`, `combo_tree` not `ComboTree`, `build_logical` not `buildLogical`. ruff naming rules N801/N802/N803/N806 are disabled repo-wide for this reason.
-- **Every ported symbol carries a breadcrumb** as the first line of its docstring: `C++: <path relative to classic repo root>:<line> <C++ qualified symbol>`.
+- **Every ported symbol carries a breadcrumb** as the first line of its docstring: `C++: <path relative to a source root>:<line> <C++ qualified symbol>`. There are **two** source roots and `check_alignment.py` tries each: `$CLASSIC` for paths beginning `moses/`, and `$COGUTIL` for paths beginning `opencog/` (`pymetta/util/rng.py` and `tree.py` port CogUtil, not Moses). The prefixes are disjoint, so there is no ambiguity.
 - **Every deliberate deviation carries a marker:** `# DIVERGENCE(C++ <path>:<line>): <reason and observable impact>`. A divergence is legitimate only when it has no observable effect on results. "It was easier" is not a reason — raise it for a decision instead.
 - **Classic repo root** (referred to as `$CLASSIC`): `/home/yab/Documents/Projects/iCog/HyperonRelated/MOSES/OpenCog/Moses`
 - **CogUtil root** (`$COGUTIL`): `/home/yab/Documents/Projects/iCog/HyperonRelated/MOSES/OpenCog/CogUtil`
