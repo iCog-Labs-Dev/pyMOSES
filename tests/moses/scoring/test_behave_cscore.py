@@ -24,10 +24,10 @@ from pathlib import Path
 import pytest
 
 from pymetta.comboreduct.combo.iostream_combo import combo_tree_to_str, str_to_combo_tree
-from pymetta.comboreduct.combo.vertex import get_contin
+from pymetta.comboreduct.combo.vertex import get_contin, is_contin
 from pymetta.comboreduct.table.table_io import loadTable
 from pymetta.moses.moses.types import _to_score_t
-from pymetta.moses.scoring.behave_cscore import behave_cscore
+from pymetta.moses.scoring.behave_cscore import _cache_key, behave_cscore
 from pymetta.moses.scoring.bscores import ctruth_table_bscore
 from pymetta.moses.scoring.scoring_base import bscore_base
 
@@ -179,3 +179,86 @@ def test_get_cscore_cache_does_not_collide_on_contin_leaves_that_print_identical
     # independently, not silently fall back to whichever was scored first.
     assert behsc.get_cscore(tr1).get_score() == cs1.get_score()
     assert behsc.get_cscore(tr2).get_score() == cs2.get_score()
+
+
+# ---------------------------------------------------------------------------
+# Regression test for the ROUND 2 review Critical: the round-1 fix above
+# closed the contin-print-precision collision but opened a wider one --
+# `_cache_key` paired each node with a bare `node.data`, and `contin_t`
+# (a bare `float`) compares AND HASHES equal to `builtin` (an `IntEnum`)
+# at matching ordinals (`1.0 == builtin.logical_true`, `hash(1.0) ==
+# hash(builtin.logical_true)`), the exact "vertex compared by value
+# without checking its type first" trap the whole fix wave exists to
+# close. `_cache_key` now pairs every node's value with `type(node.data)`
+# too, so two vertices of different variant TYPES can never produce equal
+# keys, no matter what their values compare as.
+# ---------------------------------------------------------------------------
+
+
+def test_cache_key_does_not_collide_across_vertex_types_at_matching_ordinals():
+    # contin_t(1.0) vs builtin.logical_true (ordinal 1) -- the exact pair
+    # the round-2 review demonstrated.
+    contin_one = _cache_key(str_to_combo_tree("1"))
+    bool_true = _cache_key(str_to_combo_tree("true"))
+    assert contin_one != bool_true
+    assert hash(contin_one) != hash(bool_true) or contin_one != bool_true
+
+    # contin_t(2.0) vs builtin.logical_false (ordinal 2).
+    contin_two = _cache_key(str_to_combo_tree("2"))
+    bool_false = _cache_key(str_to_combo_tree("false"))
+    assert contin_two != bool_false
+
+    # argument($1, idx=1) vs contin_t(1.0) and vs builtin.logical_true --
+    # already safe even pre-round-2 (argument.__eq__ returns NotImplemented
+    # for a non-argument other, so it never compares equal to a bare int/
+    # float/builtin regardless of any hash collision), reasserted here so
+    # a future change to argument's __eq__/__hash__ cannot silently
+    # reopen this without a test noticing.
+    arg_one = _cache_key(str_to_combo_tree("$1"))
+    assert arg_one != contin_one
+    assert arg_one != bool_true
+
+    # Sanity check on the fixture itself: two identical trees must still
+    # collapse to the SAME key -- this fix must not turn the cache into a
+    # no-op that never hits.
+    assert _cache_key(str_to_combo_tree("1")) == contin_one
+
+
+def test_get_cscore_cache_does_not_collide_across_vertex_types_end_to_end():
+    """The end-to-end demonstration: a contin-leaf tree and a
+    boolean-leaf tree, scored through the SAME cache-enabled
+    `behave_cscore`, must each get back their OWN `composite_score` --
+    not silently the other's, the way `_cache_key`'s round-1 collision
+    let happen (verified directly against the round-1 code: scoring the
+    contin tree first, then the boolean tree, made the boolean tree's
+    `get_cscore` return the contin tree's cached 999.0 instead of its own
+    1.0 -- see final-fix-wave-report.md for the full transcript).
+    """
+
+    class _FakeTypeSensitiveBscorer(bscore_base):
+        """Scores a contin leaf as 999.0 and anything else (here, a
+        boolean constant) as 1.0 -- deliberately far apart so a collision
+        is unmistakable, not a rounding artifact.
+        """
+
+        def __call__(self, tr):
+            v = tr.begin().data
+            return [999.0] if is_contin(v) else [1.0]
+
+        def best_possible_bscore(self):
+            return [0.0]
+
+    behsc = behave_cscore(_FakeTypeSensitiveBscorer(), cache_size=16)
+    tr_contin = str_to_combo_tree("1")  # contin_t(1.0)
+    tr_bool = str_to_combo_tree("true")  # builtin.logical_true (ordinal 1)
+
+    cs_contin = behsc.get_cscore(tr_contin)
+    cs_bool = behsc.get_cscore(tr_bool)
+
+    assert cs_contin.get_score() == _to_score_t(999.0)
+    assert cs_bool.get_score() == _to_score_t(1.0)
+    assert cs_contin.get_score() != cs_bool.get_score()
+
+    # Repeat calls (now both cache hits) must stay correct and independent.
+    assert behsc.get_cscore(tr_contin).get_score() == _to_score_t(999.0)
+    assert behsc.get_cscore(tr_bool).get_score() == _to_score_t(1.0)

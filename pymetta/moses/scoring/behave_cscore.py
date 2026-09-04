@@ -63,6 +63,23 @@ def _cache_key(tr: combo_tree) -> tuple:
     trees are structurally identical down to that precision, matching
     what classic's own `prr_cache_threaded` achieves by hashing the tree
     object itself rather than a printed rendering of it.
+
+    FIX WAVE ROUND 2 (re-review Critical): a bare `node.data` is not
+    enough -- it is exactly the "compare a vertex by value without
+    checking its type first" trap the rest of this fix wave exists to
+    close. `contin_t` is a bare Python `float` and `builtin` an
+    `IntEnum`, so `1.0 == builtin.logical_true` (and `hash(1.0) ==
+    hash(builtin.logical_true)`) is True -- a contin leaf `1.0`
+    (`str_to_combo_tree("1")`) and a boolean leaf `builtin.logical_true`
+    (`str_to_combo_tree("true")`) produced the IDENTICAL key under the
+    round-1 fix, so `get_cscore` on one tree silently returned the
+    other's cached `composite_score`. Every node's value is now paired
+    with `type(node.data)` -- the concrete `vertex` alternative's own
+    class (`builtin`, `argument`, `float`, `enum_t`/`str`, ...) -- so two
+    vertices of different variant types can never produce equal keys:
+    `float == builtin` (the CLASSES, not instances) is always False, so
+    `(float, 1.0, ...) != (builtin, builtin.logical_true, ...)`
+    regardless of what the second element compares as.
     """
     root = tr.begin()
     if root is None:
@@ -74,7 +91,7 @@ def _cache_key(tr: combo_tree) -> tuple:
         while child is not None:
             children.append(_walk(child))
             child = child.next_sibling
-        return (node.data, tuple(children))
+        return (type(node.data), node.data, tuple(children))
 
     return _walk(root)
 
