@@ -397,3 +397,66 @@ def lexicographic_subtree_cmp(n1: tree_node, n2: tree_node) -> int:
 def lexicographic_subtree_less(n1: tree_node, n2: tree_node) -> bool:
     """C++: opencog/util/tree.h:3273 lexicographic_subtree_order::operator()"""
     return lexicographic_subtree_cmp(n1, n2) > 0
+
+
+# ---------------------------------------------------------------------------
+# equal_subtree_vertex_safe -- promoted here (from combo/assumption.py, where
+# it started life as a private `_equal_subtree_vertex_safe`) because a SECOND
+# call site now needs it: reduct/meta_rules.py's `iterative`/`assum_iterative`
+# fixpoint checks (Task 2, S7). Both are the same "no direct C++ symbol: a
+# type-safe replacement for tree.equal_subtree" need assumption.py's own
+# docstring already explained -- `tree.equal_subtree` (tree.py:493) compares
+# node data with a bare `a.data != b.data`, which is exactly the
+# `contin_t`/`IntEnum` collision the module docstring's "type before value"
+# constraint warns about (verified live: `equal_subtree(combo_tree(1.0).
+# begin(), combo_tree(builtin.logical_true).begin())` returns `True`).
+# `tree.equal_subtree` is shared, foundational S0-S6 code; fixing it globally
+# is out of scope for either task that needs this, so both close the hole at
+# their own call sites via this one shared helper instead of two copies.
+# ---------------------------------------------------------------------------
+
+
+def equal_subtree_vertex_safe(a: tree_node, b: tree_node) -> bool:
+    """No direct C++ symbol: see the section note above.
+
+    CORRECTED (Task 2, S7) from an earlier claim in this function's
+    previous home (assumption.py) that it shares "the same
+    recursive-descent shape as tree.equal_subtree" -- it does not. This is
+    a SIMPLER pure children-recursion walk (`a.first_child`/
+    `b.first_child`, stepping `.next_sibling` on each side in lockstep),
+    never touching `a`'s or `b`'s own `next_sibling`/`parent` at the top
+    level, unlike `tree.equal_subtree`'s pre-order-stepping-with-boundary
+    algorithm (which computes `_skip_children_successor(a)` up front
+    specifically because ITS pre-order stepping would otherwise walk past
+    `a`'s own subtree into `a`'s real siblings). Because this walk only
+    ever DESCENDS into children, it is already, unconditionally, bounded
+    to exactly `a`'s (respectively `b`'s) own subtree, regardless of
+    what real siblings `a`/`b` might have in an enclosing tree -- no
+    boundary computation needed, and (a provable improvement, not merely
+    a difference) it does not share `tree.equal_subtree`'s own documented
+    "accepted, inherited imprecision" for shape-mismatched subtrees whose
+    `b` side has real trailing content (this function's `while` loop
+    correctly returns `False` the moment one side runs out of children
+    before the other does, via the final `ca is None and cb is None`).
+
+    That inherited imprecision is a REAL C++ behaviour (tree.h's own
+    `equal()`/`equal_subtree()`), not a Python artifact, so reusing it
+    verbatim would matter for faithfulness IF this function's own callers
+    could ever hit it -- they cannot: every current call site
+    (assumption.py's per-element standalone copies; meta_rules.py's
+    `tmp.begin()`, always the root of a freshly-copied STANDALONE
+    combo_tree) passes a `b` with no real siblings of its own to read
+    past in the first place, so the two algorithms are provably
+    equivalent for every case this function is ever actually asked to
+    decide. See task-2-report.md for the argument in full.
+    """
+    if a is b:
+        return True
+    if not vertex_equal(a.data, b.data):
+        return False
+    ca, cb = a.first_child, b.first_child
+    while ca is not None and cb is not None:
+        if not equal_subtree_vertex_safe(ca, cb):
+            return False
+        ca, cb = ca.next_sibling, cb.next_sibling
+    return ca is None and cb is None

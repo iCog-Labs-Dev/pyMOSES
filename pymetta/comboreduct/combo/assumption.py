@@ -104,6 +104,7 @@ decision point's flag.
 
 from pymetta.comboreduct.combo.vertex import (
     combo_tree,
+    equal_subtree_vertex_safe,
     lexicographic_subtree_less,
     vertex,
     vertex_equal,
@@ -136,34 +137,6 @@ def _standalone_copy(node: tree_node) -> combo_tree:
     its call sites.
     """
     return combo_tree(node)
-
-
-def _equal_subtree_vertex_safe(a: tree_node, b: tree_node) -> bool:
-    """No direct C++ symbol: a type-safe replacement for `tree.
-    equal_subtree` (tree.py:447), used ONLY here because that method
-    itself compares node data with a bare `a.data != b.data`
-    (tree.py:465) -- verified live (`equal_subtree(combo_tree(1.0).
-    begin(), combo_tree(builtin.logical_true).begin())` returns `True`,
-    the exact `contin_t`/`IntEnum` collision this whole task's brief
-    warns about). `tree.equal_subtree` is shared, foundational code from
-    the prior (S0-S6) cycle, used elsewhere in this port (e.g. Task 2's
-    `iterative` fixpoint check) -- fixing it globally is out of THIS
-    task's scope and is flagged separately (task-1-report.md) rather than
-    changed here; this local helper closes the hole at the one call site
-    this file controls (`equal_assumptions` below) without touching
-    shared code. Same recursive-descent shape as `tree.equal_subtree`,
-    `vertex_equal` (not bare `!=`) at each node.
-    """
-    if a is b:
-        return True
-    if not vertex_equal(a.data, b.data):
-        return False
-    ca, cb = a.first_child, b.first_child
-    while ca is not None and cb is not None:
-        if not _equal_subtree_vertex_safe(ca, cb):
-            return False
-        ca, cb = ca.next_sibling, cb.next_sibling
-    return ca is None and cb is None
 
 
 # ---------------------------------------------------------------------------
@@ -350,15 +323,18 @@ def equal_assumptions(tr1: combo_tree, tr2: combo_tree) -> bool:
     per C++'s own lock-step `++assum1, ++assum2` walk) rather than as an
     unordered set comparison.
 
-    Uses `_equal_subtree_vertex_safe`, NOT `tree.equal_subtree`, for the
-    per-element comparison -- `tree.equal_subtree` compares node data
+    Uses `vertex.equal_subtree_vertex_safe`, NOT `tree.equal_subtree`, for
+    the per-element comparison -- `tree.equal_subtree` compares node data
     with a bare `!=` (tree.py:465), which is exactly the `contin_t`/
     `IntEnum` collision this task's brief warns about (verified live:
     `tr.equal_subtree` says a `[1.0]` assumption equals a `[logical_true]`
-    one). That defect lives in shared, foundational `tree.py` code out of
-    this task's scope to change globally (flagged in task-1-report.md for
-    separate scoping); this function closes it at the one call site this
-    file controls.
+    one). That defect lives in shared, foundational `tree.py` code, out of
+    scope to change globally (flagged in task-1-report.md); this function
+    closes it via the shared vertex.py helper instead. (Task 2, S7:
+    promoted from a private copy in this file to vertex.py once
+    `reduct/meta_rules.py`'s `iterative`/`assum_iterative` needed the same
+    fix at their own fixpoint-check call sites -- see that module's own
+    docstring note.)
 
     SURPRISING INHERITED BEHAVIOUR, ported as-is (not a `# DIVERGENCE` --
     this is what C++ itself does): assumption.cc:98-106's own `if
@@ -390,7 +366,7 @@ def equal_assumptions(tr1: combo_tree, tr2: combo_tree) -> bool:
     if len(a1) != len(a2):
         return False
     return all(
-        _equal_subtree_vertex_safe(x.begin(), y.begin())
+        equal_subtree_vertex_safe(x.begin(), y.begin())
         for x, y in zip(a1, a2, strict=True)
     )
 

@@ -313,6 +313,57 @@ class tree:
             yield cur
             cur = self._postorder_step(cur)
 
+    def iter_pre_at(self, node):
+        """C++: opencog/util/tree.h:2373 iterator_base::skip_children
+
+        A pre-order walk rooted at an arbitrary SUBTREE rather than the
+        whole tree -- `__iter__` only ever starts from `begin()`, the
+        tree's own root. `reduct::downwards`
+        (moses/comboreduct/reduct/meta_rules.cc:79-105) needs exactly this:
+        `iterator end = it; end.skip_children(); ++end; for (; it != end;
+        ++it) ...` -- `end` is `it`'s own post-subtree successor
+        (`_skip_children_successor`, computed ONCE up front, before `it`
+        has moved at all: climb from `it` through ancestors until one has
+        a `next_sibling`, and land on that), and the walk visits `it`
+        itself FIRST (pre-order: parent before children), then descends
+        via ordinary pre-order stepping (`_preorder_step`) until it
+        reaches `end`. Added this task (Task 2, S7) as the pre-order
+        counterpart of `iter_post_at` (Task 0, S7) -- `downwards` needed
+        it and no public API offered a subtree-bounded pre-order walk,
+        exactly the gap `iter_post_at`'s own docstring already explains
+        for the post-order case.
+
+        Like `children()`/`iter_post_at`, this is a LIVE walk, not a
+        snapshot: `_preorder_step` re-reads `first_child`/`next_sibling`/
+        `parent` at the moment each step actually runs, so a caller that
+        mutates the tree BETWEEN two `next()` calls on this generator (as
+        `downwards::operator()` does -- it applies its wrapped rule at
+        each node before advancing) sees the walk continue over the
+        POST-mutation structure, including newly inserted nodes that fall
+        within `node`'s remaining, not-yet-visited range. Measured against
+        the real library (`tools/cpp_probe/meta_rules_probe.cc`, the
+        "downwards(live-mutation insert-after)" case): inserting a new
+        sibling immediately after the current node mid-walk gets visited
+        by that SAME walk. A materialised `list(t.iter_pre_at(node))`
+        upfront would silently lose that -- deliberately not done here or
+        at `downwards`'s own call site (meta_rules.py).
+
+        Restores the same `node is not None` guard `iter_post_at` restores
+        for `tree.h:914`'s `tree_assert(pos.node != 0)`, split into this
+        eager-checking wrapper plus `_iter_pre_at_iter` for the identical
+        reason (a generator's body does not run until the first `next()`).
+        """
+        if node is None:
+            raise ValueError("iter_pre_at: node must not be None")
+        return self._iter_pre_at_iter(node)
+
+    def _iter_pre_at_iter(self, node):
+        end = self._skip_children_successor(node)
+        cur = node
+        while cur is not end:
+            yield cur
+            cur = self._preorder_step(cur)
+
     def iter_leaf(self):
         """C++: opencog/util/tree.h:3023 leaf_iterator
 

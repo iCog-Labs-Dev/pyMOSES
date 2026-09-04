@@ -527,6 +527,105 @@ def test_iter_post_at_rejects_none_node():
         list(t.iter_post_at(None))
 
 
+def test_iter_post_at_single_child_chain():
+    """Task 0's review (progress.md) flagged this exact gap: no dedicated
+    test for `iter_post_at` on a single-child CHAIN (`root->x->y->z`) --
+    only the leaf and branching shapes above were covered. Hand-verified
+    correct at Task 0 time; this pins it. Assigned to Task 2 (this task)
+    since it is the consumer of this walk (`reduct.upwards`).
+
+    Post-order on a chain is unambiguous regardless of where in the chain
+    the walk is rooted: deepest-first, root last.
+    """
+    t = tree("root")
+    x = t.append_child(t.begin(), "x")
+    y = t.append_child(x, "y")
+    z = t.append_child(y, "z")
+    validate(t)
+
+    assert [n.data for n in t.iter_post_at(t.begin())] == ["z", "y", "x", "root"]
+    assert [n.data for n in t.iter_post_at(x)] == ["z", "y", "x"]
+    assert [n.data for n in t.iter_post_at(y)] == ["z", "y"]
+    assert [n.data for n in t.iter_post_at(z)] == ["z"]
+
+
+def test_iter_pre_at_walks_only_the_given_subtree_in_pre_order():
+    """C++: opencog/util/tree.h:2373 iterator_base::skip_children
+    (`reduct::downwards`, meta_rules.cc:79-105). Same tree shape as
+    `test_iter_post_at_walks_only_the_given_subtree_in_post_order` so the
+    whole-tree case (`t.begin()`) can be checked directly against the
+    plain pre-order walk (`__iter__`, via `list(t)`).
+    """
+    t = tree("root")
+    a = t.append_child(t.begin(), "a")
+    t.append_child(a, "a1")
+    t.append_child(a, "a2")
+    b = t.append_child(t.begin(), "b")
+    t.append_child(b, "b1")
+    validate(t)
+
+    assert [n.data for n in t.iter_pre_at(a)] == ["a", "a1", "a2"]
+    assert [n.data for n in t.iter_pre_at(b)] == ["b", "b1"]
+    assert [n.data for n in t.iter_pre_at(t.begin())] == [n.data for n in t]
+
+
+def test_iter_pre_at_single_child_chain():
+    """Pre-order counterpart of `test_iter_post_at_single_child_chain`:
+    parent-before-child regardless of where in the chain the walk starts.
+    """
+    t = tree("root")
+    x = t.append_child(t.begin(), "x")
+    y = t.append_child(x, "y")
+    z = t.append_child(y, "z")
+    validate(t)
+
+    assert [n.data for n in t.iter_pre_at(t.begin())] == ["root", "x", "y", "z"]
+    assert [n.data for n in t.iter_pre_at(x)] == ["x", "y", "z"]
+    assert [n.data for n in t.iter_pre_at(y)] == ["y", "z"]
+    assert [n.data for n in t.iter_pre_at(z)] == ["z"]
+
+
+def test_iter_pre_at_of_a_leaf_yields_only_itself():
+    t = tree("root")
+    a = t.append_child(t.begin(), "a")
+    validate(t)
+    assert [n.data for n in t.iter_pre_at(a)] == ["a"]
+
+
+def test_iter_pre_at_rejects_none_node():
+    t = tree("root")
+    with pytest.raises(ValueError):
+        list(t.iter_pre_at(None))
+
+
+def test_iter_pre_at_is_a_live_walk_not_a_snapshot():
+    """`reduct::downwards` mutates the tree (applying its wrapped rule)
+    BETWEEN steps of its own traversal, and C++'s live iterator picks up
+    the consequences -- measured directly against the real library
+    (`tools/cpp_probe/meta_rules_probe.cc`, the
+    "downwards(live-mutation insert-after)" case: inserting a new sibling
+    immediately after the node just visited gets visited by that SAME
+    downwards pass, landing between the current node and its original
+    next sibling). This is the same generic tree-level hazard
+    `test_hazard_erase_next_sibling`/`test_hazard_replace_next_sibling`
+    already pin for `children()`, reproduced here for `iter_pre_at`
+    specifically since `downwards` (meta_rules.py) depends on it living
+    over the CURRENT structure at each step, not a `list(...)` snapshot.
+    """
+    t = tree("root")
+    x = t.append_child(t.begin(), "x")
+    t.append_child(t.begin(), "y")
+    t.append_child(t.begin(), "z")
+    observed = []
+    it = t.iter_pre_at(t.begin())
+    for node in it:
+        observed.append(node.data)
+        if node.data == "x":
+            t.insert_after(x, "w")
+    validate(t)
+    assert observed == ["root", "x", "w", "y", "z"]
+
+
 @pytest.mark.oracle
 def test_hazard_erase_next_sibling(golden):
     t = tree("root")
