@@ -18,11 +18,20 @@ itself (moses/comboreduct/combo/enum_type.h:39) is, by its own header
 comment, "essentially a string... coded as a different type... because it
 semantically denotes something else" -- an interned wrapper around
 `std::string` whose `operator==`/`operator<` (enum_type.h:75-82) reduce to
-string identity/lexicographic order. Since this port has no use for the
+string identity/lexicographic order. This port has no use for the
 interning (a performance optimisation for C++'s `boost::get<T>` dispatch,
-irrelevant in Python) or for `enum_t` as a distinct wrapper type, it is
-narrowed to plain `str` here -- disclosed scope decision, see
-task-5-report.md.
+irrelevant in Python), so `enum_t` here (below) is a bare `str` subclass
+carrying no extra state -- but it IS kept as its own class, not narrowed
+to plain `str` outright: `str` in the `vertex` union also stands for
+`definite_object` (a genuine, distinct `std::string`-typed alternative in
+C++'s variant -- table_io.cc:299-300's `definite_object_type` case) and,
+if this port ever grows one, `message`. Collapsing `enum_t` into bare
+`str` would make those indistinguishable from an enum value by
+`isinstance` alone, which Task 6's scoring code needs to do (see
+task-5-report.md's fix-round-1 section: this was flagged as a live
+conflation, not a hypothetical one, before Task 6 could build on it).
+`isinstance(v, str)` still recognises `enum_t` values (it subclasses
+`str`), so the `vertex` union itself does not need to change.
 """
 
 from enum import IntEnum
@@ -98,13 +107,27 @@ class builtin(IntEnum):
     builtin_count = 26  # to get the number of builtin
 
 
+class enum_t(str):
+    """C++: moses/comboreduct/combo/enum_type.h:39 enum_t
+
+    A bare `str` subclass -- see the module docstring for why this is a
+    distinct class rather than plain `str`. `isinstance`/`==`/`<`/hashing
+    all fall straight through to `str`'s own (enum_type.h:75-82's
+    `operator==`/`operator<` reduce to exactly that: id/content identity
+    and lexicographic order, which is what `str` already gives for free),
+    so no members are added.
+    """
+
+
 # C++: moses/comboreduct/combo/vertex.h:128 vertex
 #
 # `boost::variant<contin_t, enum_t, builtin, wild_card, argument, action,
 # builtin_action, perception, definite_object, indefinite_object, message,
 # procedure_call, action_symbol, ann_type>`, narrowed to this port's four
-# live alternatives (see module docstring, `str` standing in for `enum_t`).
-# `X | Y` (PEP 604) builds a runtime `types.UnionType`, so
+# live alternatives (see module docstring). `str` covers both `enum_t`
+# (via subclassing -- `isinstance(enum_t(...), vertex)` is True through
+# the `str` check) and `definite_object`/`message` (genuine `str`s, not
+# `enum_t`). `X | Y` (PEP 604) builds a runtime `types.UnionType`, so
 # `isinstance(v, vertex)` works exactly like a manual
 # `isinstance(v, (builtin, argument, contin_t, str))` would.
 vertex = builtin | argument | contin_t | str

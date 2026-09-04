@@ -20,7 +20,7 @@ from pathlib import Path
 
 import pytest
 
-from pymetta.comboreduct.combo.vertex import builtin
+from pymetta.comboreduct.combo.vertex import builtin, enum_t
 from pymetta.comboreduct.table.table import get_indices, type_node
 from pymetta.comboreduct.table.table_io import (
     infer_type_from_token,
@@ -125,16 +125,37 @@ def test_token_to_contin():
     assert token_to_contin("244.2") == pytest.approx(244.2)
 
 
-def test_token_to_vertex_enum_returns_plain_str():
-    """See vertex.py's module docstring: enum_t is narrowed to plain str."""
-    assert token_to_vertex(type_node.enum_type, "sad") == "sad"
-
-
-def test_token_to_vertex_ill_formed_preserves_raw_token():
-    """The "ugly hack" (table_io.cc:298-301): a column that fails every
-    other type guess (typically dates) is preserved as its raw string.
+def test_token_to_vertex_enum_returns_an_enum_t():
+    """C++ constructs `enum_t(token)` for enum_type (table_io.cc:295-296)
+    -- ported as `enum_t`, a `str` subclass (see vertex.py's module
+    docstring for why it is not collapsed into plain `str`).
     """
-    assert token_to_vertex(type_node.ill_formed_type, "12-04-2012") == "12-04-2012"
+    v = token_to_vertex(type_node.enum_type, "sad")
+    assert isinstance(v, enum_t)
+    assert v == "sad"
+
+
+def test_token_to_vertex_ill_formed_preserves_raw_token_as_enum_t():
+    """The "ugly hack" (table_io.cc:298-301): a column that fails every
+    other type guess (typically dates) is preserved as its raw string,
+    via `enum_t(token)` (table_io.cc:300, exactly like the enum_type
+    branch) -- not a bare `str` (that is `definite_object_type`'s branch,
+    table_io.cc:298, a distinct C++ type).
+    """
+    v = token_to_vertex(type_node.ill_formed_type, "12-04-2012")
+    assert isinstance(v, enum_t)
+    assert v == "12-04-2012"
+
+
+def test_token_to_vertex_definite_object_returns_bare_str_not_enum_t():
+    """`definite_object_type` (table_io.cc:298) is a genuinely distinct
+    C++ type from `enum_t` -- see vertex.py's module docstring for why
+    `enum_t` is kept as its own class rather than collapsed into `str`.
+    """
+    v = token_to_vertex(type_node.definite_object_type, "sad")
+    assert not isinstance(v, enum_t)
+    assert isinstance(v, str)
+    assert v == "sad"
 
 
 def test_token_to_vertex_unknown_type_raises():

@@ -2,9 +2,14 @@
 
 Combo tree printing and parsing, scoped to the default `output_format::combo`
 format only (iostream_combo.h:42-48's `python`/`python3`/`scheme` formats are
-out of scope for this task) and to this port's three-way vertex
-(builtin | argument | contin_t; see vertex.py) -- no enum_t/message/ann_type/
-etc. token forms are recognised, since no vertex alternative can hold one.
+out of scope for this task) and to the subset of combo-tree GRAMMAR this
+port's parser recognises -- builtin | argument | contin_t token forms only
+(see vertex.py). Stale as of Task 5, corrected here: `vertex.py`'s `vertex`
+alias itself is no longer this narrow (Task 5 widened it to include `str`/
+`enum_t`, for table columns -- see its module docstring), but nothing in
+THIS module's grammar ever produces or expects an enum_t/message/ann_type
+token form regardless -- combo-tree syntax and table-column syntax are
+different grammars, and only the latter was widened.
 
 Parsing does not go through an intermediate `tree<std::string>` the way
 classic does (`stream_to_combo_tree`, iostream_combo.h:219, first parses into
@@ -190,9 +195,10 @@ def _token_to_vertex(token: str):
     if v is not None:
         return v
     raise ValueError(
-        f"cannot parse combo token {token!r} into a vertex -- this port's "
-        "vertex is builtin | argument | contin_t only (see vertex.py); "
-        "enum/message/ann_type/definite_object token forms are out of scope"
+        f"cannot parse combo token {token!r} into a vertex -- combo-tree "
+        "grammar in this port recognises builtin | argument | contin_t "
+        "token forms only (see vertex.py's module docstring); enum/"
+        "message/ann_type/definite_object are not part of that grammar here"
     )
 
 

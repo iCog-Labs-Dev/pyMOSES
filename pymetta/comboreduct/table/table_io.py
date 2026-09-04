@@ -68,10 +68,9 @@ target-resolution semantics; this is not a bug introduced by this port,
 it is what classic MOSES does.
 """
 
-import re
 from collections.abc import Iterable, Sequence
 
-from pymetta.comboreduct.combo.vertex import builtin, vertex
+from pymetta.comboreduct.combo.vertex import builtin, enum_t, vertex
 from pymetta.comboreduct.table.table import ITable, OTable, Table, get_indices, type_node
 
 # ---------------------------------------------------------------------------
@@ -149,21 +148,59 @@ def get_header(file_name: str) -> list[str]:
 # ---------------------------------------------------------------------------
 
 # DIVERGENCE(C++ moses/comboreduct/table/table_io.cc:156): `get_row_tokenizer`
-# is a `boost::escaped_list_separator` supporting backslash-escaping and
-# double-quoted fields (so a quoted field may itself contain a comma/tab/
-# space without being split). No fixture in this port's corpus contains a
-# quoted or backslash-escaped field (grep-verified against every file
-# tools/capture_table.py reads), so that machinery is narrowed out here: a
-# plain split on any comma, tab or blank character, each occurrence being
-# its own boundary (consecutive separators therefore yield empty tokens,
-# same as C++'s tokenizer would before `tokenizeRow`'s own empty-token
-# drop -- see `tokenize_row` below).
-_DENSE_SEP_RE = re.compile(r"[,\t ]")
-
-
+# is a `boost::escaped_list_separator(escape='\\\\', separators=",\\t ",
+# quote='"')`. `_split_dense_row` below reimplements its state machine
+# (backslash escapes the next character; a `"` toggles a quoted region in
+# which comma/tab/blank are literal and the quote characters themselves are
+# stripped from the token) rather than delegating to it, so it is verified
+# against the fixture corpus and against the C++ probe directly (see
+# task-5-report.md's fix-round-1 section) rather than assumed correct.
+# Genuinely UNTESTED against boost's exact algorithm (no fixture and no
+# probe run exercises these): a literal quote character appearing MID-field
+# rather than only at a field's start/end, and doubled quotes (`""`) as an
+# RFC4180-style escaped-quote convention -- boost's separator does not
+# document that convention and this port does not special-case it either
+# (each `"` simply toggles quoting), so the two should agree, but this is
+# reasoned from the escape/quote semantics, not probe-verified.
+#
+# This closes what was PREVIOUSLY documented here as an accepted gap: an
+# ordinary `QUOTE_ALL`-dialect CSV (`"1","0","1"`, the default pandas/R/
+# Excel export format) was silently mis-parsed as `ill_formed_type` string
+# tokens (`'"1"'`) instead of `boolean_type` `true`/`false` -- a loadable
+# dataset silently turned into garbage that looked like data. That failure
+# mode is what forced implementing this rather than rejecting quoted input.
 def _split_dense_row(line: str) -> list[str]:
-    """C++: moses/comboreduct/table/table_io.cc:156 get_row_tokenizer"""
-    return _DENSE_SEP_RE.split(line)
+    """C++: moses/comboreduct/table/table_io.cc:156 get_row_tokenizer
+
+    Character-level port of `boost::escaped_list_separator`'s state
+    machine (escape char `\\`, separators `,`, tab, blank, quote char
+    `"`) -- see the DIVERGENCE note above for exactly what is and is not
+    verified against the real boost implementation.
+    """
+    tokens: list[str] = []
+    cur: list[str] = []
+    in_quotes = False
+    i = 0
+    n = len(line)
+    while i < n:
+        c = line[i]
+        if c == "\\" and i + 1 < n:
+            cur.append(line[i + 1])
+            i += 2
+            continue
+        if c == '"':
+            in_quotes = not in_quotes
+            i += 1
+            continue
+        if not in_quotes and c in (",", "\t", " "):
+            tokens.append("".join(cur))
+            cur = []
+            i += 1
+            continue
+        cur.append(c)
+        i += 1
+    tokens.append("".join(cur))
+    return tokens
 
 
 def tokenize_row(line: str, ignored_indices: Iterable[int] = ()) -> list[str]:
@@ -287,22 +324,32 @@ def token_to_contin(token: str) -> float:
 
 
 def token_to_vertex(tipe: type_node, token: str) -> vertex:
-    """C++: moses/comboreduct/table/table_io.cc:282 token_to_vertex"""
+    """C++: moses/comboreduct/table/table_io.cc:282 token_to_vertex
+
+    Both `enum_type` and `ill_formed_type` construct `enum_t(token)` in
+    C++ (table_io.cc:295-296 and :300 respectively) -- only
+    `definite_object_type` returns a bare string (table_io.cc:298,
+    `definite_object` being a genuinely distinct `std::string`-typed
+    variant alternative, not `enum_t`). Ported with the same distinction:
+    see vertex.py's module docstring for why `enum_t` is kept as its own
+    (bare `str` subclass) type rather than collapsed into plain `str`.
+    """
     if tipe == type_node.boolean_type:
         return token_to_boolean(token)
     if tipe == type_node.contin_type:
         return token_to_contin(token)
     if tipe == type_node.enum_type:
         if token[:1] and ("a" <= token[0].lower() <= "z"):
-            return token
+            return enum_t(token)
         raise ValueError(f"Enum type must begin with alphabetic char, but {token} doesn't")
     if tipe == type_node.definite_object_type:
         return token
     if tipe == type_node.ill_formed_type:
         # C++'s own comment (table_io.cc:298-301): "Ugly hack... feature
         # selection has to read and propagate columns of unknown type
-        # (typically, dates, times)." Preserved as the raw token string.
-        return token
+        # (typically, dates, times)." Preserved as an `enum_t` of the raw
+        # token string, exactly matching C++'s `return enum_t(token);`.
+        return enum_t(token)
     raise ValueError(f'Unable to convert token "{token}" to type={tipe!r}')
 
 
@@ -457,7 +504,23 @@ def _load_dense_table(
     itable.set_types(list(itypes))
     otable.set_type(otype)
 
-    for line in data_lines:
+    # C++ pre-sizes both itable and otable to len(data_lines) up front
+    # (table_io.cc:1105-1106, `tab.itable.resize(...); tab.otable.resize(
+    # ...);`) and only CONDITIONALLY overwrites an otable slot ("if there
+    # is no valid target index, then there is no 'output' column!",
+    # table_io.cc:1133-1136) -- itable's slot is always overwritten
+    # unconditionally, so it never has a genuinely unfilled row in
+    # practice, but otable's can. Pre-sizing otable here with the C++
+    # default value (`vertex()`'s first boost::variant alternative,
+    # `contin_t() == 0.0`) and only overwriting non-empty output tokens
+    # keeps itable/otable/row-count in lockstep even when a target token
+    # is legitimately empty -- e.g. a blank trailing field. Appending
+    # conditionally instead (as an earlier version of this port did)
+    # silently drops that row's otable slot entirely, desynchronising
+    # itable and otable by one and surfacing far downstream as an opaque
+    # `zip() argument 2 is shorter` from `Table.compressed()`.
+    otable_values: list[vertex] = [0.0] * len(data_lines)
+    for i, line in enumerate(data_lines):
         inputs, output_str, _timestamp_str = _tokenize_row_iot(
             line, ignore_idxs, target_idx, timestamp_idx
         )
@@ -466,8 +529,9 @@ def _load_dense_table(
         )
         itable.push_back(row)
         if output_str != "":
-            otable.push_back(token_to_vertex(otype, output_str))
+            otable_values[i] = token_to_vertex(otype, output_str)
         # timestamp value discarded -- see table.py's module docstring.
+    otable.extend(otable_values)
 
     table = Table(otable, itable)
     ignore_before_target = sum(1 for i in ignore_idxs if i < target_idx)

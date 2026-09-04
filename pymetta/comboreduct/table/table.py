@@ -393,10 +393,24 @@ class OTable(list):
     ) -> None:
         """C++: moses/comboreduct/table/table.cc:309 OTable
         and moses/comboreduct/table/table.cc:312 OTable(const super&, const string&)
+
+        One constructor covers both C++ overloads (merged the same way
+        `ITable.__init__` covers its own two overloads): the label-only
+        overload (table.cc:309-310, `type = id::unknown_type`) and the
+        values-plus-label overload (table.cc:312-318), which infers the
+        column type from the FIRST value:
+        `type = get_type_node(get_type_tree((*this)[0]))`. `values` being
+        empty is exactly what distinguishes the two -- `(*this)[0]` is C++
+        UB on an empty vector, which the real overload set avoids simply
+        by that overload never being called with no values; the `len(self)
+        > 0` guard here is the runtime equivalent, needed only because one
+        Python constructor stands in for both.
         """
         super().__init__(values)
         self._label = label
-        self._type: type_node = type_node.unknown_type
+        self._type: type_node = (
+            _vertex_type_node(self[0]) if len(self) > 0 else type_node.unknown_type
+        )
 
     def push_back(self, v: vertex) -> None:
         """C++: moses/comboreduct/table/table.h:866 OTable
@@ -438,11 +452,23 @@ class OTable(list):
         """C++: moses/comboreduct/table/table.cc:389 OTable
 
         Cites the enclosing class (see ITable.__eq__ above); the real
-        member is `OTable::operator==` (table.cc:389-395).
+        member is `OTable::operator==` (table.cc:389-395), which ends
+        with `return rhs.get_label() == label;` (table.cc:396) -- easy to
+        miss since it comes after the element-comparison loop, but without
+        it a mislabeled output column compares equal to a correctly
+        labeled one. Included here.
+
+        NOT ported: C++'s epsilon-tolerant contin comparison
+        (`is_approx_eq(get_contin(*lit), get_contin(*rit), 1e-12)`,
+        table.cc:392-393) -- every element, contin included, is compared
+        with plain `==` here. This errs safe (a false inequality where
+        C++ would call two near-identical contin values equal, never the
+        reverse turning a real difference into a false positive), left as
+        a disclosed gap rather than fixed in this round.
         """
         if not isinstance(other, OTable):
             return NotImplemented
-        return list(self) == list(other)
+        return list(self) == list(other) and self.get_label() == other.get_label()
 
     __hash__ = None  # type: ignore[assignment]
 

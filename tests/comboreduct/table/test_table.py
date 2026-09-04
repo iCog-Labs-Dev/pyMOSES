@@ -388,3 +388,99 @@ def test_ostream_timestamp_table(fixture_dir):
     assert list(table.itable) == [(T,), (F,)]
     assert list(table.otable) == pytest.approx([6.0, 7.0])
     assert table.target_pos == 1
+
+
+# ---------------------------------------------------------------------------
+# Fix round 1 (review): OTable.__eq__ label comparison, OTable.__init__
+# type inference, quote-dialect CSVs, empty trailing target fields.
+# Not cxxtest ports -- regression tests for findings from the task-5 review.
+# ---------------------------------------------------------------------------
+
+
+def test_otable_init_infers_type_from_first_value():
+    """C++: table.cc:312 OTable(const super&, const string&) sets
+    `type = get_type_node(get_type_tree((*this)[0]))` -- a prior version
+    of this port left `type` at `unknown_type` for this overload, which
+    `loadTable` never hits (it always calls `set_type` explicitly) but
+    every hand-built `OTable(values, label)` in this test file does.
+    """
+    ot = OTable([10.1, 6.5], "happiness")
+    assert ot.get_type() == type_node.contin_type
+
+    ot_bool = OTable([T, F], "y")
+    assert ot_bool.get_type() == type_node.boolean_type
+
+    ot_enum = OTable(["sad", "bored"], "mood")
+    assert ot_enum.get_type() == type_node.enum_type
+
+    ot_empty = OTable([], "y")
+    assert ot_empty.get_type() == type_node.unknown_type
+
+
+def test_otable_eq_compares_the_label():
+    """C++: table.cc:396 `return rhs.get_label() == label;` -- the last
+    line of `OTable::operator==`, easy to miss since it comes after the
+    element-comparison loop. Without it, two OTables with identical
+    values but different labels compare equal.
+    """
+    same_values_different_label = OTable([T, F], "a") == OTable([T, F], "b")
+    assert not same_values_different_label
+    assert OTable([T, F], "a") == OTable([T, F], "a")
+
+
+def test_loadTable_handles_quote_all_dialect(tmp_path):
+    """The default `QUOTE_ALL` CSV dialect (pandas/R/Excel's default
+    export format) wraps every field in double quotes:
+    `"1","0","1"`. A prior version of this port silently mis-parsed this
+    as `ill_formed_type` string tokens (`'"1"'`) instead of recognising
+    `boolean_type` `true`/`false` -- a loadable dataset silently turned
+    into garbage that looked like data, with no error raised. Verified
+    against the C++ probe directly -- see task-5-report.md's fix-round-1
+    section.
+    """
+    path = tmp_path / "quoted.csv"
+    path.write_text('out,in1,in2\n"1","0","1"\n"0","1","0"\n')
+    table = loadTable(str(path))
+    assert table.itable.get_labels() == ["in1", "in2"]
+    assert [t.name for t in table.itable.get_types()] == ["boolean_type", "boolean_type"]
+    assert table.otable.get_type() == type_node.boolean_type
+    assert list(table.itable) == [(F, T), (T, F)]
+    assert list(table.otable) == [T, F]
+
+
+def test_loadTable_preserves_row_count_when_a_trailing_target_field_is_empty(tmp_path):
+    """C++ pre-sizes `otable` to `len(data_lines)` and only conditionally
+    overwrites a slot when the target token is non-empty
+    (table_io.cc:1105-1106, :1133-1136) -- a prior version of this port
+    appended conditionally instead, silently dropping that row from
+    `otable` while `itable` kept it, desynchronising the two by one and
+    surfacing far downstream as an opaque `zip() argument 2 is shorter`
+    from `Table.compressed()`. The blank field must be the LAST data row
+    of a file with more than 20 data rows, so it falls outside
+    `inferTableAttributes`'s 20-line type-inference sample and the target
+    column is still (correctly) inferred as `boolean_type` despite this
+    one row's blank token. Verified against the C++ probe directly, byte
+    for byte, including the odd-but-faithful consequence that the
+    unfilled slot is a raw `float` `0.0` (`vertex()`'s default variant
+    alternative), not `builtin.logical_false` -- see
+    task-5-report.md's fix-round-1 section.
+    """
+    lines = ["in1,target"]
+    for i in range(25):
+        v = i % 2
+        lines.append(f"{v},{v}")
+    lines.append("1,")  # 26th data row: target field is empty
+    path = tmp_path / "blank_target.csv"
+    path.write_text("\n".join(lines) + "\n")
+
+    table = loadTable(str(path), "target")
+    assert len(table.itable) == 26
+    assert len(table.otable) == 26
+    assert table.otable[-1] == 0.0
+    assert isinstance(table.otable[-1], float)
+    assert table.itable[-1] == (T,)
+
+    ctable = table.compressed("")
+    assert ctable.uncompressed_size() == pytest.approx(26.0)
+    assert ctable[(T,)] == Counter({T: 12.0, 0.0: 1.0})
+    assert ctable[(F,)] == Counter({F: 13.0})

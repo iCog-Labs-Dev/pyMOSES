@@ -4,6 +4,7 @@ from pymetta.comboreduct.combo.argument import argument
 from pymetta.comboreduct.combo.vertex import (
     builtin,
     combo_tree,
+    enum_t,
     get_contin,
     is_argument,
     is_builtin,
@@ -75,6 +76,21 @@ def test_vertex_is_a_four_way_union():
     assert isinstance(3.14, vertex)
     assert isinstance("sad", vertex)
     assert not isinstance([], vertex)
+
+
+def test_enum_t_is_a_str_subclass_but_stays_distinguishable():
+    # Fix round 1 (task-5 review): enum_t must be its own type, not bare
+    # str, so it can be told apart from definite_object/message (both
+    # also represented as plain str in this port -- see vertex.py's
+    # module docstring). isinstance/equality/hashing all fall through to
+    # str's own.
+    e = enum_t("sad")
+    assert isinstance(e, str)
+    assert isinstance(e, vertex)
+    assert e == "sad"
+    assert "sad" == e
+    assert hash(e) == hash("sad")
+    assert not isinstance("sad", enum_t)
 
 
 def test_combo_tree_is_tree_subscripted_with_vertex():
