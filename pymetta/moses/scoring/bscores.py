@@ -32,7 +32,7 @@ class ctruth_table_bscore(bscore_base):
 
     Extends `bscore_base` directly, per task-6-brief.md's interface line
     (`class ctruth_table_bscore(bscore_base)`) -- NOT `bscore_ctable_base`
-    (bscores.h's own base, scoring_base.h:229), which is out of scope (see
+    (bscores.h's own base, scoring_base.h:236), which is out of scope (see
     scoring_base.py's module docstring). Every `_wrk_ctable` reference in
     the C++ member functions below reads, in this port, as `self._ctable`
     -- there is no separate `_orig_ctable`/`_wrk_ctable` distinction to

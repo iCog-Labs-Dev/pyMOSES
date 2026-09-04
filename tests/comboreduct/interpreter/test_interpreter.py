@@ -178,6 +178,80 @@ def test_unsupported_vertex_raises_naming_the_vertex():
 
 
 # ---------------------------------------------------------------------------
+# Regression tests for the final review's Critical 2. This guard test
+# passes only for a NON-integral contin like 3.14 above -- `3.14` never
+# equals any `builtin` member's ordinal, so it was already routed
+# correctly even before the fix. An INTEGRAL contin whose value equals a
+# builtin's ordinal (logical_true=1, logical_false=2, logical_and=3,
+# logical_or=4, logical_not=5 -- vertex.py) is what the bug actually
+# needed: `match v` compared value patterns (`case builtin.logical_false
+# | builtin.logical_true`, etc.) directly against `v` with no preceding
+# `isinstance(v, builtin)` check, so `1.0 == builtin.logical_true` (True
+# in Python, since `contin_t` is a bare `float` and `builtin` an
+# `IntEnum`) silently misrouted these into the wrong branch. Verified
+# directly against the real C++ (a bounded g++ probe linking
+# libcomboreduct/libmoses/libcogutil, this fix wave's own
+# final-fix-wave-report.md): C++ throws `AssertionException`
+# ("boolean_interpreter does not handle vertex ...") for every one of
+# these, via `boolean_interpreter::boolean_eval`'s `else` branch
+# (interpreter.cc:95-101) -- `boost::variant` alternatives never compare
+# equal across types, so a contin can never even enter C++'s `switch`.
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    ("contin_literal", "colliding_builtin_name"),
+    [
+        ("1", "logical_true"),
+        ("2", "logical_false"),
+        ("3", "logical_and"),
+        ("4", "logical_or"),
+        ("5", "logical_not"),
+    ],
+)
+def test_unsupported_integral_contin_vertex_raises_naming_the_vertex(
+    contin_literal, colliding_builtin_name
+):
+    """Critical 2 regression. Before the fix, `boolean_interpreter([])
+    (str_to_combo_tree("1"))` returned `1.0` (a `float`, violating the
+    declared `-> builtin` contract) rather than raising; `"2"` returned
+    `2.0`; `"3"`/`"4"`/`"5"` were evaluated as `logical_and`/`logical_or`/
+    `logical_not` respectively (`"5"` -- `logical_not` -- then crashed
+    trying to recurse into `it.first_child` of a childless contin leaf,
+    `AttributeError: 'NoneType' object has no attribute 'data'`).
+    """
+    tr = str_to_combo_tree(contin_literal)
+    # Sanity check on the fixture itself: confirms the parsed root really
+    # is the colliding contin_t value this test means to exercise, not
+    # something str_to_combo_tree's grammar happened to parse differently.
+    assert tr.begin().data == float(contin_literal)
+    with pytest.raises(ValueError, match=contin_literal) as exc_info:
+        boolean_interpreter([])(tr)
+    assert colliding_builtin_name not in str(exc_info.value)
+
+
+def test_interpreter_visitor_iterator_sharp_edge_lets_integral_contin_reach_boolean_interpreter():
+    """Critical 2 regression, the `interpreter_visitor(iterator)` sharp
+    edge named in the final review: constructed from a bare iterator
+    pointing at a node whose OWN vertex is not contin/greater_than_zero
+    but which has a contin CHILD the shallow, single-node check cannot
+    see (table.h:321-326's own comment: "Cannot check the entire tree
+    with this ctor" -- see also
+    test_interpreter_visitor_constructed_from_non_root_iterator_can_miss_mixedness
+    above for the same sharp edge with a `plus` instead). `mixed` is
+    wrongly `False` here, so `__call__` proceeds straight into
+    `boolean_interpreter`, which must now raise on the `3` child rather
+    than silently evaluating it as `logical_and` (3's colliding builtin).
+    """
+    tr = str_to_combo_tree("and($1 3)")
+    it = tr.begin()  # the `and` node itself: not contin, not greater_than_zero
+    iv = interpreter_visitor(it)
+    assert iv.mixed is False  # the sharp edge: a whole-tree ctor would say True
+    with pytest.raises(ValueError, match="3"):
+        iv([builtin.logical_true])
+
+
+# ---------------------------------------------------------------------------
 # interpreter_visitor (table.h:304)
 # ---------------------------------------------------------------------------
 

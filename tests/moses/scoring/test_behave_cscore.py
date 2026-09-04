@@ -23,10 +23,13 @@ from pathlib import Path
 
 import pytest
 
-from pymetta.comboreduct.combo.iostream_combo import str_to_combo_tree
+from pymetta.comboreduct.combo.iostream_combo import combo_tree_to_str, str_to_combo_tree
+from pymetta.comboreduct.combo.vertex import get_contin
 from pymetta.comboreduct.table.table_io import loadTable
+from pymetta.moses.moses.types import _to_score_t
 from pymetta.moses.scoring.behave_cscore import behave_cscore
 from pymetta.moses.scoring.bscores import ctruth_table_bscore
+from pymetta.moses.scoring.scoring_base import bscore_base
 
 _FIXTURE_DIR = Path(__file__).resolve().parents[2] / "fixtures"
 _SCORE_CASES = json.loads((_FIXTURE_DIR / "score.json").read_text())
@@ -123,3 +126,56 @@ def test_get_cscore_with_cache_returns_the_same_value_on_repeat_calls():
     cs2 = behsc.get_cscore(tr)
 
     assert cs2.get_complexity_penalty() == pytest.approx(cs1.get_complexity_penalty())
+
+
+# ---------------------------------------------------------------------------
+# Regression test for the final review's Important finding: the cache used
+# to be keyed on `combo_tree_to_str(tr)`, which prints a contin leaf at
+# ~6 significant digits (iostream_combo.py's `_contin_to_str`) -- so two
+# structurally DIFFERENT trees that print identically collided on one
+# cache slot, and the second tree silently got back the first tree's
+# `composite_score`. `ctruth_table_bscore` is boolean-only (bscores.py's
+# module docstring), so this uses a minimal fake `bscore_base` whose score
+# depends on the tree's own contin leaf value, to demonstrate the
+# collision end-to-end through `behave_cscore.get_cscore` rather than only
+# unit-testing the cache-key helper in isolation.
+# ---------------------------------------------------------------------------
+
+
+class _FakeContinBscorer(bscore_base):
+    """Minimal `bscore_base`: the "score" is just the tree's own bare
+    contin leaf value, so two different contin values must produce two
+    different `composite_score.get_score()` results.
+    """
+
+    def __call__(self, tr):
+        return [get_contin(tr.begin().data)]
+
+    def best_possible_bscore(self):
+        return [0.0]
+
+
+def test_get_cscore_cache_does_not_collide_on_contin_leaves_that_print_identically():
+    # 1.0 and 1.0000002 both print as "1 " via combo_tree_to_str's ~6
+    # significant-digit formatting, but remain distinct once narrowed to
+    # float32 (1.0 vs 1.0000002384185791...) -- so a correct,
+    # collision-free cache key must still tell them apart.
+    tr1 = str_to_combo_tree("1.0")
+    tr2 = str_to_combo_tree("1.0000002")
+    assert combo_tree_to_str(tr1) == combo_tree_to_str(tr2), (
+        "fixture must actually collide under combo_tree_to_str, or this test proves nothing"
+    )
+    assert _to_score_t(tr1.begin().data) != _to_score_t(tr2.begin().data)
+
+    behsc = behave_cscore(_FakeContinBscorer(), cache_size=16)
+    cs1 = behsc.get_cscore(tr1)
+    cs2 = behsc.get_cscore(tr2)
+
+    assert cs1.get_score() == _to_score_t(1.0)
+    assert cs2.get_score() == _to_score_t(1.0000002)
+    assert cs1.get_score() != cs2.get_score()
+
+    # Repeat calls must still hit the (correct) cached value for each tree
+    # independently, not silently fall back to whichever was scored first.
+    assert behsc.get_cscore(tr1).get_score() == cs1.get_score()
+    assert behsc.get_cscore(tr2).get_score() == cs2.get_score()

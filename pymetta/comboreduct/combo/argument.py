@@ -43,8 +43,20 @@ class argument:
     __slots__ = ("idx",)
 
     def __init__(self, i: arity_t) -> None:
-        """C++: moses/comboreduct/combo/argument.h:50 argument"""
-        assert i != 0, "idx should be different than zero."
+        """C++: moses/comboreduct/combo/argument.h:50 argument
+
+        FIX WAVE (final review, Important): `OC_ASSERT(idx != 0, ...)`
+        (argument.h:51) is active in release C++ builds. A bare Python
+        `assert` is not -- `python -O` strips it, which would silently
+        accept `i == 0` and construct an `argument` whose `idx` classic
+        would never allow to exist (verified: under `-O`, `argument(0)`
+        was accepted and evaluated to `boolean_inputs[-1]`, the LAST
+        input, not a rejected construction). Raised explicitly instead so
+        this check survives `-O` the same way `OC_ASSERT` survives
+        `NDEBUG`.
+        """
+        if i == 0:
+            raise AssertionError("idx should be different than zero.")
         self.idx = i
 
     def negate(self) -> None:

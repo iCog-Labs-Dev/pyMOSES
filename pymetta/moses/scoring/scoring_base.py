@@ -66,7 +66,7 @@ class bscore_base(ABC):
     def __init__(self) -> None:
         """C++: moses/moses/scoring/scoring_base.h:59 bscore_base
 
-        `_weights` (scoring_base.h:230) is not initialized here -- it
+        `_weights` (scoring_base.h:231) is not initialized here -- it
         backs the weighted-boosting branch of `sum_bscore`, which this
         port never takes (`_return_weighted_score` is never set `True`;
         see module docstring), so there is no `reset_weights()` call site
@@ -129,7 +129,7 @@ class bscore_base(ABC):
         """C++: moses/moses/scoring/scoring_base.cc:135 bscore_base::sum_bscore
 
         "Return the (possibly weighted) sum of the behavioral score."
-        (scoring_base.h:96's own comment.) Only the unweighted branch
+        (scoring_base.h:97's own comment.) Only the unweighted branch
         (`not _return_weighted_score`) is reachable in this port -- see
         module docstring -- so the `_weights`-driven branch
         (scoring_base.cc:141-156) is not ported.

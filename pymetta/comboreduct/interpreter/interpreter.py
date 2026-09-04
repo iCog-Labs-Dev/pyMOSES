@@ -87,6 +87,28 @@ class boolean_interpreter:
         """
         v = it.data
 
+        # FIX WAVE (final review, Critical 2): the outer `match` dispatches
+        # on TYPE ONLY (`argument()` / `builtin()` / the catch-all `_`) --
+        # mirroring `_vertex_to_str`'s `match v: case argument(): ...; case
+        # builtin(): ...` in iostream_combo.py, and matching C++'s own
+        # `boost::get<builtin>(&v)` type-discriminate-before-switch
+        # (interpreter.cc:57). Only once `case builtin():` has confirmed
+        # `isinstance(v, builtin)` does the INNER `match` compare `v`
+        # against specific builtin members by value. Previously the value
+        # patterns (`case builtin.logical_false | builtin.logical_true`,
+        # etc.) ran directly against `v` with no preceding type check:
+        # since `contin_t` is a bare Python `float` and `builtin` an
+        # `IntEnum`, a contin whose value happened to equal a builtin's
+        # ordinal (1.0/2.0/3.0/4.0/5.0 vs. logical_true/logical_false/
+        # logical_and/logical_or/logical_not) was silently misrouted into
+        # these branches -- returning a float where the declared `->
+        # builtin` contract promises a `builtin`, or worse, recursing into
+        # `.first_child` of what is actually a childless contin leaf
+        # (`None.data` -- a crash). C++ cannot exhibit this at all:
+        # `boost::variant` alternatives never compare equal across types.
+        # Verified against the real C++ (which OC_ASSERTs/aborts instead)
+        # via a contin reaching `interpreter_visitor`/`boolean_interpreter`
+        # -- see test_interpreter.py's integral-contin regression cases.
         match v:
             case argument():
                 idx = v.idx
@@ -94,43 +116,48 @@ class boolean_interpreter:
                     return self.boolean_inputs[idx - 1]
                 return negate_vertex(self.boolean_inputs[-idx - 1])
 
-            case builtin.logical_false | builtin.logical_true:
-                return v
-
-            case builtin.logical_and:
-                # C++: interpreter.cc:67-68 -- "For correct foldr
-                # behaviour": and() over no children is the identity,
-                # true.
-                if it.first_child is None:
-                    return builtin.logical_and
-                sib = it.first_child
-                while sib is not None:
-                    if self.boolean_eval(sib) == builtin.logical_false:
-                        return builtin.logical_false
-                    sib = sib.next_sibling
-                return builtin.logical_true
-
-            case builtin.logical_or:
-                # C++: interpreter.cc:76-77 -- or() over no children is
-                # the identity, false.
-                if it.first_child is None:
-                    return builtin.logical_or
-                sib = it.first_child
-                while sib is not None:
-                    if self.boolean_eval(sib) == builtin.logical_true:
-                        return builtin.logical_true
-                    sib = sib.next_sibling
-                return builtin.logical_false
-
-            case builtin.logical_not:
-                return negate_vertex(self.boolean_eval(it.first_child))
-
             case builtin():
-                # C++: interpreter.cc:87-93 -- default switch case,
-                # OC_ASSERT(false, ...) naming the unhandled builtin.
-                # Silence here surfaces much later as a wrong score, so
-                # this raises rather than returning a placeholder.
-                raise ValueError(f"boolean_interpreter does not handle builtin {v.name!r}")
+                match v:
+                    case builtin.logical_false | builtin.logical_true:
+                        return v
+
+                    case builtin.logical_and:
+                        # C++: interpreter.cc:67-68 -- "For correct foldr
+                        # behaviour": and() over no children is the
+                        # identity, true.
+                        if it.first_child is None:
+                            return builtin.logical_and
+                        sib = it.first_child
+                        while sib is not None:
+                            if self.boolean_eval(sib) == builtin.logical_false:
+                                return builtin.logical_false
+                            sib = sib.next_sibling
+                        return builtin.logical_true
+
+                    case builtin.logical_or:
+                        # C++: interpreter.cc:76-77 -- or() over no
+                        # children is the identity, false.
+                        if it.first_child is None:
+                            return builtin.logical_or
+                        sib = it.first_child
+                        while sib is not None:
+                            if self.boolean_eval(sib) == builtin.logical_true:
+                                return builtin.logical_true
+                            sib = sib.next_sibling
+                        return builtin.logical_false
+
+                    case builtin.logical_not:
+                        return negate_vertex(self.boolean_eval(it.first_child))
+
+                    case _:
+                        # C++: interpreter.cc:87-93 -- default switch case,
+                        # OC_ASSERT(false, ...) naming the unhandled
+                        # builtin. Silence here surfaces much later as a
+                        # wrong score, so this raises rather than
+                        # returning a placeholder.
+                        raise ValueError(
+                            f"boolean_interpreter does not handle builtin {v.name!r}"
+                        )
 
             case _:
                 # C++: interpreter.cc:95-101 -- the vertex is not even a
@@ -171,6 +198,16 @@ class interpreter_visitor:
         found it. See test_interpreter.py's
         test_interpreter_visitor_constructed_from_non_root_iterator_can_miss_mixedness.
         """
+        # FIX WAVE (sweep for Critical 2's pattern): both
+        # `... == builtin.greater_than_zero` comparisons below are guarded
+        # by `isinstance(..., builtin)`. They are not currently reachable
+        # with a contin operand -- `is_contin_expr` above always returns
+        # True for one first, via its own `is_contin(v) or ...`
+        # short-circuit, so `mixed` is already True and the loop/branch
+        # exits before this line runs -- but that safety is an incidental
+        # consequence of evaluation ORDER, not a type check at this
+        # comparison's own site, so it is guarded directly too rather than
+        # left to depend on the line above never being reordered.
         if isinstance(tr_or_it, tree):
             self._it = tr_or_it.begin()
             self.mixed = False
@@ -178,14 +215,19 @@ class interpreter_visitor:
                 self.mixed = is_contin_expr(node.data)
                 if self.mixed:
                     break
-                self.mixed = node.data == builtin.greater_than_zero
+                self.mixed = (
+                    isinstance(node.data, builtin) and node.data == builtin.greater_than_zero
+                )
                 if self.mixed:
                     break
         else:
             self._it = tr_or_it
             self.mixed = is_contin_expr(self._it.data)
             if not self.mixed:
-                self.mixed = self._it.data == builtin.greater_than_zero
+                self.mixed = (
+                    isinstance(self._it.data, builtin)
+                    and self._it.data == builtin.greater_than_zero
+                )
 
     def __call__(self, inputs: list[builtin]) -> vertex:
         """C++: moses/comboreduct/table/table.h:328 interpreter_visitor::operator()

@@ -8,7 +8,9 @@ when a probe changes; it is a developer tool, not part of `tools/ci.sh`.
 
 Each probe here needs nothing beyond the C++ standard library -- no MOSES or
 cogutil headers or libraries -- unless a given probe's own comment says
-otherwise.
+otherwise. `rng_probe.cc` is the one exception (see its own header comment):
+it links against the installed cogutil so it calls the real
+`opencog::MT19937RandGen`, not a hand-copy of its algorithm.
 """
 
 import subprocess
@@ -25,14 +27,42 @@ PROBES = {
     "rng_probe.cc": "rng.json",
 }
 
+# cogutil install prefix -- same default tools/cpp_probe/score_probe.cc's own
+# build recipe comment uses, and the same one CLAUDE.md's rebuild-moses-local.sh
+# installs to.
+COGUTIL_PREFIX = Path.home() / "opt" / "moses-legacy"
+
+# Probes that need cogutil's headers/library linked in, beyond the plain
+# dependency-free g++ invocation every other probe here gets -- see this
+# module's own docstring and rng_probe.cc's header comment for why.
+_NEEDS_COGUTIL = {"rng_probe.cc"}
+
 
 def build_probe(source: Path, binary: Path) -> None:
-    """Compile one probe with a plain, dependency-free g++ invocation."""
+    """Compile one probe. Every probe but `rng_probe.cc` gets a plain,
+    dependency-free g++ invocation; `rng_probe.cc` additionally links
+    against the installed cogutil (see this module's own docstring).
+    """
     BUILD_DIR.mkdir(parents=True, exist_ok=True)
-    subprocess.run(
-        ["g++", "-O2", "-std=c++17", "-o", str(binary), str(source)],
-        check=True,
-    )
+    cmd = ["g++", "-O2", "-std=c++17"]
+    if source.name in _NEEDS_COGUTIL:
+        include = COGUTIL_PREFIX / "include"
+        lib = COGUTIL_PREFIX / "lib"
+        lib_opencog = lib / "opencog"
+        cmd += ["-I", str(include)]
+        cmd += ["-o", str(binary), str(source)]
+        cmd += [
+            "-L",
+            str(lib),
+            "-L",
+            str(lib_opencog),
+            "-Wl,-rpath," + str(lib),
+            "-Wl,-rpath," + str(lib_opencog),
+            "-lcogutil",
+        ]
+    else:
+        cmd += ["-o", str(binary), str(source)]
+    subprocess.run(cmd, check=True)
 
 
 def capture_fixture(binary: Path, fixture_path: Path) -> None:

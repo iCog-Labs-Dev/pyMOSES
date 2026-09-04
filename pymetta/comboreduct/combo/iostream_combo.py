@@ -146,6 +146,14 @@ def _argument_str_to_vertex(token: str) -> argument | None:
     fallthrough -- ported as a raised AssertionError, not a None return,
     for the same reason (see argument.__init__, which would raise the
     identical AssertionError one call further down if this let 0 through).
+
+    FIX WAVE (final review, Important): that AssertionError is now raised
+    explicitly (`if arg == 0: raise ...`), not via a bare Python `assert`
+    -- `OC_ASSERT` (iostream_combo.cc:167) is active in release C++
+    builds, but a bare `assert` is stripped by `python -O`, which would
+    have silently let `arg == 0` fall through to `argument(sign * arg)`
+    below and hit `argument.__init__`'s own (also-now-explicit) check
+    instead -- correct by accident, not by this function's own contract.
     """
     if token.startswith("!$"):
         digits = token[2:]
@@ -159,7 +167,8 @@ def _argument_str_to_vertex(token: str) -> argument | None:
         arg = int(digits)
     except ValueError:
         return None
-    assert arg != 0, "arg value should be different than zero."
+    if arg == 0:
+        raise AssertionError("arg value should be different than zero.")
     return argument(sign * arg)
 
 

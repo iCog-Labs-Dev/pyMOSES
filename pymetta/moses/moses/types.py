@@ -69,10 +69,33 @@ the C++ source, not inferred:
   penalty`: both operands are already `score_t`, but their SUM is its own
   float32 operation in C++, not a double-precision one narrowed on the
   way in.
+* `types.cc:158` -- `EPSILON`, the local `#define` `composite_score::
+  operator==` compares against (`_EQ_EPSILON` below), and every
+  arithmetic step inside `is_approx_eq<FloatT=score_t>` itself
+  ($COGUTIL/opencog/util/numeric.h:185) that it feeds -- the thirteenth
+  and fourteenth sites, found in the final fix wave. `_EQ_EPSILON` was a
+  bare Python double (`1e-6`, not `static_cast<score_t>(1e-6)` =
+  9.999999974752427e-07), and `_is_approx_eq` computed `x - y`/`x + y`/
+  `epsilon * amp` in double where C++'s `is_approx_eq<score_t>` computes
+  every one of those in float32. Impact is confined to
+  `composite_score.__eq__`, but that is exactly the operator the
+  metapopulation uses.
 
 `count_t` (`CTable`'s counters, table.py) and `complexity_t` (an
 `unsigned`/Python `int`, complexity.py) are unaffected -- neither is
 `score_t`-typed in C++, so neither is ever narrowed.
+
+# DIVERGENCE(C++ moses/moses/moses/types.h:63): `score_t` is C++ `float`
+# (IEEE-754 binary32). Python has no native 32-bit float type, so every
+# score_t-typed value in this port is held as a plain Python `float`
+# (double) and is explicitly re-narrowed to the nearest float32 value via
+# `_to_score_t()` at every one of the fourteen sites enumerated above --
+# this branch's single largest behavioural deviation from C++. Skipping
+# even one narrowing reintroduces double-precision comparisons where C++
+# has float32 ones, which changes how often `composite_score.__lt__`'s
+# tie-break-by-complexity branch fires and, with it, which candidate
+# exemplar selection prefers -- see the 20,656-pair discrepancy
+# demonstrated above.
 """
 
 import math
@@ -135,7 +158,13 @@ epsilon_score: score_t = 2**-23  # C++: moses/moses/moses/types.h:74 epsilon_sco
 # next representable float32) -- a literal constant, not a computed one,
 # so no float32 narrowing is needed to reproduce it exactly.
 
-_EQ_EPSILON: score_t = 1e-6  # C++: moses/moses/moses/types.cc:158 EPSILON
+# FIX WAVE (final review, Important): `types.cc:158`'s
+# `#define EPSILON static_cast<score_t>(1e-6)` is a C++ `float` literal,
+# not a `double` one -- `static_cast<score_t>(1e-6)` rounds to
+# 9.999999974752427e-07 in float32, a different bit pattern than the
+# double `1e-6` this constant held before. Narrowed via `_to_score_t()`,
+# the same narrowing convention every other site in this module uses.
+_EQ_EPSILON: score_t = _to_score_t(1e-6)  # C++: moses/moses/moses/types.cc:158 EPSILON
 # (the `#define EPSILON static_cast<score_t>(1e-6)` local to
 # composite_score::operator==, types.cc:158)
 
@@ -152,11 +181,22 @@ def _is_approx_eq(x: float, y: float, epsilon: float) -> bool:
     that operator== calls -- ported alongside it since types.cc has no
     Python analogue to import it from (opencog/util/numeric.h is a
     CogUtil header, out of this cycle's ported surface).
+
+    FIX WAVE (final review, Important): cogutil's template is instantiated
+    here as `is_approx_eq<FloatT=score_t>` (`composite_score.__eq__` only
+    ever calls this with `score_t` operands) -- every arithmetic step
+    (`x - y`, `x + y`, `epsilon * amp`) is therefore a float32 operation in
+    C++, computed and rounded in float32 at each step, not accumulated in
+    double the way plain Python arithmetic on these `float` operands would.
+    Each intermediate is narrowed via `_to_score_t()` immediately after
+    the operation that produces it (`abs()` itself loses no precision --
+    it only clears the sign bit -- so it needs no narrowing of its own).
     """
-    diff = abs(x - y)
+    diff = abs(_to_score_t(x - y))
     if diff < epsilon:
         return True
-    return diff <= epsilon * abs(x + y)
+    amp = abs(_to_score_t(x + y))
+    return diff <= _to_score_t(epsilon * amp)
 
 
 class composite_score:

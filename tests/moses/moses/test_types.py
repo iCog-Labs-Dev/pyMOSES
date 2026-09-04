@@ -13,7 +13,7 @@ tests construct `composite_score` directly with plain, unnarrowed Python
 doubles and assert every field comes back float32-narrowed.
 """
 
-from pymetta.moses.moses.types import _to_score_t, composite_score
+from pymetta.moses.moses.types import _EQ_EPSILON, _is_approx_eq, _to_score_t, composite_score
 
 # 1/3.5 is not exactly representable in binary32 (the fix round 1 review's
 # own witness value: |1/3.5 - to_score_t(1/3.5)| ~= 1.28e-8) -- a passthrough
@@ -100,3 +100,58 @@ def test_get_penalty_narrows_the_sum_not_just_the_operands():
     assert double_sum != narrowed_sum, "fixture must need rounding on the SUM itself"
     assert cs.get_penalty() == narrowed_sum
     assert cs.get_penalty() != double_sum
+
+
+# ---------------------------------------------------------------------------
+# Regression tests for the final review's Important finding: `_EQ_EPSILON`
+# and `_is_approx_eq` (both feed `composite_score.__eq__`) are the
+# thirteenth and fourteenth narrowing sites -- found in the very module
+# whose round-2 re-review concluded "no thirteenth found".
+# ---------------------------------------------------------------------------
+
+def test_eq_epsilon_is_narrowed_to_float32():
+    """`types.cc:158`'s `#define EPSILON static_cast<score_t>(1e-6)` is a
+    C++ `float` literal, not a `double` one: `static_cast<score_t>(1e-6)`
+    rounds to 9.999999974752427e-07 in float32 -- a different value than
+    the bare Python double `1e-6`.
+    """
+    assert _EQ_EPSILON == _to_score_t(1e-6)
+    assert _EQ_EPSILON != 1e-6
+
+
+def test_is_approx_eq_computes_each_step_in_float32_not_double():
+    """`_is_approx_eq` instantiates cogutil's `is_approx_eq<FloatT=
+    score_t>` (opencog/util/numeric.h:185) -- every arithmetic step
+    (`x - y`, `x + y`, `epsilon * amp`) must be its own float32 operation,
+    not accumulated in double.
+
+    This witness pair is chosen so that `x - y`'s TRUE (infinite-precision)
+    value needs float32 rounding, and the raw double result and its
+    float32-narrowed counterpart straddle a deliberately-placed `epsilon`
+    -- so the pre-fix implementation (`abs(x - y)` computed and compared
+    in double, with no narrowing at all) and the fixed one give OPPOSITE
+    answers for the exact same inputs, not just different intermediate
+    values. `amp = abs(x + y)` is tiny here (~0.03) specifically so the
+    relative-tolerance fallback branch cannot paper over the absolute-
+    check disagreement the way it would for a large `amp`.
+    """
+    x, y = 299768.875, -299768.84375
+    assert x == _to_score_t(x) and y == _to_score_t(y), "fixture operands must be float32-exact"
+
+    raw_diff = x - y
+    narrowed_diff = _to_score_t(x - y)
+    assert raw_diff < narrowed_diff, "fixture must need rounding, and round UP, on x - y"
+
+    epsilon = (raw_diff + narrowed_diff) / 2
+    assert raw_diff < epsilon < narrowed_diff
+
+    def old_is_approx_eq(a, b, eps):
+        # The pre-fix implementation: plain double arithmetic throughout,
+        # no `_to_score_t` narrowing anywhere.
+        diff = abs(a - b)
+        if diff < eps:
+            return True
+        return diff <= eps * abs(a + b)
+
+    assert old_is_approx_eq(x, y, epsilon) is True
+    assert _is_approx_eq(x, y, epsilon) is False

@@ -91,10 +91,28 @@ def tree_complexity(
     v = it.data
 
     # base cases -- complexity.cc:59-86
+    #
+    # FIX WAVE (final review, Critical 1): every comparison of `v` against
+    # a `builtin` member below is guarded by `isinstance(v, builtin)`
+    # FIRST. `contin_t` here is a bare Python `float` and `builtin` an
+    # `IntEnum` (vertex.py's module docstring), so `1.0 == builtin.
+    # logical_true` is True in Python -- where C++'s `*it ==
+    # id::logical_true` compares `boost::variant` alternatives and can
+    # NEVER hold across them; C++ always type-discriminates before
+    # comparing value. Without the guard, a contin leaf whose value
+    # happens to equal a builtin's ordinal (0.0/1.0/2.0 vs. null_vertex/
+    # logical_true/logical_false; 7.0 vs. times; 5.0 vs. logical_not; ...)
+    # was silently misrouted into these branches instead of the
+    # is_contin() branch below -- verified against the real C++ via a
+    # bounded, purpose-built probe (see this fix wave's own
+    # final-fix-wave-report.md): tree_complexity("0") is 1 there, never 0,
+    # and tree_complexity("plus(0 $1)") is 2, never 1.
 
     # null_vertex marks the location of a logical knob; halt recursion
     # past logical knobs (complexity.cc:60-65).
-    if v == builtin.logical_true or v == builtin.logical_false or v == builtin.null_vertex:
+    if isinstance(v, builtin) and (
+        v == builtin.logical_true or v == builtin.logical_false or v == builtin.null_vertex
+    ):
         return 0
 
     # Needed for knob-probing across boundaries between logical and
@@ -105,7 +123,8 @@ def tree_complexity(
     # *(0 stuff) marks the location of a contin knob; halt recursion past
     # contin knobs, also for knob-probing (complexity.cc:72-76).
     if (
-        v == builtin.times
+        isinstance(v, builtin)
+        and v == builtin.times
         and it.first_child is not None
         and is_contin(it.first_child.data)
         and get_contin(it.first_child.data) == 0
@@ -119,15 +138,20 @@ def tree_complexity(
         return 1
 
     # recursive cases -- complexity.cc:88-110
-    if v == builtin.logical_not:
+    if isinstance(v, builtin) and v == builtin.logical_not:
         return tree_complexity(it.first_child, stopper)
 
     # "If an operator is not listed below, it has a complexity of zero.
     # Note that logical_and, logical_or are not listed, these have a
     # complexity of zero. div and trigonometric functions have complexity
     # one. But greater_than_zero, impulse, plus, times are all treated
-    # with complexity zero." (complexity.cc:92-99's own comment.)
-    c = 1 if v in _UNARY_OR_BINARY_COST_ONE else 0
+    # with complexity zero." (complexity.cc:92-99's own comment.) `v` is
+    # guaranteed by this point to be neither an argument nor a contin
+    # (both returned above), so it is safe to test membership without a
+    # further isinstance guard -- but the guard costs nothing, so it is
+    # kept anyway, for the same defense-in-depth reason as everywhere
+    # else in this function.
+    c = 1 if (isinstance(v, builtin) and v in _UNARY_OR_BINARY_COST_ONE) else 0
 
     sib = it.first_child
     while sib is not None:

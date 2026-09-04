@@ -108,3 +108,66 @@ def test_tree_complexity_stopper_halts_recursion_immediately():
     """
     tr = str_to_combo_tree("div($1 $2)")
     assert tree_complexity(tr, stopper=lambda it: True) == 0
+
+
+# ---------------------------------------------------------------------------
+# Regression tests for the final review's Critical 1: `v == builtin.X`
+# comparisons in tree_complexity's base cases ran with no preceding
+# `isinstance(v, builtin)` guard. Since `contin_t` is a bare Python `float`
+# and `builtin` an `IntEnum`, a contin whose value equals a builtin's
+# ordinal (null_vertex=0, logical_true=1, logical_false=2, logical_and=3,
+# logical_or=4, logical_not=5, times=7 -- vertex.py) was silently
+# misrouted into the wrong branch. C++'s `boost::variant` alternatives can
+# never compare equal across types, so classic cannot exhibit this at all
+# -- verified directly against the real C++ (a bounded g++ probe linking
+# libcomboreduct/libmoses/libcogutil, this fix wave's own final-fix-wave
+# report): `tree_complexity("0")` is 1 in C++ (is_contin's branch), and
+# `tree_complexity("plus(0 $1)")` is 2 (1 for the 0 contin child + 1 for
+# the $1 argument child, "plus" itself costing 0) -- both reproduced
+# exactly below.
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    "contin_literal",
+    ["0", "1", "2", "3", "4", "5", "7"],
+    ids=[
+        "0-collides-with-null_vertex",
+        "1-collides-with-logical_true",
+        "2-collides-with-logical_false",
+        "3-collides-with-logical_and",
+        "4-collides-with-logical_or",
+        "5-collides-with-logical_not",
+        "7-collides-with-times",
+    ],
+)
+def test_tree_complexity_of_bare_contin_is_one_even_when_it_collides_with_a_builtin_ordinal(
+    contin_literal,
+):
+    """Critical 1 regression. Before the fix, `tree_complexity("0")`
+    returned 0 (wrongly hitting the null_vertex base case) instead of the
+    correct 1 (the is_argument/is_contin base case, complexity.cc:78-86)
+    -- verified against real C++ via a bounded probe: `tree_complexity
+    ("0")` is 1 there, never 0.
+    """
+    assert tree_complexity(str_to_combo_tree(contin_literal)) == 1
+
+
+def test_tree_complexity_of_plus_zero_and_argument_matches_cpp():
+    """Critical 1 regression, the exact case the final review verified
+    against real C++: `tree_complexity("plus(0 $1)")` is 2 in C++ (0 for
+    `plus` itself + 1 for the `0` contin child + 1 for the `$1` argument
+    child), not 1 (what the pre-fix port returned, because the `0` child
+    was misrouted into the null_vertex base case and contributed 0 instead
+    of 1).
+    """
+    assert tree_complexity(str_to_combo_tree("plus(0 $1)")) == 2
+
+
+def test_tree_complexity_of_times_zero_knob_marker_is_still_zero():
+    """The `*(0 stuff)` contin-knob-marker base case (complexity.cc:72-76)
+    must still short-circuit to 0 after the isinstance guard was added --
+    this is the one case where `v == builtin.times` is a real (non-contin)
+    builtin comparison and must still succeed.
+    """
+    assert tree_complexity(str_to_combo_tree("times(0 $1)")) == 0

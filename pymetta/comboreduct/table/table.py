@@ -320,6 +320,12 @@ class ITable(list):
 
         `off < 0` means "append after the last column" (matches C++'s
         "If off is negative, then insert after the last column").
+
+        FIX WAVE (final review, Important): both `OC_ASSERT`s below
+        (table.cc:213,219) are active in release C++ builds; ported as
+        explicit raises rather than bare Python `assert`s, which
+        `python -O` strips -- see argument.py's `__init__` for the same
+        fix against the same class of bug.
         """
         idx = 1 if len(col) > 1 else 0
         col_type = _vertex_type_node(col[idx])
@@ -331,12 +337,14 @@ class ITable(list):
             self._labels.append(clab)
 
         if len(self) == 0:
-            assert off < 0
+            if off >= 0:
+                raise AssertionError("off must be negative when the table is empty")
             for v in col:
                 self.push_back((v,))
             return
 
-        assert len(col) == len(self), "Incorrect column length!"
+        if len(col) != len(self):
+            raise AssertionError("Incorrect column length!")
         for i in range(len(col)):
             row = list(self[i])
             row.insert(off if off >= 0 else len(row), col[i])

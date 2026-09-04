@@ -22,8 +22,10 @@ NOT ported, all deliberately out of scope for this task:
   `_have_cache`) -- an optimisation, not semantics, per task-6-brief.md's
   own "Global Constraints" note. `cache_size` is accepted (to match the
   constructor's interface line, `__init__(self, bscorer, cache_size=0)`)
-  and stored, but a plain Python `dict` keyed on the tree's own printed
-  form stands in for the real cache -- see `__init__`'s docstring.
+  and stored, but a plain Python `dict` keyed on `_cache_key(tr)` (a
+  collision-free structural key over the tree's own nodes -- see that
+  function's docstring for why it is NOT keyed on the tree's printed
+  form) stands in for the real cache -- see `__init__`'s docstring.
 * `best_possible_score`/`worst_possible_score`/`min_improv`/`ignore_cols`/
   `ignore_rows`/`ignore_rows_at_times`/`get_ctable_usize`/`get_ctable`/
   `get_bscorer` -- thin one-line delegations to the underlying
@@ -33,11 +35,48 @@ NOT ported, all deliberately out of scope for this task:
   delegating call in C++ too.
 """
 
-from pymetta.comboreduct.combo.iostream_combo import combo_tree_to_str
 from pymetta.comboreduct.combo.vertex import combo_tree
 from pymetta.moses.moses.complexity import complexity_t
 from pymetta.moses.moses.types import _to_score_t, composite_score, score_t
 from pymetta.moses.scoring.scoring_base import bscore_base
+from pymetta.util.tree import tree_node
+
+
+def _cache_key(tr: combo_tree) -> tuple:
+    """Not itself a ported C++ symbol -- a collision-free cache key for
+    `get_cscore`'s tree cache below.
+
+    FIX WAVE (final review, Important): this replaces the previous key,
+    `combo_tree_to_str(tr)`. That printer (iostream_combo.py) is a
+    faithful, deliberate port of `ostream_vertex`'s C++ formatting, which
+    rounds a contin leaf to ~6 significant digits (`format(c, ".6g")`) --
+    exactly right for what it is FOR (printing), but wrong as a cache key:
+    `1.0`, `1.0000000001` and `1.00000000001` all print `"1 "`, so three
+    structurally-different trees collided on one cache slot and
+    `get_cscore` would return one tree's `composite_score` for another,
+    silently. Contin `0.0` is MOSES's most common contin constant
+    (complexity.py's own module docstring), so this was not a corner case.
+    This function instead recurses over the tree's own node links
+    directly -- no string formatting anywhere in the path -- so every
+    vertex value, including a contin leaf's full float precision, is
+    carried into the key bit-exactly: two keys compare equal iff the two
+    trees are structurally identical down to that precision, matching
+    what classic's own `prr_cache_threaded` achieves by hashing the tree
+    object itself rather than a printed rendering of it.
+    """
+    root = tr.begin()
+    if root is None:
+        return ()
+
+    def _walk(node: tree_node) -> tuple:
+        children = []
+        child = node.first_child
+        while child is not None:
+            children.append(_walk(child))
+            child = child.next_sibling
+        return (node.data, tuple(children))
+
+    return _walk(root)
 
 
 class behave_cscore:
@@ -49,18 +88,19 @@ class behave_cscore:
         `cache_size` matches task-6-brief.md's interface line
         (`__init__(self, bscorer, cache_size=0)`) but the cache itself is
         an optimisation, not semantics (task-6-brief.md's own "Global
-        Constraints" note) -- a plain `dict`, keyed on `combo_tree_to_str
-        (tr)` since a bare `combo_tree`/`tree` object here is not
-        hashable (`util/tree.py` defines no `__hash__`, matching C++'s
-        `tree<T>` having no `operator<`/hash either -- classic's own
-        `prr_cache_threaded` hashes on a caller-supplied functor, not on
-        the tree object's own identity). `_have_cache` mirrors C++'s
-        `0 < initial_cache_size` gate exactly: `cache_size=0` (the
-        default) disables caching altogether, same as classic.
+        Constraints" note) -- a plain `dict`, keyed on `_cache_key(tr)`
+        (see that function's own docstring for why, since a bare
+        `combo_tree`/`tree` object here is not hashable: `util/tree.py`
+        defines no `__hash__`, matching C++'s `tree<T>` having no
+        `operator<`/hash either -- classic's own `prr_cache_threaded`
+        hashes on a caller-supplied functor, not on the tree object's own
+        identity). `_have_cache` mirrors C++'s `0 < initial_cache_size`
+        gate exactly: `cache_size=0` (the default) disables caching
+        altogether, same as classic.
         """
         self._bscorer = bscorer
         self._have_cache = cache_size > 0
-        self._cscore_cache: dict[str, composite_score] = {}
+        self._cscore_cache: dict[tuple, composite_score] = {}
 
     def get_bscore(self, tr: combo_tree) -> list[score_t]:
         """C++: moses/moses/scoring/behave_cscore.cc:41 behave_cscore::get_bscore"""
@@ -73,7 +113,7 @@ class behave_cscore:
         comment.)
         """
         if self._have_cache:
-            key = combo_tree_to_str(tr)
+            key = _cache_key(tr)
             if key not in self._cscore_cache:
                 self._cscore_cache[key] = self.get_cscore_nocache(tr)
             return self._cscore_cache[key]
