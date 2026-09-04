@@ -99,20 +99,20 @@ class behave_cscore:
         methods (scoring_base.py) -- `res`/`cpxy`/`cpxy_coef` below are
         named to match behave_cscore.cc:87-97's own local variables.
 
-        `cpxy * cpxy_coef` (behave_cscore.cc:97, `complexity_penalty`)
-        is narrowed to `score_t` (behave_cscore.cc:98) BEFORE it reaches
-        `composite_score`'s constructor: `cpxy` is `complexity_t`
-        (`unsigned`) and `cpxy_coef` is `score_t` (`float`), so C++'s
-        usual arithmetic conversions promote `cpxy` to `float` and
-        perform the multiplication in float32 -- not in double -- and
-        `composite_score`'s `complexity_penalty_` constructor parameter
-        is itself `score_t`, narrowing a second time if the product were
-        somehow still wider. Narrowing here, rather than trusting
-        `composite_score.__init__` to do it, matches the fix round's
-        "exactly these nine points" list precisely (this is the
-        `behave_cscore.cc:98` point) and does not depend on
-        `composite_score`'s constructor also narrowing its own
-        arguments (it does not -- see types.py).
+        `cpxy * cpxy_coef` (behave_cscore.cc:97) is narrowed to `score_t`
+        right here: `cpxy` is `complexity_t` (`unsigned`) and `cpxy_coef`
+        is `score_t` (`float`), so C++'s usual arithmetic conversions
+        promote `cpxy` to `float` and perform the multiplication in
+        float32 -- not in double. `composite_score.__init__` (types.py)
+        ALSO narrows its own `complexity_penalty` parameter now (fix round
+        2's "eleventh site" fix), so this call's explicit narrowing is no
+        longer the only thing standing between an unnarrowed product and
+        the constructor -- it is kept anyway, both because it is the
+        direct, literal analogue of the C++ multiplication itself
+        happening in float32 (independent of whatever the constructor
+        does with its result), and as defense in depth: narrowing an
+        already-narrow value is idempotent, so keeping both narrowing
+        points costs nothing and loses no precision either way.
         """
         bs = self.get_bscore(tr)
         res: score_t = self._bscorer.sum_bscore(bs)

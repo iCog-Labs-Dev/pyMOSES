@@ -37,10 +37,13 @@ which of two candidates ties -- each one a potential exemplar-selection
 inversion. Every one of the nine sites below was traced directly against
 the C++ source, not inferred:
 
-* `bscores.cc:283` -- each `ctruth_table_bscore` bscore element (`bscores.py`).
+* `bscores.cc:285` -- each `ctruth_table_bscore` bscore element (`bscores.py`).
 * `bscores.cc:369` -- `-score_t(fmin(...))` in `set_best_possible_bscore`.
-* `bscores.cc:397,414` -- `score_t w = fabs(...)` in `worst_possible_bscore`
-  and `min_improv`.
+* `bscores.cc:399,419` -- `score_t w = fabs(...)` in `worst_possible_bscore`
+  and `min_improv` (and `bscores.cc:423`, `min_improv`'s own
+  `return 0.5 * min_weight` -- a necessary consequence of `min_improv`
+  itself returning `score_t`, not separately traced by the review but
+  required for the same reason).
 * `scoring_base.cc:139` -- `sum_bscore`: accumulated in DOUBLE (see
   scoring_base.py's own note on why `sum()` itself is a separate,
   compensated-summation problem), narrowed ONCE at the return, not per
@@ -50,11 +53,22 @@ the C++ source, not inferred:
   parameters themselves, since they are `score_t`/`float`-typed C++
   parameters and so are narrowed at the call boundary, BEFORE the
   reciprocal/`discrete_complexity_coef` call that uses them).
-* `behave_cscore.cc:98` -- `cpxy * cpxy_coef`, before it reaches
+* `behave_cscore.cc:97` -- `cpxy * cpxy_coef`, before it reaches
   `composite_score`'s constructor.
-* `types.h:135` -- `update_penalized_score`: TWO separate narrowings, one
+* `types.h:166` -- `update_penalized_score`: TWO separate narrowings, one
   after `score - complexity_penalty`, another after the following
   `*=`/`-=` against `uniformity_penalty`.
+* `types.h:89-91,107,116,122` -- `composite_score`'s own constructor and
+  `set_score`/`set_complexity_penalty`/`set_uniformity_penalty`, an
+  eleventh (twelfth, counting the `get_penalty` sum below) site found in
+  fix round 2: every one of these binds a `score_t`-typed C++ parameter
+  without narrowing it Python-side. Latent until now (every call site in
+  this port already passed pre-narrowed values), but S7+ (metapopulation/
+  merging/deme expansion) will construct `composite_score` directly.
+* `types.h:129` -- `get_penalty`'s `complexity_penalty + uniformity_
+  penalty`: both operands are already `score_t`, but their SUM is its own
+  float32 operation in C++, not a double-precision one narrowed on the
+  way in.
 
 `count_t` (`CTable`'s counters, table.py) and `complexity_t` (an
 `unsigned`/Python `int`, complexity.py) are unaffected -- neither is
@@ -66,7 +80,7 @@ import struct
 
 from pymetta.moses.moses.complexity import complexity_t, least_complexity
 
-score_t = float  # C++: moses/moses/moses/types.h:60 score_t
+score_t = float  # C++: moses/moses/moses/types.h:63 score_t
 
 
 def _to_score_t(x: float) -> score_t:
@@ -114,16 +128,16 @@ def _to_score_t(x: float) -> score_t:
 # port's own tests: `worst_composite_score == composite_score()` must
 # hold, and only does with a finite sentinel.
 _FLT_MAX: score_t = struct.unpack(">f", bytes.fromhex("7f7fffff"))[0]
-very_best_score: score_t = _FLT_MAX  # C++: moses/moses/moses/types.h:69 very_best_score
-very_worst_score: score_t = -_FLT_MAX  # C++: moses/moses/moses/types.h:70 very_worst_score
-epsilon_score: score_t = 2**-23  # C++: moses/moses/moses/types.h:73 epsilon_score
+very_best_score: score_t = _FLT_MAX  # C++: moses/moses/moses/types.h:71 very_best_score
+very_worst_score: score_t = -_FLT_MAX  # C++: moses/moses/moses/types.h:72 very_worst_score
+epsilon_score: score_t = 2**-23  # C++: moses/moses/moses/types.h:74 epsilon_score
 # `FLT_EPSILON` = 2^-23 for IEEE-754 binary32 (the gap between 1.0 and the
 # next representable float32) -- a literal constant, not a computed one,
 # so no float32 narrowing is needed to reproduce it exactly.
 
-_EQ_EPSILON: score_t = 1e-6  # C++: moses/moses/moses/types.cc:161 EPSILON
+_EQ_EPSILON: score_t = 1e-6  # C++: moses/moses/moses/types.cc:158 EPSILON
 # (the `#define EPSILON static_cast<score_t>(1e-6)` local to
-# composite_score::operator==, types.cc:161)
+# composite_score::operator==, types.cc:158)
 
 
 def _is_approx_eq(x: float, y: float, epsilon: float) -> bool:
@@ -183,9 +197,9 @@ class composite_score:
     ) -> None:
         """C++: moses/moses/moses/types.h:89 composite_score
 
-        Covers both the 4-argument constructor (types.h:89-99, which
+        Covers both the 4-argument constructor (types.h:89-97, which
         calls `update_penalized_score()` at the end of its body) and the
-        empty/default constructor (types.h:101, "build the worst score",
+        empty/default constructor (types.h:99, "build the worst score",
         defined at types.cc:114-118: `score(very_worst_score),
         complexity(least_complexity), complexity_penalty(0.0),
         uniformity_penalty(0.0), penalized_score(very_worst_score)`, which
@@ -196,60 +210,94 @@ class composite_score:
         `very_worst_score - 0.0 - 0.0 == very_worst_score` makes calling
         `update_penalized_score()` here equivalent to types.cc's direct
         assignment.
+
+        `score`/`complexity_penalty`/`uniformity_penalty` are narrowed to
+        `score_t` here too (fix round 2's "eleventh site"): C++'s 4-arg
+        constructor takes them as `score_t scor, ..., score_t
+        complexity_penalty_ = 0.0, score_t uniformity_penalty_ = 0.0`
+        (types.h:89-91), so a caller passing a plain double narrows AT
+        this binding, before `update_penalized_score()` ever runs -- this
+        was latent (every call site in this port already passed
+        pre-narrowed values) but S7+ (metapopulation/merging/deme
+        expansion) will construct `composite_score` directly, and an
+        unnarrowed constructor is exactly the shape of bug a full review
+        cycle was needed to find once already (see the module docstring's
+        numbered list).
         """
-        self.multiply_diversity = False  # C++: types.h:145 multiply_diversity
-        self.score = score
+        self.multiply_diversity = False  # C++: types.h:155 multiply_diversity
+        self.score = _to_score_t(score)
         self.complexity = complexity
-        self.complexity_penalty = complexity_penalty
-        self.uniformity_penalty = uniformity_penalty
+        self.complexity_penalty = _to_score_t(complexity_penalty)
+        self.uniformity_penalty = _to_score_t(uniformity_penalty)
         self.penalized_score: score_t = 0.0
         self.update_penalized_score()
 
     def get_score(self) -> score_t:
-        """C++: moses/moses/moses/types.h:104 composite_score::get_score"""
+        """C++: moses/moses/moses/types.h:102 composite_score::get_score"""
         return self.score
 
     def get_complexity(self) -> complexity_t:
-        """C++: moses/moses/moses/types.h:105 composite_score::get_complexity"""
+        """C++: moses/moses/moses/types.h:103 composite_score::get_complexity"""
         return self.complexity
 
     def get_penalized_score(self) -> score_t:
-        """C++: moses/moses/moses/types.h:106 composite_score::get_penalized_score"""
+        """C++: moses/moses/moses/types.h:104 composite_score::get_penalized_score"""
         return self.penalized_score
 
     def set_score(self, sc: score_t) -> None:
-        """C++: moses/moses/moses/types.h:109 composite_score::set_score
+        """C++: moses/moses/moses/types.h:107 composite_score::set_score
 
         "Use this only to over-ride the score, when re-scoring."
-        (types.h:108's own comment.)
+        (types.h:106's own comment.) `sc` is `score_t`-typed in C++
+        (`void set_score(score_t sc)`) -- narrowed here for the same
+        "eleventh site" reason `__init__` above is.
         """
-        self.score = sc
+        self.score = _to_score_t(sc)
         self.update_penalized_score()
 
     def get_complexity_penalty(self) -> score_t:
-        """C++: moses/moses/moses/types.h:118 composite_score::get_complexity_penalty"""
+        """C++: moses/moses/moses/types.h:115 composite_score::get_complexity_penalty"""
         return self.complexity_penalty
 
     def set_complexity_penalty(self, penalty: score_t) -> None:
-        """C++: moses/moses/moses/types.h:119 composite_score::set_complexity_penalty"""
-        self.complexity_penalty = penalty
+        """C++: moses/moses/moses/types.h:116 composite_score::set_complexity_penalty
+
+        `penalty` is `score_t`-typed in C++ -- narrowed here, same reason
+        as `set_score` above.
+        """
+        self.complexity_penalty = _to_score_t(penalty)
         self.update_penalized_score()
 
     def get_uniformity_penalty(self) -> score_t:
-        """C++: moses/moses/moses/types.h:124 composite_score::get_uniformity_penalty"""
+        """C++: moses/moses/moses/types.h:121 composite_score::get_uniformity_penalty"""
         return self.uniformity_penalty
 
     def set_uniformity_penalty(self, penalty: score_t) -> None:
-        """C++: moses/moses/moses/types.h:125 composite_score::set_uniformity_penalty"""
-        self.uniformity_penalty = penalty
+        """C++: moses/moses/moses/types.h:122 composite_score::set_uniformity_penalty
+
+        `penalty` is `score_t`-typed in C++ -- narrowed here, same reason
+        as `set_score` above.
+        """
+        self.uniformity_penalty = _to_score_t(penalty)
         self.update_penalized_score()
 
     def get_penalty(self) -> score_t:
-        """C++: moses/moses/moses/types.h:129 composite_score::get_penalty"""
-        return self.complexity_penalty + self.uniformity_penalty
+        """C++: moses/moses/moses/types.h:127 composite_score::get_penalty
+
+        `complexity_penalty + uniformity_penalty` (types.h:129) is itself
+        `score_t + score_t` in C++ -- both operands are already `float`,
+        so C++ computes this SUM natively in float32, not promoted to
+        double. Even though both operands here are already narrowed
+        Python-side, their double-precision SUM is not guaranteed to
+        equal the float32 sum of the same two float32 values (this is the
+        same "apply your own rule to every score_t lvalue/parameter/
+        return" principle the fix-round-2 review asked to sweep for), so
+        the result is narrowed too.
+        """
+        return _to_score_t(self.complexity_penalty + self.uniformity_penalty)
 
     def update_penalized_score(self) -> None:
-        """C++: moses/moses/moses/types.h:135 composite_score::update_penalized_score
+        """C++: moses/moses/moses/types.h:166 composite_score::update_penalized_score
 
         Protected in C++ (called only from within the class itself, on
         every field mutation above); kept as a plain, un-prefixed method
@@ -259,7 +307,7 @@ class composite_score:
 
         TWO separate `score_t` narrowings, matching C++'s two separate
         float32 operations exactly (module docstring's numbered list,
-        `types.h:135` entry): the subtraction is one `score_t` value in
+        `types.h:166` entry): the subtraction is one `score_t` value in
         C++ (computed and stored before the `if`), and the following
         `*=`/`-=` against `uniformity_penalty` is a SECOND, independent
         float32 operation on top of that already-narrowed intermediate --
@@ -298,7 +346,7 @@ class composite_score:
         Non-identifier member, same convention as `__lt__` above (types.h:
         143 is the `bool operator==(const composite_score& r) const;`
         declaration). The real member is `composite_score::operator==`,
-        defined at types.cc:152-166 -- "Check for equality, to within
+        defined at types.cc:152-164 -- "Check for equality, to within
         floating-point error ... used in test cases -- compare equality
         to 7 decimal places" (types.h:142, types.cc:151's own comments).
         See the module-level DIVERGENCE note above for why that tolerance
