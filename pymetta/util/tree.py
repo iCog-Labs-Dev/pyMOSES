@@ -107,8 +107,33 @@ class tree:
         `tree_node` is never itself a legal `combo_tree` root *value*
         (`vertex` is `builtin | argument | contin_t | str`, vertex.py), so
         this dispatch cannot misfire against a genuine plain-data root.
+
+        FIX WAVE (task-1 review, Minor): a `root_data` whose own
+        `parent`/`prev_sibling`/`next_sibling` were poisoned to `_DEAD` by
+        `erase()`/`replace()`'s subtree-copy branch is rejected outright,
+        rather than silently deep-copying it as if it were still live.
+        Without this check, `tree(erased_node)` was a NEW way to read
+        through a dead handle that neither of those two methods' own
+        DIVERGENCE markers anticipated -- the whole point of poisoning
+        those links is that a stale handle fails loudly at the first
+        attempt to navigate through it, and this constructor was the one
+        path that never tried to navigate through them at all (it only
+        reads `.data`/`.first_child`, none of which `erase()`/`replace()`
+        poison), so it slipped past silently. A genuine, live tree root
+        (`parent is None`) is unaffected -- only `is _DEAD` specifically
+        is rejected, not `is None`.
         """
         if isinstance(root_data, tree_node):
+            if (
+                root_data.parent is _DEAD
+                or root_data.prev_sibling is _DEAD
+                or root_data.next_sibling is _DEAD
+            ):
+                raise ValueError(
+                    "tree(): cannot copy from an erased/detached node -- "
+                    "its own links are poisoned (see erase()/replace()'s "
+                    "DIVERGENCE markers)"
+                )
             self._root = tree_node(root_data.data)
             self._copy_descendants(self._root, root_data)
             return

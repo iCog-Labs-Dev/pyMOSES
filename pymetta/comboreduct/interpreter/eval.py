@@ -275,7 +275,21 @@ def eval_throws_vertex(bmap: list[vertex], it: tree_node) -> vertex:
                     return res
 
                 case builtin.sin:
-                    return math.sin(get_contin(eval_throws_binding(bmap, it.first_child)))
+                    x = get_contin(eval_throws_binding(bmap, it.first_child))
+                    # DIVERGENCE(C++ eval.cc:246): C's sin(inf)/sin(nan)
+                    # is nan, silently -- eval.cc itself never isnan/
+                    # isinf-checks sin()'s result the way log/exp/div
+                    # above do, so a nan here is a plain, valid returned
+                    # vertex, not raised. Python's math.sin instead
+                    # raises ValueError for a non-finite argument (task-1
+                    # review, Minor: a bare ValueError here would have
+                    # been indistinguishable from car/cdr's "not a
+                    # list!" ValueError below -- returning nan instead
+                    # removes the ambiguity by removing the exception).
+                    try:
+                        return math.sin(x)
+                    except ValueError:
+                        return math.nan
 
                 case builtin.rand:
                     return randGen().randfloat()

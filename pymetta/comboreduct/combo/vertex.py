@@ -38,7 +38,7 @@ from enum import IntEnum
 
 from pymetta.comboreduct.combo.argument import argument
 from pymetta.comboreduct.combo.common_def import contin_t
-from pymetta.util.tree import tree
+from pymetta.util.tree import tree, tree_node
 
 
 class builtin(IntEnum):
@@ -289,3 +289,111 @@ def vertex_equal(a: vertex, b: vertex) -> bool:
     if isinstance(a, str) != isinstance(b, str):
         return False
     return a == b
+
+
+# ---------------------------------------------------------------------------
+# lexicographic_subtree_order -- promoted here (not private to any one
+# reduct file) because THREE separate call sites across S7/S8 instantiate
+# it as `lexicographic_subtree_order<vertex>` against this exact vertex
+# type, and its actual output order is load-bearing, not incidental:
+#
+#   * combo/assumption.cc:36 (`insert_assumption`'s `Comp`)
+#   * reduct/general_rules.cc:106 (`reorder_commutative`'s
+#     `tr.sort_on_subtrees(..., lexicographic_subtree_order<vertex>())`)
+#     -- this one SORTS THE PRINTED CHILDREN of every commutative node in
+#     the final reduced tree, so its output feeds Task 6's byte-identical
+#     oracle directly.
+#   * reduct/logical_rules.h:185 (`reduce_to_enf`'s
+#     `std::set<sib_it, lexicographic_subtree_order<value_type>>`)
+#
+# RETRACTION: an earlier version of this comparator (when it lived only in
+# assumption.py) claimed the exact order was "not load-bearing... can be
+# changed if it's important" -- quoting C++'s own comment on the class,
+# but not checking whether OTHER callers depended on the actual order.
+# They do (`reorder_commutative` above). That claim is wrong and is
+# retracted here, not repeated.
+#
+# What IS still true, and is the actual scope limit of this port: only
+# RELATIVE order among this port's four vertex alternatives is
+# reproduced, matching their real position in the 14-way `boost::variant`
+# (vertex.h:128: `contin_t, enum_t, builtin, wild_card, argument, ...`),
+# not the literal `boost::variant::which()` integer. For the domain S7's
+# byte-identical oracle actually exercises -- boolean combo trees, whose
+# vertices are only ever `builtin` and `argument` (no `contin_t`/`enum_t`
+# literal ever appears as a clause in the boolean corpus) -- `builtin`
+# ranking below `argument` is the one relative-order fact that matters,
+# and it is verified correct against the real variant declaration order.
+# The `contin_t`/`str` ranks relative to `builtin`/`argument` are ported
+# the same way but have no boolean-corpus call site to verify against;
+# revisit if/when S14 (contin/mixed reduction, out of scope per CLAUDE.md)
+# needs this comparator over a genuinely mixed vertex set.
+# ---------------------------------------------------------------------------
+
+
+def vertex_rank(v: vertex) -> int:
+    """No direct C++ symbol: reproduces the RELATIVE order of this port's
+    four vertex alternatives as they appear in the real 14-way
+    `boost::variant` (vertex.h:128) -- `contin_t`=0, `enum_t`/`str`=1,
+    `builtin`=2, `argument`=3 (the intervening `wild_card`=3 in the real
+    variant is skipped, so `argument`'s rank here is 3, not 4; absolute
+    values are never compared or serialised, only relative order). See
+    this section's own module-level note for what is and is not verified
+    about this ordering.
+    """
+    if isinstance(v, contin_t):
+        return 0
+    if isinstance(v, str):
+        return 1
+    if isinstance(v, builtin):
+        return 2
+    if isinstance(v, argument):
+        return 3
+    raise TypeError(f"vertex {v!r} is not one of this port's four alternatives")
+
+
+def vertex_less(v1: vertex, v2: vertex) -> bool:
+    """No direct C++ symbol: a total order over single vertices standing
+    in for `boost::variant`'s own default `operator<` (rank/`which()`
+    first, then each alternative's own `operator<` for a same-rank pair)
+    -- `argument.__lt__` (`absolute_value_order`, argument.py) for two
+    arguments, plain `<` for two `contin_t`/`str`/`builtin` values (the
+    last by ordinal, `builtin` being an `IntEnum`). Safe by construction:
+    `vertex_rank` already confirmed both operands share the same Python
+    type before either `<` here ever runs, so this never risks the
+    `contin_t`/`builtin` cross-type trap `vertex_equal` guards against.
+    """
+    r1, r2 = vertex_rank(v1), vertex_rank(v2)
+    if r1 != r2:
+        return r1 < r2
+    return v1 < v2
+
+
+def lexicographic_subtree_cmp(n1: tree_node, n2: tree_node) -> int:
+    """C++: opencog/util/tree.h:3277 lexicographic_subtree_order::cmp
+
+    Recursive pre-order comparison: `1` if `n1`'s subtree sorts first,
+    `-1` if `n2`'s does, `0` if they are structurally equal. A node with
+    fewer children than its counterpart (once their own vertices compare
+    equal) sorts first -- ported directly from the C++ recursion using
+    this port's `first_child`/`next_sibling` node links in place of
+    `sibling_iterator`.
+    """
+    if vertex_less(n1.data, n2.data):
+        return 1
+    if vertex_less(n2.data, n1.data):
+        return -1
+    sib1, sib2 = n1.first_child, n2.first_child
+    while True:
+        if sib1 is None:
+            return 0 if sib2 is None else 1
+        if sib2 is None:
+            return -1
+        res = lexicographic_subtree_cmp(sib1, sib2)
+        if res != 0:
+            return res
+        sib1, sib2 = sib1.next_sibling, sib2.next_sibling
+
+
+def lexicographic_subtree_less(n1: tree_node, n2: tree_node) -> bool:
+    """C++: opencog/util/tree.h:3273 lexicographic_subtree_order::operator()"""
+    return lexicographic_subtree_cmp(n1, n2) > 0

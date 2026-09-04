@@ -472,3 +472,57 @@ def test_arity_of_a_tree_with_no_arguments_is_zero():
 
 def test_arity_is_the_largest_absolute_argument_index():
     assert arity(str_to_combo_tree("and($1 !$3 $2)")) == 3
+
+
+# ---------------------------------------------------------------------------
+# vertex_equal guards -- task-1 review, Important #5: replacing any of
+# eval.py's 8 `vertex_equal(...)` call sites with bare `==` left every
+# other test in this file green (contin_t values never coincidentally hit
+# a builtin's ordinal by chance in the other tests above). Each test below
+# is a differential: it constructs a contin_t operand whose float value
+# EQUALS the ordinal of the specific builtin literal that call site
+# compares against (builtin.logical_false=2, logical_true=1, list=15), so
+# a bare `==` in place of `vertex_equal` at that site would misroute the
+# call and produce the WRONG value asserted here.
+# ---------------------------------------------------------------------------
+
+
+def test_logical_and_guard_rejects_a_contin_that_numerically_equals_logical_false():
+    # eval.cc's and()-loop compares each child against id::logical_false
+    # (ordinal 2). A bare `==` would let a lone contin_t 2.0 child
+    # falsely short-circuit and() to logical_false; vertex_equal must not.
+    assert eval_binding([2.0], str_to_combo_tree("and($1)")) == builtin.logical_true
+
+
+def test_logical_or_guard_rejects_a_contin_that_numerically_equals_logical_true():
+    # Symmetric case for the or()-loop's comparison against id::logical_true
+    # (ordinal 1).
+    assert eval_binding([1.0], str_to_combo_tree("or($1)")) == builtin.logical_false
+
+
+def test_impulse_guard_rejects_a_contin_that_numerically_equals_logical_true():
+    # impulse's `i == id::logical_true` check (ordinal 1).
+    assert eval_binding([1.0], str_to_combo_tree("impulse($1)")) == 0.0
+
+
+def test_cond_guard_rejects_a_contin_that_numerically_equals_logical_true():
+    # cond's `vcond == id::logical_true` check (ordinal 1): a false-typed
+    # "true" condition must fall through to the else clause, not select
+    # the first consequent.
+    tr = str_to_combo_tree("cond($1 100 200)")
+    assert eval_binding([1.0], tr) == 200.0
+
+
+def test_car_guard_rejects_a_contin_that_numerically_equals_the_list_ordinal():
+    # car's `*lp != id::list` check (builtin.list's ordinal is 15). A bare
+    # `==` here would treat a bare contin_t 15.0 leaf as already being a
+    # list, skip evaluating/re-checking it, and return an empty list
+    # instead of raising "not a list!".
+    with pytest.raises(ValueError, match="not a list"):
+        eval_throws_binding([], str_to_combo_tree("car(15)"))
+
+
+def test_cdr_guard_rejects_a_contin_that_numerically_equals_the_list_ordinal():
+    # Symmetric case for cdr's own `*top != id::list` check.
+    with pytest.raises(ValueError, match="not a list"):
+        eval_throws_binding([], str_to_combo_tree("cdr(15)"))

@@ -972,3 +972,43 @@ def test_tree_constructed_from_a_leaf_node_has_no_children():
     validate(copy)
     assert [n.data for n in copy] == ["leaf"]
     assert copy.begin().first_child is None
+
+
+def test_tree_constructed_from_an_erased_node_raises():
+    # task-1 review, Minor: without this check, tree(erased_node) was a
+    # new silent read path through a dead handle -- erase()'s whole point
+    # is that a stale handle fails LOUDLY at the first attempt to
+    # navigate through it, and this constructor previously never tried
+    # (it only reads .data/.first_child, neither of which erase() itself
+    # poisons), so it slipped through undetected.
+    t = tree("root")
+    t.append_child(t.begin(), "a")
+    b = t.append_child(t.begin(), "b")
+    t.append_child(t.begin(), "c")
+    t.erase(b)
+
+    with pytest.raises(ValueError):
+        tree(b)
+
+
+def test_tree_constructed_from_a_replaced_nodes_discarded_handle_raises():
+    t = tree("root")
+    t.append_child(t.begin(), "a")
+    b = t.append_child(t.begin(), "b")
+    t.append_child(t.begin(), "c")
+    src = tree("s")
+    src.append_child(src.begin(), "s1")
+    t.replace(b, src.begin())
+
+    with pytest.raises(ValueError):
+        tree(b)
+
+
+def test_tree_constructed_from_a_genuine_root_is_still_fine():
+    # The erased-handle guard must not misfire against a legitimately
+    # rootless node (parent is None, not _DEAD) -- this is the ordinary,
+    # everyday case tree(node) exists for.
+    src = tree("root")
+    src.append_child(src.begin(), "a")
+    copy = tree(src.begin())
+    assert [n.data for n in copy] == ["root", "a"]
