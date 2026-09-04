@@ -498,7 +498,39 @@ trailers. The spec commit precedes S0.
 
 ## 12. Backlog — input for the next spec cycle
 
-Not designed here. Listed so the next planning cycle has its input, in dependency order.
+**Superseded in part (2026-09-04).** `docs/MODULE-COVERAGE.md` is now the
+authoritative accounting: 243 files, every one assigned a status, none
+unassigned. It found ten items this backlog did not cover and four ordering
+hazards. Both are recorded in §12.1 below; the table that follows is retained
+for its per-slice detail but must be read together with them.
+
+### 12.1 Corrections from the coverage inventory
+
+**Ordering hazards — these change slice scope:**
+
+| Hazard | Effect |
+|---|---|
+| `general_rules.cc` calls `eval.cc` | **S7 must include `comboreduct/interpreter/eval.py`.** It was not in the original S7 list. |
+| `build_knobs`'s constructor and signature helpers need `type_checker/type_tree.h` | **S8 must include the type checker**, which §3 declared out of scope for the foundation. That exclusion was correct for S0–S6 and is wrong from S8 onward. |
+| `metapopulation.h` unconditionally `#include`s `ensemble.h` (a P2 item) | S10 cannot compile-by-analogy without at least a deliberate ensemble stub. Decide stub-vs-port when S10 is specced. |
+| `moses_main.h` pulls in the three non-hill-climbing optimizers and `ss_bscore.h` | Softer — these can be deliberately stubbed at S11, but the stubs must be explicit and tested, not implicit. |
+
+**Items with no slice, now assigned** (see the inventory for the per-file rows):
+the enum knob-building path; `distributed_moses.cc` (a real, unconditionally
+compiled `-j host:N` mechanism — *not* MPI, and not dead); `partial.cc`
+("leave well-enough alone"); ANN support (tested in classic, absent from the
+P2 list); several `bscores.h`/`scoring_base.h` classes (logical, enum,
+interesting-predicate and cluster bscores, and `bscore_ctable_base`);
+`fold_reduction`/`fold_rules`; `similarity.cc`; and `demo-problems.cc`, which
+S13's exit criterion did not mention.
+
+**Honest completion figure.** 9 files (4,173 lines) are fully ported with no
+named gap; another 20 (10,076 lines) are PARTIAL — they have Python behind
+them but carry a documented missing piece. So 32.6% of classic's lines have
+some Python, and 6.7% are complete. The foundation is a real base, not a
+substantial fraction of MOSES.
+
+### 12.2 Original slice table
 
 | Slice | Content | Oracle |
 |---|---|---|
