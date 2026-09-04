@@ -80,6 +80,30 @@ struct step_arg : public crule<step_arg> {
 };
 
 // ---------------------------------------------------------------------
+// step_target: mutating probe rule for the NON-ROOT `it` question --
+// always bumps a FIXED target iterator (captured at construction,
+// independent of whatever `it` the combinator actually passes),
+// regardless of the point of application. Used to check what
+// `iterative`/`assum_iterative` do when the wrapped rule mutates
+// something OUTSIDE `it`'s own subtree.
+// ---------------------------------------------------------------------
+struct step_target : public crule<step_target> {
+    combo_tree::iterator target;
+    int cap;
+    int& calls;
+    step_target(combo_tree::iterator target_, int cap_, int& calls_)
+        : crule<step_target>::crule("step_target"),
+          target(target_), cap(cap_), calls(calls_) {}
+    void operator()(combo_tree& tr, combo_tree::iterator it) const {
+        ++calls;
+        argument* a = boost::get<argument>(&*target);
+        if (a && a->idx < cap) {
+            *target = argument(a->idx + 1);
+        }
+    }
+};
+
+// ---------------------------------------------------------------------
 // grow_assumptions: mutating probe rule for `assum_iterative`'s fixpoint.
 // Inserts one new (distinct) assumption per call until `tr` already has
 // `cap` assumptions, then no-ops. Never touches the main tree.
@@ -225,6 +249,44 @@ int main()
         ostringstream oss;
         ostream_combo_tree(oss, tr);
         cout << "downwards(live-mutation) final tree=" << oss.str() << endl;
+    }
+
+    // ---- 9. iterative at a NON-ROOT it, rule mutates a SIBLING (outside
+    //         it's own subtree): iterative's fixpoint check is local to
+    //         `it` (`tr.equal_subtree(it, tmp.begin())`), so it must not
+    //         even notice the sibling changing -- stop after 1 call.
+    {
+        combo_tree tr(vertex(id::logical_and));
+        combo_tree::iterator root = tr.begin();
+        combo_tree::iterator c1 = tr.append_child(root, vertex(argument(1)));
+        combo_tree::iterator c2 = tr.append_child(root, vertex(argument(2)));
+        tr.append_child(root, vertex(argument(3)));
+        int calls = 0;
+        const rule& r_it_nr = iterative(step_target(c1, 4, calls));
+        r_it_nr(tr, c2);  // it = c2 (middle child, non-root); rule mutates c1
+        ostringstream oss;
+        ostream_combo_tree(oss, tr);
+        cout << "iterative(non-root it, mutate sibling): calls=" << calls
+             << " final=" << oss.str() << endl;
+    }
+
+    // ---- 10. assum_iterative at the SAME non-root it, SAME sibling-only
+    //          mutation: assum_iterative's check is the WHOLE tree at
+    //          tr.begin() regardless of `it`, so it DOES see the sibling
+    //          change and keeps iterating until it stops.
+    {
+        combo_tree tr(vertex(id::logical_and));
+        combo_tree::iterator root = tr.begin();
+        combo_tree::iterator c1 = tr.append_child(root, vertex(argument(1)));
+        combo_tree::iterator c2 = tr.append_child(root, vertex(argument(2)));
+        tr.append_child(root, vertex(argument(3)));
+        int calls = 0;
+        const rule& r_ai_nr = assum_iterative(step_target(c1, 4, calls));
+        r_ai_nr(tr, c2);  // it = c2 (middle child, non-root); rule mutates c1
+        ostringstream oss;
+        ostream_combo_tree(oss, tr);
+        cout << "assum_iterative(non-root it, mutate sibling): calls=" << calls
+             << " final=" << oss.str() << endl;
     }
 
     return 0;

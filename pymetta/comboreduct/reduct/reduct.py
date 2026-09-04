@@ -43,6 +43,14 @@ from abc import ABC, abstractmethod
 from pymetta.comboreduct.combo.vertex import combo_tree
 from pymetta.util.tree import tree_node
 
+# No direct C++ symbol. Sentinel for `rule.__call__`'s omitted-`it` default
+# -- see that method's own docstring (FIX WAVE, Task 2 review, Important 3)
+# for why plain `None` cannot serve as the default: `tree.next_sibling()`
+# and friends legitimately return `None` for "no such node", so an explicit
+# `it=None` from a real caller must be a hard error, not silently
+# indistinguishable from "no `it` given at all".
+_NO_IT = object()
+
 
 class rule(ABC):
     """C++: moses/comboreduct/reduct/reduct.h:35 rule
@@ -72,7 +80,7 @@ class rule(ABC):
         call signature" a caller actually uses.
         """
 
-    def __call__(self, tr: combo_tree, it: tree_node | None = None) -> None:
+    def __call__(self, tr: combo_tree, it: tree_node | None = _NO_IT) -> None:
         """C++: moses/comboreduct/reduct/reduct.h:44 rule::operator()
         (combo_tree&) [concrete] -- the pure virtual half of the same
         overloaded C++ call operator (reduct.h:41) is reached here via
@@ -81,17 +89,53 @@ class rule(ABC):
         Covers both C++ overloads in one Python method, the same
         convention this port uses throughout for an overloaded C++ call
         operator (e.g. interpreter.py's `boolean_interpreter.__call__`):
-        `it is None` selects the 1-arg overload -- if `tr` is not empty,
+        `it` OMITTED selects the 1-arg overload -- if `tr` is not empty,
         recurse with `it = tr.begin()` (reduct.h:46-47, `(*this)(tr,
         tr.begin())`, itself a call THROUGH this same method, landing on
-        the `it is not None` branch below on the way back in). An empty
+        the "real `it` given" branch below on the way back in). An empty
         `tr` with no `it` given is a silent no-op, matching C++'s `if
         (!tr.empty())` guard exactly.
+
+        FIX WAVE (Task 2 review, Important 3): the default was plain
+        `None` in an earlier version of this method, which made an
+        EXPLICIT `r(tr, None)` indistinguishable from `r(tr)` -- silently
+        taking the 1-arg, tr.begin()-recursing path instead of raising.
+        C++ cannot conflate these: `operator()(combo_tree&)` and
+        `operator()(combo_tree&, combo_tree::iterator)` are two distinct,
+        statically-resolved overloads, so passing a null-equivalent
+        iterator explicitly would go through the 2-arg one and either
+        crash or misbehave -- never silently redirect to the root. This
+        matters because a real caller CAN legitimately end up with a
+        `None` `it` without meaning "omit it": `tree.next_sibling(x)`
+        returns `None` for "no such node" (end of a sibling list), so a
+        rule written as `r(tr, tr.next_sibling(x))` at the end of a list
+        would, under the old default, silently reduce from `tr.begin()`
+        instead of failing -- a wrong reduction with no error, exactly
+        the class of bug this port's `# DIVERGENCE` / "fail loudly rather
+        than silently corrupt" convention exists to avoid (see e.g.
+        tree.py's own erase()/replace() poisoning). `_NO_IT` (a private
+        sentinel `object()`, reduct.py module level) now stands in for
+        "omitted"; an explicitly passed `None` is rejected HERE, directly
+        and immediately, rather than left to whatever a given subclass's
+        `apply` happens to do with it -- `sequential` with zero wrapped
+        rules, for instance, would loop zero times and return silently
+        with no error at all if `None` were simply forwarded, which would
+        have reintroduced exactly the "no error" failure mode this fix is
+        for.
         """
-        if it is None:
+        if it is _NO_IT:
             if not tr.empty():
                 self(tr, tr.begin())
             return
+        if it is None:
+            raise ValueError(
+                "rule.__call__: it is None -- omit it entirely for the "
+                "1-arg overload (reduct.h:44, applies at tr.begin()), or "
+                "pass a real node. A None it usually means the caller's "
+                "own node lookup (e.g. tree.next_sibling()) came up "
+                "empty and should be checked before calling the rule, "
+                "not passed through."
+            )
         self.apply(tr, it)
 
     def get_name(self) -> str:

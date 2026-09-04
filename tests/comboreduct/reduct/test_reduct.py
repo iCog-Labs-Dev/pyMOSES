@@ -36,12 +36,21 @@ def test_call_with_explicit_it_dispatches_straight_to_apply():
     """C++: reduct.h:41 rule::operator()(combo_tree&, combo_tree::iterator)
     -- the 2-arg call never consults `tr.empty()`, it goes straight to the
     override.
+
+    FIX WAVE (Task 2 review, Important 1): the original version of this
+    test passed `tr.begin()` as `it` -- indistinguishable from `__call__`
+    silently IGNORING `it` and always applying at the root anyway. Passing
+    a NON-root node (`tr.begin()`'s second child) and asserting `apply`
+    received exactly THAT node's data (not the root's) actually pins that
+    `it` is used, not merely accepted.
     """
     tr = str_to_combo_tree("and($1 $2)")
+    non_root = list(tr.children(tr.begin()))[1]  # the second child, $2
     log = []
     r = _RecordApply(log)
-    r(tr, tr.begin())
-    assert log == [tr.begin().data]
+    r(tr, non_root)
+    assert log == [non_root.data]
+    assert log != [tr.begin().data]
 
 
 def test_call_with_one_arg_resolves_to_tr_begin_when_non_empty():
@@ -64,6 +73,21 @@ def test_call_with_one_arg_on_an_empty_tree_is_a_silent_no_op():
     r = _RecordApply(log)
     r(tr)
     assert log == []
+
+
+def test_call_with_explicit_none_it_raises():
+    """FIX WAVE (Task 2 review, Important 3): an explicit `it=None` must
+    be rejected, not silently treated the same as omitting `it` entirely
+    (which would silently apply at `tr.begin()` instead -- exactly the
+    hazard a real `r(tr, tree.next_sibling(x))` call at the end of a
+    sibling list would hit, since `next_sibling` legitimately returns
+    `None` for "no such node"). C++ has no way to conflate these: the two
+    `operator()` overloads are distinct at compile time.
+    """
+    tr = str_to_combo_tree("and($1 $2)")
+    r = _RecordApply([])
+    with pytest.raises(ValueError):
+        r(tr, None)
 
 
 def test_get_name_returns_the_constructor_name():

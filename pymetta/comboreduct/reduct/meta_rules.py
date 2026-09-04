@@ -81,6 +81,24 @@ def _get_output_type_tree(v):
     (an S8 ordering hazard, not a silent gap). Reached only from
     `downwards.apply`'s typed branch, which none of Task 2's own tests
     exercise.
+
+    # DIVERGENCE(C++ moses/comboreduct/reduct/meta_rules.cc:101): the
+    # typed-dispatch comparison `get_output_type_tree(*it) ==
+    # type_tree(output)` is not implemented -- this stub raises instead
+    # of comparing. Observable impact: `downwards(rule, some_real_type)`
+    # (not the default untyped `downwards(rule)`) raises
+    # `NotImplementedError` on first use instead of filtering by output
+    # type, for EVERY real (non-`unknown_type`) type argument. Added (Task
+    # 2 review, Important 2) specifically so this shows up in
+    # `docs/ALIGNMENT.md`'s divergence table -- a bare `NotImplementedError`
+    # with no marker left `meta_rules.py` reporting 100% coverage with
+    # zero divergences, blind to the file's largest known gap. `type_
+    # checker/type_tree.{h,cc}` is PLANNED: S8 per docs/MODULE-COVERAGE.md
+    # (the same kind of ordering hazard already documented there for
+    # `build_knobs`); Task 5 (`logical_reduction.py`, still S7 scope)
+    # constructs `downwards(rule, id::boolean_type)` extensively and WILL
+    # hit this -- see this module's own docstring and task-2-report.md's
+    # Concerns section.
     """
     raise NotImplementedError(
         "downwards' typed-dispatch branch needs comboreduct/type_checker/"

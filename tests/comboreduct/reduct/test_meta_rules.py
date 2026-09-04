@@ -13,10 +13,12 @@ $CLASSIC's compiled `libcomboreduct.so` (bounded:
 and meta_rules.py's own module docstring for the full transcript.
 """
 
+import pytest
+
 from pymetta.comboreduct.combo.argument import argument
 from pymetta.comboreduct.combo.assumption import insert_assumption
 from pymetta.comboreduct.combo.iostream_combo import combo_tree_to_str, str_to_combo_tree
-from pymetta.comboreduct.combo.vertex import combo_tree
+from pymetta.comboreduct.combo.vertex import builtin, combo_tree
 from pymetta.comboreduct.reduct.meta_rules import (
     assum_iterative,
     downwards,
@@ -25,6 +27,7 @@ from pymetta.comboreduct.reduct.meta_rules import (
     upwards,
 )
 from pymetta.comboreduct.reduct.reduct import rule
+from pymetta.comboreduct.table.table import type_node
 
 
 class _RecordVisit(rule):
@@ -63,6 +66,27 @@ class _StepArg(rule):
         self.calls[0] += 1
         if isinstance(it.data, argument) and it.data.idx < self.cap:
             tr.replace(it, argument(it.data.idx + 1))
+
+
+class _StepFixedTarget(rule):
+    """C++ probe counterpart: `step_target` (tools/cpp_probe/
+    meta_rules_probe.cc). Always bumps a FIXED node captured at
+    construction, regardless of the point of application `it` the
+    combinator actually passes -- used to check what `iterative`/
+    `assum_iterative` do when the wrapped rule mutates something OUTSIDE
+    `it`'s own subtree (Task 2 review, Important 1).
+    """
+
+    def __init__(self, target, cap, calls, name="step_target"):
+        super().__init__(name)
+        self.target = target
+        self.cap = cap
+        self.calls = calls
+
+    def apply(self, tr, it):
+        self.calls[0] += 1
+        if isinstance(self.target.data, argument) and self.target.data.idx < self.cap:
+            tr.replace(self.target, argument(self.target.data.idx + 1))
 
 
 class _GrowAssumptions(rule):
@@ -165,6 +189,23 @@ def test_sequential_applies_each_rule_in_order_at_the_same_node():
     assert log == ["A:and($1 $2) ", "B:and($1 $2) ", "C:and($1 $2) "]
 
 
+def test_sequential_propagates_a_mutation_from_one_rule_to_the_next():
+    """Minor (Task 2 review): every prior `sequential` test used only
+    non-mutating `_RecordVisit` sub-rules, leaving the actual PROPAGATION
+    of a mutation from one wrapped rule to the next entirely unpinned --
+    the first rule mutates `it` in place; the second, applied right after
+    at the SAME live `tr`/`it` (`r(tr, it)`, meta_rules.cc:122-128, not a
+    snapshot each takes independently), must observe the POST-mutation
+    state.
+    """
+    tr = str_to_combo_tree("$1")
+    calls = [0]
+    log = []
+    sequential(_StepArg(3, calls), _RecordVisit(log))(tr)
+    assert calls[0] == 1
+    assert log == ["$2 "]  # the record rule sees $1 already bumped to $2
+
+
 def test_downwards_of_sequential_interleaves_both_rules_at_each_node():
     """The combinators compose: `downwards` picks WHERE, `sequential`
     picks WHAT happens at each of those points, fully, before advancing.
@@ -196,6 +237,40 @@ def test_downwards_is_a_live_walk_a_mutation_mid_pass_is_visited():
 
 
 # ---------------------------------------------------------------------------
+# downwards: the typed-dispatch branch (Task 2 review, Important 2)
+# ---------------------------------------------------------------------------
+
+
+def test_downwards_typed_branch_raises_notimplementederror():
+    """The typed comparison (`get_output_type_tree(*it) == type_tree
+    (output)`, meta_rules.cc:101) needs type_checker, PLANNED: S8 -- see
+    `_get_output_type_tree`'s own `# DIVERGENCE` marker. Any real
+    (non-`unknown_type`) type argument must fail loudly on first use, not
+    silently skip every node or silently visit all of them.
+    """
+    tr = str_to_combo_tree("and($1 $2)")
+    log = []
+    with pytest.raises(NotImplementedError):
+        downwards(_RecordVisit(log), type_node.boolean_type)(tr)
+    # the wrapped rule must never have been reached before the raise
+    assert log == []
+
+
+def test_downwards_ignores_output_when_input_is_unknown_type():
+    """C++'s own asymmetric check (`if (input == unknown_type_tree)`,
+    meta_rules.cc:89) tests ONLY `input` -- `output` is never even
+    consulted when `input` is `unknown_type`, so the untyped (visit
+    everything) path is taken even if `output` is set to a real type via
+    the 3-arg constructor. This must NOT raise (the typed branch, and
+    `_get_output_type_tree` with it, must never be reached).
+    """
+    tr = str_to_combo_tree("and($1 $2)")
+    log = []
+    downwards(_RecordVisit(log), type_node.unknown_type, type_node.boolean_type)(tr)
+    assert log == ["and($1 $2) ", "$1 ", "$2 "]
+
+
+# ---------------------------------------------------------------------------
 # iterative: fixpoint AT the point of application
 # ---------------------------------------------------------------------------
 
@@ -218,6 +293,45 @@ def test_iterative_calls_the_wrapped_rule_at_least_once():
     iterative(_StepArg(0, calls))(tr)
     assert calls[0] == 1
     assert combo_tree_to_str(tr) == "$1 "
+
+
+def _build_and_of_three_args():
+    """`and($1 $2 $3)`, built node by node so the caller keeps direct
+    handles to each child (mirroring `tools/cpp_probe/meta_rules_probe.cc`
+    cases 9/10, which need the same direct handles in C++).
+    """
+    tr = combo_tree(builtin.logical_and)
+    root = tr.begin()
+    c1 = tr.append_child(root, argument(1))
+    c2 = tr.append_child(root, argument(2))
+    c3 = tr.append_child(root, argument(3))
+    return tr, c1, c2, c3
+
+
+def test_iterative_at_a_non_root_it_ignores_mutations_outside_it():
+    """Task 2 review, Important 1: NOTHING in this file previously passed
+    a non-root point of application -- `iterative`'s "compares AT `it`"
+    scope (vs `assum_iterative`'s "compares the whole tree") was entirely
+    unpinned; swapping either combinator's comparison scope to the
+    other's left all prior tests green. `it = c2` (the middle child, a
+    non-root node with real siblings); the wrapped rule mutates `c1` (a
+    SIBLING of `it`, never `it` itself). `iterative`'s fixpoint check
+    (`tr.equal_subtree(it, tmp.begin())`, meta_rules.cc:139) is LOCAL to
+    `it`'s own subtree, so it must never even notice `c1` changing --
+    exactly one call, even though the rule itself, if left running,
+    would keep mutating `c1` for another three calls.
+
+    Verified against the real library
+    (`tools/cpp_probe/meta_rules_probe.cc`, case 9): `calls=1
+    final=and($2 $2 $3)` -- one call DOES happen (do-while) and DOES
+    mutate `c1` once (1->2), but the loop stops right there because the
+    check it actually runs never looks at `c1` at all.
+    """
+    tr, c1, c2, _c3 = _build_and_of_three_args()
+    calls = [0]
+    iterative(_StepFixedTarget(c1, 4, calls))(tr, c2)
+    assert calls[0] == 1
+    assert combo_tree_to_str(tr) == "and($2 $2 $3) "
 
 
 # ---------------------------------------------------------------------------
@@ -255,3 +369,26 @@ def test_assum_iterative_stops_after_one_call_when_nothing_changes():
     assum_iterative(_GrowAssumptions(0, calls, 10))(tr)  # cap=0: instant no-op
     assert calls[0] == 1
     assert assumption_count(tr) == 1
+
+
+def test_assum_iterative_at_a_non_root_it_still_sees_the_whole_tree():
+    """Counterpart of `test_iterative_at_a_non_root_it_ignores_mutations_
+    outside_it`, same tree/rule/target, same `it = c2`: `assum_iterative`'s
+    fixpoint check compares the WHOLE main tree at `tr.begin()`
+    (`tr!=tmp`, meta_rules.cc:150 -- `tree<T>::operator!=`, confirmed by
+    reading it directly to be `!equal_subtree(t1.begin(), t2.begin())`,
+    $COGUTIL's opencog/util/tree.h:3011-3018), REGARDLESS of `it`. So,
+    unlike `iterative` above, it DOES notice `c1` changing even though
+    `it = c2` never changes itself, and keeps iterating until `c1`
+    actually stops (cap=4): 1->2, 2->3, 3->4, 4->4 (no-op, detected) = 4
+    calls.
+
+    Verified against the real library
+    (`tools/cpp_probe/meta_rules_probe.cc`, case 10): `calls=4
+    final=and($4 $2 $3)`.
+    """
+    tr, c1, c2, _c3 = _build_and_of_three_args()
+    calls = [0]
+    assum_iterative(_StepFixedTarget(c1, 4, calls))(tr, c2)
+    assert calls[0] == 4
+    assert combo_tree_to_str(tr) == "and($4 $2 $3) "
