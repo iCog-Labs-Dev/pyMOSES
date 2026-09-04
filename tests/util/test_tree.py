@@ -932,3 +932,43 @@ def test_replace_data_in_place_does_not_poison_the_reused_node():
     assert b.data == "B2"
     assert b.next_sibling.data == "c"
     assert b.prev_sibling.data == "a"
+
+
+def test_tree_constructed_from_a_node_deep_copies_its_subtree():
+    """C++: opencog/util/tree.h:658 tree(const iterator_base&) -- S7's
+    eval.py/assumption.py both need this "copy a node's subtree into a
+    fresh standalone tree" overload (see tree.py's __init__ docstring)."""
+    src = tree("root")
+    a = src.append_child(src.begin(), "a")
+    src.append_child(a, "a1")
+    src.append_child(src.begin(), "b")
+
+    copy = tree(a)
+    validate(copy)
+    assert [n.data for n in copy] == ["a", "a1"]
+    assert copy.begin() is not a
+
+
+def test_tree_constructed_from_a_node_is_independent_of_the_source():
+    """The copy is a genuine deep copy, not aliased: mutating the source
+    after construction must not be visible in the new tree, and vice
+    versa."""
+    src = tree("root")
+    a = src.append_child(src.begin(), "a")
+    src.append_child(a, "a1")
+
+    copy = tree(a)
+    src.append_child(a, "a2")
+    assert [n.data for n in copy] == ["a", "a1"]
+
+    copy.append_child(copy.begin(), "only-in-copy")
+    assert [n.data for n in src] == ["root", "a", "a1", "a2"]
+
+
+def test_tree_constructed_from_a_leaf_node_has_no_children():
+    src = tree("root")
+    leaf = src.append_child(src.begin(), "leaf")
+    copy = tree(leaf)
+    validate(copy)
+    assert [n.data for n in copy] == ["leaf"]
+    assert copy.begin().first_child is None

@@ -227,3 +227,65 @@ def negate_vertex(v: vertex) -> vertex:
     raise AssertionError(
         f'builtin "{v.name}" should be id::logical_true or id::logical_false'
     )
+
+
+def is_enum_type(v: vertex) -> bool:
+    """C++: moses/comboreduct/combo/vertex.cc:87 is_enum_type
+
+    `boost::get<enum_t>(&v)` -- specifically the `enum_t` alternative, not
+    any `str`. Added for Task 1 (interpreter/eval.py's `eval_throws_vertex`,
+    eval.cc:272, mirrors "enums are constants too"). Deliberately narrower
+    than `isinstance(v, str)`: a bare, non-`enum_t` `str` in this port's
+    vertex union also stands for `definite_object`/`message` (see this
+    module's docstring), which are genuinely different `boost::variant`
+    alternatives in C++ and do not satisfy `is_enum_type` there either.
+    `enum_t` subclassing `str` (rather than being a disjoint type) is
+    exactly why this needs its own function instead of reusing `is_contin`
+    et al.'s plain-`isinstance` shape unguarded.
+    """
+    return isinstance(v, enum_t)
+
+
+def bool_to_vertex(b: bool) -> vertex:
+    """C++: moses/comboreduct/combo/vertex.h:698 bool_to_vertex
+
+    Inlined in C++ as `bool_to_builtin(b)` (vertex.h:694-696:
+    `b ? id::logical_true : id::logical_false`); ported as one function
+    since this port has no separate `bool_to_builtin` call site to
+    preserve. Added for Task 1 (interpreter/eval.py's `eval_throws_vertex`,
+    eval.cc:169, the `greater_than_zero` case).
+    """
+    return builtin.logical_true if b else builtin.logical_false
+
+
+def vertex_equal(a: vertex, b: vertex) -> bool:
+    """No direct C++ symbol: `vertex` (vertex.h:128) is a `boost::variant`,
+    and `boost::variant<...>::operator==` is compiler-generated -- it
+    compares which alternative is *held* (`which()`) before ever comparing
+    a value, so it is unconditionally `false` whenever `a` and `b` hold
+    different alternatives. This reproduces exactly that discrimination
+    for this port's four surviving alternatives.
+
+    This closes the trap the task brief names directly: `contin_t` is a
+    bare `float` and `builtin` an `IntEnum`, so bare `a == b` between one
+    of each can be `True` in Python (`1.0 == builtin.logical_true`) purely
+    because their ordinals coincide -- something `boost::variant` can
+    never do. `argument.__eq__` (argument.py) and `str.__eq__` already
+    return `NotImplemented`/`False` for a mismatched type on their own, so
+    only the `builtin`/`contin_t` pair is actually at risk here -- but all
+    four alternatives are guarded uniformly so a future reader does not
+    have to rediscover which pair was the dangerous one. Use this (not
+    bare `==`) anywhere a vertex of *unproven* type is compared against a
+    specific value, e.g. a sub-evaluation result compared against
+    `builtin.logical_true` -- see interpreter.py's own module docstring
+    and eval.py's call sites for the general rule.
+    """
+    if isinstance(a, builtin) != isinstance(b, builtin):
+        return False
+    if isinstance(a, contin_t) != isinstance(b, contin_t):
+        return False
+    if isinstance(a, argument) != isinstance(b, argument):
+        return False
+    if isinstance(a, str) != isinstance(b, str):
+        return False
+    return a == b

@@ -90,7 +90,28 @@ class tree:
         means "start empty," mirroring the default-constructed C++ tree --
         this signature has no way to distinguish that from "a root whose
         data happens to be Python None," matching what the brief asks for.
+
+        A third C++ overload is folded in here too:
+        `explicit tree(const iterator_base&)` (tree.h:131, implemented
+        tree.h:658 as `set_head(*other); replace(begin(), other);`) --
+        deep-copies `other`'s entire subtree into this new, standalone
+        tree. Added for S7 (Task 1's eval.py -- eval.cc's `combo_tree
+        tr(it)`/`combo_tree cb_tr(f)` in the foldr/foldl cases -- and
+        assumption.py's copy-on-insert), the same way Task 0 added the
+        subtree-rooted post-order walk: a real, narrowly-scoped C++
+        constructor this port was missing, discovered by a task that
+        needs it. Collapsed into this one constructor rather than a
+        second method, the same convention `boolean_interpreter.__call__`
+        (interpreter.py) uses for overloaded C++ methods -- Python
+        dispatches on `root_data`'s type instead of overloading. A
+        `tree_node` is never itself a legal `combo_tree` root *value*
+        (`vertex` is `builtin | argument | contin_t | str`, vertex.py), so
+        this dispatch cannot misfire against a genuine plain-data root.
         """
+        if isinstance(root_data, tree_node):
+            self._root = tree_node(root_data.data)
+            self._copy_descendants(self._root, root_data)
+            return
         self._root = None if root_data is None else tree_node(root_data)
 
     def __class_getitem__(cls, item):
