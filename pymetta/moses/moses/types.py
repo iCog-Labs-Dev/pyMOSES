@@ -20,46 +20,81 @@ is out of scope for this task and this whole S0-S6 cycle:
 `score_t` (a C++ `typedef float`, i.e. IEEE-754 binary32) and `count_t`
 (CTable's `typedef double`, table.h:494) are DIFFERENT C++ types that this
 port cannot distinguish at the type-system level -- Python has one
-built-in floating-point type, and every score_t-typed value here is a
-plain Python `float` (64-bit, i.e. what C++ calls `double`).
+built-in floating-point type, so every score_t-typed value here is held
+as a plain Python `float` (64-bit, i.e. what C++ calls `double`) -- BUT,
+unlike an ordinary double, it is explicitly narrowed to the nearest
+IEEE-754 binary32 value, via `_to_score_t()` below, at every point
+classic's own C++ performs an implicit or explicit narrowing conversion
+to `score_t`. This is not optional: MOSES's exemplar selection depends on
+`composite_score::operator<`'s tie-break-by-complexity branch
+(`lef == rig and complexity > ...`), which is reached far more often
+under float32 (many double-precision gaps collapse to the same float32
+value) than under plain double arithmetic. A fix-round review demonstrated
+this concretely: brute-forcing integer scores 0..-400 against complexity
+1..120 at MOSES's default `complexity_ratio` of 3.5 produced 20,656 pairs
+where naive double arithmetic and true float32 arithmetic disagreed on
+which of two candidates ties -- each one a potential exemplar-selection
+inversion. Every one of the nine sites below was traced directly against
+the C++ source, not inferred:
 
-# DIVERGENCE(C++ moses/moses/moses/types.h:60): `score_t` is `float`
-# (32-bit); this port keeps every score_t-typed value as a 64-bit Python
-# `float` instead of narrowing it to binary32 precision at each of the
-# several points classic's own arithmetic does (sum_bscore's return,
-# composite_score's constructor/update_penalized_score, the
-# complexity_penalty = cpxy * cpxy_coef multiplication in
-# behave_cscore.get_cscore_nocache). Reproducing that exactly would need
-# `struct.pack('f', ...)` round-trips at every one of those sites (stdlib-
-# only, so it *is* available -- see util/rng.py's randfloat() note on the
-# mechanism) purely to shave off double's extra ~9 significant decimal
-# digits.
-#
-# This was verified empirically, not just reasoned about: running
-# tools/cpp_probe/score_probe.cc over tests/fixtures/table_data/
-# weighted.csv (fractional row weights, so the float32-vs-double gap is
-# actually visible) prints a behavioral score element of
-# -0.40000000596046448 -- the exact IEEE-754 binary32 value nearest 0.4,
-# not 0.4 itself. The gap between that and this port's double-precision
-# -0.4 is about 6e-9. classic's OWN composite_score::operator==
-# (types.cc:152) tolerates exactly this class of gap already -- it uses
-# is_approx_eq with EPSILON=1e-6 ("used in test cases -- compare equality
-# to 7 decimal places", types.h:142's own comment) specifically because
-# score_t arithmetic is float32 and cross-platform/cross-compiler bit-
-# exactness was never assumed even in C++. Porting that same tolerance
-# (composite_score.__eq__ below) absorbs the double-vs-float32 gap
-# completely; the oracle tests in tests/moses/scoring/ compare against
-# tools/cpp_probe/score_probe.cc's output the same tolerant way
-# (pytest.approx), rather than by bit-exact equality.
+* `bscores.cc:283` -- each `ctruth_table_bscore` bscore element (`bscores.py`).
+* `bscores.cc:369` -- `-score_t(fmin(...))` in `set_best_possible_bscore`.
+* `bscores.cc:397,414` -- `score_t w = fabs(...)` in `worst_possible_bscore`
+  and `min_improv`.
+* `scoring_base.cc:139` -- `sum_bscore`: accumulated in DOUBLE (see
+  scoring_base.py's own note on why `sum()` itself is a separate,
+  compensated-summation problem), narrowed ONCE at the return, not per
+  term.
+* `scoring_base.cc:41,56,67` -- `_complexity_coef`, in both
+  `set_complexity_coef` overloads (and the `complexity_ratio`/`p`
+  parameters themselves, since they are `score_t`/`float`-typed C++
+  parameters and so are narrowed at the call boundary, BEFORE the
+  reciprocal/`discrete_complexity_coef` call that uses them).
+* `behave_cscore.cc:98` -- `cpxy * cpxy_coef`, before it reaches
+  `composite_score`'s constructor.
+* `types.h:135` -- `update_penalized_score`: TWO separate narrowings, one
+  after `score - complexity_penalty`, another after the following
+  `*=`/`-=` against `uniformity_penalty`.
+
+`count_t` (`CTable`'s counters, table.py) and `complexity_t` (an
+`unsigned`/Python `int`, complexity.py) are unaffected -- neither is
+`score_t`-typed in C++, so neither is ever narrowed.
 """
 
-import functools
 import math
 import struct
 
 from pymetta.moses.moses.complexity import complexity_t, least_complexity
 
 score_t = float  # C++: moses/moses/moses/types.h:60 score_t
+
+
+def _to_score_t(x: float) -> score_t:
+    """Not itself a ported C++ symbol -- the narrowing conversion to
+    `score_t` (IEEE-754 binary32) that C++ performs implicitly at every
+    assignment/parameter-binding site the module docstring's numbered
+    list names, and that this port must perform explicitly since Python
+    has no native 32-bit float type. Round-trips `x` through `struct`'s
+    4-byte `f` format (stdlib-only, same mechanism util/rng.py's
+    `randfloat()` note describes), which rounds to the nearest
+    representable float32 value exactly the way a C++ `double`-to-`float`
+    narrowing conversion does, then widens back to a plain Python `float`
+    (double) so ordinary arithmetic continues to work on the result.
+
+    A finite `x` outside float32's representable range raises
+    `OverflowError` from `struct.pack` -- narrowed here to signed
+    infinity, matching what an actual C++ narrowing conversion of an
+    out-of-range double to `float` does (freely permitted, unlike the
+    reverse direction, by both the IEEE-754 standard and the C++
+    standard's own narrowing-conversion rules for floating point).
+    `nan`/`+-inf` pack and unpack without error and are returned as-is
+    (mod the smaller float32 mantissa, immaterial for a nan/inf).
+    """
+    try:
+        return struct.unpack("f", struct.pack("f", x))[0]
+    except OverflowError:
+        return math.inf if x > 0 else -math.inf
+
 # `complexity_t`/`least_complexity` (complexity.h:35,37) are imported
 # rather than redefined here -- complexity.py is where they actually
 # live; re-exported from this module too since C++ callers of
@@ -113,12 +148,23 @@ def _is_approx_eq(x: float, y: float, epsilon: float) -> bool:
 class composite_score:
     """C++: moses/moses/moses/types.h:77 composite_score
 
-    `boost::less_than_comparable<composite_score>` +
-    `boost::equality_comparable<composite_score>` (types.h:78-79) are CRTP
-    mixins that generate >, <=, >=, != from operator< and operator== --
-    ported the same way argument.py's `__lt__`/`__eq__` are, via
-    `functools.total_ordering` (see its own docstring there for why that
-    is the Python equivalent).
+    `boost::less_than_comparable<composite_score>` (types.h:78) is a CRTP
+    mixin that generates `>`, `<=`, `>=` PURELY from `operator<` --
+    `a>b := b<a`, `a<=b := !(b<a)`, `a>=b := !(a<b)` -- deliberately NOT
+    `functools.total_ordering` (contrast argument.py's `__lt__`/`__eq__`,
+    which legitimately uses it): `total_ordering` derives its comparisons
+    from whichever of `__lt__`/`__eq__` it is missing, and would here
+    derive `>`/`<=` through THIS class's `__eq__` -- which is the
+    intentionally TOLERANT `is_approx_eq` comparison below, not a bit-exact
+    one. That substitution is a real, demonstrated divergence from boost's
+    semantics: for `composite_score(-10.0, 5)` vs
+    `composite_score(-10.0000005, 5)` (a difference `is_approx_eq` treats
+    as equal but `<` does not), `total_ordering` gives `a>b == False` and
+    `a<=b == True`, while boost's CRTP -- and this class's own explicit
+    `__gt__`/`__le__`/`__ge__` below -- give `True`/`False`. `!=` is left
+    to Python's own default (`object.__ne__`, which inverts `__eq__`
+    automatically) -- `boost::equality_comparable<composite_score>`
+    (types.h:79) derives `!=` from `==` the exact same way.
 
     "By convention, we expect score to be negative (so that higher
     scores==better scores) while cpxy and penalty are both positive ...
@@ -210,12 +256,21 @@ class composite_score:
         here since the identifier itself -- not its C++ access
         specifier, which Python has no equivalent of -- is what the
         project's naming convention preserves verbatim.
+
+        TWO separate `score_t` narrowings, matching C++'s two separate
+        float32 operations exactly (module docstring's numbered list,
+        `types.h:135` entry): the subtraction is one `score_t` value in
+        C++ (computed and stored before the `if`), and the following
+        `*=`/`-=` against `uniformity_penalty` is a SECOND, independent
+        float32 operation on top of that already-narrowed intermediate --
+        not a single combined double-precision expression narrowed once
+        at the end.
         """
-        self.penalized_score = self.score - self.complexity_penalty
+        self.penalized_score = _to_score_t(self.score - self.complexity_penalty)
         if self.multiply_diversity:
-            self.penalized_score *= self.uniformity_penalty
+            self.penalized_score = _to_score_t(self.penalized_score * self.uniformity_penalty)
         else:
-            self.penalized_score -= self.uniformity_penalty
+            self.penalized_score = _to_score_t(self.penalized_score - self.uniformity_penalty)
 
     def __lt__(self, other: composite_score) -> bool:
         """C++: moses/moses/moses/types.h:140 composite_score
@@ -260,10 +315,33 @@ class composite_score:
             and _is_approx_eq(self.penalized_score, other.penalized_score, _EQ_EPSILON)
         )
 
+    def __gt__(self, other: composite_score) -> bool:
+        """C++: moses/moses/moses/types.h:78 composite_score
+
+        `boost::less_than_comparable<composite_score>`'s CRTP-generated
+        `operator>` -- `a>b := b<a` -- cited at the mixin's own line (see
+        class docstring for why this is spelled out explicitly rather
+        than left to `functools.total_ordering`).
+        """
+        return other < self
+
+    def __le__(self, other: composite_score) -> bool:
+        """C++: moses/moses/moses/types.h:78 composite_score
+
+        `boost::less_than_comparable<composite_score>`'s CRTP-generated
+        `operator<=` -- `a<=b := !(b<a)`.
+        """
+        return not (other < self)
+
+    def __ge__(self, other: composite_score) -> bool:
+        """C++: moses/moses/moses/types.h:78 composite_score
+
+        `boost::less_than_comparable<composite_score>`'s CRTP-generated
+        `operator>=` -- `a>=b := !(a<b)`.
+        """
+        return not (self < other)
+
     __hash__ = None  # type: ignore[assignment]
-
-
-composite_score = functools.total_ordering(composite_score)
 
 # C++: moses/moses/moses/types.h:212 behavioral_score
 #

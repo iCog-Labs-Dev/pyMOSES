@@ -10,6 +10,12 @@ behaviour `behave_cscore.__init__`'s `cache_size` parameter controls
 (pure Python bookkeeping, not itself something score_probe.cc's one-shot
 process can observe -- see behave_cscore.py's module docstring on why the
 cache is a plain dict rather than the real `prr_cache_threaded`).
+
+The two oracle tests assert EXACT (`==`) equality against the probe's
+`%.17g` output -- see test_bscores.py's module docstring for why that is
+now correct rather than merely convenient, now that `score_t` is
+genuinely narrowed to IEEE-754 binary32 (types.py's `to_score_t`) at
+every point classic's own arithmetic narrows.
 """
 
 import json
@@ -48,11 +54,11 @@ def test_get_cscore_matches_cpp_probe(case_name):
     cs = behsc.get_cscore(tr)
 
     expected = case["composite_score"]
-    assert cs.get_score() == pytest.approx(expected["score"], abs=1e-6)
+    assert cs.get_score() == expected["score"]
     assert cs.get_complexity() == expected["complexity"]
-    assert cs.get_complexity_penalty() == pytest.approx(expected["complexity_penalty"], abs=1e-6)
-    assert cs.get_uniformity_penalty() == pytest.approx(expected["uniformity_penalty"], abs=1e-6)
-    assert cs.get_penalized_score() == pytest.approx(expected["penalized_score"], abs=1e-6)
+    assert cs.get_complexity_penalty() == expected["complexity_penalty"]
+    assert cs.get_uniformity_penalty() == expected["uniformity_penalty"]
+    assert cs.get_penalized_score() == expected["penalized_score"]
 
 
 @pytest.mark.oracle
@@ -71,7 +77,7 @@ def test_get_bscore_matches_get_cscore_sum(case_name):
     bs = behsc.get_bscore(tr)
     cs = behsc.get_cscore(tr)
 
-    assert cs.get_score() == pytest.approx(bsc.sum_bscore(bs), abs=1e-6)
+    assert cs.get_score() == bsc.sum_bscore(bs)
 
 
 # ---------------------------------------------------------------------------

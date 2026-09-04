@@ -23,7 +23,7 @@ count}` pair per compressed row.
 from pymetta.comboreduct.combo.vertex import builtin, combo_tree, negate_vertex
 from pymetta.comboreduct.interpreter.interpreter import interpreter_visitor
 from pymetta.comboreduct.table.table import CTable, type_node
-from pymetta.moses.moses.types import behavioral_score, score_t, very_best_score
+from pymetta.moses.moses.types import _to_score_t, behavioral_score, score_t, very_best_score
 from pymetta.moses.scoring.scoring_base import bscore_base
 
 
@@ -48,28 +48,30 @@ class ctruth_table_bscore(bscore_base):
         called -- it is boosting-only infrastructure this port does not
         implement (scoring_base.py's module docstring).
 
-        The `output_type` check below is NOT itself a ported line of
-        bscores.cc -- classic's constructor (bscores.h:362-368) never
-        calls `get_output_type()`, it simply assumes a boolean-output
-        CTable, silently misbehaving otherwise (`counter.get(id::
-        logical_true)`/`get(id::logical_false)` against a non-boolean
-        counter just always returns the "not present" default).  It is
-        added here as a deliberate, disclosed strengthening -- and, per
-        task-6-brief.md's Context section, to be the FIRST real consumer
-        of `CTable.get_signature()`/`get_output_type()` (table.py -- no
-        earlier task's tests ever called a compressed table's
-        `.get_output_type()`), so as to answer its question: does the
-        "signature landmine" (a weighted `Table.compressed()`'s `CTable`
-        carrying an un-trimmed signature next to trimmed `ilabels`,
-        table.py's `Table.compressed` docstring) actually fire here? It
-        does not: `get_output_type()` reads only `self._signature.otype`,
-        wholly unaffected by any `itypes`/`ilabels` LENGTH mismatch, and
-        this class never calls `CTable.filtered()` (the only method with
-        a length cross-check -- and even there, this port's own
-        `filtered()` has no such cross-check to begin with; see
-        table.py). Verified directly against tests/fixtures/table_data/
-        weighted.csv (loaded with a weighting feature, so the mismatch is
-        actually present) in tests/moses/scoring/test_bscores.py.
+        # DIVERGENCE(C++ moses/moses/scoring/bscores.h:362-368): classic's
+        # constructor never calls `get_output_type()`, it simply assumes a
+        # boolean-output CTable, silently misbehaving otherwise
+        # (`counter.get(id::logical_true)`/`get(id::logical_false)` against
+        # a non-boolean counter just always returns the "not present"
+        # default -- i.e. classic would silently return an all-zero
+        # bscore rather than raising). This port raises `ValueError`
+        # instead, added here as a deliberate, disclosed strengthening --
+        # and, per task-6-brief.md's Context section, to be the FIRST real
+        # consumer of `CTable.get_signature()`/`get_output_type()`
+        # (table.py -- no earlier task's tests ever called a compressed
+        # table's `.get_output_type()`), so as to answer its question:
+        # does the "signature landmine" (a weighted `Table.compressed()`'s
+        # `CTable` carrying an un-trimmed signature next to trimmed
+        # `ilabels`, table.py's `Table.compressed` docstring) actually
+        # fire here? It does not: `get_output_type()` reads only
+        # `self._signature.otype`, wholly unaffected by any
+        # `itypes`/`ilabels` LENGTH mismatch, and this class never calls
+        # `CTable.filtered()` (the only method with a length cross-check
+        # -- and even there, this port's own `filtered()` has no such
+        # cross-check to begin with; see table.py). Verified directly
+        # against tests/fixtures/table_data/weighted.csv (loaded with a
+        # weighting feature, so the mismatch is actually present) in
+        # tests/moses/scoring/test_bscores.py.
         """
         super().__init__()
         self._ctable = ctable
@@ -105,7 +107,7 @@ class ctruth_table_bscore(bscore_base):
         iv = interpreter_visitor(tr)
         bs: behavioral_score = []
         for row, counter in self._ctable.items():
-            sc = counter.get(negate_vertex(iv(list(row))), 0.0)
+            sc = _to_score_t(counter.get(negate_vertex(iv(list(row))), 0.0))
             bs.append(-sc)
 
         if self._return_weighted_score:  # if boosting
@@ -132,7 +134,9 @@ class ctruth_table_bscore(bscore_base):
         NaN).
         """
         self._best_possible_score = [
-            -min(counter.get(builtin.logical_true, 0.0), counter.get(builtin.logical_false, 0.0))
+            -_to_score_t(
+                min(counter.get(builtin.logical_true, 0.0), counter.get(builtin.logical_false, 0.0))
+            )
             for counter in self._ctable.values()
         ]
 
@@ -144,11 +148,19 @@ class ctruth_table_bscore(bscore_base):
         get boosting to work." (bscores.cc:379-382's own comment.) The
         `_return_weighted_score` branch is unreachable in this port (see
         `__call__`'s docstring) but kept for fidelity.
+
+        Returns a COPY of `self._best_possible_score`, matching C++'s
+        by-value `behavioral_score` return (bscores.h:375 declares this
+        `behavioral_score best_possible_bscore() const`, not a reference)
+        -- returning the live list itself would let a caller's in-place
+        mutation of the result (e.g. the very `bs -= _best_possible_score`
+        pattern `__call__` uses when boosting) corrupt this scorer's own
+        cached state for every future call.
         """
         if self._return_weighted_score:
             return [0.0] * self._size
         self.set_best_possible_bscore()
-        return self._best_possible_score
+        return list(self._best_possible_score)
 
     def worst_possible_bscore(self) -> behavioral_score:
         """C++: moses/moses/scoring/bscores.cc:389 ctruth_table_bscore::worst_possible_bscore
@@ -158,10 +170,12 @@ class ctruth_table_bscore(bscore_base):
         correctly even for weighted tables, where the counts could be
         arbitrary float-point values." (bscores.cc:395-398's own comment.)
         """
-        return [
-            -abs(counter.get(builtin.logical_true, 0.0) - counter.get(builtin.logical_false, 0.0))
-            for counter in self._ctable.values()
-        ]
+        result = []
+        for counter in self._ctable.values():
+            t = counter.get(builtin.logical_true, 0.0)
+            f = counter.get(builtin.logical_false, 0.0)
+            result.append(-_to_score_t(abs(t - f)))
+        return result
 
     def min_improv(self) -> score_t:
         """C++: moses/moses/scoring/bscores.cc:406 ctruth_table_bscore::min_improv
@@ -180,7 +194,11 @@ class ctruth_table_bscore(bscore_base):
         for counter in self._ctable.values():
             t = counter.get(builtin.logical_true, 0.0)
             f = counter.get(builtin.logical_false, 0.0)
-            w = abs(t - f)
+            w = _to_score_t(abs(t - f))
             if w != 0.0 and w < min_weight:
                 min_weight = w
-        return 0.5 * min_weight
+        # `0.5 * min_weight` is computed in double precision in C++ too
+        # (0.5 is a double literal; float*double promotes to double) and
+        # narrowed only at the return, since `min_improv`'s C++ return
+        # type is itself `score_t`.
+        return _to_score_t(0.5 * min_weight)

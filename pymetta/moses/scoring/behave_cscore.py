@@ -36,7 +36,7 @@ NOT ported, all deliberately out of scope for this task:
 from pymetta.comboreduct.combo.iostream_combo import combo_tree_to_str
 from pymetta.comboreduct.combo.vertex import combo_tree
 from pymetta.moses.moses.complexity import complexity_t
-from pymetta.moses.moses.types import composite_score, score_t
+from pymetta.moses.moses.types import _to_score_t, composite_score, score_t
 from pymetta.moses.scoring.scoring_base import bscore_base
 
 
@@ -98,6 +98,21 @@ class behave_cscore:
         `_bscorer.get_complexity_coef()` are exactly `bscore_base`'s own
         methods (scoring_base.py) -- `res`/`cpxy`/`cpxy_coef` below are
         named to match behave_cscore.cc:87-97's own local variables.
+
+        `cpxy * cpxy_coef` (behave_cscore.cc:97, `complexity_penalty`)
+        is narrowed to `score_t` (behave_cscore.cc:98) BEFORE it reaches
+        `composite_score`'s constructor: `cpxy` is `complexity_t`
+        (`unsigned`) and `cpxy_coef` is `score_t` (`float`), so C++'s
+        usual arithmetic conversions promote `cpxy` to `float` and
+        perform the multiplication in float32 -- not in double -- and
+        `composite_score`'s `complexity_penalty_` constructor parameter
+        is itself `score_t`, narrowing a second time if the product were
+        somehow still wider. Narrowing here, rather than trusting
+        `composite_score.__init__` to do it, matches the fix round's
+        "exactly these nine points" list precisely (this is the
+        `behave_cscore.cc:98` point) and does not depend on
+        `composite_score`'s constructor also narrowing its own
+        arguments (it does not -- see types.py).
         """
         bs = self.get_bscore(tr)
         res: score_t = self._bscorer.sum_bscore(bs)
@@ -105,4 +120,4 @@ class behave_cscore:
         cpxy: complexity_t = self._bscorer.get_complexity(tr)
         cpxy_coef: score_t = self._bscorer.get_complexity_coef()
 
-        return composite_score(res, cpxy, cpxy * cpxy_coef, 0.0)
+        return composite_score(res, cpxy, _to_score_t(cpxy * cpxy_coef), 0.0)

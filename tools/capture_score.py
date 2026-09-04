@@ -69,14 +69,45 @@ DATASETS = [
     Dataset("precision.csv", CLASSIC / "tests" / "moses" / "precision.csv", "target", "", 2),
 ]
 
-# One extra (dataset, tree, complexity_ratio) case per dataset, to
-# exercise bscore_base.set_complexity_coef/get_complexity_coef and
-# composite_score.complexity_penalty with a non-zero coefficient too --
-# every other case below leaves the coefficient at its class default
-# (0.0, so complexity_penalty is trivially 0.0 regardless of complexity).
+# Purpose-built trees with much higher complexity than anything in the
+# Task 3 corpus (max 3): boolean `and`/`or`/`not` themselves cost 0
+# (complexity.cc:92-99), so the ONLY way to inflate a boolean tree's
+# complexity is to give it more argument leaves (each leaf costs 1) --
+# repeating the same in-range argument N times is a valid, if redundant,
+# combo tree that the boolean interpreter evaluates exactly like a single
+# reference would (`and(x, x, ..., x) == x`). Sized to 80: a fix-round
+# review computed |1/3.5 - f32(1/3.5)| = 1.28e-8, so complexity_penalty =
+# complexity * complexity_coef first exceeds the 1e-6 double-vs-float32
+# comparison tolerance at complexity >= 79 (1e-6 / 1.28e-8 = 78.125) when
+# complexity_ratio=3.5 -- these trees exist specifically to make that
+# double-vs-float32 gap observable, not to model anything realistic.
+_HIGH_COMPLEXITY_TREE_ARITY3 = "and(" + " ".join(["$1"] * 80) + ")"
+_HIGH_COMPLEXITY_TREE_ARITY5 = "and(" + " ".join(["$1"] * 80) + ")"
+
+# (dataset, tree, complexity_ratio) cases, to exercise
+# bscore_base.set_complexity_coef/get_complexity_coef and
+# composite_score.complexity_penalty with non-zero coefficients --
+# every other case in this file leaves the coefficient at its class
+# default (0.0, so complexity_penalty is trivially 0.0 regardless of
+# complexity, and the double-vs-float32 gap this fix round exists to
+# catch is invisible: 0.0 is exactly representable in both).
+#
+# 3.5 is MOSES's own command-line default for --complexity-ratio
+# (moses_exec's problem-params.cc); 7.0 is a second, arbitrary point
+# for coverage. 2.0's reciprocal (0.5) is EXACTLY representable in
+# binary32 -- deliberately kept as a negative-control case (a ratio
+# whose narrowing is a no-op) alongside the two that are not.
 _COMPLEXITY_RATIO_CASES = [
     ("trainingBoolean.dat", "or(and($1 !$3) or())", 2.0),
     ("weighted.csv", "and($1 $2)", 2.0),
+    ("trainingBoolean.dat", "or(and($1 !$3) or())", 3.5),
+    ("weighted.csv", "and($1 $2)", 3.5),
+    ("trainingBoolean.dat", "or(and($1 !$3) or())", 7.0),
+    ("weighted.csv", "and($1 $2)", 7.0),
+    ("trainingBoolean.dat", _HIGH_COMPLEXITY_TREE_ARITY3, 3.5),
+    ("trainingBoolean.dat", _HIGH_COMPLEXITY_TREE_ARITY3, 7.0),
+    ("weighted.csv", _HIGH_COMPLEXITY_TREE_ARITY5, 3.5),
+    ("weighted.csv", _HIGH_COMPLEXITY_TREE_ARITY5, 7.0),
 ]
 
 
@@ -195,9 +226,10 @@ def main(argv: list[str]) -> int:
 
     FIXTURE_PATH.parent.mkdir(parents=True, exist_ok=True)
     FIXTURE_PATH.write_text(json.dumps(fixture, indent=2) + "\n")
+    distinct_trees = {case["tree"] for case in fixture.values()}
     print(
         f"wrote {FIXTURE_PATH} ({len(fixture)} cases, {n_pairs} probe runs, "
-        f"{len(trees)} distinct trees, {len(DATASETS)} distinct datasets)"
+        f"{len(distinct_trees)} distinct trees, {len(DATASETS)} distinct datasets)"
     )
     return 0
 

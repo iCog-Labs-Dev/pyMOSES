@@ -17,6 +17,14 @@ differential oracle against every case in tests/fixtures/score.json
 for `ctruth_table_bscore`'s full ported surface: `__call__`,
 `best_possible_bscore`, `worst_possible_bscore`, `min_improv`,
 `get_complexity`, `get_complexity_coef`.
+
+The oracle asserts EXACT (`==`) equality against the probe's `%.17g`
+output, not `pytest.approx` -- now that `score_t` is genuinely narrowed to
+IEEE-754 binary32 at every point classic's own arithmetic narrows
+(types.py's `to_score_t`), this port's double-precision Python floats
+hold the exact same bit pattern (widened) as the C++ `score_t` values the
+JSON round-trips, so anything less than exact equality would silently
+tolerate a real regression back to double-only arithmetic.
 """
 
 import json
@@ -83,12 +91,45 @@ def test_ctruth_table_bscore_best_possible_bscore():
 
     bsc = ctbsc.best_possible_bscore()
     expected_bsc = [0.0, 0.0, -2.0]
-    assert sorted(bsc) == pytest.approx(sorted(expected_bsc))
+    assert sorted(bsc) == sorted(expected_bsc)
 
 
 # ---------------------------------------------------------------------------
 # Differential oracle against tools/cpp_probe/score_probe.cc
 # ---------------------------------------------------------------------------
+
+
+def test_score_fixture_has_expected_shape():
+    """Guards against two distinct ways this corpus could silently stop
+    testing anything: an EMPTY (or truncated) score.json -- caught by
+    `pyproject.toml`'s `empty_parameter_set_mark = "fail"` globally, but
+    checked directly here too, matching test_table_io.py's
+    `test_golden_fixture_has_expected_shape` convention -- and a corpus
+    that is merely non-empty but too NARROW to exercise the float32-
+    narrowing fix this file's oracle exists to guard (a fix-round review
+    found the float32-vs-double gap was undetectable at complexity_ratio
+    2.0 alone, since 1/2.0 is exactly representable in binary32; see
+    tools/capture_score.py's own comment on why 3.5/7.0 and complexity
+    >=79 are both required to make the gap exceed 1e-6).
+    """
+    assert len(_SCORE_CASES) >= 90
+    ratios = {c["complexity_ratio"] for c in _SCORE_CASES.values() if c["complexity_ratio"]}
+    assert {3.5, 7.0} <= ratios
+    assert max(c["tree_complexity"] for c in _SCORE_CASES.values()) >= 79
+    for name, case in _SCORE_CASES.items():
+        assert set(case) >= {
+            "rows",
+            "sum_bscore",
+            "tree_complexity",
+            "complexity_coef",
+            "min_improv",
+            "composite_score",
+            "file",
+            "target_feature",
+            "weighting_feature",
+            "complexity_ratio",
+            "tree",
+        }, name
 
 
 @pytest.mark.oracle
@@ -125,11 +166,11 @@ def test_ctruth_table_bscore_matches_cpp_probe(case_name):
     assert actual_by_key.keys() == expected_by_key.keys()
     for key, (exp_b, exp_be, exp_w) in expected_by_key.items():
         act_b, act_be, act_w = actual_by_key[key]
-        assert act_b == pytest.approx(exp_b, abs=1e-6), f"{case_name}: bscore at {key}"
-        assert act_be == pytest.approx(exp_be, abs=1e-6), f"{case_name}: best_possible at {key}"
-        assert act_w == pytest.approx(exp_w, abs=1e-6), f"{case_name}: worst_possible at {key}"
+        assert act_b == exp_b, f"{case_name}: bscore at {key}"
+        assert act_be == exp_be, f"{case_name}: best_possible at {key}"
+        assert act_w == exp_w, f"{case_name}: worst_possible at {key}"
 
-    assert bsc.sum_bscore(bs) == pytest.approx(case["sum_bscore"], abs=1e-6)
+    assert bsc.sum_bscore(bs) == case["sum_bscore"]
     assert bsc.get_complexity(tr) == case["tree_complexity"]
-    assert bsc.get_complexity_coef() == pytest.approx(case["complexity_coef"], abs=1e-6)
-    assert bsc.min_improv() == pytest.approx(case["min_improv"], abs=1e-6)
+    assert bsc.get_complexity_coef() == case["complexity_coef"]
+    assert bsc.min_improv() == case["min_improv"]

@@ -40,7 +40,7 @@ from abc import ABC, abstractmethod
 
 from pymetta.comboreduct.combo.vertex import combo_tree
 from pymetta.moses.moses.complexity import complexity_t, tree_complexity
-from pymetta.moses.moses.types import behavioral_score, score_t
+from pymetta.moses.moses.types import _to_score_t, behavioral_score, score_t
 
 
 def discrete_complexity_coef(alphabet_size: int, p: float) -> score_t:
@@ -49,8 +49,15 @@ def discrete_complexity_coef(alphabet_size: int, p: float) -> score_t:
     "Used to define the complexity scoring component given that p is the
     probability of having an observation being wrong ... Note: this
     returns NEGATIVE values." (scoring_base.h:41-43's own doc comment.)
+
+    C++'s own return type is `score_t` (float), so the double-precision
+    `-log(alphabet_size) / log(p/(1-p))` computation is narrowed at this
+    function's own `return` (scoring_base.cc:41), not deferred to whatever
+    later assigns the result to `_complexity_coef` -- see
+    `set_complexity_coef` below, whose two branches both simply store this
+    already-narrowed value without narrowing it a second time.
     """
-    return -math.log(alphabet_size) / math.log(p / (1 - p))
+    return _to_score_t(-math.log(alphabet_size) / math.log(p / (1 - p)))
 
 
 class bscore_base(ABC):
@@ -126,8 +133,26 @@ class bscore_base(ABC):
         (`not _return_weighted_score`) is reachable in this port -- see
         module docstring -- so the `_weights`-driven branch
         (scoring_base.cc:141-156) is not ported.
+
+        `boost::accumulate(bs, 0.0)` (scoring_base.cc:139) is a NAIVE
+        left-to-right double-precision fold -- deliberately NOT Python's
+        builtin `sum()`, which (CPython >=3.12, confirmed on 3.14.7 here:
+        `sum([0.1]*10) == 1.0` exactly, where a naive fold gives
+        `0.9999999999999999`) uses Neumaier/Kahan-style compensated
+        summation and so is systematically MORE accurate than
+        `boost::accumulate` -- a second, independent source of
+        double-vs-C++ disagreement beyond float32 narrowing, invisible on
+        this port's small (<=8-row) fixture corpus but not in general.
+        The double-precision accumulator itself is intentionally never
+        narrowed per-element (C++'s accumulator is `double`, initialized
+        from the `0.0` literal in `boost::accumulate(bs, 0.0)`) -- only
+        the final return value is narrowed to `score_t`, exactly once,
+        matching `sum_bscore`'s own `score_t` return type.
         """
-        return sum(bs)
+        total = 0.0
+        for x in bs:
+            total += x
+        return _to_score_t(total)
 
     def get_complexity(self, tr: combo_tree) -> complexity_t:
         """C++: moses/moses/scoring/scoring_base.h:187 bscore_base::get_complexity
@@ -173,15 +198,30 @@ class bscore_base(ABC):
         NOT ported: the `logger().info()` diagnostic line each C++
         overload ends with (scoring_base.cc:58-60, 69) -- no logging
         surface exists in this port.
+
+        Both `complexity_ratio` (one-arg form) and `p` (two-arg form) are
+        `score_t`/`float`-typed C++ PARAMETERS (`set_complexity_coef
+        (score_t complexity_ratio)`, `set_complexity_coef(unsigned
+        alphabet_size, float p)`) -- narrowed to float32 at the C++ call
+        boundary itself, BEFORE either the `>`/`<` singularity checks or
+        the reciprocal/`discrete_complexity_coef` call ever see them. This
+        port narrows each argument first, for the same reason, rather than
+        only narrowing the final `_complexity_coef` assignment.
         """
-        self._complexity_coef = 0.0
         if len(args) == 1:
             (complexity_ratio,) = args
+            complexity_ratio = _to_score_t(complexity_ratio)
+            self._complexity_coef = 0.0
             if complexity_ratio > 0.0:
-                self._complexity_coef = 1.0 / complexity_ratio
+                self._complexity_coef = _to_score_t(1.0 / complexity_ratio)
         elif len(args) == 2:
             alphabet_size, p = args
+            p = _to_score_t(p)
+            self._complexity_coef = 0.0
             if 0.0 < p < 0.5:
+                # discrete_complexity_coef already returns a score_t-
+                # narrowed value (see its own docstring) -- no second
+                # narrowing needed here.
                 self._complexity_coef = discrete_complexity_coef(alphabet_size, p)
         else:
             raise TypeError(
