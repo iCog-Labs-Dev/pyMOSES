@@ -533,6 +533,26 @@ class tree:
             pos = pos.prev_sibling
         return n
 
+    def sibling_index(self, node):
+        """C++: opencog/util/tree.h:2193 sibling_index
+
+        Added task-4 (S7) for `comboreduct/reduct/logical_rules.py`'s
+        `reduce_and_assumptions` (logical_rules.cc:252's
+        `tr.sibling_index(sib)`). No head/feet sentinels here (module
+        docstring) -- C++'s root-vs-non-root branch exists only to walk
+        through to its own artificial head sentinel when `node` IS the
+        root; since a root has no siblings at all in this port
+        (single-rooted, forests unsupported), the walk below (stopping at
+        `prev_sibling is None`) already gives the right answer -- 0 -- for
+        the root too, without needing a separate branch.
+        """
+        ind = 0
+        pos = node
+        while pos.prev_sibling is not None:
+            pos = pos.prev_sibling
+            ind += 1
+        return ind
+
     def next_sibling(self, node):
         """C++: opencog/util/tree.h:974 next_sibling
 
@@ -763,6 +783,50 @@ class tree:
             one = self._preorder_step(one)
             three = self._preorder_step(three)
         return True
+
+    def validate(self, node=None):
+        """C++: opencog/util/tree.h:535/2175 validate
+
+        Added task-4 (S7) for `comboreduct/reduct/logical_rules.py`'s
+        `subtree_to_enf::reduce_to_enf::reduce_and` (logical_rules.cc:
+        693-694's unconditional `tr.validate(child); tr.validate();` --
+        NOT inside that function's `#if DEBUG` guard, so it runs on every
+        real call, not just debug builds).
+
+        A pure consistency CHECK, no side effects on the tree: raises
+        `AssertionError` (this port's uniform stand-in for `tree_assert`,
+        matching every other restored-assert in this module) if `node`'s
+        own parent/sibling links disagree with what its neighbours report,
+        then recurses into every child. `node` omitted (C++'s no-arg
+        `validate()` overload, tree.h:536: `validate(begin())`) validates
+        the whole tree from its root; an empty tree is a silent no-op,
+        matching `begin()` being a harmless no-op start point for an empty
+        C++ tree too.
+
+        Same blind spot as real C++ tree.h:2175: recursion reaches
+        children via `first_child`/`next_sibling` forward traversal, so a
+        corrupted `first_child` pointer silently orphans everything below
+        it from this very walk rather than being detected (`tests/util/
+        test_tree.py`'s own, stronger, test-only `validate()` helper
+        deliberately does not share this limitation -- see its docstring).
+        """
+        if node is None:
+            node = self._root
+            if node is None:
+                return
+        if node.parent is not None:
+            if node.prev_sibling is None and node.parent.first_child is not node:
+                raise AssertionError("validate: parent.first_child mismatch")
+            if node.next_sibling is None and node.parent.last_child is not node:
+                raise AssertionError("validate: parent.last_child mismatch")
+        if node.prev_sibling is not None and node.prev_sibling.next_sibling is not node:
+            raise AssertionError("validate: prev_sibling.next_sibling mismatch")
+        if node.next_sibling is not None and node.next_sibling.prev_sibling is not node:
+            raise AssertionError("validate: next_sibling.prev_sibling mismatch")
+        child = node.first_child
+        while child is not None:
+            self.validate(child)
+            child = child.next_sibling
 
     # ---- internal splice helpers -------------------------------------------
 

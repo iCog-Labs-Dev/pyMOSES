@@ -1364,3 +1364,69 @@ def test_push_back_negated_arguments_shaped_copy_then_negate_leaves_source_untou
     assert first_child.data.idx == 1, "the live tree's own child was corrupted"
     assert [c.data.idx for c in live.children(root)] == [1, 2]
     assert standalone.begin().data.idx == -1
+
+
+# ---------------------------------------------------------------------------
+# sibling_index / validate -- added task-4 (S7) for
+# comboreduct/reduct/logical_rules.py's reduce_and_assumptions and
+# subtree_to_enf.reduce_to_enf.reduce_and respectively.
+# ---------------------------------------------------------------------------
+
+
+def test_sibling_index():
+    t = tree("root")
+    a = t.append_child(t.begin(), "a")
+    b = t.append_child(t.begin(), "b")
+    c = t.append_child(t.begin(), "c")
+    assert t.sibling_index(a) == 0
+    assert t.sibling_index(b) == 1
+    assert t.sibling_index(c) == 2
+
+
+def test_sibling_index_of_the_root_is_zero():
+    t = tree("root")
+    assert t.sibling_index(t.begin()) == 0
+
+
+def test_validate_passes_on_a_well_formed_tree():
+    t = tree("root")
+    a = t.append_child(t.begin(), "a")
+    t.append_child(t.begin(), "b")
+    t.append_child(a, "a1")
+    t.validate()  # whole-tree, no-arg form
+    t.validate(a)  # explicit-node form
+
+
+def test_validate_on_an_empty_tree_is_a_silent_noop():
+    t = tree()
+    t.validate()
+
+
+def test_validate_detects_a_corrupted_last_child_pointer():
+    """Not a corrupted `first_child`: `validate`'s own recursion reaches
+    children via `first_child`/`next_sibling` forward traversal (matching
+    real C++ tree.h:2175's identical shape), so a corrupted `first_child`
+    would silently orphan everything from THIS walk too -- the same
+    blind spot this file's own `validate()` test helper docstring
+    documents for the real library's `validate()`. `last_child` is NOT
+    used for recursion, so corrupting it is genuinely detectable.
+    """
+    t = tree("root")
+    root = t.begin()
+    a = t.append_child(root, "a")
+    t.append_child(root, "b")
+    root.last_child = a  # corrupt: 'b' is the true last child
+    with pytest.raises(AssertionError):
+        t.validate()
+    root.last_child = a.next_sibling  # restore ('b')
+
+
+def test_validate_detects_a_corrupted_sibling_back_link():
+    t = tree("root")
+    root = t.begin()
+    a = t.append_child(root, "a")
+    b = t.append_child(root, "b")
+    b.prev_sibling = None  # corrupt: breaks the a<->b back-link
+    with pytest.raises(AssertionError):
+        t.validate()
+    b.prev_sibling = a  # restore

@@ -122,6 +122,23 @@ class clause:
         if not found:
             self._items.insert(idx, x)
 
+    def assign(self, other: clause) -> None:
+        """No direct C++ symbol: `std::set::operator=` -- replaces this
+        clause's own contents with `other`'s, IN PLACE, preserving this
+        clause's own object identity. Added task-4 (S7) for
+        `logical_rules.py`'s `reduce_ors`/`reduce_ands`
+        (logical_rules.cc:322-325/384-387's `*c1 = *impl` / `*c2 = *impl`)
+        -- both translate a C++ `nf::iterator` dereference-assignment
+        (mutates the clause a `std::list<clause>::iterator` POINTS AT,
+        without changing which list node it points at) into Python, where
+        a caller may be holding an external reference to this exact
+        `clause` object (e.g. a loop variable `c1`/`c2` compared by
+        identity against other elements of the same `nf` later) and must
+        keep observing updates through that SAME reference afterward, not
+        a newly-constructed one.
+        """
+        self._items = list(other._items)
+
     def erase(self, x: int) -> None:
         """C++: std::set<int, absolute_value_order<int>>::erase(const key_type&)
 
