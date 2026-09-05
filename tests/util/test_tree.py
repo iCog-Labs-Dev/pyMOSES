@@ -1111,3 +1111,171 @@ def test_tree_constructed_from_a_genuine_root_is_still_fine():
     src.append_child(src.begin(), "a")
     copy = tree(src.begin())
     assert [n.data for n in copy] == ["root", "a"]
+
+
+# ---------------------------------------------------------------------------
+# partition / sort_on_subtrees / reparent(3-arg) / is_childless / has_one_child
+#
+# Added task-3 (S7) for comboreduct/reduct/general_rules.py's
+# eval_constants/reorder_commutative. NOT part of the tree_probe.cc +
+# tests/fixtures/tree.json golden-fixture convention above -- these follow
+# reduct/test_meta_rules.py's own precedent instead (a task-scoped C++ probe,
+# tools/cpp_probe/partition_probe.cc, with its measured stdout pinned here as
+# literal expected values, not re-run as part of the normal test suite). See
+# that probe file and task-3-report.md for the full transcript.
+# ---------------------------------------------------------------------------
+
+
+def test_is_childless():
+    t = tree("root")
+    a = t.append_child(t.begin(), "a")
+    assert t.is_childless(a) is True
+    assert t.is_childless(t.begin()) is False
+
+
+def test_has_one_child():
+    t = tree("root")
+    a = t.append_child(t.begin(), "a")
+    assert t.has_one_child(t.begin()) is True
+    t.append_child(t.begin(), "b")
+    assert t.has_one_child(t.begin()) is False
+    assert t.has_one_child(a) is False  # a itself is childless
+
+
+def _is_const(s):
+    return s.startswith("C")
+
+
+def test_partition_case_a_interleaved_single_swap():
+    # C++: partition_probe.cc "partition_case_a" ->
+    # {"result":["C1","C2","C3","V1","V2"],"boundary":"V1"}
+    t = tree("root")
+    for s in ("C1", "C2", "V1", "C3", "V2"):
+        t.append_child(t.begin(), s)
+    boundary = t.partition(t.begin(), _is_const)
+    validate(t)
+    assert [c.data for c in t.children(t.begin())] == ["C1", "C2", "C3", "V1", "V2"]
+    assert boundary.data == "V1"
+
+
+def test_partition_case_b_is_not_a_stable_partition():
+    # C++: partition_probe.cc "partition_case_b" ->
+    # {"result":["C1","C3","C2","V2","V1"],"boundary":"V2"}
+    # A STABLE partition of ["C1","V1","C2","V2","C3"] would give
+    # ["C1","C2","C3","V1","V2"] -- the real algorithm gives something
+    # else entirely, with BOTH groups internally reordered.
+    t = tree("root")
+    for s in ("C1", "V1", "C2", "V2", "C3"):
+        t.append_child(t.begin(), s)
+    boundary = t.partition(t.begin(), _is_const)
+    validate(t)
+    assert [c.data for c in t.children(t.begin())] == ["C1", "C3", "C2", "V2", "V1"]
+    assert boundary.data == "V2"
+
+
+def test_partition_all_matching_returns_none_boundary():
+    # C++: partition_probe.cc "partition_case_c" ->
+    # {"result":["C1","C2","C3"],"boundary":"<end>"}
+    t = tree("root")
+    for s in ("C1", "C2", "C3"):
+        t.append_child(t.begin(), s)
+    boundary = t.partition(t.begin(), _is_const)
+    assert [c.data for c in t.children(t.begin())] == ["C1", "C2", "C3"]
+    assert boundary is None
+
+
+def test_partition_none_matching():
+    # C++: partition_probe.cc "partition_case_d" ->
+    # {"result":["V1","V2","V3"],"boundary":"V1"}
+    t = tree("root")
+    for s in ("V1", "V2", "V3"):
+        t.append_child(t.begin(), s)
+    boundary = t.partition(t.begin(), _is_const)
+    assert [c.data for c in t.children(t.begin())] == ["V1", "V2", "V3"]
+    assert boundary.data == "V1"
+
+
+def test_partition_no_children_returns_none():
+    t = tree("only")
+    boundary = t.partition(t.begin(), _is_const)
+    assert boundary is None
+
+
+def test_sort_on_subtrees_is_stable_for_ties():
+    # C++: partition_probe.cc "sort_on_subtrees_ties" ->
+    # {"result":["a","bb","cc","ddd"]} -- "bb"/"cc" are both length 2
+    # (tied); original relative order (bb before cc) is preserved.
+    t = tree("root")
+    for s in ("bb", "a", "cc", "ddd"):
+        t.append_child(t.begin(), s)
+
+    def by_len(a, b):
+        return len(a.data) < len(b.data)
+
+    t.sort_on_subtrees(t.begin(), by_len, False)
+    validate(t)
+    assert [c.data for c in t.children(t.begin())] == ["a", "bb", "cc", "ddd"]
+
+
+def test_sort_on_subtrees_deep_sorts_children_before_parent_level():
+    # C++: partition_probe.cc "sort_on_subtrees_deep" ->
+    # {"top":["P","Q"],"p_children":["x","y","z"],"q_children":["m","n"]}
+    t = tree("root")
+    p = t.append_child(t.begin(), "P")
+    for s in ("z", "y", "x"):
+        t.append_child(p, s)
+    q = t.append_child(t.begin(), "Q")
+    for s in ("n", "m"):
+        t.append_child(q, s)
+
+    def by_val(a, b):
+        return a.data < b.data
+
+    t.sort_on_subtrees(t.begin(), by_val, True)
+    validate(t)
+    assert [c.data for c in t.children(t.begin())] == ["P", "Q"]
+    assert [c.data for c in t.children(p)] == ["x", "y", "z"]
+    assert [c.data for c in t.children(q)] == ["m", "n"]
+
+
+def test_reparent_two_arg_moves_all_children():
+    t = tree("root")
+    src = t.append_child(t.begin(), "src")
+    t.append_child(src, "s1")
+    t.append_child(src, "s2")
+    dst = t.append_child(t.begin(), "dst")
+    t.reparent(dst, src)
+    validate(t)
+    assert list(t.children(src)) == []
+    assert [c.data for c in t.children(dst)] == ["s1", "s2"]
+
+
+def test_reparent_three_arg_moves_only_the_given_sibling_range():
+    # C++ ground truth: general_rules_probe.cc's eval_constants_mixed_plus
+    # case builds exactly this shape by hand (tr.reparent(new_op,
+    # it.begin(), to)) -- pinned directly here at the tree.py level too.
+    t = tree("and")
+    root = t.begin()
+    t.append_child(root, "C1")
+    t.append_child(root, "C2")
+    v1 = t.append_child(root, "V1")
+    new_op = t.append_child(root, "and")
+
+    t.reparent(new_op, root.first_child, v1)
+    validate(t)
+    assert [c.data for c in t.children(root)] == ["V1", "and"]
+    assert [c.data for c in t.children(new_op)] == ["C1", "C2"]
+
+
+def test_reparent_omitted_third_arg_is_not_confused_with_a_range_call():
+    # The 2-arg and 3-arg forms must stay genuinely distinguishable --
+    # calling with only (new_parent, from_node) must take the "gather ALL
+    # of from_node's children" path, never be misread as a 0-length range.
+    t = tree("root")
+    src = t.append_child(t.begin(), "src")
+    only = t.append_child(src, "only")
+    dst = t.append_child(t.begin(), "dst")
+    result = t.reparent(dst, src)
+    assert result is only  # the moved range's start (tree.h:1525's own `first`)
+    assert list(t.children(src)) == []
+    assert [c.data for c in t.children(dst)] == ["only"]

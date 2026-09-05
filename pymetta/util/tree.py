@@ -4,8 +4,15 @@ C++: opencog/util/tree.h (Kasper Peeters' tree.hh v2.3, 3420 lines). This
 ports a scoped subset -- see
 .superpowers/sdd/2026-09-03-pymetta-s0-s6-foundation/task-2-brief.md -- not
 the whole header: no forests/multiple roots (no head/feet sentinels), no
-fixed-depth/breadth-first/upwards iterators, no merge/partition/swap/
-sort_on_subtrees, no allocator template parameter.
+fixed-depth/breadth-first/upwards iterators, no merge/swap, no allocator
+template parameter.
+
+`partition` and `sort_on_subtrees` (task-3, S7) were added later, once
+`comboreduct/reduct/general_rules.py`'s `eval_constants`/
+`reorder_commutative` needed them -- both scoped, like this file's own
+`sort`, to a NODE's full child range rather than C++'s arbitrary
+sibling sub-range, since that is the only shape either real caller ever
+uses. `partition` is NOT a stable partition -- see its own docstring.
 
 Iterators collapse to plain `tree_node` objects. C++ keeps several distinct
 iterator *classes* (iterator_base, pre_order_iterator, post_order_iterator,
@@ -37,6 +44,8 @@ combo_tree is always single-rooted, so this port tracks the root directly as
 # stays well-defined without sentinels.
 """
 
+import functools
+
 
 class _DeadLink:
     """Sentinel poisoning a discarded node's own `parent`/`prev_sibling`/
@@ -58,6 +67,15 @@ class _DeadLink:
 
 
 _DEAD = _DeadLink()
+
+# No direct C++ symbol. Sentinel for `tree.reparent`'s omitted-`to_node`
+# default (task-3, S7) -- distinguishes "3rd argument not given at all" (the
+# 2-arg C++ overload) from "3rd argument explicitly `None`" (the 3-arg C++
+# overload's `to` meaning "through the last sibling", `_reparent_range`'s own
+# `end=None` convention) -- the same sentinel shape as `reduct.py`'s `_NO_IT`
+# and for the same reason: plain `None` cannot serve as the default here
+# without conflating those two, semantically different, calls.
+_NO_TO_NODE = object()
 
 
 class tree_node:
@@ -451,6 +469,23 @@ class tree:
             child = child.next_sibling
         return n
 
+    def is_childless(self, node):
+        """C++: opencog/util/tree.h:170 sibling_iterator::is_childless
+
+        Added task-3 (S7) for `comboreduct/reduct/general_rules.py`'s
+        `eval_constants` (`it.is_childless()`).
+        """
+        return node.first_child is None
+
+    def has_one_child(self, node):
+        """C++: opencog/util/tree.h:171 sibling_iterator::has_one_child
+
+        `node->first_child != NULL && node->first_child == node->last_child`
+        -- ported as identity (`is`), matching C++'s raw-pointer `==` here.
+        Added task-3 (S7) for the same call site as `is_childless` above.
+        """
+        return node.first_child is not None and node.first_child is node.last_child
+
     def number_of_siblings(self, node):
         """C++: opencog/util/tree.h:2035 number_of_siblings"""
         n = 0
@@ -531,6 +566,19 @@ class tree:
         if not children:
             return
         ordered = sorted(children, key=lambda child: key(child.data))
+        self._relink_full_children(node, ordered)
+
+    def _relink_full_children(self, node, ordered):
+        """No direct C++ symbol: the direct-relink reassembly `sort`'s own
+        docstring above describes (the C++ `sort_on_subtrees`/`sort`
+        multiset-based reassembly collapsed to this, since the range is
+        always a node's *entire* child list here -- see that docstring
+        for the full reasoning). Shared by `sort`, `partition` and
+        `sort_on_subtrees` (task-3, S7): `ordered` is a non-empty list of
+        `node`'s own children (already validated as such by the caller),
+        in the new desired order; this rewires `first_child`/
+        `last_child`/`prev_sibling`/`next_sibling` to match.
+        """
         node.first_child = ordered[0]
         node.last_child = ordered[-1]
         prev = None
@@ -540,6 +588,114 @@ class tree:
                 prev.next_sibling = child
             prev = child
         prev.next_sibling = None
+
+    def partition(self, node, pred):
+        """C++: opencog/util/tree.h:1843 tree::partition
+
+        Scoped to partitioning ALL of `node`'s children (from=begin(node),
+        to=end(node)) -- like this file's own `sort` above, C++'s general
+        form also takes an arbitrary sibling sub-range; this port's one
+        real caller (`comboreduct/reduct/general_rules.py`'s
+        `eval_constants`, task-3) always passes the full range
+        (`tr.partition(it.begin(), it.end(), is_constant<vertex>)`).
+
+        NOT a stable partition -- measured directly
+        (`tools/cpp_probe/partition_probe.cc`), not assumed: the real
+        algorithm is `std::partition`'s own two-pointer forward/backward
+        swap scan, which can and does reorder elements WITHIN each of the
+        two output groups relative to their original order. A stable
+        "gather the matches, then the non-matches, each in original
+        order" implementation is a DIFFERENT function and would silently
+        diverge from C++ whenever the input interleaves matches and
+        non-matches (measured: children `[C1,V1,C2,V2,C3]` with `pred`
+        true only on the `C*` ones partitions to `[C1,C3,C2,V2,V1]`, NOT
+        the stable `[C1,C2,C3,V1,V2]`).
+
+        Ported as a position-index simulation of the real scan: C++'s
+        `this->swap(to, from)` (physically exchange the two nodes'
+        positions) followed immediately by `std::swap(to, from)`
+        (exchange which *iterator variable* refers to which node) is,
+        net, equivalent -- for the purpose of tracking `from`/`to` as
+        plain positions -- to swapping the two positions' CONTENTS and
+        leaving the position variables themselves unchanged; both index
+        variables below (`lo`, `hi`) are therefore never swapped, only
+        `children[lo]`/`children[hi]` are.
+
+        Returns the boundary node -- the first child, in the FINAL order,
+        for which `pred` is false -- or `None` if every child satisfies
+        `pred` (C++'s `to` sentinel, `end()`).
+        """
+        children = list(self.children(node))
+        n = len(children)
+        if n == 0:
+            return None
+        lo, hi = 0, n
+        while True:
+            while lo != hi and pred(children[lo].data):
+                lo += 1
+            while lo != hi:
+                hi -= 1
+                if pred(children[hi].data):
+                    break
+            if lo == hi:
+                break
+            children[lo], children[hi] = children[hi], children[lo]
+        self._relink_full_children(node, children)
+        return None if lo == n else children[lo]
+
+    def sort_on_subtrees(self, node, comp, deep=False):
+        """C++: opencog/util/tree.h:1858 tree::sort_on_subtrees
+
+        Scoped to sorting ALL of `node`'s children (from=begin(node),
+        to=end(node)), the same scoping decision `sort` above already
+        makes and for the same reason: this port's one real caller
+        (`comboreduct/reduct/general_rules.py`'s `reorder_commutative`,
+        task-3) always passes the full range (`tr.sort_on_subtrees(
+        it.begin(), it.end(), lexicographic_subtree_order<vertex>(),
+        false)`). Unlike `sort`, `comp` compares two whole subtrees
+        (`tree_node`s -- e.g. vertex.py's `lexicographic_subtree_less`),
+        not `.data` alone: C++'s `StrictWeakOrdering` here is
+        instantiated against a `sibling_iterator`, never against `T`
+        itself.
+
+        The real algorithm reassembles the sorted order via a
+        `std::multiset<tree_node*, ...>` keyed on `comp` (tree.h:1861);
+        this port's own real caller only ever uses a `comp` that is a
+        genuine STRICT TOTAL order over distinct subtrees (ties occur
+        only between two STRUCTURALLY IDENTICAL subtrees -- verified
+        against `lexicographic_subtree_order`'s own definition), for
+        which any correct sort reproduces the same output regardless of
+        stability. `sorted()` (Python's stable sort) is used regardless,
+        matching a real `std::multiset`'s own insertion-order-preserving
+        behaviour for equivalent keys -- the C++ code's own comment
+        flags this as unverified in the abstract ("CHECK: if multiset
+        stores equivalent nodes in the order in which they are inserted,
+        then this routine should be called 'stable_sort'"), but real
+        libstdc++ does exactly that (measured:
+        `tools/cpp_probe/partition_probe.cc`'s `sort_on_subtrees_ties`
+        case preserves original relative order between two same-length,
+        hence tied, children).
+
+        `deep=True` recurses into each child's OWN children FIRST,
+        matching the C++ implementation's stated order ("sort the
+        children of each node too, *first*", tree.h:1865).
+        """
+        if deep:
+            for child in list(self.children(node)):
+                self.sort_on_subtrees(child, comp, True)
+        children = list(self.children(node))
+        if not children:
+            return
+
+        def _cmp(a, b):
+            if comp(a, b):
+                return -1
+            if comp(b, a):
+                return 1
+            return 0
+
+        ordered = sorted(children, key=functools.cmp_to_key(_cmp))
+        self._relink_full_children(node, ordered)
 
     def equal_subtree(self, a, b):
         """C++: opencog/util/tree.h:1923 equal_subtree
@@ -964,15 +1120,31 @@ class tree:
             raise ValueError("wrap: node must not be None")
         return self.insert_above(node, data)
 
-    def reparent(self, new_parent, from_node):
-        """C++: opencog/util/tree.h:1572 reparent(iter, iter); the
-        whole-children move it delegates to is opencog/util/tree.h:1525
-        reparent(iter, sibling_iterator, sibling_iterator), ported here as
-        `_reparent_range`.
+    def reparent(self, new_parent, from_node, to_node=_NO_TO_NODE):
+        """C++: opencog/util/tree.h:1572 reparent(iter, iter) [2-arg: move
+        ALL of `from_node`'s own children onto `new_parent`] collapsed
+        with opencog/util/tree.h:1525 reparent(iter, sibling_iterator,
+        sibling_iterator) [3-arg, added task-3/S7: move the sibling RANGE
+        [`from_node`, `to_node`) directly onto `new_parent` -- here
+        `from_node` is already a first CHILD, not the parent whose
+        children get gathered]. Collapsed into one Python signature the
+        same way this port collapses other overloaded C++ methods (e.g.
+        `tree(iterator)`, `downwards.__init__`): the 2-arg form is what
+        the original (S0-S6) `tree_probe.cc`-verified behaviour needs;
+        the 3-arg form is what `comboreduct/reduct/general_rules.py`'s
+        `eval_constants` needs (`tr.reparent(tr.append_child(it, *it),
+        it.begin(), to)`) -- moving only the just-`partition`ed constant
+        PREFIX of `it`'s children onto a freshly appended sibling,
+        without gathering `it`'s remaining (non-constant) children too.
+
+        Both forms delegate to `_reparent_range`, which is the direct
+        port of the 3-arg C++ overload's own body.
         """
-        if from_node.first_child is None:
-            return new_parent
-        return self._reparent_range(new_parent, from_node.first_child, None)
+        if to_node is _NO_TO_NODE:
+            if from_node.first_child is None:
+                return new_parent
+            return self._reparent_range(new_parent, from_node.first_child, None)
+        return self._reparent_range(new_parent, from_node, to_node)
 
     def move_after(self, target, source):
         """C++: opencog/util/tree.h:1592 move_after
