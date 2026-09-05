@@ -75,6 +75,7 @@ int main()
     // ---- level: flatten nested associative calls ----
     run_case("level_flatten_and", "and($1 and($2 $3) $4)", lv);
     run_case("level_flatten_deep", "and($1 and($2 and($3 $4)))", lv);
+    run_case("level_flatten_deep_left_nested", "and($1 and(and($2 $3) $4))", lv);
     run_case("level_no_flatten_or_inside_and", "and($1 or($2 $3))", lv);
     run_case("level_plus", "plus(1 plus(2 3) 4)", lv);
 
@@ -99,6 +100,19 @@ int main()
     run_case("reorder_commutative_or", "or($3 $1 $2)", rc);
     run_case("reorder_commutative_subtree_vs_leaf", "and(or($1 $2) $1)", rc);
     run_case("reorder_commutative_two_neg_only", "and(!$2 !$1)", rc);
+    // multi-child NON-commutative operator (malformed combo -- not() only
+    // ever has one real child -- but reorder_commutative's own guard is
+    // purely `is_commutative(*it)`, arity-blind; built via append_child
+    // directly since str2combo_tree may not parse a 2-arg not()).
+    {
+        combo_tree tr(vertex(id::logical_not));
+        combo_tree::iterator root = tr.begin();
+        tr.append_child(root, vertex(argument(2)));
+        tr.append_child(root, vertex(argument(1)));
+        rc(tr, root);
+        cout << quote("reorder_commutative_multi_child_non_commutative") << ": " << quote(show(tr))
+             << "," << endl;
+    }
 
     // ---- remove_null_vertices ----
     // (built by hand -- combo's own str2combo_tree parser has no null_vertex

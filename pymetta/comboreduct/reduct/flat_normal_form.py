@@ -39,6 +39,8 @@ against.
 
 from __future__ import annotations
 
+import copy
+
 from pymetta.comboreduct.combo.argument import argument
 from pymetta.comboreduct.combo.vertex import (
     builtin,
@@ -277,10 +279,14 @@ def implications(c1: clause, c2: clause):
     resolvents (`{-2,2,4}` and `{-1,1,4}`) are themselves tautologies via
     the OTHER pair, correctly suppressed).
 
-    Collapsed the templated `Out out` output-iterator parameter (C++'s
-    `(*out++) = c`) into a Python generator: every real call site
-    (`logical_rules.cc:313,375`, Task 4) uses `std::back_inserter` into a
-    fresh `nf`, i.e. `list(implications(c1, c2))` here.
+    # DIVERGENCE(C++ flat_normal_form.h:53): yields via a generator, not an output iterator.
+    # C++'s `template<typename Out> void implications(c1, c2, Out out)` writes each resolvent via
+    # `(*out++) = c`, taking whatever output-iterator adapter the caller passes; this port drops
+    # the `out` parameter and `yield`s each resolvent instead. Every real call site
+    # (`logical_rules.cc:313,375`, Task 4) uses `std::back_inserter` into a fresh `nf` --
+    # `list(implications(c1, c2))` here reproduces exactly that, and no other output-iterator
+    # shape is used anywhere in $CLASSIC, so the collapse changes no real caller's observable
+    # result -- only the C++ TEMPLATE PARAMETER this port has no equivalent mechanism for.
     """
     for lit1 in c1:
         for lit2 in c2:
@@ -416,45 +422,44 @@ class nf_mapper:
         """C++: moses/comboreduct/reduct/flat_normal_form.h:259 nf_mapper::create
 
         Appends a copy of the interned item `abs(idx)` as a new child of
-        `at`, negated if `idx < 0`.
+        `at`, negated if `idx < 0` -- a literal translation of
+        `get_argument(*t.append_child(...)).negate()`: append the
+        subtree copy, then negate the FRESH copy's own root in place.
 
-        The negative branch constructs the final, already-negated
-        `argument` value directly (`argument(-interned.idx)`) rather than
-        translating `get_argument(*t.append_child(...)).negate()`
-        literally (copy, then mutate the copy in place): C++'s `*sib =
-        *tmp` copies a `vertex` BY VALUE (`boost::variant` holds its
-        `argument` inline), so negating the COPY there can never reach
-        the interned original in `_int2item`. This port's `argument` is a
-        mutable OBJECT, and `tree.append_child`'s subtree-copy path
-        (`_copy_descendants`, tree.py) copies a node's `.data` by
-        REFERENCE -- an existing, pervasive property of this port, not
-        introduced here -- so translating the mutate-the-copy idiom
-        literally would negate the SAME object still sitting in
-        `_int2item[-idx]`, silently corrupting every FUTURE `create()`/
-        `extract_conjunction()` call against that id. `_int2item`'s only
+        This is safe -- the negate cannot reach back into `_int2item`'s
+        stored original -- only because `tree.append_child`'s
+        subtree-copy path genuinely value-copies a node's `.data`
+        (`tree.py`'s `_copy_value`, task-3 review Critical fix); before
+        that fix, this exact line would have silently corrupted
+        `_int2item[-idx]` on every call (`_int2item`'s only
         negative-`idx`-reachable items are always themselves `argument`s
-        (only `argument`s ever get a negative id at all, via
-        `add_item`'s own negate-and-relookup branch above), so this
-        branch is never asked to negate anything else.
+        -- see `add_item`'s own negate-and-relookup branch above -- so
+        every real call into this branch would have hit it). See
+        `tree.py`'s own `_copy_value` docstring for the full trace.
         """
         if idx < 0:
-            interned = self._int2item[-idx].begin().data
-            t.append_child(at, argument(-interned.idx))
+            new_node = t.append_child(at, self._int2item[-idx].begin())
+            new_node.data.negate()
         else:
             t.append_child(at, self._int2item[idx].begin())
 
     def add_cnf(self, node: tree_node) -> nf:
         """C++: moses/comboreduct/reduct/flat_normal_form.h:124 nf_mapper::add_cnf
 
-        Scoped to `node`'s FULL child range (C++'s `add_cnf(sib_it from,
-        sib_it to)` takes an arbitrary sibling sub-range; the only real
-        call site, `logical_rules.cc:348` (Task 4), always passes
-        `tr.begin(it), tr.end(it)` -- `it`'s complete child list) --
-        matching this port's `tree.sort`/`tree.partition`/
-        `tree.sort_on_subtrees` scoping precedent. One clause per child
-        of `node`: a child that is itself `logical_or` contributes one
-        literal per ITS OWN child (a genuine disjunction); any other
-        child contributes a single-literal clause (a bare atom).
+        # DIVERGENCE(C++ flat_normal_form.h:124): takes a node, not a (from,to) sibling sub-range.
+        # C++'s `add_cnf(sib_it from, sib_it to)` accepts an arbitrary sibling sub-range; this
+        # port narrows the parameter to `node` (its FULL child range only) because that is the
+        # only shape the real call site (`logical_rules.cc:348`, Task 4: `tr.begin(it),
+        # tr.end(it)` -- `it`'s complete child list) ever uses -- the same scoping precedent this
+        # port's `tree.sort`/`tree.partition`/`tree.sort_on_subtrees` already established.
+        # Re-widening to an explicit sub-range is a mechanical addition (slice `node`'s children
+        # by a `from`/`to` pair before the walk below) if a future caller ever needs it; no
+        # observable behaviour differs for any input this narrower signature can still express.
+
+        One clause per child of `node`: a child that is itself
+        `logical_or` contributes one literal per ITS OWN child (a genuine
+        disjunction); any other child contributes a single-literal clause
+        (a bare atom).
         """
         result: nf = []
         child = node.first_child
@@ -474,8 +479,11 @@ class nf_mapper:
     def add_dnf(self, node: tree_node) -> nf:
         """C++: moses/comboreduct/reduct/flat_normal_form.h:137 nf_mapper::add_dnf
 
-        As `add_cnf`, with `logical_and` in place of `logical_or` --
-        scoped to `node`'s full child range for the same reason.
+        # DIVERGENCE(C++ flat_normal_form.h:137): takes a node, not a (from,to) sibling sub-range.
+        # Same scoping collapse as `add_cnf` above, for the identical reason -- see that
+        # method's own DIVERGENCE marker for the full explanation.
+
+        As `add_cnf`, with `logical_and` in place of `logical_or`.
         """
         result: nf = []
         child = node.first_child
@@ -495,13 +503,14 @@ class nf_mapper:
     def extract_cnf(self, f: nf, t: combo_tree, sib: tree_node) -> None:
         """C++: moses/comboreduct/reduct/flat_normal_form.h:151 nf_mapper::extract_cnf
 
-        Rebuilds `sib` (and its descendants) as `and(or(...) or(...) ...)`
-        from `f`. Scoped to the WHOLE `f` (C++'s `extract_cnf(It from, It
-        to, ...)` takes an arbitrary `nf` sub-range; both real call sites,
-        `logical_rules.cc:331,426` (Task 4), always pass `f.begin(),
-        f.end()`) -- same scoping precedent as `add_cnf` above.
+        # DIVERGENCE(C++ flat_normal_form.h:151): takes the whole `f`, not an (It,It) sub-range.
+        # C++'s `extract_cnf(It from, It to, tree&, sib_it)` accepts an arbitrary `nf` sub-range;
+        # this port narrows to the whole `f` because both real call sites
+        # (`logical_rules.cc:331,426`, Task 4) always pass `f.begin(), f.end()` -- the same
+        # scoping collapse `add_cnf` above makes, for the same reason.
 
-        An EMPTY clause anywhere in `f` is silently SKIPPED -- it
+        Rebuilds `sib` (and its descendants) as `and(or(...) or(...) ...)`
+        from `f`. An EMPTY clause anywhere in `f` is silently SKIPPED -- it
         contributes NO conjunct at all, rather than making the whole
         result `logical_false` (which is what an empty OR-clause means in
         real boolean algebra, and IS how `extract_dnf` below treats an
@@ -536,6 +545,10 @@ class nf_mapper:
 
     def extract_dnf(self, f: nf, t: combo_tree, sib: tree_node) -> None:
         """C++: moses/comboreduct/reduct/flat_normal_form.h:175 nf_mapper::extract_dnf
+
+        # DIVERGENCE(C++ flat_normal_form.h:175): takes the whole `f`, not an (It,It) sub-range.
+        # Same scoping collapse as `extract_cnf` above, for the identical reason -- see that
+        # method's own DIVERGENCE marker for the full explanation.
 
         As `extract_cnf`, with the CNF/DNF roles of `logical_and`/
         `logical_or` swapped -- PLUS one real asymmetry, not a
@@ -580,11 +593,17 @@ class nf_mapper:
         calls this on a freshly-appended node, but this method's own
         contract does not depend on that).
 
-        The single-negative-literal branch constructs the negated
-        `argument` directly (`argument(-interned.idx)`), for the exact
-        aliasing reason `create`'s own docstring explains -- this is the
-        SAME hazard (`*sib=*tmp; get_argument(*sib).negate();` in C++,
-        safe there only because `vertex` copies by value).
+        # DIVERGENCE(C++ flat_normal_form.h:202): sib.data=... bypasses tree.py's value-copy fix.
+        # `*sib = *tmp` in both of C++'s size()==1 branches (flat_normal_form.h:206-217) copies a
+        # `vertex` BY VALUE. `sib.data = tmp.data` here is a manual Python attribute assignment,
+        # written directly in THIS file rather than going through `tree.append_child` -- so it
+        # does NOT benefit from `tree.py`'s own `_copy_value` fix (task-3 review Critical; that
+        # fix lives inside `append_child`'s subtree-copy branch and friends, none of which this
+        # line calls). Left unfixed, it would alias `sib`'s value with `_int2item`'s stored
+        # original directly, and the negative branch's own `.negate()` would then corrupt that
+        # original exactly like `create`'s own (now-fixed) hazard did. `copy.copy(...)` is
+        # applied at both assignments below for the same reason `tree.py`'s `_copy_value` uses
+        # it: a no-op for the immutable alternatives, a genuine independent copy for `argument`.
         """
         if c.size() == 1:
             first = c.first()
@@ -595,10 +614,11 @@ class nf_mapper:
                         raise AssertionError(
                             "Tree node referenced by iterator isn't an argument."
                         )
-                    sib.data = argument(-interned.idx)
+                    sib.data = copy.copy(interned)
+                    sib.data.negate()
                 else:
                     tmp = self._int2item[first].begin()
-                    sib.data = tmp.data
+                    sib.data = copy.copy(tmp.data)
                     t.append_children(sib, list(t.children(tmp)))
         else:
             sib.data = builtin.logical_and

@@ -44,7 +44,41 @@ combo_tree is always single-rooted, so this port tracks the root directly as
 # stays well-defined without sentinels.
 """
 
+import copy
 import functools
+
+
+def _copy_value(data):
+    """No direct C++ symbol: every C++ `tree<T>` subtree-copy operation
+    (`tree(const iterator_base&)`, `replace(iter, const iterator_base&)`,
+    `append_child(iter,iter)`, `insert_subtree`/`insert_subtree_after`)
+    copies `T` BY VALUE -- for this port's real `T` (`vertex`, a
+    `boost::variant`, vertex.py), that means the source node and the copy
+    never share state afterward, even for the one variant alternative
+    that is itself mutable in place (`argument.negate()`).
+
+    # DIVERGENCE(C++ opencog/util/tree.h:1397): subtree-copy shared mutable data; now copies it.
+    # Found in review (task-3, S7), not a deliberate design: `tree.__init__`'s iterator
+    # constructor, `append_child`'s and `replace`'s subtree-copy branches,
+    # `insert_subtree`/`insert_subtree_after`, and `_copy_descendants`'s own walk all passed a
+    # source node's `.data` straight through unwrapped, silently sharing one mutable `argument`
+    # object between the original node and every copy of it. C++ copies `vertex` BY VALUE at
+    # every one of those call sites, so two different copies can never influence each other by
+    # negating one in place -- exactly what `logical_rules.cc:204`/`logical_rules.h:235`'s "copy
+    # a subtree, then negate the copy's own root" idiom (`push_back_negated_arguments`, Task 4)
+    # depends on. Demonstrated live before this fix: `combo_tree(some_node_holding_$1)` followed
+    # by negating the COPY's root argument also flipped the ORIGINAL node's sign
+    # (`and($1 $2)` became `and(!$1 $2)`, not just the copy) -- see task-3-report.md's
+    # aliasing-root-cause section for the full before/after trace and the regression tests this
+    # fix added. `copy.copy` is applied uniformly rather than special-cased per alternative: for
+    # this port's three IMMUTABLE `vertex` alternatives (`builtin` -- an IntEnum member,
+    # `contin_t` -- a bare `float`, `enum_t`/plain `str`), `copy.copy` is already a documented
+    # no-op returning the SAME object (verified: `copy.copy(3.0) is 3.0`), so this costs nothing
+    # for the common case and only ever does real work for the one mutable alternative,
+    # `argument` (`copy.copy(argument(5))` returns a genuinely distinct object with the same
+    # `idx`, confirmed directly).
+    """
+    return copy.copy(data)
 
 
 class _DeadLink:
@@ -152,7 +186,7 @@ class tree:
                     "its own links are poisoned (see erase()/replace()'s "
                     "DIVERGENCE markers)"
                 )
-            self._root = tree_node(root_data.data)
+            self._root = tree_node(_copy_value(root_data.data))
             self._copy_descendants(self._root, root_data)
             return
         self._root = None if root_data is None else tree_node(root_data)
@@ -760,14 +794,14 @@ class tree:
         while True:
             if current_from.first_child is not None:
                 current_from = current_from.first_child
-                toit = self._append_child_leaf(toit, current_from.data)
+                toit = self._append_child_leaf(toit, _copy_value(current_from.data))
             else:
                 while current_from.next_sibling is None and current_from is not source_root:
                     current_from = current_from.parent
                     toit = toit.parent
                 current_from = current_from.next_sibling
                 if current_from is not last:
-                    toit = self._append_child_leaf(toit.parent, current_from.data)
+                    toit = self._append_child_leaf(toit.parent, _copy_value(current_from.data))
             if current_from is last:
                 break
         return dest_root
@@ -841,7 +875,7 @@ class tree:
         if node is None:
             raise ValueError("append_child: node must not be None")
         if isinstance(data_or_subtree, tree_node):
-            new_child = self._append_child_leaf(node, data_or_subtree.data)
+            new_child = self._append_child_leaf(node, _copy_value(data_or_subtree.data))
             self._copy_descendants(new_child, data_or_subtree)
             return new_child
         return self._append_child_leaf(node, data_or_subtree)
@@ -936,13 +970,13 @@ class tree:
 
     def insert_subtree(self, node, subtree):
         """C++: opencog/util/tree.h:1358 insert_subtree"""
-        dummy = self.insert(node, subtree.data)
+        dummy = self.insert(node, _copy_value(subtree.data))
         self._copy_descendants(dummy, subtree)
         return dummy
 
     def insert_subtree_after(self, node, subtree):
         """C++: opencog/util/tree.h:1368 insert_subtree_after"""
-        new_node = self.insert_after(node, subtree.data)
+        new_node = self.insert_after(node, _copy_value(subtree.data))
         self._copy_descendants(new_node, subtree)
         return new_node
 
@@ -1044,7 +1078,7 @@ class tree:
         if isinstance(data_or_subtree, tree_node):
             if node is data_or_subtree:
                 return node
-            new_node = tree_node(data_or_subtree.data)
+            new_node = tree_node(_copy_value(data_or_subtree.data))
             new_node.parent = node.parent
             new_node.prev_sibling = node.prev_sibling
             new_node.next_sibling = node.next_sibling

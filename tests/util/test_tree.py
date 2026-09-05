@@ -1195,7 +1195,24 @@ def test_partition_none_matching():
     assert boundary.data == "V1"
 
 
+def test_partition_single_constant_child():
+    # C++: partition_probe.cc "partition_case_e" ->
+    # {"result":["C1"],"boundary":"<end>"} -- the probe's actual case,
+    # previously swapped for an unmeasured empty-children variant below
+    # (task-3 review, Minor).
+    t = tree("root")
+    t.append_child(t.begin(), "C1")
+    boundary = t.partition(t.begin(), _is_const)
+    assert [c.data for c in t.children(t.begin())] == ["C1"]
+    assert boundary is None
+
+
 def test_partition_no_children_returns_none():
+    # Not one of partition_probe.cc's own cases (C++'s `partition` is
+    # never called on a genuinely childless node in this port's real
+    # call site either) -- a from==to input is degenerate but still
+    # worth guarding: `tree.partition`'s own docstring traces exactly why
+    # this returns immediately with no relinking attempted.
     t = tree("only")
     boundary = t.partition(t.begin(), _is_const)
     assert boundary is None
@@ -1279,3 +1296,71 @@ def test_reparent_omitted_third_arg_is_not_confused_with_a_range_call():
     assert result is only  # the moved range's start (tree.h:1525's own `first`)
     assert list(t.children(src)) == []
     assert [c.data for c in t.children(dst)] == ["only"]
+
+
+# ---------------------------------------------------------------------------
+# _copy_value -- subtree-copy operations must value-copy mutable node data,
+# not alias it (task-3 review, Critical). Uses the REAL `combo_tree`/
+# `argument` (imported locally, not at module level, to keep this file's
+# own "generic tree<T>" test data -- plain strings elsewhere -- unchanged)
+# because `argument` is this port's one concrete, reachable example of
+# mutable node data, and the demonstrated failure is combo-shaped:
+# Task 4's `push_back_negated_arguments` (logical_rules.h:235,
+# logical_rules.cc:204: `*it = *it.begin(); erase_children(it);
+# get_argument(*it).negate();`, reached from `reduce_to_enf`,
+# logical_rules.cc:643 -- the central function of the whole next task)
+# copies a subtree and negates ONLY the copy's own root; the original
+# must never observe that mutation.
+# ---------------------------------------------------------------------------
+
+
+def test_combo_tree_copy_constructor_value_copies_a_mutable_argument():
+    from pymetta.comboreduct.combo.argument import argument
+    from pymetta.comboreduct.combo.vertex import combo_tree
+
+    original = combo_tree(argument(1))
+    copy_tr = combo_tree(original.begin())  # tree(const iterator_base&)
+    copy_tr.begin().data.negate()
+
+    assert original.begin().data.idx == 1, "negating the COPY corrupted the ORIGINAL"
+    assert copy_tr.begin().data.idx == -1
+
+
+def test_append_child_subtree_copy_value_copies_a_mutable_argument():
+    from pymetta.comboreduct.combo.argument import argument
+    from pymetta.comboreduct.combo.vertex import combo_tree
+
+    src = combo_tree(argument(1))
+    dst = combo_tree("root")
+    copied = dst.append_child(dst.begin(), src.begin())
+    copied.data.negate()
+
+    assert src.begin().data.idx == 1, "negating the COPY corrupted the ORIGINAL"
+    assert copied.data.idx == -1
+
+
+def test_push_back_negated_arguments_shaped_copy_then_negate_leaves_source_untouched():
+    """The exact shape Task 4's `push_back_negated_arguments`
+    (logical_rules.h:235) needs: copy ONE child of a live tree out to a
+    standalone tree, negate the copy's own root argument in place, and
+    confirm the LIVE tree's own child is completely unaffected.
+    Demonstrated failing before the `tree.py` `_copy_value` fix
+    (task-3-report.md carries the reproduction): `and($1 $2)`'s `$1`
+    child, copied and negated this way, used to also flip the ORIGINAL
+    `$1` to `!$1` in place, corrupting `and($1 $2)` into `and(!$1 $2)`.
+    """
+    from pymetta.comboreduct.combo.argument import argument
+    from pymetta.comboreduct.combo.vertex import builtin, combo_tree
+
+    live = combo_tree(builtin.logical_and)
+    root = live.begin()
+    live.append_child(root, argument(1))
+    live.append_child(root, argument(2))
+    first_child = root.first_child
+
+    standalone = combo_tree(first_child)
+    standalone.begin().data.negate()
+
+    assert first_child.data.idx == 1, "the live tree's own child was corrupted"
+    assert [c.data.idx for c in live.children(root)] == [1, 2]
+    assert standalone.begin().data.idx == -1

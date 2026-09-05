@@ -178,6 +178,53 @@ int main()
         cout << quote("implications_tautology_suppressed") << ": " << impls.size() << "," << endl;
     }
 
+    // ---- pairwise_erase_if(f, subset_eq) -- real call-site shape,
+    // logical_rules.cc:304,369: bind(subset_eq, _1, _2), passed here as
+    // the plain function directly (subset_eq's own signature already
+    // matches BinaryPredicate exactly). ----
+    {
+        nf f;
+        clause c1; c1.insert(1);
+        clause c2; c2.insert(1); c2.insert(2);
+        f.push_back(c1);
+        f.push_back(c2);
+        pairwise_erase_if(f, subset_eq);
+        cout << quote("pairwise_erase_if_drop_subsumed_by_earlier") << ": " << quote(nf_str(f))
+             << "," << endl;
+    }
+    {
+        nf f;
+        clause c1; c1.insert(1); c1.insert(2);
+        clause c2; c2.insert(1);
+        f.push_back(c1);
+        f.push_back(c2);
+        pairwise_erase_if(f, subset_eq);
+        cout << quote("pairwise_erase_if_drop_subsumed_by_later") << ": " << quote(nf_str(f))
+             << "," << endl;
+    }
+    {
+        nf f;
+        clause c1; c1.insert(1); c1.insert(2);
+        clause c2; c2.insert(3); c2.insert(4);
+        f.push_back(c1);
+        f.push_back(c2);
+        pairwise_erase_if(f, subset_eq);
+        cout << quote("pairwise_erase_if_keeps_incomparable") << ": " << quote(nf_str(f)) << ","
+             << endl;
+    }
+    {
+        nf f;
+        clause c1; c1.insert(1); c1.insert(2);
+        clause c2; c2.insert(3);
+        clause c3; c3.insert(1); c3.insert(2);
+        f.push_back(c1);
+        f.push_back(c2);
+        f.push_back(c3);
+        pairwise_erase_if(f, subset_eq);
+        cout << quote("pairwise_erase_if_collapses_duplicate") << ": " << quote(nf_str(f)) << ","
+             << endl;
+    }
+
     // ---- nf_mapper::add_item id assignment order + argument sign folding ----
     {
         combo_tree tr = str2combo_tree("or($2 $1 !$2 $3 !$1)", vector<string>());
@@ -229,6 +276,15 @@ int main()
         nf f = mapper.add_cnf(root.begin(), root.end());
         mapper.extract_cnf(f.begin(), f.end(), tr, root);
         cout << quote("extract_cnf_single_clause_single_literal") << ": " << quote(show(tr)) << "," << endl;
+    }
+    {
+        // extract_dnf's own single-child collapse (extract_cnf's twin above)
+        combo_tree tr = str2combo_tree("and($1)", vector<string>());
+        combo_tree::iterator root = tr.begin();
+        nf_mapper<vertex> mapper;
+        nf f = mapper.add_dnf(root.begin(), root.end());
+        mapper.extract_dnf(f.begin(), f.end(), tr, root);
+        cout << quote("extract_dnf_single_clause_single_literal") << ": " << quote(show(tr)) << "," << endl;
     }
     {
         // extract_cnf: a clause list built to be entirely empty (0 clauses)

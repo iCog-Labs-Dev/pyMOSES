@@ -316,11 +316,39 @@ class remove_null_vertices(rule):
         (`tools/cpp_probe/general_rules_probe.cc`'s
         `remove_null_vertices_cond` case: this exact odd-count shape
         completes without crashing in C++, producing `cond($2 $3 $4)`).
-        The two-erase branch is NOT given the same guard: a null
-        CONDITION always has a real paired consequent by `cond`'s own
-        structural contract (see eval.py's cond-loop citation above), so
-        the second `tr.erase(sib)` is never asked to erase a node that
-        doesn't exist for any input this rule can actually be applied to.
+
+        # DIVERGENCE(C++ general_rules.cc:117): a trailing-else null segfaults real C++; we raise.
+        # CORRECTION (task-3 review): an earlier version of this docstring
+        # claimed "a null CONDITION always has a real paired consequent by
+        # cond's own structural contract", used to justify NOT guarding the
+        # two-erase branch the same way the advance branch above is
+        # guarded. That claim does not cover the trailing "else" slot
+        # itself, which the pair-stride walk visits (and null-checks) as
+        # if it were a condition whenever it lands there -- a genuinely
+        # malformed but real, constructible input, not merely
+        # hypothetical. Measured directly, isolated in its own binary so a
+        # crash could not take out other probe cases
+        # (`tools/cpp_probe/remove_null_vertices_cond_crash_probe.cc`,
+        # `bad1`/`bad2` cases, `( ulimit -v 1048576; timeout 20 <binary>
+        # bad1 )` -> exit 139, `timeout: the monitored command dumped
+        # core`): `cond($1 $2 null)` (null IS the trailing else) and
+        # `cond(null $1 null)` (a real null condition followed by a SECOND
+        # null in the trailing else slot) both segfault the real
+        # `libcomboreduct.so` -- `tr.erase(sib)` erasing the trailing null
+        # returns an `end()`/null successor, and the SECOND `tr.erase(sib)`
+        # then dereferences that null iterator. This port's `tr.erase(None)`
+        # raises `AttributeError` at the same point instead of dereferencing
+        # a null pointer -- a strictly safer failure mode (loud, catchable,
+        # no memory corruption) than C++'s undefined behaviour, but a
+        # real, disclosed difference in KIND of failure, not a "both just
+        # crash so it doesn't matter" equivalence. `good1`
+        # (`cond($1 null $2)`, null as a plain consequent -- never
+        # inspected) and `good2` (`cond($1 $2 $3 null)`, null lands on a
+        # CONSEQUENT-position skip for this particular child count) both
+        # complete identically in C++ and this port (verified by the same
+        # probe), confirming the crash is specific to a null actually
+        # occupying the trailing else slot, not something this whole
+        # branch does wrong in general.
         """
         if not vertex_equal(it.data, builtin.cond):
             sib = it.first_child

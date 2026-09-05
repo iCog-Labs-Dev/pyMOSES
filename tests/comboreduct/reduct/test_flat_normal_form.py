@@ -62,11 +62,13 @@ def test_clause_orders_a_bare_pair_with_the_negative_one_first():
 
 def test_clause_treats_a_literal_and_its_negation_as_distinct_elements():
     # (a == -b) is only a TIE-BREAK in absolute_value_order, not an
-    # equivalence -- 1 and -1 are still two separate set elements.
+    # equivalence -- 1 and -1 are still two separate set elements, in
+    # the negative-first order (not just "size 2", which alone would not
+    # catch a bug that let one silently displace or reorder the other).
     c = clause()
     c.insert(1)
     c.insert(-1)
-    assert c.size() == 2
+    assert list(c) == [-1, 1]
 
 
 def test_clause_insert_dedups_equal_literals():
@@ -178,38 +180,42 @@ def test_implications_no_complementary_literal_yields_nothing():
 
 
 def test_pairwise_erase_if_drops_a_clause_subsumed_by_an_earlier_one():
-    # p = subset_eq (the real call site's own predicate,
+    # C++: flat_normal_form_probe.cc "pairwise_erase_if_drop_subsumed_by_earlier"
+    # -- p = subset_eq (the real call site's own predicate,
     # logical_rules.cc:304,369): {1} subsumes {1,2} (the smaller clause
     # implies more), so the bigger one is redundant and gets dropped.
     f = [clause([1]), clause([1, 2])]
     pairwise_erase_if(f, subset_eq)
-    assert [list(c) for c in f] == [[1]]
+    assert nf_to_str(f) == "(1)"
 
 
 def test_pairwise_erase_if_drops_a_clause_subsumed_by_a_later_one():
+    # C++: flat_normal_form_probe.cc "pairwise_erase_if_drop_subsumed_by_later"
     f = [clause([1, 2]), clause([1])]
     pairwise_erase_if(f, subset_eq)
-    assert [list(c) for c in f] == [[1]]
+    assert nf_to_str(f) == "(1)"
 
 
 def test_pairwise_erase_if_keeps_incomparable_clauses():
+    # C++: flat_normal_form_probe.cc "pairwise_erase_if_keeps_incomparable"
     f = [clause([1, 2]), clause([3, 4])]
     pairwise_erase_if(f, subset_eq)
-    assert [list(c) for c in f] == [[1, 2], [3, 4]]
+    assert nf_to_str(f) == "(1 2)(3 4)"
 
 
 def test_pairwise_erase_if_collapses_duplicate_clauses_to_one():
-    # The surviving duplicate is the LATER one (index 2), not the first:
-    # when the outer (later, index-2) element and an earlier one compare
-    # subset_eq BOTH ways (they are equal), `p(c1, c2)` -- c1 the outer,
-    # LATER element -- is checked before `p(c2, c1)`, so the EARLIER one
-    # (index 0) is what gets erased. {3} (index 1) is untouched and ends
-    # up first once index 0 is gone. Traced by hand against
-    # pairwise_erase_if's own docstring and independently confirmed by
-    # running it.
+    # C++: flat_normal_form_probe.cc "pairwise_erase_if_collapses_duplicate"
+    # -- the surviving duplicate is the LATER one (index 2), not the
+    # first: when the outer (later, index-2) element and an earlier one
+    # compare subset_eq BOTH ways (they are equal), `p(c1, c2)` -- c1 the
+    # outer, LATER element -- is checked before `p(c2, c1)`, so the
+    # EARLIER one (index 0) is what gets erased. {3} (index 1) is
+    # untouched and ends up first once index 0 is gone. Traced by hand
+    # against pairwise_erase_if's own docstring and confirmed against
+    # the real library (this exact case, measured).
     f = [clause([1, 2]), clause([3]), clause([1, 2])]
     pairwise_erase_if(f, subset_eq)
-    assert [list(c) for c in f] == [[3], [1, 2]]
+    assert nf_to_str(f) == "(3)(1 2)"
 
 
 # ---------------------------------------------------------------------------
@@ -280,6 +286,18 @@ def test_extract_cnf_collapses_a_single_clause_single_literal_to_a_bare_leaf():
     m = nf_mapper()
     f = m.add_cnf(tr.begin())
     m.extract_cnf(f, tr, tr.begin())
+    assert combo_tree_to_str(tr) == "$1 "
+
+
+def test_extract_dnf_collapses_a_single_clause_single_literal_to_a_bare_leaf():
+    # C++: flat_normal_form_probe.cc "extract_dnf_single_clause_single_literal"
+    # -- extract_cnf's own twin (immediately above) was pinned; this one
+    # was not, and the two ARE genuinely different code paths (deletable
+    # independently -- task-3 review, Important).
+    tr = str_to_combo_tree("and($1)")
+    m = nf_mapper()
+    f = m.add_dnf(tr.begin())
+    m.extract_dnf(f, tr, tr.begin())
     assert combo_tree_to_str(tr) == "$1 "
 
 
@@ -424,3 +442,28 @@ def test_create_does_not_corrupt_the_interned_copy_across_repeated_calls():
 
     assert combo_tree_to_str(out1) == "and($2) "
     assert combo_tree_to_str(out1) == combo_tree_to_str(out2)
+
+
+def test_extract_conjunction_negative_branch_does_not_corrupt_the_interned_copy():
+    """Regression test for `extract_conjunction`'s own twin of `create`'s
+    aliasing hazard (task-3 review, Important: the `create` fix had this
+    pin, `extract_conjunction`'s did not). Reverting `extract_conjunction`'s
+    negative branch to the naive `sib.data = tmp.data; sib.data.negate()`
+    passes every OTHER test in this file, yet three successive calls with
+    the SAME negative singleton clause then alternate `and(!$1)` /
+    `and($1)` / `and(!$1)` instead of returning `and(!$1)` every time --
+    each call's `.negate()` flips the shared, aliased `_int2item` entry
+    for the NEXT call to read. This asserts all three stay consistent.
+    """
+    tr = str_to_combo_tree("$1")
+    m = nf_mapper()
+    id1 = m.add_item(tr.begin())
+    neg = clause([-id1])
+
+    results = []
+    for _ in range(3):
+        dst, sib = _fresh_and_scaffold()
+        m.extract_conjunction(neg, dst, sib)
+        results.append(combo_tree_to_str(dst))
+
+    assert results == ["and(!$1) ", "and(!$1) ", "and(!$1) "]
