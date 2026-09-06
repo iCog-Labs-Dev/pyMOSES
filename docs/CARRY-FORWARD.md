@@ -171,8 +171,16 @@ member in the docstring body.
   four Python types across the package. "Column not found" is `IndexError` at
   `table.py:302` but `ValueError` at `table_io.py:431,486,491,676`. The
   "forests unsupported" and `boost::bad_get`→`TypeError` families *are* uniform.
-- **`parse_divergences` captures only the first physical line** of a marker; two
-  of nine markers use multi-line references.
+- ~~**`parse_divergences` captures only the first physical line** of a marker;
+  two of nine markers use multi-line references.~~ **Fixed** (alignment-parser
+  task, S7): `parse_divergences` now merges a `# DIVERGENCE(...)` marker with
+  its same-indentation, unbroken-run-of-`#`-lines continuation into one
+  `reason` — see that function's docstring in `tools/check_alignment.py` for
+  the exact continuation rule. Authors do **not** need to front-load the
+  essential statement onto the marker's first physical line anymore; a normal
+  multi-line explanation now reaches `docs/ALIGNMENT.md` in full, so long as
+  two adjacent markers are not run together (each marker still ends where the
+  next one's `# DIVERGENCE(...)` begins).
 - **Corpus gaps:** no argument index above `$3`, no arity ≥ 4.
 
 ---

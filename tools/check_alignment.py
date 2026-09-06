@@ -6,6 +6,10 @@ the first line of its docstring. This tool parses those breadcrumbs (and the
 `# DIVERGENCE(...)` markers), validates each breadcrumb against whichever of
 the classic checkouts (Moses, CogUtil) actually contains its cited file, and
 generates docs/ALIGNMENT.md.
+
+A `# DIVERGENCE(...)` marker may span multiple physical `#`-comment lines;
+`parse_divergences` merges a marker with its continuation lines into one
+`reason` -- see that function's docstring for the exact continuation rule.
 """
 
 import ast
@@ -18,6 +22,12 @@ DRIFT_TOLERANCE = 25
 
 BREADCRUMB_RE = re.compile(r"^C\+\+: (?P<file>\S+):(?P<line>\d+) (?P<symbol>.+)$")
 DIVERGENCE_RE = re.compile(r"# DIVERGENCE\((?P<ref>C\+\+ [^)]+)\): (?P<reason>.+)")
+
+# Strips a continuation line's leading `#`-comment marker(s) (and any
+# whitespace interleaved with them) down to its bare text, e.g. "    # foo"
+# and "# # foo" (a marker written inside an already `#`-per-line-commented
+# block) both become "foo". See `parse_divergences` for how this is used.
+DIVERGENCE_CONTINUATION_STRIP_RE = re.compile(r"^[#\s]+")
 
 # What a stripped cpp_symbol must look like to be worth searching for at all.
 # Guards against `symbol.split("(", 1)[0]` collapsing to "" -- e.g. a cited
@@ -142,20 +152,83 @@ def validate(crumbs: list[Breadcrumb], roots: list[Path]) -> list[str]:
     return problems
 
 
+def _leading_whitespace(line: str) -> str:
+    """Return the run of spaces/tabs before `line`'s first non-whitespace char."""
+    return line[: len(line) - len(line.lstrip(" \t"))]
+
+
 def parse_divergences(path: Path) -> list[Divergence]:
-    """Scan `path`'s source lines for `# DIVERGENCE(C++ <ref>): <reason>` markers."""
-    divergences = []
-    for lineno, line in enumerate(path.read_text().splitlines(), start=1):
-        match = DIVERGENCE_RE.search(line)
-        if match:
-            divergences.append(
-                Divergence(
-                    py_file=path,
-                    line=lineno,
-                    ref=match.group("ref"),
-                    reason=match.group("reason").strip(),
-                )
+    """Scan `path`'s source lines for `# DIVERGENCE(C++ <ref>): <reason>` markers,
+    merging each marker with its continuation lines into one `Divergence`.
+
+    CONTINUATION RULE (deliberate -- authors should write to it): a line
+    immediately following a marker line (or another already-accepted
+    continuation line) is treated as part of that SAME marker's `reason`
+    when, and only when, all of the following hold:
+
+      1. it is not blank;
+      2. its leading whitespace is IDENTICAL to the marker's own leading
+         whitespace (no dedent, no extra indent);
+      3. after that leading whitespace, it begins with `#`;
+      4. it does not itself match `# DIVERGENCE(...)` -- two adjacent
+         markers never merge, even if line 2's indentation would otherwise
+         qualify it as a continuation of marker 1.
+
+    The first following line that fails any of those ends the marker: a
+    blank line, code, a dedent/indent change, or the start of a new marker.
+    A continuation line's own text is whatever remains after stripping its
+    leading run of `#`/whitespace characters (so both a plain "    # foo"
+    and a doubly-commented "# # foo" -- a marker written inside a block
+    that is already `#`-per-line-commented -- contribute "foo"); each
+    contributed piece is appended to `reason` separated by a single space.
+
+    Practical effect for authors: put a multi-line marker's continuation
+    `#` lines at the marker's own indentation, with no blank line breaking
+    the run, and the whole comment is captured as one `reason`. There is
+    no need to front-load the "essential" point onto the first physical
+    line -- unlike before this was fixed, the full explanation now reaches
+    docs/ALIGNMENT.md regardless of which line it is on.
+    """
+    lines = path.read_text().splitlines()
+    divergences: list[Divergence] = []
+    i = 0
+    n = len(lines)
+    while i < n:
+        match = DIVERGENCE_RE.search(lines[i])
+        if not match:
+            i += 1
+            continue
+
+        marker_line = i + 1
+        indent = _leading_whitespace(lines[i])
+        reason_parts = [match.group("reason").strip()]
+
+        j = i + 1
+        while j < n:
+            candidate = lines[j]
+            if not candidate.strip():
+                break
+            if _leading_whitespace(candidate) != indent:
+                break
+            if not candidate.lstrip(" \t").startswith("#"):
+                break
+            if DIVERGENCE_RE.search(candidate):
+                break
+            content = DIVERGENCE_CONTINUATION_STRIP_RE.sub("", candidate, count=1).strip()
+            if content:
+                reason_parts.append(content)
+            j += 1
+
+        divergences.append(
+            Divergence(
+                py_file=path,
+                line=marker_line,
+                ref=match.group("ref"),
+                reason=" ".join(reason_parts),
             )
+        )
+        i = j
+
     return divergences
 
 
