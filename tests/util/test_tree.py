@@ -1430,3 +1430,44 @@ def test_validate_detects_a_corrupted_sibling_back_link():
     with pytest.raises(AssertionError):
         t.validate()
     b.prev_sibling = a  # restore
+
+
+# ---------------------------------------------------------------------------
+# erase()'s return value -- FIX WAVE (Task 4 review, Critical). The existing
+# oracle test_erase (above) erases a MIDDLE child, where the buggy pre-fix
+# code and the correct fix agree (the erased node's own next_sibling IS its
+# pre-order successor too, since it has one) -- that shape can never catch
+# this bug. This one erases a LAST child, where they diverge.
+# ---------------------------------------------------------------------------
+
+
+def test_erase_last_child_returns_none_not_the_parents_next_sibling():
+    """C++'s `erase(sib_it)` returns the erased iterator advanced by
+    `sibling_iterator::operator++` (tree.h:2926-2938), which NEVER climbs
+    to an ancestor -- at the end of a sibling range it sets the node to
+    NULL. Before this fix, `tree.py`'s `erase` returned the erased node's
+    PRE-ORDER successor instead (climbing to the parent's own next
+    sibling when the erased node was the last child), silently walking
+    OUTSIDE the sibling range.
+
+    Reproduces the Task 4 reviewer's own repro on `and(or($1 $2) $3)`:
+    erasing the `or`'s last child (`$2`) must return `None`, not the
+    `and`'s own next child (`$3`).
+    """
+    t = tree("and")
+    or_node = t.append_child(t.begin(), "or")
+    t.append_child(or_node, "$1")
+    child2 = t.append_child(or_node, "$2")
+    t.append_child(t.begin(), "$3")
+
+    ret = t.erase(child2)
+
+    assert ret is None
+
+
+def test_erase_last_child_of_the_root_still_returns_none():
+    t = tree("root")
+    a = t.append_child(t.begin(), "a")
+    b = t.append_child(t.begin(), "b")
+    assert t.erase(b) is None
+    assert t.erase(a) is None

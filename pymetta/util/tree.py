@@ -1074,8 +1074,45 @@ class tree:
         return new_node
 
     def erase(self, node):
-        """C++: opencog/util/tree.h:805 erase"""
-        successor = self._skip_children_successor(node)
+        """C++: opencog/util/tree.h:805 erase
+
+        FIX WAVE (Task 4 review, Critical): C++'s `erase` is a TEMPLATE
+        over the iterator type (`template<class iter> iter erase(iter
+        it)`) -- its return value is `it` advanced by THAT ITERATOR
+        TYPE's own `operator++`, via `ret.skip_children(); ++ret;`
+        (tree.h:808-810). `skip_children()` (tree.h:2373) only sets a flag
+        `pre_order_iterator::operator++` reads; `sibling_iterator::
+        operator++` (tree.h:2926-2938) ignores it completely and just
+        does `node = node->next_sibling` (or NULL at the end of the
+        range). Every real reduct call site passes a `sib_it`
+        (`combo_tree::sibling_iterator`), so the correct successor here is
+        `node.next_sibling` (`None` at the end of a sibling range) --
+        NOT `_skip_children_successor(node)`, which climbs to the
+        node's PRE-ORDER successor (the right answer for a `pre_it`, the
+        template instantiation this method never previously distinguished
+        from `sib_it`). The bug this fixes: erasing the LAST child of a
+        node returned that node's own PARENT's next sibling instead of
+        `None`, so `x = tr.erase(x)` walked OUTSIDE the sibling range and
+        a subsequent write went through `x` into unrelated tree state.
+        Measured (Task 4 review): on `and(or($1 $2) $3)`, erasing the
+        `or`'s last child (`$2`) used to return `argument(3)` instead of
+        `None`.
+
+        `_skip_children_successor` itself is untouched and remains
+        correct for its other two real uses (`iter_pre_at`'s own
+        pre-order-bounded walk, `equal_subtree`'s lockstep boundary) --
+        both are genuinely pre-order-shaped, unlike this one.
+
+        TODO (S7 Task 5): `reduce_remove_subtree_equal_tt`
+        (logical_rules.cc:845-853) walks with a `pre_it`, not a `sib_it`
+        (`for (pre_it pit = it.begin(); pit != it.end();) { pit =
+        tr.insert_above(...); ...; pit = tr.erase(pit); }`) -- when that
+        rule is implemented for real, `erase` will need a SEPARATE
+        pre-order-successor variant (this method's OLD behaviour, i.e.
+        `_skip_children_successor`) for that one call site; do not
+        silently reuse this sibling-successor version for it.
+        """
+        successor = node.next_sibling
         self.erase_children(node)
         if node.prev_sibling is None:
             if node.parent is not None:

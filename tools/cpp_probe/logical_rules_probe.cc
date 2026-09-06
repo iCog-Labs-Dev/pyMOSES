@@ -82,6 +82,24 @@ static void run_enf(const string& label, const string& prog)
     cout << quote(label) << ": " << quote(show(tr)) << "," << endl;
 }
 
+// subtree_to_enf() ALONE, with NO pre-canonicalization -- unlike run_enf
+// above. Needed for the Task 4 review Important's "trailing 0-subsumption
+// Disconnect" and "reduce_or Disconnect propagation" regression cases:
+// their own repro shape (redundant same-operator nesting, e.g.
+// and(and(and()))) is exactly what level()'s own flattening collapses
+// away BEFORE subtree_to_enf ever sees it, so run_enf's pre-pass would
+// silently route around the very branch being tested. subtree_to_enf's
+// own docstring frames the pre-pass as needed for "proper reduction"
+// quality, not as a precondition for calling it at all.
+static void run_enf_raw(const string& label, const string& prog)
+{
+    combo_tree tr = str2combo_tree(prog, vector<string>());
+    combo_tree::iterator it = tr.begin();
+    subtree_to_enf enf;
+    enf(tr, it);
+    cout << quote(label) << ": " << quote(show(tr)) << "," << endl;
+}
+
 // Full effort-3 "complexe" reduction, TYPED (the real thing, using real
 // type inference -- confirms this probe's "untyped" replica pipeline below
 // visits the exact same nodes for these BOOLEAN-ONLY trees).
@@ -239,6 +257,11 @@ int main()
     run_rule("reduce_ands_superset", "and(or($1 $2) $1)", ra);
     run_rule("reduce_ands_implication", "and(or($1 $3) or(!$1 $3))", ra);
     run_rule("reduce_ands_common_factor", "and(or($1 $2) or($1 $3))", ra);
+    // Task 4 review Critical #2 regression cases -- the naive Python
+    // "while i2 < i1" (a stale snapshot of c1's index) instead of C++'s
+    // live "c2 != c1" bound: pre-fix these crashed with IndexError.
+    run_rule("reduce_ors_stale_bound_regression", "or(!$1 or(and($2 !$1 !$2)) !$2 $2)", ro);
+    run_rule("reduce_ands_stale_bound_regression", "and($1 and(or($2 $1 $2)) $2 !$2)", ra);
 
     // ---- subtree_to_enf, in isolation (canonicalized first) ----
     run_enf("enf_and_arg_negarg_contradiction", "and($1 not($1))");
@@ -253,6 +276,27 @@ int main()
     run_enf("enf_all_true", "and(true true)");
     run_enf("enf_dominant_command_conflict", "or($1 and(not($1) not($1)))");
     run_enf("enf_and_bare_complement_contradiction", "and($1 !$1)");
+
+    // ---- Task 4 review Important: 5 load-bearing branches that survived
+    // mutation testing (26 mutants / 74 tests, 16 survivors, 5 of them
+    // behaviour-changing) because nothing exercised them. Each input below
+    // was found by instrumenting the Python port with a print() at the
+    // target line and searching by hand until each one, and ONLY that one
+    // (plus, in one case, its own dependency), actually fired.
+    run_enf("enf_one_subsumption_delete", "or(and($1) and($1 $2))");
+    run_enf_raw("enf_trailing_zero_subsumption_disconnect", "and(and(and()))");
+    run_enf_raw("enf_reduce_or_disconnect_propagation", "or($1 and(and(and())))");
+    // The remaining two survivors (and_cut(child) itself, and the
+    // reprocess-all-kids reset that follows it) are each guarded by a
+    // SEPARATE mutation-kill case: and_cut(child)'s own effect can be
+    // silently redone by the OTHER and_cut call site (the "else" branch)
+    // on a second pass through the reset loop, so a case that merely
+    // *reaches* this branch is not enough -- found by differential
+    // testing the Python port against itself with each line separately
+    // mutated away, then confirmed here.
+    run_enf("enf_and_cut_after_res_promotion", "and(or($1 $2) or(and($2 $1) and($2 !$1)))");
+    run_enf("enf_reprocess_all_kids_reset",
+            "and(!$1 and(or(or($3 $2) and($3 !$2)) !$2 or(and($3 !$3) and($3 !$1))))");
 
     // ---- reduce_and_assumptions / reduce_or_assumptions ----
     {

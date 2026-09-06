@@ -11,17 +11,24 @@ of `tools/cpp_probe/logical_rules_probe.cc` against $CLASSIC's compiled
 )`), not hand-derived. See that file and logical_rules.py's own module
 docstring for the full transcript and the reasoning behind the
 `BooleanReductUTest` scoping decision (a test-local, untyped "medium"
-composition -- `_boolean_reduce_medium` below -- MEASURED (not assumed)
-to produce byte-identical output to the real, typed `logical_reduction`'s
-effort-2 composition for every one of that test file's own 6 trees; the
-literal `logical_reduce(3, ...)` effort-3 call the real cxxtest makes is
-NOT reproducible here -- see the module docstring's own "TESTING SCOPE"
-section for why).
+composition -- `_boolean_reduce_medium` below). MEASURED, not assumed:
+this composition agrees byte-for-byte with the real, typed
+`logical_reduction`'s effort-2 composition on 5 of that test file's own 6
+trees (1, 3, 4, 5, 6) -- tree 2 (`test_simplify2`) genuinely diverges
+(FIX WAVE, Task 4 review Important: an earlier version of this note
+wrongly claimed all 6 agree, a misread of this same probe's own
+already-correct output). `test_simplify2` is pinned against this port's
+own untyped value, with the divergence documented directly on that test.
+The literal `logical_reduce(3, ...)` effort-3 call the real cxxtest makes
+is NOT reproducible here -- see the module docstring's own "TESTING
+SCOPE" section for why.
 
-`BooleanFullUTest` is NOT ported (module docstring: every one of its 24
-trees needs type inference (S8), contin/mixed reduction (S14, out of this
-project's scope), and `logical_reduction.py` (Task 5) all three -- not
-reachable through anything S7 builds).
+`BooleanFullUTest` is NOT ported (module docstring: 20 test methods, not
+24 -- FIX WAVE, Task 4 review Minor, an earlier count was wrong -- and 0
+of the 20 are reachable today: every one needs type inference (S8),
+contin/mixed reduction (S14, out of this project's scope), and
+`logical_reduction.py` (Task 5) all three, and 6 of the 20 additionally
+need a `definite_object` vertex this port's union does not carry).
 """
 
 from __future__ import annotations
@@ -84,6 +91,25 @@ def _enf(tree_str: str) -> str:
     upwards(eval_logical_identities())(tr, it)
     downwards(level())(tr, it)
     subtree_to_enf()(tr, it)
+    return combo_tree_to_str(tr).strip()
+
+
+def _enf_raw(tree_str: str) -> str:
+    """`subtree_to_enf()` ALONE, with NO pre-canonicalization -- unlike
+    `_enf` above. `level()`'s own flattening (`general_rules.py`'s
+    `level`, associative-operator merge) collapses redundant
+    same-operator nesting (e.g. `and(and(and()))` -> a single childless
+    `and()`) BEFORE `subtree_to_enf` would otherwise see it, which
+    silently routes around `reduce_and`'s own TRAILING 0-subsumption
+    check and `reduce_or`'s Disconnect-propagation branch -- both
+    genuinely reachable in C++ (and in this port) when `subtree_to_enf`
+    is called without that pre-pass, exactly as its own docstring already
+    frames the pre-pass as needed for "proper reduction" QUALITY, not as
+    a precondition for calling it at all. Matches
+    `tools/cpp_probe/logical_rules_probe.cc`'s own `run_enf_raw`.
+    """
+    tr = str_to_combo_tree(tree_str)
+    subtree_to_enf()(tr, tr.begin())
     return combo_tree_to_str(tr).strip()
 
 
@@ -169,6 +195,36 @@ def test_is_predicate_false_for_ordinary_logical_nodes():
     assert not is_predicate(tr.begin())
     tr2 = str_to_combo_tree("not($1)")
     assert not is_predicate(tr2.begin())
+
+
+def test_is_predicate_raises_for_a_childless_logical_not():
+    """Task 4 review Minor -- inherited C++ UB (vertex.h:781's `*it.
+    begin()` on a malformed, childless `not`), ported faithfully as a
+    loud `AttributeError` rather than silently corrected. See
+    `is_predicate`'s own docstring for the two real call sites in this
+    file that can reach this shape.
+    """
+    childless_not = combo_tree(builtin.logical_not).begin()
+    with pytest.raises(AttributeError):
+        is_predicate(childless_not)
+
+
+def test_enf_crashes_on_a_childless_not_via_reduce_and_res_computation():
+    """One of the two real reachable call sites documented on
+    `is_predicate` -- `and(and(not()))`: the inner `and`'s only child is
+    a childless `not`, reached by `reduce_and`'s own `res`-computation
+    setup (`if not is_predicate(child.last_child):`) while processing the
+    OUTER `and`'s only child (the inner `and`). Not something a
+    `str_to_combo_tree` parse can express (its grammar requires `not`'s
+    operand); built directly via the node API instead.
+    """
+    tr = combo_tree(builtin.logical_and)
+    root = tr.begin()
+    inner_and = tr.append_child(root, builtin.logical_and)
+    tr.append_child(inner_and, builtin.logical_not)  # childless -- inner_and's only child
+
+    with pytest.raises(AttributeError):
+        subtree_to_enf()(tr, root)
 
 
 def test_is_complement_true_only_for_two_arguments_of_opposite_sign():
@@ -482,6 +538,18 @@ def test_reduce_ors_is_a_noop_off_a_non_or_node():
     assert _apply(reduce_ors(), "and($1 $2)") == "and($1 $2)"
 
 
+def test_reduce_ors_stale_i1_bound_regression():
+    """Task 4 review, Critical #2. C++'s inner loop bound is `for (c2 =
+    f.begin(); c2 != c1; ++c2)` (logical_rules.cc:311) -- bounded by the
+    LIVE position of `c1`, which the loop body's own clause deletions can
+    shift left. A first version of this port captured that bound as a
+    plain Python int (`i1`) once, at the top of the outer loop, and never
+    re-derived it -- pre-fix, this exact input raised `IndexError` once
+    `f` shrank below the stale bound; C++ returns `true`.
+    """
+    assert _apply(reduce_ors(), "or(!$1 or(and($2 !$1 !$2)) !$2 $2)") == "true"
+
+
 def test_reduce_ands_removes_a_duplicate_clause():
     assert _apply(reduce_ands(), "and($1 $1 $2)") == "and($1 $2)"
 
@@ -500,6 +568,15 @@ def test_reduce_ands_common_factor_extraction():
 
 def test_reduce_ands_is_a_noop_off_a_non_and_node():
     assert _apply(reduce_ands(), "or($1 $2)") == "or($1 $2)"
+
+
+def test_reduce_ands_stale_i1_bound_regression():
+    """Task 4 review, Critical #2 -- the AND-dual of
+    `test_reduce_ors_stale_i1_bound_regression` above, same mechanism
+    (logical_rules.cc:373), reached this time via `reduce_ands` directly.
+    Pre-fix: `IndexError`. C++/fixed: `false`.
+    """
+    assert _apply(reduce_ands(), "and($1 and(or($2 $1 $2)) $2 !$2)") == "false"
 
 
 # ---------------------------------------------------------------------------
@@ -598,6 +675,93 @@ def test_push_back_negated_arguments_does_not_mutate_the_source():
 
 def test_enf_is_a_noop_on_a_non_logical_operator():
     assert _enf("$1") == "$1"
+
+
+# ---------------------------------------------------------------------------
+# Task 4 review, Important -- 5 load-bearing branches inside reduce_and that
+# survived mutation testing (26 mutants over the original 74 tests: 16
+# survived, 5 of them behaviour-changing) because nothing exercised them.
+# Each input below was found by instrumenting the Python port with a print()
+# at the target line and searching by hand until each one fired, then
+# verified against the real library via the probe. This is precisely the
+# metta-moses failure mode the task brief warns about: correct code with no
+# test that would catch its removal.
+# ---------------------------------------------------------------------------
+
+
+def test_enf_one_subsumption_delete():
+    """`reduce_and`'s direct 1-subsumption check
+    (`has_empty_intersection(current's children, command)`) deletes the
+    WHOLE `and(...)` branch when one of its OWN direct children matches a
+    `command` entry verbatim -- here, `and($1)` (a single-child AND
+    sibling under the OR) inserts `$1` into `command` for the OTHER
+    branch, and `and($1 $2)` (which directly contains `$1`) is deleted
+    entirely rather than merely simplified.
+    """
+    assert _enf("or(and($1) and($1 $2))") == "or(and($1))"
+
+
+def test_enf_trailing_zero_subsumption_disconnect():
+    """The do-while loop's OWN processing (here: `or_cut`'s "childless
+    logical_and under a single-child wrapper" delete branch, applied
+    twice as the emptying propagates outward) can leave `current` fully
+    childless only once the loop has otherwise converged -- the TRAILING
+    `if tr.is_childless(current): return Disconnect`, distinct from the
+    EARLIER childless check that runs before the loop even starts.
+
+    Uses `_enf_raw` (no pre-canonicalization), not `_enf`: this exact
+    redundant-nesting shape is precisely what `level()`'s own flattening
+    collapses away first, which would silently route around the branch
+    under test -- see `_enf_raw`'s own docstring.
+    """
+    assert _enf_raw("and(and(and()))") == "true"
+
+
+def test_enf_reduce_or_disconnect_propagation():
+    """`reduce_or` returns `Disconnect` immediately, for the WHOLE `or`,
+    the moment any one child reduces to a tautology -- reuses the exact
+    nested-empty-`and` mechanism from the test above, this time as an OR
+    sibling of `$1`. Uses `_enf_raw` for the same reason as that test.
+    """
+    assert _enf_raw("or($1 and(and(and())))") == "true"
+
+
+def test_enf_and_cut_after_res_promotion():
+    """`res` (the grandchild-level common factor `$1`, shared by `and($1
+    $2)` and `and($1 !$1)`... -- concretely: `and($2 $1)` and `and($2
+    !$1)` sharing `$2`) is promoted up to `current`, and `and_cut(child)`
+    then unwraps the now-single-child `and($1)`/`and(!$1)` wrappers it
+    leaves behind (its own return value is ignored here -- a SEPARATE
+    branch, not this one, is the only place that value matters).
+
+    NOT reachable by merely finding an input where this LINE executes:
+    an earlier candidate (`and(or(and($1 $2) and($1 $3)))`) reaches it
+    but does not distinguish removing it, because the SUBSEQUENT
+    `reprocess-all-kids reset` (below) re-examines the same node and its
+    OWN "res empty" branch calls the identical `and_cut(child)` again on
+    the second pass, silently redoing the cleanup. Found by running the
+    Python port against a copy of itself with only this call deleted,
+    over randomly generated trees, and keeping the shortest genuine
+    divergence.
+    """
+    assert _enf("and(or($1 $2) or(and($2 $1) and($2 !$1)))") == "and(or(!$1 $1) or($1 $2) $2)"
+
+
+def test_enf_reprocess_all_kids_reset():
+    """`child = current.first_child` (resetting the child loop after a
+    `res` promotion enlarges `current`'s own guard set) -- distinct from
+    `and_cut(child)` above; found the same way (differential testing the
+    port against itself with only this line's effect removed, i.e.
+    advancing past `child` instead of restarting from the top). A first,
+    shorter candidate reached this same line but its mutation was
+    silently absorbed elsewhere, the same trap `test_enf_and_cut_after_
+    res_promotion` documents -- this one was kept specifically because it
+    genuinely distinguishes the reset from a mere advance.
+    """
+    assert (
+        _enf("and(!$1 and(or(or($3 $2) and($3 !$2)) !$2 or(and($3 !$3) and($3 !$1))))")
+        == "and(or($3 $2 $3) !$1 !$2 $3)"
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -734,6 +898,24 @@ def test_simplify1():
 
 
 def test_simplify2():
+    """KNOWN DIVERGENCE from real typed `logical_reduction(2)` (Task 4
+    review Important, measured via `tools/cpp_probe/logical_rules_
+    probe.cc`'s `boolean_reduct_medium_typed_2`): the real, TYPED effort-2
+    composition produces `and(or(and(!$3 !$5) !$1) or($2 !$3 $5))` --
+    the SAME children, reordered (`and(!$3 !$5)` before `!$1`, not
+    after). This port's UNTYPED `_boolean_reduce_medium` produces the
+    value pinned below instead; every other one of `BooleanReductUTest`'s
+    6 trees agrees byte-for-byte between typed and untyped at effort 2
+    (see this module's own top docstring). `insert_ands` is the most
+    likely mechanism (unconfirmed -- would need the real
+    `get_output_type_tree`, S8): typed `downwards(insert_ands(),
+    boolean_type)` may skip wrapping a bare argument whose output type,
+    in isolation, does not resolve to `boolean_type`. Pinned against
+    THIS port's own value (independently verified truth-table-preserving
+    and strictly smaller by `_boolean_reduct_case` below) rather than the
+    real C++ string, since reproducing the real value needs typed
+    `downwards`, not yet implemented (`meta_rules.py`).
+    """
     _boolean_reduct_case(
         "not(or(and(and(not($5) or($5 $3)) not(or($5 $2))) "
         "and(or(and($5 $3) or($5 $3)) not(not($1)))))",

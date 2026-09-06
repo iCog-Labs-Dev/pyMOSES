@@ -88,41 +88,63 @@ and `BooleanFullUTest.cxxtest`, preserving test names. Read in full
   (out of this file's scope) and `clean_reduce` (Task 5) -- stubbed above.
   PORTED HERE against effort 2 ("medium") instead
   (`_boolean_reduce_medium`, in the test file, NOT exported from this
-  module) -- MEASURED, not assumed, that this substitution is sound for
-  this exact corpus: a bounded probe run
-  (`tools/cpp_probe/logical_rules_probe.cc`'s `boolean_reduct_medium_
-  typed_N`/`boolean_reduct_medium_untyped_N` cases) confirms the real,
-  TYPED effort-2 composition (`downwards(rule, id::boolean_type)`
-  throughout) and this port's UNTYPED equivalent (`meta_rules.py`'s
-  typed-downwards branch is a disclosed `NotImplementedError` stub until
-  Task 5 lands a scoped `type_checker` slice) produce BYTE-IDENTICAL
-  output for all 6 of this test file's own trees. The SAME probe measured
-  that this equivalence does NOT hold at effort 3 (`boolean_reduct_
-  effort3_typed_N` vs `_untyped_N` disagree -- by reordering only, not
-  content -- for trees 2 and 6): the divergence is introduced specifically
-  by `reduce_remove_subtree_equal_tt`'s own repeated re-entry into
-  "medium" via the outer `iterative`, not by anything this port's own code
-  gets wrong, and it is exactly why effort 2, not effort 3, is this file's
-  real oracle. Every one of the 6 trees still gets a genuine, VERIFIED
-  (via `tree.size()`) strict size decrease under "medium" alone, matching
-  the real cxxtest's own `TS_ASSERT_LESS_THAN`. Test NAMES are preserved;
-  the harness function is not `logical_reduction` and is flagged as such
-  in its own docstring.
-* `BooleanFullUTest` (`test_simplify1`..`test_simplify20`, PLUS
-  `test_simplifya/b/c/d`) is, despite its name, NOT a pure-boolean
-  corpus: every one of its 24 trees contains `0<(...)` (`greater_than_zero`
-  predicates) over `contin_t` arithmetic (`+`, `*`, `/`), and its own
-  `base_test` helper calls `infer_type_tree`/`is_well_formed`
-  (`type_checker`, not ported -- S8, out of S7 scope entirely) and
-  `logical_reduction`'s full effort 0-3 sweep including predicate
-  simplification (`simplify_predicates`, stubbed above -- S14). This is
-  not reachable through any combination of what S7 builds: it needs
-  type inference (S8), contin/mixed reduction (S14, permanently out of
-  this project's current horizon per docs/MODULE-COVERAGE.md), AND
-  `logical_reduction.py` (Task 5) all at once. NOT PORTED -- disclosed
-  here and in task-4-report.md's Concerns section, rather than faked with
-  a hollow substitute the way `BooleanReductUTest` legitimately admits
-  one. Whoever eventually reaches S14 is the right owner to revisit this.
+  module) -- MEASURED, not assumed, what this substitution actually buys:
+  a bounded probe run (`tools/cpp_probe/logical_rules_probe.cc`'s
+  `boolean_reduct_medium_typed_N`/`boolean_reduct_medium_untyped_N`
+  cases) shows the real, TYPED effort-2 composition
+  (`downwards(rule, id::boolean_type)` throughout) and this port's
+  UNTYPED equivalent (`meta_rules.py`'s typed-downwards branch is a
+  disclosed `NotImplementedError` stub until Task 5 lands a scoped
+  `type_checker` slice) agree byte-for-byte on 5 of the 6 trees (1, 3, 4,
+  5, 6) -- but DISAGREE on tree 2 (FIX WAVE, Task 4 review: an earlier
+  version of this note wrongly claimed all 6 agree, a misread of this
+  same probe's own already-correct output, not a new measurement).
+  `insert_ands` is the most likely mechanism (not confirmed, since it
+  would require the real `get_output_type_tree`, S8): its own targets are
+  bare arguments and `or` nodes, and if a bare argument's output type in
+  ISOLATION resolves to something other than `boolean_type` (plausible --
+  an argument's type is polymorphic, only pinned down by its enclosing
+  expression), typed `downwards(insert_ands(), boolean_type)` would skip
+  wrapping it where untyped `downwards(insert_ands())` does not. Tree 2's
+  own test (`test_simplify2`) is still pinned against this port's own
+  UNTYPED value (self-consistent and independently verified
+  truth-table-preserving + strictly smaller), with the divergence from
+  real typed `logical_reduction(2)`'s output documented directly on that
+  test rather than glossed over. At effort 3, the SAME typed/untyped
+  comparison disagrees on trees 2 AND 6 (`boolean_reduct_effort3_typed_N`
+  vs `_untyped_N`) -- tree 6's OWN divergence is introduced specifically
+  by `reduce_remove_subtree_equal_tt`'s repeated re-entry into "medium"
+  via the outer `iterative` (confirmed: tree 6 agrees at effort 2), while
+  tree 2's persists at both efforts (the same underlying typed-downwards
+  mechanism, not a second, separate cause). Effort 2, not effort 3, is
+  still this file's real oracle -- fewer, better-understood exceptions.
+  Every one of the 6 trees still gets a genuine, VERIFIED (via
+  `tree.size()`) strict size decrease under "medium" alone, matching the
+  real cxxtest's own `TS_ASSERT_LESS_THAN`. Test NAMES are preserved; the
+  harness function is not `logical_reduction` and is flagged as such in
+  its own docstring.
+* `BooleanFullUTest` (`test_simplify1`..`test_simplify9`, `test_simplifya`..
+  `test_simplifyd`, `test_simplify14`..`test_simplify20` -- **20** test
+  methods total, not a contiguous `1..20`: FIX WAVE, Task 4 review Minor,
+  an earlier version of this note miscounted as 24) is, despite its name,
+  NOT a pure-boolean corpus: every one of its 20 trees contains `0<(...)`
+  (`greater_than_zero`) predicates over `contin_t` arithmetic (`+`, `*`,
+  `/`), and its own `base_test` helper calls `infer_type_tree`/
+  `is_well_formed` (`type_checker`, not ported -- S8, out of S7 scope
+  entirely) plus `ITable`/`OTable` and `logical_reduction`'s full effort
+  0-3 sweep including predicate simplification (`simplify_predicates`,
+  stubbed above -- S14); 6 of the 20 (`test_simplify15`..`test_simplify20`)
+  additionally use `cond` with `definite_object` consequents
+  (`POX`/`CYT`/`NUC`/`ME2` string tokens),
+  a `vertex` alternative this port's four-way union does not carry
+  (vertex.py's own module docstring). **0 of 20 are reachable today.**
+  This needs type inference (S8), contin/mixed reduction (S14,
+  permanently out of this project's current horizon per
+  docs/MODULE-COVERAGE.md), AND `logical_reduction.py` (Task 5) all at
+  once. NOT PORTED -- disclosed here and in task-4-report.md's Concerns
+  section, rather than faked with a hollow substitute the way
+  `BooleanReductUTest` legitimately admits one. Whoever eventually
+  reaches S14 is the right owner to revisit this.
 
 Every non-obvious algorithmic choice in `reduce_to_enf` was checked
 against a bounded probe run against the real compiled `libcomboreduct.so`
@@ -181,6 +203,36 @@ def is_predicate(node: tree_node) -> bool:
 
     Takes a node (C++: `const combo_tree::iterator&`), not a bare vertex --
     the `logical_not` case must inspect the node's own child.
+
+    UPSTREAM UB, ported faithfully (Task 4 review Minor): if `node` is a
+    CHILDLESS `logical_not` (a malformed `not` with no operand -- real
+    combo trees never construct one, but nothing here rejects one),
+    `node.first_child.data` raises `AttributeError` (`node.first_child`
+    is `None`). C++'s own `*it.begin()` on the same shape is undefined
+    behaviour (vertex.h:781-786's own comment gives no guard either) --
+    this port's failure mode (a loud, catchable exception) is safer, but
+    not something this file corrects.
+
+    Two real call sites in this file CAN reach a childless `logical_not`
+    this way (confirmed by construction, not just by inspection --
+    `test_is_predicate_raises_for_a_childless_logical_not` and
+    `test_enf_crashes_on_a_childless_not_via_reduce_and_res_computation`
+    below):
+
+    * `reduce_to_enf.reduce_and`'s own `if not is_predicate(child.
+      last_child):` (the `res`-computation setup) -- reached whenever an
+      AND/OR `current` has a direct AND/OR child whose OWN single child
+      is a childless `not`.
+    * `reduce_to_enf.or_cut`'s `is_argument(child.first_child.data) or
+      is_predicate(child.first_child)` -- reached the same way, one level
+      up, for an AND/OR `current` child that itself has exactly one
+      child (any operator except `logical_or`, which is excluded by the
+      preceding `if`).
+
+    `subtree_to_enf.reduce_to_enf.and_cut` is the one place in this file
+    that CANNOT reach this: it checks `is_logical_operator(gchild.data)`
+    FIRST and only calls `is_predicate` in the sibling `elif` branch,
+    which a `logical_not` (itself a logical operator) can never reach.
     """
     if vertex_equal(node.data, builtin.greater_than_zero):
         return True
@@ -847,7 +899,18 @@ class reduce_ors(rule):
         while i1 < len(f):
             c1 = f[i1]
             i2 = 0
-            while i2 < i1:
+            # FIX WAVE (Task 4 review, Critical): bounded by `f.index(c1)`,
+            # RE-DERIVED on every check, not a stale `i1` snapshot -- C++'s
+            # `for (c2 = f.begin(); c2 != c1; ++c2)` (logical_rules.cc:311)
+            # is bounded by the LIVE `c1`, and the inner loop's own
+            # `del f[i]` can erase elements BEFORE c1, shifting its real
+            # index down. A stale `i1` bound then lets `i2` walk onto (or
+            # past) c1 itself -- IndexError once `i1` exceeds the
+            # shrunken `len(f)`, or a silent wrong pairing before that.
+            # Measured: `reduce_ors()` on
+            # `or(!$1 or(and($2 !$1 !$2)) !$2 $2)` raised IndexError here;
+            # C++ returns `true`.
+            while i2 < f.index(c1):
                 c2 = f[i2]
                 for impl in list(implications(c1, c2)):
                     i = 0
@@ -924,7 +987,12 @@ class reduce_ands(rule):
         while i1 < len(f):
             c1 = f[i1]
             i2 = 0
-            while i2 < i1:
+            # FIX WAVE (Task 4 review, Critical): same re-derived bound as
+            # reduce_ors.apply above, for the identical reason -- C++'s
+            # `for (c2 = f.begin(); c2 != c1; ++c2)` (logical_rules.cc:373)
+            # is bounded by the LIVE `c1`, not a stale index snapshot.
+            # Measured: reached via the "medium" pipeline on real trees.
+            while i2 < f.index(c1):
                 c2 = f[i2]
                 for impl in list(implications(c1, c2)):
                     i = 0
