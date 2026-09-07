@@ -1,2 +1,1 @@
-"""Packed representation storage used by MOSES candidate knobs."""
-
+"""Packed representation storage and logical candidate knobs."""

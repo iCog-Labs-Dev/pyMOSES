@@ -1,0 +1,607 @@
+{
+  "active": {
+    "base": "and($1 not($2))",
+    "prototype": "and($1 !$2 null_vertex($3))",
+    "knobs": [
+      "[$1 nil !$1]",
+      "[!$2 nil $2]",
+      "[nil $3 !$3]"
+    ],
+    "turns": [
+      {
+        "knob": 1,
+        "idx": 0,
+        "tree": "and($1 !$2 null_vertex($3))",
+        "reduced": "and($1 !$2)"
+      },
+      {
+        "knob": 1,
+        "idx": 1,
+        "tree": "and(null_vertex($1) !$2 null_vertex($3))",
+        "reduced": "!$2"
+      },
+      {
+        "knob": 1,
+        "idx": 2,
+        "tree": "and(not($1) !$2 null_vertex($3))",
+        "reduced": "and(!$1 !$2)"
+      },
+      {
+        "knob": 2,
+        "idx": 0,
+        "tree": "and($1 !$2 null_vertex($3))",
+        "reduced": "and($1 !$2)"
+      },
+      {
+        "knob": 2,
+        "idx": 1,
+        "tree": "and($1 null_vertex(!$2) null_vertex($3))",
+        "reduced": "$1"
+      },
+      {
+        "knob": 2,
+        "idx": 2,
+        "tree": "and($1 not(!$2) null_vertex($3))",
+        "reduced": "and($1 $2)"
+      },
+      {
+        "knob": 3,
+        "idx": 0,
+        "tree": "and($1 !$2 null_vertex($3))",
+        "reduced": "and($1 !$2)"
+      },
+      {
+        "knob": 3,
+        "idx": 1,
+        "tree": "and($1 !$2 $3)",
+        "reduced": "and($1 !$2 $3)"
+      },
+      {
+        "knob": 3,
+        "idx": 2,
+        "tree": "and($1 !$2 not($3))",
+        "reduced": "and($1 !$2 !$3)"
+      }
+    ]
+  },
+  "transitions": [
+    {
+      "name": "existing-positive",
+      "base": "and($1 $9)",
+      "arg": 1,
+      "initial_tree": "and($1 $9)",
+      "knob": "[$1 nil !$1]",
+      "in_exemplar": true,
+      "multiplicity": 3,
+      "spec_multy": 3,
+      "states": [
+        {
+          "idx": 0,
+          "tree": "and($1 $9)",
+          "reduced": "and($1 $9)",
+          "complexity": 1
+        },
+        {
+          "idx": 1,
+          "tree": "and(null_vertex($1) $9)",
+          "reduced": "$9",
+          "complexity": 0
+        },
+        {
+          "idx": 2,
+          "tree": "and(not($1) $9)",
+          "reduced": "and(!$1 $9)",
+          "complexity": 1
+        },
+        {
+          "idx": 0,
+          "tree": "and($1 $9)",
+          "reduced": "and($1 $9)",
+          "complexity": 1
+        },
+        {
+          "idx": 2,
+          "tree": "and(not($1) $9)",
+          "reduced": "and(!$1 $9)",
+          "complexity": 1
+        },
+        {
+          "idx": 1,
+          "tree": "and(null_vertex($1) $9)",
+          "reduced": "$9",
+          "complexity": 0
+        },
+        {
+          "idx": 0,
+          "tree": "and($1 $9)",
+          "reduced": "and($1 $9)",
+          "complexity": 1
+        }
+      ]
+    },
+    {
+      "name": "existing-negated",
+      "base": "and(not($1) $9)",
+      "arg": 1,
+      "initial_tree": "and(!$1 $9)",
+      "knob": "[!$1 nil $1]",
+      "in_exemplar": true,
+      "multiplicity": 3,
+      "spec_multy": 3,
+      "states": [
+        {
+          "idx": 0,
+          "tree": "and(!$1 $9)",
+          "reduced": "and(!$1 $9)",
+          "complexity": 1
+        },
+        {
+          "idx": 1,
+          "tree": "and(null_vertex(!$1) $9)",
+          "reduced": "$9",
+          "complexity": 0
+        },
+        {
+          "idx": 2,
+          "tree": "and(not(!$1) $9)",
+          "reduced": "and($1 $9)",
+          "complexity": 1
+        },
+        {
+          "idx": 0,
+          "tree": "and(!$1 $9)",
+          "reduced": "and(!$1 $9)",
+          "complexity": 1
+        },
+        {
+          "idx": 2,
+          "tree": "and(not(!$1) $9)",
+          "reduced": "and($1 $9)",
+          "complexity": 1
+        },
+        {
+          "idx": 1,
+          "tree": "and(null_vertex(!$1) $9)",
+          "reduced": "$9",
+          "complexity": 0
+        },
+        {
+          "idx": 0,
+          "tree": "and(!$1 $9)",
+          "reduced": "and(!$1 $9)",
+          "complexity": 1
+        }
+      ]
+    },
+    {
+      "name": "missing",
+      "base": "and($1 $9)",
+      "arg": 2,
+      "initial_tree": "and($1 $9 null_vertex($2))",
+      "knob": "[nil $2 !$2]",
+      "in_exemplar": false,
+      "multiplicity": 3,
+      "spec_multy": 3,
+      "states": [
+        {
+          "idx": 0,
+          "tree": "and($1 $9 null_vertex($2))",
+          "reduced": "and($1 $9)",
+          "complexity": 0
+        },
+        {
+          "idx": 1,
+          "tree": "and($1 $9 $2)",
+          "reduced": "and($1 $2 $9)",
+          "complexity": 1
+        },
+        {
+          "idx": 2,
+          "tree": "and($1 $9 not($2))",
+          "reduced": "and($1 !$2 $9)",
+          "complexity": 1
+        },
+        {
+          "idx": 0,
+          "tree": "and($1 $9 null_vertex($2))",
+          "reduced": "and($1 $9)",
+          "complexity": 0
+        },
+        {
+          "idx": 2,
+          "tree": "and($1 $9 not($2))",
+          "reduced": "and($1 !$2 $9)",
+          "complexity": 1
+        },
+        {
+          "idx": 1,
+          "tree": "and($1 $9 $2)",
+          "reduced": "and($1 $2 $9)",
+          "complexity": 1
+        },
+        {
+          "idx": 0,
+          "tree": "and($1 $9 null_vertex($2))",
+          "reduced": "and($1 $9)",
+          "complexity": 0
+        }
+      ]
+    }
+  ],
+  "append": [
+    {
+      "name": "existing-positive",
+      "base": "and($1 $9)",
+      "arg": 1,
+      "rows": [
+        {
+          "idx": 0,
+          "nested": false,
+          "candidate": "$1",
+          "source_valid": true,
+          "source_is_exemplar_end": false,
+          "source_is_candidate_end": false,
+          "source": "$1",
+          "parent": "$1"
+        },
+        {
+          "idx": 0,
+          "nested": true,
+          "candidate": "and($9 $1)",
+          "source_valid": true,
+          "source_is_exemplar_end": false,
+          "source_is_candidate_end": false,
+          "source": "$1",
+          "parent": "$1"
+        },
+        {
+          "idx": 1,
+          "nested": false,
+          "candidate": "",
+          "source_valid": false,
+          "source_is_exemplar_end": false,
+          "source_is_candidate_end": false,
+          "source": "",
+          "parent": ""
+        },
+        {
+          "idx": 1,
+          "nested": true,
+          "candidate": "and($9)",
+          "source_valid": true,
+          "source_is_exemplar_end": false,
+          "source_is_candidate_end": true,
+          "source": "$9",
+          "parent": "and"
+        },
+        {
+          "idx": 2,
+          "nested": false,
+          "candidate": "not($1)",
+          "source_valid": true,
+          "source_is_exemplar_end": false,
+          "source_is_candidate_end": false,
+          "source": "$1",
+          "parent": "$1"
+        },
+        {
+          "idx": 2,
+          "nested": true,
+          "candidate": "and($9 not($1))",
+          "source_valid": true,
+          "source_is_exemplar_end": false,
+          "source_is_candidate_end": false,
+          "source": "$1",
+          "parent": "$1"
+        }
+      ]
+    },
+    {
+      "name": "existing-negated",
+      "base": "and(not($1) $9)",
+      "arg": 1,
+      "rows": [
+        {
+          "idx": 0,
+          "nested": false,
+          "candidate": "!$1",
+          "source_valid": true,
+          "source_is_exemplar_end": false,
+          "source_is_candidate_end": false,
+          "source": "!$1",
+          "parent": "!$1"
+        },
+        {
+          "idx": 0,
+          "nested": true,
+          "candidate": "and($9 !$1)",
+          "source_valid": true,
+          "source_is_exemplar_end": false,
+          "source_is_candidate_end": false,
+          "source": "!$1",
+          "parent": "!$1"
+        },
+        {
+          "idx": 1,
+          "nested": false,
+          "candidate": "",
+          "source_valid": false,
+          "source_is_exemplar_end": false,
+          "source_is_candidate_end": false,
+          "source": "",
+          "parent": ""
+        },
+        {
+          "idx": 1,
+          "nested": true,
+          "candidate": "and($9)",
+          "source_valid": true,
+          "source_is_exemplar_end": false,
+          "source_is_candidate_end": true,
+          "source": "$9",
+          "parent": "and"
+        },
+        {
+          "idx": 2,
+          "nested": false,
+          "candidate": "not(!$1)",
+          "source_valid": true,
+          "source_is_exemplar_end": false,
+          "source_is_candidate_end": false,
+          "source": "!$1",
+          "parent": "!$1"
+        },
+        {
+          "idx": 2,
+          "nested": true,
+          "candidate": "and($9 not(!$1))",
+          "source_valid": true,
+          "source_is_exemplar_end": false,
+          "source_is_candidate_end": false,
+          "source": "!$1",
+          "parent": "!$1"
+        }
+      ]
+    },
+    {
+      "name": "missing",
+      "base": "and($1 $9)",
+      "arg": 2,
+      "rows": [
+        {
+          "idx": 0,
+          "nested": false,
+          "candidate": "",
+          "source_valid": false,
+          "source_is_exemplar_end": false,
+          "source_is_candidate_end": false,
+          "source": "",
+          "parent": ""
+        },
+        {
+          "idx": 0,
+          "nested": true,
+          "candidate": "and($9)",
+          "source_valid": true,
+          "source_is_exemplar_end": false,
+          "source_is_candidate_end": true,
+          "source": "$9",
+          "parent": "and"
+        },
+        {
+          "idx": 1,
+          "nested": false,
+          "candidate": "$2",
+          "source_valid": true,
+          "source_is_exemplar_end": false,
+          "source_is_candidate_end": false,
+          "source": "$2",
+          "parent": "$2"
+        },
+        {
+          "idx": 1,
+          "nested": true,
+          "candidate": "and($9 $2)",
+          "source_valid": true,
+          "source_is_exemplar_end": false,
+          "source_is_candidate_end": false,
+          "source": "$2",
+          "parent": "$2"
+        },
+        {
+          "idx": 2,
+          "nested": false,
+          "candidate": "not($2)",
+          "source_valid": true,
+          "source_is_exemplar_end": false,
+          "source_is_candidate_end": false,
+          "source": "$2",
+          "parent": "$2"
+        },
+        {
+          "idx": 2,
+          "nested": true,
+          "candidate": "and($9 not($2))",
+          "source_valid": true,
+          "source_is_exemplar_end": false,
+          "source_is_candidate_end": false,
+          "source": "$2",
+          "parent": "$2"
+        }
+      ]
+    }
+  ],
+  "disallow": [
+    {
+      "name": "missing",
+      "base": "and($1 $9)",
+      "arg": 2,
+      "setting": 0,
+      "multiplicity": 2,
+      "spec_multy": 2,
+      "knob": "[nil !$2]"
+    },
+    {
+      "name": "missing",
+      "base": "and($1 $9)",
+      "arg": 2,
+      "setting": 1,
+      "multiplicity": 2,
+      "spec_multy": 2,
+      "knob": "[nil $2]"
+    },
+    {
+      "name": "missing",
+      "base": "and($1 $9)",
+      "arg": 2,
+      "setting": 2,
+      "multiplicity": 2,
+      "spec_multy": 2,
+      "knob": "[nil $2]"
+    },
+    {
+      "name": "existing-positive",
+      "base": "and($1 $9)",
+      "arg": 1,
+      "setting": 0,
+      "multiplicity": 2,
+      "spec_multy": 2,
+      "knob": "[!$1 nil]"
+    },
+    {
+      "name": "existing-positive",
+      "base": "and($1 $9)",
+      "arg": 1,
+      "setting": 1,
+      "multiplicity": 2,
+      "spec_multy": 2,
+      "knob": "[$1 nil]"
+    },
+    {
+      "name": "existing-positive",
+      "base": "and($1 $9)",
+      "arg": 1,
+      "setting": 2,
+      "multiplicity": 2,
+      "spec_multy": 2,
+      "knob": "[$1 nil]"
+    }
+  ],
+  "copy": [
+    {
+      "name": "existing-absent-disallowed-negated",
+      "base": "and($1 $9)",
+      "arg": 1,
+      "source_turn": 1,
+      "disallowed": 2,
+      "destination_mode": "source-copy",
+      "source_tree": "and(null_vertex($1) $9)",
+      "destination_before": "and(null_vertex($1) $9)",
+      "destination_after": "and(null_vertex($1) $9)",
+      "knob": "[$1 nil]",
+      "in_exemplar": true,
+      "multiplicity": 2,
+      "spec_multy": 2,
+      "states": [
+        {
+          "idx": 0,
+          "tree": "and($1 $9)",
+          "reduced": "and($1 $9)",
+          "complexity": 1
+        },
+        {
+          "idx": 1,
+          "tree": "and(null_vertex($1) $9)",
+          "reduced": "$9",
+          "complexity": 0
+        }
+      ]
+    },
+    {
+      "name": "missing-negated-disallowed-present",
+      "base": "and($1 $9)",
+      "arg": 2,
+      "source_turn": 2,
+      "disallowed": 1,
+      "destination_mode": "fresh-base",
+      "source_tree": "and($1 $9 not($2))",
+      "destination_before": "and($1 $9)",
+      "destination_after": "and($1 $9 not($2))",
+      "knob": "[nil not]",
+      "in_exemplar": false,
+      "multiplicity": 2,
+      "spec_multy": 2,
+      "states": [
+        {
+          "idx": 0,
+          "tree": "and($1 $9 null_vertex($2))",
+          "reduced": "and($1 $9)",
+          "complexity": 0
+        },
+        {
+          "idx": 1,
+          "tree": "and($1 $9 $2)",
+          "reduced": "and($1 $2 $9)",
+          "complexity": 1
+        }
+      ]
+    }
+  ],
+  "clear": [
+    {
+      "name": "existing-negated",
+      "base": "and(not($1) $9)",
+      "arg": 1,
+      "turn": 2,
+      "disallowed": -1,
+      "before": "and(not(!$1) $9)",
+      "after": "and(!$1 $9)",
+      "retained": true,
+      "after_knob": "[!$1 nil $1]"
+    },
+    {
+      "name": "existing-disallowed-absent",
+      "base": "and($1 $9)",
+      "arg": 1,
+      "turn": -1,
+      "disallowed": 0,
+      "before": "and($1 $9)",
+      "after": "and(not($1) $9)",
+      "retained": true,
+      "after_knob": "[!not nil]"
+    },
+    {
+      "name": "missing-absent",
+      "base": "and($1 $9)",
+      "arg": 2,
+      "turn": 0,
+      "disallowed": -1,
+      "before": "and($1 $9 null_vertex($2))",
+      "after": "and($1 $9)",
+      "retained": false,
+      "after_knob": ""
+    },
+    {
+      "name": "missing-present",
+      "base": "and($1 $9)",
+      "arg": 2,
+      "turn": 1,
+      "disallowed": -1,
+      "before": "and($1 $9 $2)",
+      "after": "and($1 $9)",
+      "retained": false,
+      "after_knob": ""
+    },
+    {
+      "name": "missing-negated-disallowed-absent",
+      "base": "and($1 $9)",
+      "arg": 2,
+      "turn": 1,
+      "disallowed": 0,
+      "before": "and($1 $9 not($2))",
+      "after": "and($1 $9)",
+      "retained": false,
+      "after_knob": ""
+    }
+  ]
+}

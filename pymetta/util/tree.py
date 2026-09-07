@@ -1013,6 +1013,21 @@ class tree:
 
     # ---- public splice operations ------------------------------------------
 
+    def set_head(self, data):
+        """C++: opencog/util/tree.h:1239 set_head
+
+        Insert the sole top-level node into an otherwise empty tree. C++
+        copies ``T`` by value; ``_copy_value`` matters for mutable Combo
+        ``argument`` payloads.
+        """
+        if not self.empty():
+            # DIVERGENCE(C++ opencog/util/tree.h:1239-1242): classic raises
+            # tree_assert when set_head is called on a nonempty tree; Python
+            # raises ValueError and guarantees the existing root is untouched.
+            raise ValueError("set_head: tree must be empty")
+        self._root = tree_node(_copy_value(data))
+        return self._root
+
     def append_child(self, node, data_or_subtree):
         """C++: opencog/util/tree.h:1091 append_child (plain data); the
         subtree-copy overload is opencog/util/tree.h:1183
