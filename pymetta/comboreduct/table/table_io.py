@@ -667,18 +667,35 @@ def _load_table_old(
     target_feature: str,
     ignore_features: Sequence[str],
 ) -> Table:
-    """C++: moses/comboreduct/table/table_io.cc:856 istreamTable_OLD"""
-    itable = _load_sparse_itable(lines)
-    itable.delete_columns(list(ignore_features))
+    """C++: moses/comboreduct/table/table_io.cc:856 istreamTable_OLD
 
-    otable_values = itable.get_column_data(target_feature)
+    `istreamTable_OLD` never calls the `Table(const OTable&, const
+    ITable&)` constructor (table.cc:484, which copies -- see
+    `Table.__init__`) -- it takes an already-constructed `Table& tab` and
+    fills `tab.itable` IN PLACE (`istreamITable(in, tab.itable,
+    ignore_features)`, table_io.cc:860, passes `tab.itable` by
+    reference), then mutates that same `itable` further in place
+    (`tab.itable.delete_column(target_feature)`, table_io.cc:871) before
+    finally building `tab.otable` from it. Mirrored here the same way:
+    construct an empty `Table`, assign `table.itable` directly (bypassing
+    the copying constructor), and do every subsequent read/mutation
+    through `table.itable` itself rather than through a separate local
+    `itable` variable -- the shape a naive `Table(OTable(...), itable)`
+    call at the end would need the constructor to alias to work, which it
+    no longer does.
+    """
+    table = Table()
+    table.itable = _load_sparse_itable(lines)
+    table.itable.delete_columns(list(ignore_features))
+
+    otable_values = table.itable.get_column_data(target_feature)
     if len(otable_values) == 0:
         raise ValueError(f'Fatal Error: target feature "{target_feature}" not found')
 
-    table = Table(OTable(otable_values), itable)
-    table.target_pos = itable.get_column_offset(target_feature)
-    targ_type = itable.get_type(target_feature)
-    targ_label = itable.delete_column(target_feature)
+    table.otable = OTable(otable_values)
+    table.target_pos = table.itable.get_column_offset(target_feature)
+    targ_type = table.itable.get_type(target_feature)
+    targ_label = table.itable.delete_column(target_feature)
     table.otable.set_label(targ_label)
     table.otable.set_type(targ_type)
     return table

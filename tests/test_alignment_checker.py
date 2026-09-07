@@ -1,6 +1,6 @@
 import subprocess, sys, textwrap  # noqa: E401, F401, I001
 from pathlib import Path  # noqa: F401
-from tools.check_alignment import parse_breadcrumbs, Breadcrumb
+from tools.check_alignment import parse_breadcrumbs, parse_divergences, Breadcrumb, Divergence
 
 def test_parses_a_wellformed_breadcrumb(tmp_path):
     f = tmp_path / "m.py"
@@ -80,3 +80,77 @@ def test_rejects_symbol_that_strips_to_empty(tmp_path, classic_root):
         problems = validate([crumb], [classic_root])
         assert len(problems) == 1, f"cpp_symbol={cpp_symbol!r} should be one problem, not pass"
         assert repr(cpp_symbol) in problems[0], f"problem should name {cpp_symbol!r}: {problems[0]}"
+
+def test_parses_a_single_line_divergence_marker(tmp_path):
+    f = tmp_path / "m.py"
+    f.write_text(
+        "def f():\n"
+        "    x = 1\n"
+        "    # DIVERGENCE(C++ foo.cc:10): a simple one-line reason.\n"
+        "    return x\n"
+    )
+    assert parse_divergences(f) == [Divergence(
+        py_file=f, line=3, ref="C++ foo.cc:10", reason="a simple one-line reason.",
+    )]
+
+def test_merges_multiline_divergence_continuation(tmp_path):
+    # The bug: continuation lines were dropped entirely, so every multi-line
+    # marker rendered in docs/ALIGNMENT.md as a meaningless first-line fragment.
+    f = tmp_path / "m.py"
+    f.write_text(
+        "def f():\n"
+        "    # DIVERGENCE(C++ foo.cc:10): first part of the\n"
+        "    # reason continues here across two more\n"
+        "    # physical lines before it stops.\n"
+        "    return 1\n"
+    )
+    divergences = parse_divergences(f)
+    assert divergences == [Divergence(
+        py_file=f, line=2, ref="C++ foo.cc:10",
+        reason=(
+            "first part of the reason continues here across two more "
+            "physical lines before it stops."
+        ),
+    )]
+
+def test_divergence_marker_followed_immediately_by_code_stays_single_line(tmp_path):
+    f = tmp_path / "m.py"
+    f.write_text(
+        "def f():\n"
+        "    # DIVERGENCE(C++ foo.cc:10): reason cut short by code.\n"
+        "    return 1\n"
+    )
+    assert parse_divergences(f) == [Divergence(
+        py_file=f, line=2, ref="C++ foo.cc:10", reason="reason cut short by code.",
+    )]
+
+def test_divergence_marker_at_end_of_file(tmp_path):
+    f = tmp_path / "m.py"
+    f.write_text(
+        "def f():\n"
+        "    pass\n"
+        "\n"
+        "\n"
+        "# DIVERGENCE(C++ foo.cc:10): reason that runs to\n"
+        "# the very last line of the file."
+    )
+    assert parse_divergences(f) == [Divergence(
+        py_file=f, line=5, ref="C++ foo.cc:10",
+        reason="reason that runs to the very last line of the file.",
+    )]
+
+def test_adjacent_divergence_markers_do_not_merge(tmp_path):
+    # Two markers back-to-back at the same indentation, no blank line between
+    # them: each must stay its own Divergence with only its own reason, never
+    # merged into one.
+    f = tmp_path / "m.py"
+    f.write_text(
+        "def f():\n"
+        "    # DIVERGENCE(C++ foo.cc:10): first marker reason.\n"
+        "    # DIVERGENCE(C++ foo.cc:20): second marker reason.\n"
+        "    return 1\n"
+    )
+    assert parse_divergences(f) == [
+        Divergence(py_file=f, line=2, ref="C++ foo.cc:10", reason="first marker reason."),
+        Divergence(py_file=f, line=3, ref="C++ foo.cc:20", reason="second marker reason."),
+    ]

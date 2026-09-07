@@ -38,7 +38,7 @@ from enum import IntEnum
 
 from pymetta.comboreduct.combo.argument import argument
 from pymetta.comboreduct.combo.common_def import contin_t
-from pymetta.util.tree import tree
+from pymetta.util.tree import tree, tree_node
 
 
 class builtin(IntEnum):
@@ -227,3 +227,260 @@ def negate_vertex(v: vertex) -> vertex:
     raise AssertionError(
         f'builtin "{v.name}" should be id::logical_true or id::logical_false'
     )
+
+
+def is_enum_type(v: vertex) -> bool:
+    """C++: moses/comboreduct/combo/vertex.cc:87 is_enum_type
+
+    `boost::get<enum_t>(&v)` -- specifically the `enum_t` alternative, not
+    any `str`. Added for Task 1 (interpreter/eval.py's `eval_throws_vertex`,
+    eval.cc:272, mirrors "enums are constants too"). Deliberately narrower
+    than `isinstance(v, str)`: a bare, non-`enum_t` `str` in this port's
+    vertex union also stands for `definite_object`/`message` (see this
+    module's docstring), which are genuinely different `boost::variant`
+    alternatives in C++ and do not satisfy `is_enum_type` there either.
+    `enum_t` subclassing `str` (rather than being a disjoint type) is
+    exactly why this needs its own function instead of reusing `is_contin`
+    et al.'s plain-`isinstance` shape unguarded.
+    """
+    return isinstance(v, enum_t)
+
+
+def bool_to_vertex(b: bool) -> vertex:
+    """C++: moses/comboreduct/combo/vertex.h:698 bool_to_vertex
+
+    Inlined in C++ as `bool_to_builtin(b)` (vertex.h:694-696:
+    `b ? id::logical_true : id::logical_false`); ported as one function
+    since this port has no separate `bool_to_builtin` call site to
+    preserve. Added for Task 1 (interpreter/eval.py's `eval_throws_vertex`,
+    eval.cc:169, the `greater_than_zero` case).
+    """
+    return builtin.logical_true if b else builtin.logical_false
+
+
+def builtin_to_bool(b: builtin) -> bool:
+    """C++: moses/comboreduct/combo/vertex.h:708 builtin_to_bool
+
+    The inverse of `bool_to_vertex`/`bool_to_builtin`. `b` must already be
+    KNOWN to hold a `builtin` (the C++ parameter type is `const builtin&`,
+    not `vertex` -- no discrimination to do), so a plain `==` between two
+    `builtin` `IntEnum` members is safe here (CLAUDE.md's "type before
+    value" trap is about comparing across DIFFERENT vertex alternatives,
+    e.g. `contin_t == builtin`, which cannot arise once `b`'s static type
+    is already `builtin`).
+
+    FIX WAVE convention (argument.py's `__init__`, vertex.h:710's
+    `OC_ASSERT`): a bare Python `assert` is stripped under `python -O`,
+    so the guard is a `raise AssertionError` instead, to survive
+    `-O` the same way `OC_ASSERT` survives `NDEBUG`. Added for Task 5
+    (`comboreduct/table/table.py`'s `complete_truth_table`, table.h:1436),
+    which needs this to translate `boolean_interpreter`'s `builtin`
+    result back into a plain `bool` for the truth table it accumulates.
+    """
+    if b != builtin.logical_true and b != builtin.logical_false:
+        raise AssertionError("builtin should be 'id::logical_true' or 'id::logical_false'.")
+    return b == builtin.logical_true
+
+
+def vertex_equal(a: vertex, b: vertex) -> bool:
+    """No direct C++ symbol: `vertex` (vertex.h:128) is a `boost::variant`,
+    and `boost::variant<...>::operator==` is compiler-generated -- it
+    compares which alternative is *held* (`which()`) before ever comparing
+    a value, so it is unconditionally `false` whenever `a` and `b` hold
+    different alternatives. This reproduces exactly that discrimination
+    for this port's four surviving alternatives.
+
+    This closes the trap the task brief names directly: `contin_t` is a
+    bare `float` and `builtin` an `IntEnum`, so bare `a == b` between one
+    of each can be `True` in Python (`1.0 == builtin.logical_true`) purely
+    because their ordinals coincide -- something `boost::variant` can
+    never do. `argument.__eq__` (argument.py) and `str.__eq__` already
+    return `NotImplemented`/`False` for a mismatched type on their own, so
+    only the `builtin`/`contin_t` pair is actually at risk here -- but all
+    four alternatives are guarded uniformly so a future reader does not
+    have to rediscover which pair was the dangerous one. Use this (not
+    bare `==`) anywhere a vertex of *unproven* type is compared against a
+    specific value, e.g. a sub-evaluation result compared against
+    `builtin.logical_true` -- see interpreter.py's own module docstring
+    and eval.py's call sites for the general rule.
+    """
+    if isinstance(a, builtin) != isinstance(b, builtin):
+        return False
+    if isinstance(a, contin_t) != isinstance(b, contin_t):
+        return False
+    if isinstance(a, argument) != isinstance(b, argument):
+        return False
+    if isinstance(a, str) != isinstance(b, str):
+        return False
+    return a == b
+
+
+# ---------------------------------------------------------------------------
+# lexicographic_subtree_order -- promoted here (not private to any one
+# reduct file) because THREE separate call sites across S7/S8 instantiate
+# it as `lexicographic_subtree_order<vertex>` against this exact vertex
+# type, and its actual output order is load-bearing, not incidental:
+#
+#   * combo/assumption.cc:36 (`insert_assumption`'s `Comp`)
+#   * reduct/general_rules.cc:106 (`reorder_commutative`'s
+#     `tr.sort_on_subtrees(..., lexicographic_subtree_order<vertex>())`)
+#     -- this one SORTS THE PRINTED CHILDREN of every commutative node in
+#     the final reduced tree, so its output feeds Task 6's byte-identical
+#     oracle directly.
+#   * reduct/logical_rules.h:185 (`reduce_to_enf`'s
+#     `std::set<sib_it, lexicographic_subtree_order<value_type>>`)
+#
+# RETRACTION: an earlier version of this comparator (when it lived only in
+# assumption.py) claimed the exact order was "not load-bearing... can be
+# changed if it's important" -- quoting C++'s own comment on the class,
+# but not checking whether OTHER callers depended on the actual order.
+# They do (`reorder_commutative` above). That claim is wrong and is
+# retracted here, not repeated.
+#
+# What IS still true, and is the actual scope limit of this port: only
+# RELATIVE order among this port's four vertex alternatives is
+# reproduced, matching their real position in the 14-way `boost::variant`
+# (vertex.h:128: `contin_t, enum_t, builtin, wild_card, argument, ...`),
+# not the literal `boost::variant::which()` integer. For the domain S7's
+# byte-identical oracle actually exercises -- boolean combo trees, whose
+# vertices are only ever `builtin` and `argument` (no `contin_t`/`enum_t`
+# literal ever appears as a clause in the boolean corpus) -- `builtin`
+# ranking below `argument` is the one relative-order fact that matters,
+# and it is verified correct against the real variant declaration order.
+# The `contin_t`/`str` ranks relative to `builtin`/`argument` are ported
+# the same way but have no boolean-corpus call site to verify against;
+# revisit if/when S14 (contin/mixed reduction, out of scope per CLAUDE.md)
+# needs this comparator over a genuinely mixed vertex set.
+# ---------------------------------------------------------------------------
+
+
+def vertex_rank(v: vertex) -> int:
+    """No direct C++ symbol: reproduces the RELATIVE order of this port's
+    four vertex alternatives as they appear in the real 14-way
+    `boost::variant` (vertex.h:128) -- `contin_t`=0, `enum_t`/`str`=1,
+    `builtin`=2, `argument`=3 (the intervening `wild_card`=3 in the real
+    variant is skipped, so `argument`'s rank here is 3, not 4; absolute
+    values are never compared or serialised, only relative order). See
+    this section's own module-level note for what is and is not verified
+    about this ordering.
+    """
+    if isinstance(v, contin_t):
+        return 0
+    if isinstance(v, str):
+        return 1
+    if isinstance(v, builtin):
+        return 2
+    if isinstance(v, argument):
+        return 3
+    raise TypeError(f"vertex {v!r} is not one of this port's four alternatives")
+
+
+def vertex_less(v1: vertex, v2: vertex) -> bool:
+    """No direct C++ symbol: a total order over single vertices standing
+    in for `boost::variant`'s own default `operator<` (rank/`which()`
+    first, then each alternative's own `operator<` for a same-rank pair)
+    -- `argument.__lt__` (`absolute_value_order`, argument.py) for two
+    arguments, plain `<` for two `contin_t`/`str`/`builtin` values (the
+    last by ordinal, `builtin` being an `IntEnum`). Safe by construction:
+    `vertex_rank` already confirmed both operands share the same Python
+    type before either `<` here ever runs, so this never risks the
+    `contin_t`/`builtin` cross-type trap `vertex_equal` guards against.
+    """
+    r1, r2 = vertex_rank(v1), vertex_rank(v2)
+    if r1 != r2:
+        return r1 < r2
+    return v1 < v2
+
+
+def lexicographic_subtree_cmp(n1: tree_node, n2: tree_node) -> int:
+    """C++: opencog/util/tree.h:3277 lexicographic_subtree_order::cmp
+
+    Recursive pre-order comparison: `1` if `n1`'s subtree sorts first,
+    `-1` if `n2`'s does, `0` if they are structurally equal. A node with
+    fewer children than its counterpart (once their own vertices compare
+    equal) sorts first -- ported directly from the C++ recursion using
+    this port's `first_child`/`next_sibling` node links in place of
+    `sibling_iterator`.
+    """
+    if vertex_less(n1.data, n2.data):
+        return 1
+    if vertex_less(n2.data, n1.data):
+        return -1
+    sib1, sib2 = n1.first_child, n2.first_child
+    while True:
+        if sib1 is None:
+            return 0 if sib2 is None else 1
+        if sib2 is None:
+            return -1
+        res = lexicographic_subtree_cmp(sib1, sib2)
+        if res != 0:
+            return res
+        sib1, sib2 = sib1.next_sibling, sib2.next_sibling
+
+
+def lexicographic_subtree_less(n1: tree_node, n2: tree_node) -> bool:
+    """C++: opencog/util/tree.h:3273 lexicographic_subtree_order::operator()"""
+    return lexicographic_subtree_cmp(n1, n2) > 0
+
+
+# ---------------------------------------------------------------------------
+# equal_subtree_vertex_safe -- promoted here (from combo/assumption.py, where
+# it started life as a private `_equal_subtree_vertex_safe`) because a SECOND
+# call site now needs it: reduct/meta_rules.py's `iterative`/`assum_iterative`
+# fixpoint checks (Task 2, S7). Both are the same "no direct C++ symbol: a
+# type-safe replacement for tree.equal_subtree" need assumption.py's own
+# docstring already explained -- `tree.equal_subtree` (tree.py:493) compares
+# node data with a bare `a.data != b.data`, which is exactly the
+# `contin_t`/`IntEnum` collision the module docstring's "type before value"
+# constraint warns about (verified live: `equal_subtree(combo_tree(1.0).
+# begin(), combo_tree(builtin.logical_true).begin())` returns `True`).
+# `tree.equal_subtree` is shared, foundational S0-S6 code; fixing it globally
+# is out of scope for either task that needs this, so both close the hole at
+# their own call sites via this one shared helper instead of two copies.
+# ---------------------------------------------------------------------------
+
+
+def equal_subtree_vertex_safe(a: tree_node, b: tree_node) -> bool:
+    """No direct C++ symbol: see the section note above.
+
+    CORRECTED (Task 2, S7) from an earlier claim in this function's
+    previous home (assumption.py) that it shares "the same
+    recursive-descent shape as tree.equal_subtree" -- it does not. This is
+    a SIMPLER pure children-recursion walk (`a.first_child`/
+    `b.first_child`, stepping `.next_sibling` on each side in lockstep),
+    never touching `a`'s or `b`'s own `next_sibling`/`parent` at the top
+    level, unlike `tree.equal_subtree`'s pre-order-stepping-with-boundary
+    algorithm (which computes `_skip_children_successor(a)` up front
+    specifically because ITS pre-order stepping would otherwise walk past
+    `a`'s own subtree into `a`'s real siblings). Because this walk only
+    ever DESCENDS into children, it is already, unconditionally, bounded
+    to exactly `a`'s (respectively `b`'s) own subtree, regardless of
+    what real siblings `a`/`b` might have in an enclosing tree -- no
+    boundary computation needed, and (a provable improvement, not merely
+    a difference) it does not share `tree.equal_subtree`'s own documented
+    "accepted, inherited imprecision" for shape-mismatched subtrees whose
+    `b` side has real trailing content (this function's `while` loop
+    correctly returns `False` the moment one side runs out of children
+    before the other does, via the final `ca is None and cb is None`).
+
+    That inherited imprecision is a REAL C++ behaviour (tree.h's own
+    `equal()`/`equal_subtree()`), not a Python artifact, so reusing it
+    verbatim would matter for faithfulness IF this function's own callers
+    could ever hit it -- they cannot: every current call site
+    (assumption.py's per-element standalone copies; meta_rules.py's
+    `tmp.begin()`, always the root of a freshly-copied STANDALONE
+    combo_tree) passes a `b` with no real siblings of its own to read
+    past in the first place, so the two algorithms are provably
+    equivalent for every case this function is ever actually asked to
+    decide. See task-2-report.md for the argument in full.
+    """
+    if a is b:
+        return True
+    if not vertex_equal(a.data, b.data):
+        return False
+    ca, cb = a.first_child, b.first_child
+    while ca is not None and cb is not None:
+        if not equal_subtree_vertex_safe(ca, cb):
+            return False
+        ca, cb = ca.next_sibling, cb.next_sibling
+    return ca is None and cb is None

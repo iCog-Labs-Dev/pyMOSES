@@ -10,7 +10,7 @@ speculation. Items are grouped by when they bite.
 
 ## 1. Must be settled before S7 (reduct) and S8 (knob building)
 
-### 1.1 `Table.__init__` aliases where C++ copies
+### 1.1 `Table.__init__` aliases where C++ copies (resolved in S7 Task 0)
 
 `table.py:574` stores `otable`/`itable` by reference; `table.cc:485` copies both.
 This is the only genuine divergence in what was originally logged as a broad
@@ -23,7 +23,9 @@ naively breaks the sparse loader. **That trap dissolves**: C++'s
 (`table_io.cc:860`). Mirror that (`table = Table(); table.itable = itable`) and
 the constructor is free to copy with zero loader breakage.
 
-Fix this before anything holds a `Table` across mutations, which S7+ will.
+Resolved in S7 Task 0: `Table.__init__` copies both inputs, and
+`_load_table_old` now fills the constructed table in place. Regression coverage
+is in `tests/comboreduct/table/test_table.py`.
 
 ### 1.2 The same trap, one layer up, not yet ported
 
@@ -31,15 +33,15 @@ Fix this before anything holds a `Table` across mutations, which S7+ will.
 then filters it. That is a **value copy** in C++ and would be an alias in Python.
 Nothing ports it yet. When S8 does, copy explicitly.
 
-### 1.3 `erase()` / `replace()` leave discarded nodes live
+### 1.3 `erase()` / `replace()` leave discarded nodes live (resolved in S7)
 
 `tree.py:659` and `replace()` never null the removed node's own `parent` /
 `next_sibling`, so a stale handle stays pointing into the tree where C++ dangles.
 
-S8's `knob_mapper` stores one iterator per knob. Ported knob code will silently
-reattach to a live tree where C++ would crash — a wrong result instead of a
-signal. Decide deliberately: null the links, or document that handles must not
-outlive an erase.
+Resolved in S7: every destroyed node in the discarded subtree has its outward
+links poisoned, and every subtree-copy entry point rejects a poisoned source.
+This deliberately fails fast where a retained C++ iterator would dangle. The
+regression coverage is in `tests/util/test_tree.py`.
 
 ### 1.4 `reduct::upwards` needs a subtree-rooted post-order walk
 
@@ -62,12 +64,13 @@ built and is the oracle for S7.
 
 ## 2. Latent defects — correct today, wrong the moment something reaches them
 
-### 2.1 `_vertex_type_node` maps bare `str` to `enum_type`
+### 2.1 `_vertex_type_node` maps bare `str` to `enum_type` (scope-closed)
 
 `table.py:123`. C++'s `get_type_tree` returns `definite_object_type` for a
 `definite_object`. Unreachable from `loadTable`'s CSV path today, and the
-values+label `OTable` overload is unused by `loadTable`. Revisit when
-`definite_object_type` becomes reachable.
+values+label `OTable` overload is unused by `loadTable`. Both enum and object
+domains are now explicitly excluded, so this is retained as historical context
+rather than a future implementation item.
 
 ### 2.2 `CTable`'s dict key is type-blind
 
@@ -112,6 +115,47 @@ These cost real time to find. They are properties of the C++ side, not of the po
 - **The prebuilt binaries can silently rot.** They were linked against boost
   1.91, which no longer exists on this machine; every one failed at load until a
   full `--fresh` rebuild. Check `ldd` before trusting an oracle run.
+- **`eval_logical_identities` is unsound, and `logical_reduce` is therefore
+  semantically lossy** (added and corrected 2026-09-07). One directly visible
+  trigger is **a junctor whose entire child list consists of childless
+  junctors**, but input-shape detection is neither necessary nor sufficient for
+  end-to-end truth-table divergence. Whether an occurrence matters depends on
+  its parent, and earlier rules can create the shape during reduction. Measured with classic's
+  own `test_reduct`: `and(or())` -> `true` and `and(or() or())` -> `true` both
+  **preserve** (an emptied `and()` at the root folds to `true`, which is what
+  the original evaluated to anyway), while `or(and(or()) $1)` -> `$1`
+  **diverges** (the emptied `and()` is *erased* by its `or` parent as "skip",
+  destroying a definite TRUE). A diverging subtree can also be **masked**:
+  `and($1 or(and(or()) $1))` contains the diverging tree and still preserves.
+  The effort-1 input `or(and(or($1 and(!$1))) !$2)` supplies the opposite
+  counterexample: it is initially unflagged, but reduces from a tautology to
+  `!$2` after an intermediate simplification creates the lossy shape.
+  Mechanism: a childless junctor returns its *own token*
+  (`interpreter.cc:66-82`), which the parent's short-circuit never matches, so
+  the child is skipped — making `and(or())` evaluate TRUE. Reduct then erases
+  the childless `or()` from its `and` parent (`logical_rules.cc:134`), which is
+  faithful to "skip", but leaves `and()` itself childless; the grandparent
+  erases *that* (`:155`). A definite TRUE has been rewritten into "skip me".
+  Each rewrite is individually correct; their composition is not.
+  Verified with an independent evaluator and a direct `boolean_interpreter`
+  probe, not via `test_reduct`'s own comparison: `or(and(or()) $1)` gives
+  original `11`, reduced `01`. 13 of the 29 `testTrees.sh` trees hit this;
+  the 12 that carry the same `or()`/`and()` litter but keep a real child
+  (`and(X or())`) are unaffected. `git log` shows this fork never touched
+  `logical_rules.cc` or `interpreter.cc`, so it is upstream behaviour.
+  **Consequence:** truth-table preservation is not a property `logical_reduce`
+  has, and no current pre-reduction structural predicate completely classifies
+  its failures. Differential checks must compare Python's semantic outcome to
+  C++'s measured `tt_computed`/`tt_preserved` result directly, and must handle
+  a bare `and()`/`or()` reaching the root as a distinct outcome —
+  `builtin_to_bool` (`vertex.h:708-713`) `OC_ASSERT`s on a non-true/false
+  builtin, which **throws `opencog::AssertionException`** (`oc_assert.cc:46`)
+  out of `complete_truth_table` rather than returning. Whether that ends the
+  process depends on the caller: `test_reduct` does not catch it (observed:
+  `terminate called ... AssertionException`, core dumped), while a probe with
+  `catch (std::exception&)` handles it cleanly. Do not describe this as
+  "aborts the process" — the mechanism is a throw, and the difference decides
+  whether a harness can measure the case at all.
 
 ---
 
@@ -171,8 +215,27 @@ member in the docstring body.
   four Python types across the package. "Column not found" is `IndexError` at
   `table.py:302` but `ValueError` at `table_io.py:431,486,491,676`. The
   "forests unsupported" and `boost::bad_get`→`TypeError` families *are* uniform.
-- **`parse_divergences` captures only the first physical line** of a marker; two
-  of nine markers use multi-line references.
+- ~~**`parse_divergences` captures only the first physical line** of a marker;
+  two of nine markers use multi-line references.~~ **Fixed** (alignment-parser
+  task, S7): `parse_divergences` now merges a `# DIVERGENCE(...)` marker with
+  its same-indentation, unbroken-run-of-`#`-lines continuation into one
+  `reason` — see that function's docstring in `tools/check_alignment.py` for
+  the exact continuation rule. Authors do **not** need to front-load the
+  essential statement onto the marker's first physical line anymore; a normal
+  multi-line explanation now reaches `docs/ALIGNMENT.md` in full, so long as
+  two adjacent markers are not run together (each marker still ends where the
+  next one's `# DIVERGENCE(...)` begins).
+- **A breadcrumb can cite the wrong overload and still pass.**
+  `check_alignment.py` confirms the cited *identifier* appears within
+  `DRIFT_TOLERANCE = 25` lines of the cited line — it does **not** confirm the
+  cited line *is* that symbol. In overload-dense headers the window swallows
+  every candidate: `table.h`'s five `Table` constructors sit inside ~15 lines,
+  so a citation naming the un-ported `(It,It)` ctor instead of the `(tr,arity)`
+  one two lines down is indistinguishable to the checker. Found in S7 as a
+  systematic off-by-a-few cluster in `table.py:771-803` and `vertex.py:262,272`.
+  The tolerance exists to survive upstream line drift and is right to; the
+  consequence is that **overload choice is unverified and must be reviewed by
+  eye**. Tightening it would trade a real protection for a narrow one.
 - **Corpus gaps:** no argument index above `$3`, no arity ≥ 4.
 
 ---
@@ -192,3 +255,10 @@ member in the docstring body.
 - **A fix can reintroduce the bug it fixes.** The final fix wave's new cache key
   reopened the same cross-type collision at a wider scope. The scoped re-review
   caught it.
+- **A wrong port asserted as verified fidelity is worse than a wrong port.** S7
+  Task 5 shipped an unbounded iterator walk whose docstring claimed the C++
+  end-condition "reduces to a null check" — a specific, confident, checkable
+  claim that was simply false. Because it read as measured, it carried no
+  `# DIVERGENCE` marker, so `ALIGNMENT.md` reported the file as faithful and
+  the next reader had every reason not to look. Prefer "not yet verified" to a
+  plausible reconstruction: a gap invites a check, a false claim forecloses it.

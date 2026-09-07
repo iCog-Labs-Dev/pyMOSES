@@ -484,3 +484,32 @@ def test_loadTable_preserves_row_count_when_a_trailing_target_field_is_empty(tmp
     assert ctable.uncompressed_size() == pytest.approx(26.0)
     assert ctable[(T,)] == Counter({T: 12.0, 0.0: 1.0})
     assert ctable[(F,)] == Counter({F: 13.0})
+
+
+# ---------------------------------------------------------------------------
+# CARRY-FORWARD 1.1: Table.__init__ must copy, not alias, its arguments.
+# Not a cxxtest port -- a regression test for the fix.
+# ---------------------------------------------------------------------------
+
+
+def test_table_init_copies_itable_and_otable_not_aliases_them():
+    """C++: table.cc:484 Table(const OTable&, const ITable&) copy-
+    constructs `itable`/`otable` from `const&` parameters -- table.h:918's
+    fields are plain C++ value members, so mutating the ARGUMENT objects
+    after construction can never be observed through the `Table`. A prior
+    version of this port aliased both (`self.itable = itable`, `self.otable
+    = otable`); this is the regression test for the fix -- see
+    `Table.__init__`'s docstring and docs/CARRY-FORWARD.md section 1.1.
+    """
+    it = ITable(types=[type_node.boolean_type])
+    it.push_back((T,))
+    ot = OTable([T])
+    table = Table(ot, it)
+
+    it.push_back((F,))
+    ot.push_back(F)
+
+    assert list(table.itable) == [(T,)]
+    assert list(table.otable) == [T]
+    assert table.itable is not it
+    assert table.otable is not ot

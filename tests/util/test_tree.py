@@ -494,6 +494,138 @@ def test_traversal_orders(golden):
     assert [n.data for n in t.iter_leaf()] == expected["leaf_order"]
 
 
+def test_iter_post_at_walks_only_the_given_subtree_in_post_order():
+    """CARRY-FORWARD 1.4: `reduct::upwards` (meta_rules.cc:111) needs a
+    post-order walk rooted at a subtree, not at the whole tree, which
+    `iter_post()` does not offer. Same tree shape as `test_traversal_orders`
+    so the whole-tree case (`t.begin()`) can be checked directly against
+    `iter_post()`.
+    """
+    t = tree("root")
+    a = t.append_child(t.begin(), "a")
+    t.append_child(a, "a1")
+    t.append_child(a, "a2")
+    b = t.append_child(t.begin(), "b")
+    t.append_child(b, "b1")
+    validate(t)
+
+    assert [n.data for n in t.iter_post_at(a)] == ["a1", "a2", "a"]
+    assert [n.data for n in t.iter_post_at(b)] == ["b1", "b"]
+    assert [n.data for n in t.iter_post_at(t.begin())] == [n.data for n in t.iter_post()]
+
+
+def test_iter_post_at_of_a_leaf_yields_only_itself():
+    t = tree("root")
+    a = t.append_child(t.begin(), "a")
+    validate(t)
+    assert [n.data for n in t.iter_post_at(a)] == ["a"]
+
+
+def test_iter_post_at_rejects_none_node():
+    t = tree("root")
+    with pytest.raises(ValueError):
+        list(t.iter_post_at(None))
+
+
+def test_iter_post_at_single_child_chain():
+    """Task 0's review (progress.md) flagged this exact gap: no dedicated
+    test for `iter_post_at` on a single-child CHAIN (`root->x->y->z`) --
+    only the leaf and branching shapes above were covered. Hand-verified
+    correct at Task 0 time; this pins it. Assigned to Task 2 (this task)
+    since it is the consumer of this walk (`reduct.upwards`).
+
+    Post-order on a chain is unambiguous regardless of where in the chain
+    the walk is rooted: deepest-first, root last.
+    """
+    t = tree("root")
+    x = t.append_child(t.begin(), "x")
+    y = t.append_child(x, "y")
+    z = t.append_child(y, "z")
+    validate(t)
+
+    assert [n.data for n in t.iter_post_at(t.begin())] == ["z", "y", "x", "root"]
+    assert [n.data for n in t.iter_post_at(x)] == ["z", "y", "x"]
+    assert [n.data for n in t.iter_post_at(y)] == ["z", "y"]
+    assert [n.data for n in t.iter_post_at(z)] == ["z"]
+
+
+def test_iter_pre_at_walks_only_the_given_subtree_in_pre_order():
+    """C++: opencog/util/tree.h:2373 iterator_base::skip_children
+    (`reduct::downwards`, meta_rules.cc:79-105). Same tree shape as
+    `test_iter_post_at_walks_only_the_given_subtree_in_post_order` so the
+    whole-tree case (`t.begin()`) can be checked directly against the
+    plain pre-order walk (`__iter__`, via `list(t)`).
+    """
+    t = tree("root")
+    a = t.append_child(t.begin(), "a")
+    t.append_child(a, "a1")
+    t.append_child(a, "a2")
+    b = t.append_child(t.begin(), "b")
+    t.append_child(b, "b1")
+    validate(t)
+
+    assert [n.data for n in t.iter_pre_at(a)] == ["a", "a1", "a2"]
+    assert [n.data for n in t.iter_pre_at(b)] == ["b", "b1"]
+    assert [n.data for n in t.iter_pre_at(t.begin())] == [n.data for n in t]
+
+
+def test_iter_pre_at_single_child_chain():
+    """Pre-order counterpart of `test_iter_post_at_single_child_chain`:
+    parent-before-child regardless of where in the chain the walk starts.
+    """
+    t = tree("root")
+    x = t.append_child(t.begin(), "x")
+    y = t.append_child(x, "y")
+    z = t.append_child(y, "z")
+    validate(t)
+
+    assert [n.data for n in t.iter_pre_at(t.begin())] == ["root", "x", "y", "z"]
+    assert [n.data for n in t.iter_pre_at(x)] == ["x", "y", "z"]
+    assert [n.data for n in t.iter_pre_at(y)] == ["y", "z"]
+    assert [n.data for n in t.iter_pre_at(z)] == ["z"]
+
+
+def test_iter_pre_at_of_a_leaf_yields_only_itself():
+    t = tree("root")
+    a = t.append_child(t.begin(), "a")
+    validate(t)
+    assert [n.data for n in t.iter_pre_at(a)] == ["a"]
+
+
+def test_iter_pre_at_rejects_none_node():
+    t = tree("root")
+    with pytest.raises(ValueError):
+        list(t.iter_pre_at(None))
+
+
+def test_iter_pre_at_is_a_live_walk_not_a_snapshot():
+    """`reduct::downwards` mutates the tree (applying its wrapped rule)
+    BETWEEN steps of its own traversal, and C++'s live iterator picks up
+    the consequences -- measured directly against the real library
+    (`tools/cpp_probe/meta_rules_probe.cc`, the
+    "downwards(live-mutation insert-after)" case: inserting a new sibling
+    immediately after the node just visited gets visited by that SAME
+    downwards pass, landing between the current node and its original
+    next sibling). This is the same generic tree-level hazard
+    `test_hazard_erase_next_sibling`/`test_hazard_replace_next_sibling`
+    already pin for `children()`, reproduced here for `iter_pre_at`
+    specifically since `downwards` (meta_rules.py) depends on it living
+    over the CURRENT structure at each step, not a `list(...)` snapshot.
+    """
+    t = tree("root")
+    x = t.append_child(t.begin(), "x")
+    t.append_child(t.begin(), "y")
+    t.append_child(t.begin(), "z")
+    observed = []
+    it = t.iter_pre_at(t.begin())
+    for node in it:
+        observed.append(node.data)
+        if node.data == "x":
+            t.insert_after(x, "w")
+    validate(t)
+    assert observed == ["root", "x", "w", "y", "z"]
+
+
 @pytest.mark.oracle
 def test_hazard_erase_next_sibling(golden):
     t = tree("root")
@@ -555,27 +687,20 @@ def test_insert_above_on_the_root_makes_a_new_root():
 
 
 def test_move_ontop_where_source_is_a_descendant_of_target():
-    """C++ documents move_ontop as unsafe when `source` is inside `target`'s
-    own subtree ("Warning: only use if source is not included in the
-    subtree of target"). erase(target) recursively clears every
-    descendant's own children *before* move_ontop rescues `source` -- so if
-    `source` itself had children, they are destroyed as collateral damage
-    even though `source` survives and gets relocated. This asserts that
-    concrete, observable consequence (matching the literal erase_children
-    recursion) instead of guessing at a crash: Python has no literal
-    use-after-free to reproduce, since nothing is actually freed.
-    """
+    """Enforce C++'s documented precondition before it becomes a UAF."""
     t = tree("root")
     target = t.append_child(t.begin(), "target")
     source = t.append_child(target, "source")
-    t.append_child(source, "source_child")  # destroyed as collateral damage
+    t.append_child(source, "source_child")
 
-    t.move_ontop(target, source)
+    with pytest.raises(ValueError, match="must not be a descendant"):
+        t.move_ontop(target, source)
 
     validate(t)
     assert t.number_of_children(t.begin()) == 1
-    assert t.child(t.begin(), 0) is source
-    assert t.number_of_children(source) == 0  # source's own child did not survive
+    assert t.child(t.begin(), 0) is target
+    assert t.child(target, 0) is source
+    assert t.number_of_children(source) == 1
 
 
 def test_equal_subtree_structurally_equal_but_distinct_objects():
@@ -826,3 +951,716 @@ def test_replace_rejects_none_node():
         t.replace(None, "x")
     with pytest.raises(ValueError):
         t.replace(None, src.begin())
+
+
+# ---------------------------------------------------------------------------
+# CARRY-FORWARD 1.3: erase()/replace() must not leave a discarded node's own
+# links pointing into the live tree. Not cxxtest ports -- regression tests
+# for the DIVERGENCE fix (C++ dangles here; this port fails fast instead).
+# ---------------------------------------------------------------------------
+
+
+def test_erase_leaves_the_discarded_nodes_own_links_dead():
+    t = tree("root")
+    t.append_child(t.begin(), "a")
+    b = t.append_child(t.begin(), "b")
+    t.append_child(t.begin(), "c")
+    t.erase(b)
+    validate(t)
+
+    # The tree itself is intact and does not route through the erased node.
+    assert [n.data for n in t] == ["root", "a", "c"]
+
+    # But a handle retained past the erase() cannot navigate through it:
+    # its own parent/prev_sibling/next_sibling are poisoned, not left
+    # pointing at the (still live) neighbors they used to point at.
+    with pytest.raises(AttributeError):
+        _ = b.next_sibling.data
+    with pytest.raises(AttributeError):
+        _ = b.prev_sibling.data
+    with pytest.raises(AttributeError):
+        _ = b.parent.data
+
+
+def test_replace_subtree_leaves_the_discarded_nodes_own_links_dead():
+    t = tree("root")
+    t.append_child(t.begin(), "a")
+    b = t.append_child(t.begin(), "b")
+    b1 = t.append_child(b, "b1")
+    t.append_child(t.begin(), "c")
+    src = tree("s")
+    src.append_child(src.begin(), "s1")
+    new_node = t.replace(b, src.begin())
+    validate(t)
+
+    assert new_node is not b
+    assert [n.data for n in t] == ["root", "a", "s", "s1", "c"]
+
+    with pytest.raises(AttributeError):
+        _ = b.next_sibling.data
+    with pytest.raises(AttributeError):
+        _ = b.prev_sibling.data
+    with pytest.raises(AttributeError):
+        _ = b.parent.data
+
+    # C++ destroys the discarded node's full old subtree. Retained Python
+    # handles fail loudly instead of remaining readable after replacement.
+    assert b.data == "b"
+    assert b.first_child is None
+    with pytest.raises(AttributeError):
+        _ = b1.parent.data
+
+
+def test_erase_poisons_retained_handles_to_every_descendant():
+    t = tree("root")
+    branch = t.append_child(t.begin(), "branch")
+    child = t.append_child(branch, "child")
+    grandchild = t.append_child(child, "grandchild")
+    t.append_child(t.begin(), "survivor")
+
+    t.erase(branch)
+    validate(t)
+    assert [n.data for n in t] == ["root", "survivor"]
+
+    for discarded in (branch, child, grandchild):
+        with pytest.raises(ValueError):
+            tree(discarded)
+        with pytest.raises(AttributeError):
+            _ = discarded.parent.data
+
+
+def test_erase_children_poisons_descendants_but_keeps_parent_live():
+    t = tree("root")
+    branch = t.append_child(t.begin(), "branch")
+    child = t.append_child(branch, "child")
+    grandchild = t.append_child(child, "grandchild")
+
+    t.erase_children(branch)
+    validate(t)
+    assert [n.data for n in t] == ["root", "branch"]
+    assert branch.parent is t.begin()
+    assert branch.first_child is None
+
+    for discarded in (child, grandchild):
+        with pytest.raises(ValueError):
+            tree(discarded)
+        with pytest.raises(AttributeError):
+            _ = discarded.parent.data
+
+
+@pytest.mark.parametrize(
+    "operation",
+    ["append_child", "insert_subtree", "insert_subtree_after", "replace"],
+)
+def test_subtree_copy_operations_reject_erased_descendant_sources(operation):
+    src = tree("source")
+    branch = src.append_child(src.begin(), "branch")
+    dead_source = src.append_child(branch, "dead-source")
+    src.erase(branch)
+
+    dst = tree("destination")
+    anchor = dst.append_child(dst.begin(), "anchor")
+    dst.append_child(dst.begin(), "tail")
+
+    with pytest.raises(ValueError, match="cannot copy from an erased/detached node"):
+        if operation == "append_child":
+            dst.append_child(dst.begin(), dead_source)
+        elif operation == "insert_subtree":
+            dst.insert_subtree(anchor, dead_source)
+        elif operation == "insert_subtree_after":
+            dst.insert_subtree_after(anchor, dead_source)
+        else:
+            dst.replace(anchor, dead_source)
+
+    validate(dst)
+    assert [n.data for n in dst] == ["destination", "anchor", "tail"]
+
+
+@pytest.mark.parametrize(
+    "operation",
+    ["append_child", "replace", "erase_children", "insert_above", "move_after"],
+)
+def test_mutation_operations_reject_erased_targets(operation):
+    t = tree("root")
+    dead = t.append_child(t.begin(), "dead")
+    live = t.append_child(t.begin(), "live")
+    t.erase(dead)
+
+    with pytest.raises(ValueError, match="cannot use an erased/detached node"):
+        if operation == "append_child":
+            t.append_child(dead, "new")
+        elif operation == "replace":
+            t.replace(dead, "new")
+        elif operation == "erase_children":
+            t.erase_children(dead)
+        elif operation == "insert_above":
+            t.insert_above(dead, "new")
+        else:
+            t.move_after(dead, live)
+
+    validate(t)
+    assert [n.data for n in t] == ["root", "live"]
+
+
+@pytest.mark.parametrize(
+    "operation",
+    [
+        "iter_post_at",
+        "iter_pre_at",
+        "next_pre_order",
+        "subtree_pre_order_end",
+        "child",
+        "children",
+        "number_of_children",
+        "is_childless",
+        "has_one_child",
+        "number_of_siblings",
+        "sibling_index",
+        "next_sibling",
+        "previous_sibling",
+        "max_depth",
+        "count",
+        "equal_subtree",
+        "validate",
+    ],
+)
+def test_public_navigation_operations_reject_erased_handles(operation):
+    t = tree("root")
+    dead = t.append_child(t.begin(), "dead")
+    live = t.append_child(t.begin(), "live")
+    t.erase(dead)
+
+    with pytest.raises(ValueError, match="cannot use an erased/detached node"):
+        if operation == "child":
+            t.child(dead, 0)
+        elif operation == "equal_subtree":
+            t.equal_subtree(dead, live)
+        else:
+            getattr(t, operation)(dead)
+
+    validate(t)
+
+
+def test_erased_handle_is_invalid_but_retains_its_plain_data_value():
+    t = tree("root")
+    dead = t.append_child(t.begin(), "dead")
+    t.erase(dead)
+
+    assert t.is_valid(dead) is False
+    # Python retains the object while external references exist. The
+    # fail-fast contract covers tree operations and link navigation, not
+    # reading the inert payload value directly from that retained object.
+    assert dead.data == "dead"
+
+
+def test_replace_data_in_place_does_not_poison_the_reused_node():
+    """The plain-data overload of replace() mutates `node` in place and
+    returns the SAME object (tree.py's replace() docstring) -- unlike the
+    subtree-copy overload, there is no discarded handle here to poison.
+    """
+    t = tree("root")
+    t.append_child(t.begin(), "a")
+    b = t.append_child(t.begin(), "b")
+    t.append_child(t.begin(), "c")
+    same = t.replace(b, "B2")
+    validate(t)
+    assert same is b
+    assert b.data == "B2"
+    assert b.next_sibling.data == "c"
+    assert b.prev_sibling.data == "a"
+
+
+def test_tree_constructed_from_a_node_deep_copies_its_subtree():
+    """C++: opencog/util/tree.h:658 tree(const iterator_base&) -- S7's
+    eval.py/assumption.py both need this "copy a node's subtree into a
+    fresh standalone tree" overload (see tree.py's __init__ docstring)."""
+    src = tree("root")
+    a = src.append_child(src.begin(), "a")
+    src.append_child(a, "a1")
+    src.append_child(src.begin(), "b")
+
+    copy = tree(a)
+    validate(copy)
+    assert [n.data for n in copy] == ["a", "a1"]
+    assert copy.begin() is not a
+
+
+def test_tree_constructed_from_a_node_is_independent_of_the_source():
+    """The copy is a genuine deep copy, not aliased: mutating the source
+    after construction must not be visible in the new tree, and vice
+    versa."""
+    src = tree("root")
+    a = src.append_child(src.begin(), "a")
+    src.append_child(a, "a1")
+
+    copy = tree(a)
+    src.append_child(a, "a2")
+    assert [n.data for n in copy] == ["a", "a1"]
+
+    copy.append_child(copy.begin(), "only-in-copy")
+    assert [n.data for n in src] == ["root", "a", "a1", "a2"]
+
+
+def test_tree_constructed_from_a_leaf_node_has_no_children():
+    src = tree("root")
+    leaf = src.append_child(src.begin(), "leaf")
+    copy = tree(leaf)
+    validate(copy)
+    assert [n.data for n in copy] == ["leaf"]
+    assert copy.begin().first_child is None
+
+
+def test_tree_constructed_from_an_erased_node_raises():
+    # task-1 review, Minor: without this check, tree(erased_node) was a
+    # new silent read path through a dead handle -- erase()'s whole point
+    # is that a stale handle fails LOUDLY at the first attempt to
+    # navigate through it, and this constructor previously never tried
+    # (it only reads .data/.first_child, neither of which erase() itself
+    # poisons), so it slipped through undetected.
+    t = tree("root")
+    t.append_child(t.begin(), "a")
+    b = t.append_child(t.begin(), "b")
+    t.append_child(t.begin(), "c")
+    t.erase(b)
+
+    with pytest.raises(ValueError):
+        tree(b)
+
+
+def test_tree_constructed_from_a_replaced_nodes_discarded_handle_raises():
+    t = tree("root")
+    t.append_child(t.begin(), "a")
+    b = t.append_child(t.begin(), "b")
+    t.append_child(t.begin(), "c")
+    src = tree("s")
+    src.append_child(src.begin(), "s1")
+    t.replace(b, src.begin())
+
+    with pytest.raises(ValueError):
+        tree(b)
+
+
+def test_tree_constructed_from_a_genuine_root_is_still_fine():
+    # The erased-handle guard must not misfire against a legitimately
+    # rootless node (parent is None, not _DEAD) -- this is the ordinary,
+    # everyday case tree(node) exists for.
+    src = tree("root")
+    src.append_child(src.begin(), "a")
+    copy = tree(src.begin())
+    assert [n.data for n in copy] == ["root", "a"]
+
+
+# ---------------------------------------------------------------------------
+# partition / sort_on_subtrees / reparent(3-arg) / is_childless / has_one_child
+#
+# Added task-3 (S7) for comboreduct/reduct/general_rules.py's
+# eval_constants/reorder_commutative. NOT part of the tree_probe.cc +
+# tests/fixtures/tree.json golden-fixture convention above -- these follow
+# reduct/test_meta_rules.py's own precedent instead (a task-scoped C++ probe,
+# tools/cpp_probe/partition_probe.cc, with its measured stdout pinned here as
+# literal expected values, not re-run as part of the normal test suite). See
+# that probe file and task-3-report.md for the full transcript.
+# ---------------------------------------------------------------------------
+
+
+def test_is_childless():
+    t = tree("root")
+    a = t.append_child(t.begin(), "a")
+    assert t.is_childless(a) is True
+    assert t.is_childless(t.begin()) is False
+
+
+def test_has_one_child():
+    t = tree("root")
+    a = t.append_child(t.begin(), "a")
+    assert t.has_one_child(t.begin()) is True
+    t.append_child(t.begin(), "b")
+    assert t.has_one_child(t.begin()) is False
+    assert t.has_one_child(a) is False  # a itself is childless
+
+
+def _is_const(s):
+    return s.startswith("C")
+
+
+def test_partition_case_a_interleaved_single_swap():
+    # C++: partition_probe.cc "partition_case_a" ->
+    # {"result":["C1","C2","C3","V1","V2"],"boundary":"V1"}
+    t = tree("root")
+    for s in ("C1", "C2", "V1", "C3", "V2"):
+        t.append_child(t.begin(), s)
+    boundary = t.partition(t.begin(), _is_const)
+    validate(t)
+    assert [c.data for c in t.children(t.begin())] == ["C1", "C2", "C3", "V1", "V2"]
+    assert boundary.data == "V1"
+
+
+def test_partition_case_b_is_not_a_stable_partition():
+    # C++: partition_probe.cc "partition_case_b" ->
+    # {"result":["C1","C3","C2","V2","V1"],"boundary":"V2"}
+    # A STABLE partition of ["C1","V1","C2","V2","C3"] would give
+    # ["C1","C2","C3","V1","V2"] -- the real algorithm gives something
+    # else entirely, with BOTH groups internally reordered.
+    t = tree("root")
+    for s in ("C1", "V1", "C2", "V2", "C3"):
+        t.append_child(t.begin(), s)
+    boundary = t.partition(t.begin(), _is_const)
+    validate(t)
+    assert [c.data for c in t.children(t.begin())] == ["C1", "C3", "C2", "V2", "V1"]
+    assert boundary.data == "V2"
+
+
+def test_partition_all_matching_returns_none_boundary():
+    # C++: partition_probe.cc "partition_case_c" ->
+    # {"result":["C1","C2","C3"],"boundary":"<end>"}
+    t = tree("root")
+    for s in ("C1", "C2", "C3"):
+        t.append_child(t.begin(), s)
+    boundary = t.partition(t.begin(), _is_const)
+    assert [c.data for c in t.children(t.begin())] == ["C1", "C2", "C3"]
+    assert boundary is None
+
+
+def test_partition_none_matching():
+    # C++: partition_probe.cc "partition_case_d" ->
+    # {"result":["V1","V2","V3"],"boundary":"V1"}
+    t = tree("root")
+    for s in ("V1", "V2", "V3"):
+        t.append_child(t.begin(), s)
+    boundary = t.partition(t.begin(), _is_const)
+    assert [c.data for c in t.children(t.begin())] == ["V1", "V2", "V3"]
+    assert boundary.data == "V1"
+
+
+def test_partition_single_constant_child():
+    # C++: partition_probe.cc "partition_case_e" ->
+    # {"result":["C1"],"boundary":"<end>"} -- the probe's actual case,
+    # previously swapped for an unmeasured empty-children variant below
+    # (task-3 review, Minor).
+    t = tree("root")
+    t.append_child(t.begin(), "C1")
+    boundary = t.partition(t.begin(), _is_const)
+    assert [c.data for c in t.children(t.begin())] == ["C1"]
+    assert boundary is None
+
+
+def test_partition_no_children_returns_none():
+    # Not one of partition_probe.cc's own cases (C++'s `partition` is
+    # never called on a genuinely childless node in this port's real
+    # call site either) -- a from==to input is degenerate but still
+    # worth guarding: `tree.partition`'s own docstring traces exactly why
+    # this returns immediately with no relinking attempted.
+    t = tree("only")
+    boundary = t.partition(t.begin(), _is_const)
+    assert boundary is None
+
+
+def test_sort_on_subtrees_is_stable_for_ties():
+    # C++: partition_probe.cc "sort_on_subtrees_ties" ->
+    # {"result":["a","bb","cc","ddd"]} -- "bb"/"cc" are both length 2
+    # (tied); original relative order (bb before cc) is preserved.
+    t = tree("root")
+    for s in ("bb", "a", "cc", "ddd"):
+        t.append_child(t.begin(), s)
+
+    def by_len(a, b):
+        return len(a.data) < len(b.data)
+
+    t.sort_on_subtrees(t.begin(), by_len, False)
+    validate(t)
+    assert [c.data for c in t.children(t.begin())] == ["a", "bb", "cc", "ddd"]
+
+
+def test_sort_on_subtrees_deep_sorts_children_before_parent_level():
+    # C++: partition_probe.cc "sort_on_subtrees_deep" ->
+    # {"top":["P","Q"],"p_children":["x","y","z"],"q_children":["m","n"]}
+    t = tree("root")
+    p = t.append_child(t.begin(), "P")
+    for s in ("z", "y", "x"):
+        t.append_child(p, s)
+    q = t.append_child(t.begin(), "Q")
+    for s in ("n", "m"):
+        t.append_child(q, s)
+
+    def by_val(a, b):
+        return a.data < b.data
+
+    t.sort_on_subtrees(t.begin(), by_val, True)
+    validate(t)
+    assert [c.data for c in t.children(t.begin())] == ["P", "Q"]
+    assert [c.data for c in t.children(p)] == ["x", "y", "z"]
+    assert [c.data for c in t.children(q)] == ["m", "n"]
+
+
+def test_reparent_two_arg_moves_all_children():
+    t = tree("root")
+    src = t.append_child(t.begin(), "src")
+    t.append_child(src, "s1")
+    t.append_child(src, "s2")
+    dst = t.append_child(t.begin(), "dst")
+    t.reparent(dst, src)
+    validate(t)
+    assert list(t.children(src)) == []
+    assert [c.data for c in t.children(dst)] == ["s1", "s2"]
+
+
+def test_reparent_three_arg_moves_only_the_given_sibling_range():
+    # C++ ground truth: general_rules_probe.cc's eval_constants_mixed_plus
+    # case builds exactly this shape by hand (tr.reparent(new_op,
+    # it.begin(), to)) -- pinned directly here at the tree.py level too.
+    t = tree("and")
+    root = t.begin()
+    t.append_child(root, "C1")
+    t.append_child(root, "C2")
+    v1 = t.append_child(root, "V1")
+    new_op = t.append_child(root, "and")
+
+    t.reparent(new_op, root.first_child, v1)
+    validate(t)
+    assert [c.data for c in t.children(root)] == ["V1", "and"]
+    assert [c.data for c in t.children(new_op)] == ["C1", "C2"]
+
+
+def test_reparent_omitted_third_arg_is_not_confused_with_a_range_call():
+    # The 2-arg and 3-arg forms must stay genuinely distinguishable --
+    # calling with only (new_parent, from_node) must take the "gather ALL
+    # of from_node's children" path, never be misread as a 0-length range.
+    t = tree("root")
+    src = t.append_child(t.begin(), "src")
+    only = t.append_child(src, "only")
+    dst = t.append_child(t.begin(), "dst")
+    result = t.reparent(dst, src)
+    assert result is only  # the moved range's start (tree.h:1525's own `first`)
+    assert list(t.children(src)) == []
+    assert [c.data for c in t.children(dst)] == ["only"]
+
+
+# ---------------------------------------------------------------------------
+# _copy_value -- subtree-copy operations must value-copy mutable node data,
+# not alias it (task-3 review, Critical). Uses the REAL `combo_tree`/
+# `argument` (imported locally, not at module level, to keep this file's
+# own "generic tree<T>" test data -- plain strings elsewhere -- unchanged)
+# because `argument` is this port's one concrete, reachable example of
+# mutable node data, and the demonstrated failure is combo-shaped:
+# Task 4's `push_back_negated_arguments` (logical_rules.h:235,
+# logical_rules.cc:204: `*it = *it.begin(); erase_children(it);
+# get_argument(*it).negate();`, reached from `reduce_to_enf`,
+# logical_rules.cc:643 -- the central function of the whole next task)
+# copies a subtree and negates ONLY the copy's own root; the original
+# must never observe that mutation.
+# ---------------------------------------------------------------------------
+
+
+def test_combo_tree_copy_constructor_value_copies_a_mutable_argument():
+    from pymetta.comboreduct.combo.argument import argument
+    from pymetta.comboreduct.combo.vertex import combo_tree
+
+    original = combo_tree(argument(1))
+    copy_tr = combo_tree(original.begin())  # tree(const iterator_base&)
+    copy_tr.begin().data.negate()
+
+    assert original.begin().data.idx == 1, "negating the COPY corrupted the ORIGINAL"
+    assert copy_tr.begin().data.idx == -1
+
+
+def test_append_child_subtree_copy_value_copies_a_mutable_argument():
+    from pymetta.comboreduct.combo.argument import argument
+    from pymetta.comboreduct.combo.vertex import combo_tree
+
+    src = combo_tree(argument(1))
+    dst = combo_tree("root")
+    copied = dst.append_child(dst.begin(), src.begin())
+    copied.data.negate()
+
+    assert src.begin().data.idx == 1, "negating the COPY corrupted the ORIGINAL"
+    assert copied.data.idx == -1
+
+
+def test_push_back_negated_arguments_shaped_copy_then_negate_leaves_source_untouched():
+    """The exact shape Task 4's `push_back_negated_arguments`
+    (logical_rules.h:235) needs: copy ONE child of a live tree out to a
+    standalone tree, negate the copy's own root argument in place, and
+    confirm the LIVE tree's own child is completely unaffected.
+    Demonstrated failing before the `tree.py` `_copy_value` fix
+    (task-3-report.md carries the reproduction): `and($1 $2)`'s `$1`
+    child, copied and negated this way, used to also flip the ORIGINAL
+    `$1` to `!$1` in place, corrupting `and($1 $2)` into `and(!$1 $2)`.
+    """
+    from pymetta.comboreduct.combo.argument import argument
+    from pymetta.comboreduct.combo.vertex import builtin, combo_tree
+
+    live = combo_tree(builtin.logical_and)
+    root = live.begin()
+    live.append_child(root, argument(1))
+    live.append_child(root, argument(2))
+    first_child = root.first_child
+
+    standalone = combo_tree(first_child)
+    standalone.begin().data.negate()
+
+    assert first_child.data.idx == 1, "the live tree's own child was corrupted"
+    assert [c.data.idx for c in live.children(root)] == [1, 2]
+    assert standalone.begin().data.idx == -1
+
+
+# ---------------------------------------------------------------------------
+# sibling_index / validate -- added task-4 (S7) for
+# comboreduct/reduct/logical_rules.py's reduce_and_assumptions and
+# subtree_to_enf.reduce_to_enf.reduce_and respectively.
+# ---------------------------------------------------------------------------
+
+
+def test_sibling_index():
+    t = tree("root")
+    a = t.append_child(t.begin(), "a")
+    b = t.append_child(t.begin(), "b")
+    c = t.append_child(t.begin(), "c")
+    assert t.sibling_index(a) == 0
+    assert t.sibling_index(b) == 1
+    assert t.sibling_index(c) == 2
+
+
+def test_sibling_index_of_the_root_is_zero():
+    t = tree("root")
+    assert t.sibling_index(t.begin()) == 0
+
+
+def test_validate_passes_on_a_well_formed_tree():
+    t = tree("root")
+    a = t.append_child(t.begin(), "a")
+    t.append_child(t.begin(), "b")
+    t.append_child(a, "a1")
+    t.validate()  # whole-tree, no-arg form
+    t.validate(a)  # explicit-node form
+
+
+def test_validate_on_an_empty_tree_is_a_silent_noop():
+    t = tree()
+    t.validate()
+
+
+def test_validate_detects_a_corrupted_last_child_pointer():
+    """Not a corrupted `first_child`: `validate`'s own recursion reaches
+    children via `first_child`/`next_sibling` forward traversal (matching
+    real C++ tree.h:2175's identical shape), so a corrupted `first_child`
+    would silently orphan everything from THIS walk too -- the same
+    blind spot this file's own `validate()` test helper docstring
+    documents for the real library's `validate()`. `last_child` is NOT
+    used for recursion, so corrupting it is genuinely detectable.
+    """
+    t = tree("root")
+    root = t.begin()
+    a = t.append_child(root, "a")
+    t.append_child(root, "b")
+    root.last_child = a  # corrupt: 'b' is the true last child
+    with pytest.raises(AssertionError):
+        t.validate()
+    root.last_child = a.next_sibling  # restore ('b')
+
+
+def test_validate_detects_a_corrupted_sibling_back_link():
+    t = tree("root")
+    root = t.begin()
+    a = t.append_child(root, "a")
+    b = t.append_child(root, "b")
+    b.prev_sibling = None  # corrupt: breaks the a<->b back-link
+    with pytest.raises(AssertionError):
+        t.validate()
+    b.prev_sibling = a  # restore
+
+
+# ---------------------------------------------------------------------------
+# erase()'s return value -- FIX WAVE (Task 4 review, Critical). The existing
+# oracle test_erase (above) erases a MIDDLE child, where the buggy pre-fix
+# code and the correct fix agree (the erased node's own next_sibling IS its
+# pre-order successor too, since it has one) -- that shape can never catch
+# this bug. This one erases a LAST child, where they diverge.
+# ---------------------------------------------------------------------------
+
+
+def test_erase_last_child_returns_none_not_the_parents_next_sibling():
+    """C++'s `erase(sib_it)` returns the erased iterator advanced by
+    `sibling_iterator::operator++` (tree.h:2926-2938), which NEVER climbs
+    to an ancestor -- at the end of a sibling range it sets the node to
+    NULL. Before this fix, `tree.py`'s `erase` returned the erased node's
+    PRE-ORDER successor instead (climbing to the parent's own next
+    sibling when the erased node was the last child), silently walking
+    OUTSIDE the sibling range.
+
+    Reproduces the Task 4 reviewer's own repro on `and(or($1 $2) $3)`:
+    erasing the `or`'s last child (`$2`) must return `None`, not the
+    `and`'s own next child (`$3`).
+    """
+    t = tree("and")
+    or_node = t.append_child(t.begin(), "or")
+    t.append_child(or_node, "$1")
+    child2 = t.append_child(or_node, "$2")
+    t.append_child(t.begin(), "$3")
+
+    ret = t.erase(child2)
+
+    assert ret is None
+
+
+def test_erase_last_child_of_the_root_still_returns_none():
+    t = tree("root")
+    a = t.append_child(t.begin(), "a")
+    b = t.append_child(t.begin(), "b")
+    assert t.erase(b) is None
+    assert t.erase(a) is None
+
+
+# ---------------------------------------------------------------------------
+# erase_pre_order -- the pre_it-instantiated sibling of erase() (S7 Task 5,
+# added for logical_rules.py's reduce_remove_subtree_equal_tt).
+# ---------------------------------------------------------------------------
+
+
+def test_erase_pre_order_of_a_last_child_climbs_to_the_parents_next_sibling():
+    """The exact shape `test_erase_last_child_returns_none_not_the_parents_
+    next_sibling` above pins the OPPOSITE answer for: erasing `or`'s last
+    child (`$2`) with `erase_pre_order` must return the tree's PRE-ORDER
+    successor of `$2`'s own (now-erased) subtree -- `and`'s next child,
+    `$3` -- not `None`. This is precisely the `_skip_children_successor`
+    behaviour `erase()` itself had before the Task 4 review fix, now
+    preserved separately for the one real caller (a `pre_it` walk) that
+    needs it.
+    """
+    t = tree("and")
+    or_node = t.append_child(t.begin(), "or")
+    t.append_child(or_node, "$1")
+    child2 = t.append_child(or_node, "$2")
+    child3 = t.append_child(t.begin(), "$3")
+
+    ret = t.erase_pre_order(child2)
+
+    assert ret is child3
+
+
+def test_erase_pre_order_of_a_middle_child_agrees_with_erase():
+    """Erasing a node with a REAL next sibling: both semantics agree
+    (that next sibling IS the pre-order successor too), matching the
+    existing `test_erase` oracle case's own inability to distinguish the
+    two -- see `erase()`'s own docstring.
+    """
+    t = tree("root")
+    a = t.append_child(t.begin(), "a")
+    b = t.append_child(t.begin(), "b")
+    c = t.append_child(t.begin(), "c")
+
+    ret = t.erase_pre_order(b)
+
+    assert ret is c
+    assert a.next_sibling is c
+
+
+def test_erase_pre_order_of_the_very_last_node_in_the_tree_returns_none():
+    """No ancestor has a further sibling -- climbing all the way to the
+    root finds nothing, matching `_skip_children_successor`'s own `None`
+    return at the true end of a pre-order walk.
+    """
+    t = tree("root")
+    a = t.append_child(t.begin(), "a")
+    b = t.append_child(a, "b")
+
+    assert t.erase_pre_order(b) is None
