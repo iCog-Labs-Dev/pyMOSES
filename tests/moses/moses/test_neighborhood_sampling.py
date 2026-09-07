@@ -7,6 +7,12 @@ sections: "deterministic" (count_neighborhood_size +
 generate_all_in_neighborhood, no RNG), "safe_binomial_coefficient",
 "generate_initial_sample", and "sample_from_neighborhood" (the latter two are
 RNG-drawn; reproducing them element-for-element is this task's whole point).
+
+`sample_new_instances` (both overloads) is tested separately, near the
+bottom of this file, against tests/fixtures/hillclimbing.json -- S9 Task 2's
+own fixture (tools/cpp_probe/hillclimbing_probe.cc), since it needs
+`instance_set`, which did not exist when this file's original oracle
+fixture was captured.
 """
 
 import json
@@ -23,14 +29,20 @@ from pymetta.moses.moses.neighborhood_sampling import (
     generate_initial_sample,
     safe_binomial_coefficient,
     sample_from_neighborhood,
+    sample_new_instances,
     vary_n_knobs,
 )
+from pymetta.moses.moses.types import worst_composite_score
 from pymetta.moses.representation.field_set import contin_spec, disc_spec, field_set
 from pymetta.moses.representation.instance import instance
+from pymetta.moses.representation.instance_set import instance_set
 from pymetta.util.rng import randGen
 
 _FIXTURE_PATH = Path(__file__).resolve().parents[2] / "fixtures" / "neighborhood.json"
 _GOLDEN = json.loads(_FIXTURE_PATH.read_text())
+
+_HC_FIXTURE_PATH = Path(__file__).resolve().parents[2] / "fixtures" / "hillclimbing.json"
+_HC_GOLDEN = json.loads(_HC_FIXTURE_PATH.read_text())
 
 
 @pytest.fixture(scope="module")
@@ -257,3 +269,102 @@ def test_generate_initial_sample_raises_on_contin_field():
 
 def test_size_t_max_is_64_bit():
     assert _SIZE_T_MAX == 2**64 - 1
+
+
+# ------------------------------------------------------------ sample_new_instances
+
+
+def _sni_center(fs: field_set, n_knobs: int) -> instance:
+    center = instance(fs.packed_width())
+    for i in range(0, n_knobs, 3):
+        fs.set_raw(center, i, 1)
+    return center
+
+
+@pytest.mark.oracle
+@pytest.mark.parametrize(
+    "case",
+    _HC_GOLDEN["sample_new_instances"],
+    ids=lambda c: f"m{c['multiplicity']}_k{c['n_knobs']}_d{c['dist']}_seed{c['seed']}_"
+    f"total{c['give_total']}",
+)
+def test_sample_new_instances_matches_cpp(case):
+    fs = _uniform_fs(case["multiplicity"], case["n_knobs"])
+    center = _sni_center(fs, case["n_knobs"])
+    deme = instance_set(case["current_number_of_instances"], fs)
+
+    randGen().seed(case["seed"])
+    if case["give_total"]:
+        total = count_neighborhood_size(
+            fs, case["dist"], case["number_of_new_instances"], inst=center
+        )
+        returned = sample_new_instances(
+            total,
+            case["number_of_new_instances"],
+            case["current_number_of_instances"],
+            center,
+            deme,
+            case["dist"],
+        )
+    else:
+        returned = sample_new_instances(
+            None,
+            case["number_of_new_instances"],
+            case["current_number_of_instances"],
+            center,
+            deme,
+            case["dist"],
+        )
+
+    assert returned == case["returned"]
+    assert len(deme) == case["deme_size"]
+
+    got_new_slice = [
+        _raw_tuple(fs, deme[i].first)
+        for i in range(case["current_number_of_instances"], len(deme))
+    ]
+    expected = [tuple(row) for row in case["new_slice"]]
+    assert got_new_slice == expected
+
+    # Every newly-written slot must carry a FRESH default (worst)
+    # composite_score, matching scored_instance(instance) -- see
+    # neighborhood_sampling.py's _DemeWriter docstring -- not whatever
+    # score happened to occupy that slot before deme.resize() grew it.
+    for i in range(case["current_number_of_instances"], len(deme)):
+        assert deme[i].second == worst_composite_score
+
+
+def test_sample_new_instances_overload_2_matches_overload_1_without_precomputed_total():
+    """Not itself an oracle case (no separate C++ value exists beyond the
+    fixture's own give_total=false rows already covered above) -- a direct
+    unit check that passing total_number_of_neighbours=None recomputes it
+    identically to the caller precomputing it, for a case NOT already in
+    the fixture, confirming the merge itself (not just the two fixture-
+    covered shapes) is correct.
+    """
+    fs = _uniform_fs(2, 6)
+    center = instance(fs.packed_width())
+
+    randGen().seed(7)
+    deme_a = instance_set(0, fs)
+    returned_a = sample_new_instances(None, 3, 0, center, deme_a, 1)
+
+    randGen().seed(7)
+    deme_b = instance_set(0, fs)
+    total = count_neighborhood_size(fs, 1, 3, inst=center)
+    returned_b = sample_new_instances(total, 3, 0, center, deme_b, 1)
+
+    assert returned_a == returned_b
+    assert [_raw_tuple(fs, si.first) for si in deme_a] == [
+        _raw_tuple(fs, si.first) for si in deme_b
+    ]
+
+
+def test_sample_new_instances_grows_deme_in_place():
+    fs = _uniform_fs(2, 10)
+    center = instance(fs.packed_width())
+    deme = instance_set(4, fs)  # 4 pre-existing (unrelated) instances
+    randGen().seed(1)
+    returned = sample_new_instances(None, 5, 4, center, deme, 1)
+    assert returned == 5
+    assert len(deme) == 9  # 4 pre-existing + 5 new, not replaced/truncated

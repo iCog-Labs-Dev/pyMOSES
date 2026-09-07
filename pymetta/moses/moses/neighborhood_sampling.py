@@ -24,8 +24,20 @@ field_set.py's own term exclusion), so the C++ "terms" branch -- always an
 empty index range here -- is omitted outright rather than guarded.
 
 `sample_new_instances` (both overloads, neighborhood_sampling.cc:214, 261)
-is NOT ported: both need `instance_set<composite_score>`, the S9 Task 0
-bridge container, which does not exist in this port yet.
+IS ported (S9 Task 2), now that `instance_set` (S9 Task 0) exists --
+`hill_climbing.py:hill_climbing.__call__` (neighborhood_sampling.cc's real
+caller, hill-climbing.cc:188) is the reason it is required rather than
+merely convenient. It writes through `_DemeWriter`, a third adapter (after
+the plain-list `out`/`end` convention below) standing in for C++'s
+`deme.begin() + current_number_of_instances` output iterator: it satisfies
+the same `.append(value)`/`len(...)` protocol `_emit` already expects, but
+each `append` writes `scored_instance(value)` into the correspondingly-
+resized `instance_set` slot instead of growing a Python list -- mirroring
+`*out++ = new_inst` implicitly converting through `scored_instance(const
+instance&)` (scored_instance.h:39, not marked `explicit`) the way C++'s
+own assignment does. `instance_set` is presumed already resized to fit
+every write before `_DemeWriter` is used, exactly as `deme.resize(...)`
+guarantees in both `sample_new_instances` overloads below.
 
 Output-iterator convention: C++ threads a same-container ``Out out, Out
 end`` pair (a current position and a fixed one-past-the-end sentinel
@@ -46,6 +58,8 @@ import math
 
 from pymetta.moses.representation.field_set import field_set
 from pymetta.moses.representation.instance import instance
+from pymetta.moses.representation.instance_set import instance_set
+from pymetta.moses.representation.scored_instance import scored_instance
 from pymetta.util.lazy_random_selector import lazy_random_selector
 from pymetta.util.rng import randGen
 
@@ -416,3 +430,116 @@ def sample_from_neighborhood(
                 )
 
         _emit(out, end, new_inst)
+
+
+class _DemeWriter:
+    """Not itself a ported C++ symbol -- see the module docstring's
+    "Output-iterator convention" section. Stands in for `deme.begin() +
+    current_number_of_instances`, an `instance_set<composite_score>`
+    output iterator: each `append(value)` writes `scored_instance(value)`
+    (a fresh default-worst `composite_score` alongside the new instance,
+    exactly what implicit construction-then-assignment produces in C++)
+    into the next slot of a `deme` that the caller has already resized to
+    fit every write, mirroring `*out++ = new_inst` for a
+    `scored_instance<composite_score>`-valued iterator instead of a plain
+    `instance`-valued one.
+    """
+
+    __slots__ = ("_count", "_deme", "_start")
+
+    def __init__(self, deme: instance_set, start: int) -> None:
+        self._deme = deme
+        self._start = start
+        self._count = 0
+
+    def __len__(self) -> int:
+        return self._count
+
+    def append(self, value: instance) -> None:
+        """Not itself a ported C++ symbol -- the `*out++ = value` write
+        `_emit` performs against this adapter; see the class docstring.
+        Named `append` (not `_append`) so `_emit`'s own `out.append(value)`
+        call works unchanged against either a plain list or this adapter.
+        """
+        self._deme[self._start + self._count] = scored_instance(value)
+        self._count += 1
+
+
+def sample_new_instances(
+    total_number_of_neighbours: int | None,
+    number_of_new_instances: int,
+    current_number_of_instances: int,
+    center_inst: instance,
+    deme: instance_set,
+    dist: int,
+) -> int:
+    """C++: moses/moses/moses/neighborhood_sampling.cc:214 sample_new_instances
+    (``total_number_of_neighbours`` given -- the overload hill-climbing.cc:188
+    actually calls) and neighborhood_sampling.cc:261 sample_new_instances
+    (``total_number_of_neighbours=None`` -- computed via
+    `count_neighborhood_size` first, exactly mirroring the second overload's
+    own one-line body, which does nothing but that computation before
+    delegating to the first overload with the now-known total). One Python
+    function merges both, matching this module's established overload-
+    merging convention (`count_neighborhood_size`, `generate_all_in_
+    neighborhood` above) -- ``total_number_of_neighbours`` keeps the first
+    overload's own leading position rather than moving to a trailing
+    keyword, since that is the overload every real caller (hill-climbing.cc)
+    reaches; a caller wanting the second overload's behaviour passes
+    ``None`` in that same slot, exactly where it already knows to look.
+
+    Resizes ``deme`` to fit the new instances, then samples (if the
+    neighborhood is large relative to what's wanted) or exhaustively
+    enumerates (otherwise) directly into the newly-resized slots via
+    `_DemeWriter` -- see the module docstring's "Output-iterator
+    convention" section for why a third out/end adapter exists alongside
+    the plain-list one `generate_all_in_neighborhood`/
+    `sample_from_neighborhood` themselves still use for their non-deme
+    callers (Task 1's own tests).
+    """
+    if total_number_of_neighbours is None:
+        # neighborhood_sampling.cc:261-270's own one-line body.
+        total_number_of_neighbours = count_neighborhood_size(
+            deme.fields(), dist, number_of_new_instances, inst=center_inst
+        )
+
+    # We assume that the total number of neighbors was just an estimate.
+    # If the number of requested new instances is even close to the
+    # estimate, then we need an accurate count of the total. We need
+    # an accurate count for the case of generating the entire
+    # neighborhood (as otherwise, the deme.resize will be bad).
+    #
+    # DO NOT FIX: when the caller already passed ``None`` above, this is a
+    # redundant re-computation of the exact same value with the exact same
+    # arguments -- classic pays this same double-computation cost, since
+    # overload 2 calls overload 1 with its own freshly-computed total,
+    # which then re-runs this very check (see the docstring above).
+    if 2 * number_of_new_instances > total_number_of_neighbours:
+        total_number_of_neighbours = count_neighborhood_size(
+            deme.fields(), dist, number_of_new_instances, inst=center_inst
+        )
+
+    if number_of_new_instances < total_number_of_neighbours:
+        # Resize the deme so it can take new instances.
+        deme.resize(current_number_of_instances + number_of_new_instances)
+        # Sample number_of_new_instances instances at
+        # distance 'distance' from the exemplar.
+        writer = _DemeWriter(deme, current_number_of_instances)
+        sample_from_neighborhood(
+            deme.fields(),
+            dist,
+            number_of_new_instances,
+            writer,
+            number_of_new_instances,
+            center_inst,
+        )
+    else:
+        number_of_new_instances = total_number_of_neighbours
+        # Resize the deme so it can take new instances
+        deme.resize(current_number_of_instances + number_of_new_instances)
+        # Add all instances on the distance dist from the initial instance.
+        writer = _DemeWriter(deme, current_number_of_instances)
+        generate_all_in_neighborhood(
+            deme.fields(), dist, writer, number_of_new_instances, center_inst=center_inst
+        )
+    return number_of_new_instances
