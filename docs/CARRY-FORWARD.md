@@ -202,6 +202,17 @@ member in the docstring body.
   multi-line explanation now reaches `docs/ALIGNMENT.md` in full, so long as
   two adjacent markers are not run together (each marker still ends where the
   next one's `# DIVERGENCE(...)` begins).
+- **A breadcrumb can cite the wrong overload and still pass.**
+  `check_alignment.py` confirms the cited *identifier* appears within
+  `DRIFT_TOLERANCE = 25` lines of the cited line — it does **not** confirm the
+  cited line *is* that symbol. In overload-dense headers the window swallows
+  every candidate: `table.h`'s five `Table` constructors sit inside ~15 lines,
+  so a citation naming the un-ported `(It,It)` ctor instead of the `(tr,arity)`
+  one two lines down is indistinguishable to the checker. Found in S7 as a
+  systematic off-by-a-few cluster in `table.py:771-803` and `vertex.py:262,272`.
+  The tolerance exists to survive upstream line drift and is right to; the
+  consequence is that **overload choice is unverified and must be reviewed by
+  eye**. Tightening it would trade a real protection for a narrow one.
 - **Corpus gaps:** no argument index above `$3`, no arity ≥ 4.
 
 ---
@@ -221,3 +232,10 @@ member in the docstring body.
 - **A fix can reintroduce the bug it fixes.** The final fix wave's new cache key
   reopened the same cross-type collision at a wider scope. The scoped re-review
   caught it.
+- **A wrong port asserted as verified fidelity is worse than a wrong port.** S7
+  Task 5 shipped an unbounded iterator walk whose docstring claimed the C++
+  end-condition "reduces to a null check" — a specific, confident, checkable
+  claim that was simply false. Because it read as measured, it carried no
+  `# DIVERGENCE` marker, so `ALIGNMENT.md` reported the file as faithful and
+  the next reader had every reason not to look. Prefer "not yet verified" to a
+  plausible reconstruction: a gap invites a check, a false claim forecloses it.
