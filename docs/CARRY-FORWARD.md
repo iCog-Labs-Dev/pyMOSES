@@ -112,6 +112,27 @@ These cost real time to find. They are properties of the C++ side, not of the po
 - **The prebuilt binaries can silently rot.** They were linked against boost
   1.91, which no longer exists on this machine; every one failed at load until a
   full `--fresh` rebuild. Check `ldd` before trusting an oracle run.
+- **`eval_logical_identities` is unsound, and `logical_reduce` is therefore
+  semantically lossy** on a characterised class of input (added 2026-09-07).
+  Divergence occurs **iff a junctor's entire child list consists of childless
+  junctors**. Mechanism: a childless junctor returns its *own token*
+  (`interpreter.cc:66-82`), which the parent's short-circuit never matches, so
+  the child is skipped — making `and(or())` evaluate TRUE. Reduct then erases
+  the childless `or()` from its `and` parent (`logical_rules.cc:134`), which is
+  faithful to "skip", but leaves `and()` itself childless; the grandparent
+  erases *that* (`:155`). A definite TRUE has been rewritten into "skip me".
+  Each rewrite is individually correct; their composition is not.
+  Verified with an independent evaluator and a direct `boolean_interpreter`
+  probe, not via `test_reduct`'s own comparison: `or(and(or()) $1)` gives
+  original `11`, reduced `01`. 13 of the 29 `testTrees.sh` trees hit this;
+  the 12 that carry the same `or()`/`and()` litter but keep a real child
+  (`and(X or())`) are unaffected. `git log` shows this fork never touched
+  `logical_rules.cc` or `interpreter.cc`, so it is upstream behaviour.
+  **Consequence:** truth-table preservation is not a property `logical_reduce`
+  has. Any check must assert it on the complement of this class, and must
+  handle a bare `and()`/`or()` reaching the root as a distinct outcome —
+  `builtin_to_bool` (`vertex.h:708-713`) `OC_ASSERT`s on a non-true/false
+  builtin, so that case aborts `complete_truth_table` rather than returning.
 
 ---
 

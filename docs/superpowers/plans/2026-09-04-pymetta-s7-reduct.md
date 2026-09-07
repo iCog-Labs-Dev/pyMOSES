@@ -172,7 +172,15 @@ All verified by running the command and reading the output:
 
 1. `bash tools/ci.sh` exits 0.
 2. For every tree in the corpus, at effort levels 1, 2 and 3, pyMeTTa's reduced tree is **byte-identical** to `test_reduct`'s.
-3. Every reduction preserves the truth table (semantic check) and satisfies the seven ENF axioms (structural check).
+3. Every reduction preserves the truth table (semantic check) and satisfies the
+   seven ENF axioms (structural check) — **except on the characterised class
+   where classic itself is unsound** (amended 2026-09-07). `logical_reduce` does
+   not preserve semantics when a junctor's entire child list consists of
+   childless junctors; see `docs/CARRY-FORWARD.md` §3. On that class the port
+   must match C++ byte-for-byte and must *not* preserve the truth table, because
+   C++ does not. The exclusion must be expressed as that predicate, not as an
+   opaque list of tree indices — a list would rot silently as the corpus grows,
+   and would hide any *new* divergence that isn't this one.
 4. `docs/ALIGNMENT.md` shows every S7 file's symbols as ported or explicitly diverged.
 5. `docs/MODULE-COVERAGE.md` updated: the 22 S7 rows move from `PLANNED: S7` to `PORTED` or `PARTIAL` with a named gap.
 
