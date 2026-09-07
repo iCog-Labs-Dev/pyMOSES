@@ -22,6 +22,7 @@ _EXPECTED_CASES = (
     ("small-or-negated", "or($1 !$2)", 2, []),
     ("nested-three", "and(or($1 $2) !$3)", 3, []),
     ("ignored-argument", "and($1 $2)", 2, [2]),
+    ("and-wraps-or", "and($1 or($2 $3))", 3, []),
 )
 
 

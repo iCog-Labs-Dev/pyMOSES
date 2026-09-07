@@ -8,7 +8,7 @@ from pymetta.comboreduct.combo.iostream_combo import (
     combo_tree_to_str,
     str_to_combo_tree,
 )
-from pymetta.comboreduct.combo.vertex import builtin, combo_tree
+from pymetta.comboreduct.combo.vertex import builtin, combo_tree, vertex_equal
 from pymetta.comboreduct.reduct.clean_reduction import clean_reduce
 from pymetta.comboreduct.reduct.logical_reduction import logical_reduction
 from pymetta.moses.representation.knobs import logical_subtree_knob
@@ -397,6 +397,68 @@ def test_allow_reenables_a_valid_setting_before_mapper_insertion():
     assert knob.multiplicity() == 3
     assert knob.spec().multy == 3
     assert knob.toStr() == "[nil $2 !$2]"
+
+
+def test_loc_str_null_wrapper_check_discriminates_contin_zero_from_null_vertex():
+    """Important 3 repro #1 (review knobs.py:325): `loc.data ==
+    builtin.null_vertex` was bare `==`. `builtin.null_vertex` is ordinal 0
+    and `contin_t` is a bare `float`, so a live contin leaf valued `0.0`
+    satisfied that bare comparison exactly like a real null-vertex wrapper
+    node would. After `turn(1)` flattens an absent-default knob to
+    `present`, `_loc` points directly at that childless contin leaf -- the
+    bare check misread it as a still-wrapped null marker and demanded
+    (wrongly) that it have exactly one child, raising instead of rendering.
+    `vertex_equal` fixes this by refusing to equate a `float` with a
+    `builtin` regardless of ordinal. 7.0 (a non-colliding ordinal) already
+    worked before the fix and is kept here as the control.
+    """
+
+    def _knob_on_contin(value: float) -> logical_subtree_knob:
+        tr = combo_tree()
+        target = tr.set_head(builtin.logical_and)
+        subtree = combo_tree(float(value))
+        return logical_subtree_knob(tr, target, subtree.begin())
+
+    control = _knob_on_contin(7.0)
+    control.turn(1)
+    assert control.toStr() == "[nil 7 !7]"
+
+    knob = _knob_on_contin(0.0)
+    knob.turn(1)
+    assert knob.toStr() == "[nil 0 !0]"
+
+
+def test_constructor_binds_to_matching_subtree_not_a_type_coincident_sibling():
+    """Important 3 repro #2 (review knobs.py:232 -> tree.py's equal_subtree):
+    `tr.equal_subtree` compared `.data` with bare `!=`/`==`. `builtin` is an
+    `IntEnum` (`logical_true == 1`) and `contin_t` is a bare `float`, so a
+    contin sibling valued `1.0` compared equal to a probed `logical_true`
+    subtree purely by ordinal coincidence -- something `boost::variant`'s
+    real `operator==` can never do. The constructor then bound `_loc` to
+    that unrelated contin sibling instead of appending a fresh null_vertex
+    wrapper: `in_exemplar()` reported `True` and `toStr()` was `[1 nil !1]`
+    for what should be an absent, freshly-built knob. Passing `vertex_equal`
+    as `equal_subtree`'s predicate fixes it.
+    """
+    tr = combo_tree()
+    target = tr.set_head(builtin.logical_and)
+    tr.append_child(target, 1.0)
+    subtree = combo_tree(builtin.logical_true)
+
+    knob = logical_subtree_knob(tr, target, subtree.begin())
+
+    assert knob.in_exemplar() is False
+    assert knob.toStr() == "[nil true !true]"
+    assert not isinstance(knob.get_loc().data, float)
+
+    # Same coincidence, exercised directly against the generic tree
+    # primitive the constructor delegates to: bare equality must not treat
+    # a contin `1.0` node as equal to a `logical_true` node.
+    contin_only = combo_tree(1.0)
+    logical_true_only = combo_tree(builtin.logical_true)
+    assert not tr.equal_subtree(
+        contin_only.begin(), logical_true_only.begin(), vertex_equal
+    )
 
 
 def test_constructor_rejects_dead_target_and_copy_source():

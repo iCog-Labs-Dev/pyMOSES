@@ -16,7 +16,7 @@ from abc import ABC, abstractmethod
 
 from pymetta.comboreduct.combo.argument import argument
 from pymetta.comboreduct.combo.iostream_combo import combo_tree_to_str
-from pymetta.comboreduct.combo.vertex import builtin, combo_tree
+from pymetta.comboreduct.combo.vertex import builtin, combo_tree, vertex_equal
 from pymetta.comboreduct.reduct.logical_reduction import logical_reduction
 from pymetta.moses.moses.complexity import complexity_t, tree_complexity
 from pymetta.moses.representation.field_set import disc_spec
@@ -151,23 +151,23 @@ class discrete_knob(disc_knob_base):
             raise ValueError(f"invalid discrete knob setting: {setting!r}")
 
     def disallow(self, setting: int) -> None:
-        """C++: moses/moses/representation/knobs.h:180 discrete_knob"""
+        """C++: moses/moses/representation/knobs.h:180 discrete_knob::disallow"""
         self._require_mutable_spec("disallow")
         self._validate_setting(setting)
         self._disallowed.add(setting)
 
     def allow(self, setting: int) -> None:
-        """C++: moses/moses/representation/knobs.h:183 discrete_knob"""
+        """C++: moses/moses/representation/knobs.h:183 discrete_knob::allow"""
         self._require_mutable_spec("allow")
         self._validate_setting(setting)
         self._disallowed.discard(setting)
 
     def multiplicity(self) -> int:
-        """C++: moses/moses/representation/knobs.h:187 discrete_knob"""
+        """C++: moses/moses/representation/knobs.h:187 discrete_knob::multiplicity"""
         return self._capacity - len(self._disallowed)
 
     def in_exemplar(self) -> bool:
-        """C++: moses/moses/representation/knobs.h:191 discrete_knob"""
+        """C++: moses/moses/representation/knobs.h:191 discrete_knob::in_exemplar"""
         return self._default != 0
 
     def _map_idx(self, idx: int) -> int:
@@ -177,6 +177,10 @@ class discrete_knob(disc_knob_base):
         only disallowed raw positions strictly below the swapped index count.
         It can therefore map to a disallowed state.
         """
+        # DIVERGENCE(C++ moses/moses/representation/knobs.h:200-206): classic
+        # takes an unchecked `int idx` and relies on caller preconditions;
+        # Python rejects a non-integral or out-of-range index before it can
+        # reach the (verbatim-faithful, see above) mapping arithmetic below.
         if (
             not isinstance(idx, int)
             or isinstance(idx, bool)
@@ -203,7 +207,12 @@ class logical_subtree_knob(discrete_knob):
         target: tree_node,
         subtree_or_knob: tree_node | logical_subtree_knob,
     ) -> None:
-        """C++: moses/moses/representation/knobs.cc:68 logical_subtree_knob"""
+        """C++: moses/moses/representation/knobs.cc:68 logical_subtree_knob
+        (the copy-ctor overload, taken when ``subtree_or_knob`` is a
+        ``logical_subtree_knob``) and knobs.cc:86 (the subtree-ctor overload,
+        taken otherwise) -- one Python method dispatches on argument type
+        instead of overloading, per this module's usual convention.
+        """
         super().__init__(tr, capacity=3)
         if not tr.is_valid(target):
             raise ValueError("logical_subtree_knob: target is erased or invalid")
@@ -229,8 +238,8 @@ class logical_subtree_knob(discrete_knob):
         logical_reduction()(1)(negated_subtree)
 
         for sibling in tr.children(target):
-            if tr.equal_subtree(sibling, subtree) or tr.equal_subtree(
-                sibling, negated_subtree.begin()
+            if tr.equal_subtree(sibling, subtree, vertex_equal) or tr.equal_subtree(
+                sibling, negated_subtree.begin(), vertex_equal
             ):
                 self._loc = sibling
                 self._current = self.present
@@ -295,10 +304,21 @@ class logical_subtree_knob(discrete_knob):
         """
         # DIVERGENCE(C++ moses/moses/representation/knobs.cc:164-190): Python
         # cannot overwrite a caller's local reference, so append_to returns the
-        # source and updated destination handles as a pair. Classic constructs
-        # its absent result from parent_dst.end(); depending on parent_dst that
-        # iterator can pass tree::is_valid despite comparing equal to the
-        # candidate end. Python normalizes every absent source to None.
+        # source and updated destination handles as a pair. Classic
+        # initializes its absent result from `parent_dst.end()` (knobs.cc:177),
+        # i.e. `iterator_base::end()` (opencog/util/tree.h:2356-2361): that
+        # default-constructs a sibling_iterator (`node == 0`, tree.h:2228's
+        # default ctor) and assigns `parent_dst`'s node into the returned
+        # iterator's `parent_` field, never into its own `node`. So the
+        # result's `node` is unconditionally 0 -- NOT "depending on
+        # parent_dst" -- and `tree::is_valid` (tree.h:2166-2171, `node == 0`
+        # among its checks) always rejects it; it can never pass is_valid.
+        # It also does not compare equal to the candidate's own `end()`
+        # (a pre/post-order iterator over `feet`, a distinct non-null
+        # sentinel, not `node == 0`). Python normalizes every absent source
+        # to None, which is the same "definitely not a real node" outcome
+        # classic's always-invalid iterator produces -- the normalization is
+        # right; the above is what actually justifies it.
         loc = self._require_live_location("append_to")
         mapped = self._map_idx(idx)
         updated_parent = parent_dst
@@ -322,7 +342,7 @@ class logical_subtree_knob(discrete_knob):
     def _loc_str(self, negate: bool = False) -> str:
         """C++: moses/moses/representation/knobs.cc:209 logical_subtree_knob::locStr"""
         loc = self._require_live_location("toStr")
-        if loc.data == builtin.null_vertex:
+        if vertex_equal(loc.data, builtin.null_vertex):
             if not self._tr.has_one_child(loc):
                 raise ValueError("null logical knob location must have exactly one child")
             loc = loc.first_child

@@ -409,3 +409,38 @@ def test_false_classic_begin_iterator_aliases_are_not_exposed():
     fs = field_set(disc_spec(2), 1)
     for name in ("begin_raw", "begin_disc", "begin_bit", "begin_contin"):
         assert not hasattr(fs, name)
+
+
+def test_iter_disc_iter_bit_and_iter_contin_each_slice_their_own_raw_range():
+    """`iter_disc`/`iter_bit`/`iter_contin` had zero test references before
+    this: pin each generator against a layout that actually exercises all
+    three raw ranges at once (contin, a wide disc field, and a one-bit
+    field), cross-checked against `iter_raw` and the raw-index boundary
+    accessors those generators are built from.
+    """
+    fs = field_set([contin_spec(0.0, 1.0, 2.0, 2), disc_spec(3), disc_spec(2)])
+    assert fs.n_contin_fields() == 2
+    assert fs.n_disc_fields() == 1
+    assert fs.n_bits() == 1
+
+    packed = fs.pack([contin_spec.Left, contin_spec.Right, 2, 1])
+    assert list(fs.iter_raw(packed)) == [contin_spec.Left, contin_spec.Right, 2, 1]
+
+    assert list(fs.iter_contin(packed)) == [fs.get_contin(packed, 0)]
+    assert list(fs.iter_disc(packed)) == [2] == [
+        fs.get_raw(packed, idx)
+        for idx in range(fs.begin_disc_raw_idx(), fs.end_disc_raw_idx())
+    ]
+    assert list(fs.iter_bit(packed)) == [True] == [
+        bool(fs.get_raw(packed, idx))
+        for idx in range(fs.begin_bit_raw_idx(), fs.end_bit_raw_idx())
+    ]
+
+    zeroed = fs.pack([contin_spec.Stop, contin_spec.Stop, 0, 0])
+    assert list(fs.iter_bit(zeroed)) == [False]
+    assert list(fs.iter_disc(zeroed)) == [0]
+
+    empty = field_set()
+    assert list(empty.iter_disc(instance(0))) == []
+    assert list(empty.iter_bit(instance(0))) == []
+    assert list(empty.iter_contin(instance(0))) == []

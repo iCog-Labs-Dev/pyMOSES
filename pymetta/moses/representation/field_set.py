@@ -192,6 +192,14 @@ class field_set:
         specs: Iterable[spec] | spec | field_set | None = None,
         n: size_t | None = None,
     ) -> None:
+        """C++: moses/moses/representation/field_set.h:315 field_set()
+        (``specs=None``), field_set.h:321 field_set(const field_set&)
+        (``specs`` is a ``field_set``), field_set.h:329 field_set(const
+        spec&, size_t) (``specs`` is a single ``disc_spec``/``contin_spec``),
+        and field_set.h:337 field_set(It, It) (``specs`` an iterable) -- one
+        Python constructor dispatches on argument type/shape across all four
+        C++ overloads instead of overloading.
+        """
         # DIVERGENCE(C++ moses/moses/representation/field_set.h:295-344): reject
         # negative counts/depths before unsigned conversion.
         if specs is None:
@@ -230,7 +238,12 @@ class field_set:
         self._compute_starts()
 
     def __eq__(self, rhs: object) -> bool:
-        """C++: moses/moses/representation/field_set.h:99 field_set"""
+        """C++: moses/moses/representation/field_set.cc:51 field_set
+
+        The real member is `field_set::operator==` -- an operator overload,
+        which `tools/check_alignment.py` cannot match by identifier (see
+        CARRY-FORWARD.md 4.5), so the enclosing class is cited instead.
+        """
         if not isinstance(rhs, field_set):
             return NotImplemented
         return self._disc == rhs._disc and self._contin == rhs._contin and self._nbool == rhs._nbool
@@ -243,6 +256,11 @@ class field_set:
 
     def _build_disc_spec(self, ds: disc_spec) -> None:
         width = nbits_to_pack(ds.multy)
+        # DIVERGENCE(C++ moses/moses/representation/field_set.cc:159-169):
+        # build_disc_spec there has no such check and would silently place a
+        # field wider than one packed word (whose bit offsets the rest of
+        # this class assumes never crosses a word boundary). Python rejects
+        # it before it can corrupt later get_raw/set_raw bit arithmetic.
         if width > bits_per_packed_t:
             raise ValueError("discrete field width exceeds packed word size")
         base = self._back_offset()
@@ -274,7 +292,11 @@ class field_set:
             raw_idx += item.depth
 
     # DIVERGENCE(C++ moses/moses/representation/field_set.h:521): immutable
-    # descriptor tuple replaces mutable begin/end field iterators.
+    # descriptor tuple replaces classic's begin/end `field_iterator` pair.
+    # `field_iterator` (field_set.h:145) is itself already a
+    # `std::vector<field>::const_iterator`, not a mutable one -- this port
+    # does not relax any existing const-ness, it just returns a value
+    # instead of an iterator pair.
     def fields(self) -> tuple[field, ...]:
         """C++: moses/moses/representation/field_set.h:521 begin_fields
 
@@ -343,7 +365,7 @@ class field_set:
             elif direction == contin_spec.Stop:
                 break
             else:
-                # DIVERGENCE(C++ moses/moses/representation/field_set.cc:90): classic asserts on an
+                # DIVERGENCE(C++ moses/moses/representation/field_set.cc:92): classic asserts on an
                 # invalid two-bit direction; Python raises ValueError.
                 raise ValueError(f"unknown continuous direction: {direction}")
         return stepper.value
@@ -432,8 +454,11 @@ class field_set:
             )
 
     def _validate_raw_idx(self, idx: size_t) -> None:
-        # DIVERGENCE(C++ moses/moses/representation/field_set.h:410-430): classic accepts unsigned
-        # indexes and frequently relies on assertions; Python rejects every
+        # DIVERGENCE(C++ moses/moses/representation/field_set.h:410-430):
+        # `get_raw`/`set_raw` there have no assertion of any kind, not even
+        # an OC_ASSERT -- they index `_fields[idx]` directly, so an
+        # out-of-range `idx` is undefined behaviour in classic (a raw
+        # `std::vector::operator[]`, not `.at()`). Python rejects every
         # negative/out-of-range public field index before access or mutation.
         if not isinstance(idx, int) or isinstance(idx, bool) or not 0 <= idx < self.raw_size():
             raise IndexError(f"raw field index out of range: {idx!r}")
@@ -516,6 +541,9 @@ class field_set:
 
     def contin_to_raw_idx(self, spec_idx: size_t) -> size_t:
         """C++: moses/moses/representation/field_set.h:591 contin_to_raw_idx"""
+        # DIVERGENCE(C++ moses/moses/representation/field_set.h:591-594):
+        # classic indexes `_contin_raw_offsets[spec_idx]` directly with no
+        # bounds check at all. Python validates first.
         self._validate_contin_idx(spec_idx)
         return self._contin_raw_offsets[spec_idx]
 
@@ -540,6 +568,9 @@ class field_set:
 
     def contin_length(self, inst: instance, idx: size_t) -> size_t:
         """C++: moses/moses/representation/field_set.h:665 contin_length"""
+        # DIVERGENCE(C++ moses/moses/representation/field_set.h:665-675):
+        # classic indexes `_contin[idx]` directly with no bounds check at
+        # all. Python validates first.
         self._validate_contin_idx(idx)
         raw_begin = self.contin_to_raw_idx(idx)
         depth = self._contin[idx].depth

@@ -171,7 +171,12 @@ int main()
     emit_case("small-and", "and($1 $2)", 2, {}, false);
     emit_case("small-or-negated", "or($1 !$2)", 2, {}, false);
     emit_case("nested-three", "and(or($1 $2) !$3)", 3, {}, false);
-    emit_case("ignored-argument", "and($1 $2)", 2, {2}, true);
+    emit_case("ignored-argument", "and($1 $2)", 2, {2}, false);
+    // Discriminates knob_mapper's descending-multy sort (Task 3's exit
+    // criterion): insertion order here is [3,3,3,2,2,3,3] (measured), which
+    // is NOT already sorted, unlike every other case above. Reversing the
+    // sort in knob_mapper.py must change this case's "knobs" order.
+    emit_case("and-wraps-or", "and($1 or($2 $3))", 3, {}, true);
     cout << "  ]\n}\n";
     return 0;
 }

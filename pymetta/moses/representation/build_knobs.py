@@ -79,6 +79,18 @@ class build_knobs:
         self._simplify_knob_building = simplify_knob_building
         self._ignore_ops = tuple(ignore_ops)
         self._arity = type_tree_arity(signature)
+        # KNOWN-UNEXERCISED: with every input forced Boolean (this class'
+        # scope), `boolean_arity(signature) == type_tree_arity(signature) ==
+        # arity`, so this reduces to `not (4 * arity > 0)`, i.e. `arity ==
+        # 0`. But `add_logical_knobs` only ever calls `disc_probe` from a
+        # `sample_logical_perms` permutation, and that generator is
+        # `range(1, self._arity + 1)` -- empty at arity 0. So the one input
+        # shape that makes `_skip_disc_probe` True is also the one shape in
+        # which `disc_probe` is never called at all: its `if
+        # self._skip_disc_probe: return True` branch is unreachable given
+        # this scope, not merely untested by the current corpus -- verified
+        # by making that branch raise instead and confirming the full suite
+        # still passes.
         self._skip_disc_probe = not (
             5 * boolean_arity(signature) > type_tree_arity(signature)
         )
@@ -125,6 +137,16 @@ class build_knobs:
             raise ValueError("build_knobs requires a fresh, empty knob_mapper")
         if not callable(simplify_knob_building):
             raise TypeError("simplify_knob_building must be callable")
+        # Classic's own early-return test (build_knobs.cc:435) is
+        # `_perm_ratio <= -1.0`, not `== -1.0`: any ratio at or below -1
+        # (e.g. -2.0) also skips pair sampling in C++. This port only
+        # implements the no-pairs path, so it accepts exactly -1.0 and
+        # rejects every other value INCLUDING other ratios classic would
+        # treat identically (like -2.0) -- stricter than necessary, not
+        # merely narrower. Separately: classic's own *default* is 0.0
+        # (build_knobs.h:56, representation.h:62), which is NOT <= -1.0 and
+        # so DOES generate pairs by default -- the "no pairs" behaviour
+        # required here is classic's non-default case, not its default one.
         if (
             isinstance(perm_ratio, bool)
             or not isinstance(perm_ratio, int | float)
@@ -181,6 +203,26 @@ class build_knobs:
 
     def logical_cleanup(self) -> None:
         """C++: moses/moses/representation/build_knobs.cc:269 build_knobs::logical_cleanup"""
+        # DIVERGENCE(C++ moses/moses/representation/build_knobs.cc:270-276):
+        # classic walks the post-order iterator LIVE, erasing through
+        # `_exemplar.erase(it++)` as it goes -- per the S0-S6 plan's explicit
+        # "do not fix it by snapshotting" rule, that is normally something
+        # this port must not paper over. This snapshots the post-order
+        # sequence into a plain list up front instead, then re-checks
+        # `is_childless` fresh at each node during the loop (not a stale
+        # value captured at snapshot time). The two are behaviourally
+        # equivalent here specifically because only CHILDLESS nodes are ever
+        # erased: post-order guarantees every node is visited strictly after
+        # all of its own descendants, so an erased node can never be an
+        # ancestor of a later-visited node in this same snapshot, and a
+        # parent that becomes childless only because an earlier sibling/child
+        # was erased is still observed correctly, since its childless-ness is
+        # re-tested live against the real tree, not against the snapshot.
+        # Consequence: the `self._exemplar.is_valid(node)` guard below can
+        # never actually fire -- no snapshot entry is ever erased before its
+        # own turn -- and mutating it away (deleting the conjunct entirely)
+        # still leaves the test suite green. Kept anyway as the guard classic
+        # gets for free from `it++` capturing the successor before erasing.
         root = self._exemplar.begin()
         if root is not None:
             for node in list(self._exemplar.iter_post_at(root)):
@@ -263,6 +305,19 @@ class build_knobs:
                 wrapper = self._exemplar.insert_above(current, flip)
                 self.add_logical_knobs(subtree, wrapper, False)
             elif vertex_equal(current.data, builtin.null_vertex):
+                # KNOWN-UNEXERCISED (as a mutant, not as dead code): this
+                # `break` faithfully mirrors classic's `else if (*cur ==
+                # id::null_vertex) break;` (build_knobs.cc:662-663), and the
+                # branch itself IS reached by the current corpus (forcing an
+                # exception here fails several tests). But replacing `break`
+                # with a plain no-op (falling through to `current =
+                # next_sibling` and continuing the loop) leaves the full
+                # suite passing unchanged -- verified by mutation. Every
+                # sibling list this corpus decorates either has no real
+                # content after its null_vertex sentinel or does not
+                # currently exercise one, so `break` vs "keep going" is not
+                # currently distinguishable here, even though the branch
+                # itself is.
                 break
             else:
                 self.build_logical(subtree, current)

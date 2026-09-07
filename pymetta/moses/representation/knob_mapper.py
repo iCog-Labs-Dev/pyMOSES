@@ -66,9 +66,15 @@ class knob_mapper:
                 raise RuntimeError("finalize: stored knob specification is stale")
             loc = entry.knob.get_loc()
             if loc in locations:
-                # DIVERGENCE(C++ moses/moses/representation/knob_mapper.h:76):
-                # std::map::insert silently retains the first duplicate node;
-                # Python rejects the ambiguous identity mapping explicitly.
+                # DIVERGENCE(C++ moses/moses/representation/representation.cc:181):
+                # the only write to classic's it_disc_knob map is
+                # `it_disc_knob[pit] = dit;` -- std::map::operator[], which
+                # silently OVERWRITES on a duplicate key, so the *last* knob
+                # at a given location wins, not the first (knob_mapper.h:76
+                # only declares the it_disc_knob member -- an
+                # it_disc_knob_map -- it contains no insert() call of its
+                # own). Python rejects the ambiguous identity mapping
+                # explicitly instead of picking either "first" or "last".
                 raise ValueError("finalize: location already has a knob")
             locations[loc] = entry.knob
         ordered = sorted(pending, key=lambda entry: entry.spec.multy, reverse=True)

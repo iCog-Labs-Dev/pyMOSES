@@ -138,9 +138,15 @@ def gen_signature(
     """
     if arity is not None:
         # DIVERGENCE(C++ moses/comboreduct/type_checker/type_tree.cc:1325):
-        # classic passes `arity + 1` into a child-count API and does not reject
-        # negative arities explicitly; Python raises before allocation rather
-        # than permitting signed-to-unsigned expansion or invalid signatures.
+        # classic passes `arity + 1` (arity_t, a plain signed `int`,
+        # common_def.h:31) straight into `append_children(iter, int n)`
+        # (opencog/util/tree.h:1072) -- there is no signed-to-unsigned
+        # conversion anywhere in this call. `append_children`'s loop is
+        # `while ((n--) > 0)`, so a non-positive `n` just appends zero
+        # children rather than misbehaving: a negative arity there silently
+        # produces a degenerate `lambda_type` node with no children (or
+        # fewer than requested) instead of the intended arity-sized
+        # signature. Python raises before that can happen.
         if arity < 0:
             raise ValueError("signature arity must be non-negative")
         itype = _type_node_of(inputs_or_itype)  # type: ignore[arg-type]
@@ -159,6 +165,15 @@ def gen_signature(
 
 def type_tree_arity(signature: TypeSignature) -> int:
     """C++: moses/comboreduct/type_checker/type_tree.cc:352 type_tree_arity"""
+    # DIVERGENCE(C++ moses/comboreduct/type_checker/type_tree.cc:366):
+    # classic returns a NEGATIVE arity (`-a`) when the signature's last input
+    # is `id::arg_list_type` -- a deliberate sentinel meaning "variadic, |a|
+    # named arguments plus a trailing arg_list" (see also convert_index's use
+    # of that sign, type_tree.cc:379-382). `arg_list_type` has no
+    # representation in this scoped port (term-algebra/enum/etc. are
+    # excluded outside the Boolean+continuous domain), so `len(...)` here is
+    # always the plain non-negative count and never reproduces that
+    # negative-arity variadic encoding.
     return len(signature.itypes)
 
 

@@ -838,7 +838,7 @@ class tree:
         ordered = sorted(children, key=functools.cmp_to_key(_cmp))
         self._relink_full_children(node, ordered)
 
-    def equal_subtree(self, a, b):
+    def equal_subtree(self, a, b, predicate=None):
         """C++: opencog/util/tree.h:1923 equal_subtree
 
         Ports the literal algorithm (tree.h:1931 equal(), tree.h:1949
@@ -853,19 +853,40 @@ class tree:
         subtree into whatever follows it in `b`'s tree, exactly as the C++
         can -- an accepted, inherited imprecision of the original
         algorithm, not something this port corrects.
+
+        ``predicate`` mirrors C++'s two-overload split: the no-argument
+        `equal_subtree(iter, iter)` (tree.h:1923) defaults its comparator to
+        `std::equal_to<T>` (tree.h:1926), and the `BinaryPredicate` overload
+        (tree.h:1949) lets a caller supply another one. This module is
+        generic over `T` (module docstring) and stays that way by defaulting
+        `predicate` to plain `==`/`!=` rather than importing any one `T`'s
+        notion of equality -- but for this port's actual `T` (`vertex`, a
+        `boost::variant`), C++'s `std::equal_to<T>` is NOT bare `==`: a
+        `boost::variant`'s compiler-generated `operator==` compares which
+        alternative is held before ever comparing a value, so it is
+        unconditionally false across alternatives. Python's bare `==`/`!=`
+        on `.data` has no such discrimination (`contin_t` is a bare `float`,
+        `builtin` an `IntEnum`, so e.g. `1.0 == builtin.logical_true` is
+        `True`) -- callers holding vertex data of unproven type MUST pass
+        `vertex_equal` (comboreduct/combo/vertex.py) here to get the real
+        C++ default's actual behaviour; the plain default below is only
+        correct for callers whose data's `==` already discriminates by type.
         """
         _require_live_node(a, "equal_subtree")
         _require_live_node(b, "equal_subtree")
+        if predicate is None:
+            def predicate(x, y):
+                return x == y
         if a is b:
             return True
-        if a.data != b.data:
+        if not predicate(a.data, b.data):
             return False
         if self.number_of_children(a) != self.number_of_children(b):
             return False
         boundary = self._skip_children_successor(a)
         one, three = a.first_child, b.first_child
         while one is not None and one is not boundary and three is not None:
-            if one.data != three.data:
+            if not predicate(one.data, three.data):
                 return False
             if self.number_of_children(one) != self.number_of_children(three):
                 return False

@@ -72,7 +72,7 @@ def _truth_outcome(tr: combo_tree, arity: int) -> tuple[bool, str | None]:
 def test_representation_fixture_schema_is_bounded_and_non_vacuous(golden):
     assert set(golden) == {"perm_ratio", "cases"}
     assert golden["perm_ratio"] == -1
-    assert sum(len(case["rows"]) for case in golden["cases"]) == 997
+    assert sum(len(case["rows"]) for case in golden["cases"]) == 1969
     assert max(len(case["rows"]) for case in golden["cases"]) == 972
     assert all(set(case) == _CASE_KEYS for case in golden["cases"])
     assert all(case["exhaustive"] for case in golden["cases"])
@@ -89,11 +89,11 @@ def test_representation_fixture_schema_is_bounded_and_non_vacuous(golden):
         for case in golden["cases"]
         for row in case["rows"]
         for key in ("unreduced_tt", "reduced_tt")
-    ) == 5
+    ) == 6
 
 
 @pytest.mark.oracle
-@pytest.mark.parametrize("case_idx", range(6))
+@pytest.mark.parametrize("case_idx", range(7))
 def test_all_bounded_candidates_match_classic_bytes_indexes_and_truth_tables(
     golden, case_idx
 ):
@@ -131,6 +131,25 @@ def test_all_bounded_candidates_match_classic_bytes_indexes_and_truth_tables(
             else:
                 assert isinstance(row[truth_key]["error"], str)
                 assert row[truth_key]["error"]
+
+
+@pytest.mark.oracle
+def test_knob_order_case_discriminates_the_descending_multy_sort(golden):
+    """Task 3's exit criterion is "knob indexes match C++", but the other six
+    fixture cases cannot discriminate `knob_mapper`'s ``sorted(..., reverse=
+    True)`` (knob_mapper.py) from a no-op sort: their insertion order already
+    equals sorted order. ``and-wraps-or`` (``and($1 or($2 $3))``) does not --
+    measured insertion order is ``[3, 3, 3, 2, 2, 3, 3]`` -- so this is the
+    first fixture row where a wrong sort direction changes the observable
+    knob order. See ``tools/cpp_probe/candidate_roundtrip_probe.cc``'s
+    "and-wraps-or" case and its comment.
+    """
+    case = next(c for c in golden["cases"] if c["name"] == "and-wraps-or")
+    rep = _make_rep(case)
+    multys = [entry.spec.multy for entry in rep.disc]
+    assert multys == [3, 3, 3, 3, 3, 2, 2]
+    assert multys != [3, 3, 3, 2, 2, 3, 3]  # the un-sorted insertion order
+    assert multys == [knob["multy"] for knob in case["knobs"]]
 
 
 def test_constructor_and_exemplar_access_do_not_alias_caller_or_internal_tree():
@@ -260,8 +279,8 @@ def test_candidate_recursion_descends_into_a_composite_knob_subtree():
     only a knob sitting on a *composite* subtree has any. With ``perm_ratio ==
     -1`` classic returns at ``build_knobs.cc:435-437`` before generating the
     ``op($i $j)`` pair permutations, so every knob it builds sits on a single
-    literal: measured, 0 of the 13 knobs across all six fixture cases has a
-    child under ``new_src``. The 997 oracle rows therefore give this branch no
+    literal: measured, 0 of the 20 knobs across all seven fixture cases has a
+    child under ``new_src``. The 1969 oracle rows therefore give this branch no
     coverage at all, and both a "skip the recursion" and an "append under the
     original parent_dst" mutant survive them.
 
@@ -269,14 +288,20 @@ def test_candidate_recursion_descends_into_a_composite_knob_subtree():
     equals an existing sibling (``knobs.py`` ctor), which is what a pair perm
     does once sampling is enabled. This test builds that state directly.
 
-    Provenance: the expected trees are derived from classic's algorithm read
-    line by line -- ``knobs.cc:164-190`` ``append_to``, which overwrites
-    ``parent_dst`` through a non-const reference, and ``representation.cc:331``
-    ``get_candidate_rec`` -- NOT measured against a binary. The C++ probe cannot
-    construct a composite knob without pair sampling, which this slice defers.
-    The negated row is cross-checked semantically: ``not(and($1 $2))`` reduces
-    by De Morgan to ``or(!$1 !$2)``, which only holds if the two arguments were
-    really appended beneath the ``not``.
+    Provenance: MEASURED against classic, not merely derived by reading it.
+    ``tools/cpp_probe/composite_knob_probe.cc`` constructs the identical
+    composite knob directly (bypassing pair sampling, which this slice defers,
+    the same way this test does) and transcribes ``get_candidate_rec``'s
+    generic recursion shape around the REAL compiled
+    ``logical_subtree_knob::append_to`` (``knobs.cc:164-190``, which
+    overwrites ``parent_dst`` through a non-const reference) and
+    ``combo_tree::is_valid`` -- i.e. the part actually in question (composite-
+    knob descent) runs classic's own code, not a reimplementation of it. Its
+    measured output is byte-for-byte this test's three expected rows (module
+    trailing-space rendering differences) and an unchanged exemplar. The
+    negated row is additionally cross-checked semantically here: ``not(and($1
+    $2))`` reduces by De Morgan to ``or(!$1 !$2)``, which only holds if the
+    two arguments were really appended beneath the ``not``.
     """
     reducer = logical_reduction(set())(2)
     tr = str_to_combo_tree("or(and($1 $2) $3)")

@@ -113,6 +113,11 @@ class representation(knob_mapper):
         Every call owns its nodes and mutable vertex payloads, so concurrent
         calls cannot exchange tree mutation through this representation.
         """
+        # DIVERGENCE(C++ moses/moses/representation/representation.cc:316):
+        # classic performs no width check at all here -- not even an
+        # OC_ASSERT -- and would read/pack past a too-short `inst` via
+        # `field_set::get_raw`'s raw byte-offset arithmetic. Python rejects a
+        # wrong-width instance up front instead of reading out of bounds.
         if not isinstance(inst, instance):
             raise TypeError("get_candidate requires an instance")
         expected = self._fields.packed_width()
@@ -165,9 +170,9 @@ class representation(knob_mapper):
             # `argument.negate()` -- measured: get_candidate(inst, reduce=True)
             # turned `or(and($1 $2) $3)` into `or(and(!$1 !$2) $3)`. Classic
             # cannot do this; `append_child(pos, const T&)` copies by value,
-            # and representation.cc:313 states get_candidate "does not modify
-            # the rep at all". `knobs.py:286` already copies for the same
-            # reason.
+            # and representation.cc:312 states get_candidate "does not modify
+            # the rep at all". `knobs.py`'s `_append_vertex` already copies
+            # for the same reason.
             new_parent = candidate.append_child(parent_dst, copy.copy(src.data))
         for child in self._exemplar.children(src):
             self._get_candidate_rec(inst, child, new_parent, candidate)
