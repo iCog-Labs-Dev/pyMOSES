@@ -80,6 +80,27 @@ class of bug that produced both Criticals in the final review. Not practically
 reachable because each column's values are type-consistent by construction from
 `table_io` parsing. It stops being safe if a column can ever hold mixed types.
 
+### 2.4 `append_child`'s plain-data path does not value-copy, but `set_head` does
+
+`tree.py:1052` passes a caller's `data` straight into the new node, while
+`set_head` (`tree.py:1028`) and every subtree-copy path route through
+`_copy_value`. C++ copies by value at *all* of them (`append_child(pos, const
+T&)`), so the plain path is the odd one out and **every caller must copy
+explicitly**. `knobs.py:286` already does; `representation.py`'s
+`get_candidate_rec` did not.
+
+Consequence, measured in S8: `get_candidate(inst, reduce=True)` on a negated
+composite knob shared the exemplar's `argument` objects with the candidate, and
+the reducer's De Morgan step rewrote them in place via `argument.negate()` --
+turning the *exemplar* `or(and($1 $2) $3)` into `or(and(!$1 !$2) $3)`. C++ calls
+this function thread-safe and says it "does not modify the rep at all"
+(`representation.cc:313`). Fixed at the call site, not in `tree.py`, because the
+plain path's no-copy behaviour is relied on elsewhere -- but the asymmetry is the
+trap, and it will reappear wherever a new caller appends a node's `.data`.
+
+Rule for S9+: appending `some_node.data` to another tree is always a bug unless
+it is wrapped in `copy.copy`.
+
 ### 2.3 The weighted-CTable arity landmine
 
 `Table::compressed` (`table.cc:527`) passes an **un-trimmed** `get_signature()`

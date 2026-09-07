@@ -10,8 +10,8 @@ from pymetta.util.tree import tree_node
 
 # DIVERGENCE(C++ moses/moses/representation/knob_mapper.h:46-94): Task 2
 # contains the logical discrete collection and identity lookup only. Continuous
-# entries are deferred to that allowed domain slice, while raw instance indexes
-# are deliberately not assigned until Task 4 finalizes the complete field_set.
+# entries are deferred to that allowed domain slice. The representation that
+# owns the final field_set assigns raw indexes after this mapper is finalized.
 
 
 @dataclass(frozen=True, slots=True)
@@ -25,8 +25,8 @@ class disc_entry:
 class knob_mapper:
     """C++: moses/moses/representation/knob_mapper.h:46 knob_mapper
 
-    Task 2 finalizes stable spec order and node-identity lookup only. Raw field
-    indexes depend on Task 4's completed ``field_set`` and are not assigned here.
+    This mapper finalizes stable spec order and node-identity lookup only. Raw
+    field indexes depend on the owning representation's completed ``field_set``.
     """
 
     def __init__(self) -> None:
