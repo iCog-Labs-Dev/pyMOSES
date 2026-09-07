@@ -64,12 +64,13 @@ built and is the oracle for S7.
 
 ## 2. Latent defects — correct today, wrong the moment something reaches them
 
-### 2.1 `_vertex_type_node` maps bare `str` to `enum_type`
+### 2.1 `_vertex_type_node` maps bare `str` to `enum_type` (scope-closed)
 
 `table.py:123`. C++'s `get_type_tree` returns `definite_object_type` for a
 `definite_object`. Unreachable from `loadTable`'s CSV path today, and the
-values+label `OTable` overload is unused by `loadTable`. Revisit when
-`definite_object_type` becomes reachable.
+values+label `OTable` overload is unused by `loadTable`. Both enum and object
+domains are now explicitly excluded, so this is retained as historical context
+rather than a future implementation item.
 
 ### 2.2 `CTable`'s dict key is type-blind
 

@@ -187,4 +187,4 @@ All verified by running the command and reading the output:
 
 **Coverage.** Task 0 ↔ CARRY-FORWARD §1. Task 1 ↔ the `eval.cc` ordering hazard plus `assumption.*`. Tasks 2–5 ↔ the nine reduct files. Task 6 ↔ the exit criterion.
 
-**Known gap, deliberate:** `branch_rules`, `contin_rules`, `mixed_rules`, `full_reduction` are S14, not S7 — the boolean path does not need them. `fold_reduction`/`fold_rules` and `ann_reduction`/`ann_rules` are P2 and were flagged as surprises in the inventory; they remain out of scope here but are now assigned rather than forgotten.
+**Known gap, deliberate:** `branch_rules`, `contin_rules`, `mixed_rules`, `full_reduction` are S14, not S7 — the boolean path does not need them. `fold_reduction`/`fold_rules` and `ann_reduction`/`ann_rules` are explicitly EXCLUDED under the boolean/continuous/action-only domain scope, not deferred work.

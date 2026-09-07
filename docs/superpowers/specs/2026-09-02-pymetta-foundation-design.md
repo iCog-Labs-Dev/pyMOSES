@@ -62,8 +62,9 @@ during implementation:
 - Porting classic's dead or legacy paths: `#ifdef HAVE_MPI` (`mpi_moses.cc` — MPI
   detection is commented out of classic's CMake, so it compiles to nothing),
   `#ifdef EXEMPLAR_INST_IS_UNDEAD`, `#ifdef LATER`, `moses/pleasure/` (does not
-  compile), `ant_combo_vocabulary/`, and the `action_result_type` / `ann_type` knob
-  branches.
+  compile), `ant_combo_vocabulary/`, and the `enum_type` / `ann_type` knob
+  branches. A narrow action-result path is allowed after the Boolean
+  representation slice; legacy ant/pet embodiment code remains excluded.
 - Porting `problem-params.cc` line-by-line. It is 2407 lines of
   `boost::program_options` boilerplate; only the option *names and defaults* are
   reproduced, via `argparse`.
@@ -516,13 +517,17 @@ for its per-slice detail but must be read together with them.
 | `moses_main.h` pulls in the three non-hill-climbing optimizers and `ss_bscore.h` | Softer — these can be deliberately stubbed at S11, but the stubs must be explicit and tested, not implicit. |
 
 **Items with no slice, now assigned** (see the inventory for the per-file rows):
-the enum knob-building path; `distributed_moses.cc` (a real, unconditionally
+`distributed_moses.cc` (a real, unconditionally
 compiled `-j host:N` mechanism — *not* MPI, and not dead); `partial.cc`
-("leave well-enough alone"); ANN support (tested in classic, absent from the
-P2 list); several `bscores.h`/`scoring_base.h` classes (logical, enum,
+("leave well-enough alone"); several `bscores.h`/`scoring_base.h` classes (logical,
 interesting-predicate and cluster bscores, and `bscore_ctable_base`);
-`fold_reduction`/`fold_rules`; `similarity.cc`; and `demo-problems.cc`, which
+`similarity.cc`; and `demo-problems.cc`, which
 S13's exit criterion did not mention.
+
+**Domain-scope amendment (2026-09-07):** only Boolean, continuous, and action
+output domains are port targets. Enum, ANN, list/fold, object, message, and
+procedure-call domains are EXCLUDED rather than P2 work. Generic infrastructure is retained
+only when one of the three allowed domains needs it.
 
 **Honest completion figure.** 9 files (4,173 lines) are fully ported with no
 named gap; another 20 (10,076 lines) are PARTIAL — they have Python behind
