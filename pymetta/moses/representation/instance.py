@@ -30,12 +30,42 @@ _PACKED_MASK = (1 << bits_per_packed_t) - 1
 # `instance` directly to `std::vector<packed_t>`. A small list subclass keeps
 # the same mutable value semantics while making the ubiquitous C++
 # `instance(packed_width)` zero-filled construction available in Python.
+#
+# DIVERGENCE(C++ moses/moses/representation/instance.h:48-63): the
+# `std::hash<instance>` specialization ("This is to enable std::unordered_map
+# and similar", the header's own comment) is examined, not silently skipped,
+# by S9 Task 0 -- and NOT ported. `instance_set` (instance_set.py), the
+# container S9 Task 0 adds specifically to close this gap
+# (docs/MODULE-COVERAGE.md's own `instance.h` row named it as such), turns
+# out to need no hash at all: `instance_set` is `public std::vector<
+# scored_instance<ScoreT>>` (instance_set.h:52), not an unordered_map/
+# unordered_set keyed on `instance` or anything containing one. Searching
+# the ENTIRE classic tree (`grep -rn 'unordered_map\|unordered_set'
+# moses/ tests/`, both narrowly for "instance" nearby and broadly for any
+# hit at all near a `scored_instance`/`instance_set`/`iscorer_base` name)
+# finds exactly one match: the hash specialization's own comment line,
+# instance.h:48. No unordered_map/unordered_set anywhere in classic MOSES
+# -- moses/, feature-selection/, or tests/ -- is ever keyed on `instance`
+# (or on `scored_instance`, which has no hash specialization of its own
+# either). The specialization is dead code in the upstream sources this
+# fork tracks: written to make `instance` hashable, never actually used
+# for that purpose anywhere the code that would need it ships. `instance`
+# therefore stays deliberately unhashable here -- not because hashing it
+# would be hard (the classic mixing formula is trivial to reproduce; see
+# the commented-out sketch this note replaces), but because no consumer
+# in scope for S9 (this task's three containers) or reachable from them
+# (Task 1's neighborhood_sampling, Task 2's hill-climbing -- neither
+# greps up an unordered container of instances either) needs it. Revisit
+# only if a future task finds a real `unordered_map</unordered_set<`
+# keyed on `instance` that this search missed.
 class instance(list[packed_t]):
     """C++: moses/moses/representation/instance.h:43 instance
 
     ``instance(n)`` creates ``n`` zero words; iterable construction makes a
-    masked value copy. Instances remain deliberately unhashable while mutable.
-    The classic hash specialization is deferred with ``instance_set``.
+    masked value copy. Instances remain deliberately unhashable while
+    mutable -- see the DIVERGENCE note above this class for why S9 examined
+    and rejected porting the classic hash specialization, rather than
+    leaving it deferred.
     """
 
     __hash__ = None
