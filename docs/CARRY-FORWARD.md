@@ -114,8 +114,21 @@ These cost real time to find. They are properties of the C++ side, not of the po
   full `--fresh` rebuild. Check `ldd` before trusting an oracle run.
 - **`eval_logical_identities` is unsound, and `logical_reduce` is therefore
   semantically lossy** on a characterised class of input (added 2026-09-07).
-  Divergence occurs **iff a junctor's entire child list consists of childless
-  junctors**. Mechanism: a childless junctor returns its *own token*
+  The shape that can lose information is **a junctor whose entire child list
+  consists of childless junctors** — but this is a *necessary*, not a
+  sufficient, condition. **Corrected 2026-09-07: an earlier revision of this
+  bullet claimed "iff"; that is wrong.** Whether the truth table actually
+  changes depends on the *parent*, in both directions. Measured with classic's
+  own `test_reduct`: `and(or())` -> `true` and `and(or() or())` -> `true` both
+  **preserve** (an emptied `and()` at the root folds to `true`, which is what
+  the original evaluated to anyway), while `or(and(or()) $1)` -> `$1`
+  **diverges** (the emptied `and()` is *erased* by its `or` parent as "skip",
+  destroying a definite TRUE). A diverging subtree can also be **masked**:
+  `and($1 or(and(or()) $1))` contains the diverging tree and still preserves.
+  Treat the condition only as a sound **over-approximation of
+  non-preservation** (`not preserved` => flagged). No false negative has been
+  found across the corpus plus 13 hand-probed emergent-empty-junctor shapes.
+  Mechanism: a childless junctor returns its *own token*
   (`interpreter.cc:66-82`), which the parent's short-circuit never matches, so
   the child is skipped — making `and(or())` evaluate TRUE. Reduct then erases
   the childless `or()` from its `and` parent (`logical_rules.cc:134`), which is
@@ -132,7 +145,13 @@ These cost real time to find. They are properties of the C++ side, not of the po
   has. Any check must assert it on the complement of this class, and must
   handle a bare `and()`/`or()` reaching the root as a distinct outcome —
   `builtin_to_bool` (`vertex.h:708-713`) `OC_ASSERT`s on a non-true/false
-  builtin, so that case aborts `complete_truth_table` rather than returning.
+  builtin, which **throws `opencog::AssertionException`** (`oc_assert.cc:46`)
+  out of `complete_truth_table` rather than returning. Whether that ends the
+  process depends on the caller: `test_reduct` does not catch it (observed:
+  `terminate called ... AssertionException`, core dumped), while a probe with
+  `catch (std::exception&)` handles it cleanly. Do not describe this as
+  "aborts the process" — the mechanism is a throw, and the difference decides
+  whether a harness can measure the case at all.
 
 ---
 
