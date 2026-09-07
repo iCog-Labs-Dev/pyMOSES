@@ -1,0 +1,2826 @@
+{
+  "abi": {
+    "sizeof_packed_t": 8,
+    "bits_per_packed_t": 64
+  },
+  "nbits_to_pack": [
+    {
+      "multy": 1,
+      "width": 1
+    },
+    {
+      "multy": 2,
+      "width": 1
+    },
+    {
+      "multy": 3,
+      "width": 2
+    },
+    {
+      "multy": 4,
+      "width": 2
+    },
+    {
+      "multy": 5,
+      "width": 4
+    },
+    {
+      "multy": 16,
+      "width": 4
+    },
+    {
+      "multy": 17,
+      "width": 8
+    },
+    {
+      "multy": 50,
+      "width": 8
+    },
+    {
+      "multy": 257,
+      "width": 16
+    }
+  ],
+  "layouts": [
+    {
+      "name": "empty",
+      "input_specs": [],
+      "canonical_contin": [],
+      "canonical_disc": [],
+      "contin_raw_offsets": [],
+      "fields": [],
+      "packed_width": 0,
+      "raw_size": 0,
+      "dim_size": 0,
+      "starts": {
+        "contin": [
+          0,
+          0
+        ],
+        "disc": [
+          0,
+          0
+        ],
+        "bit": [
+          0,
+          0
+        ]
+      },
+      "counts": {
+        "contin_raw": 0,
+        "disc": 0,
+        "bits": 0
+      },
+      "writes": [
+        {
+          "raw_ops": [],
+          "words_hex": [],
+          "raw": []
+        }
+      ]
+    },
+    {
+      "name": "65-bits",
+      "input_specs": [
+        {
+          "kind": "disc",
+          "multy": 2
+        },
+        {
+          "kind": "disc",
+          "multy": 2
+        },
+        {
+          "kind": "disc",
+          "multy": 2
+        },
+        {
+          "kind": "disc",
+          "multy": 2
+        },
+        {
+          "kind": "disc",
+          "multy": 2
+        },
+        {
+          "kind": "disc",
+          "multy": 2
+        },
+        {
+          "kind": "disc",
+          "multy": 2
+        },
+        {
+          "kind": "disc",
+          "multy": 2
+        },
+        {
+          "kind": "disc",
+          "multy": 2
+        },
+        {
+          "kind": "disc",
+          "multy": 2
+        },
+        {
+          "kind": "disc",
+          "multy": 2
+        },
+        {
+          "kind": "disc",
+          "multy": 2
+        },
+        {
+          "kind": "disc",
+          "multy": 2
+        },
+        {
+          "kind": "disc",
+          "multy": 2
+        },
+        {
+          "kind": "disc",
+          "multy": 2
+        },
+        {
+          "kind": "disc",
+          "multy": 2
+        },
+        {
+          "kind": "disc",
+          "multy": 2
+        },
+        {
+          "kind": "disc",
+          "multy": 2
+        },
+        {
+          "kind": "disc",
+          "multy": 2
+        },
+        {
+          "kind": "disc",
+          "multy": 2
+        },
+        {
+          "kind": "disc",
+          "multy": 2
+        },
+        {
+          "kind": "disc",
+          "multy": 2
+        },
+        {
+          "kind": "disc",
+          "multy": 2
+        },
+        {
+          "kind": "disc",
+          "multy": 2
+        },
+        {
+          "kind": "disc",
+          "multy": 2
+        },
+        {
+          "kind": "disc",
+          "multy": 2
+        },
+        {
+          "kind": "disc",
+          "multy": 2
+        },
+        {
+          "kind": "disc",
+          "multy": 2
+        },
+        {
+          "kind": "disc",
+          "multy": 2
+        },
+        {
+          "kind": "disc",
+          "multy": 2
+        },
+        {
+          "kind": "disc",
+          "multy": 2
+        },
+        {
+          "kind": "disc",
+          "multy": 2
+        },
+        {
+          "kind": "disc",
+          "multy": 2
+        },
+        {
+          "kind": "disc",
+          "multy": 2
+        },
+        {
+          "kind": "disc",
+          "multy": 2
+        },
+        {
+          "kind": "disc",
+          "multy": 2
+        },
+        {
+          "kind": "disc",
+          "multy": 2
+        },
+        {
+          "kind": "disc",
+          "multy": 2
+        },
+        {
+          "kind": "disc",
+          "multy": 2
+        },
+        {
+          "kind": "disc",
+          "multy": 2
+        },
+        {
+          "kind": "disc",
+          "multy": 2
+        },
+        {
+          "kind": "disc",
+          "multy": 2
+        },
+        {
+          "kind": "disc",
+          "multy": 2
+        },
+        {
+          "kind": "disc",
+          "multy": 2
+        },
+        {
+          "kind": "disc",
+          "multy": 2
+        },
+        {
+          "kind": "disc",
+          "multy": 2
+        },
+        {
+          "kind": "disc",
+          "multy": 2
+        },
+        {
+          "kind": "disc",
+          "multy": 2
+        },
+        {
+          "kind": "disc",
+          "multy": 2
+        },
+        {
+          "kind": "disc",
+          "multy": 2
+        },
+        {
+          "kind": "disc",
+          "multy": 2
+        },
+        {
+          "kind": "disc",
+          "multy": 2
+        },
+        {
+          "kind": "disc",
+          "multy": 2
+        },
+        {
+          "kind": "disc",
+          "multy": 2
+        },
+        {
+          "kind": "disc",
+          "multy": 2
+        },
+        {
+          "kind": "disc",
+          "multy": 2
+        },
+        {
+          "kind": "disc",
+          "multy": 2
+        },
+        {
+          "kind": "disc",
+          "multy": 2
+        },
+        {
+          "kind": "disc",
+          "multy": 2
+        },
+        {
+          "kind": "disc",
+          "multy": 2
+        },
+        {
+          "kind": "disc",
+          "multy": 2
+        },
+        {
+          "kind": "disc",
+          "multy": 2
+        },
+        {
+          "kind": "disc",
+          "multy": 2
+        },
+        {
+          "kind": "disc",
+          "multy": 2
+        },
+        {
+          "kind": "disc",
+          "multy": 2
+        }
+      ],
+      "canonical_contin": [],
+      "canonical_disc": [
+        {
+          "kind": "disc",
+          "multy": 2
+        },
+        {
+          "kind": "disc",
+          "multy": 2
+        },
+        {
+          "kind": "disc",
+          "multy": 2
+        },
+        {
+          "kind": "disc",
+          "multy": 2
+        },
+        {
+          "kind": "disc",
+          "multy": 2
+        },
+        {
+          "kind": "disc",
+          "multy": 2
+        },
+        {
+          "kind": "disc",
+          "multy": 2
+        },
+        {
+          "kind": "disc",
+          "multy": 2
+        },
+        {
+          "kind": "disc",
+          "multy": 2
+        },
+        {
+          "kind": "disc",
+          "multy": 2
+        },
+        {
+          "kind": "disc",
+          "multy": 2
+        },
+        {
+          "kind": "disc",
+          "multy": 2
+        },
+        {
+          "kind": "disc",
+          "multy": 2
+        },
+        {
+          "kind": "disc",
+          "multy": 2
+        },
+        {
+          "kind": "disc",
+          "multy": 2
+        },
+        {
+          "kind": "disc",
+          "multy": 2
+        },
+        {
+          "kind": "disc",
+          "multy": 2
+        },
+        {
+          "kind": "disc",
+          "multy": 2
+        },
+        {
+          "kind": "disc",
+          "multy": 2
+        },
+        {
+          "kind": "disc",
+          "multy": 2
+        },
+        {
+          "kind": "disc",
+          "multy": 2
+        },
+        {
+          "kind": "disc",
+          "multy": 2
+        },
+        {
+          "kind": "disc",
+          "multy": 2
+        },
+        {
+          "kind": "disc",
+          "multy": 2
+        },
+        {
+          "kind": "disc",
+          "multy": 2
+        },
+        {
+          "kind": "disc",
+          "multy": 2
+        },
+        {
+          "kind": "disc",
+          "multy": 2
+        },
+        {
+          "kind": "disc",
+          "multy": 2
+        },
+        {
+          "kind": "disc",
+          "multy": 2
+        },
+        {
+          "kind": "disc",
+          "multy": 2
+        },
+        {
+          "kind": "disc",
+          "multy": 2
+        },
+        {
+          "kind": "disc",
+          "multy": 2
+        },
+        {
+          "kind": "disc",
+          "multy": 2
+        },
+        {
+          "kind": "disc",
+          "multy": 2
+        },
+        {
+          "kind": "disc",
+          "multy": 2
+        },
+        {
+          "kind": "disc",
+          "multy": 2
+        },
+        {
+          "kind": "disc",
+          "multy": 2
+        },
+        {
+          "kind": "disc",
+          "multy": 2
+        },
+        {
+          "kind": "disc",
+          "multy": 2
+        },
+        {
+          "kind": "disc",
+          "multy": 2
+        },
+        {
+          "kind": "disc",
+          "multy": 2
+        },
+        {
+          "kind": "disc",
+          "multy": 2
+        },
+        {
+          "kind": "disc",
+          "multy": 2
+        },
+        {
+          "kind": "disc",
+          "multy": 2
+        },
+        {
+          "kind": "disc",
+          "multy": 2
+        },
+        {
+          "kind": "disc",
+          "multy": 2
+        },
+        {
+          "kind": "disc",
+          "multy": 2
+        },
+        {
+          "kind": "disc",
+          "multy": 2
+        },
+        {
+          "kind": "disc",
+          "multy": 2
+        },
+        {
+          "kind": "disc",
+          "multy": 2
+        },
+        {
+          "kind": "disc",
+          "multy": 2
+        },
+        {
+          "kind": "disc",
+          "multy": 2
+        },
+        {
+          "kind": "disc",
+          "multy": 2
+        },
+        {
+          "kind": "disc",
+          "multy": 2
+        },
+        {
+          "kind": "disc",
+          "multy": 2
+        },
+        {
+          "kind": "disc",
+          "multy": 2
+        },
+        {
+          "kind": "disc",
+          "multy": 2
+        },
+        {
+          "kind": "disc",
+          "multy": 2
+        },
+        {
+          "kind": "disc",
+          "multy": 2
+        },
+        {
+          "kind": "disc",
+          "multy": 2
+        },
+        {
+          "kind": "disc",
+          "multy": 2
+        },
+        {
+          "kind": "disc",
+          "multy": 2
+        },
+        {
+          "kind": "disc",
+          "multy": 2
+        },
+        {
+          "kind": "disc",
+          "multy": 2
+        },
+        {
+          "kind": "disc",
+          "multy": 2
+        }
+      ],
+      "contin_raw_offsets": [],
+      "fields": [
+        {
+          "width": 1,
+          "major_offset": 0,
+          "minor_offset": 0
+        },
+        {
+          "width": 1,
+          "major_offset": 0,
+          "minor_offset": 1
+        },
+        {
+          "width": 1,
+          "major_offset": 0,
+          "minor_offset": 2
+        },
+        {
+          "width": 1,
+          "major_offset": 0,
+          "minor_offset": 3
+        },
+        {
+          "width": 1,
+          "major_offset": 0,
+          "minor_offset": 4
+        },
+        {
+          "width": 1,
+          "major_offset": 0,
+          "minor_offset": 5
+        },
+        {
+          "width": 1,
+          "major_offset": 0,
+          "minor_offset": 6
+        },
+        {
+          "width": 1,
+          "major_offset": 0,
+          "minor_offset": 7
+        },
+        {
+          "width": 1,
+          "major_offset": 0,
+          "minor_offset": 8
+        },
+        {
+          "width": 1,
+          "major_offset": 0,
+          "minor_offset": 9
+        },
+        {
+          "width": 1,
+          "major_offset": 0,
+          "minor_offset": 10
+        },
+        {
+          "width": 1,
+          "major_offset": 0,
+          "minor_offset": 11
+        },
+        {
+          "width": 1,
+          "major_offset": 0,
+          "minor_offset": 12
+        },
+        {
+          "width": 1,
+          "major_offset": 0,
+          "minor_offset": 13
+        },
+        {
+          "width": 1,
+          "major_offset": 0,
+          "minor_offset": 14
+        },
+        {
+          "width": 1,
+          "major_offset": 0,
+          "minor_offset": 15
+        },
+        {
+          "width": 1,
+          "major_offset": 0,
+          "minor_offset": 16
+        },
+        {
+          "width": 1,
+          "major_offset": 0,
+          "minor_offset": 17
+        },
+        {
+          "width": 1,
+          "major_offset": 0,
+          "minor_offset": 18
+        },
+        {
+          "width": 1,
+          "major_offset": 0,
+          "minor_offset": 19
+        },
+        {
+          "width": 1,
+          "major_offset": 0,
+          "minor_offset": 20
+        },
+        {
+          "width": 1,
+          "major_offset": 0,
+          "minor_offset": 21
+        },
+        {
+          "width": 1,
+          "major_offset": 0,
+          "minor_offset": 22
+        },
+        {
+          "width": 1,
+          "major_offset": 0,
+          "minor_offset": 23
+        },
+        {
+          "width": 1,
+          "major_offset": 0,
+          "minor_offset": 24
+        },
+        {
+          "width": 1,
+          "major_offset": 0,
+          "minor_offset": 25
+        },
+        {
+          "width": 1,
+          "major_offset": 0,
+          "minor_offset": 26
+        },
+        {
+          "width": 1,
+          "major_offset": 0,
+          "minor_offset": 27
+        },
+        {
+          "width": 1,
+          "major_offset": 0,
+          "minor_offset": 28
+        },
+        {
+          "width": 1,
+          "major_offset": 0,
+          "minor_offset": 29
+        },
+        {
+          "width": 1,
+          "major_offset": 0,
+          "minor_offset": 30
+        },
+        {
+          "width": 1,
+          "major_offset": 0,
+          "minor_offset": 31
+        },
+        {
+          "width": 1,
+          "major_offset": 0,
+          "minor_offset": 32
+        },
+        {
+          "width": 1,
+          "major_offset": 0,
+          "minor_offset": 33
+        },
+        {
+          "width": 1,
+          "major_offset": 0,
+          "minor_offset": 34
+        },
+        {
+          "width": 1,
+          "major_offset": 0,
+          "minor_offset": 35
+        },
+        {
+          "width": 1,
+          "major_offset": 0,
+          "minor_offset": 36
+        },
+        {
+          "width": 1,
+          "major_offset": 0,
+          "minor_offset": 37
+        },
+        {
+          "width": 1,
+          "major_offset": 0,
+          "minor_offset": 38
+        },
+        {
+          "width": 1,
+          "major_offset": 0,
+          "minor_offset": 39
+        },
+        {
+          "width": 1,
+          "major_offset": 0,
+          "minor_offset": 40
+        },
+        {
+          "width": 1,
+          "major_offset": 0,
+          "minor_offset": 41
+        },
+        {
+          "width": 1,
+          "major_offset": 0,
+          "minor_offset": 42
+        },
+        {
+          "width": 1,
+          "major_offset": 0,
+          "minor_offset": 43
+        },
+        {
+          "width": 1,
+          "major_offset": 0,
+          "minor_offset": 44
+        },
+        {
+          "width": 1,
+          "major_offset": 0,
+          "minor_offset": 45
+        },
+        {
+          "width": 1,
+          "major_offset": 0,
+          "minor_offset": 46
+        },
+        {
+          "width": 1,
+          "major_offset": 0,
+          "minor_offset": 47
+        },
+        {
+          "width": 1,
+          "major_offset": 0,
+          "minor_offset": 48
+        },
+        {
+          "width": 1,
+          "major_offset": 0,
+          "minor_offset": 49
+        },
+        {
+          "width": 1,
+          "major_offset": 0,
+          "minor_offset": 50
+        },
+        {
+          "width": 1,
+          "major_offset": 0,
+          "minor_offset": 51
+        },
+        {
+          "width": 1,
+          "major_offset": 0,
+          "minor_offset": 52
+        },
+        {
+          "width": 1,
+          "major_offset": 0,
+          "minor_offset": 53
+        },
+        {
+          "width": 1,
+          "major_offset": 0,
+          "minor_offset": 54
+        },
+        {
+          "width": 1,
+          "major_offset": 0,
+          "minor_offset": 55
+        },
+        {
+          "width": 1,
+          "major_offset": 0,
+          "minor_offset": 56
+        },
+        {
+          "width": 1,
+          "major_offset": 0,
+          "minor_offset": 57
+        },
+        {
+          "width": 1,
+          "major_offset": 0,
+          "minor_offset": 58
+        },
+        {
+          "width": 1,
+          "major_offset": 0,
+          "minor_offset": 59
+        },
+        {
+          "width": 1,
+          "major_offset": 0,
+          "minor_offset": 60
+        },
+        {
+          "width": 1,
+          "major_offset": 0,
+          "minor_offset": 61
+        },
+        {
+          "width": 1,
+          "major_offset": 0,
+          "minor_offset": 62
+        },
+        {
+          "width": 1,
+          "major_offset": 0,
+          "minor_offset": 63
+        },
+        {
+          "width": 1,
+          "major_offset": 1,
+          "minor_offset": 0
+        }
+      ],
+      "packed_width": 2,
+      "raw_size": 65,
+      "dim_size": 65,
+      "starts": {
+        "contin": [
+          0,
+          0
+        ],
+        "disc": [
+          0,
+          0
+        ],
+        "bit": [
+          0,
+          65
+        ]
+      },
+      "counts": {
+        "contin_raw": 0,
+        "disc": 0,
+        "bits": 65
+      },
+      "writes": [
+        {
+          "raw_ops": [
+            [
+              63,
+              1
+            ],
+            [
+              64,
+              1
+            ]
+          ],
+          "words_hex": [
+            "0x8000000000000000",
+            "0x0000000000000001"
+          ],
+          "raw": [
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            1,
+            1
+          ]
+        }
+      ]
+    },
+    {
+      "name": "33-ternary",
+      "input_specs": [
+        {
+          "kind": "disc",
+          "multy": 3
+        },
+        {
+          "kind": "disc",
+          "multy": 3
+        },
+        {
+          "kind": "disc",
+          "multy": 3
+        },
+        {
+          "kind": "disc",
+          "multy": 3
+        },
+        {
+          "kind": "disc",
+          "multy": 3
+        },
+        {
+          "kind": "disc",
+          "multy": 3
+        },
+        {
+          "kind": "disc",
+          "multy": 3
+        },
+        {
+          "kind": "disc",
+          "multy": 3
+        },
+        {
+          "kind": "disc",
+          "multy": 3
+        },
+        {
+          "kind": "disc",
+          "multy": 3
+        },
+        {
+          "kind": "disc",
+          "multy": 3
+        },
+        {
+          "kind": "disc",
+          "multy": 3
+        },
+        {
+          "kind": "disc",
+          "multy": 3
+        },
+        {
+          "kind": "disc",
+          "multy": 3
+        },
+        {
+          "kind": "disc",
+          "multy": 3
+        },
+        {
+          "kind": "disc",
+          "multy": 3
+        },
+        {
+          "kind": "disc",
+          "multy": 3
+        },
+        {
+          "kind": "disc",
+          "multy": 3
+        },
+        {
+          "kind": "disc",
+          "multy": 3
+        },
+        {
+          "kind": "disc",
+          "multy": 3
+        },
+        {
+          "kind": "disc",
+          "multy": 3
+        },
+        {
+          "kind": "disc",
+          "multy": 3
+        },
+        {
+          "kind": "disc",
+          "multy": 3
+        },
+        {
+          "kind": "disc",
+          "multy": 3
+        },
+        {
+          "kind": "disc",
+          "multy": 3
+        },
+        {
+          "kind": "disc",
+          "multy": 3
+        },
+        {
+          "kind": "disc",
+          "multy": 3
+        },
+        {
+          "kind": "disc",
+          "multy": 3
+        },
+        {
+          "kind": "disc",
+          "multy": 3
+        },
+        {
+          "kind": "disc",
+          "multy": 3
+        },
+        {
+          "kind": "disc",
+          "multy": 3
+        },
+        {
+          "kind": "disc",
+          "multy": 3
+        },
+        {
+          "kind": "disc",
+          "multy": 3
+        }
+      ],
+      "canonical_contin": [],
+      "canonical_disc": [
+        {
+          "kind": "disc",
+          "multy": 3
+        },
+        {
+          "kind": "disc",
+          "multy": 3
+        },
+        {
+          "kind": "disc",
+          "multy": 3
+        },
+        {
+          "kind": "disc",
+          "multy": 3
+        },
+        {
+          "kind": "disc",
+          "multy": 3
+        },
+        {
+          "kind": "disc",
+          "multy": 3
+        },
+        {
+          "kind": "disc",
+          "multy": 3
+        },
+        {
+          "kind": "disc",
+          "multy": 3
+        },
+        {
+          "kind": "disc",
+          "multy": 3
+        },
+        {
+          "kind": "disc",
+          "multy": 3
+        },
+        {
+          "kind": "disc",
+          "multy": 3
+        },
+        {
+          "kind": "disc",
+          "multy": 3
+        },
+        {
+          "kind": "disc",
+          "multy": 3
+        },
+        {
+          "kind": "disc",
+          "multy": 3
+        },
+        {
+          "kind": "disc",
+          "multy": 3
+        },
+        {
+          "kind": "disc",
+          "multy": 3
+        },
+        {
+          "kind": "disc",
+          "multy": 3
+        },
+        {
+          "kind": "disc",
+          "multy": 3
+        },
+        {
+          "kind": "disc",
+          "multy": 3
+        },
+        {
+          "kind": "disc",
+          "multy": 3
+        },
+        {
+          "kind": "disc",
+          "multy": 3
+        },
+        {
+          "kind": "disc",
+          "multy": 3
+        },
+        {
+          "kind": "disc",
+          "multy": 3
+        },
+        {
+          "kind": "disc",
+          "multy": 3
+        },
+        {
+          "kind": "disc",
+          "multy": 3
+        },
+        {
+          "kind": "disc",
+          "multy": 3
+        },
+        {
+          "kind": "disc",
+          "multy": 3
+        },
+        {
+          "kind": "disc",
+          "multy": 3
+        },
+        {
+          "kind": "disc",
+          "multy": 3
+        },
+        {
+          "kind": "disc",
+          "multy": 3
+        },
+        {
+          "kind": "disc",
+          "multy": 3
+        },
+        {
+          "kind": "disc",
+          "multy": 3
+        },
+        {
+          "kind": "disc",
+          "multy": 3
+        }
+      ],
+      "contin_raw_offsets": [],
+      "fields": [
+        {
+          "width": 2,
+          "major_offset": 0,
+          "minor_offset": 0
+        },
+        {
+          "width": 2,
+          "major_offset": 0,
+          "minor_offset": 2
+        },
+        {
+          "width": 2,
+          "major_offset": 0,
+          "minor_offset": 4
+        },
+        {
+          "width": 2,
+          "major_offset": 0,
+          "minor_offset": 6
+        },
+        {
+          "width": 2,
+          "major_offset": 0,
+          "minor_offset": 8
+        },
+        {
+          "width": 2,
+          "major_offset": 0,
+          "minor_offset": 10
+        },
+        {
+          "width": 2,
+          "major_offset": 0,
+          "minor_offset": 12
+        },
+        {
+          "width": 2,
+          "major_offset": 0,
+          "minor_offset": 14
+        },
+        {
+          "width": 2,
+          "major_offset": 0,
+          "minor_offset": 16
+        },
+        {
+          "width": 2,
+          "major_offset": 0,
+          "minor_offset": 18
+        },
+        {
+          "width": 2,
+          "major_offset": 0,
+          "minor_offset": 20
+        },
+        {
+          "width": 2,
+          "major_offset": 0,
+          "minor_offset": 22
+        },
+        {
+          "width": 2,
+          "major_offset": 0,
+          "minor_offset": 24
+        },
+        {
+          "width": 2,
+          "major_offset": 0,
+          "minor_offset": 26
+        },
+        {
+          "width": 2,
+          "major_offset": 0,
+          "minor_offset": 28
+        },
+        {
+          "width": 2,
+          "major_offset": 0,
+          "minor_offset": 30
+        },
+        {
+          "width": 2,
+          "major_offset": 0,
+          "minor_offset": 32
+        },
+        {
+          "width": 2,
+          "major_offset": 0,
+          "minor_offset": 34
+        },
+        {
+          "width": 2,
+          "major_offset": 0,
+          "minor_offset": 36
+        },
+        {
+          "width": 2,
+          "major_offset": 0,
+          "minor_offset": 38
+        },
+        {
+          "width": 2,
+          "major_offset": 0,
+          "minor_offset": 40
+        },
+        {
+          "width": 2,
+          "major_offset": 0,
+          "minor_offset": 42
+        },
+        {
+          "width": 2,
+          "major_offset": 0,
+          "minor_offset": 44
+        },
+        {
+          "width": 2,
+          "major_offset": 0,
+          "minor_offset": 46
+        },
+        {
+          "width": 2,
+          "major_offset": 0,
+          "minor_offset": 48
+        },
+        {
+          "width": 2,
+          "major_offset": 0,
+          "minor_offset": 50
+        },
+        {
+          "width": 2,
+          "major_offset": 0,
+          "minor_offset": 52
+        },
+        {
+          "width": 2,
+          "major_offset": 0,
+          "minor_offset": 54
+        },
+        {
+          "width": 2,
+          "major_offset": 0,
+          "minor_offset": 56
+        },
+        {
+          "width": 2,
+          "major_offset": 0,
+          "minor_offset": 58
+        },
+        {
+          "width": 2,
+          "major_offset": 0,
+          "minor_offset": 60
+        },
+        {
+          "width": 2,
+          "major_offset": 0,
+          "minor_offset": 62
+        },
+        {
+          "width": 2,
+          "major_offset": 1,
+          "minor_offset": 0
+        }
+      ],
+      "packed_width": 2,
+      "raw_size": 33,
+      "dim_size": 33,
+      "starts": {
+        "contin": [
+          0,
+          0
+        ],
+        "disc": [
+          0,
+          33
+        ],
+        "bit": [
+          33,
+          33
+        ]
+      },
+      "counts": {
+        "contin_raw": 0,
+        "disc": 33,
+        "bits": 0
+      },
+      "writes": [
+        {
+          "raw_ops": [
+            [
+              31,
+              2
+            ],
+            [
+              32,
+              1
+            ]
+          ],
+          "words_hex": [
+            "0x8000000000000000",
+            "0x0000000000000001"
+          ],
+          "raw": [
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            2,
+            1
+          ]
+        }
+      ]
+    },
+    {
+      "name": "straddle-following",
+      "input_specs": [
+        {
+          "kind": "contin",
+          "mean": 0,
+          "step_size": 1,
+          "expansion": 2,
+          "depth": 5
+        },
+        {
+          "kind": "disc",
+          "multy": 5
+        },
+        {
+          "kind": "disc",
+          "multy": 5
+        },
+        {
+          "kind": "disc",
+          "multy": 5
+        },
+        {
+          "kind": "disc",
+          "multy": 5
+        },
+        {
+          "kind": "disc",
+          "multy": 5
+        },
+        {
+          "kind": "disc",
+          "multy": 5
+        },
+        {
+          "kind": "disc",
+          "multy": 5
+        },
+        {
+          "kind": "disc",
+          "multy": 5
+        },
+        {
+          "kind": "disc",
+          "multy": 5
+        },
+        {
+          "kind": "disc",
+          "multy": 5
+        },
+        {
+          "kind": "disc",
+          "multy": 5
+        },
+        {
+          "kind": "disc",
+          "multy": 5
+        },
+        {
+          "kind": "disc",
+          "multy": 5
+        },
+        {
+          "kind": "disc",
+          "multy": 5
+        },
+        {
+          "kind": "disc",
+          "multy": 5
+        }
+      ],
+      "canonical_contin": [
+        {
+          "kind": "contin",
+          "mean": 0,
+          "step_size": 1,
+          "expansion": 2,
+          "depth": 5
+        }
+      ],
+      "canonical_disc": [
+        {
+          "kind": "disc",
+          "multy": 5
+        },
+        {
+          "kind": "disc",
+          "multy": 5
+        },
+        {
+          "kind": "disc",
+          "multy": 5
+        },
+        {
+          "kind": "disc",
+          "multy": 5
+        },
+        {
+          "kind": "disc",
+          "multy": 5
+        },
+        {
+          "kind": "disc",
+          "multy": 5
+        },
+        {
+          "kind": "disc",
+          "multy": 5
+        },
+        {
+          "kind": "disc",
+          "multy": 5
+        },
+        {
+          "kind": "disc",
+          "multy": 5
+        },
+        {
+          "kind": "disc",
+          "multy": 5
+        },
+        {
+          "kind": "disc",
+          "multy": 5
+        },
+        {
+          "kind": "disc",
+          "multy": 5
+        },
+        {
+          "kind": "disc",
+          "multy": 5
+        },
+        {
+          "kind": "disc",
+          "multy": 5
+        },
+        {
+          "kind": "disc",
+          "multy": 5
+        }
+      ],
+      "contin_raw_offsets": [
+        0
+      ],
+      "fields": [
+        {
+          "width": 2,
+          "major_offset": 0,
+          "minor_offset": 0
+        },
+        {
+          "width": 2,
+          "major_offset": 0,
+          "minor_offset": 2
+        },
+        {
+          "width": 2,
+          "major_offset": 0,
+          "minor_offset": 4
+        },
+        {
+          "width": 2,
+          "major_offset": 0,
+          "minor_offset": 6
+        },
+        {
+          "width": 2,
+          "major_offset": 0,
+          "minor_offset": 8
+        },
+        {
+          "width": 4,
+          "major_offset": 0,
+          "minor_offset": 10
+        },
+        {
+          "width": 4,
+          "major_offset": 0,
+          "minor_offset": 14
+        },
+        {
+          "width": 4,
+          "major_offset": 0,
+          "minor_offset": 18
+        },
+        {
+          "width": 4,
+          "major_offset": 0,
+          "minor_offset": 22
+        },
+        {
+          "width": 4,
+          "major_offset": 0,
+          "minor_offset": 26
+        },
+        {
+          "width": 4,
+          "major_offset": 0,
+          "minor_offset": 30
+        },
+        {
+          "width": 4,
+          "major_offset": 0,
+          "minor_offset": 34
+        },
+        {
+          "width": 4,
+          "major_offset": 0,
+          "minor_offset": 38
+        },
+        {
+          "width": 4,
+          "major_offset": 0,
+          "minor_offset": 42
+        },
+        {
+          "width": 4,
+          "major_offset": 0,
+          "minor_offset": 46
+        },
+        {
+          "width": 4,
+          "major_offset": 0,
+          "minor_offset": 50
+        },
+        {
+          "width": 4,
+          "major_offset": 0,
+          "minor_offset": 54
+        },
+        {
+          "width": 4,
+          "major_offset": 0,
+          "minor_offset": 58
+        },
+        {
+          "width": 4,
+          "major_offset": 0,
+          "minor_offset": 62
+        },
+        {
+          "width": 4,
+          "major_offset": 1,
+          "minor_offset": 2
+        }
+      ],
+      "packed_width": 2,
+      "raw_size": 20,
+      "dim_size": 16,
+      "starts": {
+        "contin": [
+          0,
+          5
+        ],
+        "disc": [
+          5,
+          20
+        ],
+        "bit": [
+          20,
+          20
+        ]
+      },
+      "counts": {
+        "contin_raw": 5,
+        "disc": 15,
+        "bits": 0
+      },
+      "writes": [
+        {
+          "raw_ops": [
+            [
+              18,
+              15
+            ],
+            [
+              19,
+              9
+            ]
+          ],
+          "words_hex": [
+            "0xc000000000000000",
+            "0x0000000000000024"
+          ],
+          "raw": [
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            3,
+            9
+          ]
+        }
+      ]
+    },
+    {
+      "name": "same-depth-continuous-order",
+      "input_specs": [
+        {
+          "kind": "contin",
+          "mean": 0,
+          "step_size": 1,
+          "expansion": 2,
+          "depth": 4
+        },
+        {
+          "kind": "contin",
+          "mean": 0,
+          "step_size": 1,
+          "expansion": 3,
+          "depth": 4
+        },
+        {
+          "kind": "contin",
+          "mean": 0,
+          "step_size": 2,
+          "expansion": 3,
+          "depth": 4
+        },
+        {
+          "kind": "contin",
+          "mean": 1,
+          "step_size": 2,
+          "expansion": 3,
+          "depth": 4
+        }
+      ],
+      "canonical_contin": [
+        {
+          "kind": "contin",
+          "mean": 1,
+          "step_size": 2,
+          "expansion": 3,
+          "depth": 4
+        },
+        {
+          "kind": "contin",
+          "mean": 0,
+          "step_size": 2,
+          "expansion": 3,
+          "depth": 4
+        },
+        {
+          "kind": "contin",
+          "mean": 0,
+          "step_size": 1,
+          "expansion": 3,
+          "depth": 4
+        },
+        {
+          "kind": "contin",
+          "mean": 0,
+          "step_size": 1,
+          "expansion": 2,
+          "depth": 4
+        }
+      ],
+      "canonical_disc": [],
+      "contin_raw_offsets": [
+        0,
+        4,
+        8,
+        12
+      ],
+      "fields": [
+        {
+          "width": 2,
+          "major_offset": 0,
+          "minor_offset": 0
+        },
+        {
+          "width": 2,
+          "major_offset": 0,
+          "minor_offset": 2
+        },
+        {
+          "width": 2,
+          "major_offset": 0,
+          "minor_offset": 4
+        },
+        {
+          "width": 2,
+          "major_offset": 0,
+          "minor_offset": 6
+        },
+        {
+          "width": 2,
+          "major_offset": 0,
+          "minor_offset": 8
+        },
+        {
+          "width": 2,
+          "major_offset": 0,
+          "minor_offset": 10
+        },
+        {
+          "width": 2,
+          "major_offset": 0,
+          "minor_offset": 12
+        },
+        {
+          "width": 2,
+          "major_offset": 0,
+          "minor_offset": 14
+        },
+        {
+          "width": 2,
+          "major_offset": 0,
+          "minor_offset": 16
+        },
+        {
+          "width": 2,
+          "major_offset": 0,
+          "minor_offset": 18
+        },
+        {
+          "width": 2,
+          "major_offset": 0,
+          "minor_offset": 20
+        },
+        {
+          "width": 2,
+          "major_offset": 0,
+          "minor_offset": 22
+        },
+        {
+          "width": 2,
+          "major_offset": 0,
+          "minor_offset": 24
+        },
+        {
+          "width": 2,
+          "major_offset": 0,
+          "minor_offset": 26
+        },
+        {
+          "width": 2,
+          "major_offset": 0,
+          "minor_offset": 28
+        },
+        {
+          "width": 2,
+          "major_offset": 0,
+          "minor_offset": 30
+        }
+      ],
+      "packed_width": 1,
+      "raw_size": 16,
+      "dim_size": 4,
+      "starts": {
+        "contin": [
+          0,
+          16
+        ],
+        "disc": [
+          16,
+          16
+        ],
+        "bit": [
+          16,
+          16
+        ]
+      },
+      "counts": {
+        "contin_raw": 16,
+        "disc": 0,
+        "bits": 0
+      },
+      "writes": [
+        {
+          "raw_ops": [],
+          "words_hex": [
+            "0x0000000000000000"
+          ],
+          "raw": [
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0
+          ]
+        }
+      ]
+    },
+    {
+      "name": "canonical-mixed",
+      "input_specs": [
+        {
+          "kind": "disc",
+          "multy": 2
+        },
+        {
+          "kind": "contin",
+          "mean": 0,
+          "step_size": 1,
+          "expansion": 2,
+          "depth": 3
+        },
+        {
+          "kind": "disc",
+          "multy": 9
+        },
+        {
+          "kind": "contin",
+          "mean": 1,
+          "step_size": 0.5,
+          "expansion": 3,
+          "depth": 5
+        },
+        {
+          "kind": "disc",
+          "multy": 3
+        },
+        {
+          "kind": "disc",
+          "multy": 1
+        },
+        {
+          "kind": "disc",
+          "multy": 9
+        }
+      ],
+      "canonical_contin": [
+        {
+          "kind": "contin",
+          "mean": 1,
+          "step_size": 0.5,
+          "expansion": 3,
+          "depth": 5
+        },
+        {
+          "kind": "contin",
+          "mean": 0,
+          "step_size": 1,
+          "expansion": 2,
+          "depth": 3
+        }
+      ],
+      "canonical_disc": [
+        {
+          "kind": "disc",
+          "multy": 9
+        },
+        {
+          "kind": "disc",
+          "multy": 9
+        },
+        {
+          "kind": "disc",
+          "multy": 3
+        },
+        {
+          "kind": "disc",
+          "multy": 2
+        },
+        {
+          "kind": "disc",
+          "multy": 1
+        }
+      ],
+      "contin_raw_offsets": [
+        0,
+        5
+      ],
+      "fields": [
+        {
+          "width": 2,
+          "major_offset": 0,
+          "minor_offset": 0
+        },
+        {
+          "width": 2,
+          "major_offset": 0,
+          "minor_offset": 2
+        },
+        {
+          "width": 2,
+          "major_offset": 0,
+          "minor_offset": 4
+        },
+        {
+          "width": 2,
+          "major_offset": 0,
+          "minor_offset": 6
+        },
+        {
+          "width": 2,
+          "major_offset": 0,
+          "minor_offset": 8
+        },
+        {
+          "width": 2,
+          "major_offset": 0,
+          "minor_offset": 10
+        },
+        {
+          "width": 2,
+          "major_offset": 0,
+          "minor_offset": 12
+        },
+        {
+          "width": 2,
+          "major_offset": 0,
+          "minor_offset": 14
+        },
+        {
+          "width": 4,
+          "major_offset": 0,
+          "minor_offset": 16
+        },
+        {
+          "width": 4,
+          "major_offset": 0,
+          "minor_offset": 20
+        },
+        {
+          "width": 2,
+          "major_offset": 0,
+          "minor_offset": 24
+        },
+        {
+          "width": 1,
+          "major_offset": 0,
+          "minor_offset": 26
+        },
+        {
+          "width": 1,
+          "major_offset": 0,
+          "minor_offset": 27
+        }
+      ],
+      "packed_width": 1,
+      "raw_size": 13,
+      "dim_size": 7,
+      "starts": {
+        "contin": [
+          0,
+          8
+        ],
+        "disc": [
+          8,
+          11
+        ],
+        "bit": [
+          11,
+          13
+        ]
+      },
+      "counts": {
+        "contin_raw": 8,
+        "disc": 3,
+        "bits": 2
+      },
+      "writes": [
+        {
+          "raw_ops": [
+            [
+              0,
+              1
+            ],
+            [
+              7,
+              2
+            ],
+            [
+              8,
+              9
+            ],
+            [
+              12,
+              1
+            ]
+          ],
+          "words_hex": [
+            "0x0000000008098001"
+          ],
+          "raw": [
+            1,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            2,
+            9,
+            0,
+            0,
+            0,
+            1
+          ]
+        }
+      ]
+    }
+  ],
+  "continuous": [
+    {
+      "name": "all-stop",
+      "spec": {
+        "kind": "contin",
+        "mean": 0,
+        "step_size": 1,
+        "expansion": 2,
+        "depth": 5
+      },
+      "raw": [
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "value_bits_hex": "0x0000000000000000",
+      "length": 0
+    },
+    {
+      "name": "left-stop",
+      "spec": {
+        "kind": "contin",
+        "mean": 0,
+        "step_size": 1,
+        "expansion": 2,
+        "depth": 5
+      },
+      "raw": [
+        1,
+        0,
+        0,
+        0,
+        0
+      ],
+      "value_bits_hex": "0xbff0000000000000",
+      "length": 1
+    },
+    {
+      "name": "left-left-right",
+      "spec": {
+        "kind": "contin",
+        "mean": 0,
+        "step_size": 1,
+        "expansion": 2,
+        "depth": 5
+      },
+      "raw": [
+        1,
+        1,
+        2,
+        0,
+        0
+      ],
+      "value_bits_hex": "0xc000000000000000",
+      "length": 3
+    },
+    {
+      "name": "right-right-left",
+      "spec": {
+        "kind": "contin",
+        "mean": 0,
+        "step_size": 1,
+        "expansion": 2,
+        "depth": 5
+      },
+      "raw": [
+        2,
+        2,
+        1,
+        0,
+        0
+      ],
+      "value_bits_hex": "0x4000000000000000",
+      "length": 3
+    },
+    {
+      "name": "stop-ignores-tail",
+      "spec": {
+        "kind": "contin",
+        "mean": 0,
+        "step_size": 1,
+        "expansion": 2,
+        "depth": 5
+      },
+      "raw": [
+        1,
+        2,
+        0,
+        1,
+        2
+      ],
+      "value_bits_hex": "0xbfe0000000000000",
+      "length": 2
+    },
+    {
+      "name": "right-left-stop",
+      "spec": {
+        "kind": "contin",
+        "mean": 0,
+        "step_size": 1,
+        "expansion": 2,
+        "depth": 5
+      },
+      "raw": [
+        2,
+        1,
+        0,
+        0,
+        0
+      ],
+      "value_bits_hex": "0x3fe0000000000000",
+      "length": 2
+    },
+    {
+      "name": "contracting-expansion",
+      "spec": {
+        "kind": "contin",
+        "mean": 0,
+        "step_size": 0.5,
+        "expansion": 0.5,
+        "depth": 4
+      },
+      "raw": [
+        2,
+        0,
+        0,
+        0
+      ],
+      "value_bits_hex": "0x3fe0000000000000",
+      "length": 1
+    }
+  ],
+  "set_continuous": [
+    {
+      "name": "mean",
+      "spec": {
+        "kind": "contin",
+        "mean": 0,
+        "step_size": 1,
+        "expansion": 2,
+        "depth": 5
+      },
+      "target": 0,
+      "raw_after": [
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "decoded_bits_hex": "0x0000000000000000"
+    },
+    {
+      "name": "one-left",
+      "spec": {
+        "kind": "contin",
+        "mean": 0,
+        "step_size": 1,
+        "expansion": 2,
+        "depth": 5
+      },
+      "target": -1,
+      "raw_after": [
+        1,
+        0,
+        0,
+        0,
+        0
+      ],
+      "decoded_bits_hex": "0xbff0000000000000"
+    },
+    {
+      "name": "two-left",
+      "spec": {
+        "kind": "contin",
+        "mean": 0,
+        "step_size": 1,
+        "expansion": 2,
+        "depth": 5
+      },
+      "target": -2,
+      "raw_after": [
+        1,
+        1,
+        2,
+        0,
+        0
+      ],
+      "decoded_bits_hex": "0xc000000000000000"
+    },
+    {
+      "name": "far-right",
+      "spec": {
+        "kind": "contin",
+        "mean": 0,
+        "step_size": 1,
+        "expansion": 2,
+        "depth": 5
+      },
+      "target": 100,
+      "raw_after": [
+        2,
+        2,
+        2,
+        2,
+        2
+      ],
+      "decoded_bits_hex": "0x403f000000000000"
+    },
+    {
+      "name": "tie-keeps-shallow",
+      "spec": {
+        "kind": "contin",
+        "mean": 0,
+        "step_size": 1,
+        "expansion": 1,
+        "depth": 2
+      },
+      "target": -1.5,
+      "raw_after": [
+        1,
+        0
+      ],
+      "decoded_bits_hex": "0xbff0000000000000"
+    }
+  ],
+  "pack_cases": [
+    {
+      "name": "33-ternary-rollover",
+      "input_specs": [
+        {
+          "kind": "disc",
+          "multy": 3
+        },
+        {
+          "kind": "disc",
+          "multy": 3
+        },
+        {
+          "kind": "disc",
+          "multy": 3
+        },
+        {
+          "kind": "disc",
+          "multy": 3
+        },
+        {
+          "kind": "disc",
+          "multy": 3
+        },
+        {
+          "kind": "disc",
+          "multy": 3
+        },
+        {
+          "kind": "disc",
+          "multy": 3
+        },
+        {
+          "kind": "disc",
+          "multy": 3
+        },
+        {
+          "kind": "disc",
+          "multy": 3
+        },
+        {
+          "kind": "disc",
+          "multy": 3
+        },
+        {
+          "kind": "disc",
+          "multy": 3
+        },
+        {
+          "kind": "disc",
+          "multy": 3
+        },
+        {
+          "kind": "disc",
+          "multy": 3
+        },
+        {
+          "kind": "disc",
+          "multy": 3
+        },
+        {
+          "kind": "disc",
+          "multy": 3
+        },
+        {
+          "kind": "disc",
+          "multy": 3
+        },
+        {
+          "kind": "disc",
+          "multy": 3
+        },
+        {
+          "kind": "disc",
+          "multy": 3
+        },
+        {
+          "kind": "disc",
+          "multy": 3
+        },
+        {
+          "kind": "disc",
+          "multy": 3
+        },
+        {
+          "kind": "disc",
+          "multy": 3
+        },
+        {
+          "kind": "disc",
+          "multy": 3
+        },
+        {
+          "kind": "disc",
+          "multy": 3
+        },
+        {
+          "kind": "disc",
+          "multy": 3
+        },
+        {
+          "kind": "disc",
+          "multy": 3
+        },
+        {
+          "kind": "disc",
+          "multy": 3
+        },
+        {
+          "kind": "disc",
+          "multy": 3
+        },
+        {
+          "kind": "disc",
+          "multy": 3
+        },
+        {
+          "kind": "disc",
+          "multy": 3
+        },
+        {
+          "kind": "disc",
+          "multy": 3
+        },
+        {
+          "kind": "disc",
+          "multy": 3
+        },
+        {
+          "kind": "disc",
+          "multy": 3
+        },
+        {
+          "kind": "disc",
+          "multy": 3
+        }
+      ],
+      "raw": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        2,
+        1
+      ],
+      "words_hex": [
+        "0x8000000000000000",
+        "0x0000000000000001"
+      ]
+    },
+    {
+      "name": "straddle-following",
+      "input_specs": [
+        {
+          "kind": "contin",
+          "mean": 0,
+          "step_size": 1,
+          "expansion": 2,
+          "depth": 5
+        },
+        {
+          "kind": "disc",
+          "multy": 5
+        },
+        {
+          "kind": "disc",
+          "multy": 5
+        },
+        {
+          "kind": "disc",
+          "multy": 5
+        },
+        {
+          "kind": "disc",
+          "multy": 5
+        },
+        {
+          "kind": "disc",
+          "multy": 5
+        },
+        {
+          "kind": "disc",
+          "multy": 5
+        },
+        {
+          "kind": "disc",
+          "multy": 5
+        },
+        {
+          "kind": "disc",
+          "multy": 5
+        },
+        {
+          "kind": "disc",
+          "multy": 5
+        },
+        {
+          "kind": "disc",
+          "multy": 5
+        },
+        {
+          "kind": "disc",
+          "multy": 5
+        },
+        {
+          "kind": "disc",
+          "multy": 5
+        },
+        {
+          "kind": "disc",
+          "multy": 5
+        },
+        {
+          "kind": "disc",
+          "multy": 5
+        },
+        {
+          "kind": "disc",
+          "multy": 5
+        }
+      ],
+      "raw": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        15,
+        9
+      ],
+      "words_hex": [
+        "0xc000000000000024",
+        "0x0000000000000000"
+      ]
+    }
+  ],
+  "hamming_cases": [
+    {
+      "name": "raw-field-distance",
+      "lhs_raw": [
+        1,
+        0,
+        2
+      ],
+      "rhs_raw": [
+        0,
+        1,
+        2
+      ],
+      "distance": 2
+    }
+  ],
+  "merge_cases": [
+    {
+      "name": "copy-reference-differences",
+      "base_raw": [
+        0,
+        1,
+        2
+      ],
+      "reference_raw": [
+        0,
+        2,
+        2
+      ],
+      "target_before_raw": [
+        2,
+        0,
+        1
+      ],
+      "target_after_raw": [
+        2,
+        2,
+        1
+      ]
+    }
+  ]
+}
