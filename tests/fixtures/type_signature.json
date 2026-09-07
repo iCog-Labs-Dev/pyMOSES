@@ -1,0 +1,93 @@
+[
+  {
+    "name": "boolean_zero",
+    "form": "type_node_uniform",
+    "inputs": [],
+    "output": "boolean",
+    "arity": 0,
+    "boolean_arity": 0,
+    "contin_arity": 0,
+    "action_result_arity": 0
+  },
+  {
+    "name": "boolean_uniform_three",
+    "form": "type_node_uniform",
+    "inputs": [
+      "boolean",
+      "boolean",
+      "boolean"
+    ],
+    "output": "boolean",
+    "arity": 3,
+    "boolean_arity": 3,
+    "contin_arity": 0,
+    "action_result_arity": 0
+  },
+  {
+    "name": "contin_to_boolean_two",
+    "form": "type_node_io_arity",
+    "inputs": [
+      "contin",
+      "contin"
+    ],
+    "output": "boolean",
+    "arity": 2,
+    "boolean_arity": 0,
+    "contin_arity": 2,
+    "action_result_arity": 0
+  },
+  {
+    "name": "mixed_to_action",
+    "form": "type_node_seq",
+    "inputs": [
+      "boolean",
+      "contin",
+      "action_result",
+      "boolean"
+    ],
+    "output": "action_result",
+    "arity": 4,
+    "boolean_arity": 2,
+    "contin_arity": 1,
+    "action_result_arity": 1
+  },
+  {
+    "name": "action_uniform_two",
+    "form": "type_node_uniform",
+    "inputs": [
+      "action_result",
+      "action_result"
+    ],
+    "output": "action_result",
+    "arity": 2,
+    "boolean_arity": 0,
+    "contin_arity": 0,
+    "action_result_arity": 2
+  },
+  {
+    "name": "leaf_contin_to_action_two",
+    "form": "type_tree_io_arity",
+    "inputs": [
+      "contin",
+      "contin"
+    ],
+    "output": "action_result",
+    "arity": 2,
+    "boolean_arity": 0,
+    "contin_arity": 2,
+    "action_result_arity": 0
+  },
+  {
+    "name": "leaf_sequence_to_boolean",
+    "form": "type_tree_seq",
+    "inputs": [
+      "boolean",
+      "contin"
+    ],
+    "output": "boolean",
+    "arity": 2,
+    "boolean_arity": 1,
+    "contin_arity": 1,
+    "action_result_arity": 0
+  }
+]

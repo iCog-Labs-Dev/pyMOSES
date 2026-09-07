@@ -49,9 +49,10 @@ What is ported, and why it is enough:
   `input == unknown_type_tree` and `get_output_type_tree(*it) ==
   type_tree(output)` (meta_rules.cc:89,101).
 
-Not ported, and not needed by anything in this project's reachable scope
-(boolean-only combo trees, plus `greater_than_zero` predicates over
-`contin_t` arithmetic which S14 permanently defers): `get_type_tree`,
+Not ported, and not needed by the reducer's reachable scope (Boolean combo
+trees plus continuous predicates). Continuous and action representation are
+supported follow-on domains, but their signatures do not require widening
+this leaf wrapper into the inference engine: `get_type_tree`,
 `get_input_type_tree`, `equal_type_tree`/`inherits`, `is_argument_type`/
 `arg_to_idx` (type_tree_def.h), and everything under
 `builtin_properties`/`action_properties` (descriptions.h/.cc) beyond the
@@ -62,7 +63,7 @@ data.
 from __future__ import annotations
 
 from pymetta.comboreduct.combo.vertex import builtin, is_argument, is_builtin, is_contin, vertex
-from pymetta.comboreduct.table.table import type_node
+from pymetta.comboreduct.type_checker.type_signature import type_node
 
 
 class type_tree:
@@ -84,7 +85,7 @@ class type_tree:
         node's value; restricted here to the one shape this port's
         `type_tree` can ever hold (a single node), so value equality on
         `.node` already IS the general comparison for this narrowed type.
-        `type_node` is a plain `IntEnum` (table.py) -- CLAUDE.md's "type
+        `type_node` is a plain `IntEnum` (type_signature.py) -- CLAUDE.md's "type
         before value" trap does not apply between two `type_tree`
         instances that are already known, by Python's own type system, to
         both be `type_tree`.
@@ -170,10 +171,10 @@ def get_output_type_tree(v: vertex) -> type_tree:
     `is_action`/`is_builtin_action`/`is_perception`/`is_definite_object`/
     `is_indefinite_object`/`is_wild_card`/`is_message`/`is_procedure_call`
     (type_tree.cc:258-273) -- none of this port's `vertex` union members
-    can ever satisfy these (the legacy embodiment vocabulary is out of
-    this project's scope entirely, per vertex.py's own module docstring),
-    so these branches are simply unreachable dead code here, not a
-    disclosed gap.
+    can currently satisfy these. A narrow action representation follow-on may
+    add its own action vocabulary; that does not make the classic object,
+    message, procedure, perception, or legacy embodiment branches part of this
+    leaf wrapper's present reducer scope.
 
     One case is a REAL C++ FACT worth stating plainly, not a port gap:
     `is_enum_type(v)` has NO branch in `get_output_type_tree` AT ALL in
