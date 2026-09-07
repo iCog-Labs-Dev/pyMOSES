@@ -20,3 +20,4 @@ PY="$VENV/bin/python3"
 "$PY" -m ruff check pymetta tools tests
 "$PY" -m pytest
 "$PY" tools/check_alignment.py
+"$PY" tools/coverage_totals.py --check

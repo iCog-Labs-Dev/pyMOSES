@@ -82,11 +82,14 @@ reachable because each column's values are type-consistent by construction from
 
 ### 2.4 `append_child`'s plain-data path does not value-copy, but `set_head` does
 
-`tree.py:1052` passes a caller's `data` straight into the new node, while
-`set_head` (`tree.py:1028`) and every subtree-copy path route through
-`_copy_value`. C++ copies by value at *all* of them (`append_child(pos, const
-T&)`), so the plain path is the odd one out and **every caller must copy
-explicitly**. `knobs.py:286` already does; `representation.py`'s
+`tree.py:1052` passes a caller's `data` straight into the new node. **Measured
+across the whole package (S8 review): `set_head` (`tree.py:1028`) is the ONLY
+plain-data entry point that copies.** Every other plain-data insertion --
+`append_child`, `prepend_child`, `insert`, `insert_after`, `replace` -- stores
+the caller's object. The subtree-taking overloads all route through
+`_copy_value`, so the split is *plain data vs. subtree*, not one stray function.
+C++ copies by value at all of them (`append_child(pos, const T&)`), so **every
+caller passing an existing node's payload must copy explicitly**. `knobs.py:286` already does; `representation.py`'s
 `get_candidate_rec` did not.
 
 Consequence, measured in S8: `get_candidate(inst, reduce=True)` on a negated
