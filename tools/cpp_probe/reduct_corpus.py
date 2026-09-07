@@ -1,6 +1,6 @@
 """Task 6 corpus assembly: the fixed list of combo trees the reduct oracle
 (`reduct_effort_probe.cc` via `tools/capture_reduct.py`) is run over, from
-three sources -- see the S7 task-6 brief.
+the five upstream files in the three source groups below.
 
 1. The 29 combo trees in `$CLASSIC/testTrees.sh`'s `trees` array, verbatim
    and in order (same corpus `tools/capture_combo_roundtrip.py` already
@@ -22,6 +22,10 @@ three sources -- see the S7 task-6 brief.
    boolean-only reduction path. These 20 are included in CORPUS with
    `runnable=False` so Task 6 can skip them explicitly rather than the
    corpus silently omitting 20 real upstream test cases.
+
+   `FullReductUTest.cxxtest` has 14 literals: ten duplicate the BooleanFull
+   inputs exactly and four use distinct bare-predicate wrapper shapes. The
+   four unique inputs are also retained as explicit non-runnable S14 cases.
 
 3. The 44 *unique* boolean expressions in elegant-normal-forms-python's
    `Tests/GeneralTestCases.py` `EXPRESSIONS` list. That list has 46 raw
@@ -298,6 +302,14 @@ BOOLEAN_FULL_UTEST = [
 ]
 assert len(BOOLEAN_FULL_UTEST) == 20
 
+FULL_REDUCT_UTEST_UNIQUE = [
+    ("test_simplify7", "0<(+( *($1 -1) *($2 0) *(0 $3)))"),
+    ("test_simplify8", "0<(+( *($1 -1) *($2 0) *(0 $3) $1 1))"),
+    ("test_simplify9", "0<(+( *(0 $1) *($2 0) 1))"),
+    ("test_simplifyd", "0<( +(1 impulse(and(or($1 and($1))))))"),
+]
+assert len(FULL_REDUCT_UTEST_UNIQUE) == 4
+
 # ---------------------------------------------------------------------
 # Source 3: elegant-normal-forms-python's Tests/GeneralTestCases.py
 # EXPRESSIONS list (44 unique entries after dedup -- see module
@@ -497,6 +509,20 @@ def _make_corpus() -> list[dict]:
             }
         )
 
+    for test_name, tree in FULL_REDUCT_UTEST_UNIQUE:
+        corpus.append(
+            {
+                "id": f"FullReductUTest.cxxtest#{test_name}",
+                "source": "FullReductUTest.cxxtest",
+                "combo": tree,
+                "runnable": False,
+                "reason": (
+                    "contains a 0<(...) contin predicate and full_reduce requires "
+                    "the S14 contin/mixed reduction pipeline"
+                ),
+            }
+        )
+
     zipped = zip(GENERAL_TEST_CASES_ENF, GENERAL_TEST_CASES_COMBO, strict=True)
     for i, (enf, tree) in enumerate(zipped):
         corpus.append(
@@ -514,6 +540,6 @@ def _make_corpus() -> list[dict]:
 
 
 CORPUS = _make_corpus()
-assert len(CORPUS) == 29 + 6 + 20 + 44 == 99
+assert len(CORPUS) == 29 + 6 + 20 + 4 + 44 == 103
 assert sum(1 for c in CORPUS if c["runnable"]) == 29 + 6 + 44 == 79
-assert sum(1 for c in CORPUS if not c["runnable"]) == 20
+assert sum(1 for c in CORPUS if not c["runnable"]) == 20 + 4 == 24

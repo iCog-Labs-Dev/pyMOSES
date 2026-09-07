@@ -1,10 +1,14 @@
 """Task 6 (S7 cycle): the differential oracle that closes the cycle.
 
-C++: moses/comboreduct/reduct/reduct.h:116 logical_reduce (effort levels
-1/2/3), moses/comboreduct/reduct/logical_rules.h:169 subtree_to_enf.
+C++: moses/comboreduct/reduct/reduct.h:124 logical_reduce(int, combo_tree&,
+const vertex_set&) -- the 3-arg overload actually exercised throughout
+this module and by every `logical_reduce(effort, tr, ignore_ops=set())`
+call below (reduct.h:116 is a DIFFERENT, 4-arg overload additionally
+taking a `combo_tree::iterator`; not used here), moses/comboreduct/
+reduct/logical_rules.h:169 subtree_to_enf.
 
 Verifies `pymetta.comboreduct.reduct.logical_reduction.logical_reduce`
-against `tests/fixtures/reduct.json` (the committed 99-tree corpus + real
+against `tests/fixtures/reduct.json` (the committed 103-tree corpus + real
 `test_reduct`/`logical_reduce` capture -- see `tools/cpp_probe/
 reduct_corpus.py`, `tools/capture_reduct.py`,
 `tests/fixtures/test_reduct_shape.py` (this fixture's own shape guard,
@@ -22,16 +26,25 @@ built) across four independent layers:
 2. SEMANTIC (truth-table preservation), amended 2026-09-07 per docs/
    CARRY-FORWARD.md Β§3: classic's own `eval_logical_identities` is
    unsound on trees where a junctor's entire (non-empty) child list
-   consists of childless junctors -- `logical_reduce` does NOT preserve
-   the truth table there, and the port must match that unsoundness byte-
-   for-byte (layer 1 already does) rather than silently "fixing" it.
-   `enf_checkers.tt_unsound_by_construction` is a STRUCTURAL predicate
-   over the tree, computed independently of this fixture's own
-   `known_tt_divergent` field -- `test_predicate_independently_
-   reproduces_the_known_tt_divergent_split` is the cross-check the task
-   brief asks for; the tree-shape unit tests further down independently
-   prove the predicate discriminates (not a constant, not copied from the
-   fixture) on synthetic input the fixture does not contain.
+   consists of childless junctors, and the port must match that
+   unsoundness byte-for-byte (layer 1 already does) rather than silently
+   "fixing" it. `enf_checkers.tt_unsound_by_construction` is a
+   STRUCTURAL indicator for that shape, computed independently
+   of this fixture's own `known_tt_divergent` field --
+   `test_predicate_independently_reproduces_the_known_tt_divergent_split`
+   is the cross-check the task brief asks for; the tree-shape unit tests
+   further down independently prove the predicate discriminates (not a
+   constant, not copied from the fixture) on synthetic input the fixture
+   does not contain.
+
+   Review found that the predicate is neither necessary nor sufficient for
+   end-to-end divergence: parent context can mask an immediately-present
+   occurrence, while earlier effort-1 rules can create the shape from an
+   input the predicate does not flag. Semantic correctness is therefore
+   checked directly against C++'s captured `tt_computed`/`tt_preserved`
+   diagnostics. `test_pinned_context_dependent_rows` preserves the concrete
+   counterexamples so this limitation cannot regress back into an iff or
+   one-way guarantee.
 
 3. STRUCTURAL (the seven ENF axioms, `enf_checkers.py`), applied ONLY at
    effort 3 -- see `test_effort_2_output_can_still_violate_enf_measured`
@@ -65,8 +78,13 @@ from enf_checkers import (
     ROOT_TOKEN,
     enf_violations,
     evaluate_truth_table,
+    rule_five,
+    rule_four,
     rule_one,
+    rule_seven,
     rule_six,
+    rule_three,
+    rule_two,
     truth_table_preserved,
     tt_unsound_by_construction,
 )
@@ -120,24 +138,24 @@ def test_byte_identical_check_actually_discriminates():
     assertion is not vacuous -- i.e. that deleting it would fail a test.
     Reduces one real case, confirms the REAL output equals the fixture's
     `reduced` value (the check we rely on above), and separately confirms
-    a DELIBERATELY corrupted copy of that same expected value does NOT
-    equal it -- proving `==` here genuinely discriminates a correct
-    reduction from an incorrect one, rather than the test module having
-    silently rotted into comparing something trivially equal to itself.
+    the unreduced input does NOT equal that expected value. This proves a
+    no-op implementation cannot satisfy the oracle.
     """
-    case = _CASES[0]
+    # Pick a case for which a no-op reducer is observably wrong. This
+    # makes the check fail if `logical_reduce` is accidentally bypassed,
+    # unlike comparing a value with `actual + "!"` (which is tautological).
+    case = next(c for c in _CASES if c["input"].strip() != c["reduced"].strip())
     tr = str_to_combo_tree(case["input"])
     logical_reduce(case["effort"], tr, ignore_ops=set())
     actual = combo_tree_to_str(tr)
     assert actual == case["reduced"]
 
-    corrupted = actual + "!" if actual else "!"
-    assert actual != corrupted, "corrupting the expected value had no effect -- broken proof"
+    no_op_result = combo_tree_to_str(str_to_combo_tree(case["input"]))
+    assert no_op_result != case["reduced"], "selected case cannot detect a no-op reducer"
 
 
 # ---------------------------------------------------------------------------
-# 2. Semantic: truth-table preservation, except on the characterised
-#    unsound class (docs/CARRY-FORWARD.md Β§3).
+# 2. Semantic: reproduce C++'s measured truth-table outcome directly.
 # ---------------------------------------------------------------------------
 
 
@@ -150,12 +168,10 @@ def test_predicate_independently_reproduces_the_known_tt_divergent_split(tree_id
     """`enf_checkers.tt_unsound_by_construction` is computed purely from
     tree SHAPE, with no reference to this fixture's own
     `known_tt_divergent` flag anywhere in its implementation (see that
-    function's own docstring) -- this is the cross-check the task brief
-    asks for: an independent predicate reproducing the SAME split, not a
-    predicate tuned post-hoc to match it. A mismatch here is a genuine
-    finding (either the predicate's characterisation of Β§3 is incomplete,
-    or the fixture's own flag is), to be reported, not silently
-    special-cased away.
+    function's own docstring). It reproduces this fixture's historical
+    13-tree split, but is intentionally not asserted as a complete classifier
+    for inputs outside the fixture; the pinned emergent-shape counterexample
+    below proves that limitation explicitly.
     """
     tr = str_to_combo_tree(case["input"])
     assert tt_unsound_by_construction(tr) == case["known_tt_divergent"], tree_id
@@ -163,32 +179,41 @@ def test_predicate_independently_reproduces_the_known_tt_divergent_split(tree_id
 
 @pytest.mark.oracle
 @pytest.mark.parametrize("case", _CASES, ids=_case_id)
-def test_truth_table_preserved_except_on_the_unsound_class(case):
-    """Truth-table preservation holds for every reduction EXCEPT the
-    Β§3-characterised class, expressed via the independent structural
-    predicate (`tt_unsound_by_construction`), not via `case[
-    "known_tt_divergent"]` -- the task brief's own requirement that the
-    exclusion be "that predicate", not an opaque per-tree flag. Also
-    cross-checked against the fixture's own `tt_preserved`/
-    `known_tt_divergent` fields (computed independently, by the real C++
-    oracle, at capture time) as a second, redundant confirmation.
-    """
+def test_truth_table_outcome_matches_classic(case):
+    """Match C++'s measured semantic outcome without classifier assumptions."""
     original = str_to_combo_tree(case["input"])
-    expect_unsound = tt_unsound_by_construction(original)
 
     reduced = str_to_combo_tree(case["input"])
     logical_reduce(case["effort"], reduced, ignore_ops=set())
 
     preserved = truth_table_preserved(original, reduced)
-    assert preserved is not None, (
-        f"{case['id']}: root-token outcome unexpected for a corpus tree -- "
-        "see test_root_token_is_a_distinct_third_outcome for where that "
-        "outcome IS expected"
-    )
-    assert preserved == (not expect_unsound), case["id"]
-    # Redundant confirmation against the real-C++-derived fixture fields:
-    assert preserved == case["tt_preserved"], case["id"]
-    assert expect_unsound == case["known_tt_divergent"], case["id"]
+    if case.get("tt_computed", True):
+        assert preserved == case["tt_preserved"], case["id"]
+    else:
+        assert preserved is None, case["id"]
+
+
+@pytest.mark.parametrize(
+    "effort,combo_str,expected_flagged,expected_reduced,expected_preserved",
+    [
+        (3, "and(or())", True, "true ", True),
+        (3, "and(or() or())", True, "true ", True),
+        (3, "or(and(or()) $1)", True, "$1 ", False),
+        (3, "and($1 or(and(or()) $1))", True, "$1 ", True),
+        (1, "or(and(or($1 and(!$1))) !$2)", False, "!$2 ", False),
+    ],
+)
+def test_pinned_context_dependent_rows(
+    effort, combo_str, expected_flagged, expected_reduced, expected_preserved
+):
+    """Pin false positives and a reduction-created false negative."""
+    original = str_to_combo_tree(combo_str)
+    reduced = str_to_combo_tree(combo_str)
+    logical_reduce(effort, reduced, ignore_ops=set())
+
+    assert tt_unsound_by_construction(original) is expected_flagged
+    assert combo_tree_to_str(reduced) == expected_reduced
+    assert truth_table_preserved(original, reduced) is expected_preserved
 
 
 # ---------------------------------------------------------------------------
@@ -326,6 +351,26 @@ def test_rule_six_and_rule_one_are_not_vacuously_true():
 
     tr2 = str_to_combo_tree("and($1 or(!$1 $2))")
     assert rule_one(tr2) is False
+
+
+@pytest.mark.parametrize(
+    "checker,combo_str",
+    [
+        (rule_two, "and()"),
+        (rule_three, "or($1)"),
+        (rule_four, "or(and(or($1 $2)) $3)"),
+        (rule_five, "or(and($1 $2) and($1 $3))"),
+        (rule_seven, "or($1 and($2 or($1 $3)))"),
+    ],
+)
+def test_each_remaining_enf_checker_is_falsifiable(checker, combo_str):
+    """Each checker must reject at least one direct counterexample.
+
+    These cases make replacing any checker with ``lambda tr: True`` an
+    observable test failure; effort-3 outputs alone are all valid ENF and
+    therefore cannot establish that the checkers discriminate.
+    """
+    assert checker(str_to_combo_tree(combo_str)) is False
 
 
 # ---------------------------------------------------------------------------

@@ -1,7 +1,7 @@
 """Shape guard for tests/fixtures/reduct.json (Task 6's oracle capture,
 built by tools/capture_reduct.py from the corpus assembled by
 tools/cpp_probe/reduct_corpus.py -- see that module's docstring for where
-the 99-tree corpus and the 44-vs-46-raw-entries count come from).
+the 103-tree corpus and the 44-vs-46-raw-entries count come from).
 
 This module deliberately does NOT import anything from `pymetta` and does
 NOT exercise reduction logic itself -- that is Task 6's job, wired up
@@ -27,18 +27,19 @@ _FIXTURE = json.loads(_FIXTURE_PATH.read_text())
 
 # Corpus composition, from tools/cpp_probe/reduct_corpus.py:
 #   29 testTrees.sh + 6 BooleanReductUTest.cxxtest + 20 BooleanFullUTest.cxxtest
-#   + 44 GeneralTestCases.py (unique, after deduping the raw list's 46 entries)
-#   = 99 trees total; 79 runnable (everything but BooleanFullUTest.cxxtest's
-#   20, which all contain a 0<(...) contin predicate).
+#   + 4 unique FullReductUTest wrapper shapes + 44 GeneralTestCases.py
+#   (unique, after deduping the raw list's 46 entries) = 103 trees total;
+#   79 runnable (the 24 skipped cases all require contin/mixed reduction).
 _EXPECTED_SOURCE_COUNTS = {
     "testTrees.sh": 29,
     "BooleanReductUTest.cxxtest": 6,
     "BooleanFullUTest.cxxtest": 20,
+    "FullReductUTest.cxxtest": 4,
     "GeneralTestCases.py": 44,
 }
-_EXPECTED_CORPUS_TOTAL = 99
+_EXPECTED_CORPUS_TOTAL = 103
 _EXPECTED_RUNNABLE = 79
-_EXPECTED_SKIPPED = 20
+_EXPECTED_SKIPPED = 24
 _EXPECTED_EFFORTS = [1, 2, 3]
 _EXPECTED_CASES = _EXPECTED_RUNNABLE * len(_EXPECTED_EFFORTS)  # 237
 
@@ -110,10 +111,11 @@ def test_source_counts_match_corpus():
     for entry in _FIXTURE["skipped"]:
         skipped_ids_by_source.setdefault(entry["source"], set()).add(entry["id"])
 
+    skipped_only_sources = {"BooleanFullUTest.cxxtest", "FullReductUTest.cxxtest"}
     for source, expected_total in _EXPECTED_SOURCE_COUNTS.items():
         n_cases = len(case_ids_by_source.get(source, ()))
         n_skipped = len(skipped_ids_by_source.get(source, ()))
-        if source == "BooleanFullUTest.cxxtest":
+        if source in skipped_only_sources:
             assert n_cases == 0, f"{source}: expected 0 runnable cases, got {n_cases}"
             assert n_skipped == expected_total
         else:
@@ -132,8 +134,15 @@ def test_case_entries_have_expected_fields():
         if case["source"] == "GeneralTestCases.py":
             assert "enf_original" in case
         if case["ok"]:
-            assert {"reduced", "size_before", "size_after", "tt_preserved"} <= set(case)
+            assert {"reduced", "size_before", "size_after"} <= set(case)
             assert isinstance(case["reduced"], str)
+            # Legacy captures predate the explicit flag and always computed TT.
+            if case.get("tt_computed", True):
+                assert "tt_preserved" in case
+                assert "tt_error" not in case
+            else:
+                assert "tt_preserved" not in case
+                assert isinstance(case.get("tt_error"), str) and case["tt_error"]
             # ostream_combo_tree (and pymetta's combo_tree_to_str) always
             # appends exactly one trailing space per top-level tree -- see
             # tests/fixtures/combo_roundtrip.json's own committed entries.
@@ -150,7 +159,7 @@ def test_skipped_entries_have_expected_fields():
     required = {"id", "source", "input", "reason"}
     for entry in _FIXTURE["skipped"]:
         assert required <= set(entry)
-        assert entry["source"] == "BooleanFullUTest.cxxtest"
+        assert entry["source"] in {"BooleanFullUTest.cxxtest", "FullReductUTest.cxxtest"}
         assert "0<(" in entry["input"], (
             f"{entry['id']}: expected a 0<(...) contin predicate (the documented "
             "reason this source is not-yet-runnable), found none"
@@ -164,10 +173,8 @@ def test_known_tt_divergent_ids_match_and_are_internally_consistent():
     commentary) -- and, independently, that every case flagged
     known_tt_divergent really does have tt_preserved=False (ok=True; the
     reduction itself completes, it just changes the tree's boolean
-    function), and every case NOT so flagged really did preserve its
-    truth table. A drift either way here means the corpus, the probe, or
-    classic MOSES's own reduction behavior changed underneath this
-    fixture and needs a human look before being re-captured over.
+    function). Every unflagged case in this FIXED corpus also preserves;
+    this is a fixture invariant, not a general classifier guarantee.
     """
     flagged_ids = {c["id"] for c in _FIXTURE["cases"] if c["known_tt_divergent"]}
     assert flagged_ids == _EXPECTED_KNOWN_TT_DIVERGENT_IDS
@@ -175,8 +182,9 @@ def test_known_tt_divergent_ids_match_and_are_internally_consistent():
     for case in _FIXTURE["cases"]:
         if case["known_tt_divergent"]:
             assert case["ok"] is True, case["id"]
+            assert case.get("tt_computed", True) is True, case["id"]
             assert case["tt_preserved"] is False, case["id"]
-        elif case["ok"]:
+        elif case["ok"] and case.get("tt_computed", True):
             assert case["tt_preserved"] is True, (
                 f"{case['id']} (effort {case['effort']}) unexpectedly failed truth-table "
                 "preservation and is not in the known-divergent set"

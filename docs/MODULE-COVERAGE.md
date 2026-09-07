@@ -8,9 +8,8 @@ $CLASSIC = `/home/yab/Documents/Projects/iCog/HyperonRelated/MOSES/OpenCog/Moses
 
 | Status | Files | Lines | % of files | % of lines |
 |---|---:|---:|---:|---:|
-| PORTED | 9 | 4,173 | 3.7% | 6.7% |
-| PARTIAL | 20 | 10,076 | 8.2% | 16.2% |
-| PLANNED: S7 | 16 | 3,442 | 6.6% | 5.5% |
+| PORTED | 14 | 4,747 | 5.8% | 7.7% |
+| PARTIAL | 31 | 12,944 | 12.8% | 20.9% |
 | PLANNED: S8 | 16 | 6,994 | 6.6% | 11.3% |
 | PLANNED: S9 | 6 | 2,327 | 2.5% | 3.8% |
 | PLANNED: S10 | 8 | 2,620 | 3.3% | 4.2% |
@@ -25,13 +24,13 @@ $CLASSIC = `/home/yab/Documents/Projects/iCog/HyperonRelated/MOSES/OpenCog/Moses
 
 | Macro status | Files | Lines |
 |---|---:|---:|
-| PORTED | 9 | 4,173 |
-| PARTIAL | 20 | 10,076 |
-| PLANNED: S7-S14 (named backlog slices) | 71 | 24,358 |
+| PORTED | 14 | 4,747 |
+| PARTIAL | 31 | 12,944 |
+| PLANNED: S8-S14 (named backlog slices) | 55 | 20,916 |
 | PLANNED: P2 (deferred tail) | 82 | 15,139 |
 | EXCLUDED | 61 | 8,301 |
 
-**Reading this table.** PORTED (9 files, 4,173 lines) and PARTIAL (20 files, 10,076 lines) together are the S0-S6 foundation's true footprint: 20,249 lines out of 62,047 (32.6%) have *some* Python behind them today, but only the 9 PORTED files (6.7%) are complete with no named gap -- every other touched file (table.py/table_io.py, vertex.py/iostream_combo.py, interpreter.py, types.py, bscores.py, scoring_base.py, and the two crutil exception files) carries at least one explicitly documented missing piece. EXCLUDED is 61 files / 8,301 lines (13.4% of lines) -- legacy embodiment, dead `#ifdef` code, `moses/pleasure/`, and C++-only CLI/oracle tools with no Python-port target. The remaining 82+71 = 153 files / 39,497 lines (63.7%) are PLANNED, split between the 71 files / 24,358 lines already named to S7-S14 and the 82 files / 15,139 lines in the P2 tail.
+**Reading this table.** PORTED (14 files, 4,747 lines) and PARTIAL (31 files, 12,944 lines) together are the completed S0-S7 footprint: 45 files / 17,691 lines out of 62,047 (28.5%) have *some* Python behind them today, but only the 14 PORTED files (7.7% of lines) are complete with no named gap. Every PARTIAL row names its remaining limitation explicitly. EXCLUDED is unchanged at 61 files / 8,301 lines (13.4% of lines) -- legacy embodiment, dead `#ifdef` code, `moses/pleasure/`, and C++-only CLI/oracle tools with no Python-port target. The remaining 82+55 = 137 files / 36,055 lines (58.1%) are PLANNED, split between the 55 files / 20,916 lines already named to S8-S14 and the 82 files / 15,139 lines in the P2 tail.
 
 ## `moses/comboreduct/ant_combo_vocabulary`
 
@@ -63,11 +62,11 @@ The core vertex/tree language. `argument.h`/`common_def.h` PORTED; `vertex.{cc,h
 | `moses/comboreduct/combo/action_symbol.h` | 50 | EXCLUDED | Legacy OpenCog embodiment support (action_result_type domain): feeds the excluded action_result_type knob branch (spec S3 non-goal) and the excluded ant_combo_vocabulary/. ActionReductUTest/PerceptionReductUTest are commented out in tests/comboreduct/reduct/CMakeLists.txt. Base class extended by ant_action_symbol. |
 | `moses/comboreduct/combo/ann.h` | 55 | PLANNED: P2 | PLANNED: P2 -- ANN combo vertex type + neural-net evaluation. NOT named in the spec's P2 list (feature selection/diversity/ensembles/subsampling/other-optimizers/precision-recall scorers): a genuine gap. Not dead code either -- annUTest and ANNReductUTest are active tests in classic (CLAUDE.md). Only the ann_type knob-building branch is a stated non-goal (spec S3); the vertex/reduct support itself has no assigned slice. SURPRISE. |
 | `moses/comboreduct/combo/argument.h` | 96 | PORTED | pymetta/comboreduct/combo/argument.py (S3). Sign-encodes-negation and absolute-value operator< both ported verbatim (spec S3, CARRY-FORWARD 4.4). |
-| `moses/comboreduct/combo/assumption.cc` | 117 | PLANNED: S7 | Used by reduct/meta_rules.cc, general_rules.cc, logical_rules.cc (all named in the S7 backlog line) and perception_rules.cc (excluded). Required for S7. |
-| `moses/comboreduct/combo/assumption.h` | 66 | PLANNED: S7 | Same as assumption.cc. |
+| `moses/comboreduct/combo/assumption.cc` | 117 | PORTED | `pymetta/comboreduct/combo/assumption.py` (S7). Assumption insertion, removal, and lookup used by the reduction rules are ported. |
+| `moses/comboreduct/combo/assumption.h` | 66 | PORTED | Same as assumption.cc. |
 | `moses/comboreduct/combo/builtin_action.cc` | 35 | EXCLUDED | Legacy OpenCog embodiment support (action_result_type domain): feeds the excluded action_result_type knob branch (spec S3 non-goal) and the excluded ant_combo_vocabulary/. ActionReductUTest/PerceptionReductUTest are commented out in tests/comboreduct/reduct/CMakeLists.txt. Base class extended by ant_builtin_action. |
 | `moses/comboreduct/combo/builtin_action.h` | 133 | EXCLUDED | Legacy OpenCog embodiment support (action_result_type domain): feeds the excluded action_result_type knob branch (spec S3 non-goal) and the excluded ant_combo_vocabulary/. ActionReductUTest/PerceptionReductUTest are commented out in tests/comboreduct/reduct/CMakeLists.txt. Base class extended by ant_builtin_action. |
-| `moses/comboreduct/combo/combo.h` | 35 | PARTIAL | Pure aggregator header (#include vertex.h + procedure_repository.h + iostream_combo.h + eval.h + table.h) -- no logic of its own. Its vertex.h/iostream_combo.h/table.h parts are ported (S3/S5); its procedure_repository.h part is PLANNED: P2 and its eval.h part is PLANNED: S7 (see those rows). |
+| `moses/comboreduct/combo/combo.h` | 35 | PARTIAL | Pure aggregator header (#include vertex.h + procedure_repository.h + iostream_combo.h + eval.h + table.h) -- no logic of its own. Its vertex.h/iostream_combo.h/table.h parts are ported (S3/S5); its procedure_repository.h part is PLANNED: P2 and its eval.h part is PARTIAL (see those rows). |
 | `moses/comboreduct/combo/common_def.h` | 36 | PORTED | pymetta/comboreduct/combo/common_def.py (S3). |
 | `moses/comboreduct/combo/convert_ann_combo.h` | 207 | PLANNED: P2 | PLANNED: P2 -- ANN combo vertex type + neural-net evaluation. NOT named in the spec's P2 list (feature selection/diversity/ensembles/subsampling/other-optimizers/precision-recall scorers): a genuine gap. Not dead code either -- annUTest and ANNReductUTest are active tests in classic (CLAUDE.md). Only the ann_type knob-building branch is a stated non-goal (spec S3); the vertex/reduct support itself has no assigned slice. SURPRISE. |
 | `moses/comboreduct/combo/definite_object.cc` | 42 | PLANNED: P2 | PLANNED: P2 -- one of the vertex-variant types spec S3 explicitly declares in vertex.py "for completeness but unimplemented" (action, perception, message, procedure_call, ann_type, definite_object, indefinite_object, action_symbol, wild_card, enum_t). Not named in the spec's P2 list by this name -- a real, tested (non-embodiment) combo feature with no assigned slice. SURPRISE. |
@@ -107,12 +106,12 @@ PARTIAL -- no dedicated exception-hierarchy port exists; classic's `ComboReductE
 
 ## `moses/comboreduct/interpreter`
 
-`interpreter.{cc,h}` PARTIAL (boolean_interpreter only, S4); `eval.{cc,h}` PLANNED: S7 -- an ORDERING HAZARD, since `reduct/general_rules.cc` (named explicitly in S7) requires it and S7's backlog line does not mention it.
+`interpreter.{cc,h}` remains PARTIAL (boolean_interpreter only, S4). `eval.{cc,h}` is now also PARTIAL: S7 ported the builtin/argument/contin evaluation required by logical reduction, while procedure calls and the other unimplemented vertex variants remain outside the reachable S7 grammar.
 
 | File | Lines | Status | pyMeTTa path / Slice / Reason |
 |---|---:|---|---|
-| `moses/comboreduct/interpreter/eval.cc` | 593 | PLANNED: S7 | PLANNED: S7 -- ORDERING HAZARD. eval_binding/eval_throws_tree/eval_procedure_tree are the general (non-boolean-only) combo evaluator, used by reduct/general_rules.cc (named explicitly in the S7 backlog line) to evaluate subexpressions during reduction, and required by every reduct cxxtest (BooleanReductUTest, ContinReductUTest, MixedReductUTest, FullReductUTest, test_reduct.cc). S7's backlog line does not mention it, yet general_rules.cc cannot be ported without it. |
-| `moses/comboreduct/interpreter/eval.h` | 85 | PLANNED: S7 | PLANNED: S7 -- ORDERING HAZARD. eval_binding/eval_throws_tree/eval_procedure_tree are the general (non-boolean-only) combo evaluator, used by reduct/general_rules.cc (named explicitly in the S7 backlog line) to evaluate subexpressions during reduction, and required by every reduct cxxtest (BooleanReductUTest, ContinReductUTest, MixedReductUTest, FullReductUTest, test_reduct.cc). S7's backlog line does not mention it, yet general_rules.cc cannot be ported without it. |
+| `moses/comboreduct/interpreter/eval.cc` | 593 | PARTIAL | `pymetta/comboreduct/interpreter/eval.py` (S7). The builtin/argument/contin evaluator path used by S7 logical reduction is ported. Procedure calls and the remaining unimplemented combo vertex variants are not; contin/mixed interpreter coverage remains assigned to S14. |
+| `moses/comboreduct/interpreter/eval.h` | 85 | PARTIAL | Same as eval.cc. |
 | `moses/comboreduct/interpreter/interpreter.cc` | 387 | PARTIAL | pymetta/comboreduct/interpreter/interpreter.py (S4). Only boolean_interpreter (interpreter.h:46) is ported; contin_interpreter (:65) and mixed_interpreter (:79) are not -- needed for S14 (contin/mixed). |
 | `moses/comboreduct/interpreter/interpreter.h` | 101 | PARTIAL | Same as interpreter.cc. |
 
@@ -132,7 +131,7 @@ All 17 files EXCLUDED. Every one is a standalone C++ CLI tool; the spec's reposi
 | `moses/comboreduct/main/gen-table.cc` | 137 | EXCLUDED | CLI table generator (uses eval.h, S7). EXCLUDED -- C++ CLI tool. Spec S4's repository layout (S4) lists no comboreduct/main/ Python equivalent anywhere; no Python port is planned for this binary. |
 | `moses/comboreduct/main/gen-table.h` | 49 | EXCLUDED | Same as gen-table.cc. |
 | `moses/comboreduct/main/interactive-reductor.cc` | 225 | EXCLUDED | Interactive REPL CLI tool. EXCLUDED -- C++ CLI tool. Spec S4's repository layout (S4) lists no comboreduct/main/ Python equivalent anywhere; no Python port is planned for this binary. |
-| `moses/comboreduct/main/logical-reductor.cc` | 65 | EXCLUDED | CLI wrapper around logical_reduce (PLANNED: S7 as library code). EXCLUDED -- C++ CLI tool. Spec S4's repository layout (S4) lists no comboreduct/main/ Python equivalent anywhere; no Python port is planned for this binary. |
+| `moses/comboreduct/main/logical-reductor.cc` | 65 | EXCLUDED | CLI wrapper around logical_reduce (ported as S7 library code). EXCLUDED -- C++ CLI tool. Spec S4's repository layout (S4) lists no comboreduct/main/ Python equivalent anywhere; no Python port is planned for this binary. |
 | `moses/comboreduct/main/mixed-reductor.cc` | 93 | EXCLUDED | CLI wrapper around mixed_reduce (PLANNED: S14 as library code). EXCLUDED -- C++ CLI tool. Spec S4's repository layout (S4) lists no comboreduct/main/ Python equivalent anywhere; no Python port is planned for this binary. |
 | `moses/comboreduct/main/perception-reductor.cc` | 96 | EXCLUDED | CLI wrapper around the excluded perception_rules/perception_reduction (embodiment; PerceptionReductUTest disabled). EXCLUDED -- C++ CLI tool. Spec S4's repository layout (S4) lists no comboreduct/main/ Python equivalent anywhere; no Python port is planned for this binary. |
 | `moses/comboreduct/main/repl.cc` | 53 | EXCLUDED | Interactive combo REPL CLI tool. EXCLUDED -- C++ CLI tool. Spec S4's repository layout (S4) lists no comboreduct/main/ Python equivalent anywhere; no Python port is planned for this binary. |
@@ -142,7 +141,7 @@ All 17 files EXCLUDED. Every one is a standalone C++ CLI tool; the spec's reposi
 
 ## `moses/comboreduct/reduct`
 
-The reduction rule engine. `reduct.{cc,h}`, `meta_rules.*`, `general_rules.*`, `flat_normal_form.*`, `logical_rules.*`, `logical_reduction.cc`, and `clean_reduction.cc` PLANNED: S7 (clean_reduction is not named in the S7 backlog line by name but only depends on the S7 rule set and is needed by S8's representation.cc -- see that row). `branch_rules.*`, `contin_rules.*`, `contin_reduction.cc`, `mixed_rules.*`, `mixed_reduction.cc`, `full_reduction.cc` PLANNED: S14. `action_reduction.cc`/`action_rules.*`/`perception_reduction.cc`/`perception_rules.*` EXCLUDED (their cxxtests are commented out). `ann_reduction.cc`/`ann_rules.h` and `fold_reduction.cc`/`fold_rules.*` PLANNED: P2, both flagged as surprises (real, tested, unassigned).
+The reduction rule engine. S7 completed `meta_rules.*` and `clean_reduction.cc`; the Boolean/reachable portions of `reduct.{cc,h}`, `general_rules.*`, `flat_normal_form.*`, `logical_rules.*`, and `logical_reduction.cc` are PARTIAL with the remaining generic, contin, and mixed gaps named below. `branch_rules.*`, `contin_rules.*`, `contin_reduction.cc`, `mixed_rules.*`, `mixed_reduction.cc`, and `full_reduction.cc` remain PLANNED: S14. `action_reduction.cc`/`action_rules.*`/`perception_reduction.cc`/`perception_rules.*` are EXCLUDED (their cxxtests are commented out). `ann_reduction.cc`/`ann_rules.h` and `fold_reduction.cc`/`fold_rules.*` are PLANNED: P2, both flagged as surprises (real, tested, unassigned).
 
 | File | Lines | Status | pyMeTTa path / Slice / Reason |
 |---|---:|---|---|
@@ -153,42 +152,42 @@ The reduction rule engine. `reduct.{cc,h}`, `meta_rules.*`, `general_rules.*`, `
 | `moses/comboreduct/reduct/ann_rules.h` | 55 | PLANNED: P2 | PLANNED: P2 -- ANN combo vertex type + neural-net evaluation. NOT named in the spec's P2 list (feature selection/diversity/ensembles/subsampling/other-optimizers/precision-recall scorers): a genuine gap. Not dead code either -- annUTest and ANNReductUTest are active tests in classic (CLAUDE.md). Only the ann_type knob-building branch is a stated non-goal (spec S3); the vertex/reduct support itself has no assigned slice. SURPRISE. ANNReductUTest is active (not disabled). |
 | `moses/comboreduct/reduct/branch_rules.cc` | 171 | PLANNED: S14 | PLANNED: S14 -- only included by contin_reduction.cc/mixed_reduction.cc/full_reduction.cc (cond-reduction rules), never by logical_reduction.cc or clean_reduction.cc. Needed only once contin/mixed land. |
 | `moses/comboreduct/reduct/branch_rules.h` | 93 | PLANNED: S14 | PLANNED: S14 -- only included by contin_reduction.cc/mixed_reduction.cc/full_reduction.cc (cond-reduction rules), never by logical_reduction.cc or clean_reduction.cc. Needed only once contin/mixed land. |
-| `moses/comboreduct/reduct/clean_reduction.cc` | 58 | PLANNED: S7 | clean_reduce() ("removes null vertices") is called from reduct/logical_rules.cc:848 (S7), moses/representation/representation.cc:264 (S8, the null_vertex-sentinel hazard CLAUDE.md's Known Sharp Edges section documents), and tests/moses/KnobTurningUTest.cxxtest. Its only includes are meta_rules/general_rules/logical_rules -- no contin/mixed dependency -- so it belongs with S7. |
+| `moses/comboreduct/reduct/clean_reduction.cc` | 58 | PORTED | `pymetta/comboreduct/reduct/clean_reduction.py` (S7). `clean_reduce()` and its null-vertex removal path are ported; this is also the cleanup dependency needed by S8 representation work. |
 | `moses/comboreduct/reduct/contin_reduction.cc` | 138 | PLANNED: S14 | Named explicitly in the S14 backlog line (contin_rules). |
 | `moses/comboreduct/reduct/contin_rules.cc` | 1025 | PLANNED: S14 | Named explicitly in the S14 backlog line. |
 | `moses/comboreduct/reduct/contin_rules.h` | 191 | PLANNED: S14 | Named explicitly in the S14 backlog line. |
-| `moses/comboreduct/reduct/flat_normal_form.cc` | 79 | PLANNED: S7 | Named explicitly in the S7 backlog line (spec S12: reduct.py, meta_rules, general_rules, flat_normal_form, logical_rules, logical_reduction). |
-| `moses/comboreduct/reduct/flat_normal_form.h` | 281 | PLANNED: S7 | Named explicitly in the S7 backlog line (spec S12: reduct.py, meta_rules, general_rules, flat_normal_form, logical_rules, logical_reduction). |
+| `moses/comboreduct/reduct/flat_normal_form.cc` | 79 | PARTIAL | `pymetta/comboreduct/reduct/flat_normal_form.py` (S7). ENF/DNF/CNF conversion and the concrete iterator shapes used by logical reduction are ported; the generic C++ iterator/range overload surface is intentionally narrowed. |
+| `moses/comboreduct/reduct/flat_normal_form.h` | 281 | PARTIAL | Same as flat_normal_form.cc. |
 | `moses/comboreduct/reduct/fold_reduction.cc` | 41 | PLANNED: P2 | PLANNED: P2 -- fold_reduce implements foldl/foldr unrolling (foldl(f v list(a b c)) -> f(f(f(v a) b) c)). FoldReductUTest is active. Only includes meta_rules/general_rules -- independent of both the S7 logical rule set and the S14 contin/mixed rule set. Not named in S7-S14 backlog or the P2 list. SURPRISE. |
 | `moses/comboreduct/reduct/fold_rules.cc` | 61 | PLANNED: P2 | PLANNED: P2 -- fold_reduce implements foldl/foldr unrolling (foldl(f v list(a b c)) -> f(f(f(v a) b) c)). FoldReductUTest is active. Only includes meta_rules/general_rules -- independent of both the S7 logical rule set and the S14 contin/mixed rule set. Not named in S7-S14 backlog or the P2 list. SURPRISE. |
 | `moses/comboreduct/reduct/fold_rules.h` | 23 | PLANNED: P2 | PLANNED: P2 -- fold_reduce implements foldl/foldr unrolling (foldl(f v list(a b c)) -> f(f(f(v a) b) c)). FoldReductUTest is active. Only includes meta_rules/general_rules -- independent of both the S7 logical rule set and the S14 contin/mixed rule set. Not named in S7-S14 backlog or the P2 list. SURPRISE. |
 | `moses/comboreduct/reduct/full_reduction.cc` | 238 | PLANNED: S14 | Combines branch_rules + logical_rules + contin_rules + mixed_rules -- cannot be completed before S14 lands (needs contin/mixed, which S7 does not provide). |
-| `moses/comboreduct/reduct/general_rules.cc` | 141 | PLANNED: S7 | Named explicitly in the S7 backlog line (spec S12: reduct.py, meta_rules, general_rules, flat_normal_form, logical_rules, logical_reduction). |
-| `moses/comboreduct/reduct/general_rules.h` | 77 | PLANNED: S7 | Named explicitly in the S7 backlog line (spec S12: reduct.py, meta_rules, general_rules, flat_normal_form, logical_rules, logical_reduction). |
-| `moses/comboreduct/reduct/logical_reduction.cc` | 164 | PLANNED: S7 | Named explicitly in the S7 backlog line (spec S12: reduct.py, meta_rules, general_rules, flat_normal_form, logical_rules, logical_reduction). |
-| `moses/comboreduct/reduct/logical_rules.cc` | 860 | PLANNED: S7 | Named explicitly in the S7 backlog line (spec S12: reduct.py, meta_rules, general_rules, flat_normal_form, logical_rules, logical_reduction). |
-| `moses/comboreduct/reduct/logical_rules.h` | 286 | PLANNED: S7 | Named explicitly in the S7 backlog line (spec S12: reduct.py, meta_rules, general_rules, flat_normal_form, logical_rules, logical_reduction). |
-| `moses/comboreduct/reduct/meta_rules.cc` | 156 | PLANNED: S7 | Named explicitly in the S7 backlog line (spec S12: reduct.py, meta_rules, general_rules, flat_normal_form, logical_rules, logical_reduction). "combinators first" per spec S12/S11 risk table. |
-| `moses/comboreduct/reduct/meta_rules.h` | 177 | PLANNED: S7 | Named explicitly in the S7 backlog line (spec S12: reduct.py, meta_rules, general_rules, flat_normal_form, logical_rules, logical_reduction). |
+| `moses/comboreduct/reduct/general_rules.cc` | 141 | PARTIAL | `pymetta/comboreduct/reduct/general_rules.py` (S7). The general combinators and constant evaluation needed by logical reduction are ported; evaluation remains limited to the builtin/argument/contin vertex grammar supported by `eval.py`. |
+| `moses/comboreduct/reduct/general_rules.h` | 77 | PARTIAL | Same as general_rules.cc. |
+| `moses/comboreduct/reduct/logical_reduction.cc` | 164 | PARTIAL | `pymetta/comboreduct/reduct/logical_reduction.py` (S7). Boolean logical reduction is ported and oracle-tested. Predicate simplification over contin/mixed expressions is incomplete and remains part of S14. |
+| `moses/comboreduct/reduct/logical_rules.cc` | 860 | PARTIAL | `pymetta/comboreduct/reduct/logical_rules.py` (S7). The Boolean logical rule set and its reachable truth-table path are ported; contin/mixed predicate behavior and generic vertex variants remain outside S7. |
+| `moses/comboreduct/reduct/logical_rules.h` | 286 | PARTIAL | Same as logical_rules.cc. |
+| `moses/comboreduct/reduct/meta_rules.cc` | 156 | PORTED | `pymetta/comboreduct/reduct/meta_rules.py` (S7). Rule combinators and traversal strategies are ported. |
+| `moses/comboreduct/reduct/meta_rules.h` | 177 | PORTED | Same as meta_rules.cc. |
 | `moses/comboreduct/reduct/mixed_reduction.cc` | 142 | PLANNED: S14 | Named explicitly in the S14 backlog line (mixed_rules). |
 | `moses/comboreduct/reduct/mixed_rules.cc` | 1765 | PLANNED: S14 | Named explicitly in the S14 backlog line. |
 | `moses/comboreduct/reduct/mixed_rules.h` | 294 | PLANNED: S14 | Named explicitly in the S14 backlog line. |
 | `moses/comboreduct/reduct/perception_reduction.cc` | 82 | EXCLUDED | PerceptionReductUTest is commented out (tests/comboreduct/reduct/CMakeLists.txt:42); legacy embodiment (spec S3 non-goal). |
 | `moses/comboreduct/reduct/perception_rules.cc` | 209 | EXCLUDED | Same as perception_reduction.cc. |
 | `moses/comboreduct/reduct/perception_rules.h` | 85 | EXCLUDED | Same as perception_reduction.cc. |
-| `moses/comboreduct/reduct/reduct.cc` | 33 | PLANNED: S7 | Named explicitly in the S7 backlog line (spec S12: reduct.py, meta_rules, general_rules, flat_normal_form, logical_rules, logical_reduction). ("reduct.py"). |
-| `moses/comboreduct/reduct/reduct.h` | 269 | PLANNED: S7 | Named explicitly in the S7 backlog line (spec S12: reduct.py, meta_rules, general_rules, flat_normal_form, logical_rules, logical_reduction). |
+| `moses/comboreduct/reduct/reduct.cc` | 33 | PARTIAL | `pymetta/comboreduct/reduct/reduct.py` (S7). The reduction framework used by Boolean logical reduction is ported; the full contin/mixed rule composition remains S14. |
+| `moses/comboreduct/reduct/reduct.h` | 269 | PARTIAL | Same as reduct.cc. |
 
 ## `moses/comboreduct/table`
 
-All 4 files PARTIAL -- pymetta's `table.py`/`table_io.py` (S5) are functionally complete for the boolean path but carry a named constructor-aliasing gap (CARRY-FORWARD 1.1) and two currently-inert latent defects ported faithfully from classic (CARRY-FORWARD 2.2, 2.3).
+All 4 files remain PARTIAL -- pymetta's `table.py`/`table_io.py` (S5) are functionally complete for the boolean path, but their generic C++ overload surface is narrowed and two currently-inert latent defects remain (CARRY-FORWARD 2.2, 2.3). The former constructor-aliasing gap (CARRY-FORWARD 1.1) was fixed in S7 Task 0: `Table.__init__` now copies both inputs and the old-format loader fills its table in place.
 
 | File | Lines | Status | pyMeTTa path / Slice / Reason |
 |---|---:|---|---|
-| `moses/comboreduct/table/table.cc` | 928 | PARTIAL | PARTIAL -- pymetta/comboreduct/table/{table.py,table_io.py} (S5). Genuine gap (CARRY-FORWARD 1.1): Table.__init__ (table.py:574) aliases otable/itable by reference where table.cc:485 copies both; parked because _load_table_old currently depends on the alias. Also two latent (currently-inert) defects: CTable's dict key is type-blind (CARRY-FORWARD 2.2) and the weighted-CTable arity landmine at Table.compressed/CTable.filtered (CARRY-FORWARD 2.3), both ported faithfully from classic. |
-| `moses/comboreduct/table/table.h` | 1511 | PARTIAL | PARTIAL -- pymetta/comboreduct/table/{table.py,table_io.py} (S5). Genuine gap (CARRY-FORWARD 1.1): Table.__init__ (table.py:574) aliases otable/itable by reference where table.cc:485 copies both; parked because _load_table_old currently depends on the alias. Also two latent (currently-inert) defects: CTable's dict key is type-blind (CARRY-FORWARD 2.2) and the weighted-CTable arity landmine at Table.compressed/CTable.filtered (CARRY-FORWARD 2.3), both ported faithfully from classic. UPDATED (S7 Task 5): `complete_truth_table` (table.h:1436-1507) also now has a real, narrowly-scoped port in `table.py` -- only the `(tr)`/`(tr, arity)` constructors and `same_complete_truth_table` (the one form `reduce_remove_subtree_equal_tt`, `comboreduct/reduct/logical_rules.py`, actually needs); the `(It, It)` range ctor, the `(Func, arity)` functional ctor, `operator()(It, It)`, and `hamming_distance` are NOT ported (zero call sites in this project's reachable scope -- see `complete_truth_table`'s own docstring). |
-| `moses/comboreduct/table/table_io.cc` | 1441 | PARTIAL | PARTIAL -- pymetta/comboreduct/table/{table.py,table_io.py} (S5). Genuine gap (CARRY-FORWARD 1.1): Table.__init__ (table.py:574) aliases otable/itable by reference where table.cc:485 copies both; parked because _load_table_old currently depends on the alias. Also two latent (currently-inert) defects: CTable's dict key is type-blind (CARRY-FORWARD 2.2) and the weighted-CTable arity landmine at Table.compressed/CTable.filtered (CARRY-FORWARD 2.3), both ported faithfully from classic. |
-| `moses/comboreduct/table/table_io.h` | 250 | PARTIAL | PARTIAL -- pymetta/comboreduct/table/{table.py,table_io.py} (S5). Genuine gap (CARRY-FORWARD 1.1): Table.__init__ (table.py:574) aliases otable/itable by reference where table.cc:485 copies both; parked because _load_table_old currently depends on the alias. Also two latent (currently-inert) defects: CTable's dict key is type-blind (CARRY-FORWARD 2.2) and the weighted-CTable arity landmine at Table.compressed/CTable.filtered (CARRY-FORWARD 2.3), both ported faithfully from classic. |
+| `moses/comboreduct/table/table.cc` | 928 | PARTIAL | `pymetta/comboreduct/table/{table.py,table_io.py}` (S5). Boolean-path table behavior is ported and S7 Task 0 fixed `Table.__init__`'s former aliasing gap. Generic vertex variants remain outside the current grammar; two inherited latent defects remain documented in CARRY-FORWARD 2.2 and 2.3. |
+| `moses/comboreduct/table/table.h` | 1511 | PARTIAL | Same Boolean-path scope as table.cc. S7 Task 5 added a narrow `complete_truth_table` port: the `(tr)`/`(tr, arity)` constructors and `same_complete_truth_table`; the `(It, It)` and `(Func, arity)` constructors, `operator()(It, It)`, and `hamming_distance` remain unported because the reachable S7 path has no call sites for them. |
+| `moses/comboreduct/table/table_io.cc` | 1441 | PARTIAL | `pymetta/comboreduct/table/table_io.py` (S5), scoped to the supported Boolean/contin table grammar. S7 Task 0 corrected the old-format loader so it fills `Table.itable` in place without relying on constructor aliasing; unsupported classic vertex and table variants remain outside scope. |
+| `moses/comboreduct/table/table_io.h` | 250 | PARTIAL | Same scoped table I/O coverage as table_io.cc. |
 
 ## `moses/comboreduct/type_checker`
 
@@ -423,7 +422,7 @@ All 3 files PORTED (S1 `tree.h` -> tree.py, S2 `mt19937ar.cc`+`RandGen.h` -> rng
 |---|---:|---|---|
 | `opencog/util/RandGen.h` | 84 | PORTED | pymetta/util/rng.py (S2) -- the RandGen surface (randint/randint(n)/randdouble/randbool) reproduced as free functions/methods on the ported MT19937 class; see mt19937ar.cc row for the P2 caveat. |
 | `opencog/util/mt19937ar.cc` | 94 | PORTED | pymetta/util/rng.py (S2), together with RandGen.h below. randint/randint(n)/randdouble/randbool are bit-identical (spec S6, verified over a seed matrix of 12,000+ draws). randfloat/randdouble_one_excluded/rand_discrete raise NotImplementedError (unreachable on the boolean-table path; randfloat is PLANNED: P2, needed for the combo rand builtin in eval.cc/interpreter.cc and the tree_gen.cc CLI tool). |
-| `opencog/util/tree.h` | 3420 | PORTED | pymetta/util/tree.py (S1). API surface scoped by measured call-site frequency (spec S1), not the full 3420-line header -- begin/end, size, erase, empty, append_child, insert, child, number_of_children, erase_children, flatten, is_valid, insert_above, next_sibling, replace, wrap, equal_subtree, move_after, count, insert_subtree_after, reparent, insert_subtree, move_ontop, prepend_child, begin_leaf/end_leaf, move_before, insert_after, append_children, begin_post/end_post, previous_sibling, number_of_siblings, sort, max_depth. CARRY-FORWARD 1.3: erase()/replace() leave discarded nodes' own parent/next_sibling links live (C++ dangles instead) -- undecided gap for S8's knob_mapper. |
+| `opencog/util/tree.h` | 3420 | PORTED | pymetta/util/tree.py (S1). API surface scoped by measured call-site frequency (spec S1), not the full 3420-line header -- begin/end, size, erase, empty, append_child, insert, child, number_of_children, erase_children, flatten, is_valid, insert_above, next_sibling, replace, wrap, equal_subtree, move_after, count, insert_subtree_after, reparent, insert_subtree, move_ontop, prepend_child, begin_leaf/end_leaf, move_before, insert_after, append_children, begin_post/end_post, previous_sibling, number_of_siblings, sort, max_depth. CARRY-FORWARD 1.3 was resolved in S7: erased/replaced subtrees are recursively marked dead, and public navigation, reads, mutation targets, and subtree-copy sources reject stale handles. This deliberately fails fast where C++ leaves dangling iterators, which makes S8's `knob_mapper` failure mode explicit. |
 
 ## Verification performed for EXCLUDED entries
 

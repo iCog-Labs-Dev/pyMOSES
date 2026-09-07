@@ -51,8 +51,31 @@ from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parent.parent.parent
 sys.path.insert(0, str(REPO_ROOT))
+sys.path.insert(0, str(REPO_ROOT / "tests" / "comboreduct" / "reduct"))
+
+from enf_checkers import (  # noqa: E402
+    root_is_bare_junctor_token,
+    truth_table_preserved,
+    tt_unsound_by_construction,
+)
 
 EFFORTS = (1, 2, 3)
+
+# The random generator intentionally creates only 2-3 child junctors.
+# Keep these measured edge cases in every run so the harness exercises
+# the exact childless-junctor behavior that motivated its three-phase C++
+# probe. They cover harmless root folding, genuine divergence, masking,
+# and reduced root-token output.
+PATHOLOGICAL_TREES = (
+    "and()",
+    "or()",
+    "and(or())",
+    "and(or() or())",
+    "or(and(or()) $1)",
+    "and($1 or(and(or()) $1))",
+    "or(and() and())",
+    "or(and(or($1 and(!$1))) !$2)",
+)
 
 
 def run_python_side(tree_str: str, effort: int) -> dict:
@@ -64,40 +87,45 @@ def run_python_side(tree_str: str, effort: int) -> dict:
 
     Also reports `root_token`: whether the REDUCED tree's root is a bare
     childless `and()`/`or()` -- see `_CPP_BUILTIN_TO_BOOL_ASSERT` below
-    for why this matters: this is the one shape `reduct_effort_probe.cc`
-    (and upstream's own `test_reduct.cc`) cannot report a `reduced` value
-    for at all, because their own POST-reduction `complete_truth_table`
-    call -- instrumentation the probe adds on top of `logical_reduce`
-    itself, not part of `logical_reduce`'s own contract -- aborts on
-    exactly this input (`vertex.h:708-713`'s `OC_ASSERT`, matching this
-    project's own `enf_checkers.ROOT_TOKEN` design)."""
+    for why this matters: upstream `test_reduct.cc` cannot report a reduced
+    value for this shape because its post-reduction truth-table call throws.
+    This project's three-phase probe still reports `ok` and `reduced`, then
+    records `tt_computed: false` separately. The throw comes from
+    `vertex.h:708-713`'s `OC_ASSERT`, matching this project's own
+    `enf_checkers.ROOT_TOKEN` design."""
     from pymetta.comboreduct.combo.iostream_combo import combo_tree_to_str, str_to_combo_tree
     from pymetta.comboreduct.reduct.logical_reduction import logical_reduce
 
-    sys.path.insert(0, str(REPO_ROOT / "tests" / "comboreduct" / "reduct"))
-    from enf_checkers import root_is_bare_junctor_token
-
     try:
+        original = str_to_combo_tree(tree_str)
         tr = str_to_combo_tree(tree_str)
         logical_reduce(effort, tr, ignore_ops=set())
-        return {
+        row = {
             "ok": True,
             "reduced": combo_tree_to_str(tr),
+            "original_root_token": root_is_bare_junctor_token(original),
             "root_token": root_is_bare_junctor_token(tr),
+            "input_shape_flagged": tt_unsound_by_construction(original),
         }
     except Exception as e:  # noqa: BLE001 -- deliberately broad: this IS the oracle
         return {"ok": False, "error": f"{type(e).__name__}: {e}"}
 
+    try:
+        preserved = truth_table_preserved(original, tr)
+        row["tt_computed"] = preserved is not None
+        if preserved is not None:
+            row["tt_preserved"] = preserved
+    except Exception as e:  # noqa: BLE001 -- diagnostic phase must not mask reduction success
+        row["tt_computed"] = False
+        row["tt_error"] = f"{type(e).__name__}: {e}"
+    return row
 
-# The EXACT OC_ASSERT message `builtin_to_bool` (vertex.h:708-713) raises
-# when `complete_truth_table` (called by `reduct_effort_probe.cc` itself,
-# AFTER `logical_reduce` has already run and returned, purely to compute
-# the probe's own `tt_preserved` diagnostic) evaluates a tree whose root
-# is a bare, childless `and()`/`or()`. A match here means `logical_reduce`
-# itself already completed successfully in C++ -- the probe's `ok: false`
-# is entirely about ITS OWN post-hoc instrumentation, not about whether
-# reduction succeeded or what it produced.
-_CPP_BUILTIN_TO_BOOL_ASSERT = "should be 'id::logical_true' or 'id::logical_false'"
+
+# Exact OC_ASSERT message from builtin_to_bool (vertex.h:708-713). Unlike
+# the old substring, this does not also match vertex_to_bool's assertion.
+_CPP_BUILTIN_TO_BOOL_ASSERT = (
+    "builtin should be 'id::logical_true' or 'id::logical_false'."
+)
 
 
 def main() -> int:
@@ -114,13 +142,18 @@ def main() -> int:
     from tools.capture_reduct import PROBE_BIN, build_probe, run_probe
     from tools.cpp_probe.gen_boolean_trees import generate_corpus
 
-    trees = generate_corpus(args.count, args.seed, args.max_depth, args.arity)
+    random_trees = generate_corpus(args.count, args.seed, args.max_depth, args.arity)
+    trees = list(dict.fromkeys([*random_trees, *PATHOLOGICAL_TREES]))
     corpus_path = args.keep_corpus or (
         REPO_ROOT / "tools" / "cpp_probe" / "build" / "_differential_effort_corpus.txt"
     )
     corpus_path.parent.mkdir(parents=True, exist_ok=True)
     corpus_path.write_text("\n".join(trees) + "\n")
-    print(f"Generated {len(trees)} trees (seed={args.seed}) -> {corpus_path}")
+    print(
+        f"Generated {len(random_trees)} random trees and included "
+        f"{len(PATHOLOGICAL_TREES)} targeted trees (seed={args.seed}); "
+        f"{len(trees)} unique total -> {corpus_path}"
+    )
 
     build_probe(force=args.rebuild)
     print(f"Probe: {PROBE_BIN}")
@@ -129,18 +162,20 @@ def main() -> int:
     crashes: list[dict] = []
     cpp_only_errors: list[dict] = []
     both_errored_differently: list[dict] = []
+    semantic_instrumentation_mismatches: list[dict] = []
+    cpp_nonpreserved_flagged = 0
+    cpp_nonpreserved_unflagged = 0
     root_token_agreements = 0
     counts = {e: 0 for e in EFFORTS}
 
     for effort in EFFORTS:
         cpp_results = run_probe(corpus_path, effort)
         if len(cpp_results) != len(trees):
-            print(
-                f"WARNING: effort {effort}: C++ probe returned {len(cpp_results)} "
-                f"results for {len(trees)} inputs",
-                file=sys.stderr,
+            raise RuntimeError(
+                f"effort {effort}: C++ probe returned {len(cpp_results)} "
+                f"results for {len(trees)} inputs"
             )
-        for tree_str, cpp_row in zip(trees, cpp_results, strict=False):
+        for tree_str, cpp_row in zip(trees, cpp_results, strict=True):
             if cpp_row["input"] != tree_str:
                 raise RuntimeError(
                     f"effort {effort}: probe result/corpus order mismatch: "
@@ -156,38 +191,41 @@ def main() -> int:
                     divergences.append(
                         {"effort": effort, "input": tree_str, "cpp": cpp_row, "python": py_row}
                     )
+                cpp_tt_computed = cpp_row.get("tt_computed", True)
+                py_tt_computed = py_row.get("tt_computed", True)
+                tt_matches = cpp_tt_computed == py_tt_computed
+                if cpp_tt_computed and py_tt_computed:
+                    tt_matches = cpp_row["tt_preserved"] == py_row["tt_preserved"]
+                    if not cpp_row["tt_preserved"]:
+                        if py_row["input_shape_flagged"]:
+                            cpp_nonpreserved_flagged += 1
+                        else:
+                            cpp_nonpreserved_unflagged += 1
+                elif not cpp_tt_computed and not py_tt_computed:
+                    cpp_expected_root_token = _CPP_BUILTIN_TO_BOOL_ASSERT in cpp_row.get(
+                        "tt_error", ""
+                    )
+                    py_expected_root_token = (
+                        "tt_error" not in py_row
+                        and (py_row["original_root_token"] or py_row["root_token"])
+                    )
+                    tt_matches = cpp_expected_root_token and py_expected_root_token
+                if not tt_matches:
+                    semantic_instrumentation_mismatches.append(
+                        {"effort": effort, "input": tree_str, "cpp": cpp_row, "python": py_row}
+                    )
             elif cpp_ok and not py_ok:
                 crashes.append(
                     {"effort": effort, "input": tree_str, "cpp": cpp_row, "python": py_row}
                 )
             elif not cpp_ok and py_ok:
-                # KNOWN, non-bug shape (found by this very harness, see
-                # the module docstring's item 4 note in task-6-report.md):
-                # `reduct_effort_probe.cc` computes `complete_truth_table`
-                # on the tree AFTER `logical_reduce` has already run,
-                # purely for its own `tt_preserved` diagnostic -- that
-                # crashes (`vertex.h:708-713`'s OC_ASSERT) whenever the
-                # REDUCED tree's root is a bare childless `and()`/`or()`,
-                # even though `logical_reduce` itself already completed
-                # and returned normally. If Python's OWN reduced tree is
-                # ALSO that exact shape, both sides agree on what
-                # `logical_reduce` produced -- the C++ "error" is the
-                # probe's own instrumentation, not a `logical_reduce`
-                # divergence -- so this is counted as agreement, not a
-                # C++-refused/Python-succeeded mismatch. Anything else
-                # (Python succeeded with a NON-root-token result while
-                # C++'s `logical_reduce` -- inferred from that specific
-                # error signature -- also hit this shape) is a genuine,
-                # surprising finding and stays in `cpp_only_errors`.
-                if (
-                    _CPP_BUILTIN_TO_BOOL_ASSERT in cpp_row.get("error", "")
-                    and py_row.get("root_token") is True
-                ):
-                    root_token_agreements += 1
-                else:
-                    cpp_only_errors.append(
-                        {"effort": effort, "input": tree_str, "cpp": cpp_row, "python": py_row}
-                    )
+                # The C++ probe reports `ok` for logical_reduce alone;
+                # post-hoc truth-table failures no longer reach this
+                # branch. A C++ reduction failure with Python success is
+                # therefore always a real mismatch.
+                cpp_only_errors.append(
+                    {"effort": effort, "input": tree_str, "cpp": cpp_row, "python": py_row}
+                )
             else:
                 # Both refused. `run_differential.py` (Task 4)'s own
                 # precedent: only a real mismatch if the reasons look
@@ -223,9 +261,17 @@ def main() -> int:
     print(f"C++ refused where Python succeeded (genuine): {len(cpp_only_errors)}")
     print(f"Both sides errored, for seemingly different reasons: {len(both_errored_differently)}")
     print(
-        f"Root-token agreements (both sides' logical_reduce actually agreed; "
-        f"C++'s own post-hoc complete_truth_table diagnostic is what crashed, "
-        f"not logical_reduce -- not counted as a divergence): {root_token_agreements}"
+        "Truth-table diagnostic mismatches between C++ and Python: "
+        f"{len(semantic_instrumentation_mismatches)}"
+    )
+    print(
+        "C++ truth-table non-preservation: "
+        f"{cpp_nonpreserved_flagged} input-shape flagged, "
+        f"{cpp_nonpreserved_unflagged} input-shape unflagged"
+    )
+    print(
+        f"Shared builtin-to-bool failures inside logical_reduce "
+        f"(not counted as divergences): {root_token_agreements}"
     )
 
     for label, bucket in (
@@ -233,6 +279,7 @@ def main() -> int:
         ("crashes", crashes),
         ("cpp_only_errors", cpp_only_errors),
         ("both_errored_differently", both_errored_differently),
+        ("semantic_instrumentation_mismatches", semantic_instrumentation_mismatches),
     ):
         if not bucket:
             continue
@@ -243,7 +290,11 @@ def main() -> int:
             print(f"    Python: {row['python']}")
 
     total_problems = len(divergences) + len(crashes) + len(cpp_only_errors)
-    total_divergence_count = total_problems + len(both_errored_differently)
+    total_divergence_count = (
+        total_problems
+        + len(both_errored_differently)
+        + len(semantic_instrumentation_mismatches)
+    )
     print(f"\nTOTAL DIVERGENCE COUNT: {total_divergence_count}")
     return 0 if total_divergence_count == 0 else 1
 

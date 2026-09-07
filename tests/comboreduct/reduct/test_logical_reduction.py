@@ -118,6 +118,16 @@ def test_effort2_matches_c_plus_plus(tree_str, expected):
     assert combo_tree_to_str(tr).strip() == expected
 
 
+def test_three_argument_overload_treats_third_positional_argument_as_ignore_ops():
+    positional = str_to_combo_tree(_TREE_2)
+    keyword = str_to_combo_tree(_TREE_2)
+
+    logical_reduce(2, positional, set())
+    logical_reduce(2, keyword, ignore_ops=set())
+
+    assert combo_tree_to_str(positional) == combo_tree_to_str(keyword)
+
+
 @pytest.mark.parametrize(("tree_str", "expected"), _EFFORT3_CASES)
 def test_effort3_matches_c_plus_plus(tree_str, expected):
     tr = str_to_combo_tree(tree_str)

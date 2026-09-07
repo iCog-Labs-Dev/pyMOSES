@@ -687,27 +687,20 @@ def test_insert_above_on_the_root_makes_a_new_root():
 
 
 def test_move_ontop_where_source_is_a_descendant_of_target():
-    """C++ documents move_ontop as unsafe when `source` is inside `target`'s
-    own subtree ("Warning: only use if source is not included in the
-    subtree of target"). erase(target) recursively clears every
-    descendant's own children *before* move_ontop rescues `source` -- so if
-    `source` itself had children, they are destroyed as collateral damage
-    even though `source` survives and gets relocated. This asserts that
-    concrete, observable consequence (matching the literal erase_children
-    recursion) instead of guessing at a crash: Python has no literal
-    use-after-free to reproduce, since nothing is actually freed.
-    """
+    """Enforce C++'s documented precondition before it becomes a UAF."""
     t = tree("root")
     target = t.append_child(t.begin(), "target")
     source = t.append_child(target, "source")
-    t.append_child(source, "source_child")  # destroyed as collateral damage
+    t.append_child(source, "source_child")
 
-    t.move_ontop(target, source)
+    with pytest.raises(ValueError, match="must not be a descendant"):
+        t.move_ontop(target, source)
 
     validate(t)
     assert t.number_of_children(t.begin()) == 1
-    assert t.child(t.begin(), 0) is source
-    assert t.number_of_children(source) == 0  # source's own child did not survive
+    assert t.child(t.begin(), 0) is target
+    assert t.child(target, 0) is source
+    assert t.number_of_children(source) == 1
 
 
 def test_equal_subtree_structurally_equal_but_distinct_objects():
@@ -993,7 +986,7 @@ def test_replace_subtree_leaves_the_discarded_nodes_own_links_dead():
     t = tree("root")
     t.append_child(t.begin(), "a")
     b = t.append_child(t.begin(), "b")
-    t.append_child(b, "b1")
+    b1 = t.append_child(b, "b1")
     t.append_child(t.begin(), "c")
     src = tree("s")
     src.append_child(src.begin(), "s1")
@@ -1010,10 +1003,154 @@ def test_replace_subtree_leaves_the_discarded_nodes_own_links_dead():
     with pytest.raises(AttributeError):
         _ = b.parent.data
 
-    # Only the discarded node's OWN outward links are poisoned -- its own
-    # (now orphaned) subtree is still self-consistent and readable.
+    # C++ destroys the discarded node's full old subtree. Retained Python
+    # handles fail loudly instead of remaining readable after replacement.
     assert b.data == "b"
-    assert b.first_child.data == "b1"
+    assert b.first_child is None
+    with pytest.raises(AttributeError):
+        _ = b1.parent.data
+
+
+def test_erase_poisons_retained_handles_to_every_descendant():
+    t = tree("root")
+    branch = t.append_child(t.begin(), "branch")
+    child = t.append_child(branch, "child")
+    grandchild = t.append_child(child, "grandchild")
+    t.append_child(t.begin(), "survivor")
+
+    t.erase(branch)
+    validate(t)
+    assert [n.data for n in t] == ["root", "survivor"]
+
+    for discarded in (branch, child, grandchild):
+        with pytest.raises(ValueError):
+            tree(discarded)
+        with pytest.raises(AttributeError):
+            _ = discarded.parent.data
+
+
+def test_erase_children_poisons_descendants_but_keeps_parent_live():
+    t = tree("root")
+    branch = t.append_child(t.begin(), "branch")
+    child = t.append_child(branch, "child")
+    grandchild = t.append_child(child, "grandchild")
+
+    t.erase_children(branch)
+    validate(t)
+    assert [n.data for n in t] == ["root", "branch"]
+    assert branch.parent is t.begin()
+    assert branch.first_child is None
+
+    for discarded in (child, grandchild):
+        with pytest.raises(ValueError):
+            tree(discarded)
+        with pytest.raises(AttributeError):
+            _ = discarded.parent.data
+
+
+@pytest.mark.parametrize(
+    "operation",
+    ["append_child", "insert_subtree", "insert_subtree_after", "replace"],
+)
+def test_subtree_copy_operations_reject_erased_descendant_sources(operation):
+    src = tree("source")
+    branch = src.append_child(src.begin(), "branch")
+    dead_source = src.append_child(branch, "dead-source")
+    src.erase(branch)
+
+    dst = tree("destination")
+    anchor = dst.append_child(dst.begin(), "anchor")
+    dst.append_child(dst.begin(), "tail")
+
+    with pytest.raises(ValueError, match="cannot copy from an erased/detached node"):
+        if operation == "append_child":
+            dst.append_child(dst.begin(), dead_source)
+        elif operation == "insert_subtree":
+            dst.insert_subtree(anchor, dead_source)
+        elif operation == "insert_subtree_after":
+            dst.insert_subtree_after(anchor, dead_source)
+        else:
+            dst.replace(anchor, dead_source)
+
+    validate(dst)
+    assert [n.data for n in dst] == ["destination", "anchor", "tail"]
+
+
+@pytest.mark.parametrize(
+    "operation",
+    ["append_child", "replace", "erase_children", "insert_above", "move_after"],
+)
+def test_mutation_operations_reject_erased_targets(operation):
+    t = tree("root")
+    dead = t.append_child(t.begin(), "dead")
+    live = t.append_child(t.begin(), "live")
+    t.erase(dead)
+
+    with pytest.raises(ValueError, match="cannot use an erased/detached node"):
+        if operation == "append_child":
+            t.append_child(dead, "new")
+        elif operation == "replace":
+            t.replace(dead, "new")
+        elif operation == "erase_children":
+            t.erase_children(dead)
+        elif operation == "insert_above":
+            t.insert_above(dead, "new")
+        else:
+            t.move_after(dead, live)
+
+    validate(t)
+    assert [n.data for n in t] == ["root", "live"]
+
+
+@pytest.mark.parametrize(
+    "operation",
+    [
+        "iter_post_at",
+        "iter_pre_at",
+        "next_pre_order",
+        "subtree_pre_order_end",
+        "child",
+        "children",
+        "number_of_children",
+        "is_childless",
+        "has_one_child",
+        "number_of_siblings",
+        "sibling_index",
+        "next_sibling",
+        "previous_sibling",
+        "max_depth",
+        "count",
+        "equal_subtree",
+        "validate",
+    ],
+)
+def test_public_navigation_operations_reject_erased_handles(operation):
+    t = tree("root")
+    dead = t.append_child(t.begin(), "dead")
+    live = t.append_child(t.begin(), "live")
+    t.erase(dead)
+
+    with pytest.raises(ValueError, match="cannot use an erased/detached node"):
+        if operation == "child":
+            t.child(dead, 0)
+        elif operation == "equal_subtree":
+            t.equal_subtree(dead, live)
+        else:
+            getattr(t, operation)(dead)
+
+    validate(t)
+
+
+def test_erased_handle_is_invalid_but_retains_its_plain_data_value():
+    t = tree("root")
+    dead = t.append_child(t.begin(), "dead")
+    t.erase(dead)
+
+    assert t.is_valid(dead) is False
+    # Python retains the object while external references exist. The
+    # fail-fast contract covers tree operations and link navigation, not
+    # reading the inert payload value directly from that retained object.
+    assert dead.data == "dead"
 
 
 def test_replace_data_in_place_does_not_poison_the_reused_node():

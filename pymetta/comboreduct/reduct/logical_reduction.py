@@ -245,5 +245,8 @@ def logical_reduce(
     implementation split to break that cycle the way C++'s `reduct.h`/
     `logical_reduction.cc` do.
     """
+    if isinstance(it, set) and ignore_ops is None:
+        ignore_ops = it
+        it = _NO_IT
     r = logical_reduction(ignore_ops)
     r(effort)(tr, it)

@@ -10,7 +10,7 @@ speculation. Items are grouped by when they bite.
 
 ## 1. Must be settled before S7 (reduct) and S8 (knob building)
 
-### 1.1 `Table.__init__` aliases where C++ copies
+### 1.1 `Table.__init__` aliases where C++ copies (resolved in S7 Task 0)
 
 `table.py:574` stores `otable`/`itable` by reference; `table.cc:485` copies both.
 This is the only genuine divergence in what was originally logged as a broad
@@ -23,7 +23,9 @@ naively breaks the sparse loader. **That trap dissolves**: C++'s
 (`table_io.cc:860`). Mirror that (`table = Table(); table.itable = itable`) and
 the constructor is free to copy with zero loader breakage.
 
-Fix this before anything holds a `Table` across mutations, which S7+ will.
+Resolved in S7 Task 0: `Table.__init__` copies both inputs, and
+`_load_table_old` now fills the constructed table in place. Regression coverage
+is in `tests/comboreduct/table/test_table.py`.
 
 ### 1.2 The same trap, one layer up, not yet ported
 
@@ -31,15 +33,15 @@ Fix this before anything holds a `Table` across mutations, which S7+ will.
 then filters it. That is a **value copy** in C++ and would be an alias in Python.
 Nothing ports it yet. When S8 does, copy explicitly.
 
-### 1.3 `erase()` / `replace()` leave discarded nodes live
+### 1.3 `erase()` / `replace()` leave discarded nodes live (resolved in S7)
 
 `tree.py:659` and `replace()` never null the removed node's own `parent` /
 `next_sibling`, so a stale handle stays pointing into the tree where C++ dangles.
 
-S8's `knob_mapper` stores one iterator per knob. Ported knob code will silently
-reattach to a live tree where C++ would crash — a wrong result instead of a
-signal. Decide deliberately: null the links, or document that handles must not
-outlive an erase.
+Resolved in S7: every destroyed node in the discarded subtree has its outward
+links poisoned, and every subtree-copy entry point rejects a poisoned source.
+This deliberately fails fast where a retained C++ iterator would dangle. The
+regression coverage is in `tests/util/test_tree.py`.
 
 ### 1.4 `reduct::upwards` needs a subtree-rooted post-order walk
 
@@ -113,21 +115,20 @@ These cost real time to find. They are properties of the C++ side, not of the po
   1.91, which no longer exists on this machine; every one failed at load until a
   full `--fresh` rebuild. Check `ldd` before trusting an oracle run.
 - **`eval_logical_identities` is unsound, and `logical_reduce` is therefore
-  semantically lossy** on a characterised class of input (added 2026-09-07).
-  The shape that can lose information is **a junctor whose entire child list
-  consists of childless junctors** — but this is a *necessary*, not a
-  sufficient, condition. **Corrected 2026-09-07: an earlier revision of this
-  bullet claimed "iff"; that is wrong.** Whether the truth table actually
-  changes depends on the *parent*, in both directions. Measured with classic's
+  semantically lossy** (added and corrected 2026-09-07). One directly visible
+  trigger is **a junctor whose entire child list consists of childless
+  junctors**, but input-shape detection is neither necessary nor sufficient for
+  end-to-end truth-table divergence. Whether an occurrence matters depends on
+  its parent, and earlier rules can create the shape during reduction. Measured with classic's
   own `test_reduct`: `and(or())` -> `true` and `and(or() or())` -> `true` both
   **preserve** (an emptied `and()` at the root folds to `true`, which is what
   the original evaluated to anyway), while `or(and(or()) $1)` -> `$1`
   **diverges** (the emptied `and()` is *erased* by its `or` parent as "skip",
   destroying a definite TRUE). A diverging subtree can also be **masked**:
   `and($1 or(and(or()) $1))` contains the diverging tree and still preserves.
-  Treat the condition only as a sound **over-approximation of
-  non-preservation** (`not preserved` => flagged). No false negative has been
-  found across the corpus plus 13 hand-probed emergent-empty-junctor shapes.
+  The effort-1 input `or(and(or($1 and(!$1))) !$2)` supplies the opposite
+  counterexample: it is initially unflagged, but reduces from a tautology to
+  `!$2` after an intermediate simplification creates the lossy shape.
   Mechanism: a childless junctor returns its *own token*
   (`interpreter.cc:66-82`), which the parent's short-circuit never matches, so
   the child is skipped — making `and(or())` evaluate TRUE. Reduct then erases
@@ -142,8 +143,10 @@ These cost real time to find. They are properties of the C++ side, not of the po
   (`and(X or())`) are unaffected. `git log` shows this fork never touched
   `logical_rules.cc` or `interpreter.cc`, so it is upstream behaviour.
   **Consequence:** truth-table preservation is not a property `logical_reduce`
-  has. Any check must assert it on the complement of this class, and must
-  handle a bare `and()`/`or()` reaching the root as a distinct outcome —
+  has, and no current pre-reduction structural predicate completely classifies
+  its failures. Differential checks must compare Python's semantic outcome to
+  C++'s measured `tt_computed`/`tt_preserved` result directly, and must handle
+  a bare `and()`/`or()` reaching the root as a distinct outcome —
   `builtin_to_bool` (`vertex.h:708-713`) `OC_ASSERT`s on a non-true/false
   builtin, which **throws `opencog::AssertionException`** (`oc_assert.cc:46`)
   out of `complete_truth_table` rather than returning. Whether that ends the

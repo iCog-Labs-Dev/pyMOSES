@@ -108,15 +108,15 @@ class type_tree:
 # arity, and per-argument types).
 # ---------------------------------------------------------------------------
 
-# DIVERGENCE(C++ moses/comboreduct/combo/descriptions.cc:44): hardcoded
+# DIVERGENCE(C++ moses/comboreduct/combo/descriptions.cc:47-96): hardcoded
 # per-builtin OUTPUT type_node, not derived by parsing an arrow-type
-# string ("->(arg_list(boolean) boolean)" etc, descriptions.cc:44-93)
+# string ("->(arg_list(boolean) boolean)" etc, descriptions.cc:47-96)
 # through `builtins_properties`'s singleton constructor
-# (descriptions.cc:107-138). Each value below is the same fact real C++
+# (descriptions.cc:100-142). Each value below is the same fact real C++
 # computes -- for an arrow type "->(...  T)", the OUTPUT is the string's
 # own LAST top-level element T; for a bare, non-arrow type ("boolean",
 # "contin"), the output IS that type -- worked out by hand from the same
-# `bd[]` table (descriptions.cc:44-93) real C++ parses at static-init
+# `bd[]` table (descriptions.cc:47-96) real C++ parses at static-init
 # time, not independently guessed. Sufficient for `downwards`'s typed
 # dispatch (the only real consumer, meta_rules.cc:101), which only ever
 # compares a node's OUTPUT type against a single target type_node
@@ -157,19 +157,19 @@ def get_output_type_tree(v: vertex) -> type_tree:
 
     Ported branches -- exactly the three `vertex` alternatives this
     port's four-way union (vertex.py) can hold that C++'s own function
-    handles: `is_builtin` (type_tree.cc:251-252, via `_BUILTIN_OUTPUT_
+    handles: `is_builtin` (type_tree.cc:252-253, via `_BUILTIN_OUTPUT_
     TYPE` above in place of the real `builtins_properties` singleton --
-    see this module's own docstring), `is_argument` (type_tree.cc:253-254
+    see this module's own docstring), `is_argument` (type_tree.cc:254-255
     -- an argument's OUTPUT type is ALWAYS `unknown_type`, regardless of
     its declared/inferred type: a real, measured fact about C++, not an
     approximation -- an argument's type is only pinned down by its
     ENCLOSING expression, never in isolation), and `is_contin`
-    (type_tree.cc:255-256, always `contin_type`).
+    (type_tree.cc:256-257, always `contin_type`).
 
     Not ported, matching real C++ exactly rather than "fixing" a gap:
     `is_action`/`is_builtin_action`/`is_perception`/`is_definite_object`/
     `is_indefinite_object`/`is_wild_card`/`is_message`/`is_procedure_call`
-    (type_tree.cc:257-272) -- none of this port's `vertex` union members
+    (type_tree.cc:258-273) -- none of this port's `vertex` union members
     can ever satisfy these (the legacy embodiment vocabulary is out of
     this project's scope entirely, per vertex.py's own module docstring),
     so these branches are simply unreachable dead code here, not a
@@ -177,10 +177,10 @@ def get_output_type_tree(v: vertex) -> type_tree:
 
     One case is a REAL C++ FACT worth stating plainly, not a port gap:
     `is_enum_type(v)` has NO branch in `get_output_type_tree` AT ALL in
-    real C++ (compare `get_type_tree(const vertex&)`, type_tree.cc:196,
+    real C++ (compare `get_type_tree(const vertex&)`, type_tree.cc:213-214,
     which DOES have one) -- an `enum_t`-holding vertex falls through to
     the function's own `else { OC_ASSERT(false, ...); }` tail
-    (type_tree.cc:274-277). This port's four-way `vertex` union includes
+    (type_tree.cc:274-279). This port's four-way `vertex` union includes
     `str` (which `enum_t` subclasses), and this function raises for that
     case below via the SAME final `else`, for the SAME reason as real
     C++'s `enum_t` case specifically.

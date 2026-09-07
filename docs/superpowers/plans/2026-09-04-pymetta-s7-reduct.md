@@ -51,7 +51,7 @@ Identical to the S0–S6 cycle. Restated because they bind every task:
 
 These are from `docs/CARRY-FORWARD.md` §1. They are done first because later tasks build on them.
 
-- [ ] **Step 1: `Table.__init__` must copy, not alias**
+- [x] **Step 1: `Table.__init__` must copy, not alias**
 
 `table.py:574` stores `otable`/`itable` by reference; `table.cc:485` copies both. The reason this was parked is that `_load_table_old` (`table_io.py:614-619`) depends on the aliasing to observe `delete_column`.
 
@@ -59,17 +59,17 @@ These are from `docs/CARRY-FORWARD.md` §1. They are done first because later ta
 
 Write the failing test first: construct a `Table` from an `ITable`, mutate the original `ITable`, assert the `Table` is unchanged. Run it, watch it fail, then fix.
 
-- [ ] **Step 2: decide and implement `erase()` / `replace()` handle semantics**
+- [x] **Step 2: decide and implement `erase()` / `replace()` handle semantics**
 
 `tree.py:659` and `replace()` leave the discarded node's own `parent`/`next_sibling` live, pointing into the tree, where C++ dangles. S8's `knob_mapper` stores one iterator per knob, so ported knob code would silently reattach where C++ crashes.
 
 Null the discarded node's links so a stale handle is obviously dead rather than quietly wrong, and add a test asserting a handle to an erased node raises rather than navigating. Record a `DIVERGENCE` — C++ dangles, we fail fast; that is a deliberate, safer difference, not an accident.
 
-- [ ] **Step 3: add a subtree-rooted post-order walk**
+- [x] **Step 3: add a subtree-rooted post-order walk**
 
 `reduct::upwards` (`meta_rules.cc:111`) uses `post_order_iterator at=it, end=it; ++end; at.descend_all();` — a walk rooted at a subtree, which `iter_post()` does not offer. The private `_postorder_step` makes this cheap. Task 2 needs it.
 
-- [ ] **Step 4: full CI, then commit**
+- [x] **Step 4: full CI, then commit**
 
 Run `bash tools/ci.sh`; expect 0. Commit as `fix(foundation): pre-work for S7 — Table copy semantics, dead handles, subtree post-order`.
 
@@ -83,12 +83,12 @@ Run `bash tools/ci.sh`; expect 0. Commit as `fix(foundation): pre-work for S7 �
 
 **Why this task exists:** the coverage inventory found that `general_rules.cc` calls `eval.cc`, and every reduct cxxtest requires it. The original S7 scope omitted both. `assumption.{cc,h}` is used by `meta_rules.cc`, `general_rules.cc` and `logical_rules.cc`.
 
-- [ ] **Step 1:** Read `$CLASSIC/moses/comboreduct/interpreter/eval.{h,cc}` and `combo/assumption.{h,cc}` in full. Note what Task 4 already ported (`boolean_interpreter`) and do **not** duplicate it — `eval` is the general evaluator, a different entry point.
-- [ ] **Step 2:** Write failing tests covering: argument binding, a tree with no arguments, an unbound argument (must raise as C++ throws), and the `assumption` set operations.
-- [ ] **Step 3:** Run them; confirm they fail for the right reason.
-- [ ] **Step 4:** Implement both modules.
-- [ ] **Step 5:** Run tests; then `bash tools/ci.sh` to 0.
-- [ ] **Step 6:** Commit as `port(comboreduct): eval and assumption — S7 prerequisites`.
+- [x] **Step 1:** Read `$CLASSIC/moses/comboreduct/interpreter/eval.{h,cc}` and `combo/assumption.{h,cc}` in full. Note what Task 4 already ported (`boolean_interpreter`) and do **not** duplicate it — `eval` is the general evaluator, a different entry point.
+- [x] **Step 2:** Write failing tests covering: argument binding, a tree with no arguments, an unbound argument (must raise as C++ throws), and the `assumption` set operations.
+- [x] **Step 3:** Run them; confirm they fail for the right reason.
+- [x] **Step 4:** Implement both modules.
+- [x] **Step 5:** Run tests; then `bash tools/ci.sh` to 0.
+- [x] **Step 6:** Commit as `port(comboreduct): eval and assumption — S7 prerequisites`.
 
 ---
 
@@ -102,10 +102,10 @@ Run `bash tools/ci.sh`; expect 0. Commit as `fix(foundation): pre-work for S7 �
 
 `upwards` needs the subtree-rooted post-order walk added in Task 0 Step 3.
 
-- [ ] **Step 1:** Read `meta_rules.{h,cc}` and `reduct.{h,cc}` in full, and `$CLASSIC/doc/` if it says anything about rule application order.
-- [ ] **Step 2:** Write failing tests that assert *traversal order* directly — e.g. a probe rule that records the node sequence it visits, asserted against the order C++ produces. Order is the property that matters here, not the end result.
-- [ ] **Step 3:** Run; confirm failure. **Step 4:** Implement. **Step 5:** Run; `ci.sh` to 0.
-- [ ] **Step 6:** Commit as `port(reduct): rule base and the meta-rule combinators`.
+- [x] **Step 1:** Read `meta_rules.{h,cc}` and `reduct.{h,cc}` in full, and `$CLASSIC/doc/` if it says anything about rule application order.
+- [x] **Step 2:** Write failing tests that assert *traversal order* directly — e.g. a probe rule that records the node sequence it visits, asserted against the order C++ produces. Order is the property that matters here, not the end result.
+- [x] **Step 3:** Run; confirm failure. **Step 4:** Implement. **Step 5:** Run; `ci.sh` to 0.
+- [x] **Step 6:** Commit as `port(reduct): rule base and the meta-rule combinators`.
 
 ---
 
@@ -115,10 +115,10 @@ Run `bash tools/ci.sh`; expect 0. Commit as `fix(foundation): pre-work for S7 �
 
 `flat_normal_form` is the clause-set representation the logical rules operate on; `general_rules` are the type-independent rules. **`argument`'s ordering is by absolute value** (`docs/CARRY-FORWARD.md` §4.4) and `flat_normal_form`'s clause ordering depends on it — do not substitute a natural sort.
 
-- [ ] **Step 1:** Read `general_rules.{h,cc}` and `flat_normal_form.{h,cc}` in full.
-- [ ] **Step 2:** Write failing tests, including one asserting clause ordering for a set containing both `$1` and `!$1`.
-- [ ] **Step 3:** Run; confirm failure. **Step 4:** Implement. **Step 5:** Run; `ci.sh` to 0.
-- [ ] **Step 6:** Commit as `port(reduct): general rules and flat normal form`.
+- [x] **Step 1:** Read `general_rules.{h,cc}` and `flat_normal_form.{h,cc}` in full.
+- [x] **Step 2:** Write failing tests, including one asserting clause ordering for a set containing both `$1` and `!$1`.
+- [x] **Step 3:** Run; confirm failure. **Step 4:** Implement. **Step 5:** Run; `ci.sh` to 0.
+- [x] **Step 6:** Commit as `port(reduct): general rules and flat normal form`.
 
 ---
 
@@ -132,10 +132,10 @@ The largest and highest-risk file in the slice (860 lines), containing `subtree_
 
 `MOSES/elegant-normal-forms-python`'s `Utilities/ReduceToElegance.py` is a working, tested transliteration of this same state machine and is a legitimate reading aid — but its data structure is unusable here, so do not import from it.
 
-- [ ] **Step 1:** Read `logical_rules.{h,cc}` in full, paying attention to the order of operations inside `reduce_to_enf`.
-- [ ] **Step 2:** Write failing tests from the C++ cxxtest `$CLASSIC/tests/comboreduct/reduct/BooleanReductUTest.cxxtest` and `BooleanFullUTest.cxxtest`, preserving test names.
-- [ ] **Step 3:** Run; confirm failure. **Step 4:** Implement. **Step 5:** Run; `ci.sh` to 0.
-- [ ] **Step 6:** Commit as `port(reduct): logical rules including reduce_to_enf`.
+- [x] **Step 1:** Read `logical_rules.{h,cc}` in full, paying attention to the order of operations inside `reduce_to_enf`.
+- [x] **Step 2:** Write failing tests from the C++ cxxtest `$CLASSIC/tests/comboreduct/reduct/BooleanReductUTest.cxxtest` and `BooleanFullUTest.cxxtest`, preserving test names.
+- [x] **Step 3:** Run; confirm failure. **Step 4:** Implement. **Step 5:** Run; `ci.sh` to 0.
+- [x] **Step 6:** Commit as `port(reduct): logical rules including reduce_to_enf`.
 
 ---
 
@@ -145,10 +145,10 @@ The largest and highest-risk file in the slice (860 lines), containing `subtree_
 
 `logical_reduction` assembles the rule set per effort level (1/2/3) — this is what `problem-params.cc:2385-2389` calls to build `bool_reduct`/`bool_reduct_rep`. `clean_reduce` removes `null_vertex` sentinels and is called from `logical_rules.cc:848` and, later, S8's `representation.cc:264`.
 
-- [ ] **Step 1:** Read `logical_reduction.cc` and `clean_reduction.cc` in full.
-- [ ] **Step 2:** Write failing tests asserting that each effort level assembles the rule set C++ assembles, in the same order.
-- [ ] **Step 3:** Run; confirm failure. **Step 4:** Implement. **Step 5:** Run; `ci.sh` to 0.
-- [ ] **Step 6:** Commit as `port(reduct): logical_reduction effort levels and clean_reduce`.
+- [x] **Step 1:** Read `logical_reduction.cc` and `clean_reduction.cc` in full.
+- [x] **Step 2:** Write failing tests asserting that each effort level assembles the rule set C++ assembles, in the same order.
+- [x] **Step 3:** Run; confirm failure. **Step 4:** Implement. **Step 5:** Run; `ci.sh` to 0.
+- [x] **Step 6:** Commit as `port(reduct): logical_reduction effort levels and clean_reduce`.
 
 ---
 
@@ -158,11 +158,11 @@ The largest and highest-risk file in the slice (860 lines), containing `subtree_
 
 This is the slice's exit criterion.
 
-- [ ] **Step 1: Build the oracle binary.** `$CLASSIC/tests/comboreduct/reduct/test_reduct.cc` already exists; build it via `cd $CLASSIC/build && make test_reduct`. It reduces one tree and prints before/after size plus a truth-table equivalence check. Run it **bounded**.
-- [ ] **Step 2: Assemble the corpus.** Three sources: the 29 trees in `$CLASSIC/testTrees.sh`; every tree literal in `BooleanReductUTest`, `BooleanFullUTest` and `FullReductUTest`; and the **44 curated expressions** in `MOSES/elegant-normal-forms-python/Tests/GeneralTestCases.py` (which include the Holman p.19 and Moshe Looks examples). Capture C++ output at effort levels **1, 2 and 3** for every tree.
-- [ ] **Step 3: Lift the ENF verification assets.** Port `Tests/TestHelpers.py`'s truth-table generation and comparison, and `Tests/EnfRuleCheckers.py`'s seven ENF axiom checkers, rewritten against pyMeTTa's `combo_tree`. These verify *semantic* correctness (the reduction preserves the truth table) and *structural* correctness (the result satisfies the ENF axioms) — properties a byte-comparison alone does not establish.
-- [ ] **Step 4: Assert exact equality.** Python's reduced tree must match C++'s byte-for-byte at each effort level. Add a fixture-shape guard asserting the corpus is non-empty and holds the expected number of cases, per the vacuous-test lesson in `docs/CARRY-FORWARD.md` §6.
-- [ ] **Step 5:** `ci.sh` to 0. **Step 6:** Commit as `test(reduct): differential oracle against test_reduct at effort 1/2/3`.
+- [x] **Step 1: Build the oracle binary.** `$CLASSIC/tests/comboreduct/reduct/test_reduct.cc` already exists; build it via `cd $CLASSIC/build && make test_reduct`. It reduces one tree and prints before/after size plus a truth-table equivalence check. Run it **bounded**.
+- [x] **Step 2: Assemble the corpus.** Three sources: the 29 trees in `$CLASSIC/testTrees.sh`; every tree literal in `BooleanReductUTest`, `BooleanFullUTest` and `FullReductUTest`; and the **44 curated expressions** in `MOSES/elegant-normal-forms-python/Tests/GeneralTestCases.py` (which include the Holman p.19 and Moshe Looks examples). Capture C++ output at effort levels **1, 2 and 3** for every runnable tree; retain S14-dependent literals as explicit skipped cases.
+- [x] **Step 3: Lift the ENF verification assets.** Port `Tests/TestHelpers.py`'s truth-table generation and comparison, and `Tests/EnfRuleCheckers.py`'s seven ENF axiom checkers, rewritten against pyMeTTa's `combo_tree`. These compare semantic outcomes to C++ and verify the structural ENF result without assuming classic always preserves truth tables.
+- [x] **Step 4: Assert exact equality.** Python's reduced tree must match C++'s byte-for-byte at each effort level. Add a fixture-shape guard asserting the corpus is non-empty and holds the expected number of cases, per the vacuous-test lesson in `docs/CARRY-FORWARD.md` §6.
+- [x] **Step 5:** `ci.sh` to 0. **Step 6:** Commit as `test(reduct): differential oracle against test_reduct at effort 1/2/3`.
 
 ---
 
@@ -172,17 +172,16 @@ All verified by running the command and reading the output:
 
 1. `bash tools/ci.sh` exits 0.
 2. For every tree in the corpus, at effort levels 1, 2 and 3, pyMeTTa's reduced tree is **byte-identical** to `test_reduct`'s.
-3. Every reduction preserves the truth table (semantic check) and satisfies the
-   seven ENF axioms (structural check) — **except on the characterised class
-   where classic itself is unsound** (amended 2026-09-07). `logical_reduce` does
-   not preserve semantics when a junctor's entire child list consists of
-   childless junctors; see `docs/CARRY-FORWARD.md` §3. On that class the port
-   must match C++ byte-for-byte and must *not* preserve the truth table, because
-   C++ does not. The exclusion must be expressed as that predicate, not as an
-   opaque list of tree indices — a list would rot silently as the corpus grows,
-   and would hide any *new* divergence that isn't this one.
+3. Python's truth-table outcome matches C++'s measured
+   `tt_computed`/`tt_preserved` result for every runnable row, and effort-3
+   output satisfies all seven ENF axioms. Classic itself is semantically lossy;
+   the local childless-junctor input-shape indicator has both false positives
+   (parent masking) and false negatives (earlier rules can create the shape).
+   See `docs/CARRY-FORWARD.md` §3. The live differential harness therefore
+   compares both implementations' semantic diagnostics directly and retains
+   targeted examples of both classifier limitations.
 4. `docs/ALIGNMENT.md` shows every S7 file's symbols as ported or explicitly diverged.
-5. `docs/MODULE-COVERAGE.md` updated: the 22 S7 rows move from `PLANNED: S7` to `PORTED` or `PARTIAL` with a named gap.
+5. `docs/MODULE-COVERAGE.md` updated: the 16 S7 rows move from `PLANNED: S7` to `PORTED` or `PARTIAL` with a named gap.
 
 ## Self-review notes
 

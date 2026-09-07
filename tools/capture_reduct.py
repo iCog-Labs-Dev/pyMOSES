@@ -155,25 +155,20 @@ def main(argv: list[str]) -> int:
                 case["reduced"] = result["reduced"]
                 case["size_before"] = result["size_before"]
                 case["size_after"] = result["size_after"]
-                case["tt_preserved"] = result["tt_preserved"]
-                if not result["tt_preserved"]:
+                case["tt_computed"] = result.get("tt_computed", True)
+                if case["tt_computed"]:
+                    case["tt_preserved"] = result["tt_preserved"]
+                else:
+                    case["tt_error"] = result["tt_error"]
+                if case["tt_computed"] and not result["tt_preserved"]:
                     n_tt_bad += 1
-                    if not entry["known_tt_divergent"]:
-                        raise RuntimeError(
-                            f"effort {effort}: {entry['id']} ({entry['combo']!r}) "
-                            "unexpectedly failed truth-table preservation -- not "
-                            "one of reduct_corpus.py's TEST_TREES_SH_KNOWN_TT_DIVERGENT "
-                            "entries. Investigate before capturing: either the corpus "
-                            "module's known-divergent set is stale, or this is a new "
-                            "finding worth recording there."
-                        )
             else:
                 case["ok"] = False
                 case["error"] = result["error"]
             cases.append(case)
         print(
             f"effort {effort}: {n_ok}/{len(runnable)} ok, "
-            f"{n_tt_bad} known-divergent truth-table mismatches"
+            f"{n_tt_bad} truth-table mismatches reported by C++"
         )
 
     fixture = {
@@ -182,6 +177,7 @@ def main(argv: list[str]) -> int:
             "testTrees.sh",
             "BooleanReductUTest.cxxtest",
             "BooleanFullUTest.cxxtest",
+            "FullReductUTest.cxxtest",
             "GeneralTestCases.py",
         ],
         "counts": {

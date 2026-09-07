@@ -291,7 +291,7 @@ class remove_null_vertices(rule):
         super().__init__(name)
 
     def apply(self, tr: combo_tree, it: tree_node) -> None:
-        """C++: moses/comboreduct/reduct/general_rules.cc:113 remove_null_vertices::operator()
+        """C++: moses/comboreduct/reduct/general_rules.cc:110 remove_null_vertices::operator()
 
         Most nodes take simple lists; but not `cond`. `cond` takes
         clauses, which are pairs. If we remove the condition, we must
@@ -299,7 +299,7 @@ class remove_null_vertices(rule):
 
         FIX WAVE (self-review): the `cond` branch's non-null `else`
         walks the pair-stride by advancing `sib` TWICE
-        (`general_rules.cc:117-118`'s `++sib; ++sib;`). A `cond` node's
+        (`general_rules.cc:128-129`'s `++sib; ++sib;`). A `cond` node's
         own real shape (eval.cc's own cond-evaluation loop, already
         ported at `eval.py`'s `builtin.contin_if | builtin.cond` case)
         is (condition, consequent) PAIRS plus one final, UNPAIRED "else"
@@ -317,7 +317,8 @@ class remove_null_vertices(rule):
         `remove_null_vertices_cond` case: this exact odd-count shape
         completes without crashing in C++, producing `cond($2 $3 $4)`).
 
-        # DIVERGENCE(C++ general_rules.cc:117): a trailing-else null segfaults real C++; we raise.
+        # DIVERGENCE(C++ general_rules.cc:123-125): a trailing-else null
+        # segfaults real C++; we raise.
         # CORRECTION (task-3 review): an earlier version of this docstring
         # claimed "a null CONDITION always has a real paired consequent by
         # cond's own structural contract", used to justify NOT guarding the
@@ -379,5 +380,5 @@ class remove_all_assumptions(rule):
         super().__init__(name)
 
     def apply(self, tr: combo_tree, it: tree_node) -> None:
-        """C++: moses/comboreduct/reduct/general_rules.cc:120 remove_all_assumptions::operator()"""
+        """C++: moses/comboreduct/reduct/general_rules.cc:134 remove_all_assumptions::operator()"""
         delete_all_assumptions(tr)

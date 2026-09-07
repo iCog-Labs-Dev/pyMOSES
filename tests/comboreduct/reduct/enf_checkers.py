@@ -4,11 +4,24 @@
 them the byte-comparison against tests/fixtures/reduct.json (that lives
 directly in test_reduct_oracle.py):
 
-1. `tt_unsound_by_construction` -- the STRUCTURAL predicate for classic's
-   own unsoundness, docs/CARRY-FORWARD.md Β§3 (amended 2026-09-07):
-   "`logical_reduce` does not preserve semantics when a junctor's entire
-   child list consists of childless junctors." Computed fresh from
-   whatever combo_tree it is handed -- deliberately independent of
+1. `tt_unsound_by_construction` -- a STRUCTURAL indicator for the
+   shape docs/CARRY-FORWARD.md Β§3 (amended 2026-09-07) identifies as
+   classic's `eval_logical_identities` unsoundness *mechanism*: "a
+   junctor's entire child list consists of childless junctors."
+   It is neither a necessary nor sufficient classifier for end-to-end
+   non-preservation. The mechanism ignores parent context, and earlier
+   reductions can create the shape even when it was absent from the input.
+   Measured directly against `$CLASSIC`'s own `test_reduct` (pinned as
+   `test_pinned_context_dependent_rows` in test_reduct_oracle.py): an
+   emptied `and()` AT THE ROOT folds to `true` (nothing lost, preserved);
+   the SAME emptied `and()` under an `or` parent is erased as "skip",
+   destroying a definite TRUE (a real divergence); and a genuinely
+   diverging subtree can be MASKED by an enclosing context that supplies
+   the same truth value some other way. Conversely, the effort-1 input
+   `or(and(or($1 and(!$1))) !$2)` is initially unflagged, but reduction
+   creates the lossy shape and turns a tautology into `!$2`. Neither
+   boolean result is therefore a semantic guarantee. Computed fresh from whatever
+   combo_tree it is handed -- deliberately independent of
    tests/fixtures/reduct.json's own `known_tt_divergent` flag (a
    hardcoded id list rots as the corpus grows, and cannot flag a NEW tree
    that hits the same mechanism -- the task brief's own reasoning).
@@ -81,10 +94,25 @@ def _all_children_are_childless_junctors(tr: combo_tree, node: tree_node) -> boo
 
 
 def tt_unsound_by_construction(tr: combo_tree) -> bool:
-    """docs/CARRY-FORWARD.md Β§3 (amended 2026-09-07): True iff `tr`
+    """A structural indicator for one immediately-present unsound shape.
+    (Task 6 fix round, review Important finding 1 -- see this module's
+    own docstring, item 1, for the measured evidence): True iff `tr`
     contains a node whose entire (non-empty) child list consists of
-    childless junctors -- the exact shape that triggers classic's
-    `eval_logical_identities` unsoundness under `logical_reduce`.
+    childless junctors -- the shape docs/CARRY-FORWARD.md Β§3 (amended
+    2026-09-07) identifies as classic's `eval_logical_identities`
+    unsoundness *mechanism* under `logical_reduce`. The mechanism
+    firing does NOT guarantee the WHOLE TREE's truth table actually
+    diverges -- root-level occurrences can fold harmlessly, and a
+    genuinely diverging subtree can be masked by an enclosing context
+    that supplies the same value another way (see
+    `test_pinned_context_dependent_rows` in test_reduct_oracle.py for
+    five rows measured directly against `$CLASSIC`'s own `test_reduct`:
+    three flagged rows are truth-table-preserved, one flagged row diverges,
+    and one initially unflagged row diverges after an earlier rewrite).
+    Absence is not a guarantee either: an earlier rule can simplify an
+    ordinary subtree into this shape before `eval_logical_identities`
+    sees it. The same pinned test includes an effort-1 example that is
+    initially unflagged and nevertheless diverges.
 
     Mechanism (Β§3, Β§4.3 of CARRY-FORWARD.md): a childless junctor
     evaluates to its OWN token (interpreter.cc:67-68/76-77), which a
@@ -97,14 +125,20 @@ def tt_unsound_by_construction(tr: combo_tree) -> bool:
     J's evaluated result is forced to whichever constant an empty fold of
     J's OWN operator produces (`logical_true` for `and`, `logical_false`
     for `or`; interpreter.py's own "for correct foldr behaviour" comment).
-    `reduce_to_enf`'s later erasure (logical_rules.cc:134 for `and`'s
-    empty-`or()` child, :155 for `or`'s empty-`and()` child) does not
-    preserve this: each erasure is individually faithful to "this child
-    can be skipped", but J itself becomes childless once all its children
-    are erased this way, and is THEN erased from ITS OWN parent by the
-    exact same rule on the next pass -- discarding the forced-constant
-    fact the composition of otherwise-correct single steps was supposed
-    to preserve.
+    `eval_logical_identities::operator()`'s own later erasure
+    (logical_rules.cc:134 for `and`'s empty-`or()` child, :155 for `or`'s
+    empty-`and()` child -- NOT `reduce_to_enf`; this function opens at
+    logical_rules.cc:130 and runs, via `pre_subtree_to_enf`, BEFORE
+    `subtree_to_enf`, not after it) does not preserve this in general:
+    each erasure is individually faithful to "this child can be
+    skipped", but J itself becomes childless once all its children are
+    erased this way, and is THEN erased from ITS OWN parent by the exact
+    same rule on the next pass -- discarding the forced-constant fact the
+    composition of otherwise-correct single steps was supposed to
+    preserve, UNLESS J's parent (or an ancestor) happens to already
+    assert the same fact through some other branch, in which case the
+    loss is invisible at the whole-tree level -- exactly the masking the
+    pinned rows demonstrate.
 
     Computed fresh, every call, from tree SHAPE alone -- independent by
     design of tests/fixtures/reduct.json's own `known_tt_divergent` field
@@ -124,13 +158,24 @@ class _RootIsBareJunctorToken:
     """Sentinel type: `tr`'s root itself is a childless `and()`/`or()`, so
     evaluating `tr` returns a raw operator token, not `logical_true`/
     `logical_false`. `builtin_to_bool` (vertex.h:708-713) `OC_ASSERT`s on
-    exactly this input -- real C++ ABORTS the process there rather than
-    returning a value -- and `complete_truth_table` (table.py) calls
-    `builtin_to_bool` unconditionally on every row, matching that
-    unguarded upstream behaviour rather than working around it. This
-    sentinel lets a caller detect and report that case as its own,
-    distinct outcome instead of treating the resulting `AssertionError`
-    as an ordinary, unrelated bug.
+    exactly this input -- precisely: `OC_ASSERT` (`opencog::cassert`,
+    oc_assert.cc:46) *throws* `opencog::AssertionException`, it does not
+    itself call `abort()`. Whether the PROCESS then dies is up to the
+    caller, and both outcomes are real, measured facts, not just one of
+    them: `$CLASSIC`'s own `tests/comboreduct/reduct/test_reduct.cc` does
+    NOT catch it -- confirmed by actually running it on `and()`/`or()`
+    input: `terminate called after throwing an instance of
+    'opencog::AssertionException'`, `what(): builtin should be
+    'id::logical_true' or 'id::logical_false'.`, then a core dump (exit
+    134) -- while this project's own `tools/cpp_probe/
+    reduct_effort_probe.cc` wraps the same call in `catch (const
+    std::exception&)` and handles it cleanly, recovering to report the
+    next input. `complete_truth_table` (table.py) calls `builtin_to_bool`
+    unconditionally on every row, matching the C++ side's own unguarded
+    call rather than working around it. This sentinel lets a caller
+    detect and report that case as its own, distinct outcome instead of
+    treating the resulting `AssertionError` as an ordinary, unrelated
+    bug.
     """
 
 

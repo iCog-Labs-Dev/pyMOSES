@@ -522,9 +522,10 @@ class nf_mapper:
 
         # DIVERGENCE(C++ flat_normal_form.h:151): takes the whole `f`, not an (It,It) sub-range.
         # C++'s `extract_cnf(It from, It to, tree&, sib_it)` accepts an arbitrary `nf` sub-range;
-        # this port narrows to the whole `f` because both real call sites
-        # (`logical_rules.cc:331,426`, Task 4) always pass `f.begin(), f.end()` -- the same
-        # scoping collapse `add_cnf` above makes, for the same reason.
+        # this port narrows to the whole `f` because its sole real call site
+        # (`logical_rules.cc:426`, Task 4) passes `f.begin(), f.end()` -- the same scoping
+        # collapse `add_cnf` above makes, for the same reason. The call at
+        # `logical_rules.cc:331` is to `extract_dnf`, not this method.
 
         Rebuilds `sib` (and its descendants) as `and(or(...) or(...) ...)`
         from `f`. An EMPTY clause anywhere in `f` is silently SKIPPED -- it

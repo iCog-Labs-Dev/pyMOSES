@@ -34,12 +34,16 @@ combo_tree is always single-rooted, so this port tracks the root directly as
 
 # DIVERGENCE(C++ opencog/util/tree.h:111): no head/feet sentinels -- a
 # single root is tracked directly as `self._root`. Consequence: `insert`,
-# `insert_after`, `move_after`, `move_before` and `move_ontop` all raise
+# `insert_after`, `move_after`, and `move_before` all raise
 # ValueError if asked to give the tree's own root a new sibling (or to move
 # the root itself into a sibling position), since either would require a
 # forest (multiple top-level roots), which this port does not support. In
 # C++ these same calls quietly succeed by growing a momentary or permanent
-# forest under head/feet. `insert_above` and `wrap` are unaffected -- they
+# forest under head/feet. `move_ontop(root, source)` is rejected too, but for
+# a different reason: the C++ precondition forbids the target from containing
+# the source, and violating it destroys the target subtree before reading the
+# now-freed source (undefined behaviour), rather than creating a forest.
+# `insert_above` and `wrap` are unaffected -- they
 # replace the root in place rather than adding a sibling of it, which
 # stays well-defined without sentinels.
 """
@@ -130,6 +134,27 @@ class tree_node:
         self.next_sibling = None
 
 
+def _require_live_node(node: tree_node | None, operation: str) -> None:
+    """Reject a retained handle whose node was destroyed by a tree splice."""
+    if node is not None and (
+        node.parent is _DEAD or node.prev_sibling is _DEAD or node.next_sibling is _DEAD
+    ):
+        raise ValueError(
+            f"{operation}: cannot use an erased/detached node -- its own links are poisoned"
+        )
+
+
+def _require_live_subtree_source(node: tree_node, operation: str) -> None:
+    """Reject an erased node before reading it as a subtree-copy source."""
+    try:
+        _require_live_node(node, operation)
+    except ValueError as exc:
+        raise ValueError(
+            f"{operation}: cannot copy from an erased/detached node -- "
+            "its own links are poisoned"
+        ) from exc
+
+
 class tree:
     """C++: opencog/util/tree.h:111 tree
 
@@ -176,16 +201,7 @@ class tree:
         is rejected, not `is None`.
         """
         if isinstance(root_data, tree_node):
-            if (
-                root_data.parent is _DEAD
-                or root_data.prev_sibling is _DEAD
-                or root_data.next_sibling is _DEAD
-            ):
-                raise ValueError(
-                    "tree(): cannot copy from an erased/detached node -- "
-                    "its own links are poisoned (see erase()/replace()'s "
-                    "DIVERGENCE markers)"
-                )
+            _require_live_subtree_source(root_data, "tree()")
             self._root = tree_node(_copy_value(root_data.data))
             self._copy_descendants(self._root, root_data)
             return
@@ -354,6 +370,7 @@ class tree:
         """
         if node is None:
             raise ValueError("iter_post_at: node must not be None")
+        _require_live_node(node, "iter_post_at")
         return self._iter_post_at_iter(node)
 
     def _iter_post_at_iter(self, node):
@@ -407,6 +424,7 @@ class tree:
         """
         if node is None:
             raise ValueError("iter_pre_at: node must not be None")
+        _require_live_node(node, "iter_pre_at")
         return self._iter_pre_at_iter(node)
 
     def _iter_pre_at_iter(self, node):
@@ -432,6 +450,7 @@ class tree:
         """
         if node is None:
             raise ValueError("next_pre_order: node must not be None")
+        _require_live_node(node, "next_pre_order")
         return self._preorder_step(node)
 
     def subtree_pre_order_end(self, node):
@@ -463,6 +482,7 @@ class tree:
         """
         if node is None:
             raise ValueError("subtree_pre_order_end: node must not be None")
+        _require_live_node(node, "subtree_pre_order_end")
         return self._skip_children_successor(node)
 
     def iter_leaf(self):
@@ -490,7 +510,11 @@ class tree:
 
     def is_valid(self, node):
         """C++: opencog/util/tree.h:2166 is_valid"""
-        return node is not None
+        return node is not None and not (
+            node.parent is _DEAD
+            or node.prev_sibling is _DEAD
+            or node.next_sibling is _DEAD
+        )
 
     def child(self, node, i):
         """C++: opencog/util/tree.h:2215 child
@@ -505,6 +529,7 @@ class tree:
         than assert-away" instruction asks for than the letter of the
         C++ loop.
         """
+        _require_live_node(node, "child")
         if i < 0:
             raise IndexError(f"child: index {i} out of range")
         n = node.first_child
@@ -535,6 +560,7 @@ class tree:
         """
         if node is None:
             raise ValueError("children: node must not be None")
+        _require_live_node(node, "children")
         return self._children_iter(node)
 
     def _children_iter(self, node):
@@ -545,6 +571,7 @@ class tree:
 
     def number_of_children(self, node):
         """C++: opencog/util/tree.h:2019 number_of_children"""
+        _require_live_node(node, "number_of_children")
         n = 0
         child = node.first_child
         while child is not None:
@@ -558,6 +585,7 @@ class tree:
         Added task-3 (S7) for `comboreduct/reduct/general_rules.py`'s
         `eval_constants` (`it.is_childless()`).
         """
+        _require_live_node(node, "is_childless")
         return node.first_child is None
 
     def has_one_child(self, node):
@@ -567,10 +595,12 @@ class tree:
         -- ported as identity (`is`), matching C++'s raw-pointer `==` here.
         Added task-3 (S7) for the same call site as `is_childless` above.
         """
+        _require_live_node(node, "has_one_child")
         return node.first_child is not None and node.first_child is node.last_child
 
     def number_of_siblings(self, node):
         """C++: opencog/util/tree.h:2035 number_of_siblings"""
+        _require_live_node(node, "number_of_siblings")
         n = 0
         pos = node.next_sibling
         while pos is not None:
@@ -595,6 +625,7 @@ class tree:
         `prev_sibling is None`) already gives the right answer -- 0 -- for
         the root too, without needing a separate branch.
         """
+        _require_live_node(node, "sibling_index")
         ind = 0
         pos = node
         while pos.prev_sibling is not None:
@@ -609,6 +640,7 @@ class tree:
         """
         if node is None:
             raise ValueError("next_sibling: node must not be None")
+        _require_live_node(node, "next_sibling")
         return node.next_sibling
 
     def previous_sibling(self, node):
@@ -618,12 +650,14 @@ class tree:
         """
         if node is None:
             raise ValueError("previous_sibling: node must not be None")
+        _require_live_node(node, "previous_sibling")
         return node.prev_sibling
 
     def max_depth(self, node=None):
         """C++: opencog/util/tree.h:538 max_depth"""
         if node is None:
             node = self._root
+        _require_live_node(node, "max_depth")
         d = -1
         for child in self.children(node):
             depth = self.max_depth(child)
@@ -639,6 +673,7 @@ class tree:
         nodes in its subtree" is `subtree_size`. See the task report for
         how this reading was reached.
         """
+        _require_live_node(node, "count")
         total = 1
         for child in self.children(node):
             total += self.count(child)
@@ -665,6 +700,7 @@ class tree:
         equal keys (deep=False: children move as whole subtrees,
         grandchildren are not sorted).
         """
+        _require_live_node(node, "sort")
         children = list(self.children(node))
         if not children:
             return
@@ -728,6 +764,7 @@ class tree:
         for which `pred` is false -- or `None` if every child satisfies
         `pred` (C++'s `to` sentinel, `end()`).
         """
+        _require_live_node(node, "partition")
         children = list(self.children(node))
         n = len(children)
         if n == 0:
@@ -783,6 +820,7 @@ class tree:
         matching the C++ implementation's stated order ("sort the
         children of each node too, *first*", tree.h:1865).
         """
+        _require_live_node(node, "sort_on_subtrees")
         if deep:
             for child in list(self.children(node)):
                 self.sort_on_subtrees(child, comp, True)
@@ -816,6 +854,8 @@ class tree:
         can -- an accepted, inherited imprecision of the original
         algorithm, not something this port corrects.
         """
+        _require_live_node(a, "equal_subtree")
+        _require_live_node(b, "equal_subtree")
         if a is b:
             return True
         if a.data != b.data:
@@ -863,6 +903,7 @@ class tree:
             node = self._root
             if node is None:
                 return
+        _require_live_node(node, "validate")
         if node.parent is not None:
             if node.prev_sibling is None and node.parent.first_child is not node:
                 raise AssertionError("validate: parent.first_child mismatch")
@@ -987,7 +1028,9 @@ class tree:
         """
         if node is None:
             raise ValueError("append_child: node must not be None")
+        _require_live_node(node, "append_child")
         if isinstance(data_or_subtree, tree_node):
+            _require_live_subtree_source(data_or_subtree, "append_child")
             new_child = self._append_child_leaf(node, _copy_value(data_or_subtree.data))
             self._copy_descendants(new_child, data_or_subtree)
             return new_child
@@ -1005,6 +1048,7 @@ class tree:
         """
         if node is None:
             raise ValueError("prepend_child: node must not be None")
+        _require_live_node(node, "prepend_child")
         new_node = tree_node(data)
         new_node.parent = node
         if node.first_child is not None:
@@ -1032,6 +1076,7 @@ class tree:
         """
         if node is None:
             raise ValueError("append_children: node must not be None")
+        _require_live_node(node, "append_children")
         for data in iterable:
             self.append_child(node, data)
         return node.last_child
@@ -1043,6 +1088,7 @@ class tree:
         tree's own root, since C++'s head/feet sentinels (not ported here)
         are what let this splice give even the root a new sibling.
         """
+        _require_live_node(node, "insert")
         if node is self._root:
             raise ValueError(
                 "insert: cannot insert a previous sibling of the tree root -- "
@@ -1065,6 +1111,7 @@ class tree:
         See the module-level DIVERGENCE note: raises if `node` is the
         tree's own root, for the same reason as `insert`.
         """
+        _require_live_node(node, "insert_after")
         if node is self._root:
             raise ValueError(
                 "insert_after: cannot insert a next sibling of the tree root -- "
@@ -1083,12 +1130,14 @@ class tree:
 
     def insert_subtree(self, node, subtree):
         """C++: opencog/util/tree.h:1358 insert_subtree"""
+        _require_live_subtree_source(subtree, "insert_subtree")
         dummy = self.insert(node, _copy_value(subtree.data))
         self._copy_descendants(dummy, subtree)
         return dummy
 
     def insert_subtree_after(self, node, subtree):
         """C++: opencog/util/tree.h:1368 insert_subtree_after"""
+        _require_live_subtree_source(subtree, "insert_subtree_after")
         new_node = self.insert_after(node, _copy_value(subtree.data))
         self._copy_descendants(new_node, subtree)
         return new_node
@@ -1101,6 +1150,7 @@ class tree:
         `insert`/`insert_after` -- so `self._root` is updated here when
         needed.
         """
+        _require_live_node(node, "insert_above")
         new_node = tree_node(data)
         new_node.first_child = node
         new_node.last_child = node
@@ -1162,6 +1212,7 @@ class tree:
         sibling-successor version. Both share the same unlink mechanics
         via `_unlink`; only the computed `successor` differs.
         """
+        _require_live_node(node, "erase")
         successor = node.next_sibling
         self._unlink(node)
         return successor
@@ -1191,6 +1242,7 @@ class tree:
         `erase()`'s own docstring left for this task (Task 4 review fix
         round 1).
         """
+        _require_live_node(node, "erase_pre_order")
         successor = self._skip_children_successor(node)
         self._unlink(node)
         return successor
@@ -1215,14 +1267,14 @@ class tree:
             node.next_sibling.prev_sibling = node.prev_sibling
         if node is self._root:
             self._root = None
-        # DIVERGENCE(C++ opencog/util/tree.h:805): C++ `delete`s the erased
-        # `tree_node` (tree.h:823) after unlinking it -- any pointer a
+        # DIVERGENCE(C++ opencog/util/tree.h:805): C++ destroys and
+        # deallocates the erased `tree_node` (tree.h:824-825) after
+        # unlinking it -- any pointer a
         # caller kept is now dangling, and dereferencing it is undefined
         # behaviour (typically a crash, sometimes silent corruption).
         # Python cannot reproduce "dangling": the object stays alive as
-        # long as anything references it, so a naive port would leave
-        # `node.parent`/`node.prev_sibling`/`node.next_sibling` pointing,
-        # correctly, at whatever they pointed at before the erase -- a
+        # long as anything references it, so a naive port would leave its
+        # outward links holding their stale pre-erase values -- a
         # stale handle would then silently navigate back into the LIVE
         # tree instead of crashing. That is exactly the hazard S8's
         # knob_mapper (one retained iterator per knob) must not hit:
@@ -1239,10 +1291,14 @@ class tree:
 
     def erase_children(self, node):
         """C++: opencog/util/tree.h:787 erase_children"""
+        _require_live_node(node, "erase_children")
         cur = node.first_child
         while cur is not None:
             nxt = cur.next_sibling
             self.erase_children(cur)
+            cur.parent = _DEAD
+            cur.prev_sibling = _DEAD
+            cur.next_sibling = _DEAD
             cur = nxt
         node.first_child = None
         node.last_child = None
@@ -1264,7 +1320,9 @@ class tree:
         """
         if node is None:
             raise ValueError("replace: node must not be None")
+        _require_live_node(node, "replace")
         if isinstance(data_or_subtree, tree_node):
+            _require_live_subtree_source(data_or_subtree, "replace")
             if node is data_or_subtree:
                 return node
             new_node = tree_node(_copy_value(data_or_subtree.data))
@@ -1283,20 +1341,14 @@ class tree:
                 self._root = new_node
             self._copy_descendants(new_node, data_or_subtree)
             # DIVERGENCE(C++ opencog/util/tree.h:1397): this subtree-copy
-            # branch allocates a brand-new node and detaches `node` from
-            # the tree -- C++'s own docs call `position` "invalid"
-            # afterwards, but never touch `node`'s own parent/
-            # prev_sibling/next_sibling, which still point, correctly,
-            # into the live tree (just no longer the linkage the tree
-            # itself uses). A retained handle could silently navigate
-            # through them and land back in the live tree exactly as if
-            # nothing had happened -- the same "quietly wrong instead of
-            # dangling" hazard `erase()`'s DIVERGENCE marker documents in
-            # full (safer than C++'s dangling pointer, not equivalent to
-            # it). Poisoned with the same `_DEAD` sentinel, for the same
-            # reason. `node`'s own first_child/last_child are left
-            # untouched -- its now-orphaned subtree stays intact and
-            # self-consistent, only its outward links are dead.
+            # branch destroys and deallocates `position` and its old
+            # descendants; C++'s own docs therefore call the iterator
+            # "invalid". Any retained C++ handle is dangling and reading
+            # it is undefined behaviour. Python retains referenced objects,
+            # so the discarded node and all former descendants are poisoned
+            # with `_DEAD` instead: a loud, deterministic failure rather
+            # than undefined behaviour.
+            self.erase_children(node)
             node.parent = _DEAD
             node.prev_sibling = _DEAD
             node.next_sibling = _DEAD
@@ -1306,6 +1358,7 @@ class tree:
 
     def flatten(self, node):
         """C++: opencog/util/tree.h:1500 flatten"""
+        _require_live_node(node, "flatten")
         if node.first_child is None:
             return node
         child = node.first_child
@@ -1341,6 +1394,7 @@ class tree:
         """
         if node is None:
             raise ValueError("wrap: node must not be None")
+        _require_live_node(node, "wrap")
         return self.insert_above(node, data)
 
     def reparent(self, new_parent, from_node, to_node=_NO_TO_NODE):
@@ -1363,6 +1417,10 @@ class tree:
         Both forms delegate to `_reparent_range`, which is the direct
         port of the 3-arg C++ overload's own body.
         """
+        _require_live_node(new_parent, "reparent")
+        _require_live_node(from_node, "reparent")
+        if to_node is not _NO_TO_NODE:
+            _require_live_node(to_node, "reparent")
         if to_node is _NO_TO_NODE:
             if from_node.first_child is None:
                 return new_parent
@@ -1381,6 +1439,8 @@ class tree:
         """
         if target is None or source is None:
             raise ValueError("move_after: target and source must not be None")
+        _require_live_node(target, "move_after")
+        _require_live_node(source, "move_after")
         if target is source:
             return source
         if target.next_sibling is not None and target.next_sibling is source:
@@ -1419,6 +1479,8 @@ class tree:
         """
         if target is None or source is None:
             raise ValueError("move_before: target and source must not be None")
+        _require_live_node(target, "move_before")
+        _require_live_node(source, "move_before")
         if target is source:
             return source
         if target.prev_sibling is not None and target.prev_sibling is source:
@@ -1473,19 +1535,13 @@ class tree:
         # and update the regression test above to match.
         #
         # Restores `tree.h:1714-1715`'s `tree_assert(dst); tree_assert(src);`
-        # (null checks), and adds the module-level root guard (see the
-        # DIVERGENCE note) -- both checked BEFORE any mutation, so a
-        # rejected call leaves the tree untouched. `target == self._root`
-        # is also exactly the case tree.h's own docs warn against ("only
-        # use if source is not included in the subtree of target"): if
-        # target is the root, source -- not being target -- is necessarily
-        # a descendant of it, so erasing target would always destroy
-        # source before it could be rescued. This is a guard-ordering
-        # question, not a fidelity one: C++ has the identical precondition
-        # violation here, just reached through its head/feet sentinels
-        # instead of a `self._root` check.
+        # (null checks), and enforces tree.h:1708's documented precondition
+        # that source is not contained in target's subtree. All guards run
+        # BEFORE mutation, so a rejected call leaves the tree untouched.
         if target is None or source is None:
             raise ValueError("move_ontop: target and source must not be None")
+        _require_live_node(target, "move_ontop")
+        _require_live_node(source, "move_ontop")
         if target is source:
             return source
         if target is self._root or source is self._root:
@@ -1494,6 +1550,13 @@ class tree:
                 "replace the tree root -- forests of multiple roots are "
                 "out of scope for this port"
             )
+        ancestor = source.parent
+        while ancestor is not None:
+            if ancestor is target:
+                raise ValueError(
+                    "move_ontop: source must not be a descendant of target"
+                )
+            ancestor = ancestor.parent
         b_prev_sibling = target.prev_sibling
         b_next_sibling = target.next_sibling
         b_parent = target.parent
