@@ -50,10 +50,11 @@ below with a dedicated regression test each:
    source tree too -- see
    `test_push_back_negated_arguments_does_not_mutate_the_source`.
 
-SCOPING: two rule classes this file declares cannot be fully ported today
-because their own C++ bodies call into subsystems that are genuinely not
-built yet, each a real forward reference within logical_rules.cc's own
-dependency graph, not an oversight of this task:
+SCOPING (UPDATED by Task 5 -- see below for what changed): one rule class
+this file declares still cannot be fully ported, because its own C++ body
+calls into a subsystem that is genuinely, permanently out of this
+project's scope; the OTHER was fully unblocked once Task 5 landed its own
+two dependencies:
 
 * `simplify_predicates` -- its early-return guard (is this even a
   predicate? is its argument already a bare argument?) is fully ported
@@ -63,66 +64,36 @@ dependency graph, not an oversight of this task:
   (a `# DIVERGENCE` marks the exact line): both are PLANNED: S14 per
   docs/MODULE-COVERAGE.md, permanently out of this project's current
   scope, not merely "not yet written". Mirrors meta_rules.py's own
-  `_get_output_type_tree` precedent for a genuinely-blocked tail.
-* `reduce_remove_subtree_equal_tt` -- its own predicate-scan guard is
-  fully ported; past it, C++ needs `complete_truth_table`
-  (`comboreduct/table`, out of this file's scope) and `clean_reduce`
-  (`comboreduct/reduct/clean_reduction.py`, PLANNED: S7 but assigned to
-  Task 5, not yet written when this task runs) -- stubbed the same way.
-  Reached only from `logical_reduction.cc`'s effort-3 "complexe"
-  composition (Task 5), which this task cannot itself build.
+  (now-resolved) `_get_output_type_tree` precedent for a genuinely-blocked
+  tail.
+* `reduce_remove_subtree_equal_tt` -- FULLY PORTED as of Task 5, which
+  landed both forward references this rule needed: `complete_truth_table`
+  (`comboreduct/table/table.py`) and `clean_reduce` (`comboreduct/reduct/
+  clean_reduction.py`). See its own `apply` docstring for the full
+  algorithm, including a real, MEASURED C++ quirk (the walk is not
+  actually bounded to `it`'s own subtree) and why `erase_pre_order`
+  (`pymetta/util/tree.py`), not plain `erase`, is the correct primitive
+  for its `pre_it` walk.
 
 TESTING SCOPE, decided and disclosed rather than silently attempted: this
 task's brief asks for a transliteration of `BooleanReductUTest.cxxtest`
 and `BooleanFullUTest.cxxtest`, preserving test names. Read in full
 ($CLASSIC/tests/comboreduct/reduct/):
 
-* `BooleanReductUTest` (6 tests, `test_simplify1`..`test_simplify6`) feeds
-  PURE boolean trees (`and`/`or`/`not`/`$n` only, no predicates) through
-  `logical_reduce(3, tr, ignore_ops)` (effort 3, "complexe") and checks
-  the truth table is unchanged and the tree got smaller. `logical_reduce`
-  itself (`logical_reduction.cc`) is Task 5's own file, not built yet.
-  Reproducing effort 3 exactly is doubly blocked: its outer composition is
-  `iterative(sequential(medium, reduce_remove_subtree_equal_tt()))`, and
-  `reduce_remove_subtree_equal_tt` needs `complete_truth_table`
-  (out of this file's scope) and `clean_reduce` (Task 5) -- stubbed above.
-  PORTED HERE against effort 2 ("medium") instead
-  (`_boolean_reduce_medium`, in the test file, NOT exported from this
-  module) -- MEASURED, not assumed, what this substitution actually buys:
-  a bounded probe run (`tools/cpp_probe/logical_rules_probe.cc`'s
-  `boolean_reduct_medium_typed_N`/`boolean_reduct_medium_untyped_N`
-  cases) shows the real, TYPED effort-2 composition
-  (`downwards(rule, id::boolean_type)` throughout) and this port's
-  UNTYPED equivalent (`meta_rules.py`'s typed-downwards branch is a
-  disclosed `NotImplementedError` stub until Task 5 lands a scoped
-  `type_checker` slice) agree byte-for-byte on 5 of the 6 trees (1, 3, 4,
-  5, 6) -- but DISAGREE on tree 2 (FIX WAVE, Task 4 review: an earlier
-  version of this note wrongly claimed all 6 agree, a misread of this
-  same probe's own already-correct output, not a new measurement).
-  `insert_ands` is the most likely mechanism (not confirmed, since it
-  would require the real `get_output_type_tree`, S8): its own targets are
-  bare arguments and `or` nodes, and if a bare argument's output type in
-  ISOLATION resolves to something other than `boolean_type` (plausible --
-  an argument's type is polymorphic, only pinned down by its enclosing
-  expression), typed `downwards(insert_ands(), boolean_type)` would skip
-  wrapping it where untyped `downwards(insert_ands())` does not. Tree 2's
-  own test (`test_simplify2`) is still pinned against this port's own
-  UNTYPED value (self-consistent and independently verified
-  truth-table-preserving + strictly smaller), with the divergence from
-  real typed `logical_reduction(2)`'s output documented directly on that
-  test rather than glossed over. At effort 3, the SAME typed/untyped
-  comparison disagrees on trees 2 AND 6 (`boolean_reduct_effort3_typed_N`
-  vs `_untyped_N`) -- tree 6's OWN divergence is introduced specifically
-  by `reduce_remove_subtree_equal_tt`'s repeated re-entry into "medium"
-  via the outer `iterative` (confirmed: tree 6 agrees at effort 2), while
-  tree 2's persists at both efforts (the same underlying typed-downwards
-  mechanism, not a second, separate cause). Effort 2, not effort 3, is
-  still this file's real oracle -- fewer, better-understood exceptions.
-  Every one of the 6 trees still gets a genuine, VERIFIED (via
-  `tree.size()`) strict size decrease under "medium" alone, matching the
-  real cxxtest's own `TS_ASSERT_LESS_THAN`. Test NAMES are preserved; the
-  harness function is not `logical_reduction` and is flagged as such in
-  its own docstring.
+* `BooleanReductUTest` (6 tests, `test_simplify1`..`test_simplify6`) --
+  MOVED to `tests/comboreduct/reduct/test_logical_reduction.py` once Task
+  5 landed `logical_reduction.py` (the file this test genuinely needs:
+  it calls `logical_reduce(3, tr, ignore_ops)`, effort 3, "complexe",
+  which lives there, not here). Ported for REAL there now -- byte-
+  identical against the real compiled `libcomboreduct.so` for all 6
+  trees at BOTH effort 2 and effort 3 (`tools/cpp_probe/logical_rules_
+  probe.cc`'s `boolean_reduct_medium_typed_N`/`boolean_reduct_effort3_
+  typed_N`) -- not the untyped, effort-2-only approximation an earlier
+  version of this section had to settle for while blocked. See that
+  module's own docstring for the measured typed-vs-untyped divergence
+  this file's own `insert_ands`/`reduce_nots`/etc. typed dispatch turned
+  out to cause (confirmed, not merely hypothesised, once typed `downwards`
+  existed to test against).
 * `BooleanFullUTest` (`test_simplify1`..`test_simplify9`, `test_simplifya`..
   `test_simplifyd`, `test_simplify14`..`test_simplify20` -- **20** test
   methods total, not a contiguous `1..20`: FIX WAVE, Task 4 review Minor,
@@ -138,10 +109,11 @@ and `BooleanFullUTest.cxxtest`, preserving test names. Read in full
   (`POX`/`CYT`/`NUC`/`ME2` string tokens),
   a `vertex` alternative this port's four-way union does not carry
   (vertex.py's own module docstring). **0 of 20 are reachable today.**
-  This needs type inference (S8), contin/mixed reduction (S14,
-  permanently out of this project's current horizon per
-  docs/MODULE-COVERAGE.md), AND `logical_reduction.py` (Task 5) all at
-  once. NOT PORTED -- disclosed here and in task-4-report.md's Concerns
+  `logical_reduction.py` (Task 5) now exists, but this still needs type
+  inference (S8) AND contin/mixed reduction (S14, permanently out of this
+  project's current horizon per docs/MODULE-COVERAGE.md) simultaneously --
+  landing one of the three original blockers does not unblock the other
+  two. NOT PORTED -- disclosed here and in task-4-report.md's Concerns
   section, rather than faked with a hollow substitute the way
   `BooleanReductUTest` legitimately admits one. Whoever eventually
   reaches S14 is the right owner to revisit this.
@@ -180,6 +152,7 @@ from pymetta.comboreduct.reduct.flat_normal_form import (
     tautology,
 )
 from pymetta.comboreduct.reduct.reduct import rule
+from pymetta.comboreduct.table.table import complete_truth_table
 from pymetta.util.tree import tree_node
 
 # ---------------------------------------------------------------------------
@@ -213,11 +186,12 @@ def is_predicate(node: tree_node) -> bool:
     this port's failure mode (a loud, catchable exception) is safer, but
     not something this file corrects.
 
-    Two real call sites in this file CAN reach a childless `logical_not`
+    Three real call sites in this file CAN reach a childless `logical_not`
     this way (confirmed by construction, not just by inspection --
-    `test_is_predicate_raises_for_a_childless_logical_not` and
-    `test_enf_crashes_on_a_childless_not_via_reduce_and_res_computation`
-    below):
+    `test_is_predicate_raises_for_a_childless_logical_not`,
+    `test_enf_crashes_on_a_childless_not_via_reduce_and_res_computation`,
+    and (Task 5) `test_reduce_remove_subtree_equal_tt_raises_on_a_
+    childless_not_via_its_own_predicate_scan` below):
 
     * `reduce_to_enf.reduce_and`'s own `if not is_predicate(child.
       last_child):` (the `res`-computation setup) -- reached whenever an
@@ -228,6 +202,11 @@ def is_predicate(node: tree_node) -> bool:
       up, for an AND/OR `current` child that itself has exactly one
       child (any operator except `logical_or`, which is excluded by the
       preceding `if`).
+    * (Task 5) `reduce_remove_subtree_equal_tt`'s own guard scan (`for
+      pit in tr: if is_predicate(pit): return`, logical_rules.cc:838-841)
+      walks EVERY node in the tree, so a childless `logical_not`
+      ANYWHERE in `tr` reaches this, not just at a specific structural
+      position the way the two call sites above require.
 
     `subtree_to_enf.reduce_to_enf.and_cut` is the one place in this file
     that CANNOT reach this: it checks `is_logical_operator(gchild.data)`
@@ -565,8 +544,10 @@ class simplify_predicates(rule):
         # boolean-only test corpus (no `greater_than_zero` node ever appears there, so this always
         # returns on the very first line). Only the TAIL -- `contin_reduce`/`mixed_reduce`,
         # PLANNED: S14 (contin/mixed reduction, out of this project's current scope per
-        # docs/MODULE-COVERAGE.md) -- is not implemented, mirroring meta_rules.py's
-        # `_get_output_type_tree` precedent for an analogous genuinely-blocked tail.
+        # docs/MODULE-COVERAGE.md) -- is not implemented. UPDATED (Task 5): meta_rules.py's own
+        # analogous `_get_output_type_tree` stub this docstring used to compare against has since
+        # been resolved for real (a scoped type_checker slice) -- this tail remains blocked because
+        # S14 itself, not a missing type_checker dependency, is out of scope.
         """
         if not is_predicate(it):
             return
@@ -1493,20 +1474,84 @@ class reduce_remove_subtree_equal_tt(rule):
         """C++: moses/comboreduct/reduct/logical_rules.cc:833 reduce_remove_subtree_equal_tt
         (the real member is `reduce_remove_subtree_equal_tt::operator()`).
 
-        # DIVERGENCE(C++ moses/comboreduct/reduct/logical_rules.cc:844): raises past this point.
-        # The predicate-scan guard above is a full, faithful port and IS this rule's real
-        # behaviour for any tree containing a predicate (a no-op, matching C++'s own early
-        # `return`). Past it, C++ needs `complete_truth_table` (comboreduct/table, out of this
-        # file's scope) and `clean_reduce` (comboreduct/reduct/clean_reduction.py, PLANNED: S7 but
-        # assigned to Task 5, not written when this task runs) -- a genuine forward reference
-        # within logical_rules.cc's own dependency graph. Reached only from `logical_reduction.cc`'s
-        # effort-3 "complexe" composition (Task 5), which this task cannot itself build or test.
+        Task 5 (S7) landed the two forward references this rule was
+        blocked on: `complete_truth_table` (`comboreduct/table/table.py`)
+        and `clean_reduce` (`comboreduct/reduct/clean_reduction.py`).
+
+        The predicate-scan guard (`for pit in tr: if is_predicate(pit):
+        return`) walks the WHOLE tree (`tr.begin()` to `tr.end()`, not
+        just `it`'s subtree) -- a full, faithful port of
+        `logical_rules.cc:838-841`'s own `for (pre_it pit = tr.begin();
+        pit != tr.end(); ++pit)`.
+
+        NOT SCOPED TO `it`'S SUBTREE, a real and measured C++ quirk, not
+        an approximation: `for (pre_it pit = it.begin(); pit != it.end();)`
+        (logical_rules.cc:844) declares `pit` as a `pre_it` (`combo_tree::
+        iterator`) but INITIALIZES it from `it.begin()`/bounds it with
+        `it.end()`, both of which are `sibling_iterator`s converted to
+        `pre_it` -- and that conversion keeps only the underlying node
+        pointer, discarding `sibling_iterator`'s `parent_` field entirely
+        (`iterator_base::end()`, opencog/util/tree.h:2356-2362, returns a
+        node-less `sibling_iterator` whose ONLY payload after conversion
+        is a null node pointer). So `pit != it.end()` reduces to "`pit`'s
+        node is not null" -- NOT "`pit` is still inside `it`'s own
+        subtree". The walk starts at `it`'s first child and, via ordinary
+        whole-tree pre-order stepping, can wander PAST `it`'s own subtree
+        boundary into whatever structurally follows it, all the way to
+        the true end of the entire tree. Reproduced here by starting at
+        `it.first_child` and stepping with the tree's own general
+        pre-order primitives (`insert_above`/`erase_pre_order`/
+        `next_pre_order`) until the node reference becomes `None` --
+        exactly mirroring "keep going until the node pointer itself is
+        null", not a subtree-bounded walk. Harmless for every real call
+        site in this project's scope (`logical_reduction.cc`'s effort-3
+        composition always applies at the tree's own root, where "past
+        it's subtree" and "past the whole tree" coincide), but ported
+        faithfully rather than narrowed to what today's callers happen to
+        need.
+
+        `tr.insert_above(pit, id::null_vertex)` (logical_rules.cc:846)
+        returns the NEWLY CREATED null_vertex node (`insert_above`'s own
+        docstring, pymetta/util/tree.py) -- `pit` is REASSIGNED to that
+        wrapper, with the original content now null_vertex's one and only
+        child. The `if`/`else` branches below erase using
+        `tr.erase_pre_order`, NOT plain `tr.erase` -- see that method's
+        own docstring and the `TODO` `erase()`'s Task 4 fix round left at
+        this exact call site: `pit` is a `pre_it` here, and `erase_pre_
+        order` is the separately-ported pre-order-successor variant this
+        rule needs, not the sibling-successor semantics every OTHER rule
+        in this file uses.
+
+        `combo_tree(tr.begin())` is a full snapshot COPY of the WHOLE
+        tree (matching C++'s copy-constructor `combo_tree amputated_tr
+        (tr);` value-copy semantics) -- `clean_reduce` then runs on that
+        COPY alone, so a failed (truth-table-changing) amputation attempt
+        never permanently affects the real `tr` beyond the deliberate,
+        already-committed `insert_above`/`erase_pre_order`/`flatten`
+        splicing this method's own two branches perform on it directly.
+
+        `clean_reduce` is imported HERE, inside the method, rather than
+        at module level: `clean_reduction.py` imports `remove_dangling_
+        junctors` FROM this module, so a top-level import in the other
+        direction would be a real circular import (this port has no
+        header/implementation split to break the cycle the way C++'s
+        `reduct.h`/`clean_reduction.cc` do). Deferred until first call,
+        by which point both modules are fully loaded.
         """
         for pit in tr:
             if is_predicate(pit):
                 return
-        raise NotImplementedError(
-            "reduce_remove_subtree_equal_tt: needs comboreduct/table's "
-            "complete_truth_table plus comboreduct/reduct/clean_reduction.py's "
-            "clean_reduce (Task 5) -- unbuilt at this point in the S7 cycle."
-        )
+
+        from pymetta.comboreduct.reduct.clean_reduction import clean_reduce
+
+        tr_tt = complete_truth_table(tr)
+        pit = it.first_child
+        while pit is not None:
+            pit = tr.insert_above(pit, builtin.null_vertex)
+            amputated_tr = combo_tree(tr.begin())
+            clean_reduce(amputated_tr)
+            if tr_tt.same_complete_truth_table(amputated_tr):
+                pit = tr.erase_pre_order(pit)
+            else:  # remove only the previously added null_vertex
+                pit = tr.erase_pre_order(tr.flatten(pit))
+                pit = tr.next_pre_order(pit)

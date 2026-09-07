@@ -13,8 +13,6 @@ $CLASSIC's compiled `libcomboreduct.so` (bounded:
 and meta_rules.py's own module docstring for the full transcript.
 """
 
-import pytest
-
 from pymetta.comboreduct.combo.argument import argument
 from pymetta.comboreduct.combo.assumption import insert_assumption
 from pymetta.comboreduct.combo.iostream_combo import combo_tree_to_str, str_to_combo_tree
@@ -237,23 +235,39 @@ def test_downwards_is_a_live_walk_a_mutation_mid_pass_is_visited():
 
 
 # ---------------------------------------------------------------------------
-# downwards: the typed-dispatch branch (Task 2 review, Important 2)
+# downwards: the typed-dispatch branch (Task 2 review, Important 2; the
+# real slice of type_checker/type_tree landed by Task 5 -- see meta_rules.py's
+# own module docstring and pymetta.comboreduct.type_checker.type_tree's).
 # ---------------------------------------------------------------------------
 
 
-def test_downwards_typed_branch_raises_notimplementederror():
-    """The typed comparison (`get_output_type_tree(*it) == type_tree
-    (output)`, meta_rules.cc:101) needs type_checker, PLANNED: S8 -- see
-    `_get_output_type_tree`'s own `# DIVERGENCE` marker. Any real
-    (non-`unknown_type`) type argument must fail loudly on first use, not
-    silently skip every node or silently visit all of them.
+def test_downwards_typed_boolean_type_skips_bare_argument_leaves():
+    """MEASURED against the real library (`tools/cpp_probe/
+    meta_rules_probe.cc`'s case 11, `downwards(typed boolean_type)`):
+    `get_output_type_tree(argument)` is ALWAYS `unknown_type`, so a typed
+    `downwards(r, id::boolean_type)` over `and($1 $2)` visits ONLY the
+    root -- never the two argument leaves an UNTYPED `downwards(r)` would
+    also visit (`test_downwards_visits_pre_order` above). This is the
+    exact mechanism `logical_reduction.py`'s effort-2/3 compositions
+    measurably diverge from an untyped approximation on.
     """
     tr = str_to_combo_tree("and($1 $2)")
     log = []
-    with pytest.raises(NotImplementedError):
-        downwards(_RecordVisit(log), type_node.boolean_type)(tr)
-    # the wrapped rule must never have been reached before the raise
-    assert log == []
+    downwards(_RecordVisit(log), type_node.boolean_type)(tr)
+    assert log == ["and($1 $2) "]
+
+
+def test_downwards_typed_boolean_type_visits_a_nested_boolean_operator_too():
+    """MEASURED (`meta_rules_probe.cc` case 12,
+    `downwards(typed boolean_type, nested or)`): the root `and` AND the
+    nested `or` both resolve to `boolean_type` (both are logical
+    operators), so both are visited -- only the argument leaves are
+    skipped.
+    """
+    tr = str_to_combo_tree("and($1 or($2 $3))")
+    log = []
+    downwards(_RecordVisit(log), type_node.boolean_type)(tr)
+    assert log == ["and($1 or($2 $3)) ", "or($2 $3) "]
 
 
 def test_downwards_ignores_output_when_input_is_unknown_type():

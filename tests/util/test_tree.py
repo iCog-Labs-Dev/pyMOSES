@@ -1471,3 +1471,59 @@ def test_erase_last_child_of_the_root_still_returns_none():
     b = t.append_child(t.begin(), "b")
     assert t.erase(b) is None
     assert t.erase(a) is None
+
+
+# ---------------------------------------------------------------------------
+# erase_pre_order -- the pre_it-instantiated sibling of erase() (S7 Task 5,
+# added for logical_rules.py's reduce_remove_subtree_equal_tt).
+# ---------------------------------------------------------------------------
+
+
+def test_erase_pre_order_of_a_last_child_climbs_to_the_parents_next_sibling():
+    """The exact shape `test_erase_last_child_returns_none_not_the_parents_
+    next_sibling` above pins the OPPOSITE answer for: erasing `or`'s last
+    child (`$2`) with `erase_pre_order` must return the tree's PRE-ORDER
+    successor of `$2`'s own (now-erased) subtree -- `and`'s next child,
+    `$3` -- not `None`. This is precisely the `_skip_children_successor`
+    behaviour `erase()` itself had before the Task 4 review fix, now
+    preserved separately for the one real caller (a `pre_it` walk) that
+    needs it.
+    """
+    t = tree("and")
+    or_node = t.append_child(t.begin(), "or")
+    t.append_child(or_node, "$1")
+    child2 = t.append_child(or_node, "$2")
+    child3 = t.append_child(t.begin(), "$3")
+
+    ret = t.erase_pre_order(child2)
+
+    assert ret is child3
+
+
+def test_erase_pre_order_of_a_middle_child_agrees_with_erase():
+    """Erasing a node with a REAL next sibling: both semantics agree
+    (that next sibling IS the pre-order successor too), matching the
+    existing `test_erase` oracle case's own inability to distinguish the
+    two -- see `erase()`'s own docstring.
+    """
+    t = tree("root")
+    a = t.append_child(t.begin(), "a")
+    b = t.append_child(t.begin(), "b")
+    c = t.append_child(t.begin(), "c")
+
+    ret = t.erase_pre_order(b)
+
+    assert ret is c
+    assert a.next_sibling is c
+
+
+def test_erase_pre_order_of_the_very_last_node_in_the_tree_returns_none():
+    """No ancestor has a further sibling -- climbing all the way to the
+    root finds nothing, matching `_skip_children_successor`'s own `None`
+    return at the true end of a pre-order walk.
+    """
+    t = tree("root")
+    a = t.append_child(t.begin(), "a")
+    b = t.append_child(a, "b")
+
+    assert t.erase_pre_order(b) is None

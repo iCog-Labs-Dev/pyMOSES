@@ -416,6 +416,22 @@ class tree:
             yield cur
             cur = self._preorder_step(cur)
 
+    def next_pre_order(self, node):
+        """C++: opencog/util/tree.h:2427 pre_order_iterator (operator++)
+
+        A single pre-order advance from an arbitrary node -- public
+        wrapper around `_preorder_step` (used internally by `__iter__`
+        and `iter_pre_at`). Added for `comboreduct/reduct/logical_rules.
+        py`'s `reduce_remove_subtree_equal_tt` (logical_rules.cc:852's
+        `++pit`, a single explicit pre-order step with no generator or
+        subtree boundary involved) -- the first real external caller that
+        needs one bare step rather than either a whole walk or a private
+        implementation detail.
+        """
+        if node is None:
+            raise ValueError("next_pre_order: node must not be None")
+        return self._preorder_step(node)
+
     def iter_leaf(self):
         """C++: opencog/util/tree.h:3023 leaf_iterator
 
@@ -785,7 +801,7 @@ class tree:
         return True
 
     def validate(self, node=None):
-        """C++: opencog/util/tree.h:535/2175 validate
+        """C++: opencog/util/tree.h:2175 validate
 
         Added task-4 (S7) for `comboreduct/reduct/logical_rules.py`'s
         `subtree_to_enf::reduce_to_enf::reduce_and` (logical_rules.cc:
@@ -1103,16 +1119,56 @@ class tree:
         pre-order-bounded walk, `equal_subtree`'s lockstep boundary) --
         both are genuinely pre-order-shaped, unlike this one.
 
-        TODO (S7 Task 5): `reduce_remove_subtree_equal_tt`
+        S7 Task 5 follow-up: `reduce_remove_subtree_equal_tt`
         (logical_rules.cc:845-853) walks with a `pre_it`, not a `sib_it`
         (`for (pre_it pit = it.begin(); pit != it.end();) { pit =
-        tr.insert_above(...); ...; pit = tr.erase(pit); }`) -- when that
-        rule is implemented for real, `erase` will need a SEPARATE
-        pre-order-successor variant (this method's OLD behaviour, i.e.
-        `_skip_children_successor`) for that one call site; do not
-        silently reuse this sibling-successor version for it.
+        tr.insert_above(...); ...; pit = tr.erase(pit); }`) -- that call
+        site needs the OLD (pre-`erase()`-fix) pre-order-successor
+        behaviour instead, ported separately below as
+        `erase_pre_order` rather than silently reusing this
+        sibling-successor version. Both share the same unlink mechanics
+        via `_unlink`; only the computed `successor` differs.
         """
         successor = node.next_sibling
+        self._unlink(node)
+        return successor
+
+    def erase_pre_order(self, node):
+        """No direct C++ symbol of its own -- the SAME C++ template method
+        `tree<T>::erase` (opencog/util/tree.h:805) instantiated for a
+        `pre_it` (`combo_tree::iterator`/`pre_order_iterator`) rather than
+        the `sib_it` every OTHER real reduct caller passes (see `erase`'s
+        own docstring for the general `ret.skip_children(); ++ret;`
+        mechanism and why the two iterator types disagree).
+        `pre_order_iterator::operator++` DOES respect the `skip_children`
+        flag `ret.skip_children()` sets (unlike `sibling_iterator::
+        operator++`, which ignores it) -- descending into `node`'s
+        children is exactly what must NOT happen once they are about to
+        be erased, so the resulting successor is `node`'s own PRE-ORDER
+        successor computed AS IF `node` were childless: precisely
+        `_skip_children_successor(node)`, this port's existing helper for
+        that exact shape (already used by `iter_pre_at`'s subtree
+        boundary and `equal_subtree`'s lockstep boundary -- both
+        genuinely pre-order-shaped, like this one, unlike plain `erase`).
+
+        Added for `logical_rules.py`'s `reduce_remove_subtree_equal_tt`
+        (logical_rules.cc:845-853, `pit = tr.erase(pit)` where `pit` is a
+        `pre_it`) -- the one real call site in this port that walks with a
+        pre-order iterator while mutating via `erase`, per the TODO
+        `erase()`'s own docstring left for this task (Task 4 review fix
+        round 1).
+        """
+        successor = self._skip_children_successor(node)
+        self._unlink(node)
+        return successor
+
+    def _unlink(self, node):
+        """No direct C++ symbol: the unlink-and-poison body shared by
+        `erase` and `erase_pre_order` -- both are the SAME C++ `erase`
+        template, differing only in which iterator type computes the
+        returned successor (see both callers' own docstrings). Splitting
+        this out avoids duplicating the splice/poison logic between them.
+        """
         self.erase_children(node)
         if node.prev_sibling is None:
             if node.parent is not None:
@@ -1147,7 +1203,6 @@ class tree:
         node.parent = _DEAD
         node.prev_sibling = _DEAD
         node.next_sibling = _DEAD
-        return successor
 
     def erase_children(self, node):
         """C++: opencog/util/tree.h:787 erase_children"""

@@ -48,64 +48,35 @@ value from that probe's real stdout, not a hand-derived guess:
 combo::type_node t)` / `downwards(r, input_, output_)`) are ported for
 SHAPE (the constructors accept and store the type arguments, and
 `apply`'s branch structure matches C++'s `if (input == unknown_type_tree)
-... else ...` exactly), but the TYPED branch's actual comparison --
+... else ...` exactly). The TYPED branch's actual comparison --
 `opencog::combo::get_output_type_tree(*it) == type_tree(output)`
-(meta_rules.cc:101) -- is NOT implemented; see `_get_output_type_tree`
-below. This is a genuine, disclosed gap, not a silent one: `type_checker/
-type_tree.{h,cc}` is PLANNED: S8 per docs/MODULE-COVERAGE.md (the same
-kind of ordering hazard already documented there for `build_knobs`), so
-`get_output_type_tree` has nothing to call. Every one of THIS task's own
-tests exercises only the untyped (default) `downwards(r)` form -- the one
-path that never reaches `_get_output_type_tree` -- so this gap does not
-block Task 2. It WILL block Task 5 (`logical_reduction.py` constructs
-`downwards(rule, id::boolean_type)` extensively, e.g.
-logical_reduction.cc:56,61,64-65); flagged prominently in
-task-2-report.md's Concerns section for Task 5 to resolve deliberately
-(most plausibly a minimal, scoped slice of `get_output_type_tree` --
-mirroring how S5 copied only `type_node`'s enum into table.py rather than
-porting type_checker/type_tree.h wholesale -- rather than the general
-1468-line type-inference engine that file also contains).
+(meta_rules.cc:101) -- was a disclosed `NotImplementedError` stub through
+Task 2 (`type_checker/type_tree.{h,cc}` was PLANNED: S8); Task 5 (S7)
+scoped a narrow slice of it in early, since 10 of 12 `downwards()` calls
+in `logical_reduction.cc` pass `id::boolean_type` and effort 2/3 cannot be
+assembled without a real typed `downwards`. See `pymetta.comboreduct.
+type_checker.type_tree`'s own module docstring for exactly what that
+slice does and does not cover (a per-vertex OUTPUT-type lookup, not the
+general type-inference engine S8 still owns).
+
+MEASURED CONSEQUENCE (Task 4/5 finding, not a Task 2-era guess): typed
+`downwards` does not just complete an API -- it CHANGES which nodes a
+wrapped rule fires on, because `get_output_type_tree(argument) ==
+type_tree(unknown_type)` ALWAYS (an argument's output type is only
+pinned down by its enclosing expression, never in isolation -- see that
+function's own docstring). So `downwards(rule, id::boolean_type)` skips
+every bare argument leaf a corresponding UNTYPED `downwards(rule)` would
+have visited. `logical_reduction.py`'s own effort-2 composition measurably
+diverges from an all-untyped approximation on exactly this mechanism (see
+that module's docstring and task-5-report.md).
 """
 
 from pymetta.comboreduct.combo.assumption import copy_all_assumptions, equal_assumptions
 from pymetta.comboreduct.combo.vertex import combo_tree, equal_subtree_vertex_safe
 from pymetta.comboreduct.reduct.reduct import rule
 from pymetta.comboreduct.table.table import type_node
+from pymetta.comboreduct.type_checker.type_tree import get_output_type_tree, type_tree
 from pymetta.util.tree import tree_node
-
-
-def _get_output_type_tree(v):
-    """C++: moses/comboreduct/type_checker/type_tree.cc:250 get_output_type_tree
-
-    NOT PORTED -- see this module's own docstring for the full reasoning
-    (an S8 ordering hazard, not a silent gap). Reached only from
-    `downwards.apply`'s typed branch, which none of Task 2's own tests
-    exercise.
-
-    # DIVERGENCE(C++ moses/comboreduct/reduct/meta_rules.cc:101): the
-    # typed-dispatch comparison `get_output_type_tree(*it) ==
-    # type_tree(output)` is not implemented -- this stub raises instead
-    # of comparing. Observable impact: `downwards(rule, some_real_type)`
-    # (not the default untyped `downwards(rule)`) raises
-    # `NotImplementedError` on first use instead of filtering by output
-    # type, for EVERY real (non-`unknown_type`) type argument. Added (Task
-    # 2 review, Important 2) specifically so this shows up in
-    # `docs/ALIGNMENT.md`'s divergence table -- a bare `NotImplementedError`
-    # with no marker left `meta_rules.py` reporting 100% coverage with
-    # zero divergences, blind to the file's largest known gap. `type_
-    # checker/type_tree.{h,cc}` is PLANNED: S8 per docs/MODULE-COVERAGE.md
-    # (the same kind of ordering hazard already documented there for
-    # `build_knobs`); Task 5 (`logical_reduction.py`, still S7 scope)
-    # constructs `downwards(rule, id::boolean_type)` extensively and WILL
-    # hit this -- see this module's own docstring and task-2-report.md's
-    # Concerns section.
-    """
-    raise NotImplementedError(
-        "downwards' typed-dispatch branch needs comboreduct/type_checker/"
-        "type_tree.get_output_type_tree, PLANNED: S8 per "
-        "docs/MODULE-COVERAGE.md. See meta_rules.py's module docstring and "
-        "task-2-report.md's Concerns section (flagged for Task 5)."
-    )
 
 
 class downwards(rule):
@@ -169,8 +140,9 @@ class downwards(rule):
             for node in tr.iter_pre_at(it):
                 self.r(tr, node)
         else:
+            output_tt = type_tree(self.output)
             for node in tr.iter_pre_at(it):
-                if _get_output_type_tree(node.data) == self.output:
+                if get_output_type_tree(node.data) == output_tt:
                     self.r(tr, node)
 
 

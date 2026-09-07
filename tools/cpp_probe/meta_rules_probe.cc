@@ -289,5 +289,30 @@ int main()
              << " final=" << oss.str() << endl;
     }
 
+    // ---- 11. downwards TYPED dispatch (task-5): does filtering on
+    //          id::boolean_type skip bare argument leaves? An argument's
+    //          get_output_type_tree is ALWAYS unknown_type in isolation
+    //          (type_tree.cc:253-254), so a typed downwards(r, boolean_type)
+    //          over "and($1 $2)" should visit ONLY the root -- never $1/$2.
+    {
+        combo_tree tr = str2combo_tree("and($1 $2)", vector<string>());
+        vector<string> log;
+        const rule& r_typed = downwards(record_visit("", log), id::boolean_type);
+        r_typed(tr);
+        print_log("downwards(typed boolean_type)", log);
+    }
+
+    // ---- 12. downwards TYPED dispatch over a tree with a nested `or` --
+    //          `or` also resolves to boolean_type, so it must ALSO be
+    //          visited (not just the root `and`), while the leaves still
+    //          are not.
+    {
+        combo_tree tr = str2combo_tree("and($1 or($2 $3))", vector<string>());
+        vector<string> log;
+        const rule& r_typed2 = downwards(record_visit("", log), id::boolean_type);
+        r_typed2(tr);
+        print_log("downwards(typed boolean_type, nested or)", log);
+    }
+
     return 0;
 }

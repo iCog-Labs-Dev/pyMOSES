@@ -36,7 +36,16 @@ from collections import Counter
 from collections.abc import Iterable, Sequence
 from enum import IntEnum
 
-from pymetta.comboreduct.combo.vertex import builtin, get_contin, vertex
+from pymetta.comboreduct.combo.vertex import (
+    bool_to_vertex,
+    builtin,
+    builtin_to_bool,
+    combo_tree,
+    get_contin,
+    vertex,
+)
+from pymetta.comboreduct.interpreter.eval import arity as _tree_arity
+from pymetta.comboreduct.interpreter.interpreter import boolean_interpreter
 
 # ---------------------------------------------------------------------------
 # type_node -- narrow stand-in for type_checker/type_tree_def.h's id::type_node
@@ -730,3 +739,90 @@ class Table:
         if not isinstance(other, Table):
             return NotImplemented
         return self.itable == other.itable and self.otable == other.otable
+
+
+# ---------------------------------------------------------------------------
+# complete_truth_table -- table.h:1436. Scoped in from S7's own "Known gap,
+# deliberate" list (table.py's module docstring) into Task 5 (comboreduct/
+# reduct): `logical_rules.py`'s `reduce_remove_subtree_equal_tt`
+# (logical_rules.cc:833) needs it, and needs only it -- not the rest of
+# table.h's scoring/subsampling machinery.
+# ---------------------------------------------------------------------------
+
+
+class complete_truth_table(list):
+    """C++: moses/comboreduct/table/table.h:1436 complete_truth_table
+
+    Enumerates a boolean combo tree's output over every one of its
+    `2**arity` input combinations, in the canonical bit order table.h's
+    own doc comment gives: input `i`'s j-th bit (`(i >> j) % 2`) is
+    `$(j+1)`'s value.
+
+    `class complete_truth_table : public bool_seq` (`bool_seq` =
+    `std::vector<bool>`) is a plain `list[bool]` subclass here -- the same
+    convention `ITable(list)`/`OTable(list)`/`CTable(dict)` already use in
+    this file for a C++ container subclass. `==` between two instances is
+    therefore ordinary `list.__eq__` (matching `bool_seq`'s own, since
+    C++ declares no custom `operator==` for this class either).
+
+    NARROWLY SCOPED, matching this module's own established convention
+    for a scoped-in dependency (see `_vertex_type_node`'s docstring): only
+    the ONE constructor form `reduce_remove_subtree_equal_tt` actually
+    needs (`complete_truth_table(tr)`, table.h:1449, with the 2-arg
+    explicit-arity overload at table.h:1443 folded in via a keyword
+    default -- both used by `tools/cpp_probe/reduct_effort_probe.cc`) plus
+    `same_complete_truth_table` are ported. NOT ported: the `(It, It)`
+    range constructor (table.h:1441), the `(Func, arity)` functional
+    constructor (table.h:1456), `operator()(It, It)` (the index-lookup
+    accessor, table.h:1467), and `hamming_distance` (table.h:1481) -- zero
+    call sites in this project's reachable scope (`reduce_remove_subtree_
+    equal_tt` only ever constructs from a tree and only ever calls
+    `same_complete_truth_table`).
+    """
+
+    def __init__(self, tr: combo_tree, arity: int | None = None) -> None:
+        """C++: moses/comboreduct/table/table.h:1443 complete_truth_table
+
+        Two C++ constructor overloads collapsed into one Python signature
+        (this port's usual convention for an overloaded C++ constructor):
+        `arity` given explicitly (table.h:1443, `super(pow2(arity)),
+        _arity(arity)`) or omitted, in which case it is inferred from `tr`
+        itself (table.h:1449-1453, `_arity = arity(tr)` -- `arity`, the
+        free function at `interpreter/eval.h:72`, ported as `eval.arity`
+        and imported here under a local name to avoid shadowing this
+        constructor's own `arity` parameter, which mirrors the C++
+        parameter name verbatim).
+        """
+        self._arity: int = _tree_arity(tr) if arity is None else arity
+        super().__init__([False] * (2**self._arity))
+        self._populate(tr)
+
+    def _populate(self, tr: combo_tree) -> None:
+        """C++: moses/comboreduct/table/table.h:1487 complete_truth_table::populate
+
+        `mutable builtin_seq inputs;` (table.h:1494) is a scratch buffer
+        reused across calls in C++ (also by `same_complete_truth_table`
+        below, hence `mutable` despite that method being `const`); no
+        Python equivalent needed, a fresh list per row costs nothing here.
+        """
+        for i in range(len(self)):
+            inputs = [bool_to_vertex(bool((i >> j) % 2)) for j in range(self._arity)]
+            self[i] = builtin_to_bool(boolean_interpreter(inputs)(tr))
+
+    def same_complete_truth_table(self, tr: combo_tree) -> bool:
+        """C++: moses/comboreduct/table/table.cc:855 complete_truth_table::same_complete_truth_table
+
+        Evaluates `tr` at THIS truth table's own `_arity` (not `tr`'s own
+        -- `tr` may reference fewer arguments, e.g. after amputating a
+        subtree; the extra, unreferenced synthetic inputs are simply
+        unused by `boolean_interpreter`). C++'s own "optimized ... detect
+        [inequality] before calculating the entire table" (table.h:1483-
+        1485) is a short-circuiting `for` loop with an early `return
+        false` -- the same short-circuit a Python `for`/`return` gives for
+        free; no separate optimization to reproduce.
+        """
+        for i in range(len(self)):
+            inputs = [bool_to_vertex(bool((i >> j) % 2)) for j in range(self._arity)]
+            if self[i] != builtin_to_bool(boolean_interpreter(inputs)(tr)):
+                return False
+        return True

@@ -69,7 +69,7 @@ from pymetta.comboreduct.reduct.logical_rules import (
     subtree_set,
     subtree_to_enf,
 )
-from pymetta.comboreduct.reduct.meta_rules import downwards, iterative, sequential, upwards
+from pymetta.comboreduct.reduct.meta_rules import downwards, iterative, upwards
 from pymetta.comboreduct.reduct.reduct import rule
 
 # ---------------------------------------------------------------------------
@@ -111,57 +111,6 @@ def _enf_raw(tree_str: str) -> str:
     tr = str_to_combo_tree(tree_str)
     subtree_to_enf()(tr, tr.begin())
     return combo_tree_to_str(tr).strip()
-
-
-def _boolean_reduce_medium(tr: combo_tree, it) -> None:
-    """No direct C++ symbol -- a test-local, UNTYPED stand-in for the real
-    `logical_reduction(ignore_ops)(2)` ("medium") composition
-    (logical_reduction.cc:106-127), built entirely from rules this S7
-    slice already ports (general_rules.level, meta_rules' combinators,
-    this file's own rules). See this module's own top docstring and
-    logical_rules.py's "TESTING SCOPE" section for the measured
-    typed/untyped equivalence this substitution rests on.
-    """
-    pre_subtree_to_enf = sequential(
-        upwards(eval_logical_identities()),
-        downwards(level()),
-        downwards(insert_ands()),
-    )
-    post_subtree_to_enf = sequential(
-        downwards(reduce_ands()),
-        downwards(reduce_ors()),
-    )
-    medium = sequential(
-        downwards(reduce_nots()),
-        iterative(sequential(pre_subtree_to_enf, subtree_to_enf(), post_subtree_to_enf)),
-        downwards(remove_unary_junctors()),
-    )
-    medium(tr, it)
-
-
-def _max_arity(*trees: combo_tree) -> int:
-    m = 0
-    for tr in trees:
-        for node in tr:
-            if isinstance(node.data, argument):
-                m = max(m, node.data.abs_idx())
-    return m
-
-
-def _truth_tables_equal(before: combo_tree, after: combo_tree) -> bool:
-    """No direct C++ symbol: a local stand-in for `complete_truth_table`
-    (moses/comboreduct/table/table.h, not ported -- out of this file's
-    scope) built from the already-ported `boolean_interpreter`, matching
-    the ORIGINAL cxxtest's own `TS_ASSERT_EQUALS(tt1, tt2)` intent.
-    """
-    arity = _max_arity(before, after)
-    for bits in itertools.product((False, True), repeat=arity):
-        inputs = [builtin.logical_true if b else builtin.logical_false for b in bits]
-        v_before = boolean_interpreter(list(inputs))(before)
-        v_after = boolean_interpreter(list(inputs))(after)
-        if not vertex_equal(v_before, v_after):
-            return False
-    return True
 
 
 # ---------------------------------------------------------------------------
@@ -863,91 +812,99 @@ def test_reduce_remove_subtree_equal_tt_is_a_noop_when_a_predicate_is_present():
     assert _apply(reduce_remove_subtree_equal_tt(), "and(0<($1) $2)") == "and(0<($1) $2)"
 
 
-def test_reduce_remove_subtree_equal_tt_raises_for_a_pure_boolean_tree():
-    with pytest.raises(NotImplementedError):
-        _apply(reduce_remove_subtree_equal_tt(), "and($1 $2)")
-
-
-# ---------------------------------------------------------------------------
-# BooleanReductUTest.cxxtest -- test_simplify1..6, preserved test names.
-# See this module's own top docstring for the scoping decision
-# (`_boolean_reduce_medium`, untyped, measured equivalent to real C++'s
-# typed effort-2 composition for every one of these 6 trees).
-# ---------------------------------------------------------------------------
-
-
-def _boolean_reduct_case(tree_str: str, expected: str) -> None:
-    tr = str_to_combo_tree(tree_str)
-    before = combo_tree(tr.begin())
-    size_before = tr.size()
-    _boolean_reduce_medium(tr, tr.begin())
-    size_after = tr.size()
-
-    assert combo_tree_to_str(tr).strip() == expected
-    assert size_after < size_before
-    assert _truth_tables_equal(before, tr)
-
-
-def test_simplify1():
-    _boolean_reduct_case(
-        "and(and(not(not(and($4 $3))) or(not(or($5 $4)) or(and($1 $5) and($1 $5)))) "
-        "and(and(and(not($1) not($2)) not(not($3))) or(and(not($4) not($5)) "
-        "or(or($2 $1) not($5)))))",
-        "false",
-    )
-
-
-def test_simplify2():
-    """KNOWN DIVERGENCE from real typed `logical_reduction(2)` (Task 4
-    review Important, measured via `tools/cpp_probe/logical_rules_
-    probe.cc`'s `boolean_reduct_medium_typed_2`): the real, TYPED effort-2
-    composition produces `and(or(and(!$3 !$5) !$1) or($2 !$3 $5))` --
-    the SAME children, reordered (`and(!$3 !$5)` before `!$1`, not
-    after). This port's UNTYPED `_boolean_reduce_medium` produces the
-    value pinned below instead; every other one of `BooleanReductUTest`'s
-    6 trees agrees byte-for-byte between typed and untyped at effort 2
-    (see this module's own top docstring). `insert_ands` is the most
-    likely mechanism (unconfirmed -- would need the real
-    `get_output_type_tree`, S8): typed `downwards(insert_ands(),
-    boolean_type)` may skip wrapping a bare argument whose output type,
-    in isolation, does not resolve to `boolean_type`. Pinned against
-    THIS port's own value (independently verified truth-table-preserving
-    and strictly smaller by `_boolean_reduct_case` below) rather than the
-    real C++ string, since reproducing the real value needs typed
-    `downwards`, not yet implemented (`meta_rules.py`).
+def test_reduce_remove_subtree_equal_tt_removes_a_redundant_tautology():
+    """Task 5 landed `complete_truth_table` and `clean_reduce`, unblocking
+    this rule for real. MEASURED against the real library (`tools/
+    cpp_probe/logical_rules_probe.cc`'s `rrset_removes_a_redundant_
+    argument`): `or($2 not($2))` is a tautology, so `and($1 or($2 not($2)))`
+    has the SAME truth table as `and($1)` alone -- the redundant subtree
+    is amputated.
     """
-    _boolean_reduct_case(
-        "not(or(and(and(not($5) or($5 $3)) not(or($5 $2))) "
-        "and(or(and($5 $3) or($5 $3)) not(not($1)))))",
-        "and(or(!$1 and(!$3 !$5)) or($2 !$3 $5))",
+    assert (
+        _apply(reduce_remove_subtree_equal_tt(), "and($1 or($2 not($2)))")
+        == "and($1)"
     )
 
 
-def test_simplify3():
-    _boolean_reduct_case(
-        "and(or(not(and(or($5 $3) not($2))) or(or(or($1 $2) and($2 $3)) "
-        "or(and($2 $4) not($5)))) not(not(and(or($3 $3) or($3 $4)))))",
-        "and(or($1 $2 !$5) $3)",
-    )
+def test_reduce_remove_subtree_equal_tt_keeps_a_truth_table_changing_subtree():
+    """MEASURED (`rrset_keeps_tt_changing_subtree`): `and($1 $2)` needs
+    BOTH children -- removing either changes the truth table, so nothing
+    is amputated.
+    """
+    assert _apply(reduce_remove_subtree_equal_tt(), "and($1 $2)") == "and($1 $2)"
 
 
-def test_simplify4():
-    _boolean_reduct_case(
-        "or(and(not($1) $3 or($3 not($1)) or(not($1) and($2 $1) and($3 $2))) "
-        "and($3 $1) and(not($3) or($3 $1) not(or($3 not($1))) not(or($2 $1))))",
-        "$3",
-    )
+def test_reduce_remove_subtree_equal_tt_preserves_the_truth_table():
+    """Truth-table PRESERVATION is this rule's whole point (its own C++
+    doc comment: "check if the truth table is the same after removal of
+    any subtree") -- verified via the already-ported `boolean_
+    interpreter`, independent of the exact string this rule reduces to.
+    """
+    tr = str_to_combo_tree("and($1 or($2 not($2)) or($3 $1))")
+    before = combo_tree(tr.begin())
+    reduce_remove_subtree_equal_tt()(tr, tr.begin())
+    for bits in itertools.product((False, True), repeat=3):
+        inputs = [builtin.logical_true if b else builtin.logical_false for b in bits]
+        assert vertex_equal(
+            boolean_interpreter(list(inputs))(before), boolean_interpreter(list(inputs))(tr)
+        )
 
 
-def test_simplify5():
-    _boolean_reduct_case(
-        "or(and(or(not($1) not($2)) $3) and(or(not($1) $3) not($2)))",
-        "or(and(or(!$1 !$2) $3) and(or(!$1 $3) !$2))",
-    )
+def test_reduce_remove_subtree_equal_tt_non_root_it_walks_past_its_own_subtree():
+    """A real, MEASURED C++ quirk (`rrset_non_root_it_walks_past_its_
+    subtree`, and documented directly on `reduce_remove_subtree_equal_tt.
+    apply`'s own docstring): the walk is bounded by `it.end()`'s NODE
+    POINTER alone (always null after the `sibling_iterator`-to-`pre_it`
+    conversion this rule's own `for (pre_it pit = it.begin(); pit !=
+    it.end();)` performs), not by `it`'s own subtree boundary -- so
+    starting at a NON-ROOT `it`, the walk can reach nodes structurally
+    OUTSIDE `it`'s nominal subtree once it climbs back out. Here `it` is
+    the inner `and(...)`, yet the outer `or`'s SECOND child (`$3`, a
+    sibling of `it`, not a descendant) is still visited and would be
+    amputated if doing so preserved the truth table -- it is NOT amputated
+    here (removing `$3` changes `or(and($1) $3)`'s truth table), which is
+    itself part of what this test pins: the walk reaches `$3` (as opposed
+    to silently stopping at `it`'s own boundary) without incorrectly
+    removing it.
+    """
+    tr = str_to_combo_tree("or(and($1 or($2 not($2))) $3)")
+    root = tr.begin()
+    inner_and = root.first_child
+    reduce_remove_subtree_equal_tt()(tr, inner_and)
+    assert combo_tree_to_str(tr).strip() == "or(and($1) $3)"
 
 
-def test_simplify6():
-    _boolean_reduct_case(
-        "and(or(and(or(not($1) $3) not($2)) and(not($1) $3)) or(not($2) $3))",
-        "and(or(and(or(!$1 $3) !$2) and(!$1 $3)) or(!$2 $3))",
-    )
+def test_reduce_remove_subtree_equal_tt_raises_on_a_childless_not_via_its_own_predicate_scan():
+    """A THIRD real call site for `is_predicate`'s inherited childless-
+    `logical_not` UB (see that function's own docstring, updated by Task
+    5): `reduce_remove_subtree_equal_tt`'s own guard scan walks EVERY
+    node in the tree, so a malformed childless `not` anywhere reaches it
+    -- not built via `str_to_combo_tree` (its grammar cannot express a
+    childless `not`), same as the other two documented call sites.
+    """
+    tr = combo_tree(builtin.logical_and)
+    root = tr.begin()
+    tr.append_child(root, argument(1))
+    tr.append_child(root, builtin.logical_not)  # childless
+
+    with pytest.raises(AttributeError):
+        reduce_remove_subtree_equal_tt()(tr, root)
+
+
+# ---------------------------------------------------------------------------
+# BooleanReductUTest.cxxtest -- MOVED to test_logical_reduction.py (Task 5).
+#
+# Task 4's version of this section ported test_simplify1..6 against a
+# test-local, UNTYPED `_boolean_reduce_medium` approximation of effort 2,
+# because `logical_reduction.py` (this file's own effort-assembly
+# counterpart) and a real typed `downwards` did not exist yet -- the real
+# cxxtest calls `logical_reduce(3, tr, ignore_ops)` (effort 3), which was
+# doubly blocked. Task 5 landed both `logical_reduction.py` and the typed
+# `downwards` slice, so `test_simplify1..6` now live in `test_logical_
+# reduction.py`, calling the REAL `logical_reduce(3, ...)` (byte-identical
+# to real C++, verified directly against `tools/cpp_probe/logical_rules_
+# probe.cc`) -- see that module for the faithful cxxtest port (same test
+# names, same two assertions: strict size decrease + truth-table
+# preservation). Removed from here rather than kept as a redundant,
+# now-superseded approximation.
+# ---------------------------------------------------------------------------

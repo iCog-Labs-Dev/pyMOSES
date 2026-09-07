@@ -258,6 +258,30 @@ def bool_to_vertex(b: bool) -> vertex:
     return builtin.logical_true if b else builtin.logical_false
 
 
+def builtin_to_bool(b: builtin) -> bool:
+    """C++: moses/comboreduct/combo/vertex.h:707 builtin_to_bool
+
+    The inverse of `bool_to_vertex`/`bool_to_builtin`. `b` must already be
+    KNOWN to hold a `builtin` (the C++ parameter type is `const builtin&`,
+    not `vertex` -- no discrimination to do), so a plain `==` between two
+    `builtin` `IntEnum` members is safe here (CLAUDE.md's "type before
+    value" trap is about comparing across DIFFERENT vertex alternatives,
+    e.g. `contin_t == builtin`, which cannot arise once `b`'s static type
+    is already `builtin`).
+
+    FIX WAVE convention (argument.py's `__init__`, vertex.h:709's
+    `OC_ASSERT`): a bare Python `assert` is stripped under `python -O`,
+    so the guard is a `raise AssertionError` instead, to survive
+    `-O` the same way `OC_ASSERT` survives `NDEBUG`. Added for Task 5
+    (`comboreduct/table/table.py`'s `complete_truth_table`, table.h:1436),
+    which needs this to translate `boolean_interpreter`'s `builtin`
+    result back into a plain `bool` for the truth table it accumulates.
+    """
+    if b != builtin.logical_true and b != builtin.logical_false:
+        raise AssertionError("builtin should be 'id::logical_true' or 'id::logical_false'.")
+    return b == builtin.logical_true
+
+
 def vertex_equal(a: vertex, b: vertex) -> bool:
     """No direct C++ symbol: `vertex` (vertex.h:128) is a `boost::variant`,
     and `boost::variant<...>::operator==` is compiler-generated -- it

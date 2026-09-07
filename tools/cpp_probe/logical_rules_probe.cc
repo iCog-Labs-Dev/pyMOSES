@@ -315,6 +315,96 @@ int main()
         run_rule("reduce_or_assumptions_with_and_assumptions_reduction", "or($1 $2 $3)", roa2);
     }
 
+    // ---- Task 5: logical_reduction effort 0 ("extra_simple") and
+    //      effort 1 ("simple") -- the two efforts that need no
+    //      ignore_ops and are usable via the DEFAULT constructor.
+    {
+        logical_reduction r0;
+        const rule& extra_simple = r0(0);
+        {
+            combo_tree tr = str2combo_tree("not(not($1))", vector<string>());
+            extra_simple(tr);
+            cout << quote("logical_reduction_effort0_double_not") << ": "
+                 << quote(show(tr)) << "," << endl;
+        }
+        {
+            // reduce_nots pushes negation through `or` (De Morgan), not
+            // merely "not(not(x))->x" -- this case measures that, not a
+            // no-op as an earlier draft's label wrongly assumed.
+            combo_tree tr = str2combo_tree("and(not(or($1 $2)) $3)", vector<string>());
+            extra_simple(tr);
+            cout << quote("logical_reduction_effort0_reduce_nots_demorgan") << ": "
+                 << quote(show(tr)) << "," << endl;
+        }
+    }
+    {
+        logical_reduction r1;
+        const rule& simple = r1(1);
+        {
+            combo_tree tr = str2combo_tree("and(true $1)", vector<string>());
+            simple(tr);
+            cout << quote("logical_reduction_effort1_and_true") << ": "
+                 << quote(show(tr)) << "," << endl;
+        }
+        {
+            combo_tree tr = str2combo_tree("or(and($1 $2) and($1 $2 $3))", vector<string>());
+            simple(tr);
+            cout << quote("logical_reduction_effort1_subset_absorption") << ": "
+                 << quote(show(tr)) << "," << endl;
+        }
+        {
+            // effort 1 does NOT run subtree_to_enf/insert_ands -- unlike
+            // effort 2, a bare argument under `or` is left as-is.
+            combo_tree tr = str2combo_tree("or($1 $2)", vector<string>());
+            simple(tr);
+            cout << quote("logical_reduction_effort1_no_insert_ands") << ": "
+                 << quote(show(tr)) << "," << endl;
+        }
+        {
+            // level()'s associative flattening -- and(and($1 $2) $3) ->
+            // and($1 $2 $3) -- needs downwards(level()) inside the inner
+            // iterative; without it this stays nested.
+            combo_tree tr = str2combo_tree("and(and($1 $2) $3)", vector<string>());
+            simple(tr);
+            cout << quote("logical_reduction_effort1_level_flattens") << ": "
+                 << quote(show(tr)) << "," << endl;
+        }
+    }
+    // Effort 2/3 without ignore_ops must raise (OC_ASSERT) -- ported here
+    // as a documented, catchable failure mode in Python; not re-probed
+    // (nothing meaningful to print from a process that aborts).
+
+    // ---- clean_reduce, directly: strips a null_vertex sentinel and
+    //      cascades to a now-childless ancestor junctor ----
+    {
+        combo_tree tr = str2combo_tree("and(and(null_vertex($1)))", vector<string>());
+        clean_reduce(tr);
+        cout << quote("clean_reduce_cascades_to_dangling_ancestor") << ": "
+             << quote(show(tr)) << "," << endl;
+    }
+
+    // ---- reduce_remove_subtree_equal_tt, standalone (not via effort 3's
+    //      composition) -- the pre_it walk itself, including a NON-ROOT
+    //      `it` to exercise the "walks past it's own subtree" quirk.
+    {
+        reduce_remove_subtree_equal_tt rrset;
+        run_rule("rrset_removes_a_redundant_argument", "and($1 or($2 not($2)))", rrset);
+        run_rule("rrset_keeps_tt_changing_subtree", "and($1 $2)", rrset);
+    }
+    {
+        // Non-root it: rrset applied AT the inner and(...) node, not the
+        // tree's own root -- the outer or(...)'s own second child ($3)
+        // sits OUTSIDE it's nominal subtree but is still reachable by
+        // the walk (see logical_rules.py's own docstring on this).
+        combo_tree tr = str2combo_tree("or(and($1 or($2 not($2))) $3)", vector<string>());
+        combo_tree::iterator root = tr.begin();
+        combo_tree::iterator inner_and = root.begin();
+        reduce_remove_subtree_equal_tt rrset;
+        rrset(tr, inner_and);
+        cout << quote("rrset_non_root_it_walks_past_its_subtree") << ": "
+             << quote(show(tr)) << "," << endl;
+    }
+
     // ---- BooleanReductUTest's own 6 trees: typed vs untyped-replica ----
     {
         static const char* trees[] = {
