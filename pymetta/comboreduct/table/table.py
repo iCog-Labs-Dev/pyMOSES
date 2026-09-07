@@ -17,13 +17,11 @@ on every method:
   `tuple[vertex, ...]`, one element per column, matching `multi_type_seq`
   only in its *observable* behaviour (`get_at`, `size`, iteration), never
   its internal representation.
-* No `type_checker`/`type_tree`. Per the plan's "Known gap, deliberate"
-  note, `type_checker/` is out of scope for the whole S0-S6 cycle; a
-  `type_tree` (`opencog::tree<type_node>`, shaped
-  `lambda_type(itype1, ..., itypeN, otype)`) is replaced by the plain
-  `Signature` value object below, carrying exactly the same information
-  (`Table.get_signature()`/`CTable.get_signature()`) without the tree
-  machinery.
+* No general `type_checker` inference engine. A classic signature-shaped
+  `type_tree` (`lambda_type(itype1, ..., itypeN, otype)`) is represented
+  by the immutable `TypeSignature` in `type_checker/type_signature.py`.
+  `Signature` remains a compatibility alias here so pre-S8 table and
+  scoring callers keep the same import and constructor surface.
 * No `TTable`/`CTableTime`. Timestamped compression is out of scope (the
   brief's `Table` interface has no `ttable` field); `loadTable`
   (table_io.py) still recognises and *excludes* a `timestamp_feature`
@@ -34,7 +32,6 @@ on every method:
 
 from collections import Counter
 from collections.abc import Iterable, Sequence
-from enum import IntEnum
 
 from pymetta.comboreduct.combo.vertex import (
     bool_to_vertex,
@@ -46,72 +43,11 @@ from pymetta.comboreduct.combo.vertex import (
 )
 from pymetta.comboreduct.interpreter.eval import arity as _tree_arity
 from pymetta.comboreduct.interpreter.interpreter import boolean_interpreter
+from pymetta.comboreduct.type_checker.type_signature import TypeSignature, type_node
 
-# ---------------------------------------------------------------------------
-# type_node -- narrow stand-in for type_checker/type_tree_def.h's id::type_node
-# ---------------------------------------------------------------------------
-
-
-class type_node(IntEnum):
-    """C++: moses/comboreduct/type_checker/type_tree_def.h:32 type_node
-
-    Transcribed verbatim from `namespace id { enum type_node {...} }`:
-    same member names (the `id::` qualifier dropped, matching how
-    `builtin` drops it -- see vertex.py), same implicit ordinals. Ported
-    here rather than as its own `type_checker` module because the plan's
-    "Known gap, deliberate" note scopes `type_checker/` out of the whole
-    S0-S6 cycle; this enum is the one piece of it `ITable`/`OTable`
-    column typing cannot do without. Every member is carried for ordinal
-    fidelity even though this port's `token_to_vertex` (table_io.py) only
-    ever produces `boolean_type`, `contin_type`, `enum_type`,
-    `definite_object_type` and `ill_formed_type` values -- the rest exist
-    only so a future task extending this enum finds the same ordinals
-    classic uses.
-    """
-
-    lambda_type = 0
-    application_type = 1
-    union_type = 2
-    arg_list_type = 3
-    boolean_type = 4
-    contin_type = 5
-    enum_type = 6
-    list_type = 7
-    action_result_type = 8
-    definite_object_type = 9
-    action_definite_object_type = 10
-    indefinite_object_type = 11
-    message_type = 12
-    action_symbol_type = 13
-    wild_card_type = 14
-    ann_type = 15
-    unknown_type = 16
-    ill_formed_type = 17
-    argument_type = 18
-
-
-class Signature:
-    """Stand-in for the `type_tree` classic builds as
-    `lambda_type(itype1, ..., itypeN, otype)` -- see `Table.get_signature`
-    (table.h:944) and `CTable`'s `tsig` field (table.h:731). Not itself a
-    ported C++ symbol (no `type_tree` class exists in this port -- see
-    module docstring); carries exactly the same two pieces of information
-    `get_signature()` callers actually use.
-    """
-
-    __slots__ = ("itypes", "otype")
-
-    def __init__(self, itypes: Sequence[type_node], otype: type_node) -> None:
-        self.itypes: tuple[type_node, ...] = tuple(itypes)
-        self.otype: type_node = otype
-
-    def __eq__(self, other: object) -> bool:
-        if not isinstance(other, Signature):
-            return NotImplemented
-        return self.itypes == other.itypes and self.otype == other.otype
-
-    def __repr__(self) -> str:
-        return f"Signature(itypes={self.itypes!r}, otype={self.otype!r})"
+# Compatibility re-export for existing table/scoring callers.  New code should
+# import TypeSignature from type_checker.type_signature.
+Signature = TypeSignature
 
 
 def _vertex_type_node(v: vertex) -> type_node:
@@ -646,12 +582,10 @@ class Table:
     def get_signature(self) -> Signature:
         """C++: moses/comboreduct/table/table.h:944 get_signature
 
-        Built directly from `itable.get_types()` + `otable.get_type()` --
-        the plan's "constructed directly as gen_signature(boolean_type,
-        arity)" note (see docs/superpowers/plans/2026-09-03-pymetta-s0-s6
-        -foundation.md's "Known gap, deliberate" section): no
-        `type_checker::gen_signature` call needed since `Signature` is
-        already this shape.
+        Built directly from `itable.get_types()` + `otable.get_type()`.
+        `Signature` is the compatibility name for S8's canonical immutable
+        `TypeSignature`, the same fixed-signature shape produced by
+        `type_checker.gen_signature` without introducing a general type tree.
         """
         return Signature(self.itable.get_types(), self.otable.get_type())
 
