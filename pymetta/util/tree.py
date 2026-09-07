@@ -423,14 +423,47 @@ class tree:
         wrapper around `_preorder_step` (used internally by `__iter__`
         and `iter_pre_at`). Added for `comboreduct/reduct/logical_rules.
         py`'s `reduce_remove_subtree_equal_tt` (logical_rules.cc:852's
-        `++pit`, a single explicit pre-order step with no generator or
-        subtree boundary involved) -- the first real external caller that
-        needs one bare step rather than either a whole walk or a private
-        implementation detail.
+        `++pit`, a single explicit pre-order step) -- the first real
+        external caller that needs one bare step rather than a whole
+        generator walk or a private implementation detail. That rule's
+        walk is bounded by a subtree end, but computing the bound is
+        `subtree_pre_order_end`'s job (below), not this method's -- this
+        one is called only for the per-node advance in between.
         """
         if node is None:
             raise ValueError("next_pre_order: node must not be None")
         return self._preorder_step(node)
+
+    def subtree_pre_order_end(self, node):
+        """C++: opencog/util/tree.h:2412 pre_order_iterator(const sibling_iterator&)
+
+        Public wrapper around `_skip_children_successor` -- the pre-order
+        node immediately following `node`'s own entire subtree, i.e. what
+        `it.end()` (a `sibling_iterator` bounding `node`'s CHILD range)
+        becomes once converted to a `pre_it`/`pre_order_iterator` in C++.
+        That conversion (tree.h:2412-2423) is easy to misread as "keeps
+        only the underlying node pointer, which is null for `end()`" --
+        it does not: when the incoming node pointer is null it falls back
+        to `other.range_last()` (`node`'s own last child, or `node`
+        itself if childless), calls `skip_children()`, then steps once --
+        which lands EXACTLY on `_skip_children_successor(node)`, a real,
+        non-null boundary in every case except "node is the last node in
+        the whole tree in pre-order" (where it is `None`, matching
+        `_skip_children_successor`'s own `None` return for that case).
+
+        Added for `comboreduct/reduct/logical_rules.py`'s
+        `reduce_remove_subtree_equal_tt` (`for (pre_it pit = it.begin();
+        pit != it.end();)`, logical_rules.cc:844): that rule's walk over
+        `it`'s children IS bounded to `it`'s own subtree, via this exact
+        mechanism -- a Task 5 fix-round correction of an earlier claim
+        (in this rule's own docstring) that the walk was unbounded. See
+        that rule's own docstring for the full trace, including a bounded
+        probe against the real compiled `libcomboreduct.so` pinning both
+        the wrong and the corrected behaviour on the same input tree.
+        """
+        if node is None:
+            raise ValueError("subtree_pre_order_end: node must not be None")
+        return self._skip_children_successor(node)
 
     def iter_leaf(self):
         """C++: opencog/util/tree.h:3023 leaf_iterator

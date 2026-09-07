@@ -70,10 +70,11 @@ two dependencies:
   landed both forward references this rule needed: `complete_truth_table`
   (`comboreduct/table/table.py`) and `clean_reduce` (`comboreduct/reduct/
   clean_reduction.py`). See its own `apply` docstring for the full
-  algorithm, including a real, MEASURED C++ quirk (the walk is not
-  actually bounded to `it`'s own subtree) and why `erase_pre_order`
-  (`pymetta/util/tree.py`), not plain `erase`, is the correct primitive
-  for its `pre_it` walk.
+  algorithm, including why its `pre_it` walk is correctly BOUNDED to
+  `it`'s own subtree (a fix-round correction of this file's own earlier,
+  unverified claim that it was not -- see that docstring's own trace) and
+  why `erase_pre_order` (`pymetta/util/tree.py`), not plain `erase`, is
+  the correct primitive for that walk.
 
 TESTING SCOPE, decided and disclosed rather than silently attempted: this
 task's brief asks for a transliteration of `BooleanReductUTest.cxxtest`
@@ -1484,31 +1485,56 @@ class reduce_remove_subtree_equal_tt(rule):
         `logical_rules.cc:838-841`'s own `for (pre_it pit = tr.begin();
         pit != tr.end(); ++pit)`.
 
-        NOT SCOPED TO `it`'S SUBTREE, a real and measured C++ quirk, not
-        an approximation: `for (pre_it pit = it.begin(); pit != it.end();)`
-        (logical_rules.cc:844) declares `pit` as a `pre_it` (`combo_tree::
-        iterator`) but INITIALIZES it from `it.begin()`/bounds it with
-        `it.end()`, both of which are `sibling_iterator`s converted to
-        `pre_it` -- and that conversion keeps only the underlying node
-        pointer, discarding `sibling_iterator`'s `parent_` field entirely
-        (`iterator_base::end()`, opencog/util/tree.h:2356-2362, returns a
-        node-less `sibling_iterator` whose ONLY payload after conversion
-        is a null node pointer). So `pit != it.end()` reduces to "`pit`'s
-        node is not null" -- NOT "`pit` is still inside `it`'s own
-        subtree". The walk starts at `it`'s first child and, via ordinary
-        whole-tree pre-order stepping, can wander PAST `it`'s own subtree
-        boundary into whatever structurally follows it, all the way to
-        the true end of the entire tree. Reproduced here by starting at
-        `it.first_child` and stepping with the tree's own general
-        pre-order primitives (`insert_above`/`erase_pre_order`/
-        `next_pre_order`) until the node reference becomes `None` --
-        exactly mirroring "keep going until the node pointer itself is
-        null", not a subtree-bounded walk. Harmless for every real call
-        site in this project's scope (`logical_reduction.cc`'s effort-3
-        composition always applies at the tree's own root, where "past
-        it's subtree" and "past the whole tree" coincide), but ported
-        faithfully rather than narrowed to what today's callers happen to
-        need.
+        BOUNDED TO `it`'S SUBTREE -- CORRECTED (Task 5 fix round). An
+        earlier version of this docstring claimed `for (pre_it pit = it.
+        begin(); pit != it.end();)` (logical_rules.cc:844) was
+        effectively unbounded, reasoning that the `sibling_iterator`->
+        `pre_it` conversion "keeps only the underlying node pointer,
+        discarding `parent_` entirely" and so `pit != it.end()` reduces
+        to "`pit`'s node is not null". That reasoning is WRONG, and was
+        never checked against a running binary. The conversion in
+        question is `pre_order_iterator::pre_order_iterator(const
+        sibling_iterator&)` (opencog/util/tree.h:2412-2423), NOT
+        `iterator_base::end()` -- and it does not merely copy a null
+        pointer: `if (this->node == 0) { this->node = other.range_last()
+        ? other.range_last() : other.parent_; this->skip_children();
+        ++(*this); }`. For `it.end()`, `other.range_last()` is `it`'s own
+        LAST CHILD (`sibling_iterator::range_last`, tree.h:3006:
+        `parent_->last_child`) and `other.parent_` is `it` itself -- so
+        the fallback computes "`it`'s own pre-order successor with
+        children skipped", i.e. the first real node STRUCTURALLY AFTER
+        `it`'s entire subtree (`it`'s next sibling, or the next sibling
+        of the nearest ancestor that has one, or nothing if `it` is the
+        last node in the whole tree). That is exactly this port's own
+        `tree.subtree_pre_order_end` (`pymetta/util/tree.py`, itself a
+        thin wrapper around the pre-existing `_skip_children_successor`
+        already used by `iter_pre_at`/`equal_subtree`/`erase_pre_order`
+        for the identical shape) -- a REAL subtree boundary, not "walk
+        until null". `pit != it.end()` therefore means "`pit` has not yet
+        walked past `it`'s own subtree", which is what this method now
+        computes ONCE, up front (mirroring `downwards`'s own established
+        "compute the bound before `it` has moved at all" pattern,
+        `meta_rules.py`), by calling `tr.subtree_pre_order_end(it)`.
+
+        MEASURED, not reasoned about, via a bounded probe against the
+        real compiled `libcomboreduct.so`
+        (`( ulimit -v 2097152; timeout 300 <probe> )`): for `or(and($1
+        $2) $1 $1)` with `it` the `and` node, real C++ visits exactly
+        `$1` and `$2` (`it`'s own two children) and leaves the outer
+        `or`'s other two `$1` children -- siblings of `it`, outside its
+        subtree -- untouched, returning `or(and($1) $1 $1)`. Before this
+        fix, this port's unbounded walk continued past `it`'s subtree
+        into those two siblings and amputated both, returning
+        `or(and($1))` -- see `test_reduce_remove_subtree_equal_tt_
+        bounded_to_its_own_subtree_not_the_whole_tree` (test_logical_
+        rules.py) for the pinned regression.
+
+        NO `# DIVERGENCE` MARKER NEEDED for this bounding: it is not an
+        approximation, narrowing, or deliberate deviation from C++ --
+        `subtree_pre_order_end` reproduces exactly what the real
+        `sibling_iterator`->`pre_it` conversion computes for `it.end()`.
+        A marker would misrepresent this as a difference from C++ when
+        it is, precisely, agreement with it.
 
         `tr.insert_above(pit, id::null_vertex)` (logical_rules.cc:846)
         returns the NEWLY CREATED null_vertex node (`insert_above`'s own
@@ -1545,8 +1571,9 @@ class reduce_remove_subtree_equal_tt(rule):
         from pymetta.comboreduct.reduct.clean_reduction import clean_reduce
 
         tr_tt = complete_truth_table(tr)
+        boundary = tr.subtree_pre_order_end(it)
         pit = it.first_child
-        while pit is not None:
+        while pit is not None and pit is not boundary:
             pit = tr.insert_above(pit, builtin.null_vertex)
             amputated_tr = combo_tree(tr.begin())
             clean_reduce(amputated_tr)

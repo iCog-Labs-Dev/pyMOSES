@@ -850,28 +850,53 @@ def test_reduce_remove_subtree_equal_tt_preserves_the_truth_table():
         )
 
 
-def test_reduce_remove_subtree_equal_tt_non_root_it_walks_past_its_own_subtree():
-    """A real, MEASURED C++ quirk (`rrset_non_root_it_walks_past_its_
-    subtree`, and documented directly on `reduce_remove_subtree_equal_tt.
-    apply`'s own docstring): the walk is bounded by `it.end()`'s NODE
-    POINTER alone (always null after the `sibling_iterator`-to-`pre_it`
-    conversion this rule's own `for (pre_it pit = it.begin(); pit !=
-    it.end();)` performs), not by `it`'s own subtree boundary -- so
-    starting at a NON-ROOT `it`, the walk can reach nodes structurally
-    OUTSIDE `it`'s nominal subtree once it climbs back out. Here `it` is
-    the inner `and(...)`, yet the outer `or`'s SECOND child (`$3`, a
-    sibling of `it`, not a descendant) is still visited and would be
-    amputated if doing so preserved the truth table -- it is NOT amputated
-    here (removing `$3` changes `or(and($1) $3)`'s truth table), which is
-    itself part of what this test pins: the walk reaches `$3` (as opposed
-    to silently stopping at `it`'s own boundary) without incorrectly
-    removing it.
+def test_reduce_remove_subtree_equal_tt_non_root_it_never_reaches_a_sibling():
+    """CORRECTED (Task 5 fix round): this test used to be named
+    `..._walks_past_its_own_subtree` and claimed, on the strength of an
+    unverified reading of the `sibling_iterator`->`pre_it` conversion,
+    that real C++ walks past `it`'s own subtree into structurally later
+    siblings (here, `$3`) -- see `reduce_remove_subtree_equal_tt.apply`'s
+    own docstring for why that reading was wrong. This exact tree cannot
+    actually tell the two hypotheses apart: `$3` survives either way,
+    whether because it was never visited (correct, bounded) or because it
+    was visited but its removal changes the truth table (the old,
+    incorrect story) -- see `..._bounded_to_its_own_subtree_not_the_whole_
+    tree` below for a tree that DOES distinguish them. Kept here, renamed
+    and re-explained, as a same-answer regression pin plus a `$3`-is-a-
+    truth-table-load-bearing-sibling sanity check for the corrected
+    boundary logic (`it` is the inner `and(...)`; `$3` is the outer
+    `or`'s second child, a sibling of `it`, never entered by the walk).
     """
     tr = str_to_combo_tree("or(and($1 or($2 not($2))) $3)")
     root = tr.begin()
     inner_and = root.first_child
     reduce_remove_subtree_equal_tt()(tr, inner_and)
     assert combo_tree_to_str(tr).strip() == "or(and($1) $3)"
+
+
+def test_reduce_remove_subtree_equal_tt_bounded_to_its_own_subtree_not_the_whole_tree():
+    """The actual distinguishing case for the boundary bug fixed this
+    task round (see `reduce_remove_subtree_equal_tt.apply`'s own
+    docstring for the full trace). MEASURED via a bounded probe against
+    the real compiled `libcomboreduct.so`
+    (`( ulimit -v 2097152; timeout 300 <probe> )`), calling
+    `reduce_remove_subtree_equal_tt()(tr, it)` directly (not through
+    `logical_reduce`) with `it` the `and` node of `or(and($1 $2) $1 $1)`:
+    real C++ visits only `it`'s own two children (`$1`, `$2`) and leaves
+    the outer `or`'s other two `$1` siblings untouched, giving
+    `or(and($1) $1 $1)` (`$2` alone is redundant -- `$1 or ($1 and $2)`
+    reduces to `$1` by absorption, same as the original tree's truth
+    table). Before this fix, this port's then-unbounded walk continued
+    past `it`'s subtree into those two siblings and amputated both
+    (nothing downstream of `it`'s own subtree is truth-table load-bearing
+    in isolation once the whole tree already reduces to `$1`), giving the
+    wrong `or(and($1))`.
+    """
+    tr = str_to_combo_tree("or(and($1 $2) $1 $1)")
+    root = tr.begin()
+    inner_and = root.first_child
+    reduce_remove_subtree_equal_tt()(tr, inner_and)
+    assert combo_tree_to_str(tr).strip() == "or(and($1) $1 $1)"
 
 
 def test_reduce_remove_subtree_equal_tt_raises_on_a_childless_not_via_its_own_predicate_scan():

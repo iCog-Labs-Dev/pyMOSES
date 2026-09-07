@@ -182,9 +182,28 @@ def get_output_type_tree(v: vertex) -> type_tree:
     the function's own `else { OC_ASSERT(false, ...); }` tail
     (type_tree.cc:274-277). This port's four-way `vertex` union includes
     `str` (which `enum_t` subclasses), and this function raises for that
-    case below via the SAME final `else`, for the SAME reason: this is
-    not a missing capability of this port, it is what the real, compiled
-    library does too.
+    case below via the SAME final `else`, for the SAME reason as real
+    C++'s `enum_t` case specifically.
+
+    SOFTENED (Task 5 fix round -- an earlier version of this paragraph
+    overclaimed parity for `str` in general): C++'s `get_output_type_tree`
+    does NOT send every string-like vertex to that final `else`. It has
+    an explicit `is_definite_object(v)` branch (type_tree.cc:264-265,
+    `return get_type_tree(v);`) that routes a `definite_object` -- also
+    represented as a string in real C++ -- to `definite_object_type`
+    instead, never reaching the assert-failure tail at all. This port's
+    `str` alternative conflates `enum_t` and `definite_object` into one
+    Python type (disclosed in `vertex.py`'s own module docstring and
+    `docs/CARRY-FORWARD.md` section 2.1) and so cannot tell, from a bare `str`
+    alone, which of the two real C++ types it stands in for -- meaning
+    this function's uniform "raise for any `str`" is only PROVABLY
+    correct for the `enum_t` case; for a `str` standing in for what would
+    have been a real `definite_object`, this port's behaviour (raise)
+    genuinely diverges from real C++'s (return `definite_object_type`).
+    That divergence is an accepted, already-disclosed consequence of the
+    `str` conflation itself (no `definite_object` construct exists
+    anywhere reachable in this port's scope), not a new gap -- but it is
+    NOT "the same reason" parity the previous wording claimed.
     """
     if is_builtin(v):
         return type_tree(_BUILTIN_OUTPUT_TYPE[v])

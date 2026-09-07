@@ -768,26 +768,36 @@ class complete_truth_table(list):
     NARROWLY SCOPED, matching this module's own established convention
     for a scoped-in dependency (see `_vertex_type_node`'s docstring): only
     the ONE constructor form `reduce_remove_subtree_equal_tt` actually
-    needs (`complete_truth_table(tr)`, table.h:1449, with the 2-arg
-    explicit-arity overload at table.h:1443 folded in via a keyword
+    needs (`complete_truth_table(tr)`, table.h:1451, with the 2-arg
+    explicit-arity overload at table.h:1445 folded in via a keyword
     default -- both used by `tools/cpp_probe/reduct_effort_probe.cc`) plus
     `same_complete_truth_table` are ported. NOT ported: the `(It, It)`
-    range constructor (table.h:1441), the `(Func, arity)` functional
-    constructor (table.h:1456), `operator()(It, It)` (the index-lookup
-    accessor, table.h:1467), and `hamming_distance` (table.h:1481) -- zero
+    range constructor (table.h:1443), the `(Func, arity)` functional
+    constructor (table.h:1459), `operator()(It, It)` (the index-lookup
+    accessor, table.h:1477), and `hamming_distance` (table.h:1485) -- zero
     call sites in this project's reachable scope (`reduce_remove_subtree_
     equal_tt` only ever constructs from a tree and only ever calls
     `same_complete_truth_table`).
+
+    CORRECTED (Task 5 fix round): every C++ line number in this class's
+    own docstrings was off by a small, systematic amount (the un-ported
+    `(It, It)` ctor at table.h:1443 had been cited as this class's own
+    PORTED-constructor breadcrumb, among other misses) -- caught by
+    `tools/check_alignment.py` validating only that a cited line EXISTS
+    in the named file, not that it names the cited symbol (that script's
+    own module docstring says so explicitly). Every citation below was
+    re-checked directly against `grep -n` on the real
+    `moses/comboreduct/table/table.h`.
     """
 
     def __init__(self, tr: combo_tree, arity: int | None = None) -> None:
-        """C++: moses/comboreduct/table/table.h:1443 complete_truth_table
+        """C++: moses/comboreduct/table/table.h:1445 complete_truth_table
 
         Two C++ constructor overloads collapsed into one Python signature
         (this port's usual convention for an overloaded C++ constructor):
-        `arity` given explicitly (table.h:1443, `super(pow2(arity)),
+        `arity` given explicitly (table.h:1445, `super(pow2(arity)),
         _arity(arity)`) or omitted, in which case it is inferred from `tr`
-        itself (table.h:1449-1453, `_arity = arity(tr)` -- `arity`, the
+        itself (table.h:1451-1455, `_arity = arity(tr)` -- `arity`, the
         free function at `interpreter/eval.h:72`, ported as `eval.arity`
         and imported here under a local name to avoid shadowing this
         constructor's own `arity` parameter, which mirrors the C++
@@ -798,9 +808,9 @@ class complete_truth_table(list):
         self._populate(tr)
 
     def _populate(self, tr: combo_tree) -> None:
-        """C++: moses/comboreduct/table/table.h:1487 complete_truth_table::populate
+        """C++: moses/comboreduct/table/table.h:1495 complete_truth_table::populate
 
-        `mutable builtin_seq inputs;` (table.h:1494) is a scratch buffer
+        `mutable builtin_seq inputs;` (table.h:1506) is a scratch buffer
         reused across calls in C++ (also by `same_complete_truth_table`
         below, hence `mutable` despite that method being `const`); no
         Python equivalent needed, a fresh list per row costs nothing here.
@@ -816,8 +826,8 @@ class complete_truth_table(list):
         -- `tr` may reference fewer arguments, e.g. after amputating a
         subtree; the extra, unreferenced synthetic inputs are simply
         unused by `boolean_interpreter`). C++'s own "optimized ... detect
-        [inequality] before calculating the entire table" (table.h:1483-
-        1485) is a short-circuiting `for` loop with an early `return
+        [inequality] before calculating the entire table" (table.h:1488-
+        1489) is a short-circuiting `for` loop with an early `return
         false` -- the same short-circuit a Python `for`/`return` gives for
         free; no separate optimization to reproduce.
         """

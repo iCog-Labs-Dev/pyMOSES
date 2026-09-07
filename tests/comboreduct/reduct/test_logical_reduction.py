@@ -234,6 +234,54 @@ def test_effort1_does_not_run_insert_ands_or_subtree_to_enf():
     assert combo_tree_to_str(tr).strip() == "or($1 $2)"
 
 
+def test_effort1_composition_order_and_fixpoint_are_load_bearing():
+    """FIX ROUND: every effort-1 test above uses a one-operator tree
+    (a single `and`, a single `or`, ...), which cannot distinguish
+    `p_simple`'s ACTUAL composition (`downwards(reduce_nots()) ->
+    iterative(sequential(eval_logical_identities, level, reduce_ands,
+    reduce_ors))`, logical_reduction.cc:60-65) from two mutants: swapping
+    `reduce_ands`/`reduce_ors`'s order inside that inner `sequential`, or
+    dropping the outer `iterative` (running the inner sequence only ONCE
+    instead of to a fixpoint). Both mutations were APPLIED to this port
+    directly and re-run against the four tests above: neither changes
+    any of their four pinned values, so both mutants silently survived
+    until now.
+
+    Both expected values below are MEASURED against real C++
+    (`( ulimit -v 2097152; timeout 300 <probe> )`, `logical_reduce(1, tr,
+    ignore_ops=set())`) and this port's own CORRECT (unmutated) output
+    matches both exactly. Each case was then independently re-run against
+    BOTH mutants above (applied one at a time to this port) to confirm
+    which one it actually kills -- a test asserting a "should distinguish
+    this" value without checking is exactly the unverified-claim mistake
+    this fix round exists to correct elsewhere in this file's own module:
+
+    * `and(not(not($2)) or(or($2 $1) not($1)))` -> `$2`. Kills the
+      ORDER-SWAP mutant (measured: swapped gives `and($2)` -- the
+      `or($2 $1 !$1)` tautology is never collapsed to `true`, so
+      `and($2 true)` never reduces its own `true` argument away).
+      Measured NOT to kill the DROP-`iterative` mutant (still gives the
+      correct `$2` with only one pass of the inner sequence).
+    * `or($1 false)` -> `$1`. Kills the DROP-`iterative` mutant
+      (measured: one pass gives `or($1)` -- `reduce_ors` drops the
+      `false` argument on that first pass, but nothing in `p_simple`'s
+      rule set unwraps the resulting single-child `or` without a SECOND
+      pass through `level`/`eval_logical_identities`). Measured NOT to
+      kill the ORDER-SWAP mutant (still gives the correct `$1`: swapping
+      which of `reduce_ands`/`reduce_ors` runs first each pass does not
+      change how many passes this particular input needs).
+
+    Together the two cases cover both mutations; neither alone would.
+    """
+    tr1 = str_to_combo_tree("and(not(not($2)) or(or($2 $1) not($1)))")
+    logical_reduce(1, tr1)
+    assert combo_tree_to_str(tr1).strip() == "$2"
+
+    tr2 = str_to_combo_tree("or($1 false)")
+    logical_reduce(1, tr2)
+    assert combo_tree_to_str(tr2).strip() == "$1"
+
+
 # ---------------------------------------------------------------------------
 # logical_reduction's own construction/dispatch contract
 # ---------------------------------------------------------------------------

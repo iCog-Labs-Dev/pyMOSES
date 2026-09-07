@@ -259,7 +259,7 @@ def bool_to_vertex(b: bool) -> vertex:
 
 
 def builtin_to_bool(b: builtin) -> bool:
-    """C++: moses/comboreduct/combo/vertex.h:707 builtin_to_bool
+    """C++: moses/comboreduct/combo/vertex.h:708 builtin_to_bool
 
     The inverse of `bool_to_vertex`/`bool_to_builtin`. `b` must already be
     KNOWN to hold a `builtin` (the C++ parameter type is `const builtin&`,
@@ -269,7 +269,7 @@ def builtin_to_bool(b: builtin) -> bool:
     e.g. `contin_t == builtin`, which cannot arise once `b`'s static type
     is already `builtin`).
 
-    FIX WAVE convention (argument.py's `__init__`, vertex.h:709's
+    FIX WAVE convention (argument.py's `__init__`, vertex.h:710's
     `OC_ASSERT`): a bare Python `assert` is stripped under `python -O`,
     so the guard is a `raise AssertionError` instead, to survive
     `-O` the same way `OC_ASSERT` survives `NDEBUG`. Added for Task 5

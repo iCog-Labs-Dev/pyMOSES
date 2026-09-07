@@ -35,18 +35,36 @@ def test_clean_reduce_removes_a_null_vertex_leaf():
 
 
 def test_clean_reduce_cascades_to_a_now_dangling_ancestor():
-    """MEASURED against real C++ (`clean_reduce_cascades_to_dangling_
-    ancestor`): `and(and(null_vertex($1)))` -> `and`. The inner `and`'s
-    ONLY child is the `null_vertex`-wrapped `$1`; removing it (`downwards
-    (remove_null_vertices())`) leaves the inner `and` childless, which
-    only the SEPARATE, LATER `upwards(remove_dangling_junctors())` pass
-    then removes from the OUTER `and` -- a single `downwards(remove_
-    null_vertices())` pass alone would stop at `and(and())`, never
-    reaching the outer `and`'s own now-dangling child. Directly
-    distinguishes the real two-rule composition from just its first half
-    (see the comparison test right below).
+    """MEASURED against real C++ (bounded probe against the compiled
+    `libcomboreduct.so`, `( ulimit -v 2097152; timeout 300 <probe> )`,
+    `clean_reduce(tr)`): `and(and(and(null_vertex($1))))` -> `and`.
+
+    DEEPENED (Task 5 fix round) from a 2-level `and(and(null_vertex($1)))`
+    that was one level too shallow to actually distinguish the real
+    composition from a mutant: at 2 levels, `downwards(remove_dangling_
+    junctors())` (WRONG -- pre-order, top-down) COINCIDENTALLY gives the
+    same `and` this rule's real `upwards(remove_dangling_junctors())`
+    (post-order, bottom-up) does, because with only one ancestor `and`
+    above the now-childless inner one, "visit parent first, it still has
+    a child" then "visit child, now dangling, erase it" (downwards) lands
+    on the exact same tree as "visit child first, dangling, erase it"
+    then "visit parent, now dangling too, but it's the root so nothing
+    above it to erase from" (upwards) -- MEASURED directly, by mutation,
+    applying this port's own `downwards(remove_dangling_junctors())` in
+    place of `upwards(...)` and re-running the 2-level case: still `and`,
+    mutant undetected. At 3 levels the two orders genuinely diverge: a
+    single top-down `downwards` pass visits the OUTER and MIDDLE `and`
+    nodes (each still has one child at the moment it is visited) BEFORE
+    the innermost one goes dangling, so neither ancestor gets a second
+    look in this same, non-iterative pass -- MEASURED, mutant gives
+    `and(and)`, not `and`. `upwards` (bottom-up) visits innermost-to-
+    outermost, so each newly-dangling ancestor is still ahead of the walk
+    when it becomes dangling. Directly distinguishes the real two-rule,
+    correctly-ordered composition from both a first-half-only mutant
+    (`test_remove_null_vertices_alone_does_not_cascade`, below) and this
+    order-of-traversal mutant.
     """
-    tr = str_to_combo_tree("and(and(null_vertex($1)))")
+    tr = str_to_combo_tree("and(and(and(null_vertex($1))))")
     clean_reduce(tr)
     assert combo_tree_to_str(tr).strip() == "and"
 
@@ -55,17 +73,18 @@ def test_remove_null_vertices_alone_does_not_cascade():
     """The DIRECT counter-case to the test above: applying ONLY the first
     half of `clean_reduction`'s composition (`downwards(remove_null_
     vertices())`, with no subsequent `upwards(remove_dangling_
-    junctors())` pass) on the SAME input leaves the inner `and` dangling
-    -- `and(and)` (a childless inner `and`), not the fully-collapsed
-    `and` clean_reduce's real composition gives. Confirms `clean_reduce`'s
-    own two-step composition is what does the cascading, not `remove_
-    null_vertices` alone.
+    junctors())` pass) on the SAME (now 3-level) input leaves BOTH
+    outer/middle `and`s still wrapping a now-childless innermost `and`
+    -- `and(and(and))`, not the fully-collapsed `and` clean_reduce's real
+    composition gives (MEASURED directly against this port). Confirms
+    `clean_reduce`'s own two-step composition is what does the cascading,
+    not `remove_null_vertices` alone.
     """
     from pymetta.comboreduct.reduct.meta_rules import downwards
 
-    tr = str_to_combo_tree("and(and(null_vertex($1)))")
+    tr = str_to_combo_tree("and(and(and(null_vertex($1))))")
     downwards(remove_null_vertices())(tr)
-    assert combo_tree_to_str(tr).strip() == "and(and)"
+    assert combo_tree_to_str(tr).strip() == "and(and(and))"
 
 
 def test_clean_reduction_returns_a_rule_object_reusable_across_trees():
