@@ -104,6 +104,20 @@ trap, and it will reappear wherever a new caller appends a node's `.data`.
 Rule for S9+: appending `some_node.data` to another tree is always a bug unless
 it is wrapped in `copy.copy`.
 
+### 2.5 `logical_rules.py:1288` still compares vertices without `vertex_equal`
+
+S8 closed two instances of this in `knobs.py` (a knob on contin `0.0` crashed;
+a knob on `logical_true` mis-bound to a contin `1.0` sibling) by giving
+`tree.equal_subtree` the optional `predicate` parameter C++ already has
+(`tree.h:1923` / `:1949`). `logical_rules.py:1288` has the same shape and was
+left untouched as out-of-scope for that slice.
+
+It is latent for the same reason the `knobs.py` pair was: reduct currently sees
+only Boolean trees. The continuous slice makes contin and builtin vertices
+co-occur, and `contin_t = float` with `builtin` an `IntEnum` means
+`1.0 == builtin.logical_true` is `True`. Fix it in the same change that enables
+contin reduction, not after.
+
 ### 2.3 The weighted-CTable arity landmine
 
 `Table::compressed` (`table.cc:527`) passes an **un-trimmed** `get_signature()`
