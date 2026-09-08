@@ -1,0 +1,1032 @@
+"""C++: moses/moses/main/problem-params.{h,cc}
+
+`problem_params` -- the 127-flag CLI option surface (measured: `git grep -c
+"po::value<"` gives 127 live sites, one more commented out at
+problem-params.cc:1871-1877; the plan's "168" counted something broader and
+is not reproduced here) and the `moses_parameters`/`metapop_parameters`/
+`hc_parameters`/`deme_parameters`/`optim_parameters` wiring `parse_options`
+drives from it. Per `docs/MODULE-COVERAGE.md`'s own non-goal note on this
+file ("2407 lines of boost::program_options boilerplate; only the option
+names and defaults are reproduced, via argparse"), this is NOT a line-by-line
+port: help text is a short paraphrase, not `problem-params.cc`'s full prose.
+
+**Measured against the real compiled binary**, not just the source: every
+one of the 127 flag names below (short letters included) was diffed against
+`$CLASSIC/build/moses/moses/main/moses --help`'s actual option list and
+matches exactly (no flag missing, no invented flag). `--mpi` is deliberately
+NOT registered: `CLAUDE.md`'s own "Known sharp edges" notes `HAVE_MPI` is
+never defined in any build this project produces (`FIND_PACKAGE(MPI)` is
+commented out), so the REAL classic binary's own `--help` does not list it
+either -- confirmed directly, not assumed. `problem_params.enable_mpi`
+still exists as a plain field (matching the C++ struct member), permanently
+`False`, matching `moses_parameters.mpi`'s own hardcoded `False`
+(`moses_params.py`).
+
+The bool-option parser (`_bool_opt`) was measured against the compiled
+binary too: `--balance=<TRUE|yes|on|1|0|no|off|false>` all succeed (case
+folded), while `--balance=2` fails with boost's own message -- "Valid
+choices are 'on|off', 'yes|no', '1|0' and 'true|false'" -- quoted verbatim
+from the actual error text the binary prints, not from boost's docs.
+
+## Scope: which options are WIRED vs. stored flat
+
+Per this task's own brief, wiring is scoped to exactly the five structs
+`parse_options` (problem-params.cc:2058-2404) actually assembles:
+`moses_parameters`, `metapop_parameters` (+ its nested `diversity_parameters`/
+`subsample_deme_filter_parameters`/`ensemble_parameters`), `hc_parameters`,
+`deme_parameters`, `optim_parameters` -- plus the two `reduct::logical_reduction`
+rule objects, since `logical_reduction` (S7) is fully ported and directly
+analogous. Options whose only C++ consumer lives OUTSIDE `problem-params.cc`
+itself (`balance`/`nsamples` -> `table-problems.cc`'s `ctable.balance()`/
+`subsampleTable`; `hardness`/`pre_positive`/`gen_best_tree` -> the `pre`/
+`prerec`/`recall`/... bscores; `min_rand_input`/`max_rand_input` -> the
+synthetic-sampling problems; `log_level`/`log_file` -> a `Logger` class this
+port does not have; `result_count`/`output_*` -> the S13-Task-3
+`metapop_printer`, not yet ported) are stored as PLAIN FLAT FIELDS on
+`problem_params`, matching the C++ struct's own field, with NO attempt to
+wire them into an object that does not exist yet -- their eventual
+gate-if-unsupported logic belongs to whichever future task actually wires
+them (`table_problems.py`, `moses_exec.py`), the same "don't invent a
+consumer" discipline `problem.py`'s own docstring states for `option_base`.
+`ps_max_particles` is the same story taken to its limit: `ps_parameters`
+does not exist ANYWHERE in this port (`moses_main.py`'s own docstring: "no
+`ps_parameters` class exists anywhere in this port"), so it is pure stored
+data. None of these needs its own P2 gate here: each is reachable ONLY
+through a problem selector (`-H`) or output path this task does not
+dispatch through, so a wrong value cannot diverge from classic via this
+file alone (this mirrors `-j host:N`'s and `--ps-max-particles`'s reasoning
+below almost exactly).
+
+## Design rule: gate-then-raise for unported SUBSYSTEMS, not for every field
+
+Two-phase `parse_options`:
+
+1. **Populate everything, unconditionally, exactly the way C++'s own
+   `parse_options` does** -- including the fields C++ sets regardless of
+   whether the subsystem they belong to is ever enabled (`meta_params.
+   ensemble_params.*`, all 15 `filter_params.*` fields, all of `meta_params.
+   diversity.*` including `autoscale`). This is deliberate: it is what
+   discharges the two CARRY-FORWARD obligations for `diversity_parameters.
+   autoscale` and the ten `subsample_deme_filter_parameters` fields ("the
+   CLI is what sets them") -- see `_wire_diversity`/`_wire_subsample`
+   below. It also reproduces C++'s own ALWAYS-run input validation
+   (`not_recognized_dst`/`not_recognized_dst2dp`/the time-bscore-granularity
+   check/`not_recognized_combo_operator`) as `ValueError`, regardless of
+   whether the validated subsystem is itself enabled -- an invalid
+   `--diversity-dst=bogus` fails the same way in both classic and this port
+   even with `--diversity-pressure=0` (disabled), because classic's own
+   `parse_options` validates it unconditionally too.
+2. **Only after every field is populated**, run one fixed-order sequence of
+   gate checks and raise `NotImplementedError` on the FIRST unported
+   subsystem an option actually engages. Because population always
+   completes first, a caller can never observe a `problem_params` whose
+   `meta_params.diversity.enabled()` is `True` without the raise having
+   already fired -- "the CLI populates them before enabled() can be true"
+   is satisfied by ORDERING within one function, not by skipping
+   population. This is the choice CARRY-FORWARD's S13 note asked to be
+   verified rather than assumed: raising first (before populating) was
+   rejected because it would make `--diversity-autoscale=1
+   --diversity-pressure=0` (disabled, so harmless in classic) raise here
+   too, which would reject a command line classic runs to completion --
+   exactly the "must never raise on values that don't diverge from
+   classic" bar this task sets. Raising only from the DEDICATED gate
+   (`diversity_pressure`/`enabled()`) after population is complete matches
+   classic's own observable behaviour: harmless while disabled, and the
+   port raises at the exact point classic would have gone on to actually
+   USE the unported diversity code.
+
+A field belonging to an unported subsystem is gated ONLY when the C++
+source shows it is the subsystem's actual master switch (`diversity_
+pressure > 0`, `filter_params.n_subsample_demes|n_subsample_fitnesses > 1`
+-- both straight from the header's own "if 0 or 1 remains disactivated"/
+"Ignored is 0 r 1" comments, `enable_feature_selection`, `boosting`,
+`discard_dominated`, `opt_algo != "hc"`, `time_bscore`, `time_dispersion_
+pressure`, `use_well_enough`, `discretize_thresholds` non-empty,
+`contin_depth != 5`, `it_abs_err`, and non-local `--jobs`/`-j host:N`).
+Sub-options that are PROVABLY inert while their master switch stays at
+its default are never independently gated: `--diversity-autoscale`/
+`-exponent`/`-normalize`/`-dst`/`-p-norm`/`-dst2dp` (dead unless `pressure
+> 0`, `diversity_parameters.enabled()`'s own definition), every `fs-*`
+option (dead unless `enable_feature_selection`, `deme_expander.py`'s own
+`fstor is not None` gate), every `boost-*` option (dead unless `boosting`,
+only consumed via `meta_params.ensemble_params`), `weighted_accuracy`
+(the option's OWN C++ help text: "only used for the discretize_contin_
+bscore (when --discretize-threshold is used)"), `time_bscore_granularity`
+(only read "in case the bscore is spread across time", its own help
+text), and `time_dispersion_exponent` (the same penalty as `-pressure`,
+inert at `pressure == 0`). `hc-crossover-pop-size`/`-min-neighbors`/
+`hc-resize-to-fit-ram` are NOT gated at all -- crossover and hill-climbing
+are fully ported (S9/S12) -- so `--hc-crossover-pop-size=999` legitimately
+changes behaviour and must never raise.
+
+## A genuine landmine this task found and does NOT fix
+
+`deme_params.linear_contin = linear_regression` (problem-params.cc:2264)
+is UNCONDITIONAL: whatever the CLI's `linear_regression` flag holds
+overwrites `linear_contin`, every run. `--linear-regression`'s own CLI
+default is `false` (problem-params.cc:292). So a REAL classic invocation
+with no `--linear-regression` flag at all sets `deme_parameters.
+linear_contin = False` -- NOT `True`, `deme_parameters`'s own bare
+member-initializer default (`deme_params.h:49`, `linear_contin(true)`,
+faithfully reproduced by `deme_params.py`'s constructor). This port's
+OWN `deme_expander.create_representations` (S9/S10, a file this task does
+not own) raises `NotImplementedError` whenever `linear_contin is not
+True` (`deme_expander.py:267-275), on the stated assumption that
+"`linear_contin=True` is C++'s own default too" -- true only of the bare
+struct, NOT of a real CLI-driven run, as this measurement shows. The
+result: wiring `deme_params.linear_contin = linear_regression` faithfully
+(as this file does, since that IS what `problem-params.cc` does,
+unconditionally, with no gate of its own) means every DEFAULT `-H it` run
+assembled by a future caller that also calls `deme_expander.
+create_representations` with this `deme_params` would hit that raise --
+even though `build_knobs`'s own dispatch never actually consults
+`linear_contin` for a Boolean-output exemplar (`CLAUDE.md`'s own knob-
+building dispatch table: purely by inferred OUTPUT type). This is a defect
+in the ALREADY-MERGED `deme_expander.py` (an over-broad gate that checks
+the FLAG's value rather than whether the exemplar's type would ever read
+it), not a classic C++ bug and not something introduced here -- ported
+faithfully anyway, per this project's "never silently fix" rule, and
+flagged prominently in this task's report for whoever next touches
+`deme_expander.py` or wires `problem_params` into it (S13 Task 2/3).
+"""
+
+from __future__ import annotations
+
+import argparse
+
+from pymetta.comboreduct.combo.iostream_combo import _builtin_str_to_vertex, str_to_combo_tree
+from pymetta.comboreduct.combo.vertex import builtin
+from pymetta.comboreduct.reduct.logical_reduction import logical_reduction
+from pymetta.moses.deme.deme_params import deme_parameters
+from pymetta.moses.metapopulation.metapop_params import (
+    diversity_parameters,
+    metapop_parameters,
+    subsample_deme_filter_parameters,
+)
+from pymetta.moses.moses.moses_params import moses_parameters
+from pymetta.moses.moses.optimization.hill_climbing import hc_parameters
+from pymetta.moses.moses.optimization.optimization import optim_parameters
+from pymetta.moses.moses.types import _to_score_t, very_best_score
+from pymetta.util.rng import randGen
+
+__all__ = ["parse_args", "problem_params"]
+
+# ---------------------------------------------------------------------------
+# C++ file-scope statics (problem-params.cc:47-99) and <climits>/<limits>
+# constants this module's defaults cite directly.
+# ---------------------------------------------------------------------------
+
+_P_NORM = "p_norm"  # C++: problem-params.cc:47 p_norm
+_TANIMOTO = "tanimoto"  # C++: problem-params.cc:48 tanimoto
+_ANGULAR = "angular"  # C++: problem-params.cc:49 angular
+
+_AUTO = "auto"  # C++: problem-params.cc:52 auto_str
+_INVERSE = "inverse"  # C++: problem-params.cc:53 inverse_str
+_COMPLEMENT = "complement"  # C++: problem-params.cc:54 complement_str
+_POWER = "power"  # C++: problem-params.cc:55 power_str
+
+_DAY = "day"  # C++: problem-params.cc:58 day_str
+_MONTH = "month"  # C++: problem-params.cc:59 month_str
+
+_HC = "hc"  # C++: moses/optimization/optimization.h:68 hc
+
+_DEFAULT_LOG_FILE = "moses.log"  # C++: moses_exec_def.h:56 default_log_file
+_LOCALHOST = "localhost"  # C++: moses_exec_def.h:69 localhost
+_JOB_SEPARATOR = ":"  # C++: moses_exec_def.h:68 job_seperator
+
+_INT32_MAX = 2147483647  # C++: <climits> INT_MAX (problem-params.cc:266 max_time default)
+_UINT_MAX = 0xFFFFFFFF  # C++: <climits> UINT_MAX (problem-params.cc:1940 ss-n-tuples default)
+_FLT_MAX = 3.4028234663852886e38  # C++: std::numeric_limits<float>::max() (ss-std-dev-threshold)
+
+# C++: opencog/util/Logger.h Logger::Level string names (get_level_from_string);
+# validated the same way problem-params.cc:2093-2101 validates it unconditionally,
+# even though this port has no Logger to actually configure (see module docstring's
+# "stored flat" section) -- validate-but-don't-consume, not a fabricated subsystem.
+_LOG_LEVELS = frozenset({"NONE", "ERROR", "WARN", "INFO", "DEBUG", "FINE"})
+
+_COMBO_OPERATORS = {
+    "plus": builtin.plus,
+    "times": builtin.times,
+    "div": builtin.div,
+    "exp": builtin.exp,
+    "log": builtin.log,
+    "sin": builtin.sin,
+    "impulse": builtin.impulse,
+}
+
+
+def _bool_opt(s: str) -> bool:
+    """Not itself a ported C++ symbol -- argparse `type=` callback standing in
+    for boost::program_options' `validate(any&, vector<string>&, bool*, int)`.
+
+    MEASURED against `$CLASSIC/build/moses/moses/main/moses` directly (see
+    module docstring): `on/off`, `yes/no`, `1/0`, `true/false` all accepted,
+    case-folded (`--balance=TRUE` succeeds); anything else fails with boost's
+    own message, quoted in the `raise` below verbatim.
+    """
+    t = s.strip().lower()
+    if t in ("1", "true", "yes", "on"):
+        return True
+    if t in ("0", "false", "no", "off"):
+        return False
+    raise argparse.ArgumentTypeError(
+        f"the argument ('{s}') is invalid. Valid choices are 'on|off', "
+        "'yes|no', '1|0' and 'true|false'"
+    )
+
+
+class _FeatureSelectionParams:
+    """P2 stand-in for C++ `feature_selection_parameters`
+    (`moses/feature-selection/algo/feature_scorer.h`-adjacent; not ported --
+    P2, `--enable-fs`). Plain data only, field names matching the C++
+    `fs_params.*` CLI destinations 1:1, so a future port can grow real
+    behaviour into this shape without renaming anything. No method, no
+    validation: `enable_feature_selection` is the single gate this whole
+    object sits behind (see module docstring), so nothing here is ever
+    consulted by this port.
+    """
+
+    def __init__(self) -> None:
+        self.target_size = 20
+        self.exp_distrib = False
+        self.algorithm = "simple"
+        self.scorer = "mi"
+        self.threshold = 0.0
+        self.inc_red_intensity = -1.0
+        self.inc_target_size_epsilon = 1.0e-6
+        self.inc_interaction_terms = 1
+        self.pre_penalty = 1.0
+        self.pre_min_activation = 0.5
+        self.pre_max_activation = 1.0
+        self.pre_positive = True
+        self.hc_max_score = 1.0
+        self.hc_max_evals = 10000
+        self.hc_fraction_of_remaining = 0.5
+        self.hc_crossover = False
+        self.hc_crossover_pop_size = 120
+        self.hc_crossover_min_neighbors = 400
+        self.hc_widen_search = True
+        self.mi_confi = 100.0
+        self.smd_top_size = 10
+
+
+class _FeatureSelectorParams:
+    """P2 stand-in for C++ `feature_selector_parameters`
+    (`moses/deme/feature_selector.h`; not ported -- P2, `--enable-fs`,
+    `deme_expander.py`'s own `fstor is not None` gate). See
+    `_FeatureSelectionParams`'s own docstring; `fs_params` here mirrors
+    C++'s `feature_selection_parameters& fs_params` reference member
+    exactly, as one shared object, not a copy (matches
+    `problem_params.fs_params`'s own alias, see that class's `__init__`).
+    """
+
+    def __init__(self) -> None:
+        self.prune_xmplr = False
+        self.subsampling_ratio = 1.0
+        self.subsampling_by_time = False
+        self.n_demes = 1
+        self.diversity_pressure = 0.0
+        self.diversity_cap = 100
+        self.diversity_interaction = -1
+        self.diversity_jaccard = True
+        self.fs_params = _FeatureSelectionParams()
+
+
+class problem_params:
+    """C++: moses/moses/main/problem-params.h:56 problem_params
+
+    See this module's docstring for scope, the two-phase gate design, and
+    the `deme_expander.py`/`linear_contin` landmine this task found.
+    """
+
+    def __init__(self) -> None:
+        """C++: moses/moses/main/problem-params.cc:149 problem_params::problem_params
+
+        `enable_mpi(false), default_nsamples(20), fs_params(festor_params.
+        fs_params), max_filename_size(255)` -- ported verbatim. `fs_params`
+        is C++'s reference-alias member: the SAME object as
+        `self.festor_params.fs_params`, not a copy (see `CARRY-FORWARD.md`
+        4.1's "the aliasing is correct" precedent for a `const&` member;
+        this one is non-const in C++ too, and nothing here ever reassigns
+        either name to a different object, only mutates fields through
+        whichever name is in hand).
+        """
+        self.enable_mpi = False
+        self.default_nsamples = 20
+        self.max_filename_size = 255
+        self.festor_params = _FeatureSelectorParams()
+        self.fs_params = self.festor_params.fs_params
+
+    # ------------------------------------------------------------- add_options
+
+    def add_options(self, parser: argparse.ArgumentParser) -> None:
+        """C++: moses/moses/main/problem-params.cc:153 problem_params::add_options
+
+        Registers all 127 flags (measured count, see module docstring) plus
+        `--version`/`-F, --log-file-dep-opt` (2 more, no `po::value` of their
+        own in C++ either -- plain presence flags here too). `--mpi` is
+        deliberately not registered (module docstring). Help text is a short
+        paraphrase, not `problem-params.cc`'s full prose -- this file's own
+        scope note and `docs/MODULE-COVERAGE.md`'s "not line-by-line" say so
+        explicitly.
+        """
+        add = parser.add_argument
+
+        def opt(*flags: str, dest: str, type_, default, **kw) -> None:
+            add(*flags, dest=dest, type=type_, default=default, **kw)
+
+        def sopt(*flags: str, dest: str, default: bool, **kw) -> None:
+            opt(*flags, dest=dest, type_=_bool_opt, default=default, **kw)
+
+        def vopt(*flags: str, dest: str, type_=str) -> None:
+            add(*flags, dest=dest, type=type_, action="append", default=[])
+
+        # -- General options --
+        vopt("-j", "--jobs", dest="jobs_str")
+        opt("--min-pool", dest="min_pool", type_=int, default=50)
+        vopt("-e", "--exemplar", dest="exemplars_str")
+
+        # -- Problem-type options --
+        opt("-H", "--problem", dest="problem", type_=str, default="it")
+        opt("--nsamples", dest="nsamples", type_=int, default=-1)
+        sopt("--balance", dest="balance", default=False)
+
+        # -- Algorithm control options --
+        opt("-a", "--opt-algo", dest="opt_algo", type_=str, default=_HC)
+        opt("-A", "--max-score", dest="max_score", type_=float, default=float(very_best_score))
+        opt("-m", "--max-evals", dest="max_evals", type_=int, default=10000)
+        opt("--max-time", dest="max_time", type_=int, default=_INT32_MAX)
+        opt("-s", "--cache-size", dest="cache_size", type_=int, default=3000)
+        vopt("-n", "--ignore-operator", dest="ignore_ops_str")
+        sopt("--linear-regression", dest="linear_regression", default=False)
+        opt("--logical-perm-ratio", dest="perm_ratio", type_=float, default=0.0)
+        opt("-r", "--random-seed", dest="rand_seed", type_=int, default=1)
+        opt(
+            "-v",
+            "--complexity-temperature",
+            dest="complexity_temperature",
+            type_=float,
+            default=6.0,
+        )
+        opt("-z", "--complexity-ratio", dest="complexity_ratio", type_=float, default=3.5)
+        opt("--cap-coef", dest="cap_coef", type_=float, default=50.0)
+
+        # -- Large problem / hill-climbing parameters --
+        opt("--hc-max-nn-evals", dest="hc_max_nn", type_=int, default=20000)
+        opt("--hc-fraction-of-nn", dest="hc_frac_of_nn", type_=float, default=2.0)
+        sopt("-Z", "--hc-crossover", dest="hc_crossover", default=True)
+        opt("--hc-crossover-pop-size", dest="hc_crossover_pop_size", type_=int, default=120)
+        opt(
+            "--hc-crossover-min-neighbors",
+            dest="hc_crossover_min_neighbors",
+            type_=int,
+            default=400,
+        )
+        sopt("--hc-resize-to-fit-ram", dest="hc_resize_to_fit_ram", default=False)
+        sopt("--hc-allow-resize-deme", dest="hc_resize_to_fit_ram", default=False)
+
+        # -- Particle swarm (stored only, see module docstring) --
+        opt("--ps-max-particles", dest="ps_max_particles", type_=int, default=50)
+
+        opt("--contin-depth", dest="contin_depth", type_=int, default=5)
+
+        # -- Algorithm tuning (boosting / ensembles) --
+        sopt("--boost", dest="boosting", default=False)
+        opt("--boost-promote", dest="num_to_promote", type_=int, default=1)
+        sopt("--boost-exact", dest="exact_experts", default=True)
+        opt("--boost-expalpha", dest="expalpha", type_=float, default=2.0)
+        opt("--boost-bias", dest="bias_scale", type_=float, default=1.0)
+
+        opt(
+            "-B",
+            "--reduct-knob-building-effort",
+            dest="reduct_knob_building_effort",
+            type_=int,
+            default=2,
+        )
+        opt("-D", "--max-dist", dest="max_dist", type_=int, default=4)
+        sopt("-d", "--reduce-all", dest="reduce_all", default=True)
+        opt("-E", "--reduct-candidate-effort", dest="reduct_candidate_effort", type_=int, default=2)
+        opt("-g", "--max-gens", dest="max_gens", type_=int, default=-1)
+        sopt("--discard-dominated", dest="discard_dominated", default=False)
+        sopt("-L", "--hc-single-step", dest="hc_single_step", default=False)
+        vopt("-N", "--include-only-operator", dest="include_only_ops_str")
+        opt("-P", "--pop-size-ratio", dest="pop_size_ratio", type_=float, default=20.0)
+        opt("-p", "--noise", dest="noise", type_=float, default=-1.0)
+        sopt("-T", "--hc-widen-search", dest="hc_widen_search", default=False)
+        sopt("--well-enough", dest="use_well_enough", default=False)
+        opt("--revisit", dest="revisit", type_=int, default=0)
+
+        # -- Output control options --
+        opt("-c", "--result-count", dest="result_count", type_=int, default=10)
+        sopt("-S", "--output-score", dest="output_score", default=True)
+        sopt("-x", "--output-cscore", dest="output_cscore", default=False)
+        sopt("-t", "--output-bscore", dest="output_bscore", default=False)
+        sopt("-C", "--output-only-best", dest="output_only_best", default=False)
+        sopt("-V", "--output-eval-number", dest="output_eval_number", default=False)
+        sopt("-W", "--output-with-labels", dest="output_with_labels", default=False)
+        sopt("--output-deme-id", dest="output_deme_id", default=False)
+        opt("--output-format", dest="output_format_str", type_=str, default="combo")
+        opt("-o", "--output-file", dest="output_file", type_=str, default="")
+
+        # -- The rest --
+        opt("-q", "--min-rand-input", dest="min_rand_input", type_=float, default=0.0)
+        opt("-w", "--max-rand-input", dest="max_rand_input", type_=float, default=1.0)
+        opt("-l", "--log-level", dest="log_level", type_=str, default="INFO")
+        add("-F", "--log-file-dep-opt", dest="log_file_dep_opt", action="store_true", default=False)
+        opt("-f", "--log-file", dest="log_file", type_=str, default=_DEFAULT_LOG_FILE)
+        opt(
+            "-M", "--max-candidates-per-deme", dest="max_candidates_per_deme", type_=int, default=-1
+        )
+        sopt("-G", "--weighted-accuracy", dest="weighted_accuracy", default=False)
+        opt("--diversity-pressure", dest="diversity_pressure", type_=float, default=0.0)
+        sopt("--diversity-autoscale", dest="diversity_autoscale", default=False)
+        opt("--diversity-exponent", dest="diversity_exponent", type_=float, default=-1.0)
+        sopt("--diversity-normalize", dest="diversity_normalize", default=True)
+        opt("--diversity-dst", dest="diversity_dst", type_=str, default=_P_NORM)
+        opt("--diversity-p-norm", dest="diversity_p_norm", type_=float, default=2.0)
+        opt("--diversity-dst2dp", dest="diversity_dst2dp", type_=str, default=_AUTO)
+        vopt("-R", "--discretize-threshold", dest="discretize_thresholds", type_=float)
+        opt("-Q", "--alpha", dest="hardness", type_=float, default=1.0)
+        opt("--time-dispersion-pressure", dest="time_dispersion_pressure", type_=float, default=0.0)
+        opt("--time-dispersion-exponent", dest="time_dispersion_exponent", type_=float, default=1.0)
+        sopt("--time-bscore", dest="time_bscore", default=False)
+        opt(
+            "--time-bscore-granularity", dest="time_bscore_granularity_str", type_=str, default=_DAY
+        )
+        sopt("--gen-best-tree", dest="gen_best_tree", default=False)
+
+        # -- Fitness specific params --
+        sopt("--it-abs-err", dest="it_abs_err", default=False)
+        sopt("--pre-positive", dest="pre_positive", default=True)
+
+        # -- Feature-selection params (P2, stored only) --
+        sopt("--enable-fs", dest="enable_feature_selection", default=False)
+        opt("--fs-target-size", dest="fs_target_size", type_=int, default=20)
+        sopt("--fs-exp-distrib", dest="fs_exp_distrib", default=False)
+        opt("--fs-focus", dest="fs_focus", type_=str, default="incorrect")
+        opt("--fs-seed", dest="fs_seed", type_=str, default="add")
+        sopt("--fs-prune-exemplar", dest="fs_prune_exemplar", default=False)
+        opt("--fs-subsampling-ratio", dest="fs_subsampling_ratio", type_=float, default=1.0)
+        sopt("--fs-subsampling-by-time", dest="fs_subsampling_by_time", default=False)
+        opt("--fs-demes", dest="fs_demes", type_=int, default=1)
+        opt("--fs-algo", dest="fs_algo", type_=str, default="simple")
+        opt("--fs-scorer", dest="fs_scorer", type_=str, default="mi")
+        opt("--fs-threshold", dest="fs_threshold", type_=float, default=0.0)
+        opt(
+            "--fs-enforce-features-filename",
+            dest="fs_enforce_features_filename",
+            type_=str,
+            default="",
+        )
+        opt("--fs-diversity-pressure", dest="fs_diversity_pressure", type_=float, default=0.0)
+        opt("--fs-diversity-cap", dest="fs_diversity_cap", type_=int, default=100)
+        opt("--fs-diversity-interaction", dest="fs_diversity_interaction", type_=int, default=-1)
+        sopt("--fs-diversity-jaccard", dest="fs_diversity_jaccard", default=True)
+        opt(
+            "--fs-inc-redundant-intensity",
+            dest="fs_inc_redundant_intensity",
+            type_=float,
+            default=-1.0,
+        )
+        opt(
+            "--fs-inc-target-size-epsilon",
+            dest="fs_inc_target_size_epsilon",
+            type_=float,
+            default=1.0e-6,
+        )
+        opt("--fs-inc-interaction-terms", dest="fs_inc_interaction_terms", type_=int, default=1)
+        opt("--fs-pre-penalty", dest="fs_pre_penalty", type_=float, default=1.0)
+        opt("--fs-pre-min-activation", dest="fs_pre_min_activation", type_=float, default=0.5)
+        opt("--fs-pre-max-activation", dest="fs_pre_max_activation", type_=float, default=1.0)
+        sopt("--fs-pre-positive", dest="fs_pre_positive", default=True)
+        opt("--fs-hc-max-score", dest="fs_hc_max_score", type_=float, default=1.0)
+        opt("--fs-hc-max-evals", dest="fs_hc_max_evals", type_=int, default=10000)
+        opt(
+            "--fs-hc-fraction-of-remaining",
+            dest="fs_hc_fraction_of_remaining",
+            type_=float,
+            default=0.5,
+        )
+        sopt("--fs-hc-crossover", dest="fs_hc_crossover", default=False)
+        opt("--fs-hc-crossover-pop-size", dest="fs_hc_crossover_pop_size", type_=int, default=120)
+        opt(
+            "--fs-hc-crossover-min-neighbors",
+            dest="fs_hc_crossover_min_neighbors",
+            type_=int,
+            default=400,
+        )
+        sopt("--fs-hc-widen-search", dest="fs_hc_widen_search", default=True)
+        opt("--fs-mi-penalty", dest="fs_mi_penalty", type_=float, default=100.0)
+        opt("--fs-smd-top-size", dest="fs_smd_top_size", type_=int, default=10)
+
+        # -- Subsample-deme params (P2, stored only) --
+        opt("--ss-n-subsample-demes", dest="ss_n_subsample_demes", type_=int, default=0)
+        opt("--ss-n-top-candidates", dest="ss_n_top_candidates", type_=int, default=1)
+        opt("--ss-n-tuples", dest="ss_n_tuples", type_=int, default=_UINT_MAX)
+        opt("--ss-std-dev-threshold", dest="ss_std_dev_threshold", type_=float, default=_FLT_MAX)
+        opt(
+            "--ss-tanimoto-mean-threshold",
+            dest="ss_tanimoto_mean_threshold",
+            type_=float,
+            default=1.0,
+        )
+        opt(
+            "--ss-tanimoto-geometric-mean-threshold",
+            dest="ss_tanimoto_geo_mean_threshold",
+            type_=float,
+            default=1.0,
+        )
+        opt(
+            "--ss-tanimoto-max-threshold",
+            dest="ss_tanimoto_max_threshold",
+            type_=float,
+            default=1.0,
+        )
+        opt("--ss-n-best-bfdemes", dest="ss_n_best_bfdemes", type_=int, default=0)
+        opt("--ss-tanimoto-mean-weight", dest="ss_tanimoto_mean_weight", type_=float, default=0.0)
+        opt(
+            "--ss-tanimoto-geometric-mean-weight",
+            dest="ss_tanimoto_geo_mean_weight",
+            type_=float,
+            default=0.0,
+        )
+        opt("--ss-tanimoto-max-weight", dest="ss_tanimoto_max_weight", type_=float, default=0.0)
+        opt("--ss-n-subsample-fitnesses", dest="ss_n_subsample_fitnesses", type_=int, default=0)
+        opt("--ss-low-dev-pressure", dest="ss_low_dev_pressure", type_=float, default=1.0)
+        sopt("--ss-by-time", dest="ss_by_time", default=False)
+        sopt("--ss-contiguous-time", dest="ss_contiguous_time", default=True)
+
+        add("--version", dest="version", action="store_true", default=False)
+
+    # ------------------------------------------------------------ parse_options
+
+    def parse_options(self, args: argparse.Namespace) -> None:
+        """C++: moses/moses/main/problem-params.cc:2058 problem_params::parse_options
+
+        Two phases -- see module docstring. Phase 1 (population, always
+        runs) mirrors `parse_options`' own statement order; `ValueError` is
+        raised for malformed input exactly where classic's own
+        `not_recognized_*`/granularity/log-level checks would `exit(1)`.
+        Phase 2 (gating) raises `NotImplementedError` for the first
+        unported subsystem an option actually engages, in the fixed order
+        listed in the module docstring.
+        """
+        # C++: problem-params.cc:2059-2067 -- checked first, exits(0)
+        # before touching anything else. `version_string` itself is NOT
+        # ported (`moses_main.py`'s own docstring: "no runtime effect on
+        # the search... nothing in this port has an equivalent build step
+        # to source it from"), so nothing is printed; the exit-0 contract
+        # is what matters and is preserved. Never fires on the default
+        # (`False`).
+        if args.version:
+            raise SystemExit(0)
+
+        # -- flat, unwired fields (see module docstring's scope section) --
+        self.problem = args.problem
+        self.nsamples = args.nsamples
+        self.min_rand_input = args.min_rand_input
+        self.max_rand_input = args.max_rand_input
+        self.balance = args.balance
+        self.result_count = args.result_count
+        self.output_score = args.output_score
+        self.output_cscore = args.output_cscore
+        self.output_bscore = args.output_bscore
+        self.output_only_best = args.output_only_best
+        self.output_eval_number = args.output_eval_number
+        self.output_with_labels = args.output_with_labels
+        self.output_deme_id = args.output_deme_id
+        self.output_format_str = args.output_format_str
+        self.output_file = args.output_file
+        self.use_well_enough = args.use_well_enough
+        self.hardness = _to_score_t(args.hardness)
+        self.pre_positive = args.pre_positive
+        self.gen_best_tree = args.gen_best_tree
+        self.it_abs_err = args.it_abs_err
+        self.ps_max_particles = args.ps_max_particles
+        self.min_pool = args.min_pool
+        # C++: problem-params.cc's own parse_options never reads `noise`
+        # (grep-confirmed: zero references in the function body) -- its only
+        # consumer is table-problems.cc (an alternative complexity-ratio
+        # derivation for the pre/prerec/... bscores), outside this file's
+        # scope (module docstring's "stored flat" section).
+        self.noise = args.noise
+
+        if args.log_level.strip().upper() not in _LOG_LEVELS:
+            raise ValueError(f"Log level {args.log_level} is incorrect (see --help).")
+        self.log_level = args.log_level
+        self.log_file_dep_opt = args.log_file_dep_opt
+        self.log_file = args.log_file
+
+        self.enable_feature_selection = args.enable_feature_selection
+        self.fs_focus = args.fs_focus
+        self.fs_seed = args.fs_seed
+        self.fs_enforce_features_filename = args.fs_enforce_features_filename
+        self.fs_params.target_size = args.fs_target_size
+        self.fs_params.exp_distrib = args.fs_exp_distrib
+        self.fs_params.algorithm = args.fs_algo
+        self.fs_params.scorer = args.fs_scorer
+        self.fs_params.threshold = args.fs_threshold
+        self.fs_params.inc_red_intensity = args.fs_inc_redundant_intensity
+        self.fs_params.inc_target_size_epsilon = args.fs_inc_target_size_epsilon
+        self.fs_params.inc_interaction_terms = args.fs_inc_interaction_terms
+        self.fs_params.pre_penalty = args.fs_pre_penalty
+        self.fs_params.pre_min_activation = args.fs_pre_min_activation
+        self.fs_params.pre_max_activation = args.fs_pre_max_activation
+        self.fs_params.pre_positive = args.fs_pre_positive
+        self.fs_params.hc_max_score = args.fs_hc_max_score
+        self.fs_params.hc_max_evals = args.fs_hc_max_evals
+        self.fs_params.hc_fraction_of_remaining = args.fs_hc_fraction_of_remaining
+        self.fs_params.hc_crossover = args.fs_hc_crossover
+        self.fs_params.hc_crossover_pop_size = args.fs_hc_crossover_pop_size
+        self.fs_params.hc_crossover_min_neighbors = args.fs_hc_crossover_min_neighbors
+        self.fs_params.hc_widen_search = args.fs_hc_widen_search
+        self.fs_params.mi_confi = args.fs_mi_penalty
+        self.fs_params.smd_top_size = args.fs_smd_top_size
+        self.festor_params.prune_xmplr = args.fs_prune_exemplar
+        self.festor_params.subsampling_ratio = args.fs_subsampling_ratio
+        self.festor_params.subsampling_by_time = args.fs_subsampling_by_time
+        self.festor_params.n_demes = args.fs_demes
+        self.festor_params.diversity_pressure = args.fs_diversity_pressure
+        self.festor_params.diversity_cap = args.fs_diversity_cap
+        self.festor_params.diversity_interaction = args.fs_diversity_interaction
+        self.festor_params.diversity_jaccard = args.fs_diversity_jaccard
+
+        # -- random seed (C++: problem-params.cc:2116 randGen().seed(rand_seed);) --
+        self.rand_seed = args.rand_seed
+        randGen().seed(self.rand_seed)
+
+        # -- operator ignore/include-only resolution (C++: :2118-2151) --
+        ignore_ops = self._resolve_ignore_ops(args)
+
+        # -- exemplars (C++: :2154-2155) --
+        self.exemplars_str = list(args.exemplars_str)
+        self.exemplars = [str_to_combo_tree(s) for s in self.exemplars_str]
+
+        # -- jobs / local (C++: :2157-2172) --
+        jobs, local = self._resolve_jobs(args)
+
+        # -- deme expansion parameters (C++: :2262-2265) --
+        self.reduce_all = args.reduce_all
+        self.linear_regression = args.linear_regression
+        self.perm_ratio = args.perm_ratio
+        deme_params = deme_parameters()
+        deme_params.reduce_all = self.reduce_all
+        deme_params.ignore_ops = ignore_ops
+        # DIVERGENCE(C++ moses/moses/main/problem-params.cc:2264): see this
+        # module's docstring, "A genuine landmine this task found and does
+        # NOT fix" -- ported verbatim, unconditionally, no gate of its own.
+        deme_params.linear_contin = self.linear_regression
+        deme_params.perm_ratio = self.perm_ratio
+        self.deme_params = deme_params
+
+        # -- cache size / boosting cache-clear (C++: :2266-2274,2285-2286) --
+        self.cache_size = args.cache_size
+        self.ss_n_subsample_demes = args.ss_n_subsample_demes
+        self.ss_n_subsample_fitnesses = args.ss_n_subsample_fitnesses
+        if self.ss_n_subsample_demes > 1 or self.ss_n_subsample_fitnesses > 1:
+            self.cache_size = 0
+        self.boosting = args.boosting
+        if self.boosting:
+            self.cache_size = 0
+
+        # -- metapopulation parameters (C++: :2277-2291) --
+        self.max_candidates_per_deme = args.max_candidates_per_deme
+        self.revisit = args.revisit
+        self.num_to_promote = args.num_to_promote
+        self.exact_experts = args.exact_experts
+        self.expalpha = args.expalpha
+        self.bias_scale = args.bias_scale
+        self.discard_dominated = args.discard_dominated
+        self.complexity_temperature = _to_score_t(args.complexity_temperature)
+        self.complexity_ratio = _to_score_t(args.complexity_ratio)
+        self.cap_coef = args.cap_coef
+        meta_params = metapop_parameters(
+            max_candidates_per_deme=self.max_candidates_per_deme,
+            revisit=self.revisit,
+            complexity_temperature=self.complexity_temperature,
+            jobs=jobs[_LOCALHOST],
+        )
+        meta_params.do_boosting = self.boosting
+        meta_params.ensemble_params.do_boosting = self.boosting
+        meta_params.ensemble_params.num_to_promote = self.num_to_promote
+        meta_params.ensemble_params.exact_experts = self.exact_experts
+        meta_params.ensemble_params.expalpha = self.expalpha
+        meta_params.ensemble_params.bias_scale = self.bias_scale
+        meta_params.discard_dominated = self.discard_dominated
+        meta_params.keep_bscore = self.output_bscore
+        meta_params.cap_coef = self.cap_coef
+        self.meta_params = meta_params
+
+        # -- diversity parameters (C++: :2293-2326), full population then
+        # gate -- see module docstring's design-rule section --
+        self._wire_diversity(args, meta_params)
+
+        # -- time bscore granularity (C++: :2328-2337, validated
+        # unconditionally like diversity's dst/dst2dp) --
+        gran = args.time_bscore_granularity_str
+        if gran not in (_DAY, _MONTH):
+            raise ValueError(f"Granularity {gran} not implemented")
+        self.time_bscore_granularity_str = gran
+        self.time_bscore = args.time_bscore
+        self.time_dispersion_pressure = _to_score_t(args.time_dispersion_pressure)
+        self.time_dispersion_exponent = _to_score_t(args.time_dispersion_exponent)
+
+        # -- subsampling deme/fitness parameters (C++: :2339-2355) --
+        self._wire_subsample(args)
+
+        # -- contin / discretization (S14, stored + gated below) --
+        self.weighted_accuracy = args.weighted_accuracy
+        self.discretize_thresholds = list(args.discretize_thresholds)
+        self.contin_depth = args.contin_depth
+
+        # -- optim_parameters (C++: :2358) --
+        self.opt_algo = args.opt_algo
+        self.pop_size_ratio = args.pop_size_ratio
+        self.max_score = _to_score_t(args.max_score)
+        self.max_dist = args.max_dist
+        self.opt_params = optim_parameters(
+            self.opt_algo, self.pop_size_ratio, self.max_score, self.max_dist
+        )
+
+        # -- hc_parameters (C++: :2360-2368) --
+        self.hc_widen_search = args.hc_widen_search
+        self.hc_single_step = args.hc_single_step
+        self.hc_crossover = args.hc_crossover
+        self.hc_crossover_pop_size = args.hc_crossover_pop_size
+        self.hc_crossover_min_neighbors = args.hc_crossover_min_neighbors
+        self.hc_max_nn = args.hc_max_nn
+        self.hc_frac_of_nn = args.hc_frac_of_nn
+        self.hc_resize_to_fit_ram = args.hc_resize_to_fit_ram
+        hc_params = hc_parameters(
+            widen=self.hc_widen_search,
+            step=self.hc_single_step,
+            cross=self.hc_crossover,
+            max_evals=self.hc_max_nn,
+            fraction_of_nn=self.hc_frac_of_nn,
+        )
+        hc_params.crossover_pop_size = self.hc_crossover_pop_size
+        hc_params.crossover_min_neighbors = self.hc_crossover_min_neighbors
+        hc_params.resize_to_fit_ram = self.hc_resize_to_fit_ram
+        hc_params.prefix_stat_deme = "Demes"
+        self.hc_params = hc_params
+
+        # -- moses_parameters (C++: :2374-2382) --
+        self.max_evals = args.max_evals
+        self.max_gens = args.max_gens
+        self.max_time = args.max_time
+        moses_params = moses_parameters(vm=None, jobs=jobs)
+        moses_params.local = local
+        moses_params.mpi = self.enable_mpi
+        moses_params.max_evals = self.max_evals
+        moses_params.max_gens = self.max_gens
+        moses_params.max_score = self.max_score
+        moses_params.max_time = self.max_time
+        moses_params.max_cnd_output = self.result_count
+        self.moses_params = moses_params
+
+        # -- reduct rules (C++: :2384-2394) --
+        self.reduct_candidate_effort = args.reduct_candidate_effort
+        self.reduct_knob_building_effort = args.reduct_knob_building_effort
+        self.lr = logical_reduction(ignore_ops)
+        self.bool_reduct = self.lr(self.reduct_candidate_effort)
+        self.bool_reduct_rep = self.lr(self.reduct_knob_building_effort)
+        # DIVERGENCE(C++ moses/moses/main/problem-params.cc:2393-2394):
+        # `reduct::contin_reduction(...)` -- contin reduction is S14, not
+        # ported anywhere in this port (`reduct.py`'s own module docstring).
+        # Left `None` rather than fabricated; nothing in this port's scope
+        # reads it.
+        self.contin_reduct = None
+
+        # ---------------- Phase 2: gate unported subsystems, fixed order ----------------
+        if self.opt_algo != _HC:
+            raise NotImplementedError(
+                f"opt-algo {self.opt_algo!r}: only hill-climbing ({_HC!r}) is ported; "
+                "univariate/star-anneal/particle-swarm are P2."
+            )
+        if not local:
+            raise NotImplementedError(
+                "-j host:REMOTE_HOST distributed job dispatch is not ported "
+                "(distributed_moses.cc is a different, out-of-scope mechanism); "
+                "use local job counts only."
+            )
+        if self.enable_feature_selection:
+            raise NotImplementedError(
+                "--enable-fs: feature selection (deme/feature_selector.{h,cc}) is P2, not ported."
+            )
+        if self.boosting:
+            raise NotImplementedError("--boost: ensembles/boosting (merging.cc) is P2, not ported.")
+        if self.discard_dominated:
+            raise NotImplementedError("--discard-dominated: domination.cc is P2, not ported.")
+        if self.meta_params.diversity.enabled():
+            raise NotImplementedError(
+                "--diversity-pressure > 0: diversity.cc is P2, not ported."
+            )
+        if self.ss_n_subsample_demes > 1 or self.ss_n_subsample_fitnesses > 1:
+            raise NotImplementedError("subsample.cc (ss-* options) is P2, not ported.")
+        if self.discretize_thresholds:
+            raise NotImplementedError(
+                "--discretize-threshold: discretize_contin_bscore is contin/mixed "
+                "(S14), not ported."
+            )
+        if self.contin_depth != 5:
+            raise NotImplementedError(
+                "--contin-depth: contin representation building is S14, not ported."
+            )
+        if self.it_abs_err:
+            raise NotImplementedError(
+                "--it-abs-err: contin_bscore::abs_error is contin/mixed (S14), not ported."
+            )
+        if self.time_bscore:
+            raise NotImplementedError(
+                "--time-bscore: the time-spread bscore variant is not ported."
+            )
+        if self.time_dispersion_pressure != 0.0:
+            raise NotImplementedError(
+                "--time-dispersion-pressure > 0: the temporal dispersion penalty is not ported."
+            )
+        if self.use_well_enough:
+            raise NotImplementedError(
+                '--well-enough: the "leave well-enough alone" classifier algorithm is not ported.'
+            )
+
+    # ------------------------------------------------------------ helpers
+
+    def _resolve_ignore_ops(self, args: argparse.Namespace) -> set:
+        """C++: moses/moses/main/problem-params.cc:2058 problem_params::parse_options
+
+        Inline body at :2118-2151. Builds the `ignore_ops` vertex set from
+        `--include-only-operator`, `--ignore-operator` and `--linear-regression`, in that order,
+        exactly matching C++'s own statement order and
+        `not_recognized_combo_operator`'s `ValueError` equivalent.
+        """
+        self.include_only_ops_str = list(args.include_only_ops_str)
+        self.ignore_ops_str = list(args.ignore_ops_str)
+
+        ignore_ops: set = set()
+        if self.include_only_ops_str:
+            ignore_operators = False
+            for s in self.include_only_ops_str:
+                v = _builtin_str_to_vertex(s)
+                if v is None:
+                    raise ValueError(f"{s} is not recognized as combo operator.")
+                if not ignore_operators:
+                    ignore_ops = set(_COMBO_OPERATORS.values())
+                    ignore_operators = True
+                ignore_ops.discard(v)
+
+        for s in self.ignore_ops_str:
+            v = _builtin_str_to_vertex(s)
+            if v is None:
+                raise ValueError(f"{s} is not recognized as combo operator.")
+            ignore_ops.add(v)
+
+        if args.linear_regression:
+            ignore_ops.update((builtin.div, builtin.exp, builtin.log, builtin.sin))
+
+        self.ignore_ops = ignore_ops
+        return ignore_ops
+
+    def _resolve_jobs(self, args: argparse.Namespace) -> tuple[dict, bool]:
+        """C++: moses/moses/main/problem-params.cc:2058 problem_params::parse_options
+
+        Inline body at :2157-2172. `jobs_t{{localhost, 1}}` then one entry per `--jobs`/`-j` token,
+        `HOST:N` selecting a remote host (and turning `local` off) or a
+        bare `N` overwriting the localhost count. Gated in phase 2 (module
+        docstring) if the result is non-local -- distributed dispatch is
+        out of scope.
+        """
+        self.jobs_str = list(args.jobs_str)
+        jobs: dict[str, int] = {_LOCALHOST: 1}
+        local = True
+        for js in self.jobs_str:
+            pos = js.find(_JOB_SEPARATOR)
+            if pos != -1:
+                jobs[js[pos + 1 :]] = int(js[:pos])
+                local = False
+            else:
+                jobs[_LOCALHOST] = int(js)
+        return jobs, local
+
+    def _wire_diversity(self, args: argparse.Namespace, meta_params: metapop_parameters) -> None:
+        """C++: moses/moses/main/problem-params.cc:2058 problem_params::parse_options
+
+        Inline body at :2293-2326. Populates `meta_params.diversity` UNCONDITIONALLY -- including
+        `autoscale`, the field CARRY-FORWARD's own DIVERGENCE note on
+        `diversity_parameters` names as genuinely uninitialized in C++
+        until the CLI sets it -- and validates `--diversity-dst`/
+        `--diversity-dst2dp` unconditionally too, matching C++'s own
+        `not_recognized_dst`/`not_recognized_dst2dp` calls (which run
+        regardless of `--diversity-pressure`). The P2 gate itself
+        (`enabled()`) is checked in phase 2, not here -- see the module
+        docstring's design-rule section for why population must complete
+        first.
+        """
+        self.diversity_pressure = _to_score_t(args.diversity_pressure)
+        self.diversity_autoscale = args.diversity_autoscale
+        self.diversity_exponent = _to_score_t(args.diversity_exponent)
+        self.diversity_normalize = args.diversity_normalize
+        self.diversity_dst = args.diversity_dst
+        self.diversity_p_norm = _to_score_t(args.diversity_p_norm)
+        self.diversity_dst2dp = args.diversity_dst2dp
+
+        meta_params.diversity.pressure = self.diversity_pressure
+        meta_params.diversity.autoscale = self.diversity_autoscale
+        meta_params.diversity.exponent = self.diversity_exponent
+        meta_params.diversity.normalize = self.diversity_normalize
+
+        if self.diversity_dst == _P_NORM:
+            de = diversity_parameters.dst_enum_t.p_norm
+        elif self.diversity_dst == _TANIMOTO:
+            de = diversity_parameters.dst_enum_t.tanimoto
+        elif self.diversity_dst == _ANGULAR:
+            de = diversity_parameters.dst_enum_t.angular
+        else:
+            raise ValueError(
+                f"{self.diversity_dst} is not recognized. Valid distances are "
+                f"{_P_NORM}, {_TANIMOTO} and {_ANGULAR}"
+            )
+        meta_params.diversity.set_dst(de, self.diversity_p_norm)
+
+        if self.diversity_dst2dp == _AUTO:
+            d2de = (
+                diversity_parameters.dst2dp_enum_t.inverse
+                if self.diversity_dst == _P_NORM
+                else diversity_parameters.dst2dp_enum_t.complement
+            )
+        elif self.diversity_dst2dp == _INVERSE:
+            d2de = diversity_parameters.dst2dp_enum_t.inverse
+        elif self.diversity_dst2dp == _COMPLEMENT:
+            d2de = diversity_parameters.dst2dp_enum_t.complement
+        elif self.diversity_dst2dp == _POWER:
+            d2de = diversity_parameters.dst2dp_enum_t.pthpower
+        else:
+            raise ValueError(
+                f"{self.diversity_dst2dp} is not recognized. Valid distances to "
+                f"penalty are {_AUTO}, {_INVERSE}, {_COMPLEMENT}, {_POWER}"
+            )
+        meta_params.diversity.set_dst2dp(d2de)
+
+    def _wire_subsample(self, args: argparse.Namespace) -> None:
+        """C++: moses/moses/main/problem-params.cc:2058 problem_params::parse_options
+
+        Inline body at :2339-2355. Populates every one of the 15 `filter_params` fields
+        UNCONDITIONALLY, including the ten `subsample_deme_filter_
+        parameters` fields CARRY-FORWARD's own DIVERGENCE note documents as
+        genuinely uninitialized in C++ until the CLI sets them. The P2 gate
+        (`n_subsample_demes|n_subsample_fitnesses > 1`) is checked in
+        phase 2 -- see `_wire_diversity`'s docstring for the same ordering
+        argument.
+
+        The 8 `ss_*` threshold/weight fields are C++ `float` (problem-
+        params.h:193-199,205 -- NOT `double`, unlike every other CLI
+        double), so each is narrowed via `_to_score_t` the same way a real
+        `score_t`/`float` binding is narrowed elsewhere in this port
+        (CARRY-FORWARD.md 4.2); the `unsigned`/bool fields are not.
+        """
+        self.ss_n_top_candidates = args.ss_n_top_candidates
+        self.ss_n_tuples = args.ss_n_tuples
+        self.ss_std_dev_threshold = _to_score_t(args.ss_std_dev_threshold)
+        self.ss_tanimoto_mean_threshold = _to_score_t(args.ss_tanimoto_mean_threshold)
+        self.ss_tanimoto_geo_mean_threshold = _to_score_t(args.ss_tanimoto_geo_mean_threshold)
+        self.ss_tanimoto_max_threshold = _to_score_t(args.ss_tanimoto_max_threshold)
+        self.ss_n_best_bfdemes = args.ss_n_best_bfdemes
+        self.ss_tanimoto_mean_weight = _to_score_t(args.ss_tanimoto_mean_weight)
+        self.ss_tanimoto_geo_mean_weight = _to_score_t(args.ss_tanimoto_geo_mean_weight)
+        self.ss_tanimoto_max_weight = _to_score_t(args.ss_tanimoto_max_weight)
+        self.ss_low_dev_pressure = _to_score_t(args.ss_low_dev_pressure)
+        self.ss_by_time = args.ss_by_time
+        self.ss_contiguous_time = args.ss_contiguous_time
+
+        filter_params = subsample_deme_filter_parameters(
+            n_subsample_demes=self.ss_n_subsample_demes,
+            n_top_candidates=self.ss_n_top_candidates,
+        )
+        filter_params.n_tuples = self.ss_n_tuples
+        filter_params.by_time = self.ss_by_time
+        filter_params.contiguous_time = self.ss_contiguous_time
+        filter_params.std_dev_threshold = self.ss_std_dev_threshold
+        filter_params.tanimoto_mean_threshold = self.ss_tanimoto_mean_threshold
+        filter_params.tanimoto_geo_mean_threshold = self.ss_tanimoto_geo_mean_threshold
+        filter_params.tanimoto_max_threshold = self.ss_tanimoto_max_threshold
+        filter_params.n_best_bfdemes = self.ss_n_best_bfdemes
+        filter_params.tanimoto_mean_weight = self.ss_tanimoto_mean_weight
+        filter_params.tanimoto_geo_mean_weight = self.ss_tanimoto_geo_mean_weight
+        filter_params.tanimoto_max_weight = self.ss_tanimoto_max_weight
+        filter_params.n_subsample_fitnesses = self.ss_n_subsample_fitnesses
+        filter_params.low_dev_pressure = self.ss_low_dev_pressure
+        self.filter_params = filter_params
+
+
+def parse_args(argv: list[str]) -> problem_params:
+    """Not itself a ported C++ symbol -- the `problem_params()`;
+    `add_options`; `parse_args`/`parse_options` three-step C++ callers
+    perform inline (`moses_exec.cc`'s own body), collapsed into one
+    convenience entry point for this port's callers and tests.
+    """
+    pp = problem_params()
+    parser = argparse.ArgumentParser(add_help=True)
+    pp.add_options(parser)
+    ns = parser.parse_args(argv)
+    pp.parse_options(ns)
+    return pp
