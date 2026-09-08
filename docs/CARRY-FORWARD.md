@@ -504,6 +504,58 @@ deliberately-unasserted field is exactly where a real divergence hides.** An
 unasserted mismatch should be treated as an open finding until its cause is
 identified — not until an argument for its harmlessness sounds convincing.
 
+### 5.3 The `pa` (even-parity) block was in S8, not S9-S11 -- and was already documented
+
+Recorded because the misattribution cost a whole investigation, and because
+the divergence had been WRITTEN DOWN and never costed.
+
+`MOSESUTest`'s `test_2_parity` failed while classic solved it in one deme
+expansion. The S13 demo-problems report correctly ruled out scoring (the
+same stall reproduced through `ctruth_table_bscore`) and then attributed the
+remainder to `local_moses`/`hill_climbing`/`metapopulation`. Wrong: those
+were faithful. The cause was **`build_knobs::sample_logical_perms`' random
+PAIR perms (`build_knobs.cc:435-518`), never ported**, plus `perm_ratio`
+defaulting to `-1.0` in `build_knobs.py`/`representation.py` where classic
+defaults to `0.0` (`build_knobs.h:56`, `representation.h:62`,
+`problem-params.cc:299`). Classic built 16 knobs for the `-Hpa -k2`
+exemplar; the port built 8, and even parity is the first problem in the
+corpus unreachable from single-literal knobs.
+
+Two things are worth carrying forward:
+
+1. **`build_knobs.py`'s own comment already said classic's default was 0.0
+   and that 0.0 generates pairs.** The divergence was documented, honestly
+   and accurately. What nobody did was ask what it COST. A documented
+   divergence is not a discharged one -- same failure mode as 5.2's
+   13-vs-17 waiver.
+2. **Ruling out one layer does not implicate the next.** Scoring was
+   correctly excluded; the layer BETWEEN scoring and the search loop --
+   representation building -- was never checked.
+
+Rule: when an end-to-end oracle fails, **diff the search SPACE before
+diffing the search**. Classic prints it for free at `-l DEBUG`
+("Total number of field specs", "Created prototype:"), it is one line to
+compare, and it is upstream of every optimizer decision.
+
+Fixed 2026-09-08; full trajectory diff, the ruled-out list and the mutation
+table are in
+`.superpowers/sdd/2026-09-08-pymetta-s13-cli/parity-divergence-report.md`.
+
+**`git log` will lie about who made this fix.** It landed inside commit
+`e3e6e76` ("P2 scorers: port precision_bscore"), because a concurrent agent
+ran `git commit` on the shared index in the window between this task's
+`git add <pathspec>` and its own `git commit`. Nothing was lost and the
+history was deliberately NOT rewritten (another agent was actively
+committing to the same branch), but `build_knobs.py`, `vertex.py`,
+`representation.py`, `test_pa_parity_regression.py` and this section are
+not scorer work. **The pathspec discipline is not enough on a shared
+branch: `git add <paths>` then `git commit` is a two-step race. Use the
+one-step `git commit -- <paths>`, which ignores the index entirely.**
+The `MOSESUTest` classification in Sec 3 above is stale as a result:
+`test_2_parity` and `test_2_parity_with_labels` now pass, and
+`test_3_parity_multi_thread`'s single-threaded core (`-Hpa -k3`) reaches
+score 0 with classic's own `-r1` tree.
+
 ## 6. Process notes that paid for themselves
 
 - **Prove a guard fires.** Requiring "revert it and show the test fail" caught a
