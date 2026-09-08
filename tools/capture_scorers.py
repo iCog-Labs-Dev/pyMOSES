@@ -194,10 +194,10 @@ def capture_discriminating() -> dict:
 _SELECT_CSV = DATA_DIR / "select_regression.csv"
 
 _SELECT_CASES = [
-    (0.3, 0.8, 1.0, True, "greater_than_zero($1)"),
-    (0.3, 0.8, 1.0, True, "greater_than_zero($2)"),
-    (0.0, 1.0, 1.0, True, "greater_than_zero($1)"),
-    (0.5, 0.9, 1.0, False, "greater_than_zero($1)"),
+    (0.3, 0.8, 1.0, True, "0<($1)"),
+    (0.3, 0.8, 1.0, True, "0<($2)"),
+    (0.0, 1.0, 1.0, True, "0<($1)"),
+    (0.5, 0.9, 1.0, False, "0<($1)"),
 ]
 
 
