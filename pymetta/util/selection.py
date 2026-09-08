@@ -9,13 +9,21 @@ form that takes an explicit `sum` (selection.h:88-101):
 
 NOT ported: the three-argument overload (selection.h:104-110) that computes
 `sum` itself via `std::accumulate` -- `select_exemplar` always passes its own
-already-computed `sum` explicitly (metapopulation.cc:186-187), so that
+already-computed `sum` explicitly (metapopulation.cc:185-187), so that
 overload has zero reachable call sites anywhere this whole port's scope
-touches (verified: `git grep 'roulette_select'` over `$CLASSIC/moses` finds
-exactly one call site, `metapopulation.cc:186`, and it is the four-argument
-form). `tournament_selection` (selection.h:39-70) is a different algorithm
-entirely with its own zero call sites in this port's scope and is not
-touched here either.
+touches. `git grep 'roulette_select' $CLASSIC/moses` actually finds TWO call
+sites, not one: `metapopulation.cc:185` (this port's own, the four-argument
+form with an explicit `rng`) and `moses/moses/eda/local_structure.cc:146`
+(also the four-argument form, `roulette_select(dtr->begin(), --(dtr->end()),
+dtr->back())` -- three arguments AT THE CALL SITE because `rng` takes its
+default there, not a different overload). The second call site is in
+`local_structure.cc`, EDA machinery that is P2 and outside every file this
+whole port's scope touches (CARRY-FORWARD.md's oracle map), so it changes
+nothing about what needs porting here -- but "exactly one call site" was a
+confident, checkable claim that was simply false; corrected instead of
+re-asserted. `tournament_selection` (selection.h:39-70) is a different
+algorithm entirely with its own zero call sites in this port's scope and is
+not touched here either.
 
 # DIVERGENCE(C++ opencog/util/selection.h:89): the real function is
 # a template over `It` (any iterator type) and `ScoreT` (any type

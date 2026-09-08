@@ -169,6 +169,52 @@ def test_narrows_total_times_rand_to_score_t():
     assert roulette_select(items, total, rng) == 0
 
 
+def test_narrows_the_product_result_not_only_its_operands():
+    """Pins the OUTER `_to_score_t` in `_to_score_t(_to_score_t(total) *
+    rng.randdouble())` -- the case above (`test_narrows_total_times_rand_
+    to_score_t`) only exercises the INNER `_to_score_t(total)`: for that
+    test's own values, `_to_score_t(total)` alone already lands on a value
+    exactly representable in float32 (`2.0**24`), so multiplying by
+    `rand=1.0` needs no further rounding and the outer narrowing is never
+    actually exercised -- stripping ONLY the outer wrap still passes that
+    test. This is the reviewer's own counterexample for selection.py:106:
+    `total = 135229872.0`, `r = 0.8474337369372327`,
+    `items = [114598352.0, 1.0]` -- narrowing the PRODUCT
+    (`total * rand == 114598349.60148...` at double precision) rounds it to
+    float32 `114598352.0`, exactly equal to `items[0]`, so `remaining <= 0`
+    immediately (index 0); left at double precision, the product stays
+    below `items[0]` by a hair (`remaining > 0`), consuming a second
+    element (index 1). Stripping only the outer `_to_score_t` here (keeping
+    the inner `_to_score_t(total)`) reproduces exactly that: index 1 instead
+    of 0.
+    """
+    items = [114598352.0, 1.0]
+    total = 135229872.0
+    rng = _FixedRng(0.8474337369372327)
+    assert roulette_select(items, total, rng) == 0
+
+
+def test_narrows_each_loop_subtraction_not_only_the_final_sum():
+    """Pins the `_to_score_t` in `remaining = _to_score_t(remaining -
+    items[cursor])` (selection.h:90's loop body) using the reviewer's own
+    measured counterexample: `items = [0.6] * 20 + [99999992.0, 1.0]`,
+    `total = 266994096.0`, real `MT19937RandGen` seeded 42. Compiled C++
+    `roulette_select` and this narrowed port both return index 21;
+    stripping this narrowing (summing the twenty `0.6`s and the two large
+    tail values at double precision, rounding only implicitly) returns
+    20 instead -- the twenty small `_to_score_t(remaining - 0.6)` roundings
+    accumulate a float32 rounding residue a double-precision subtraction
+    never picks up, and that residue is what keeps `remaining > 0` one
+    iteration longer.
+    """
+    from pymetta.util.rng import randGen
+
+    items = [0.6] * 20 + [99999992.0, 1.0]
+    total = 266994096.0
+    randGen().seed(42)
+    assert roulette_select(items, total) == 21
+
+
 # ---------------------------------------------------------------------------
 # Vacuity guard
 # ---------------------------------------------------------------------------
