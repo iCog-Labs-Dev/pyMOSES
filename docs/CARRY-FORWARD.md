@@ -144,6 +144,24 @@ These cost real time to find. They are properties of the C++ side, not of the po
   with a "DO NOT FIX" marker.** Of 11 call sites in `contin_rules.cc`, ten are
   safe by construction; `contin_rules.cc:254` could not be cleared — **S14 must
   trace it.** If reachable, classic has a latent heap-corruption bug.
+- **Classic's own `optimizationUTest` CORE-DUMPS.** Confirmed by the controller
+  on 2026-09-07: `./build/tests/moses/optimizationUTest` prints the `Hill:`
+  debug header and then dies ("dumped core"). Cause, found during S9 Task 2:
+  `distance_based_scorer` unconditionally dereferences through
+  `iscorer_base::get_rep()` inside `hill-climbing.cc`'s own debug logging, and
+  the test constructs a scorer with no representation. It is an upstream bug,
+  not a port defect -- so **`make test` on classic is not fully green**, and
+  any S9+ oracle that drives `hill_climbing` directly must supply a throwaway
+  `representation` for `get_rep()` or hit the same crash. Do not "fix" it in
+  the port; reproduce the behaviour and mark DO NOT FIX.
+- **Which classic `tests/moses` oracles actually exist.** Registered and
+  active: `metapopulationUTest` (verified: builds, 2 tests, OK -- the S10
+  oracle), `MOSESUTest` (the S11 end-to-end oracle), `optimizationUTest` (see
+  above -- crashes), `FieldSetUTest`, `KnobTurningUTest`, `scoringUTest`,
+  `iostream_scored_combo_treeUTest`, `AntUTest`, and `NeighborSamplingUTest`
+  (gated on `Boost_MATH_C99_FOUND`). Commented OUT, so unavailable as oracles:
+  `representationUTest`, `weightedUTest`, `mixedUTest`, `irisUTest`,
+  `selectionUTest`, `dynFeatSelUTest`, `diversityUTest`.
 - **The installed header tree at `~/opt/moses-legacy/include` is incomplete** —
   `table.h` includes `../interpreter/eval.h`, which was never installed. Probes
   must compile against `$CLASSIC`, and `libcogutil.so` lives in `lib/opencog`,
