@@ -15,6 +15,7 @@ A `# DIVERGENCE(...)` marker may span multiple physical `#`-comment lines;
 import ast
 import re
 import sys
+import tokenize
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -276,6 +277,25 @@ def parse_divergences(path: Path) -> list[Divergence]:
     return divergences
 
 
+def _comment_texts(path: Path) -> dict[int, str]:
+    """Return {1-based line number: comment text} for every REAL `#`-comment
+    token `tokenize` finds in `path` -- so text that merely LOOKS like a
+    comment because it sits inside a string or docstring (e.g. prose
+    mentioning `# DIVERGENCE(...)`, interpreter.py:22) never appears here,
+    while a marker written as a TRAILING comment after code on the same
+    line does. A plain `line.lstrip().startswith("#")` check (the previous
+    approach) gets this backwards for that second case: it demands the
+    marker be the first thing on its line, which a real Python comment
+    need not be.
+    """
+    with path.open("rb") as fh:
+        return {
+            tok.start[0]: tok.string
+            for tok in tokenize.tokenize(fh.readline)
+            if tok.type == tokenize.COMMENT
+        }
+
+
 def unparsed_divergence_markers(path: Path) -> list[int]:
     """Return the 1-based line numbers in `path` that OPEN a
     `# DIVERGENCE(` marker but that `parse_divergences` did not turn into a
@@ -296,16 +316,25 @@ def unparsed_divergence_markers(path: Path) -> list[int]:
     this cycle: a dropped marker makes a file LOOK faithful, which is worse
     than a marker that is merely badly worded.
 
-    Only lines whose first non-whitespace character is `#` count as
-    markers, so prose that merely MENTIONS the syntax inside a docstring
-    (`... not a `# DIVERGENCE(C++ ...)` marker`, interpreter.py:22) is not
-    a false positive.
+    `opened` is read off `_comment_texts`, i.e. real comment TOKENS, not
+    raw lines -- so a marker written as a trailing comment after code
+    (`x = 1  # DIVERGENCE(C++ a.cc:1) / DO NOT FIX: ...`) is counted too.
+    An earlier version of this function required a marker's line to have
+    `#` as its first non-whitespace character, which made exactly that
+    broken, mid-line shape invisible to BOTH this function (excluded from
+    `opened`, since the line does not start with `#`) and
+    `parse_divergences` (which cannot find `"):"` either, for the same
+    reason as the whole-line case above) -- reported by neither, the third
+    such gap this parser has had. Prose that merely MENTIONS the marker
+    syntax inside a docstring (`... not a `# DIVERGENCE(C++ ...)` marker`,
+    interpreter.py:22) is still excluded, because it is never a COMMENT
+    token in the first place -- string content, wherever it sits on the
+    line, is never mistaken for a comment by `tokenize`.
     """
-    lines = path.read_text().splitlines()
     opened = [
-        i + 1
-        for i, line in enumerate(lines)
-        if line.lstrip(" \t").startswith("#") and DIVERGENCE_START_RE.search(line)
+        line_no
+        for line_no, text in _comment_texts(path).items()
+        if DIVERGENCE_START_RE.search(text)
     ]
     parsed = {d.line for d in parse_divergences(path)}
     return [line_no for line_no in opened if line_no not in parsed]

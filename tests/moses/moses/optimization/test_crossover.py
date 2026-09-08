@@ -52,9 +52,12 @@ The fixture therefore carries:
   log says `last chance` for it, and `last chance` for nothing else.
 * `large_nbh_above` (404 neighbours) vs `large_nbh_below` (392) -- the
   `>= crossover_min_neighbors` boundary at distance 1, straddled exactly.
-* `last_chance`/`last_chance_immediate` -- armed by `last_chance` but
-  admitted by `large_nbh` at distance 2; classic logs "n'bhood too large"
-  for them, which is how this was found.
+* `large_nbh_at_distance_2`/`large_nbh_at_distance_2_immediate` -- armed by
+  `last_chance` but admitted by `large_nbh` at distance 2; classic logs
+  "n'bhood too large" for them, which is how this was found. Named for
+  what admits them, not what arms them -- they used to be called
+  `last_chance`/`last_chance_immediate`, which claimed the wrong conjunct
+  decided the gate for exactly the cases this bullet is about.
 * `large_nbh_widen` -- the `already_xover` branch, reachable only when
   `widen_search` keeps a non-improving crossover iteration alive.
 * `no_crossover` -- the `hc_params.crossover == False` control.
@@ -254,8 +257,8 @@ def test_fixture_has_expected_shape():
     for func in _XOVER_FUNCS:
         assert len(_GOLDEN["direct"][func]) == 24
     assert set(_GOLDEN["hill_climbing"]) == {
-        "last_chance",
-        "last_chance_immediate",
+        "large_nbh_at_distance_2",
+        "large_nbh_at_distance_2_immediate",
         "last_chance_only",
         "no_crossover",
         "large_nbh_below",
@@ -440,21 +443,54 @@ def test_cross_top_three_index_collisions_are_reproduced_not_fixed():
     """DO NOT FIX (hill-climbing.cc:687): `k < i` with an index formula that
     assumes `k < j`.
 
-    Rather than merely asserting the fixture matches, this reconstructs the
-    write sequence directly from the ported loop bounds and pins what the
-    bug actually DOES, so the marker's claims are checkable:
+    CALLS THE PORT'S OWN `cross_top_three` -- a previous version of this
+    test only recomputed the `k < i` loop inside its own body and never
+    invoked the port at all, so it stayed green under a mutation to the
+    port's loop bound (`k < i` -> `k < j`) and its docstring's claim that
+    such a mutation "makes this test fail" was false. Coverage of that
+    mutation was never actually missing -- `test_cross_functions_match_cpp`
+    already catches it in 23 of its 24 `cross_top_three` fixture cases --
+    but THIS test's own job is to pin what the bug does in a way that is
+    checkable against the port, not just against its own restatement of
+    the formula (CARRY-FORWARD.md 5b.5's warning about that shape of test).
 
-    * nothing below `num_to_make` is left unwritten (every slot is covered);
-    * slots are written repeatedly, last write wins;
-    * block `i`'s final offset spills into block `i+1`'s slot 0.
-
-    The `expected_pairs` below are derived from `k < i`; recomputing them
-    with `k < j` (the "fixed" bound) makes this test fail, which is the
-    point.
+    The deme is synthetic: `base` is all-zero and each of 10 samples flips
+    one distinct bit, so `merge_instance` behaves as bitwise OR and a
+    slot's content names its own writer(s) unambiguously. `last_writer`
+    below is derived from the SAME `k < i` loop bounds the port uses --
+    that derivation is what pins nothing-skipped/repeated-writes/spillover
+    -- and is then checked against what the port ACTUALLY wrote at each
+    slot. Recomputing `last_writer` with `k < j` (the "fixed" bound the
+    marker rejects) no longer matches the port's real output, so the final
+    loop below is what makes this test fail under that mutation.
     """
-    writes: dict[int, list[tuple[int, int, int]]] = {}
     num_to_make = 40
     sample_size = 10
+    fs = _bit_fs(sample_size)
+    ids = [1 << i for i in range(sample_size)]
+    case = {
+        "sample_start": 0,
+        "sample_size": sample_size,
+        "samples": [
+            {
+                "id": ids[i],
+                "score": -float(i),
+                "complexity": 0,
+                "complexity_penalty": 0.0,
+                "uniformity_penalty": 0.0,
+            }
+            for i in range(sample_size)
+        ],
+    }
+    deme = _build_xdeme(case, fs)
+    base = _id_instance(fs, 0)
+    hc = hill_climbing(optim_parameters(), hc_parameters())
+    returned = hc.cross_top_three(deme, sample_size, num_to_make, 0, sample_size, base)
+    assert returned == num_to_make
+
+    # Derived from the port's own `k < i` loop bounds -- a prediction to
+    # check against the port's output below, not a stand-in for calling it.
+    writes: dict[int, list[tuple[int, int, int]]] = {}
     stopped_at = None
     for i in range(2, sample_size):
         for j in range(1, i):
@@ -484,6 +520,17 @@ def test_cross_top_three_index_collisions_are_reproduced_not_fixed():
     # written by block i=3 (offset i*(i-1)/2 == 3) before block i=4 starts.
     assert (3, 2, 2) in writes[4]
     assert writes[4][-1] == (4, 1, 0)
+
+    # Now check the DERIVATION against the PORT'S ACTUAL output: slot n's
+    # content must equal the OR of the ids of its last writer's (i, j, k).
+    # This is the assertion that makes a `k < j` mutation fail -- the
+    # derivation above would no longer describe what the port wrote.
+    for n, triples in writes.items():
+        i, j, k = triples[-1]
+        want_id = ids[k] | ids[i] | ids[j]
+        got_raw = [fs.get_raw(deme[sample_size + n].first, b) for b in range(fs.raw_size())]
+        got_id = sum(bit << pos for pos, bit in enumerate(got_raw))
+        assert got_id == want_id, f"slot {n}: last writer (i={i}, j={j}, k={k})"
 
 
 def test_cross_top_three_fixture_matches_the_collision_derivation():
@@ -968,11 +1015,54 @@ def test_crossover_disabled_never_calls_the_crossover_machinery():
     and the `if (hc_params.crossover)` guard around the whole last_chance
     block at :434. With it off, neither fires no matter how permissive the
     other conjuncts are.
+
+    `_plateau_run` is NOT a strong enough witness for this, and did not
+    catch a mutation that deletes the `self.hc_params.crossover` conjunct
+    from the gate expression outright (only
+    tests/moses/moses/optimization/test_hill_climbing.py:225 did): with
+    crossover disabled, the `if (hc_params.crossover)` guard around the
+    `last_chance` block also disables that block's own `continue`
+    (hill-climbing.cc:451) -- the thing that keeps the loop alive past a
+    plateau at all. So `_plateau_run`'s scenario terminates at iteration 2
+    regardless of whether the GATE's own `hc_params.crossover` conjunct is
+    present, and `fired_on == []` passes for the wrong reason: the run
+    never reaches iteration 3 either way, not because the flag was
+    checked.
+
+    A CLIMBING scenario is used instead (real, non-plateau improvement for
+    a few iterations, borrowed from
+    test_gate_uses_a_greater_or_equal_neighbourhood_test), so the run
+    reaches iteration 3+ -- where `large_nbh` is satisfied
+    (`crossover_min_neighbors = 1`) -- on its own, independent of the
+    crossover flag. The flag is then the only thing left that can explain
+    `fired_on == []` for disabled vs. non-empty for enabled on the
+    IDENTICAL scenario, which is what pins it: deleting the gate's
+    `hc_params.crossover` conjunct measurably turns the first assertion
+    red (`fired_on` becomes `[3, 4, 5]`) while leaving the second
+    unaffected.
     """
-    hcp = hc_parameters(cross=False)
-    hcp.crossover_min_neighbors = 1
-    hc = _plateau_run(6, hcp)
-    assert hc.fired_on == []
+    fs = _bit_fs(4)
+    target = instance(fs.packed_width())
+    for i in range(4):
+        fs.set_raw(target, i, 1)
+    scorer = distance_based_scorer(fs, target)
+
+    hcp_off = hc_parameters(cross=False)
+    hcp_off.crossover_min_neighbors = 1
+    randGen().seed(1)
+    deme_off = instance_set(fs)
+    hc_off = _TracedHillClimbing(optim_parameters(terminate_if_gte=1.0), hcp_off)
+    hc_off(deme_off, scorer, 500, 86400)
+    assert len(hc_off.xover_log) >= 3, "the run must reach the gate at all"
+    assert hc_off.fired_on == []
+
+    hcp_on = hc_parameters(cross=True)
+    hcp_on.crossover_min_neighbors = 1
+    randGen().seed(1)
+    deme_on = instance_set(fs)
+    hc_on = _TracedHillClimbing(optim_parameters(terminate_if_gte=1.0), hcp_on)
+    hc_on(deme_on, scorer, 500, 86400)
+    assert hc_on.fired_on and hc_on.fired_on[0] == 3
 
 
 def test_resize_deme_uses_the_measured_partial_sort_order():

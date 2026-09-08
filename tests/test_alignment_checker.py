@@ -184,6 +184,43 @@ def test_wellformed_divergence_marker_is_not_reported(tmp_path):
     assert len(parse_divergences(f)) == 1
     assert unparsed_divergence_markers(f) == []
 
+def test_midline_broken_divergence_marker_is_reported(tmp_path):
+    # The third gap found in this parser: the same `) /` shape as
+    # test_unparsed_divergence_marker_is_reported above, but written as a
+    # TRAILING comment after code rather than a whole-line comment. Before
+    # this fix, `opened` required a marker's line to start with `#`, so
+    # this shape was invisible to BOTH `parse_divergences` (still can't
+    # find `"):"`, same as the whole-line case) AND
+    # `unparsed_divergence_markers` (excluded from `opened` for not
+    # starting the line) -- reported by neither.
+    from tools.check_alignment import unparsed_divergence_markers
+
+    f = tmp_path / "m.py"
+    f.write_text(
+        "def f():\n"
+        "    x = 1  # DIVERGENCE(C++ foo.cc:1) / DO NOT FIX: k < i, not k < j.\n"
+        "    return x\n"
+    )
+    assert parse_divergences(f) == []
+    assert unparsed_divergence_markers(f) == [2]
+
+def test_wellformed_midline_divergence_marker_is_not_reported(tmp_path):
+    # The mid-line COUNTERPART to test_wellformed_divergence_marker_is_not_
+    # reported: a marker written as a trailing comment already parses fine
+    # (DIVERGENCE_RE.search scans the whole line, not just its start), and
+    # switching `unparsed_divergence_markers` to real comment tokens must
+    # not start flagging it.
+    from tools.check_alignment import unparsed_divergence_markers
+
+    f = tmp_path / "m.py"
+    f.write_text(
+        "def f():\n"
+        "    x = 1  # DIVERGENCE(C++ foo.cc:687): DO NOT FIX -- k < i, not k < j.\n"
+        "    return x\n"
+    )
+    assert len(parse_divergences(f)) == 1
+    assert unparsed_divergence_markers(f) == []
+
 def test_prose_mentioning_the_marker_syntax_is_not_reported(tmp_path):
     # interpreter.py:22 mentions "`# DIVERGENCE(C++ ...)` marker" inside a
     # docstring to say a note deliberately is NOT one. That line's first

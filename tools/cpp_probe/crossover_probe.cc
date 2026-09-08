@@ -27,10 +27,13 @@
 //   "hill_climbing" -- full hill_climbing::operator() runs with
 //       hc_parameters.crossover = TRUE (classic's own default,
 //       problem-params.cc:424), covering BOTH gate entry paths:
-//         * "last_chance": a small field_set whose neighborhood estimate is
-//           far below crossover_min_neighbors (400), so large_nbh is false
-//           and crossover can only be reached through the last_chance
-//           one-shot at hill-climbing.cc:450.
+//         * "last_chance_only"/"large_nbh_at_distance_2"{,_immediate}: small
+//           field_sets whose DISTANCE-1 neighborhood estimate is far below
+//           crossover_min_neighbors (400), so the FIRST crossover attempt
+//           can only come through the last_chance one-shot at
+//           hill-climbing.cc:450 -- though for the latter two, by the time
+//           it fires, large_nbh has already become true at distance 2 (see
+//           the cases' own comments below, measured).
 //         * "large_nbh_*": a field_set sized so that
 //           estimate_neighborhood(1) == 2 * information_theoretic_bits
 //           straddles the 400 boundary exactly (hill-climbing.cc:504-505),
@@ -814,20 +817,26 @@ int main(int argc, char** argv)
     run_xcases();
     printf(",\"hill_climbing\":{");
 
-    // ---- last_chance path: a small field_set, large_nbh permanently false.
-    // arity 6 => 24 disc knobs of multiplicity 3 => 38 info bits =>
-    // estimate_neighborhood(1) == 76, far under crossover_min_neighbors(400),
-    // so the gate's `large_nbh` conjunct is false on every iteration and the
-    // ONLY way in is the last_chance one-shot.  terminate_if_gte is pushed
-    // above the scorer's maximum (0) so the run does not stop the moment it
-    // reaches the optimum -- it has to plateau, which is what arms
-    // last_chance at hill-climbing.cc:450.
+    // ---- large_nbh_at_distance_2{,_immediate}: a small field_set whose
+    // DISTANCE-1 neighborhood estimate is far below crossover_min_neighbors
+    // (400), so `large_nbh` is false at distance 1 and the run must plateau
+    // and arm `last_chance` (hill-climbing.cc:450) before crossover can fire
+    // at all -- but (see the MEASURED note below) by the time last_chance
+    // actually opens the gate, distance has already reached 2, where
+    // `large_nbh` -- not `last_chance` -- is what admits it. Renamed from
+    // "last_chance"/"last_chance_immediate": those names implied
+    // `last_chance` was the deciding conjunct, which classic's own log
+    // ("n'bhood too large for exhaustive srch: 703>=400") contradicts; see
+    // "last_chance_only" below for the one case where that name would be
+    // accurate. terminate_if_gte is pushed above the scorer's maximum (0)
+    // so the run does not stop the moment it reaches the optimum -- it has
+    // to plateau, which is what arms last_chance in the first place.
     {
         optim_parameters op;
         op.terminate_if_gte = 1.0;
         hc_parameters hcp;
         hcp.crossover = true;
-        run_hc_case("last_chance", 6, 1, op, hcp, 3000, 86400, logdir);
+        run_hc_case("large_nbh_at_distance_2", 6, 1, op, hcp, 3000, 86400, logdir);
     }
     // Same gate path reached on iteration 3 instead of ~26, by making the
     // all-zero init_inst the optimum (see run_hc_case's null_target note).
@@ -837,22 +846,24 @@ int main(int argc, char** argv)
         hc_parameters hcp;
         hcp.crossover = true;
         printf(",");
-        run_hc_case("last_chance_immediate", 6, 1, op, hcp, 3000, 86400, logdir, true);
+        run_hc_case("large_nbh_at_distance_2_immediate", 6, 1, op, hcp, 3000, 86400, logdir, true);
     }
     // The ONLY configuration in which `last_chance` is the conjunct that
-    // actually decides the gate.  MEASURED, and sharper than
-    // docs/CROSSOVER-INVENTORY.md's "small problems reach crossover only via
-    // last_chance": `distance` is incremented at hill-climbing.cc:367-368
-    // BEFORE the last_chance block at :434 runs, so a last_chance crossover
-    // always happens at distance >= 2, where estimate_neighborhood returns
+    // actually decides the gate -- hence keeping that name for THIS case.
+    // MEASURED, and sharper than docs/CROSSOVER-INVENTORY.md's "small
+    // problems reach crossover only via last_chance": `distance` is
+    // incremented at hill-climbing.cc:367-368 BEFORE the last_chance block
+    // at :434 runs, so a last_chance crossover always happens at
+    // distance >= 2, where estimate_neighborhood returns
     // safe_binomial_coefficient(nn, distance) -- which for a Boolean field
     // set is already >= 400 at distance 2 once nn >= 29 (C(29,2) = 406).  So
     // "large_nbh false AND last_chance true" needs a field set with fewer
     // than ~29 information-theoretic bits: arity 4 => 16 knobs => 25 bits,
     // C(25,2) = 300 < 400.  (arity 6 => 38 bits => C(38,2) = 703 >= 400, so
-    // the two "last_chance*" cases above reach crossover through large_nbh
-    // at distance 2 even though they are armed by last_chance -- exactly the
-    // reason the C++ logs "n'bhood too large" for them.)
+    // the two "large_nbh_at_distance_2*" cases above reach crossover through
+    // large_nbh at distance 2 even though they are armed by last_chance --
+    // exactly the reason the C++ logs "n'bhood too large" for them, and
+    // exactly why they are NOT named "last_chance*" any more.)
     {
         optim_parameters op;
         op.terminate_if_gte = 1.0;
@@ -861,8 +872,8 @@ int main(int argc, char** argv)
         printf(",");
         run_hc_case("last_chance_only", 4, 1, op, hcp, 3000, 86400, logdir, true);
     }
-    // Control: identical to "last_chance_immediate" but with crossover off.
-    // Isolates exactly what the crossover code changes.
+    // Control: identical to "large_nbh_at_distance_2_immediate" but with
+    // crossover off. Isolates exactly what the crossover code changes.
     {
         optim_parameters op;
         op.terminate_if_gte = 1.0;

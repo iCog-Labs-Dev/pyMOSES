@@ -623,6 +623,17 @@ class hill_climbing(optimizer_base):
         # Skip the first entry; its the top scorer.
         for i in range(num_to_make):
             j = deme_size + i
+            # DIVERGENCE(C++ moses/moses/optimization/hill-climbing.cc:616):
+            # C++ declares `unsigned j` there, so `deme_size + i` truncates
+            # to 32 bits on assignment; Python's `j` is unmasked. Same
+            # family as `cross_top_two`/`cross_top_three`'s masked `n`/
+            # `ntgt`, left unmasked here because it is unreachable for the
+            # same reason those are untested (CARRY-FORWARD.md 5b.6):
+            # `deme.resize(deme_size + num_to_make)` two lines above already
+            # succeeded, so `deme_size + i < deme_size + num_to_make` fits
+            # comfortably; wrapping at 2**32 would need a deme of billions
+            # of instances. Reported rather than fixed -- a marker must
+            # state what C++ actually does, not paper over the gap.
             src = deme[sample_start + i + 1]  # +1 to skip the first one
             # `deme[j] = deme[...]` is scored_instance COPY-assignment in
             # C++ (std::pair's, inherited through tagged_item), not an
@@ -651,8 +662,8 @@ class hill_climbing(optimizer_base):
         sample i's changes-from-`base` overlaid, at the triangular index
         `n = i*(i-1)/2 + j`.
 
-        # DIVERGENCE(C++ moses/moses/optimization/hill-climbing.cc:627,632,
-        # 646,657): every one of `max`, `num_to_sort`, `n` and `ntgt` is
+        # DIVERGENCE(C++ moses/moses/optimization/hill-climbing.cc:628,632,
+        # 652,655): every one of `max`, `num_to_sort`, `n` and `ntgt` is
         # declared `unsigned` in C++ -- 32-bit -- while `sample_size`,
         # `num_to_make` and `deme_size` are `size_t`. So `sample_size *
         # (sample_size - 1) / 2` is evaluated in 64-bit and then TRUNCATED
@@ -740,10 +751,27 @@ class hill_climbing(optimizer_base):
         # * ONE SLOT OF THE NEXT BLOCK IS CLOBBERED EARLY. The block's last
         #   offset, i*(i-1)/2, maps to n = C(i+1,3), i.e. block i+1's slot
         #   0, which block i+1 then rewrites with its own (j=1, k=0).
-        # * The `k == j` and `k > j` cases mean a child can be merged with
-        #   a reference it is itself a copy of (k == j, or k == i), so
-        #   `merge_instance(child, base, jref)` is a no-op and the child is
-        #   a two-way cross wearing a three-way slot.
+        # * `k == i` NEVER HAPPENS -- the loop bound is `k < i`, strictly,
+        #   so `i` itself is never a value `k` takes. The only degenerate
+        #   case is `k == j` (k ranges over [0, i) and j over [1, i), so
+        #   k == j occurs exactly once per (i, j) sweep). When it does,
+        #   `src = deme[sample_start + k]` is the SAME sample as `jref`
+        #   (both read `deme[sample_start + j]`), so `child` starts as a
+        #   copy of jref, not a fresh three-way mix.
+        # * `merge_instance(child, base, jref)` -- the SECOND merge -- is
+        #   NOT a no-op here; it OVERWRITES whatever the first merge
+        #   (`merge_instance(child, base, iref)`) left behind, at every
+        #   knob where `base != jref`, resetting those knobs to jref's own
+        #   values. Measured with the port's own `field_set.merge_instance`
+        #   on three ternary knobs (MOSES's actual logical knob, multy=3):
+        #   base=[0,0,0], iref=[1,1,1], jref=[2,2,2] -- `child` goes
+        #   [2,2,2] (copy of jref) -> [1,1,1] (merge with iref) -> [2,2,2]
+        #   (merge with jref). The net effect in this configuration is
+        #   sample j UNCHANGED, not a two-way cross: the k == j slot's
+        #   "three-way cross" degenerates to writing back the original
+        #   jref sample verbatim, because base disagrees with jref at
+        #   every knob and the second merge therefore restores all of
+        #   them.
         # * `if (num_to_make <= n) return num_to_make;` (:689) still leaves
         #   no hole below `num_to_make`: because the covered offsets always
         #   form a contiguous prefix and rise by one within each j-run, the
@@ -756,8 +784,20 @@ class hill_climbing(optimizer_base):
         # because bit-identical behaviour against classic is the point.
         #
         # The `unsigned` truncations are the same family
-        # `cross_top_two` documents (here `i*(i-1)*(i-2)` already exceeds
-        # 2**32 at i >= 2953, so this one is the most reachable of them);
+        # `cross_top_two` documents. This one is the most reachable of
+        # them, but the onset is i == 1627, not i == 2953 as an earlier
+        # version of this note claimed (understating it by ~1.8x): `i`,
+        # `j`, `k` are themselves `unsigned` (32-bit) in C++, so
+        # `i * (i - 1) * (i - 2)` wraps mod 2**32 AT THE MULTIPLICATION,
+        # before the `/ 6` -- and the raw product first exceeds 2**32 at
+        # i == 1627 (1627*1626*1625 == 4,298,940,750; i == 1626 gives
+        # 4,291,014,000, still under). i == 2953 was instead (an incorrect)
+        # attempt at the DIFFERENT threshold where the unwrapped quotient
+        # `i*(i-1)*(i-2)/6` itself would cross 2**32 -- that is i == 2955,
+        # not 2953 (i == 2954's quotient is 4,291,795,704, still under) --
+        # but that quotient threshold was never the relevant one anyway,
+        # since the 32-bit wraparound in C++ happens two steps earlier, in
+        # the product itself.
         # masked, never clamped.
         """
         # sample_size choose three.

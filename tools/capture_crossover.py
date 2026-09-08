@@ -111,8 +111,13 @@ def _build_manifest() -> dict:
                 "S11 five-generation local_moses scenario with crossover on and off"
             ),
             "hill_climbing_cases": {
-                "last_chance": {"arity": 6, "seed": 1, "max_evals": 3000, "hc_cross": True},
-                "last_chance_immediate": {
+                "large_nbh_at_distance_2": {
+                    "arity": 6,
+                    "seed": 1,
+                    "max_evals": 3000,
+                    "hc_cross": True,
+                },
+                "large_nbh_at_distance_2_immediate": {
                     "arity": 6,
                     "seed": 1,
                     "max_evals": 3000,
