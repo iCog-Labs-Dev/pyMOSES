@@ -29,6 +29,13 @@ BREADCRUMB_RE = re.compile(r"^C\+\+: (?P<file>\S+):(?P<line>\d+) (?P<symbol>.+)$
 # now reported by `validate` rather than skipped. The trailing space after `:`
 # is optional for the same reason.
 DIVERGENCE_RE = re.compile(r"# DIVERGENCE\((?P<ref>C\+\+ [^)]+)\):(?: (?P<reason>.*))?")
+# The REFERENCE itself may wrap across comment lines, e.g.
+#     # DIVERGENCE(C++ moses/.../hill-climbing.cc:69,271,278 and
+#     # hill-climbing.h:267) / DO NOT FIX: ...
+# DIVERGENCE_RE cannot match that -- it needs `)` and `:` on one line -- so
+# such markers were ALSO silently dropped (6 of them, including a load-bearing
+# DO NOT FIX at hill_climbing.py:35). `_read_marker` joins continuation lines
+DIVERGENCE_START_RE = re.compile(r"# DIVERGENCE\(")
 
 # Strips a continuation line's leading `#`-comment marker(s) (and any
 # whitespace interleaved with them) down to its bare text, e.g. "    # foo"
@@ -164,6 +171,32 @@ def _leading_whitespace(line: str) -> str:
     return line[: len(line) - len(line.lstrip(" \t"))]
 
 
+def _read_marker(lines, i, indent):
+    """Parse the marker starting at `lines[i]`, whose reference may wrap.
+
+    Returns `(ref, first_reason, index_of_last_reference_line)`, or `None`
+    when no closing `)` appears within the marker's own comment run. Joins
+    continuation lines at `indent` beginning with `#`, so a reference split
+    across physical lines is recovered whole.
+    """
+    joined = lines[i]
+    j = i
+    while "):" not in joined:
+        j += 1
+        if j >= len(lines):
+            return None
+        nxt = lines[j]
+        if not nxt.strip() or _leading_whitespace(nxt) != indent:
+            return None
+        if not nxt.lstrip(" \t").startswith("#"):
+            return None
+        joined += " " + DIVERGENCE_CONTINUATION_STRIP_RE.sub("", nxt, count=1).strip()
+    match = DIVERGENCE_RE.search(joined)
+    if not match:
+        return None
+    return match.group("ref"), match.group("reason"), j
+
+
 def parse_divergences(path: Path) -> list[Divergence]:
     """Scan `path`'s source lines for `# DIVERGENCE(C++ <ref>): <reason>` markers,
     merging each marker with its continuation lines into one `Divergence`.
@@ -201,17 +234,20 @@ def parse_divergences(path: Path) -> list[Divergence]:
     i = 0
     n = len(lines)
     while i < n:
-        match = DIVERGENCE_RE.search(lines[i])
-        if not match:
+        if not DIVERGENCE_START_RE.search(lines[i]):
             i += 1
             continue
 
         marker_line = i + 1
         indent = _leading_whitespace(lines[i])
-        first = match.group("reason")
+        parsed = _read_marker(lines, i, indent)
+        if parsed is None:
+            i += 1
+            continue
+        ref, first, ref_end = parsed
         reason_parts = [first.strip()] if first and first.strip() else []
 
-        j = i + 1
+        j = ref_end + 1
         while j < n:
             candidate = lines[j]
             if not candidate.strip():
@@ -220,7 +256,7 @@ def parse_divergences(path: Path) -> list[Divergence]:
                 break
             if not candidate.lstrip(" \t").startswith("#"):
                 break
-            if DIVERGENCE_RE.search(candidate):
+            if DIVERGENCE_START_RE.search(candidate):
                 break
             content = DIVERGENCE_CONTINUATION_STRIP_RE.sub("", candidate, count=1).strip()
             if content:
@@ -231,7 +267,7 @@ def parse_divergences(path: Path) -> list[Divergence]:
             Divergence(
                 py_file=path,
                 line=marker_line,
-                ref=match.group("ref"),
+                ref=ref,
                 reason=" ".join(reason_parts),
             )
         )
