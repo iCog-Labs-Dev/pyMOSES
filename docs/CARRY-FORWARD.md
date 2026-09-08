@@ -554,6 +554,42 @@ a shared branch either -- a `git stash push --include-untracked -- <paths>`
 here swallowed another agent's in-flight untracked file and the pop then
 aborted on a generated doc, leaving a partially-restored tree.
 
+### 5.4 A scope decision that silently became a correctness bug
+
+The most instructive failure in this project, and it was mine.
+
+S8's plan said: "Start with `perm_ratio=-1` to exclude random pair-permutation
+behavior from this cycle." Sensible for S8 — it kept the first representation
+slice deterministic. But `perm_ratio`'s real default is **`0.0`**
+(`build_knobs.h:56`, `representation.h:62`, `problem-params.cc:299`), and `0.0`
+*generates* the argument-pair perms at `build_knobs.cc:435-518`. The port not
+only defaulted to `-1.0`, it **hard-rejected** any other value in
+`_validate_request` — so classic's actual default was unreachable.
+
+Consequence: the port built **8 knobs where classic builds 16**. Measured at the
+first divergence, deme 1 iteration 2: `estimate_neighborhood(d=1)` returned 24
+against classic's 50, and `sample_new_instances` produced 16 against 32. 2-parity
+became unsolvable — the port stalled at -1.0 where classic reaches 0.
+
+**It survived S8's review and every review since**, plus S9-S12's oracles,
+because no oracle ran a problem where pair perms mattered. `test_it` converges
+almost immediately and is seed-invariant; the trajectory oracles diffed the port
+against a probe built from *the port's own* configuration, so both sides were
+equally wrong. Only classic's own `-Hpa` case, reached in the P2 tail, exposed it.
+
+Three rules follow:
+1. **A scope simplification must be recorded as a DIVERGENCE, not just a plan
+   sentence.** Had `perm_ratio=-1` carried a marker, it would have surfaced in
+   `ALIGNMENT.md` at every later review.
+2. **A default that differs from classic's is a divergence even when nothing
+   reads it yet** — it becomes live the moment a CLI wires the real one in.
+3. **An oracle configured by the port cannot detect the port's configuration
+   being wrong.** At least one oracle per slice must run classic's own defaults.
+
+After the fix the port reproduces classic's exact `-r1` tree for `-Hmux -k2`,
+`-Hpa -k3` and `-Hmaj -k3` — three problems where it previously found a
+different one — and `-Hpa -k3` now scores 0.
+
 ## 6. Process notes that paid for themselves
 
 - **Prove a guard fires.** Requiring "revert it and show the test fail" caught a
