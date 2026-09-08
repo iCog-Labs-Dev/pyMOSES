@@ -38,16 +38,17 @@ from pathlib import Path
 DOC = Path(__file__).resolve().parent.parent / "docs" / "MODULE-COVERAGE.md"
 
 # The inventory's own invariant: every file under $CLASSIC/moses/ (240, by
-# `git ls-files`) plus the three CogUtil files pyMeTTa ports.
-EXPECTED_FILES = 243
-EXPECTED_LINES = 62047
+# `git ls-files`) plus the CogUtil files pyMeTTa ports. That CogUtil set GROWS
+# as slices reach new dependencies -- S9 added lazy_random_selector.{h,cc}
+# (+2 files, +97 lines), taking the total from 243/62,047 to 245/62,144. Update
+# these two constants, with the reason, whenever a CogUtil file is newly ported.
+EXPECTED_FILES = 245
+EXPECTED_LINES = 62144
 
 # Display order. `_aggregate` proves this is exhaustive rather than assuming it.
 STATUS_ORDER = [
     "PORTED",
     "PARTIAL",
-    "PLANNED: S9",
-    "PLANNED: S10",
     "PLANNED: S11",
     "PLANNED: S13",
     "PLANNED: S14",
