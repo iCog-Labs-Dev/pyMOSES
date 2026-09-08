@@ -9,11 +9,14 @@ by hill_climbing's own debug-logging code) and for why the search field_set
 is derived from a throwaway `representation` instead of a hand-built one.
 
 Both fixture cases run with `hc_parameters(cross=False)`, matching
-`--hc-crossover=0`; a separate battery below constructs a scenario that
-satisfies the crossover trigger (hill-climbing.cc:147-150) by hand and
-asserts our port refuses it (`NotImplementedError`) rather than silently
-proceeding -- this is what actually proves the trigger cannot fire silently
-in this port, rather than merely assuming the fixture cases avoid it.
+`--hc-crossover=0`, and must keep doing so or they would stop matching the
+C++ they were captured from. Crossover itself -- classic's DEFAULT, and
+ported in full by S12 -- has its own oracle fixture and test module,
+`tests/moses/moses/optimization/test_crossover.py`
+(`tests/fixtures/crossover.json`). The small battery below only pins that
+the trigger reaches `hill_climbing.crossover` when the gate opens and does
+not when it is off; S9's `NotImplementedError` guard for that trigger is
+gone.
 
 S9 fix-round coverage note (2026-09): instrumenting both fixture runs showed
 `has_improved` was True on EVERY iteration in both cases (12/12 and 41/41),
@@ -190,21 +193,33 @@ def _tiny_scorer_setup(n_knobs=3, seed=1):
     return fs, scorer, deme
 
 
-def test_crossover_trigger_raises_when_enabled():
-    """Forces every clause of hill-climbing.cc:147-150's `xover` condition
-    (iteration > 2, not already_xover, current_number_of_instances >= 3,
-    large_nbh) by setting `crossover_min_neighbors` to 1 -- a public field
-    a C++ caller could equally mutate post-construction (hc_parameters has
-    no constructor parameter for it either, see hc_parameters.__init__'s
-    own docstring) -- and confirms the port refuses to proceed rather than
-    silently skipping crossover or silently doing something else.
+def test_crossover_trigger_now_runs_the_real_crossover(monkeypatch):
+    """S12 replaced S9's `NotImplementedError` guard with the real
+    mechanics, so the exact scenario that used to raise now CROSSES OVER.
+    Kept (rather than deleted) so the removal of that guard is itself
+    pinned: a regression that reinstated it, or that silently skipped
+    crossover instead, fails here.
+
+    `tests/moses/moses/optimization/test_crossover.py` owns the fidelity of
+    what crossover produces; this only asserts the trigger reaches it.
     """
     fs, scorer, deme = _tiny_scorer_setup()
     hcp = hc_parameters(cross=True)
     hcp.crossover_min_neighbors = 1
     hc = hill_climbing(optim_parameters(), hcp)
-    with pytest.raises(NotImplementedError, match="crossover triggered"):
-        hc(deme, scorer, 1000, 86400)
+
+    calls = []
+    real = hill_climbing.crossover
+
+    def spy(self, *args):
+        calls.append(len(args))
+        return real(self, *args)
+
+    monkeypatch.setattr(hill_climbing, "crossover", spy)
+    hc(deme, scorer, 1000, 86400)  # must not raise
+    assert calls, "the crossover trigger must reach hill_climbing.crossover"
+    # deme, deme_size, budget, sample_start, sample_size, base
+    assert calls[0] == 6
 
 
 def test_crossover_trigger_never_fires_with_crossover_disabled():
@@ -218,7 +233,14 @@ def test_crossover_trigger_never_fires_with_crossover_disabled():
     hcp = hc_parameters(cross=False)
     hcp.crossover_min_neighbors = 1
     hc = hill_climbing(optim_parameters(), hcp)
-    hc(deme, scorer, 1000, 86400)  # must not raise
+    calls = []
+    real = hill_climbing.crossover
+    try:
+        hill_climbing.crossover = lambda self, *a: calls.append(a) or real(self, *a)
+        hc(deme, scorer, 1000, 86400)
+    finally:
+        hill_climbing.crossover = real
+    assert calls == []
     assert len(deme) > 0
 
 
@@ -226,7 +248,9 @@ def test_crossover_never_fires_in_oracle_fixture_cases(golden):
     """Re-derives, from the fixture's own recorded field_shape/parameters,
     that hc_parameters.crossover was False for both recorded C++ runs --
     the same guarantee --hc-crossover=0 gives on the command line -- rather
-    than merely trusting the probe source comment.
+    than merely trusting the probe source comment. Still meaningful after
+    S12: these two trajectories were captured with crossover OFF, so they
+    must keep being replayed with it off, or they would stop matching.
     """
     for label in ("deterministic", "sampled"):
         hcp = _CASE_CONFIG[label]["make_hc"]()

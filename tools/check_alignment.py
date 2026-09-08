@@ -15,6 +15,7 @@ A `# DIVERGENCE(...)` marker may span multiple physical `#`-comment lines;
 import ast
 import re
 import sys
+import tokenize
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -276,6 +277,69 @@ def parse_divergences(path: Path) -> list[Divergence]:
     return divergences
 
 
+def _comment_texts(path: Path) -> dict[int, str]:
+    """Return {1-based line number: comment text} for every REAL `#`-comment
+    token `tokenize` finds in `path` -- so text that merely LOOKS like a
+    comment because it sits inside a string or docstring (e.g. prose
+    mentioning `# DIVERGENCE(...)`, interpreter.py:22) never appears here,
+    while a marker written as a TRAILING comment after code on the same
+    line does. A plain `line.lstrip().startswith("#")` check (the previous
+    approach) gets this backwards for that second case: it demands the
+    marker be the first thing on its line, which a real Python comment
+    need not be.
+    """
+    with path.open("rb") as fh:
+        return {
+            tok.start[0]: tok.string
+            for tok in tokenize.tokenize(fh.readline)
+            if tok.type == tokenize.COMMENT
+        }
+
+
+def unparsed_divergence_markers(path: Path) -> list[int]:
+    """Return the 1-based line numbers in `path` that OPEN a
+    `# DIVERGENCE(` marker but that `parse_divergences` did not turn into a
+    `Divergence` -- i.e. markers that would be silently dropped from
+    docs/ALIGNMENT.md.
+
+    Why this exists (S12): a marker is dropped whenever `_read_marker`
+    cannot find `"):"` inside the marker's own comment run, which is
+    exactly what happens to the natural-looking
+
+        # DIVERGENCE(C++ some/file.cc:687) / DO NOT FIX: ...
+
+    form -- the reference closes with `) /`, never `):`. Two markers in
+    `hill_climbing.py` were written that way and had been missing from
+    ALIGNMENT.md ever since, undetected, because nothing counted markers
+    against parsed results. That is the same failure mode
+    docs/CARRY-FORWARD.md Sec 5 records for the 49 markers lost earlier in
+    this cycle: a dropped marker makes a file LOOK faithful, which is worse
+    than a marker that is merely badly worded.
+
+    `opened` is read off `_comment_texts`, i.e. real comment TOKENS, not
+    raw lines -- so a marker written as a trailing comment after code
+    (`x = 1  # DIVERGENCE(C++ a.cc:1) / DO NOT FIX: ...`) is counted too.
+    An earlier version of this function required a marker's line to have
+    `#` as its first non-whitespace character, which made exactly that
+    broken, mid-line shape invisible to BOTH this function (excluded from
+    `opened`, since the line does not start with `#`) and
+    `parse_divergences` (which cannot find `"):"` either, for the same
+    reason as the whole-line case above) -- reported by neither, the third
+    such gap this parser has had. Prose that merely MENTIONS the marker
+    syntax inside a docstring (`... not a `# DIVERGENCE(C++ ...)` marker`,
+    interpreter.py:22) is still excluded, because it is never a COMMENT
+    token in the first place -- string content, wherever it sits on the
+    line, is never mistaken for a comment by `tokenize`.
+    """
+    opened = [
+        line_no
+        for line_no, text in _comment_texts(path).items()
+        if DIVERGENCE_START_RE.search(text)
+    ]
+    parsed = {d.line for d in parse_divergences(path)}
+    return [line_no for line_no in opened if line_no not in parsed]
+
+
 def coverage(pkg_root: Path) -> dict[str, tuple[int, int]]:
     """Map each module under `pkg_root` to (symbols with breadcrumbs, total
     public symbols), where a symbol is a FunctionDef/AsyncFunctionDef/ClassDef
@@ -375,6 +439,14 @@ def main(argv: list[str]) -> int:
         divergences.extend(parse_divergences(py_file))
 
     problems = validate(crumbs, CLASSIC_ROOTS)
+    for py_file in sorted(PYMETTA_ROOT.rglob("*.py")):
+        for line_no in unparsed_divergence_markers(py_file):
+            problems.append(
+                f"{py_file}:{line_no}: DIVERGENCE marker is not parseable and would be "
+                f"silently dropped from {ALIGNMENT_DOC.name}; write it as "
+                f"`# DIVERGENCE(C++ <ref>): <reason>` (the reference must close with `):`, "
+                f"so put a `DO NOT FIX` note AFTER the colon, not between `)` and `:`)"
+            )
     for problem in problems:
         print(problem)
 

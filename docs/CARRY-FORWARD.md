@@ -336,7 +336,9 @@ member in the docstring body.
   breadcrumbs on constants, and `and <file>:<line>` overload continuations go
   unvalidated. Module headers come in five incompatible shapes.
 - **Error types are inconsistent.** One C++ construct (`OC_ASSERT(false)`) maps to
-  four Python types across the package. "Column not found" is `IndexError` at
+  **six** Python types across the package — `AssertionError`, `IndexError`,
+  `NotImplementedError`, `RuntimeError`, `TypeError`, `ValueError` (counted
+  2026-09-08; this bullet said four, which was already stale). "Column not found" is `IndexError` at
   `table.py:302` but `ValueError` at `table_io.py:431,486,491,676`. The
   "forests unsupported" and `boost::bad_get`→`TypeError` families *are* uniform.
 - ~~**`parse_divergences` captures only the first physical line** of a marker;
@@ -363,6 +365,144 @@ member in the docstring body.
 - **Corpus gaps:** no argument index above `$3`, no arity ≥ 4.
 
 ---
+
+## 5b. Settled by S12 (crossover) -- do not relitigate
+
+### 5b.1 `std::partial_sort`'s tie order IS reachable, and it decides outcomes
+
+`hill_climbing.py` now carries `_partial_sort`, a line-by-line
+transliteration of libstdc++'s `__heap_select` + `__sort_heap`
+(`/usr/include/c++/16/bits/stl_algo.h:1589,1871`, `bits/stl_heap.h`).
+Measured against classic over 15 samples
+(`tests/fixtures/crossover.json`'s `partial_sort` group): it reproduces
+libstdc++'s permutation element for element, including ties, NaN, +/-inf,
+`mid == 0`, `mid == size` and `size == 1`.
+
+**The "a stable sort can only be at least as well-ordered as an unspecified
+one" argument is FALSE for `partial_sort` and has been withdrawn** in
+`resize_deme` (where the sort is immediately followed by a truncation, so
+tie order decides which tied instances survive). It survives ONLY where the
+result is not truncated or otherwise order-sensitive. `merging.py:674`
+`sort_demes` still uses `deme.sort(reverse=True)` for `boost::sort`; that is
+a DIFFERENT algorithm (introsort-shaped, not heap-select) and was not
+re-examined by S12 -- if a slice ever makes that ordering observable, it
+needs the same treatment, and `_partial_sort` is not the right model for it.
+
+Two `composite_score`s tie under `operator<` exactly when penalized score
+AND complexity are equal (`types.cc:139-148`) -- the normal state of a
+Boolean deme, not a corner case.
+
+### 5b.2 C's `sqrtf`/`cbrtf` conversions must be reproduced, with counterexamples
+
+`unsigned n = sqrtf(2 * x) + 3;` converts `x` to binary32 BEFORE the call,
+computes in binary32, and truncates toward zero. Computing it in Python
+binary64 gives a different integer at `x = 8380417` (4097 vs 4096); the
+`cbrtf(6 * x) + 3` twin differs at `x = 26244` (57 vs 56). Both confirmed
+against a C++ snippet on this toolchain. `_sqrtf_plus_3`/`_cbrtf_plus_3` in
+`hill_climbing.py` do it correctly; `math.cbrt` is not a
+correctly-rounded operation, so that one rests on measurement (5012 inputs)
+rather than an error bound.
+
+### 5b.3 Two claims in `docs/CROSSOVER-INVENTORY.md` were wrong
+
+Both are corrected inline there, with the measurement:
+
+1. "small problems reach crossover ONLY via `last_chance`" -- no.
+   `distance++` (`hill-climbing.cc:367-368`) runs before the `last_chance`
+   block (`:434`), so a `last_chance` crossover is always at
+   `distance >= 2`, where the estimate is `C(nn, 2)` and already exceeds
+   400 for `nn >= 29`. `last_chance` is the deciding conjunct only for
+   `nn <= 28`.
+2. `cross_top_three`'s `k < i` bug "collides or skips" -- it never skips.
+   Every slot below `num_to_make` is written; many are written repeatedly
+   and the LAST write wins, with a `(j, k)` pair the index formula never
+   intended. See the DO NOT FIX marker on `cross_top_three`.
+
+### 5b.4 `(iteration > 2)` in the crossover gate is redundant
+
+`current_number_of_instances >= 3` already excludes iterations 1 and 2:
+iteration 1 runs at distance 0 and appends exactly one instance
+(`hill-climbing.cc:521-522`), so the deme holds 0 then 1. Relaxing the
+conjunct to `iteration > 1` changes nothing measurable -- an equivalent
+mutant, documented as such in `test_crossover.py` rather than papered over
+with a test that does not actually discriminate.
+
+### 5b.5 `check_alignment.py` was silently dropping `) / DO NOT FIX:` markers
+
+A marker written as
+
+    # DIVERGENCE(C++ some/file.cc:687) / DO NOT FIX: ...
+
+never parses: `_read_marker` scans for `"):"`, which that form never
+contains. Two markers in `hill_climbing.py` had been missing from
+`docs/ALIGNMENT.md` since S9 for exactly this reason, undetected -- the
+same class of loss CARRY-FORWARD Sec 5 records for the earlier 49.
+`tools/check_alignment.py` now reports any `# DIVERGENCE(`-opening comment
+line that `parse_divergences` does not turn into a `Divergence`, which
+turns CI red; `tests/test_alignment_checker.py` pins it, including
+repo-wide. **Write markers as `# DIVERGENCE(C++ <ref>): <reason>` and put
+any `DO NOT FIX` note AFTER the colon.**
+
+### 5b.6 Untestable-by-construction masks in `cross_top_two`/`cross_top_three`
+
+The `& _UNSIGNED_MAX` masks on `n` and `ntgt` are faithful but PROVABLY
+unreachable, and no test covers them: the loop returns as soon as
+`num_to_make <= n`, so `n` can only reach 2**32 if `num_to_make` exceeds
+2**32, which would require `deme.resize()` of >4.29e9 `scored_instance`
+objects. The same holds for `max`'s truncation (no `sample_size` below
+200000 makes the wrapped value small enough to change the clamp). Kept as
+faithful reproduction, reported as untested rather than claimed as covered.
+
+### 5.1 A NEW class of fixture risk arrived with S12
+
+Every fixture before S12 was a snapshot of **classic's pinned source**, so it
+could only rot if classic changed. `crossover.json` is different: its
+correctness depends on the **host toolchain**. `_partial_sort` is a
+transliteration of libstdc++ 16's `__heap_select` + `__sort_heap`, chosen
+because `std::partial_sort` gives no stability guarantee and its actual tie
+order decides which instances get crossed — a stable sort turns 27 tests red.
+
+No manifest carries a compiler or stdlib version field (schema-wide), and
+`ci.sh` never rebuilds probes. **A libstdc++ upgrade could therefore leave the
+fixture silently stale while the port stays green** — the exact rot the
+manifest work was meant to prevent, arriving through a door that work did not
+cover. The pin is disclosed in prose, which is honest but not
+machine-checkable.
+
+Whoever next touches the manifest schema should add the toolchain fields. Until
+then, treat an unexplained `test_crossover.py` failure after a system upgrade
+as a suspected toolchain change, not a port regression.
+
+### 5.2 The 13-vs-17 deme size was a REAL divergence, waived twice
+
+Worth recording as a process failure, because two rounds of scrutiny let it
+through.
+
+S10 Task 3 measured its merge probe matching classic on trees, order, scores,
+`best_composite_score`, `best_tree` and return value — but **deliberately did
+not assert** one field: an intermediate deme size of 13 (C++) vs 17 (port). It
+waived that as harmless tie-order, since `deme_to_trees` dedups by tree.
+
+I checked the argument and accepted it. S10's branch review then measured the
+generalisation false — tie-order *does* decide which distinct trees survive
+once `keep_top_unique_candidates` truncates — but concluded the waiver was
+still "right for its scenario". **Both of us were wrong about the cause.**
+
+S12 disproved the underlying premise for `std::partial_sort`, and a follow-up
+investigation disproved it for `sort_demes`' own `std::sort` too: libstdc++'s
+introsort matches a stable sort only for `n <= 16` (`_S_threshold`) and
+measurably reorders ties above it. 17 all-tied elements give
+`[8,16,15,14,13,12,11,10,9,0,7,6,5,4,3,2,1]`, not `[0..16]` — and `n > 16` is
+the ordinary deme size, not an edge case.
+
+Porting libstdc++'s real introsort makes the port produce **13, exactly
+matching classic**. Proven by mutation: restoring `deme.sort(reverse=True)`
+gives `assert 17 == 13`.
+
+**The lesson is the one I stated at the time and then did not act on: a
+deliberately-unasserted field is exactly where a real divergence hides.** An
+unasserted mismatch should be treated as an open finding until its cause is
+identified — not until an argument for its harmlessness sounds convincing.
 
 ## 6. Process notes that paid for themselves
 

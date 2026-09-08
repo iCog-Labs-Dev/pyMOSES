@@ -1,0 +1,29 @@
+{
+  "capture_script": "tools/capture_sort_demes.py",
+  "capture_script_sha256": "5d4d72360aff2f9917913da211fef1a03713345cd74596e0f4583dc3414bc715",
+  "classic_dir": "/home/yab/Documents/Projects/iCog/HyperonRelated/MOSES/OpenCog/Moses",
+  "cli_tool": null,
+  "generated_at_utc": "2026-09-08T13:50:54+00:00",
+  "inputs": {
+    "description": "fixed cases hardcoded in sort_demes_probe.cc: std::sort tie-order samples straddling libstdc++'s _S_threshold=16 boundary and at realistic MOSES deme sizes (up to 2000), plus one forward-path truncation case showing the reordering reaches keep_top_unique_candidates' surviving prefix",
+    "full_sort_sizes": [
+      15,
+      16,
+      17,
+      20,
+      32,
+      50,
+      100,
+      703,
+      2000
+    ],
+    "gcc_version": "16.2.1",
+    "libstdcxx_S_threshold": 16
+  },
+  "prefix_dir": "/home/yab/opt/moses-legacy",
+  "probe_kind": "cpp_probe",
+  "probe_source": "tools/cpp_probe/sort_demes_probe.cc",
+  "probe_source_sha256": "1d0f29a673b4e4eb7c1e7936b313e889ca86568c1647281872de73ff7a8959f5",
+  "repo_commit": "a4fd54c383ade63028c7856d251aed02d5238478",
+  "schema_version": 1
+}

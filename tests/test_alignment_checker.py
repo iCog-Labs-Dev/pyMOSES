@@ -154,3 +154,98 @@ def test_adjacent_divergence_markers_do_not_merge(tmp_path):
         Divergence(py_file=f, line=2, ref="C++ foo.cc:10", reason="first marker reason."),
         Divergence(py_file=f, line=3, ref="C++ foo.cc:20", reason="second marker reason."),
     ]
+
+def test_unparsed_divergence_marker_is_reported(tmp_path):
+    # The exact shape that had been silently dropping markers: the reference
+    # closes with `) /` instead of `):`, so `_read_marker` keeps scanning for
+    # a `"):"` that never comes and gives up. Two real markers in
+    # hill_climbing.py were written this way and were missing from
+    # docs/ALIGNMENT.md until S12 added this check.
+    from tools.check_alignment import unparsed_divergence_markers
+
+    f = tmp_path / "m.py"
+    f.write_text(
+        "def f():\n"
+        "    # DIVERGENCE(C++ foo.cc:687) / DO NOT FIX: k < i, not k < j.\n"
+        "    return 1\n"
+    )
+    assert parse_divergences(f) == []
+    assert unparsed_divergence_markers(f) == [2]
+
+def test_wellformed_divergence_marker_is_not_reported(tmp_path):
+    from tools.check_alignment import unparsed_divergence_markers
+
+    f = tmp_path / "m.py"
+    f.write_text(
+        "def f():\n"
+        "    # DIVERGENCE(C++ foo.cc:687): DO NOT FIX -- k < i, not k < j.\n"
+        "    return 1\n"
+    )
+    assert len(parse_divergences(f)) == 1
+    assert unparsed_divergence_markers(f) == []
+
+def test_midline_broken_divergence_marker_is_reported(tmp_path):
+    # The third gap found in this parser: the same `) /` shape as
+    # test_unparsed_divergence_marker_is_reported above, but written as a
+    # TRAILING comment after code rather than a whole-line comment. Before
+    # this fix, `opened` required a marker's line to start with `#`, so
+    # this shape was invisible to BOTH `parse_divergences` (still can't
+    # find `"):"`, same as the whole-line case) AND
+    # `unparsed_divergence_markers` (excluded from `opened` for not
+    # starting the line) -- reported by neither.
+    from tools.check_alignment import unparsed_divergence_markers
+
+    f = tmp_path / "m.py"
+    f.write_text(
+        "def f():\n"
+        "    x = 1  # DIVERGENCE(C++ foo.cc:1) / DO NOT FIX: k < i, not k < j.\n"
+        "    return x\n"
+    )
+    assert parse_divergences(f) == []
+    assert unparsed_divergence_markers(f) == [2]
+
+def test_wellformed_midline_divergence_marker_is_not_reported(tmp_path):
+    # The mid-line COUNTERPART to test_wellformed_divergence_marker_is_not_
+    # reported: a marker written as a trailing comment already parses fine
+    # (DIVERGENCE_RE.search scans the whole line, not just its start), and
+    # switching `unparsed_divergence_markers` to real comment tokens must
+    # not start flagging it.
+    from tools.check_alignment import unparsed_divergence_markers
+
+    f = tmp_path / "m.py"
+    f.write_text(
+        "def f():\n"
+        "    x = 1  # DIVERGENCE(C++ foo.cc:687): DO NOT FIX -- k < i, not k < j.\n"
+        "    return x\n"
+    )
+    assert len(parse_divergences(f)) == 1
+    assert unparsed_divergence_markers(f) == []
+
+def test_prose_mentioning_the_marker_syntax_is_not_reported(tmp_path):
+    # interpreter.py:22 mentions "`# DIVERGENCE(C++ ...)` marker" inside a
+    # docstring to say a note deliberately is NOT one. That line's first
+    # non-whitespace character is not `#`, so it must not be flagged.
+    from tools.check_alignment import unparsed_divergence_markers
+
+    f = tmp_path / "m.py"
+    f.write_text(
+        'def f():\n'
+        '    """It gets a plain note, not a `# DIVERGENCE(C++ x.cc:1)` marker."""\n'
+        '    return 1\n'
+    )
+    assert unparsed_divergence_markers(f) == []
+
+def test_the_repo_has_no_unparsed_divergence_markers():
+    # Repo-wide, not just in the file S12 touched: a marker written in the
+    # unparseable shape anywhere turns this red instead of quietly vanishing
+    # from docs/ALIGNMENT.md. (tools/check_alignment.py enforces the same
+    # thing in ci.sh; this states it as a test so the reason is discoverable
+    # from the test suite too.)
+    from tools.check_alignment import PYMETTA_ROOT, unparsed_divergence_markers
+
+    offenders = {
+        str(py_file): lines
+        for py_file in sorted(PYMETTA_ROOT.rglob("*.py"))
+        if (lines := unparsed_divergence_markers(py_file))
+    }
+    assert offenders == {}

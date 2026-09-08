@@ -1,0 +1,79 @@
+{
+  "capture_script": "tools/capture_crossover.py",
+  "capture_script_sha256": "be6824bd567a585252ff3d061e126eb182671a690b288a5b73fd03dae14a953a",
+  "classic_dir": "/home/yab/Documents/Projects/iCog/HyperonRelated/MOSES/OpenCog/Moses",
+  "cli_tool": null,
+  "generated_at_utc": "2026-09-08T14:18:36+00:00",
+  "inputs": {
+    "description": "fixed cases hardcoded in crossover_probe.cc: 15 std::partial_sort tie-order samples, 24 cross_top_*/crossover deme scenarios run through all four functions, 7 full hill_climbing runs (both gate entry paths, plus the 400-neighbour boundary either side), and the S11 five-generation local_moses scenario with crossover on and off",
+    "hill_climbing_cases": {
+      "large_nbh_above": {
+        "arity": 32,
+        "hc_cross": true,
+        "hc_max_nn_evals": 40,
+        "max_evals": 400,
+        "seed": 3
+      },
+      "large_nbh_at_distance_2": {
+        "arity": 6,
+        "hc_cross": true,
+        "max_evals": 3000,
+        "seed": 1
+      },
+      "large_nbh_at_distance_2_immediate": {
+        "arity": 6,
+        "hc_cross": true,
+        "max_evals": 3000,
+        "null_target": true,
+        "seed": 1
+      },
+      "large_nbh_below": {
+        "arity": 31,
+        "hc_cross": true,
+        "hc_max_nn_evals": 40,
+        "max_evals": 400,
+        "seed": 3
+      },
+      "large_nbh_widen": {
+        "arity": 32,
+        "hc_cross": true,
+        "hc_max_nn_evals": 40,
+        "hc_widen": true,
+        "max_evals": 700,
+        "null_target": true,
+        "seed": 5
+      },
+      "last_chance_only": {
+        "arity": 4,
+        "hc_cross": true,
+        "max_evals": 3000,
+        "null_target": true,
+        "seed": 1
+      },
+      "no_crossover": {
+        "arity": 6,
+        "hc_cross": false,
+        "max_evals": 3000,
+        "null_target": true,
+        "seed": 1
+      }
+    },
+    "local_moses_cases": {
+      "complexity_coef": 3.5,
+      "exemplar": "$1",
+      "hc_cross": [
+        true,
+        false
+      ],
+      "max_gens": 5,
+      "seed": 42,
+      "table": "tests/fixtures/table_data/trainingBoolean.dat"
+    }
+  },
+  "prefix_dir": "/home/yab/opt/moses-legacy",
+  "probe_kind": "cpp_probe",
+  "probe_source": "tools/cpp_probe/crossover_probe.cc",
+  "probe_source_sha256": "da8ac89573231ed7ce4d3ab34075ff9b0ad4882f52ab841e08bfae8c7b8da243",
+  "repo_commit": "df3fee1fb33ea0e58d14ef66da3a558f910729eb",
+  "schema_version": 1
+}
