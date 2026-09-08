@@ -73,12 +73,19 @@ _SEED = 42
 _ARITY = 3
 
 # Literal, measured output of `( ulimit -v 2097152; timeout 120
-# tools/cpp_probe/build/local_moses_probe )`. Every `advanced: True` below
-# confirms `stats.n_expansions` grew by EXACTLY one on that call, i.e.
-# `premature_termination` never fired -- the probe's own repeated-call
-# construction (bumping `max_gens` by one before each `local_moses()` call)
-# is therefore observably identical, generation by generation, to one
-# continuous run.
+# tools/cpp_probe/build/local_moses_probe )`. `advanced: True` (`stats.
+# n_expansions` grew by EXACTLY one on that call) does NOT by itself prove
+# `premature_termination` never fired: `expand_deme()` increments `stats.
+# n_expansions` (local_moses.cc:80) BEFORE returning `done || mp.empty()`
+# (local_moses.cc:92), so a premature return still advances `n_expansions`
+# by exactly one first -- `advanced` cannot distinguish the two cases.
+# Whether the probe's repeated-call construction (bumping `max_gens` by
+# one before each `local_moses()` call) is observably identical to one
+# continuous run was settled by measurement instead:
+# `local_moses_single_call_probe.cc` runs the identical scenario as a
+# single `local_moses(..., max_gens=5, ...)` call and gives byte-for-byte
+# the same final state (`n_expansions=5, n_evals=113, metapop_size=20`,
+# same `best_composite_score`, same `best_tree`) as generation 5 below.
 _EXPECTED_GENERATIONS = [
     {
         "n_expansions": 1,
@@ -201,11 +208,18 @@ def test_local_moses_matches_cpp_probe_step_for_step():
         )
 
 
-_PROBE_SOURCE_SHA256 = "24aa22582c6d5076a6775b97b31ad3d731c62118e740fa6d7aff48b4e0963aea"
+_PROBE_SOURCE_SHA256 = "1f670f30492a4a5331c0ec8135364c9a49547d37d3104dbd6fdf50290f15d3d8"
 # Measured directly (`sha256sum tools/cpp_probe/local_moses_probe.cc`)
 # against the EXACT probe binary that produced `_EXPECTED_GENERATIONS`
 # above -- if this ever mismatches, the probe was edited without being
 # rebuilt/rerun/re-captured, and `_EXPECTED_GENERATIONS` is now stale.
+# Updated 2026-09-08 for the fix round's header-comment-only changes
+# (build recipe's missing `-lboost_program_options`, and the `advanced`
+# argument replaced by a measured single-call-probe result -- see this
+# file's own module docstring and local_moses_probe.cc's own header): the
+# probe was rebuilt with the corrected recipe and rerun, and its JSON
+# output is byte-identical to `_EXPECTED_GENERATIONS` above, so no
+# expected value changed, only this hash.
 
 
 def test_fixture_manifest_matches_current_probe_source():
@@ -530,3 +544,109 @@ def test_not_max_gens_uses_bang_equal_not_less_than(monkeypatch):
     # 3), by which point n_expansions has overshot max_gens to 6.
     assert calls == [1, 1, 1]
     assert stats.n_expansions == 6
+
+
+# ---------------------------------------------------------------------------
+# `stats.elapsed_secs` accumulation (local_moses.cc:120-122,144,147-151) --
+# behaviour, not logging: it feeds `not_max_time()` directly. All three
+# pieces below monkeypatch `lm.time.monotonic` to a controlled sequence so
+# the real host clock's jitter cannot mask a one-statement regression.
+# ---------------------------------------------------------------------------
+
+
+def test_local_moses_resets_elapsed_secs_unconditionally_before_the_loop(monkeypatch):
+    """Pins `stats.elapsed_secs = 0.0` (local_moses.cc:122, local_moses.py:
+    256). A caller-supplied `stats` with a pre-loaded, already-past-budget
+    `elapsed_secs` must not be able to block the loop before it even
+    starts -- C++ resets the counter unconditionally on every call, so a
+    `stats` reused from a previous `local_moses` invocation starts fresh.
+    Dropping the reset here would leave `elapsed_secs=999999.0` in place,
+    `not_max_time()` would see `999999.0 < 50` as False on the very first
+    check, and `expand_deme` would never be called.
+    """
+    calls = []
+
+    def fake_expand_deme(mp, dex, max_evals, max_time, stats):
+        calls.append(1)
+        return True  # premature termination -- stop after exactly one call
+
+    monkeypatch.setattr(lm, "expand_deme", fake_expand_deme)
+    monkeypatch.setattr(lm.time, "monotonic", lambda: 0.0)
+
+    mp = _PredicateMp(best_score=-1.0)
+    pa = moses_parameters(max_evals=10000, max_gens=-1, max_score=1000.0)
+    pa.max_time = 50
+    stats = moses_statistics()
+    stats.elapsed_secs = 999999.0  # pre-loaded, WAY past pa.max_time
+
+    local_moses(mp, object(), pa, stats)
+
+    assert calls == [1]
+
+
+def test_local_moses_carries_start_forward_each_iteration_not_quadratic(monkeypatch):
+    """Pins `start = stop` (local_moses.cc:147-151, local_moses.py:289).
+    Dropping it leaves `start` fixed at its PRE-LOOP value, so every
+    iteration's `elapsed = stop - start` measures total wall-clock time
+    since the loop began rather than time since the LAST iteration --
+    `elapsed_secs` then accumulates the sum of a growing quantity
+    (quadratic in the number of iterations) instead of the true total
+    elapsed time (linear). Three iterations with `time.monotonic()`
+    returning `0.0, 10.0, 20.0, 30.0` (initial `start`, then one `stop`
+    per iteration) must give `stats.elapsed_secs == 30.0` (`10+10+10`,
+    each iteration's OWN 10-second slice) -- the `start`-not-carried-
+    forward bug would instead give `60.0` (`10+20+30`, each iteration
+    re-measured from the fixed original start).
+    """
+    calls = []
+
+    def fake_expand_deme(mp, dex, max_evals, max_time, stats):
+        calls.append(1)
+        stats.n_evals += 1
+        return False
+
+    monkeypatch.setattr(lm, "expand_deme", fake_expand_deme)
+    times = iter([0.0, 10.0, 20.0, 30.0])
+    monkeypatch.setattr(lm.time, "monotonic", lambda: next(times))
+
+    mp = _PredicateMp(best_score=-1.0)
+    pa = moses_parameters(max_evals=3, max_gens=-1, max_score=1000.0)
+    stats = moses_statistics()
+
+    local_moses(mp, object(), pa, stats)
+
+    assert calls == [1, 1, 1]
+    assert stats.elapsed_secs == 30.0
+
+
+def test_local_moses_truncates_max_time_argument_toward_zero(monkeypatch):
+    """Pins the explicit `int(...)` at the `expand_deme` call site
+    (local_moses.cc:144's implicit `double` -> `time_t` narrowing,
+    local_moses.py:283). Without it, `expand_deme` receives a bare
+    `float` `max_time` -- both its VALUE (no truncation) and its TYPE
+    differ from what C++'s own implicit conversion produces. With
+    `pa.max_time=100` and `time.monotonic()` returning `0.0` (initial
+    `start`) then `10.7` (first iteration's `stop`), the second call's
+    `max_time` argument is `int(100 - 10.7) == 89` (`int`), not the
+    untruncated `float` `89.3`.
+    """
+    calls = []
+
+    def fake_expand_deme(mp, dex, max_evals, max_time, stats):
+        calls.append(max_time)
+        stats.n_evals += 1
+        return False
+
+    monkeypatch.setattr(lm, "expand_deme", fake_expand_deme)
+    times = iter([0.0, 10.7, 15.2])
+    monkeypatch.setattr(lm.time, "monotonic", lambda: next(times))
+
+    mp = _PredicateMp(best_score=-1.0)
+    pa = moses_parameters(max_evals=2, max_gens=-1, max_score=1000.0)
+    pa.max_time = 100
+    stats = moses_statistics()
+
+    local_moses(mp, object(), pa, stats)
+
+    assert calls == [100, 89]
+    assert all(type(c) is int for c in calls)

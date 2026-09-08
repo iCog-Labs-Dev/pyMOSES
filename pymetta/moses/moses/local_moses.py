@@ -60,13 +60,34 @@ truncate-to-int step here: `now - start` is used directly as the
 elapsed-seconds float to accumulate.
 
 # DIVERGENCE(C++ moses/moses/moses/local_moses.cc:120-122,147-151):
-# `gettimeofday` has microsecond resolution; `time.monotonic()` has
-# whatever resolution the host clock provides (typically nanosecond on
-# Linux) -- STRICTLY MORE precise, never less. Immaterial to every test in
-# this port's fidelity suite: `pa.max_time` defaults to `_INT32_MAX`
-# seconds (moses_params.py) and every test bounds a run via
-# `max_evals`/`max_gens` instead, so `not_max_time()` never actually
-# decides a termination in any scenario this port's own tests construct.
+# This is a CLOCK CLASS change, not merely a resolution change.
+# `gettimeofday()` reads `CLOCK_REALTIME` -- the settable wall clock, which
+# NTP (or a manual `date`/`settimeofday` call) can step forward OR backward
+# at any instant, including mid-run. `time.monotonic()` reads a monotonic
+# clock (`CLOCK_MONOTONIC` on Linux) that is immune to those steps and is
+# documented never to go backward. Resolution is a real, secondary
+# difference too (`gettimeofday`'s microsecond vs. whatever the host
+# monotonic clock offers, typically nanosecond on Linux -- strictly finer,
+# never coarser), but the load-bearing difference is what each clock
+# TRACKS: a real NTP step during a `local_moses` run could make C++'s own
+# `timersub`-computed `elapsed_secs` jump or even go negative for one
+# generation; this port's `time.monotonic()`-based accumulation cannot,
+# by construction.
+#
+# `not_max_time()` DOES decide a termination in this port's own test
+# suite: `test_local_moses.py`'s `test_not_max_time_blocks_the_loop` sets
+# `pa.max_time = 0` for exactly that purpose, and three more tests in that
+# file (`test_local_moses_resets_elapsed_secs_unconditionally_before_the_
+# loop`, `test_local_moses_carries_start_forward_each_iteration_not_
+# quadratic`, `test_local_moses_truncates_max_time_argument_toward_zero`)
+# drive `stats.elapsed_secs`'s own accumulation directly. What remains
+# genuinely untested is narrower than "never decides a termination": no
+# test here runs `local_moses` across multiple REAL-clock-timed iterations
+# against a nonzero budget it crosses mid-loop, so the REALTIME-vs-
+# MONOTONIC clock-class difference above -- its behaviour under an actual
+# clock step during a live run -- has no test of its own, and `pa.max_time`
+# defaulting to `_INT32_MAX` seconds (moses_params.py) means no test that
+# exercises a real timed run needs to think about that budget either.
 
 `pa.max_time - stats.elapsed_secs` (local_moses.cc:144) computes a
 `double` (`time_t` promotes to `double` under the usual arithmetic
