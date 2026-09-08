@@ -51,7 +51,6 @@ EXPECTED_LINES = 62299
 STATUS_ORDER = [
     "PORTED",
     "PARTIAL",
-    "PLANNED: S11",
     "PLANNED: S13",
     "PLANNED: S14",
     "PLANNED: P2",
@@ -140,6 +139,41 @@ def _render(agg, total_files: int, total_lines: int) -> tuple[str, str]:
     return "\n".join(rows), macro
 
 
+def check_planned_rows_against_reality(text: str) -> list[str]:
+    """Flag rows still marked PLANNED whose Python module already exists.
+
+    `_aggregate` reconciles the summary tables against the per-file rows. It
+    cannot notice that a ROW ITSELF is stale, because it never looks outside
+    this document -- so a slice can land, its files can be ported, and every
+    check here still passes while the inventory says PLANNED.
+
+    That is not hypothetical: it happened for S9 and S10 (both merged to main
+    with their closeout undone) and again for S11's `moses_main`, which the
+    branch review caught. Three times, and `--check` was green each time.
+
+    This closes the loop cheaply. A PLANNED row names its intended Python
+    module in backticks (`pymetta/...py`); if that file exists on disk, the row
+    is stale. It is deliberately one-directional: a PORTED/PARTIAL row whose
+    module is missing is NOT flagged, since a row may legitimately describe a
+    symbol folded into a differently-named module.
+    """
+    problems: list[str] = []
+    repo_root = DOC.parent.parent
+    row_re = re.compile(
+        r"^\| `(?P<cpp>[^`]+)` \| *[\d,]+ \| (?P<status>PLANNED: [^|]+?) \| (?P<reason>[^\n]*)$",
+        re.M,
+    )
+    for m in row_re.finditer(text):
+        for mod in re.findall(r"`(pymetta/[\w/]+\.py)`", m.group("reason")):
+            if (repo_root / mod).exists():
+                problems.append(
+                    f"{DOC.name}: `{m.group('cpp')}` is {m.group('status').strip()} "
+                    f"but {mod} already exists -- the row is stale, or the reason "
+                    f"names the wrong module."
+                )
+    return problems
+
+
 def main(argv: list[str]) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
@@ -151,19 +185,23 @@ def main(argv: list[str]) -> int:
 
     text = DOC.read_text()
     agg, total_files, total_lines = _aggregate(text)
+    stale = check_planned_rows_against_reality(text)
+    for problem in stale:
+        print(problem)
+
     summary, macro = _render(agg, total_files, total_lines)
 
     updated = SUMMARY_RE.sub(lambda _m: summary + "\n", text, count=1)
     updated = MACRO_RE.sub(lambda _m: macro + "\n", updated, count=1)
     if updated == text:
         print(f"{DOC.name}: summary tables up to date ({total_files} files)")
-        return 0
+        return 1 if stale else 0
     if args.check:
         print(f"{DOC.name}: summary tables are STALE -- run tools/coverage_totals.py")
         return 1
     DOC.write_text(updated)
     print(f"{DOC.name}: summary tables regenerated ({total_files} files)")
-    return 0
+    return 1 if stale else 0
 
 
 if __name__ == "__main__":

@@ -8,9 +8,8 @@ $CLASSIC = `/home/yab/Documents/Projects/iCog/HyperonRelated/MOSES/OpenCog/Moses
 
 | Status | Files | Lines | % of files | % of lines |
 |---|---:|---:|---:|---:|
-| PORTED | 19 | 5,172 | 7.7% | 8.3% |
-| PARTIAL | 63 | 25,196 | 25.6% | 40.4% |
-| PLANNED: S11 | 2 | 508 | 0.8% | 0.8% |
+| PORTED | 17 | 4,901 | 6.9% | 7.9% |
+| PARTIAL | 67 | 25,975 | 27.2% | 41.7% |
 | PLANNED: S13 | 11 | 4,037 | 4.5% | 6.5% |
 | PLANNED: S14 | 9 | 4,057 | 3.7% | 6.5% |
 | PLANNED: P2 | 59 | 12,281 | 24.0% | 19.7% |
@@ -21,9 +20,9 @@ $CLASSIC = `/home/yab/Documents/Projects/iCog/HyperonRelated/MOSES/OpenCog/Moses
 
 | Macro status | Files | Lines |
 |---|---:|---:|
-| PORTED | 19 | 5,172 |
-| PARTIAL | 63 | 25,196 |
-| PLANNED: S9-S14 (named backlog slices) | 22 | 8,602 |
+| PORTED | 17 | 4,901 |
+| PARTIAL | 67 | 25,975 |
+| PLANNED: S9-S14 (named backlog slices) | 20 | 8,094 |
 | PLANNED: P2 (deferred tail) | 59 | 12,281 |
 | EXCLUDED | 83 | 11,048 |
 
@@ -321,10 +320,10 @@ The outer search loop. `complexity.*` PORTED (S6). `types.*` PARTIAL (S6 -- comp
 | `moses/moses/moses/complexity.h` | 50 | PORTED | Same as complexity.cc. |
 | `moses/moses/moses/distributed_moses.cc` | 475 | PLANNED: P2 | PLANNED: P2 -- process-level distribution via ssh/system()/pgrep ("-j host:N"), compiled UNCONDITIONALLY (confirmed: no #ifdef HAVE_MPI wrapping, distinct from mpi_moses.cc). Not named anywhere in the spec's S7-S14 backlog or its P2 list -- pyMeTTa's plan has no distributed-execution slice at all. SURPRISE. |
 | `moses/moses/moses/distributed_moses.h` | 156 | PLANNED: P2 | PLANNED: P2 -- process-level distribution via ssh/system()/pgrep ("-j host:N"), compiled UNCONDITIONALLY (confirmed: no #ifdef HAVE_MPI wrapping, distinct from mpi_moses.cc). Not named anywhere in the spec's S7-S14 backlog or its P2 list -- pyMeTTa's plan has no distributed-execution slice at all. SURPRISE. |
-| `moses/moses/moses/local_moses.cc` | 225 | PORTED | `pymetta/moses/moses/local_moses.py` (S11 Task 1) -- `expand_deme` and `local_moses` itself, including all four termination predicates (`not_max_gens`'s `!=` kept verbatim, not "fixed" to `<`) and `stats.elapsed_secs`'s accumulation (behaviour, feeds `not_max_time`). Every dropped block is print-only (verified by inspection): `print_stats_header`, the per-generation "Stats:" line and its `diversity_enabled()`-gated sub-blocks (P2), the debug top-candidates dump, and the final "MOSES ends" diagnostic -- all S13 output formatting, none read back by later control flow. `log_best_candidates` (merging.cc) is ported on its own real C++ home but not called back here, since its only call site is inside the dropped logging block. |
-| `moses/moses/moses/local_moses.h` | 46 | PORTED | `pymetta/moses/moses/local_moses.py` -- see local_moses.cc row. |
-| `moses/moses/moses/moses_main.cc` | 117 | PLANNED: S11 | Named explicitly in the S11 backlog line ("first end-to-end moses -i data.csv -u y"). |
-| `moses/moses/moses/moses_main.h` | 391 | PLANNED: S11 | Named explicitly in the S11 backlog line. Soft ordering note: this header #includes star-anneal.h/univariate.h/particle-swarm.h/ss_bscore.h (all PLANNED: P2) -- classic dispatches on these via a CLI flag, so a minimal S11 port can wire hill-climbing only and stub/defer the rest, but the C++ file itself does not separate cleanly. |
+| `moses/moses/moses/local_moses.cc` | 225 | PARTIAL | `pymetta/moses/moses/local_moses.py` (S11 Task 1) -- `expand_deme` and `local_moses` itself, including all four termination predicates (`not_max_gens`'s `!=` kept verbatim, not "fixed" to `<`) and `stats.elapsed_secs`'s accumulation (behaviour, feeds `not_max_time`). Every dropped block is print-only (verified by inspection): `print_stats_header`, the per-generation "Stats:" line and its `diversity_enabled()`-gated sub-blocks (P2), the debug top-candidates dump, and the final "MOSES ends" diagnostic -- all S13 output formatting, none read back by later control flow. `log_best_candidates` (merging.cc) is ported on its own real C++ home but not called back here, since its only call site is inside the dropped logging block. |
+| `moses/moses/moses/local_moses.h` | 46 | PARTIAL | `pymetta/moses/moses/local_moses.py` -- see local_moses.cc row. |
+| `moses/moses/moses/moses_main.cc` | 117 | PARTIAL | `pymetta/moses/moses/moses_main.py` -- the entry point with hill-climbing injected directly. mpi/distributed branches, non-`hc` optimizer branches and the SS-fitness branch are gated to RAISE. Reproduces classic exactly on `test_it` (-3.0, `and($1 $2)`) and `test_it_target_ignore` (-3.0, `true`). |
+| `moses/moses/moses/moses_main.h` | 391 | PARTIAL | `pymetta/moses/moses/moses_main.py` -- see moses_main.cc row. The `star-anneal`/`univariate`/`particle-swarm`/`ss_bscore` includes at `moses_main.h:37-41` are compile-only dependencies (zero references in `moses_main.cc`/`local_moses.cc`); the optimizers those headers construct at `h:292/295/298` are P2. |
 | `moses/moses/moses/moses_params.h` | 102 | PARTIAL | `pymetta/moses/moses/moses_params.py` -- `moses_parameters` and `moses_statistics` with every default pinned. Measured: no field permits an unsigned wrap (`max_evals` is `int`, `n_evals` `atomic<int>`, `max_time` `time_t`), so S9's `size_t`-underflow shape cannot recur in the loop. `vm` (boost `variables_map`) is a `None` stand-in; `n_evals`/`n_expansions` are `std::atomic<int>` ported as plain ints (no threading in this port). |
 | `moses/moses/moses/mpi_moses.cc` | 692 | EXCLUDED | EXCLUDED -- confirmed dead. Top-level CMakeLists.txt:134 has FIND_PACKAGE(MPI) commented out, so HAVE_MPI is never defined (verified: MPI_FOUND branch at CMakeLists.txt:136 never taken). The entire file body is wrapped `#ifdef HAVE_MPI` (line 24) ... `#endif /* HAVE_MPI */` (last line) -- confirmed by inspection, not just by CLAUDE.md's claim. |
 | `moses/moses/moses/mpi_moses.h` | 116 | EXCLUDED | EXCLUDED -- confirmed dead. Top-level CMakeLists.txt:134 has FIND_PACKAGE(MPI) commented out, so HAVE_MPI is never defined (verified: MPI_FOUND branch at CMakeLists.txt:136 never taken). The entire file body is wrapped `#ifdef HAVE_MPI` (line 24) ... `#endif /* HAVE_MPI */` (last line) -- confirmed by inspection, not just by CLAUDE.md's claim. |
