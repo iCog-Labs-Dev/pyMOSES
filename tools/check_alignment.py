@@ -21,7 +21,14 @@ from pathlib import Path
 DRIFT_TOLERANCE = 25
 
 BREADCRUMB_RE = re.compile(r"^C\+\+: (?P<file>\S+):(?P<line>\d+) (?P<symbol>.+)$")
-DIVERGENCE_RE = re.compile(r"# DIVERGENCE\((?P<ref>C\+\+ [^)]+)\): (?P<reason>.+)")
+# The first-line reason is OPTIONAL: `# DIVERGENCE(C++ f.cc:1):` with the text
+# entirely on continuation lines is a legitimate style, and requiring `): <text>`
+# here made the whole marker fail to match -- so it was SILENTLY DROPPED and
+# never reached docs/ALIGNMENT.md. A divergence that documents itself into
+# invisibility is the failure this tool exists to prevent, so an empty reason is
+# now reported by `validate` rather than skipped. The trailing space after `:`
+# is optional for the same reason.
+DIVERGENCE_RE = re.compile(r"# DIVERGENCE\((?P<ref>C\+\+ [^)]+)\):(?: (?P<reason>.*))?")
 
 # Strips a continuation line's leading `#`-comment marker(s) (and any
 # whitespace interleaved with them) down to its bare text, e.g. "    # foo"
@@ -201,7 +208,8 @@ def parse_divergences(path: Path) -> list[Divergence]:
 
         marker_line = i + 1
         indent = _leading_whitespace(lines[i])
-        reason_parts = [match.group("reason").strip()]
+        first = match.group("reason")
+        reason_parts = [first.strip()] if first and first.strip() else []
 
         j = i + 1
         while j < n:
