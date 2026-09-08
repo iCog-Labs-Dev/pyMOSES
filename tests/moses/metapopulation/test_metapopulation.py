@@ -636,6 +636,72 @@ def test_select_exemplar_empty_metapopulation_raises():
         mp.select_exemplar()
 
 
+# ---------------------------------------------------------------------------
+# `score_t` narrowing in the Boltzmann-weight loop (metapopulation.cc:161:
+# `p = expf((p - highest_score) * inv_temp);`, :166: `sum += p;`) --
+# metapopulation.py:880/:885's own `_to_score_t` wraps. Both counterexamples
+# below were found by brute-force search over (probs, complexity_temperature,
+# rand) for a boundary where narrowing every float32 step (correct, matches
+# `expf`/float32 `+=`) picks a DIFFERENT roulette index than computing at
+# double precision and narrowing only where the two mutants below stop
+# narrowing -- the same method the reviewer used for selection.py's pair
+# (module docstring there), derived fresh for this pair per that review's
+# instruction. Each was verified against this module's real `_to_score_t`
+# and `pymetta.util.selection.roulette_select` before being pinned here.
+# ---------------------------------------------------------------------------
+
+
+def test_select_exemplar_narrows_boltzmann_weight_after_exp(monkeypatch):
+    """Pins metapopulation.py:880 -- `val: score_t = _to_score_t(math.exp(...))`.
+    Stripping that outer `_to_score_t` (keeping the inner narrowing on
+    `exp`'s own argument) leaves `val` a double-precision `math.exp` result
+    instead of the float32 value real `expf` would produce; two candidates
+    with penalized scores `0.0` and `-0.11368106559011437` at
+    `complexity_temperature=26.2574175002787` make float32 rounding of the
+    second candidate's Boltzmann weight (`0.6485939621925354` narrowed vs.
+    `0.648593970902008` un-narrowed) cross the `total * rand` threshold at
+    `rand=0.6065775194426255`: the narrowed (correct) computation selects
+    T1 (index 0), the un-narrowed mutant selects T2 (index 1).
+    """
+    scores = {
+        combo_tree_to_str(T1).strip(): 0.0,
+        combo_tree_to_str(T2).strip(): -0.11368106559011437,
+    }
+    cscorer = behave_cscore(_ProbeBscore(scores))
+    pa = metapop_parameters(complexity_temperature=26.2574175002787)
+    mp = metapopulation([T1, T2], cscorer, pa)
+    monkeypatch.setattr(randGen(), "randdouble", lambda: 0.6065775194426255)
+    picked = mp.select_exemplar()
+    assert combo_tree_to_str(picked.get_tree()).strip() == "$1"  # T1, index 0
+
+
+def test_select_exemplar_narrows_boltzmann_weight_running_total(monkeypatch):
+    """Pins metapopulation.py:885 -- `total = _to_score_t(total + val)`.
+    Stripping that narrowing (summing `val`s at double precision and
+    narrowing only implicitly, instead of re-narrowing `total` to float32
+    after every `+=` the way real `sum += p;` does) changes the FINAL
+    `total` (`1.3156323432922363` narrowed vs. `1.3156324444917118`
+    un-narrowed) even though every individual `val` is identical between
+    the two paths. Three candidates with penalized scores `0.0`,
+    `-0.21937330456349002`, `-2.1062118921780666` at
+    `complexity_temperature=19.022575266900024` make that total-only
+    difference cross the `total * rand` threshold at
+    `rand=0.7600907693539987`: the narrowed (correct) computation selects
+    T1 (index 0), the un-narrowed mutant selects T2 (index 1).
+    """
+    scores = {
+        combo_tree_to_str(T1).strip(): 0.0,
+        combo_tree_to_str(T2).strip(): -0.21937330456349002,
+        combo_tree_to_str(T3).strip(): -2.1062118921780666,
+    }
+    cscorer = behave_cscore(_ProbeBscore(scores))
+    pa = metapop_parameters(complexity_temperature=19.022575266900024)
+    mp = metapopulation([T1, T2, T3], cscorer, pa)
+    monkeypatch.setattr(randGen(), "randdouble", lambda: 0.7600907693539987)
+    picked = mp.select_exemplar()
+    assert combo_tree_to_str(picked.get_tree()).strip() == "$1"  # T1, index 0
+
+
 # ---------------------------------------------------------------- _visited_exemplars_counter
 
 
