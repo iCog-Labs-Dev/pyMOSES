@@ -180,10 +180,20 @@ These cost real time to find. They are properties of the C++ side, not of the po
   `1.0000 >= 0.0000`). It uses `-aps` (particle swarm), a **P2 optimizer S11
   does not port**, so the failure is outside S11's scope. Do not chase it.
   The 23 cases map to slices by their flags (`tests/moses/MOSESUTest.cxxtest`):
-  * **S11-usable now** (default optimizer = hill-climbing, Boolean):
-    `test_2_parity`, `test_2_parity_with_labels`, `test_3_parity_multi_thread`,
-    `test_1_mux`, `test_2_mux`, `test_it`, `test_it_target_ignore`,
-    `test_cp_simple`, `test_cp`.
+  * **S11-usable now — CORRECTED 2026-09-08, only TWO:** `test_it` and
+    `test_it_target_ignore`. My first version of this list named nine, chosen by
+    checking that each uses the default hill-climbing optimizer. **I did not
+    check which problem registry each goes through**, and seven of them are
+    unreachable: `test_2_parity`, `test_2_parity_with_labels` and
+    `test_3_parity_multi_thread` use `-Hpa`; `test_1_mux`/`test_2_mux` use
+    `-Hmux`; `test_cp_simple`/`test_cp` use `-Hcp`. All six of those problems
+    are registered in `demo-problems.cc` (**PLANNED: P2, not ported**) and need
+    `logical_bscore` (`bscores.h:52`, also not ported). Only the `it` problem
+    comes from `table-problems.cc`.
+    This is the SECOND time I asserted an oracle after verifying one dimension
+    and not another — the first was `metapopulationUTest`, verified to build and
+    pass but not to cover the slice. Before naming a test as an oracle, check
+    every layer it traverses: optimizer, problem registry, and scorer.
   * **P2 optimizers** (`-asa` star-anneal, `-aps` particle swarm, `-aun`
     univariate): `test_sa_2_parity`, `test_sa_1_mux`, `test_ps_2_parity`,
     `test_un_3_pa_multi_thread`.
