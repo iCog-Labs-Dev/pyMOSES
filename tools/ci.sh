@@ -21,3 +21,4 @@ PY="$VENV/bin/python3"
 "$PY" -m pytest
 "$PY" tools/check_alignment.py
 "$PY" tools/coverage_totals.py --check
+"$PY" tools/check_fixture_manifests.py

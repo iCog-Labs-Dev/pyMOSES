@@ -7,8 +7,12 @@ import sys
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
-CLASSIC = Path("/home/yab/Documents/Projects/iCog/HyperonRelated/MOSES/OpenCog/Moses")
-PREFIX = Path.home() / "opt" / "moses-legacy"
+sys.path.insert(0, str(REPO_ROOT))
+from tools._capture_env import classic_dir, moses_prefix  # noqa: E402
+from tools._manifest import build_manifest, write_sidecar  # noqa: E402
+
+CLASSIC = classic_dir()
+PREFIX = moses_prefix()
 PROBE_SRC = REPO_ROOT / "tools" / "cpp_probe" / "candidate_roundtrip_probe.cc"
 PROBE_BIN = REPO_ROOT / "tools" / "cpp_probe" / "build" / "candidate_roundtrip_probe"
 FIXTURE_PATH = REPO_ROOT / "tests" / "fixtures" / "representation.json"
@@ -149,6 +153,26 @@ def capture_fixture() -> None:
     fixture = json.loads(result.stdout)
     _validate_fixture(fixture)
     FIXTURE_PATH.write_text(json.dumps(fixture, indent=2) + "\n")
+    write_sidecar(
+        FIXTURE_PATH,
+        build_manifest(
+            repo_root=REPO_ROOT,
+            capture_script="tools/capture_representation.py",
+            capture_script_path=Path(__file__).resolve(),
+            probe_source="tools/cpp_probe/candidate_roundtrip_probe.cc",
+            probe_source_path=PROBE_SRC,
+            probe_kind="cpp_probe",
+            classic_dir=CLASSIC,
+            prefix_dir=PREFIX,
+            inputs={
+                "description": (
+                    "fixed Boolean candidate/representation round-trip cases "
+                    "hardcoded in candidate_roundtrip_probe.cc; no external "
+                    "dataset or seed"
+                )
+            },
+        ),
+    )
 
 
 def main(argv: list[str]) -> int:

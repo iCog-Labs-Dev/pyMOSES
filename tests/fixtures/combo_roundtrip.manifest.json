@@ -1,0 +1,20 @@
+{
+  "capture_script": "tools/capture_combo_roundtrip.py",
+  "capture_script_sha256": "7bd15108f18fc00ce91d94da01b4b26c8654d7466e10deb15d7f6683c7708ef4",
+  "classic_dir": null,
+  "cli_tool": "bin/combo-fmt-converter",
+  "generated_at_utc": "2026-09-03T15:13:04+03:00",
+  "inputs": {
+    "corpus_size": 30,
+    "corpus_sources": [
+      "$CLASSIC/testTrees.sh (29 trees, TEST_TREES_SH_CORPUS)",
+      "$CLASSIC/tests/comboreduct/combo/iostream_comboUTest.cxxtest:11 (1 tree, IOSTREAM_COMBO_UTEST_CORPUS)"
+    ]
+  },
+  "prefix_dir": "/home/yab/opt/moses-legacy",
+  "probe_kind": "classic_cli",
+  "probe_source": null,
+  "probe_source_sha256": null,
+  "repo_commit": "b5b0dcbc3fe41daa62526f8f30b40de80c0a675b",
+  "schema_version": 1
+}

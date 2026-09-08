@@ -1,0 +1,16 @@
+{
+  "capture_script": "tools/capture_representation.py",
+  "capture_script_sha256": "f449a6ae3e3740e88edbfc0add181a7c047c3b5bab03a3262a737ae467d1b3a0",
+  "classic_dir": "/home/yab/Documents/Projects/iCog/HyperonRelated/MOSES/OpenCog/Moses",
+  "cli_tool": null,
+  "generated_at_utc": "2026-09-07T14:44:34+03:00",
+  "inputs": {
+    "description": "fixed Boolean candidate/representation round-trip cases hardcoded in candidate_roundtrip_probe.cc; no external dataset or seed"
+  },
+  "prefix_dir": "/home/yab/opt/moses-legacy",
+  "probe_kind": "cpp_probe",
+  "probe_source": "tools/cpp_probe/candidate_roundtrip_probe.cc",
+  "probe_source_sha256": "52f10189334690bb01643a69ef883a58a50578073152da8091ac1ec35332ca17",
+  "repo_commit": "6e6d0bba3df1b5f330eefc371da79ef33cd519f5",
+  "schema_version": 1
+}

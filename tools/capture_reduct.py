@@ -31,6 +31,7 @@ tools/ci.sh):
 
 from __future__ import annotations
 
+import hashlib
 import json
 import resource
 import subprocess
@@ -40,14 +41,17 @@ from pathlib import Path
 REPO_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(REPO_ROOT))
 
+from tools._capture_env import classic_dir, moses_prefix  # noqa: E402
+from tools._manifest import build_manifest, write_sidecar  # noqa: E402
 from tools.cpp_probe.reduct_corpus import CORPUS  # noqa: E402
 
+REDUCT_CORPUS_PATH = REPO_ROOT / "tools" / "cpp_probe" / "reduct_corpus.py"
 PROBE_SRC = REPO_ROOT / "tools" / "cpp_probe" / "reduct_effort_probe.cc"
 PROBE_BIN = REPO_ROOT / "tools" / "cpp_probe" / "build" / "reduct_effort_probe"
 FIXTURE_PATH = REPO_ROOT / "tests" / "fixtures" / "reduct.json"
 
-CLASSIC = Path("/home/yab/Documents/Projects/iCog/HyperonRelated/MOSES/OpenCog/Moses")
-PREFIX = Path.home() / "opt" / "moses-legacy"
+CLASSIC = classic_dir()
+PREFIX = moses_prefix()
 
 EFFORTS = (1, 2, 3)
 
@@ -200,6 +204,30 @@ def main(argv: list[str]) -> int:
 
     FIXTURE_PATH.parent.mkdir(parents=True, exist_ok=True)
     FIXTURE_PATH.write_text(json.dumps(fixture, indent=2) + "\n")
+    write_sidecar(
+        FIXTURE_PATH,
+        build_manifest(
+            repo_root=REPO_ROOT,
+            capture_script="tools/capture_reduct.py",
+            capture_script_path=Path(__file__).resolve(),
+            probe_source="tools/cpp_probe/reduct_effort_probe.cc",
+            probe_source_path=PROBE_SRC,
+            probe_kind="cpp_probe",
+            classic_dir=CLASSIC,
+            prefix_dir=PREFIX,
+            inputs={
+                "efforts": list(EFFORTS),
+                "corpus_module": "tools/cpp_probe/reduct_corpus.py",
+                "corpus_module_sha256": hashlib.sha256(
+                    REDUCT_CORPUS_PATH.read_bytes()
+                ).hexdigest(),
+                "corpus_total": len(CORPUS),
+                "runnable": len(runnable),
+                "skipped": len(skipped),
+                "sources": fixture["sources"],
+            },
+        ),
+    )
     print(
         f"wrote {FIXTURE_PATH}: {len(cases)} cases "
         f"({len(runnable)} runnable trees x {len(EFFORTS)} efforts), "

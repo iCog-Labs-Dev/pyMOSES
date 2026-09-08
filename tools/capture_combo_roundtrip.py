@@ -32,8 +32,13 @@ import sys
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
+sys.path.insert(0, str(REPO_ROOT))
+from tools._capture_env import moses_prefix  # noqa: E402
+from tools._manifest import build_manifest, write_sidecar  # noqa: E402
+
 FIXTURE_PATH = REPO_ROOT / "tests" / "fixtures" / "combo_roundtrip.json"
-CONVERTER = Path.home() / "opt" / "moses-legacy" / "bin" / "combo-fmt-converter"
+PREFIX = moses_prefix()
+CONVERTER = PREFIX / "bin" / "combo-fmt-converter"
 
 # ulimit -v 1048576 (KiB) / timeout 20 -- see CLAUDE.md: "this machine has
 # been OOM-killed twice." resource.RLIMIT_AS is the setrlimit(2) equivalent
@@ -130,6 +135,27 @@ def main(argv: list[str]) -> int:
     ]
     FIXTURE_PATH.parent.mkdir(parents=True, exist_ok=True)
     FIXTURE_PATH.write_text(json.dumps(fixture, indent=2) + "\n")
+    write_sidecar(
+        FIXTURE_PATH,
+        build_manifest(
+            repo_root=REPO_ROOT,
+            capture_script="tools/capture_combo_roundtrip.py",
+            capture_script_path=Path(__file__).resolve(),
+            probe_source=None,
+            probe_source_path=None,
+            probe_kind="classic_cli",
+            cli_tool="bin/combo-fmt-converter",
+            prefix_dir=PREFIX,
+            inputs={
+                "corpus_size": len(CORPUS),
+                "corpus_sources": [
+                    "$CLASSIC/testTrees.sh (29 trees, TEST_TREES_SH_CORPUS)",
+                    "$CLASSIC/tests/comboreduct/combo/iostream_comboUTest.cxxtest:11 "
+                    "(1 tree, IOSTREAM_COMBO_UTEST_CORPUS)",
+                ],
+            },
+        ),
+    )
     print(f"wrote {FIXTURE_PATH} ({len(fixture)} trees)")
     return 0
 

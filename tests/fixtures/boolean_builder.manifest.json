@@ -1,0 +1,16 @@
+{
+  "capture_script": "tools/capture_boolean_builder.py",
+  "capture_script_sha256": "6886d6c0d9c9f3d4324a34d9af839c92c498415ef7b804b41566a403c1e13b48",
+  "classic_dir": "/home/yab/Documents/Projects/iCog/HyperonRelated/MOSES/OpenCog/Moses",
+  "cli_tool": null,
+  "generated_at_utc": "2026-09-07T13:10:48+03:00",
+  "inputs": {
+    "description": "fixed deterministic Boolean-builder exemplars/arities hardcoded in representation_probe.cc; no external dataset or seed"
+  },
+  "prefix_dir": "/home/yab/opt/moses-legacy",
+  "probe_kind": "cpp_probe",
+  "probe_source": "tools/cpp_probe/representation_probe.cc",
+  "probe_source_sha256": "8d60ffcdfc4a09460a3cf472657f7895a949030991a3e836f4dcbe5169c473a9",
+  "repo_commit": "d0b409930174d21a48cf82a443389b3a526eb4e7",
+  "schema_version": 1
+}

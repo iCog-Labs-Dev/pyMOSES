@@ -46,6 +46,7 @@ from pymetta.moses.moses.types import (
 )
 from pymetta.moses.scoring.behave_cscore import behave_cscore
 from pymetta.moses.scoring.scoring_base import bscore_base
+from pymetta.util.rng import randGen
 
 # --------------------------------------------------------------------------
 # Shared fixtures: the same 4 trees / scores tools/cpp_probe/metapop_core_
@@ -513,3 +514,226 @@ def test_get_ensemble_and_get_cscorer_and_best_score():
     assert mp.get_cscorer() is cscorer
     assert mp.get_ensemble() is mp._ensemble
     assert mp.best_score() == mp.best_composite_score().get_score()
+
+
+# ============================================================ select_exemplar / end
+#
+# No C++ probe of its own for this section: `select_exemplar` is exercised
+# bit-for-bit against a real classic `local_moses()` run (RNG-drawing and
+# all) in test_local_moses.py's own oracle tests. These are direct unit
+# tests of the two branches (`size() == 1` shortcut, general roulette
+# selection) and the `revisit`/`end()` machinery, using a monkeypatched
+# `randGen().randdouble()` where the general branch's own RNG draw needs to
+# be pinned -- `select_exemplar()` has no `rng` parameter of its own to
+# inject (matching real C++, which always calls the global `randGen()`
+# singleton the same way), so patching the singleton's own bound method is
+# the direct Python equivalent of a C++ test seeding the one global RNG.
+
+
+def test_end_is_a_sentinel_not_a_real_element():
+    mp = metapopulation(T1, _cscorer())
+    assert mp.end() is None
+    # A real element must never compare equal to it.
+    assert not (next(iter(mp.get_trees())) == mp.end())
+
+
+def test_select_exemplar_singleton_default_revisit_visits_once_then_ends():
+    """`revisit` defaults to 0 -- metapop_params.h's own comment: "If 0
+    then an exemplar can only be visited once."
+    """
+    mp = metapopulation(T1, _cscorer())
+    first = mp.select_exemplar()
+    assert first is not None
+    assert combo_tree_to_str(first.get_tree()).strip() == "$1"
+
+    assert mp.select_exemplar() == mp.end()
+
+
+def test_select_exemplar_singleton_revisit_one_allows_exactly_two_visits():
+    pa = metapop_parameters(revisit=1)
+    mp = metapopulation(T1, _cscorer(), pa)
+    assert mp.select_exemplar() is not None
+    assert mp.select_exemplar() is not None
+    assert mp.select_exemplar() == mp.end()
+
+
+def test_select_exemplar_singleton_revisit_negative_is_unlimited():
+    pa = metapop_parameters(revisit=-1)
+    mp = metapopulation(T1, _cscorer(), pa)
+    for _ in range(10):
+        assert mp.select_exemplar() is not None
+
+
+def test_select_exemplar_general_branch_prefers_higher_penalized_score(monkeypatch):
+    """Pool order (sct_score_greater): T2(sc=5,cpx=2), T3(sc=5,cpx=3),
+    T1(sc=2,cpx=1), T4(sc=1,cpx=2) -- all penalized scores equal raw score
+    here (`_ProbeBscore` sets no complexity coefficient, so complexity_
+    penalty is 0.0 for every candidate, pinned by
+    `test_fixture_complexities_match_the_cpp_probe`'s sibling constructor
+    tests above). With `complexity_temperature=6.0` (the default), T1/T4's
+    own Boltzmann weight is `exp(-50/-66.67)` -- around 1e-22/1e-29,
+    negligible next to T2/T3's shared `exp(0) == 1.0` -- so ANY
+    `randdouble()` draw well clear of the extreme top of the range must
+    pick T2 (first) or T3 (second), deterministically.
+    """
+    mp = metapopulation([T1, T2, T3, T4], _cscorer())
+    monkeypatch.setattr(randGen(), "randdouble", lambda: 0.1)
+    picked = mp.select_exemplar()
+    assert combo_tree_to_str(picked.get_tree()).strip() == "and($1 $2)"  # T2
+
+    # T2 is now visited once (revisit=0 default) -- excluded (NaN) on the
+    # next call, leaving T3 as the only non-negligible mass.
+    monkeypatch.setattr(randGen(), "randdouble", lambda: 0.9)
+    picked2 = mp.select_exemplar()
+    assert combo_tree_to_str(picked2.get_tree()).strip() == "and($1 $2 $3)"  # T3
+
+
+def test_select_exemplar_general_branch_skips_nan_and_infinite_scores(monkeypatch):
+    """`math.isfinite(sc)` (metapopulation.cc:139) excludes a non-finite
+    penalized score from selection just like an over-visited one --
+    ported as an explicit guard, not merely relying on `math.exp`
+    producing something harmless for `inf`/`nan` (it would not: `exp(nan)`
+    is `nan`, and an all-`nan`/`0.0` `probs` list would make the `sum > 0`
+    assertion fire, an entirely different failure than "this candidate was
+    correctly ignored").
+    """
+    scores = {
+        combo_tree_to_str(T1).strip(): float("inf"),
+        combo_tree_to_str(T2).strip(): 5.0,
+    }
+    cscorer = behave_cscore(_ProbeBscore(scores))
+    mp = metapopulation([T1, T2], cscorer)
+    monkeypatch.setattr(randGen(), "randdouble", lambda: 0.5)
+    picked = mp.select_exemplar()
+    # T1's score is +inf -- if it were not excluded it would dominate
+    # every finite candidate's probability; excluded, T2 (the only finite,
+    # revisitable candidate) is the only possible pick.
+    assert combo_tree_to_str(picked.get_tree()).strip() == "and($1 $2)"
+
+
+def test_select_exemplar_returns_end_once_every_candidate_is_exhausted():
+    """General (`size() > 1`) branch's own `found_exemplar` early return
+    (metapopulation.cc:151-154): once every candidate's revisit budget is
+    spent, `select_exemplar()` must return `end()` WITHOUT attempting a
+    roulette draw at all (no RNG call needed to observe this -- `probs`
+    never even reaches `roulette_select`).
+    """
+    mp = metapopulation([T1, T2], _cscorer())
+    seen = set()
+    for _ in range(2):
+        picked = mp.select_exemplar()
+        assert picked is not None
+        seen.add(combo_tree_to_str(picked.get_tree()).strip())
+    assert seen == {"$1", "and($1 $2)"}
+
+    assert mp.select_exemplar() == mp.end()
+
+
+def test_select_exemplar_empty_metapopulation_raises():
+    mp = metapopulation(T1, _cscorer())
+    mp.clear()
+    with pytest.raises(AssertionError):
+        mp.select_exemplar()
+
+
+# ---------------------------------------------------------------------------
+# `score_t` narrowing in the Boltzmann-weight loop (metapopulation.cc:161:
+# `p = expf((p - highest_score) * inv_temp);`, :166: `sum += p;`) --
+# metapopulation.py:880/:885's own `_to_score_t` wraps. Both counterexamples
+# below were found by brute-force search over (probs, complexity_temperature,
+# rand) for a boundary where narrowing every float32 step (correct, matches
+# `expf`/float32 `+=`) picks a DIFFERENT roulette index than computing at
+# double precision and narrowing only where the two mutants below stop
+# narrowing -- the same method the reviewer used for selection.py's pair
+# (module docstring there), derived fresh for this pair per that review's
+# instruction. Each was verified against this module's real `_to_score_t`
+# and `pymetta.util.selection.roulette_select` before being pinned here.
+# ---------------------------------------------------------------------------
+
+
+def test_select_exemplar_narrows_boltzmann_weight_after_exp(monkeypatch):
+    """Pins metapopulation.py:880 -- `val: score_t = _to_score_t(math.exp(...))`.
+    Stripping that outer `_to_score_t` (keeping the inner narrowing on
+    `exp`'s own argument) leaves `val` a double-precision `math.exp` result
+    instead of the float32 value real `expf` would produce; two candidates
+    with penalized scores `0.0` and `-0.11368106559011437` at
+    `complexity_temperature=26.2574175002787` make float32 rounding of the
+    second candidate's Boltzmann weight (`0.6485939621925354` narrowed vs.
+    `0.648593970902008` un-narrowed) cross the `total * rand` threshold at
+    `rand=0.6065775194426255`: the narrowed (correct) computation selects
+    T1 (index 0), the un-narrowed mutant selects T2 (index 1).
+    """
+    scores = {
+        combo_tree_to_str(T1).strip(): 0.0,
+        combo_tree_to_str(T2).strip(): -0.11368106559011437,
+    }
+    cscorer = behave_cscore(_ProbeBscore(scores))
+    pa = metapop_parameters(complexity_temperature=26.2574175002787)
+    mp = metapopulation([T1, T2], cscorer, pa)
+    monkeypatch.setattr(randGen(), "randdouble", lambda: 0.6065775194426255)
+    picked = mp.select_exemplar()
+    assert combo_tree_to_str(picked.get_tree()).strip() == "$1"  # T1, index 0
+
+
+def test_select_exemplar_narrows_boltzmann_weight_running_total(monkeypatch):
+    """Pins metapopulation.py:885 -- `total = _to_score_t(total + val)`.
+    Stripping that narrowing (summing `val`s at double precision and
+    narrowing only implicitly, instead of re-narrowing `total` to float32
+    after every `+=` the way real `sum += p;` does) changes the FINAL
+    `total` (`1.3156323432922363` narrowed vs. `1.3156324444917118`
+    un-narrowed) even though every individual `val` is identical between
+    the two paths. Three candidates with penalized scores `0.0`,
+    `-0.21937330456349002`, `-2.1062118921780666` at
+    `complexity_temperature=19.022575266900024` make that total-only
+    difference cross the `total * rand` threshold at
+    `rand=0.7600907693539987`: the narrowed (correct) computation selects
+    T1 (index 0), the un-narrowed mutant selects T2 (index 1).
+    """
+    scores = {
+        combo_tree_to_str(T1).strip(): 0.0,
+        combo_tree_to_str(T2).strip(): -0.21937330456349002,
+        combo_tree_to_str(T3).strip(): -2.1062118921780666,
+    }
+    cscorer = behave_cscore(_ProbeBscore(scores))
+    pa = metapop_parameters(complexity_temperature=19.022575266900024)
+    mp = metapopulation([T1, T2, T3], cscorer, pa)
+    monkeypatch.setattr(randGen(), "randdouble", lambda: 0.7600907693539987)
+    picked = mp.select_exemplar()
+    assert combo_tree_to_str(picked.get_tree()).strip() == "$1"  # T1, index 0
+
+
+# ---------------------------------------------------------------- _visited_exemplars_counter
+
+
+def test_visited_exemplars_counter_get_inserts_zero_and_increment_starts_at_one():
+    from pymetta.moses.metapopulation.metapopulation import _visited_exemplars_counter
+
+    sct1 = scored_combo_tree(T1)
+    sct2 = scored_combo_tree(T2)
+    counter = _visited_exemplars_counter()
+    assert counter.get(sct1) == 0
+    counter.increment(sct1)
+    assert counter.get(sct1) == 1
+    counter.increment(sct1)
+    assert counter.get(sct1) == 2
+    # A structurally-different tree is tracked independently.
+    assert counter.get(sct2) == 0
+
+
+def test_visited_exemplars_counter_keys_on_tree_structure_not_identity():
+    """`scored_combo_tree_equal` (types.py) compares TREE STRUCTURE, not
+    object identity or score -- an independently-built but structurally
+    identical `scored_combo_tree` must hash to the same counter entry.
+    """
+    from pymetta.moses.metapopulation.metapopulation import (
+        _copy_sct,
+        _visited_exemplars_counter,
+    )
+
+    sct_a = scored_combo_tree(T1, composite_score(9.0, 1))
+    sct_b = _copy_sct(sct_a)  # independent object, same tree, same score
+    sct_b.get_composite_score().set_score(-1.0)  # scores now DIFFER too
+
+    counter = _visited_exemplars_counter()
+    counter.increment(sct_a)
+    assert counter.get(sct_b) == 1  # same counter entry regardless

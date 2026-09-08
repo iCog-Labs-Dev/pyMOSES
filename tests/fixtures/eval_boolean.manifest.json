@@ -1,0 +1,20 @@
+{
+  "capture_script": "tools/capture_eval_boolean.py",
+  "capture_script_sha256": "f05f69ff4d20cc0d7add883c92707f10ded028547a97a916bddf612abb44e801",
+  "classic_dir": "/home/yab/Documents/Projects/iCog/HyperonRelated/MOSES/OpenCog/Moses",
+  "cli_tool": "bin/eval-table",
+  "generated_at_utc": "2026-09-03T15:50:17+03:00",
+  "inputs": {
+    "combo_corpus_fixture": "tests/fixtures/combo_roundtrip.json",
+    "datasets": [
+      "trainingBoolean.dat",
+      "trainingBooleanXor.dat"
+    ]
+  },
+  "prefix_dir": "/home/yab/opt/moses-legacy",
+  "probe_kind": "classic_cli",
+  "probe_source": null,
+  "probe_source_sha256": null,
+  "repo_commit": "ffa52f3e4f65d970391f605ce49d4e149bd32c65",
+  "schema_version": 1
+}

@@ -1,0 +1,16 @@
+{
+  "capture_script": "tools/capture_logical_knob.py",
+  "capture_script_sha256": "9953bbfaac1a0889b39164ed28053c45a93e5739e4882475cb7d6a801a507720",
+  "classic_dir": "/home/yab/Documents/Projects/iCog/HyperonRelated/MOSES/OpenCog/Moses",
+  "cli_tool": null,
+  "generated_at_utc": "2026-09-07T12:56:55+03:00",
+  "inputs": {
+    "description": "fixed logical-knob active/transitions/append/disallow/copy/clear test cases hardcoded in logical_knob_probe.cc; no external dataset or seed"
+  },
+  "prefix_dir": "/home/yab/opt/moses-legacy",
+  "probe_kind": "cpp_probe",
+  "probe_source": "tools/cpp_probe/logical_knob_probe.cc",
+  "probe_source_sha256": "00df79b11ac29246d2e1a11cd9ab49ee796dce4ea4d21b8e8b812c29695a5d30",
+  "repo_commit": "2453afbc68994c7ab870cd21f9b97b3be6053d04",
+  "schema_version": 1
+}

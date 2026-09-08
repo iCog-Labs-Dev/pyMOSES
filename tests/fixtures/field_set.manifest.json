@@ -1,0 +1,16 @@
+{
+  "capture_script": "tools/capture_field_set.py",
+  "capture_script_sha256": "7eb94381dfbe1c2c90edb233220976d3cf765f75b5a64d0c7bed33d68f099d3f",
+  "classic_dir": "/home/yab/Documents/Projects/iCog/HyperonRelated/MOSES/OpenCog/Moses",
+  "cli_tool": null,
+  "generated_at_utc": "2026-09-07T11:49:33+03:00",
+  "inputs": {
+    "description": "fixed field_set layout/pack/ABI test cases hardcoded in field_set_probe.cc; no external dataset or seed"
+  },
+  "prefix_dir": "/home/yab/opt/moses-legacy",
+  "probe_kind": "cpp_probe",
+  "probe_source": "tools/cpp_probe/field_set_probe.cc",
+  "probe_source_sha256": "92e310f881a14673ada79d6b533461936af492b37913a275b37471ed04414bf9",
+  "repo_commit": "6324ccf43ac1b1027a5d96be259969df59993fad",
+  "schema_version": 1
+}

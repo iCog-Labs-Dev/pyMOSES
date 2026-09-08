@@ -1113,3 +1113,78 @@ def test_resize_metapop_signed_int32_narrowing_matches_cpp_measured_value():
     # Matches the compiled probe's measured `MT19937RandGen(1).randint(-25)
     # == 22` end to end, through the real `resize_metapop` code path.
     assert captured_results == [22]
+
+
+# ============================================================ log_best_candidates
+#
+# No C++ probe of its own: `log_best_candidates`'s ONLY real effect, once
+# every `logger()` call is dropped (module docstring's "port control flow,
+# not text" section), is WHICH already-ported, already-oracle-verified
+# accessor it reaches -- `best_composite_score()` or `_ensemble.
+# get_ensemble()` -- based on `best_candidates().empty()`/`do_boosting`.
+# Pinned here via spies/stubs monkeypatched onto the instance: a stub that
+# raises if called proves a branch is NOT reached; a spy that records a
+# call and delegates proves it IS.
+
+
+def test_log_best_candidates_empty_pool_short_circuits():
+    """`best_candidates().empty()` must return before EITHER accessor is
+    touched -- even with `do_boosting=True` set, which would otherwise
+    select the `_ensemble.get_ensemble()` arm.
+    """
+    mp = _mp()
+    mp._best_candidates.clear()
+    assert mp.best_candidates().empty()
+    mp._params.do_boosting = True
+
+    def boom():
+        raise AssertionError("must not be reached when best_candidates() is empty")
+
+    mp.best_composite_score = boom
+    mp._ensemble.get_ensemble = boom
+
+    assert mp.log_best_candidates() is None  # returns quietly, touches neither
+
+
+def test_log_best_candidates_non_boosting_reaches_best_composite_score_only():
+    mp = _mp()
+    assert not mp.best_candidates().empty()
+    assert mp._params.do_boosting is False
+
+    cscore_calls = []
+    original_cscore = mp.best_composite_score
+
+    def cscore_spy():
+        cscore_calls.append(True)
+        return original_cscore()
+
+    def ensemble_boom():
+        raise AssertionError("must not reach the boosting arm when do_boosting is False")
+
+    mp.best_composite_score = cscore_spy
+    mp._ensemble.get_ensemble = ensemble_boom
+
+    mp.log_best_candidates()
+    assert cscore_calls == [True]
+
+
+def test_log_best_candidates_boosting_reaches_get_ensemble_only():
+    mp = _mp()
+    assert not mp.best_candidates().empty()
+    mp._params.do_boosting = True
+
+    ensemble_calls = []
+    original_get_ensemble = mp._ensemble.get_ensemble
+
+    def ensemble_spy():
+        ensemble_calls.append(True)
+        return original_get_ensemble()
+
+    def cscore_boom():
+        raise AssertionError("must not reach the non-boosting arm when do_boosting is True")
+
+    mp._ensemble.get_ensemble = ensemble_spy
+    mp.best_composite_score = cscore_boom
+
+    mp.log_best_candidates()
+    assert ensemble_calls == [True]

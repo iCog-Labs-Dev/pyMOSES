@@ -1,0 +1,23 @@
+{
+  "capture_script": "tools/capture_score.py",
+  "capture_script_sha256": "8ec38e7fea4d70caaf0e692c1225e50c0230bc65776a99a0f100ced184cff786",
+  "classic_dir": "/home/yab/Documents/Projects/iCog/HyperonRelated/MOSES/OpenCog/Moses",
+  "cli_tool": null,
+  "generated_at_utc": "2026-09-04T10:21:16+03:00",
+  "inputs": {
+    "combo_corpus_fixture": "tests/fixtures/combo_roundtrip.json",
+    "complexity_ratio_cases": 10,
+    "datasets": [
+      "trainingBoolean.dat",
+      "trainingBooleanXor.dat",
+      "weighted.csv",
+      "precision.csv"
+    ]
+  },
+  "prefix_dir": "/home/yab/opt/moses-legacy",
+  "probe_kind": "cpp_probe",
+  "probe_source": "tools/cpp_probe/score_probe.cc",
+  "probe_source_sha256": "09e64505e3db12fbe2338ff07bc5f850bd9e09b248dd50a36440011d3729ca4c",
+  "repo_commit": "5fc5e659ec8aa87102a8e36c938fe7b84baf1c6a",
+  "schema_version": 1
+}

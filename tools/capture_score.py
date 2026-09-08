@@ -19,6 +19,10 @@ import sys
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
+sys.path.insert(0, str(REPO_ROOT))
+from tools._capture_env import classic_dir, moses_prefix  # noqa: E402
+from tools._manifest import build_manifest, write_sidecar  # noqa: E402
+
 PROBE_SRC = REPO_ROOT / "tools" / "cpp_probe" / "score_probe.cc"
 PROBE_BIN = REPO_ROOT / "tools" / "cpp_probe" / "build" / "score_probe"
 FIXTURE_PATH = REPO_ROOT / "tests" / "fixtures" / "score.json"
@@ -29,8 +33,8 @@ COMBO_ROUNDTRIP_PATH = REPO_ROOT / "tests" / "fixtures" / "combo_roundtrip.json"
 # tests/comboreduct/table/test_table_io.py's oracle for the same pattern.
 DATA_DIR = REPO_ROOT / "tests" / "fixtures" / "table_data"
 
-CLASSIC = Path("/home/yab/Documents/Projects/iCog/HyperonRelated/MOSES/OpenCog/Moses")
-PREFIX = Path.home() / "opt" / "moses-legacy"
+CLASSIC = classic_dir()
+PREFIX = moses_prefix()
 
 # ulimit -v 1048576 (KiB) / timeout 20 -- see CLAUDE.md.
 _MEM_LIMIT_BYTES = 1048576 * 1024
@@ -226,6 +230,26 @@ def main(argv: list[str]) -> int:
 
     FIXTURE_PATH.parent.mkdir(parents=True, exist_ok=True)
     FIXTURE_PATH.write_text(json.dumps(fixture, indent=2) + "\n")
+    write_sidecar(
+        FIXTURE_PATH,
+        build_manifest(
+            repo_root=REPO_ROOT,
+            capture_script="tools/capture_score.py",
+            capture_script_path=Path(__file__).resolve(),
+            probe_source="tools/cpp_probe/score_probe.cc",
+            probe_source_path=PROBE_SRC,
+            probe_kind="cpp_probe",
+            classic_dir=CLASSIC,
+            prefix_dir=PREFIX,
+            inputs={
+                "datasets": [d.name for d in DATASETS],
+                "combo_corpus_fixture": "tests/fixtures/combo_roundtrip.json",
+                "complexity_ratio_cases": len(_COMPLEXITY_RATIO_CASES),
+                "n_cases": len(fixture),
+                "n_probe_runs": n_pairs,
+            },
+        ),
+    )
     distinct_trees = {case["tree"] for case in fixture.values()}
     print(
         f"wrote {FIXTURE_PATH} ({len(fixture)} cases, {n_pairs} probe runs, "

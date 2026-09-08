@@ -13,9 +13,15 @@ work.
 NOT ported here, deliberately, because every method that would read them is
 itself out of this task's scope (see the S10 plan's own per-task split):
 
-* `select_exemplar`/`has_been_visited`/`log_selected_exemplar` and the
-  `_visited_exemplars` field they share -- exemplar selection is not this
-  task.
+* `has_been_visited`/`log_selected_exemplar` -- the SIBLING accessor and
+  logging helper `select_exemplar` also declares alongside `_visited_
+  exemplars` (metapopulation.h:558-561,528). `select_exemplar` ITSELF, and
+  the `_visited_exemplars` field/`end()`, are ported below -- S11 Task 1's
+  own scope (see `select_exemplar`'s own docstring). `has_been_visited`
+  has zero callers anywhere in `local_moses.cc`/S11's own file list
+  (verified by grep) and `log_selected_exemplar` is logging-only, same
+  "no logging surface" convention as `ostream_metapop`/`log_best_
+  candidates` below.
 * `resize_metapop`/`_merge_count` -- population trimming.
 * `set_diversity`/`gather_diversity_stats`/`_cached_dst`/`cached_dst` --
   the diversity penalty machinery (`diversity_enabled()` itself, the
@@ -40,11 +46,15 @@ itself out of this task's scope (see the S10 plan's own per-task split):
   needs SOMETHING to populate `_scored_trees` (this task's own scope names
   that pool explicitly) -- see `init`'s own docstring for the seam this
   leaves.
-* `ostream_metapop`/`log_best_candidates`/`log_selected_exemplar` --
-  printing/logging, no observable effect on anything this port asserts
-  against (the same "logger calls are not ported" convention every prior
-  slice in this port has followed; see e.g. `hill_climbing.py`'s own
-  module docstring).
+* `ostream_metapop`/`log_selected_exemplar` -- printing/logging, no
+  observable effect on anything this port asserts against (the same
+  "logger calls are not ported" convention every prior slice in this port
+  has followed; see e.g. `hill_climbing.py`'s own module docstring).
+  `log_best_candidates` (merging.cc:652) is ADDED, by S11 Task 1, on
+  `metapopulation.py`'s sibling module `merging.py` (its own real C++
+  home) -- see that module's own docstring for what "port the control
+  flow, not the log text" means for a method whose only real purpose is
+  printing.
 * `_merge_mutex`/threading in general -- no file in this port anywhere
   uses `threading.Lock`; C++'s mutexes exist for multi-threaded callers
   this single-threaded port has none of (confirmed by search: `rg
@@ -117,6 +127,7 @@ elsewhere (`test_behave_cscore.py`, `test_scoring_base.py`).
 from __future__ import annotations
 
 import copy
+import math
 from typing import TYPE_CHECKING
 
 from pymetta.moses.metapopulation.ensemble import ensemble
@@ -125,19 +136,108 @@ from pymetta.moses.metapopulation.metapop_params import (
     subsample_deme_filter_parameters,
 )
 from pymetta.moses.moses.types import (
+    _to_score_t,
     composite_score,
     score_t,
     scored_combo_tree,
+    scored_combo_tree_equal,
+    scored_combo_tree_hash,
     scored_combo_tree_ptr_set,
     scored_combo_tree_set,
     worst_composite_score,
 )
+from pymetta.util.rng import randGen
+from pymetta.util.selection import roulette_select
 
 if TYPE_CHECKING:
     from pymetta.comboreduct.combo.vertex import combo_tree
     from pymetta.moses.scoring.behave_cscore import behave_cscore
 
 __all__ = ["metapopulation"]
+
+
+_UNEVALUATED_SCORE: score_t = _to_score_t(-1.0e37)
+# C++: moses/moses/metapopulation/metapopulation.cc:128 UNEVALUATED_SCORE
+# `#define UNEVALUATED_SCORE -1.0e37`, local to `select_exemplar`. Used only
+# as a sentinel `highest_score` starts at, immediately overwritten by the
+# first finite candidate score `select_exemplar` sees (`probs` always holds
+# at least one finite entry whenever `found_exemplar` is true) -- its exact
+# narrowed value never otherwise participates in a comparison a real score
+# could win, so the float32 rounding this constant itself picks up is inert.
+
+
+class _visited_exemplars_counter:
+    """Not itself a ported C++ symbol -- backs `_visited_exemplars`
+    (`scored_tree_counter`, metapopulation.h:553-557):
+
+        typedef std::unordered_map<scored_combo_tree, unsigned,
+                                   scored_combo_tree_hash, scored_combo_tree_equal>
+            scored_tree_counter;
+
+    Python cannot use a `scored_combo_tree` as a plain `dict` key at all --
+    `scored_combo_tree.__hash__` is explicitly `None` (types.py), precisely
+    because its own `__eq__` compares tree AND bscore AND cscore, which
+    `scored_combo_tree_hash`/`scored_combo_tree_equal` deliberately do NOT
+    (types.py's own docstrings for both: tree-structure only). This mirrors
+    `scored_combo_tree_set`'s own bucketed-dict implementation (types.py),
+    extended to store a mutable per-entry COUNT rather than just testing
+    membership.
+    """
+
+    __slots__ = ("_buckets",)
+
+    def __init__(self) -> None:
+        self._buckets: dict[int, list[list]] = {}
+
+    def get(self, sct: scored_combo_tree) -> int:
+        """C++: std::unordered_map<...>::operator[] (read use)
+
+        `_visited_exemplars[key]` (metapopulation.cc:116,140), read as a
+        plain `int` -- NON-const `operator[]`, which inserts a fresh
+        zero-value entry for an absent key as a side effect, rather than
+        `find()`'s read-only "not present" answer. Reproduced faithfully
+        (insert-then-return-0, not merely return-0): a later port of
+        `has_been_visited()` (`_visited_exemplars.find(tr) != cend()`,
+        metapopulation.cc:77-79 -- itself out of THIS task's scope, see
+        module docstring) tests PRESENCE, not count, so this exact
+        insert-on-read side effect is what makes an exemplar that was only
+        ever SCANNED (never actually selected) still count as "visited" to
+        that method -- a genuine, if obscure, classic quirk from mixing a
+        non-const accessor into what reads as a query. Not observable
+        anywhere in S11 Task 1's own scope (`has_been_visited` has no
+        caller in `local_moses.cc`/`expand_deme`), ported anyway per this
+        project's "port faithfully" governing rule.
+        """
+        h = scored_combo_tree_hash()(sct)
+        eq = scored_combo_tree_equal()
+        bucket = self._buckets.setdefault(h, [])
+        for entry in bucket:
+            if eq(entry[0], sct):
+                return entry[1]
+        bucket.append([_copy_sct(sct), 0])
+        return 0
+
+    def increment(self, sct: scored_combo_tree) -> None:
+        """C++: std::unordered_map<...>::operator[] then `++`
+
+        `_visited_exemplars[*selex]++` (metapopulation.cc:117,194) --
+        `operator[]` inserts a zero entry if absent (value-initializing
+        `unsigned` to 0), then `++` brings a first-time key to 1. A fresh
+        entry copies `sct` via `_copy_sct` (this module's own helper,
+        already in scope here) rather than aliasing the live pool object,
+        matching every OTHER C++ container this class inserts a
+        `scored_combo_tree` into (see `_copy_sct`'s own docstring) --
+        `std::unordered_map::operator[]`'s insertion path likewise
+        copy-constructs the key from its argument.
+        """
+        h = scored_combo_tree_hash()(sct)
+        eq = scored_combo_tree_equal()
+        bucket = self._buckets.setdefault(h, [])
+        for entry in bucket:
+            if eq(entry[0], sct):
+                entry[1] += 1
+                return
+        bucket.append([_copy_sct(sct), 1])
 
 
 def _copy_sct(sct: scored_combo_tree) -> scored_combo_tree:
@@ -261,12 +361,17 @@ class metapopulation:
         the params passed in).
 
         Fields the C++ constructor also initializes that this task does
-        NOT port -- `_cached_dst`, `_merge_count`, `_visited_exemplars`,
-        `_merge_mutex` -- because every method that reads them is itself
-        out of this task's scope (see this module's own docstring). A
-        later task adding `select_exemplar`/`resize_metapop`/diversity's
-        `set_diversity` should add these alongside those methods, not
-        here.
+        NOT port -- `_cached_dst`, `_merge_count`, `_merge_mutex` --
+        because every method that reads them is itself out of this
+        task's scope (see this module's own docstring). A later task
+        adding `resize_metapop`/diversity's `set_diversity` should add
+        these alongside those methods, not here.
+
+        `_visited_exemplars` (`scored_tree_counter _visited_exemplars;`,
+        metapopulation.h:557, default-constructed to an empty map) IS
+        ported here, by S11 Task 1 -- its only reader/writer,
+        `select_exemplar`, is this same task's own scope (see that
+        method's own docstring for the container this initializes).
         """
         bases: list[combo_tree] = exemplars if isinstance(exemplars, list) else [exemplars]
         self._params = pa if pa is not None else metapop_parameters()
@@ -278,6 +383,7 @@ class metapopulation:
         self._scored_trees = scored_combo_tree_ptr_set()
         self._best_candidates = scored_combo_tree_set()
         self._ensemble = ensemble(sc, self._params.ensemble_params)
+        self._visited_exemplars = _visited_exemplars_counter()
         self.init(bases)
 
     def init(self, exemplars: list[combo_tree]) -> None:
@@ -579,12 +685,211 @@ class metapopulation:
         via `erase`+`insert`). The container's own sort order can
         therefore go stale relative to its own comparator immediately
         after `rescore()` runs; nothing in THIS task's scope reads
-        `_scored_trees` assuming it stays sorted after a `rescore()` call
-        (that assumption belongs to `resize_metapop`/`select_exemplar`,
-        both out of scope -- see this module's own docstring), so this is
-        recorded as a known, ported-as-is quirk rather than "fixed" here.
+        `_scored_trees` assuming it stays FRESHLY sorted after a
+        `rescore()` call (that assumption belongs to `resize_metapop`,
+        out of scope -- see this module's own docstring; `select_exemplar`
+        below makes no such assumption either -- it iterates whatever
+        order the container currently holds, exactly as C++'s own
+        `for (const scored_combo_tree &bsct : *this)` does, with no
+        re-sort of its own), so this is recorded as a known, ported-as-is
+        quirk rather than "fixed" here.
         """
         bscorer = self._cscorer._bscorer
         for sct in self._scored_trees:
             new_score = bscorer.sum_bscore(sct.get_bscore())
             sct.get_composite_score().set_score(new_score)
+
+    def end(self) -> scored_combo_tree | None:
+        """C++: moses/moses/metapopulation/metapopulation.h:176 metapopulation::end
+
+            scored_combo_tree_ptr_set::const_iterator end() const {
+                return _scored_trees.end();
+            }
+
+        A one-line delegation to `_scored_trees.end()` -- ported because
+        `expand_deme` (S11 Task 1, `local_moses.py`) compares `select_
+        exemplar()`'s return against it (`local_moses.cc:61`,
+        `exemplar == mp.end()`) -- the ONLY caller of `metapopulation::end`
+        anywhere in `local_moses.cc`/`moses_main.cc`. `begin()`
+        (metapopulation.h:173-175, the same one-line-delegation shape) has
+        ZERO call sites in that same file set (verified by grep) and is
+        therefore NOT ported alongside it -- adding it would be scope
+        creep with nothing in S11 Task 1 to exercise it.
+
+        # DIVERGENCE(C++ moses/moses/metapopulation/metapopulation.h:176):
+        # a real `scored_combo_tree_ptr_set::const_iterator` is a distinct
+        # value from every DEREFERENCEABLE iterator, comparable to one via
+        # `operator==` without ever being confused for a valid element.
+        # This port has no iterator type over `_sct_comparator_set`
+        # (types.py) at all -- `select_exemplar` below returns the
+        # DEREFERENCED `scored_combo_tree` itself (or `None`) rather than
+        # an iterator wrapping it, the same "Python has no pointer/iterator
+        # ownership, use the plain object" simplification `_sct_comparator_
+        # set`'s own docstring already makes for `boost::ptr_set`. `None`
+        # is therefore this port's `end()` sentinel: it can never compare
+        # equal to a real `scored_combo_tree` (`scored_combo_tree.__eq__`
+        # returns `NotImplemented` for a non-`scored_combo_tree` operand,
+        # types.py, which Python resolves to `False` here), exactly the
+        # property a real `end()` iterator has against every real element.
+        """
+        return None
+
+    def select_exemplar(self) -> scored_combo_tree | None:
+        """C++: moses/moses/metapopulation/metapopulation.cc:105 metapopulation::select_exemplar
+
+        "Select the exemplar from the population, using the diversity
+        penalty and the deme it spawns" -- more precisely, per
+        metapopulation.h:154-169's own doc comment (condensed): "select
+        the exemplar to build the neighborhood for the next deme ...
+        computed according to a Boltzmann distribution: the fitter the
+        candidate, the more likely it is to be selected ... If an exemplar
+        already has a deme, and its parameters (revisit) don't allow it to
+        be selected more than once, it is discarded from the search."
+
+        Returns the DEREFERENCED `scored_combo_tree` chosen (or `None`,
+        this port's `end()` sentinel -- see that method's own docstring)
+        rather than a C++ iterator, the same simplification used
+        throughout this port wherever a caller only ever dereferences a
+        returned iterator or compares it against `end()` (`expand_deme`,
+        `local_moses.py`, does exactly both: `exemplar->get_tree()` and
+        `exemplar == mp.end()`).
+
+        `OC_ASSERT(!empty(), ...)` (metapopulation.cc:106) -- ported as an
+        explicit `AssertionError`, the same convention every other bare
+        `OC_ASSERT` in this port's scope uses (e.g. `deme_expander.py`'s
+        three `create_demes` guards).
+
+        ## The `size() == 1` shortcut (metapopulation.cc:110-122)
+
+        "Shortcut for special case, as sometimes, the very first time
+        though, the score is invalid" (the C++ comment, verbatim). With
+        exactly one candidate in the pool, no roulette selection is
+        needed: either that one candidate is still revisitable (per
+        `_params.revisit`, see below) and gets selected (incrementing its
+        visit count), or it has been visited enough and `end()` is
+        returned.
+
+        ## The general case (metapopulation.cc:124-196)
+
+        For each candidate, in `_scored_trees`'s own `sct_score_greater`
+        order (best-score first -- `ordered = list(self._scored_trees)`,
+        the direct Python analogue of iterating `*this` via `begin()`/
+        `end()`): if its penalized score is finite AND it has not been
+        visited too often yet (the SAME revisit test the shortcut uses),
+        its score joins `probs`; otherwise a NaN placeholder joins `probs`
+        instead (metapopulation.cc:135-149) -- `probs` and `ordered` stay
+        INDEX-ALIGNED throughout, which is what lets `roulette_select`'s
+        returned index double as an index into `ordered` too.
+
+        The REVISIT test itself, both here and in the shortcut above:
+        `_params.revisit < 0` means "unlimited revisits" (metapop_params.h:
+        186-187's own comment, "If negative then the number of revisit is
+        infinite"); otherwise a candidate may be selected as long as it has
+        been visited STRICTLY FEWER than `_params.revisit + 1` times so far
+        -- `revisit=0` (the default) therefore means "visited at most
+        once", matching metapop_params.h:185-186's comment exactly ("If 0
+        then an exemplar can only be visited once").
+
+        `_visited_exemplars[bsct]`/`[*selex]` (metapopulation.cc:140,116,
+        194) are all NON-const `operator[]` READS or increments -- ported
+        via `_visited_exemplars_counter.get`/`.increment` respectively
+        (this module's own helper; see its docstring for the insert-on-
+        read side effect it faithfully reproduces).
+
+        If NO candidate qualifies (`found_exemplar` stays `False` --
+        metapopulation.cc:151-154), `end()` is returned immediately: no
+        roulette selection is attempted, matching C++ exactly (it never
+        even computes `probs`' probabilities in this case).
+
+        Otherwise, `probs` (still holding raw penalized scores and NaN
+        placeholders) is converted into a genuine, non-normalized Boltzmann
+        distribution (metapopulation.cc:156-176): "Empirical work on
+        4-parity suggests that a temperature of 3 or 4 works best" (the
+        C++ comment). Every arithmetic step here is `score_t`-typed in
+        C++ (`inv_temp`, `p`, `sum` are all declared `score_t`/`float`) and
+        is narrowed via `_to_score_t` at EVERY individual step below, not
+        merely once at the end -- `sum` in particular is a running `score_t`
+        ACCUMULATOR in C++ (`sum += p` is a float32 in-place update,
+        re-read by the NEXT iteration), so narrowing only the final total
+        would let double-precision rounding leak into intermediate state a
+        real `score_t sum` could never actually hold (the same reasoning
+        `merging.py`'s diversity-distance helpers already apply to their own
+        running `score_t` accumulators, `metapop_params.py`).
+
+        `OC_ASSERT(sum > 0.0f, ...)` (metapopulation.cc:181) is ported as
+        an explicit `AssertionError` -- unreachable in practice (whenever
+        `found_exemplar` is `True`, at least one included candidate has
+        `p - highest_score == 0`, i.e. `exp(0) == 1 > 0`, so `sum` can
+        never end up `<= 0`), kept anyway as a faithful transcription of a
+        real invariant check C++ itself keeps.
+
+        `roulette_select(probs.begin(), probs.end(), sum, randGen())`
+        (metapopulation.cc:186-187) -- ported via `pymetta.util.selection.
+        roulette_select`, this task's other new module; see its own
+        docstring for why it returns an index directly rather than an
+        iterator `std::distance` would still need unwrapping.
+        `std::next(_scored_trees.begin(), fwd)` (metapopulation.cc:191) is
+        then simply `ordered[fwd]`, since `ordered` and `probs` share the
+        same index space by construction above.
+
+        `log_selected_exemplar` (metapopulation.cc:81-93,121,152,196) is
+        NOT ported -- logging-only, no observable effect (module
+        docstring's "no logging surface" convention); the POSITION/visit-
+        count values it would print have no effect on control flow.
+        """
+        if self.empty():
+            raise AssertionError("Empty metapopulation in select_exemplar().")
+
+        ordered: list[scored_combo_tree] = list(self._scored_trees)
+
+        if len(ordered) == 1:
+            selex: scored_combo_tree | None = ordered[0]
+            if self._params.revisit < 0 or (
+                self._params.revisit + 1 > self._visited_exemplars.get(selex)
+            ):
+                self._visited_exemplars.increment(selex)
+            else:
+                selex = None
+            return selex
+
+        probs: list[score_t] = []
+        found_exemplar = False
+        highest_score: score_t = _UNEVALUATED_SCORE
+
+        for bsct in ordered:
+            sc = bsct.get_penalized_score()
+            if math.isfinite(sc) and (
+                self._params.revisit < 0
+                or self._params.revisit + 1 > self._visited_exemplars.get(bsct)
+            ):
+                probs.append(sc)
+                found_exemplar = True
+                if highest_score < sc:
+                    highest_score = sc
+            else:
+                probs.append(math.nan)
+
+        if not found_exemplar:
+            return None
+
+        inv_temp: score_t = _to_score_t(100.0 / self._params.complexity_temperature)
+        total: score_t = _to_score_t(0.0)
+        for i, p in enumerate(probs):
+            if math.isfinite(p):
+                val: score_t = _to_score_t(
+                    math.exp(_to_score_t(_to_score_t(p - highest_score) * inv_temp))
+                )
+            else:
+                val = _to_score_t(0.0)
+            probs[i] = val
+            total = _to_score_t(total + val)
+
+        if not (total > 0.0):
+            raise AssertionError("There is an internal bug, please fix it")
+
+        fwd = roulette_select(probs, total, randGen())
+        selex = ordered[fwd]
+
+        self._visited_exemplars.increment(selex)
+
+        return selex
