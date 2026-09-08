@@ -541,20 +541,18 @@ Fixed 2026-09-08; full trajectory diff, the ruled-out list and the mutation
 table are in
 `.superpowers/sdd/2026-09-08-pymetta-s13-cli/parity-divergence-report.md`.
 
-**`git log` will lie about who made this fix.** It landed inside commit
-`e3e6e76` ("P2 scorers: port precision_bscore"), because a concurrent agent
-ran `git commit` on the shared index in the window between this task's
-`git add <pathspec>` and its own `git commit`. Nothing was lost and the
-history was deliberately NOT rewritten (another agent was actively
-committing to the same branch), but `build_knobs.py`, `vertex.py`,
-`representation.py`, `test_pa_parity_regression.py` and this section are
-not scorer work. **The pathspec discipline is not enough on a shared
-branch: `git add <paths>` then `git commit` is a two-step race. Use the
-one-step `git commit -- <paths>`, which ignores the index entirely.**
-The `MOSESUTest` classification in Sec 3 above is stale as a result:
-`test_2_parity` and `test_2_parity_with_labels` now pass, and
-`test_3_parity_multi_thread`'s single-threaded core (`-Hpa -k3`) reaches
-score 0 with classic's own `-r1` tree.
+**Concurrency hazard, seen live on this branch (2026-09-08).** This fix is
+commit `1ddb097` -- but it first landed, twice, inside a concurrent agent's
+scorer commit, because `git add <paths>` followed by `git commit` is a
+TWO-STEP RACE on a shared index: the other agent's `git commit` (and later
+its `reset`/re-commit) picked up whatever this task had staged in between.
+The project's "explicit pathspecs, never `git add -A`" rule is necessary
+and not sufficient. **Use the one-step `git commit -F msg -- <paths>`,
+which ignores the index entirely**; `git add` only for genuinely new files,
+in the same shell invocation as the commit. Related: do NOT `git stash` on
+a shared branch either -- a `git stash push --include-untracked -- <paths>`
+here swallowed another agent's in-flight untracked file and the pop then
+aborted on a generated doc, leaving a partially-restored tree.
 
 ## 6. Process notes that paid for themselves
 
