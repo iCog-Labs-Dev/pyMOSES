@@ -855,3 +855,54 @@ def test_hc_parameters_pins_every_documented_default():
     assert hcp.max_allowed_instances == 10000
     assert hcp.resize_to_fit_ram is False
     assert hcp.prefix_stat_deme == ""
+
+
+def _deme_of(fs, n, cs_factory):
+    deme = instance_set(fs)
+    for _ in range(n):
+        deme.append(scored_instance(instance(fs.packed_width()), cs_factory()))
+    return deme
+
+
+def test_resize_deme_counts_bad_scores_by_penalized_not_raw_score():
+    """Pins `get_penalized_score()` at hill-climbing.cc:790.
+
+    C++ reads `score_t iscore = si.second.get_penalized_score();` inside
+    `resize_deme`'s counting loop (hill-climbing.cc:789-793), NOT
+    `get_score()`. Every instance here scores raw -1.0 with a complexity
+    penalty of 5.0, so its penalized score is -6.0: below the -5.0 cutoff
+    (`best_score 0.0 - score_range 5.0`) by the penalized measure and above
+    it by the raw one. With 501 of them, `bad_score_cnt` is 501 > 500
+    (`DONT_BOTHER_SIZE`, hill-climbing.cc:799) under C++'s reading and 0
+    under the mutant's, so only the faithful version resizes.
+
+    Found by the controller after the S9 coverage round: swapping
+    `get_penalized_score()` for `get_score()` here survived the whole
+    suite, because every other resize_deme test uses a zero penalty and so
+    cannot tell the two apart.
+    """
+    fs = field_set(disc_spec(2), 1)
+    deme = _deme_of(fs, 501, lambda: composite_score(-1.0, 3, 5.0, 0.0))
+
+    hc = hill_climbing(optim_parameters(), hc_parameters(cross=False))
+    assert hc.resize_deme(deme, 0.0) is True
+
+
+def test_resize_deme_treats_a_score_exactly_at_the_cutoff_as_bad():
+    """Pins the `<=` at hill-climbing.cc:791 (`if (iscore <= cutoff)`).
+
+    The boundary is only observable when a penalized score lands exactly on
+    `cutoff`. Here `best_score 0.0 - score_range 5.0` gives a cutoff of
+    -5.0, and every instance's penalized score is exactly -5.0, so `<=`
+    counts all 501 (> `DONT_BOTHER_SIZE` 500, resize fires) while `<`
+    counts none (no resize).
+
+    Exact equality is safe to rely on: `cutoff` is `_to_score_t(0.0 - 5.0)`
+    and -5.0 is exactly representable in binary32, so no rounding separates
+    the two sides.
+    """
+    fs = field_set(disc_spec(2), 1)
+    deme = _deme_of(fs, 501, lambda: composite_score(-5.0, 0, 0.0, 0.0))
+
+    hc = hill_climbing(optim_parameters(), hc_parameters(cross=False))
+    assert hc.resize_deme(deme, 0.0) is True
