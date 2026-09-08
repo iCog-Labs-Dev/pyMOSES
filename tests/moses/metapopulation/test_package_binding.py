@@ -21,11 +21,24 @@ import pytest
 _REPO_ROOT = Path(__file__).resolve().parents[3]
 
 # Attached by merging.py's setattr; absent unless merging is imported.
+# All 13 grafts (merging.py:895-907) -- pinning only a subset would let a
+# partial regression of commit 9b909c9 (which made this attachment
+# unconditional) pass silently for whichever grafts happened not to be
+# checked.
 _MERGING_METHODS = [
-    "merge_demes",
+    "_min_pool_size",
+    "useful_score_range",
+    "trim_down_deme",
+    "deme_to_trees",
     "merge_candidates",
-    "keep_top_unique_candidates",
+    "merge_demes",
     "resize_metapop",
+    "get_new_candidates",
+    "sort_demes",
+    "keep_top_unique_candidates",
+    "recompute_scores_over_whole_dataset",
+    "ss_filter",
+    "log_best_candidates",
 ]
 
 
