@@ -107,7 +107,10 @@ silently no-ops.
 `composite_score::operator<`'s tie-break-by-complexity branch. Narrow exactly as
 the 14 existing traced sites do (CARRY-FORWARD §4.2).
 
-**Exit:** `metapopulationUTest`'s scenarios reproduce.
+**Exit:** the constructor, `init`'s default-path scoring and insertion,
+`_scored_trees` ordering and `update_best_candidates`' tie-break match a
+purpose-built bounded probe (`tools/cpp_probe/metapop_core_probe.cc`).
+`metapopulationUTest` does NOT cover this scope — see the oracle section.
 
 ## Task 3: `merging.cc` — the largest file (679 lines)
 
