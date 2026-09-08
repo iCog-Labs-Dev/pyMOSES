@@ -276,6 +276,41 @@ def parse_divergences(path: Path) -> list[Divergence]:
     return divergences
 
 
+def unparsed_divergence_markers(path: Path) -> list[int]:
+    """Return the 1-based line numbers in `path` that OPEN a
+    `# DIVERGENCE(` marker but that `parse_divergences` did not turn into a
+    `Divergence` -- i.e. markers that would be silently dropped from
+    docs/ALIGNMENT.md.
+
+    Why this exists (S12): a marker is dropped whenever `_read_marker`
+    cannot find `"):"` inside the marker's own comment run, which is
+    exactly what happens to the natural-looking
+
+        # DIVERGENCE(C++ some/file.cc:687) / DO NOT FIX: ...
+
+    form -- the reference closes with `) /`, never `):`. Two markers in
+    `hill_climbing.py` were written that way and had been missing from
+    ALIGNMENT.md ever since, undetected, because nothing counted markers
+    against parsed results. That is the same failure mode
+    docs/CARRY-FORWARD.md Sec 5 records for the 49 markers lost earlier in
+    this cycle: a dropped marker makes a file LOOK faithful, which is worse
+    than a marker that is merely badly worded.
+
+    Only lines whose first non-whitespace character is `#` count as
+    markers, so prose that merely MENTIONS the syntax inside a docstring
+    (`... not a `# DIVERGENCE(C++ ...)` marker`, interpreter.py:22) is not
+    a false positive.
+    """
+    lines = path.read_text().splitlines()
+    opened = [
+        i + 1
+        for i, line in enumerate(lines)
+        if line.lstrip(" \t").startswith("#") and DIVERGENCE_START_RE.search(line)
+    ]
+    parsed = {d.line for d in parse_divergences(path)}
+    return [line_no for line_no in opened if line_no not in parsed]
+
+
 def coverage(pkg_root: Path) -> dict[str, tuple[int, int]]:
     """Map each module under `pkg_root` to (symbols with breadcrumbs, total
     public symbols), where a symbol is a FunctionDef/AsyncFunctionDef/ClassDef
@@ -375,6 +410,14 @@ def main(argv: list[str]) -> int:
         divergences.extend(parse_divergences(py_file))
 
     problems = validate(crumbs, CLASSIC_ROOTS)
+    for py_file in sorted(PYMETTA_ROOT.rglob("*.py")):
+        for line_no in unparsed_divergence_markers(py_file):
+            problems.append(
+                f"{py_file}:{line_no}: DIVERGENCE marker is not parseable and would be "
+                f"silently dropped from {ALIGNMENT_DOC.name}; write it as "
+                f"`# DIVERGENCE(C++ <ref>): <reason>` (the reference must close with `):`, "
+                f"so put a `DO NOT FIX` note AFTER the colon, not between `)` and `:`)"
+            )
     for problem in problems:
         print(problem)
 
