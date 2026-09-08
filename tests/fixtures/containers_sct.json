@@ -1,0 +1,791 @@
+{
+  "names": [
+    "a-worse-score",
+    "b-better-score",
+    "c-tie-score-high-complexity",
+    "d-tie-score-low-complexity",
+    "e-tie-everything-bigger-tree",
+    "f-tie-everything-arg1",
+    "g-tie-everything-arg2",
+    "h-tie-everything-nan-leaf",
+    "i-tie-everything-five-leaf"
+  ],
+  "sct_score_greater_pairs": [
+    {
+      "a": "a-worse-score",
+      "b": "b-better-score",
+      "gt": false
+    },
+    {
+      "a": "a-worse-score",
+      "b": "c-tie-score-high-complexity",
+      "gt": false
+    },
+    {
+      "a": "a-worse-score",
+      "b": "d-tie-score-low-complexity",
+      "gt": false
+    },
+    {
+      "a": "a-worse-score",
+      "b": "e-tie-everything-bigger-tree",
+      "gt": false
+    },
+    {
+      "a": "a-worse-score",
+      "b": "f-tie-everything-arg1",
+      "gt": false
+    },
+    {
+      "a": "a-worse-score",
+      "b": "g-tie-everything-arg2",
+      "gt": false
+    },
+    {
+      "a": "a-worse-score",
+      "b": "h-tie-everything-nan-leaf",
+      "gt": false
+    },
+    {
+      "a": "a-worse-score",
+      "b": "i-tie-everything-five-leaf",
+      "gt": false
+    },
+    {
+      "a": "b-better-score",
+      "b": "a-worse-score",
+      "gt": true
+    },
+    {
+      "a": "b-better-score",
+      "b": "c-tie-score-high-complexity",
+      "gt": true
+    },
+    {
+      "a": "b-better-score",
+      "b": "d-tie-score-low-complexity",
+      "gt": true
+    },
+    {
+      "a": "b-better-score",
+      "b": "e-tie-everything-bigger-tree",
+      "gt": true
+    },
+    {
+      "a": "b-better-score",
+      "b": "f-tie-everything-arg1",
+      "gt": true
+    },
+    {
+      "a": "b-better-score",
+      "b": "g-tie-everything-arg2",
+      "gt": true
+    },
+    {
+      "a": "b-better-score",
+      "b": "h-tie-everything-nan-leaf",
+      "gt": true
+    },
+    {
+      "a": "b-better-score",
+      "b": "i-tie-everything-five-leaf",
+      "gt": true
+    },
+    {
+      "a": "c-tie-score-high-complexity",
+      "b": "a-worse-score",
+      "gt": true
+    },
+    {
+      "a": "c-tie-score-high-complexity",
+      "b": "b-better-score",
+      "gt": false
+    },
+    {
+      "a": "c-tie-score-high-complexity",
+      "b": "d-tie-score-low-complexity",
+      "gt": false
+    },
+    {
+      "a": "c-tie-score-high-complexity",
+      "b": "e-tie-everything-bigger-tree",
+      "gt": false
+    },
+    {
+      "a": "c-tie-score-high-complexity",
+      "b": "f-tie-everything-arg1",
+      "gt": false
+    },
+    {
+      "a": "c-tie-score-high-complexity",
+      "b": "g-tie-everything-arg2",
+      "gt": false
+    },
+    {
+      "a": "c-tie-score-high-complexity",
+      "b": "h-tie-everything-nan-leaf",
+      "gt": false
+    },
+    {
+      "a": "c-tie-score-high-complexity",
+      "b": "i-tie-everything-five-leaf",
+      "gt": false
+    },
+    {
+      "a": "d-tie-score-low-complexity",
+      "b": "a-worse-score",
+      "gt": true
+    },
+    {
+      "a": "d-tie-score-low-complexity",
+      "b": "b-better-score",
+      "gt": false
+    },
+    {
+      "a": "d-tie-score-low-complexity",
+      "b": "c-tie-score-high-complexity",
+      "gt": true
+    },
+    {
+      "a": "d-tie-score-low-complexity",
+      "b": "e-tie-everything-bigger-tree",
+      "gt": true
+    },
+    {
+      "a": "d-tie-score-low-complexity",
+      "b": "f-tie-everything-arg1",
+      "gt": true
+    },
+    {
+      "a": "d-tie-score-low-complexity",
+      "b": "g-tie-everything-arg2",
+      "gt": true
+    },
+    {
+      "a": "d-tie-score-low-complexity",
+      "b": "h-tie-everything-nan-leaf",
+      "gt": false
+    },
+    {
+      "a": "d-tie-score-low-complexity",
+      "b": "i-tie-everything-five-leaf",
+      "gt": false
+    },
+    {
+      "a": "e-tie-everything-bigger-tree",
+      "b": "a-worse-score",
+      "gt": true
+    },
+    {
+      "a": "e-tie-everything-bigger-tree",
+      "b": "b-better-score",
+      "gt": false
+    },
+    {
+      "a": "e-tie-everything-bigger-tree",
+      "b": "c-tie-score-high-complexity",
+      "gt": true
+    },
+    {
+      "a": "e-tie-everything-bigger-tree",
+      "b": "d-tie-score-low-complexity",
+      "gt": false
+    },
+    {
+      "a": "e-tie-everything-bigger-tree",
+      "b": "f-tie-everything-arg1",
+      "gt": false
+    },
+    {
+      "a": "e-tie-everything-bigger-tree",
+      "b": "g-tie-everything-arg2",
+      "gt": false
+    },
+    {
+      "a": "e-tie-everything-bigger-tree",
+      "b": "h-tie-everything-nan-leaf",
+      "gt": false
+    },
+    {
+      "a": "e-tie-everything-bigger-tree",
+      "b": "i-tie-everything-five-leaf",
+      "gt": false
+    },
+    {
+      "a": "f-tie-everything-arg1",
+      "b": "a-worse-score",
+      "gt": true
+    },
+    {
+      "a": "f-tie-everything-arg1",
+      "b": "b-better-score",
+      "gt": false
+    },
+    {
+      "a": "f-tie-everything-arg1",
+      "b": "c-tie-score-high-complexity",
+      "gt": true
+    },
+    {
+      "a": "f-tie-everything-arg1",
+      "b": "d-tie-score-low-complexity",
+      "gt": false
+    },
+    {
+      "a": "f-tie-everything-arg1",
+      "b": "e-tie-everything-bigger-tree",
+      "gt": true
+    },
+    {
+      "a": "f-tie-everything-arg1",
+      "b": "g-tie-everything-arg2",
+      "gt": true
+    },
+    {
+      "a": "f-tie-everything-arg1",
+      "b": "h-tie-everything-nan-leaf",
+      "gt": false
+    },
+    {
+      "a": "f-tie-everything-arg1",
+      "b": "i-tie-everything-five-leaf",
+      "gt": false
+    },
+    {
+      "a": "g-tie-everything-arg2",
+      "b": "a-worse-score",
+      "gt": true
+    },
+    {
+      "a": "g-tie-everything-arg2",
+      "b": "b-better-score",
+      "gt": false
+    },
+    {
+      "a": "g-tie-everything-arg2",
+      "b": "c-tie-score-high-complexity",
+      "gt": true
+    },
+    {
+      "a": "g-tie-everything-arg2",
+      "b": "d-tie-score-low-complexity",
+      "gt": false
+    },
+    {
+      "a": "g-tie-everything-arg2",
+      "b": "e-tie-everything-bigger-tree",
+      "gt": true
+    },
+    {
+      "a": "g-tie-everything-arg2",
+      "b": "f-tie-everything-arg1",
+      "gt": false
+    },
+    {
+      "a": "g-tie-everything-arg2",
+      "b": "h-tie-everything-nan-leaf",
+      "gt": false
+    },
+    {
+      "a": "g-tie-everything-arg2",
+      "b": "i-tie-everything-five-leaf",
+      "gt": false
+    },
+    {
+      "a": "h-tie-everything-nan-leaf",
+      "b": "a-worse-score",
+      "gt": true
+    },
+    {
+      "a": "h-tie-everything-nan-leaf",
+      "b": "b-better-score",
+      "gt": false
+    },
+    {
+      "a": "h-tie-everything-nan-leaf",
+      "b": "c-tie-score-high-complexity",
+      "gt": true
+    },
+    {
+      "a": "h-tie-everything-nan-leaf",
+      "b": "d-tie-score-low-complexity",
+      "gt": true
+    },
+    {
+      "a": "h-tie-everything-nan-leaf",
+      "b": "e-tie-everything-bigger-tree",
+      "gt": true
+    },
+    {
+      "a": "h-tie-everything-nan-leaf",
+      "b": "f-tie-everything-arg1",
+      "gt": true
+    },
+    {
+      "a": "h-tie-everything-nan-leaf",
+      "b": "g-tie-everything-arg2",
+      "gt": true
+    },
+    {
+      "a": "h-tie-everything-nan-leaf",
+      "b": "i-tie-everything-five-leaf",
+      "gt": false
+    },
+    {
+      "a": "i-tie-everything-five-leaf",
+      "b": "a-worse-score",
+      "gt": true
+    },
+    {
+      "a": "i-tie-everything-five-leaf",
+      "b": "b-better-score",
+      "gt": false
+    },
+    {
+      "a": "i-tie-everything-five-leaf",
+      "b": "c-tie-score-high-complexity",
+      "gt": true
+    },
+    {
+      "a": "i-tie-everything-five-leaf",
+      "b": "d-tie-score-low-complexity",
+      "gt": true
+    },
+    {
+      "a": "i-tie-everything-five-leaf",
+      "b": "e-tie-everything-bigger-tree",
+      "gt": true
+    },
+    {
+      "a": "i-tie-everything-five-leaf",
+      "b": "f-tie-everything-arg1",
+      "gt": true
+    },
+    {
+      "a": "i-tie-everything-five-leaf",
+      "b": "g-tie-everything-arg2",
+      "gt": true
+    },
+    {
+      "a": "i-tie-everything-five-leaf",
+      "b": "h-tie-everything-nan-leaf",
+      "gt": false
+    }
+  ],
+  "sct_tree_greater_pairs": [
+    {
+      "a": "a-worse-score",
+      "b": "b-better-score",
+      "gt": false
+    },
+    {
+      "a": "a-worse-score",
+      "b": "c-tie-score-high-complexity",
+      "gt": false
+    },
+    {
+      "a": "a-worse-score",
+      "b": "d-tie-score-low-complexity",
+      "gt": false
+    },
+    {
+      "a": "a-worse-score",
+      "b": "e-tie-everything-bigger-tree",
+      "gt": true
+    },
+    {
+      "a": "a-worse-score",
+      "b": "f-tie-everything-arg1",
+      "gt": true
+    },
+    {
+      "a": "a-worse-score",
+      "b": "g-tie-everything-arg2",
+      "gt": true
+    },
+    {
+      "a": "a-worse-score",
+      "b": "h-tie-everything-nan-leaf",
+      "gt": false
+    },
+    {
+      "a": "a-worse-score",
+      "b": "i-tie-everything-five-leaf",
+      "gt": false
+    },
+    {
+      "a": "b-better-score",
+      "b": "a-worse-score",
+      "gt": false
+    },
+    {
+      "a": "b-better-score",
+      "b": "c-tie-score-high-complexity",
+      "gt": false
+    },
+    {
+      "a": "b-better-score",
+      "b": "d-tie-score-low-complexity",
+      "gt": false
+    },
+    {
+      "a": "b-better-score",
+      "b": "e-tie-everything-bigger-tree",
+      "gt": true
+    },
+    {
+      "a": "b-better-score",
+      "b": "f-tie-everything-arg1",
+      "gt": true
+    },
+    {
+      "a": "b-better-score",
+      "b": "g-tie-everything-arg2",
+      "gt": true
+    },
+    {
+      "a": "b-better-score",
+      "b": "h-tie-everything-nan-leaf",
+      "gt": false
+    },
+    {
+      "a": "b-better-score",
+      "b": "i-tie-everything-five-leaf",
+      "gt": false
+    },
+    {
+      "a": "c-tie-score-high-complexity",
+      "b": "a-worse-score",
+      "gt": false
+    },
+    {
+      "a": "c-tie-score-high-complexity",
+      "b": "b-better-score",
+      "gt": false
+    },
+    {
+      "a": "c-tie-score-high-complexity",
+      "b": "d-tie-score-low-complexity",
+      "gt": false
+    },
+    {
+      "a": "c-tie-score-high-complexity",
+      "b": "e-tie-everything-bigger-tree",
+      "gt": true
+    },
+    {
+      "a": "c-tie-score-high-complexity",
+      "b": "f-tie-everything-arg1",
+      "gt": true
+    },
+    {
+      "a": "c-tie-score-high-complexity",
+      "b": "g-tie-everything-arg2",
+      "gt": true
+    },
+    {
+      "a": "c-tie-score-high-complexity",
+      "b": "h-tie-everything-nan-leaf",
+      "gt": false
+    },
+    {
+      "a": "c-tie-score-high-complexity",
+      "b": "i-tie-everything-five-leaf",
+      "gt": false
+    },
+    {
+      "a": "d-tie-score-low-complexity",
+      "b": "a-worse-score",
+      "gt": false
+    },
+    {
+      "a": "d-tie-score-low-complexity",
+      "b": "b-better-score",
+      "gt": false
+    },
+    {
+      "a": "d-tie-score-low-complexity",
+      "b": "c-tie-score-high-complexity",
+      "gt": false
+    },
+    {
+      "a": "d-tie-score-low-complexity",
+      "b": "e-tie-everything-bigger-tree",
+      "gt": true
+    },
+    {
+      "a": "d-tie-score-low-complexity",
+      "b": "f-tie-everything-arg1",
+      "gt": true
+    },
+    {
+      "a": "d-tie-score-low-complexity",
+      "b": "g-tie-everything-arg2",
+      "gt": true
+    },
+    {
+      "a": "d-tie-score-low-complexity",
+      "b": "h-tie-everything-nan-leaf",
+      "gt": false
+    },
+    {
+      "a": "d-tie-score-low-complexity",
+      "b": "i-tie-everything-five-leaf",
+      "gt": false
+    },
+    {
+      "a": "e-tie-everything-bigger-tree",
+      "b": "a-worse-score",
+      "gt": false
+    },
+    {
+      "a": "e-tie-everything-bigger-tree",
+      "b": "b-better-score",
+      "gt": false
+    },
+    {
+      "a": "e-tie-everything-bigger-tree",
+      "b": "c-tie-score-high-complexity",
+      "gt": false
+    },
+    {
+      "a": "e-tie-everything-bigger-tree",
+      "b": "d-tie-score-low-complexity",
+      "gt": false
+    },
+    {
+      "a": "e-tie-everything-bigger-tree",
+      "b": "f-tie-everything-arg1",
+      "gt": false
+    },
+    {
+      "a": "e-tie-everything-bigger-tree",
+      "b": "g-tie-everything-arg2",
+      "gt": false
+    },
+    {
+      "a": "e-tie-everything-bigger-tree",
+      "b": "h-tie-everything-nan-leaf",
+      "gt": false
+    },
+    {
+      "a": "e-tie-everything-bigger-tree",
+      "b": "i-tie-everything-five-leaf",
+      "gt": false
+    },
+    {
+      "a": "f-tie-everything-arg1",
+      "b": "a-worse-score",
+      "gt": false
+    },
+    {
+      "a": "f-tie-everything-arg1",
+      "b": "b-better-score",
+      "gt": false
+    },
+    {
+      "a": "f-tie-everything-arg1",
+      "b": "c-tie-score-high-complexity",
+      "gt": false
+    },
+    {
+      "a": "f-tie-everything-arg1",
+      "b": "d-tie-score-low-complexity",
+      "gt": false
+    },
+    {
+      "a": "f-tie-everything-arg1",
+      "b": "e-tie-everything-bigger-tree",
+      "gt": true
+    },
+    {
+      "a": "f-tie-everything-arg1",
+      "b": "g-tie-everything-arg2",
+      "gt": true
+    },
+    {
+      "a": "f-tie-everything-arg1",
+      "b": "h-tie-everything-nan-leaf",
+      "gt": false
+    },
+    {
+      "a": "f-tie-everything-arg1",
+      "b": "i-tie-everything-five-leaf",
+      "gt": false
+    },
+    {
+      "a": "g-tie-everything-arg2",
+      "b": "a-worse-score",
+      "gt": false
+    },
+    {
+      "a": "g-tie-everything-arg2",
+      "b": "b-better-score",
+      "gt": false
+    },
+    {
+      "a": "g-tie-everything-arg2",
+      "b": "c-tie-score-high-complexity",
+      "gt": false
+    },
+    {
+      "a": "g-tie-everything-arg2",
+      "b": "d-tie-score-low-complexity",
+      "gt": false
+    },
+    {
+      "a": "g-tie-everything-arg2",
+      "b": "e-tie-everything-bigger-tree",
+      "gt": true
+    },
+    {
+      "a": "g-tie-everything-arg2",
+      "b": "f-tie-everything-arg1",
+      "gt": false
+    },
+    {
+      "a": "g-tie-everything-arg2",
+      "b": "h-tie-everything-nan-leaf",
+      "gt": false
+    },
+    {
+      "a": "g-tie-everything-arg2",
+      "b": "i-tie-everything-five-leaf",
+      "gt": false
+    },
+    {
+      "a": "h-tie-everything-nan-leaf",
+      "b": "a-worse-score",
+      "gt": true
+    },
+    {
+      "a": "h-tie-everything-nan-leaf",
+      "b": "b-better-score",
+      "gt": true
+    },
+    {
+      "a": "h-tie-everything-nan-leaf",
+      "b": "c-tie-score-high-complexity",
+      "gt": true
+    },
+    {
+      "a": "h-tie-everything-nan-leaf",
+      "b": "d-tie-score-low-complexity",
+      "gt": true
+    },
+    {
+      "a": "h-tie-everything-nan-leaf",
+      "b": "e-tie-everything-bigger-tree",
+      "gt": true
+    },
+    {
+      "a": "h-tie-everything-nan-leaf",
+      "b": "f-tie-everything-arg1",
+      "gt": true
+    },
+    {
+      "a": "h-tie-everything-nan-leaf",
+      "b": "g-tie-everything-arg2",
+      "gt": true
+    },
+    {
+      "a": "h-tie-everything-nan-leaf",
+      "b": "i-tie-everything-five-leaf",
+      "gt": false
+    },
+    {
+      "a": "i-tie-everything-five-leaf",
+      "b": "a-worse-score",
+      "gt": true
+    },
+    {
+      "a": "i-tie-everything-five-leaf",
+      "b": "b-better-score",
+      "gt": true
+    },
+    {
+      "a": "i-tie-everything-five-leaf",
+      "b": "c-tie-score-high-complexity",
+      "gt": true
+    },
+    {
+      "a": "i-tie-everything-five-leaf",
+      "b": "d-tie-score-low-complexity",
+      "gt": true
+    },
+    {
+      "a": "i-tie-everything-five-leaf",
+      "b": "e-tie-everything-bigger-tree",
+      "gt": true
+    },
+    {
+      "a": "i-tie-everything-five-leaf",
+      "b": "f-tie-everything-arg1",
+      "gt": true
+    },
+    {
+      "a": "i-tie-everything-five-leaf",
+      "b": "g-tie-everything-arg2",
+      "gt": true
+    },
+    {
+      "a": "i-tie-everything-five-leaf",
+      "b": "h-tie-everything-nan-leaf",
+      "gt": false
+    }
+  ],
+  "ptr_set_insert_order": [
+    "h-tie-everything-nan-leaf",
+    "i-tie-everything-five-leaf",
+    "a-worse-score",
+    "b-better-score",
+    "c-tie-score-high-complexity"
+  ],
+  "ptr_set_insert_results": [
+    true,
+    false,
+    true,
+    true,
+    true
+  ],
+  "ptr_set_size": 4,
+  "ptr_set_order": [
+    {
+      "tree": "and ",
+      "score": -2
+    },
+    {
+      "tree": "nan ",
+      "score": -5
+    },
+    {
+      "tree": "and ",
+      "score": -5
+    },
+    {
+      "tree": "and ",
+      "score": -10
+    }
+  ],
+  "tset_insert_order": [
+    "h-tie-everything-nan-leaf",
+    "i-tie-everything-five-leaf",
+    "a-worse-score",
+    "f-tie-everything-arg1",
+    "g-tie-everything-arg2"
+  ],
+  "tset_insert_results": [
+    true,
+    false,
+    true,
+    true,
+    true
+  ],
+  "tset_size": 4,
+  "unordered_set_insert_results": [
+    true,
+    false,
+    true
+  ],
+  "unordered_set_size": 2
+}

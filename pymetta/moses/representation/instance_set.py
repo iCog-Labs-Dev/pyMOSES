@@ -15,16 +15,14 @@ the aliasing distinction CARRY-FORWARD.md 1.1/2.4 flags: `instance_set(3,
 fs)` must produce three *independent* `composite_score` objects, so scoring
 slot 0 can never be observed through slot 1 or 2.
 
-`demeID_t` (`moses/moses/moses/types.h:190`) is ported here, inline, rather
-than in `pymetta/moses/moses/types.py` where it otherwise belongs: this S9
-task owns only `pymetta/moses/representation/` (a concurrent S9 task owns
-`pymetta/moses/moses/`), and `instance_set` cannot be constructed at all
-without *some* `demeID_t` to default to. Only the subset `instance_set`
-actually calls is ported -- default-construction (`demeID_t()`, used as
-`instance_set`'s own third-constructor default argument) and the two
-numeric-formatting overloads (types.cc:43-50) it composes from. This is the
-"port the minimum required, and say so" case the task brief names for
-`moses/moses/types.{cc,h}` PARTIAL-status gaps.
+`demeID_t` (`moses/moses/moses/types.h:190`) is imported from
+`pymetta.moses.moses.types`, its canonical home -- it USED to be defined
+here, inline, because S9 Task 0 owned only `pymetta/moses/representation/`
+(a concurrent S9 task owned `pymetta/moses/moses/`) and `instance_set`
+could not be constructed at all without *some* `demeID_t` to default to.
+S10 Task 0 moved the class itself to `types.py` (its real C++ location)
+now that both tasks' ownership constraints are gone, updating this and
+every other importer; see `types.py`'s own module docstring for the move.
 """
 
 # DIVERGENCE(C++ moses/moses/representation/instance_set.h:38-46,86-94,
@@ -42,44 +40,10 @@ from __future__ import annotations
 
 from collections.abc import Sequence
 
+from pymetta.moses.moses.types import demeID_t
 from pymetta.moses.representation.field_set import field_set
 from pymetta.moses.representation.instance import instance
 from pymetta.moses.representation.scored_instance import scored_instance
-
-
-class demeID_t(str):
-    """C++: moses/moses/moses/types.h:190 demeID_t
-
-    See this module's own docstring for why this lives here rather than in
-    `pymetta/moses/moses/types.py`. `struct demeID_t : public std::string`
-    with three numbered constructors (types.h:192-194); Python subclasses
-    `str` the same way `instance.py` subclasses `list` for `std::vector`.
-    """
-
-    def __new__(
-        cls,
-        expansion: int = 0,
-        breadth_first: int | None = None,
-        ss_deme: int | None = None,
-    ) -> demeID_t:
-        """C++: moses/moses/moses/types.cc:43 demeID_t::demeID_t
-
-        Three overloads by trailing-argument presence, matching
-        types.cc:43-50 exactly: `str(expansion)`,
-        `f"{expansion}.{breadth_first}"`, or
-        `f"{expansion}.{breadth_first}.SS-{ss_deme}"`. `demeID_t()` (the
-        default used throughout this module) is `demeID_t(0)` == `"0"`,
-        not the empty string.
-        """
-        if breadth_first is None:
-            if ss_deme is not None:
-                raise TypeError("demeID_t requires breadth_first before ss_deme")
-            text = str(expansion)
-        elif ss_deme is None:
-            text = f"{expansion}.{breadth_first}"
-        else:
-            text = f"{expansion}.{breadth_first}.SS-{ss_deme}"
-        return super().__new__(cls, text)
 
 
 class _ScoreView(Sequence):

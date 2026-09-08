@@ -19,20 +19,29 @@ NOT ported, all deliberately out of scope for this task:
   directly and stores its CTable as a plain attribute instead of through
   this intermediate base -- exactly what task-6-brief.md's interface line
   (`class ctruth_table_bscore(bscore_base)`) specifies.
-* `operator()(const scored_combo_tree_set&)` (ensemble/boosting scoring)
-  and the whole `_weights`/`use_weighted_scores`/`reset_weights`/
+* The whole `_weights`/`use_weighted_scores`/`reset_weights`/
   `update_weights` apparatus behind `_return_weighted_score` -- boosting
-  is out of scope for this whole cycle (types.py's module docstring makes
-  the same narrowing for `scored_combo_tree_set`). `_return_weighted_score`
-  is kept (defaulting to `False`, exactly its C++ default) purely because
+  is out of scope for this whole cycle. `_return_weighted_score` is kept
+  (defaulting to `False`, exactly its C++ default) purely because
   `sum_bscore`'s own branch reads it; it is never set to `True` anywhere
-  in this port.
+  in this port. `get_complexity(const scored_combo_tree_set&)`
+  (scoring_base.h:204) is likewise NOT ported -- it averages
+  `sct.get_weight()` (scoring_base.cc:96-107), the boosting weight this
+  port's own `scored_combo_tree` (types.py) does not carry.
 * `ignore_cols`/`ignore_rows`/`ignore_rows_at_times`/`get_ctable_usize`/
   `get_ctable`/`get_error` -- feature-selection and boosting-error
   plumbing, likewise out of scope.
 * `contin_complexity_coef` (scoring_base.h:53) -- used only by
   `contin_bscore`, which is not part of this task's ported surface
   (bscores.py ports `ctruth_table_bscore` only, per task-6-brief.md).
+
+S10 Task 0 ports `operator()(const scored_combo_tree_set&)`
+(scoring_base.h:66) -- as `call_ensemble` below, see its own docstring for
+the naming -- now that `scored_combo_tree_set` (types.py) exists to type
+its parameter. Its C++ body is an unconditional `OC_ASSERT(false, ...)`:
+no bscorer in this port overrides it (boosting stays out of scope), so
+this is a straight "port the gate, raise inside it" case, the same
+discipline the S10 metapopulation plan uses for every other P2 subsystem.
 """
 
 import math
@@ -40,7 +49,7 @@ from abc import ABC, abstractmethod
 
 from pymetta.comboreduct.combo.vertex import combo_tree
 from pymetta.moses.moses.complexity import complexity_t, tree_complexity
-from pymetta.moses.moses.types import _to_score_t, behavioral_score, score_t
+from pymetta.moses.moses.types import _to_score_t, behavioral_score, score_t, scored_combo_tree_set
 
 
 def discrete_complexity_coef(alphabet_size: int, p: float) -> score_t:
@@ -86,6 +95,35 @@ class bscore_base(ABC):
         must implement it.
         """
         raise NotImplementedError
+
+    def call_ensemble(self, ensemble: scored_combo_tree_set) -> behavioral_score:
+        """C++: moses/moses/scoring/scoring_base.h:66 bscore_base::operator()
+        (declared here; defined scoring_base.cc:72-77)
+
+        "Return the behavioral score for the ensemble" (scoring_base.h:
+        65's own comment) -- NOT `@abstractmethod`/pure virtual in C++
+        (contrast `__call__` above, `= 0` at scoring_base.h:63): this is a
+        concrete base-class body every bscorer inherits unless it chooses
+        to override it, exactly like `worst_possible_bscore`/`min_improv`
+        below. Named `call_ensemble`, not `__call__`: Python's `__call__`
+        can bind only one signature, and `__call__` above already
+        implements the OTHER `operator()` overload (the pure-virtual,
+        per-tree one every concrete subclass must provide) -- this is C++'s
+        SECOND overload, distinguished there only by parameter type, which
+        needs its own name here.
+
+        `OC_ASSERT(false, "Ensemble scoring not implemented for bscorer
+        %s", typeid(*this).name())` (scoring_base.cc:74-75) -- unconditional
+        in C++ (the `ensemble` parameter is read only for its type, never
+        its contents), and no subclass in this port overrides it: boosting/
+        ensemble scoring is out of scope for this whole cycle (module
+        docstring). Ported as a straight raise, matching this port's
+        "port the gate, raise inside it" convention for every other P2
+        subsystem the S10 plan names.
+        """
+        raise NotImplementedError(
+            f"Ensemble scoring not implemented for bscorer {type(self).__name__}"
+        )
 
     def size(self) -> int:
         """C++: moses/moses/scoring/scoring_base.h:70 bscore_base::size

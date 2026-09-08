@@ -63,8 +63,10 @@ from pymetta.moses.representation.scored_instance import scored_instance
 from pymetta.util.lazy_random_selector import lazy_random_selector
 from pymetta.util.rng import randGen
 
-# DIVERGENCE(C++ moses/moses/moses/neighborhood_sampling.h:27):
-# std::numeric_limits<size_t>::max() pinned to the 64-bit ABI
+# DIVERGENCE(C++ moses/moses/moses/neighborhood_sampling.h:491,514,520):
+# std::numeric_limits<size_t>::max() (three default-argument occurrences;
+# h:27 is only the `#include <limits>` that makes the expression
+# available, not the expression itself) pinned to the 64-bit ABI
 # instance.py already measures and pins (bits_per_packed_t = 64).
 _SIZE_T_MAX = (1 << 64) - 1
 
@@ -96,12 +98,23 @@ def safe_binomial_coefficient(k: int, n: int) -> int:
     # k < n -- measured directly: calling safe_binomial_coefficient(3, 4)
     # through a C++ probe aborts the process with an uncaught
     # boost::wrapexcept<std::domain_error> ("k > n"), not a clamped result.
-    # This is not exercised by classic's own working code: the sole call
-    # site (count_neighborhood_size_from_index's bit branch, below) always
-    # guards `dist <= rb` before calling, so k < n never actually happens.
+    # This is not exercised by classic's own working code: there are TWO
+    # call sites in the whole classic tree (`git grep
+    # safe_binomial_coefficient`), NOT one -- this file's own
+    # `count_neighborhood_size_from_index` bit branch (below, guarding
+    # `dist <= rb` before calling) AND hill-climbing.cc:516, inside
+    # `estimate_neighborhood`, ported at `hill_climbing.py`'s own
+    # `estimate_neighborhood` (in the same S9 range as this file). That
+    # second call site guards the k>=n precondition differently -- by
+    # clamping `distance` down to `nn_estimate` a few lines earlier
+    # (`hill-climbing.cc:493-502`) rather than skipping the call outright
+    # -- but the effect is the same: `nn_estimate >= distance` always
+    # holds by the time `safe_binomial_coefficient(nn_estimate, distance)`
+    # runs. Both real call sites respect the k >= n precondition, so k < n
+    # never actually happens in classic's own working code at either one.
     # Python's math.comb(k, n) returns the mathematically-correct 0 for
     # k < n instead of raising; this port relies on callers respecting the
-    # same k >= n precondition classic's real call site does, and does not
+    # same k >= n precondition classic's real call sites do, and does not
     # attempt to reproduce a crash for an input the real code never sends.
     return min(math.comb(k, n), _SIZE_T_MAX)
 
@@ -149,6 +162,16 @@ def count_neighborhood_size_from_index(
         # Since bits all have the same multiplicity (viz. 2), and are
         # the last in the field set, there is no need for recursive call.
         rb = fs.end_bit_raw_idx() - starting_index
+        # Ported verbatim (neighborhood_sampling.cc:99-...'s own `if (dist
+        # <= rb)`) though behaviourally REDUNDANT in Python: `math.comb`
+        # already returns 0 for `dist > rb` (see `safe_binomial_
+        # coefficient`'s own docstring), the same value `number_of_
+        # instances` already holds when this guard is false and the
+        # assignment is skipped. No test can distinguish "guard present"
+        # from "guard removed" here -- this is a fidelity choice (matching
+        # C++'s own structure, in case a future change to either side
+        # makes the two branches diverge), not a covered behaviour; say so
+        # rather than imply a test exists that would catch its removal.
         if dist <= rb:
             number_of_instances = safe_binomial_coefficient(rb, dist)
     # else: harmless; this recursive algo is designed to over-run by exactly one.

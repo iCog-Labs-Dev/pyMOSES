@@ -142,8 +142,19 @@ These cost real time to find. They are properties of the C++ side, not of the po
   immediate next sibling: `src->next_sibling = src`, and `parent->last_child` is
   left stale. Any later traversal hangs; destruction aborts. **Ported faithfully
   with a "DO NOT FIX" marker.** Of 11 call sites in `contin_rules.cc`, ten are
-  safe by construction; `contin_rules.cc:254` could not be cleared — **S14 must
-  trace it.** If reachable, classic has a latent heap-corruption bug.
+  safe by construction. **`contin_rules.cc:254` is now CLEARED TOO (traced
+  2026-09-08) — S14 no longer needs to.** The precise trigger, from
+  `tree.h:1710-1750`: `b_next_sibling = dst->next_sibling` is captured *before*
+  `erase(target)`, so when `source == target->next_sibling` the code runs
+  `b_next_sibling->prev_sibling = src` and `src->next_sibling = b_next_sibling`
+  with `b_next_sibling == src` — the self-cycle. The condition is therefore
+  exactly **`source == target->next_sibling`**. At `contin_rules.cc:254` the
+  target is `tr.append_child(remain_plus)`, a freshly appended **last** child
+  whose `next_sibling` is null, while `source` is `factor_parent.begin()`, which
+  `tree_assert(src)` requires non-null — so it cannot hold.
+  `contin_rules.cc:259-260` has the identical shape and is safe for the same
+  reason. **All 11 call sites are clear**: no reachable heap corruption from
+  these callers. Keep the DO NOT FIX marker — the bug is real, just unreachable.
 - **Classic's own `optimizationUTest` CORE-DUMPS.** Confirmed by the controller
   on 2026-09-07: `./build/tests/moses/optimizationUTest` prints the `Hill:`
   debug header and then dies ("dumped core"). Cause, found during S9 Task 2:
@@ -154,6 +165,37 @@ These cost real time to find. They are properties of the C++ side, not of the po
   any S9+ oracle that drives `hill_climbing` directly must supply a throwaway
   `representation` for `get_rep()` or hit the same crash. Do not "fix" it in
   the port; reproduce the behaviour and mark DO NOT FIX.
+- **`metapopulationUTest` is NOT an oracle for the metapopulation slice.** It
+  builds and passes, but its only two tests (`metapopulationUTest.cxxtest:74`
+  `test_remove_dominated` and `:119` `test_merge_nondominated_rec`) exercise
+  `remove_dominated`/`get_nondominated_disjoint` — both in `domination.cc`,
+  which is P2 and outside S10. They cover none of `metapopulation.cc` or
+  `merging.cc`'s default path. S10 must build its own probes.
+  **The controller asserted otherwise in the first S10 plan after checking only
+  that it built and passed.** "The oracle exists" and "the oracle covers what I
+  am porting" are different claims; verify the second before planning around it.
+- **`MOSESUTest` is S11's oracle, and it is NOT fully green in classic.**
+  Measured 2026-09-08: 23 tests, **1 fails** — `test_ps_2_parity`
+  (`moses-framework.h:169`, `fabs(result.first - expected_sc) < 1.0e-8` found
+  `1.0000 >= 0.0000`). It uses `-aps` (particle swarm), a **P2 optimizer S11
+  does not port**, so the failure is outside S11's scope. Do not chase it.
+  The 23 cases map to slices by their flags (`tests/moses/MOSESUTest.cxxtest`):
+  * **S11-usable now** (default optimizer = hill-climbing, Boolean):
+    `test_2_parity`, `test_2_parity_with_labels`, `test_3_parity_multi_thread`,
+    `test_1_mux`, `test_2_mux`, `test_it`, `test_it_target_ignore`,
+    `test_cp_simple`, `test_cp`.
+  * **P2 optimizers** (`-asa` star-anneal, `-aps` particle swarm, `-aun`
+    univariate): `test_sa_2_parity`, `test_sa_1_mux`, `test_ps_2_parity`,
+    `test_un_3_pa_multi_thread`.
+  * **P2 boosting:** `test_4_parity_boosting`, `test_5_parity_boosting`.
+  * **S14 (contin):** `test_cp_contin`, `test_sr_3`.
+  * **P2 scorers:** `test_kl`, `test_multi_kl`, `test_precision`,
+    `test_negative_predictive_value`.
+  * **S13 (CLI/output):** `test_output_labels`, `test_python_output`.
+  Note also that `MOSESUTest`'s own output prints a penalized score of
+  `-3.57142853736877441` with complexity penalty `0.571428596973419189` --
+  those are binary32 values printed at double width, independent confirmation
+  that `score_t` narrowing (4.2) is observable in classic's own output.
 - **Which classic `tests/moses` oracles actually exist.** Registered and
   active: `metapopulationUTest` (verified: builds, 2 tests, OK -- the S10
   oracle), `MOSESUTest` (the S11 end-to-end oracle), `optimizationUTest` (see

@@ -168,7 +168,35 @@ def test_complexity_based_scorer_swallows_exceptions_and_returns_worst_score():
     scorer = complexity_based_scorer(
         _stub_cscore(composite_score(-1.0, 0, 0.0, 0.0)), _raising_representation(), True
     )
-    assert scorer(instance(1)) is worst_composite_score
+    # Value-equal, but NOT the same object -- see the next test. C++
+    # returns `composite_score` by value here (instance_scorer.h:96), so
+    # every caller must get its own independent copy of the singleton.
+    got = scorer(instance(1))
+    assert got == worst_composite_score
+    assert got is not worst_composite_score
+
+
+def test_complexity_based_scorer_worst_score_is_not_the_shared_singleton():
+    """Pins CRITICAL 2's fix: `return worst_composite_score` used to hand
+    back the module-level singleton itself. Mutating one caller's result
+    must not affect the singleton, nor any other caller's result -- this
+    is inert as long as nothing mutates a returned composite_score in
+    place, but S10's metapopulation does exactly that via `set_score`/
+    `set_uniformity_penalty`.
+    """
+    scorer = complexity_based_scorer(
+        _stub_cscore(composite_score(-1.0, 0, 0.0, 0.0)), _raising_representation(), True
+    )
+
+    a = scorer(instance(1))
+    b = scorer(instance(1))
+    assert a is not b
+
+    a.set_score(-1.0)
+
+    assert worst_composite_score.get_score() != -1.0
+    assert b.get_score() != -1.0
+    assert composite_score() == worst_composite_score
 
 
 class _keyboard_interrupting_representation:

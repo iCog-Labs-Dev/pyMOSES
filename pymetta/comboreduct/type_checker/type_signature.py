@@ -137,16 +137,33 @@ def gen_signature(
     ``(input_type, output_type, arity)``.
     """
     if arity is not None:
-        # DIVERGENCE(C++ moses/comboreduct/type_checker/type_tree.cc:1325):
+        # DIVERGENCE(C++ moses/comboreduct/type_checker/type_tree.cc:1330):
         # classic passes `arity + 1` (arity_t, a plain signed `int`,
         # common_def.h:31) straight into `append_children(iter, int n)`
         # (opencog/util/tree.h:1072) -- there is no signed-to-unsigned
-        # conversion anywhere in this call. `append_children`'s loop is
-        # `while ((n--) > 0)`, so a non-positive `n` just appends zero
-        # children rather than misbehaving: a negative arity there silently
-        # produces a degenerate `lambda_type` node with no children (or
-        # fewer than requested) instead of the intended arity-sized
-        # signature. Python raises before that can happen.
+        # conversion anywhere in this call. CORRECTED (S10 branch review,
+        # Minor): this note used to claim a negative arity "silently
+        # produces a degenerate lambda_type node with no children" --
+        # MEASURED FALSE, traced through cogutil's tree.h by hand.
+        # `append_children`'s loop (`while ((n--) > 0)`) does append zero
+        # children for a non-positive `n`, and the FOR loop right after it
+        # (`type_tree.cc:1332-1333`) correctly does nothing when `root` is
+        # childless (`begin(root) == end(root)` for a childless node,
+        # tree.h:915-916, so the loop's own `sib != root.last_child()`
+        # condition is already false) -- but `type_tree.cc:1334`,
+        # `res.replace(sib, otype.begin())`, runs UNCONDITIONALLY right
+        # after that loop, using `sib` still holding `root.begin()`'s
+        # NULL-wrapping iterator (`tree.h:912-919`: `begin()` on a
+        # childless node returns `end()`, `.node == 0`). `replace`'s own
+        # `iterator_base` overload (`tree.h:1396-1424`) has no null guard
+        # at all -- its own `tree_assert(position.node != head)` checks
+        # against the tree's `head` SENTINEL, not against a null node, so
+        # it passes -- and then dereferences `position.node` directly
+        # (`erase_children(position)`, then `current_to->prev_sibling`
+        # with `current_to = position.node`). Classic SEGFAULTS here, it
+        # does not degrade gracefully to a smaller signature. Raising
+        # before that point is still the right call -- there is no
+        # graceful C++ behaviour to reproduce, only a crash to avoid.
         if arity < 0:
             raise ValueError("signature arity must be non-negative")
         itype = _type_node_of(inputs_or_itype)  # type: ignore[arg-type]
