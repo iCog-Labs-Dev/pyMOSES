@@ -79,10 +79,13 @@ class ensemble:
         convention invented here.
 
         # DIVERGENCE(C++ moses/moses/metapopulation/ensemble.h:83):
-        # `_scored_trees` is a `scored_combo_tree_set` in C++ (an ordered
-        # set with its own hash/compare functors -- container plumbing
-        # this port's types.py deliberately narrows out, see that module's
-        # own docstring). This port uses a plain, empty `list` instead: it
+        # `_scored_trees` is a `scored_combo_tree_set` in C++ (types.h:
+        # 370-373: a `std::unordered_set` with its own HASH and EQUALITY
+        # functors, `scored_combo_tree_hash`/`scored_combo_tree_equal` --
+        # NOT an ordered set; `types.py:1068`'s own `scored_combo_tree_set`
+        # class already describes it correctly, only this docstring
+        # previously mischaracterized it). This port uses a plain, empty
+        # `list` instead: it
         # is sufficient because `add_candidates` (the ONLY mutator of
         # `_scored_trees` in either language) always raises before this
         # port ever appends to it, so every `ensemble` this port can

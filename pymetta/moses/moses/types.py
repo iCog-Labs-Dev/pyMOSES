@@ -814,9 +814,14 @@ def _vertex_hash(v: object) -> int:
     # cases. Real C++ combines `boost::hash_value(double)`/`boost::
     # hash_value(std::string)` with `boost::hash_combine` -- both
     # library-internal, boost-version-dependent algorithms (they have
-    # changed across boost releases even within C++ itself) -- plus offset
-    # constants (`c2`/`c3`) sized off `id::action_count`, which this port's
-    # `vertex` union has no equivalent alternative for at all. None of that
+    # changed across boost releases even within C++ itself) -- plus the
+    # offset constant `c_last` (`vertex.h:441`, `c3`'s own alias), where
+    # `c2` (`vertex.h:439`) is sized off `MAX_TREE_ARGS` (a fixed literal,
+    # 256000) and only `c3` (`vertex.h:440`) is sized off
+    # `id::action_count` -- CORRECTED here; this docstring previously
+    # attributed BOTH offsets to `action_count`. Either way, this port's
+    # `vertex` union has no equivalent alternative for either constant.
+    # None of that
     # is reproducible from Python, and -- UNLIKE `score_t` narrowing (this
     # module's own top-of-file DIVERGENCE marker) -- it does not need to
     # be: this hash value is never compared against a literal oracle
@@ -835,11 +840,11 @@ def _vertex_hash(v: object) -> int:
     if isinstance(v, str):
         return _hash_combine(_BUILTIN_HASH_HEADROOM, hash(v))
     if isinstance(v, builtin):
-        # C++: vertex.h:449-450 `if (const builtin* h = boost::get<builtin>
+        # C++: vertex.h:450-451 `if (const builtin* h = boost::get<builtin>
         # (&v)) return size_t(*h);` -- the raw enum ordinal, verbatim.
         return int(v)
     if isinstance(v, argument):
-        # C++: vertex.h:452-453 `size_t(a->idx * (a->is_negated() + 2)) +
+        # C++: vertex.h:454-455 `size_t(a->idx * (a->is_negated() + 2)) +
         # c1` -- pure integer arithmetic, no `boost::hash_value` call, so
         # ported exactly (`_BUILTIN_HASH_HEADROOM` stands in for `c1`; see
         # that constant's own note for why the NUMBER differs from C++'s
@@ -1146,6 +1151,23 @@ class scored_combo_tree_set:
     def empty(self) -> bool:
         """C++: std::unordered_set::empty"""
         return self._size == 0
+
+    def clear(self) -> None:
+        """C++: std::unordered_set<...>::clear
+
+        Empties the container IN PLACE -- added for `metapopulation.
+        update_best_candidates` (S10 branch review, Minor): C++'s
+        `_best_candidates.clear()` (merging.cc) mutates the SAME object
+        every existing `best_candidates()` reference/alias already points
+        at, so a caller holding one sees the clear too. Before this
+        method existed, that call site rebound `self._best_candidates =
+        scored_combo_tree_set()` instead -- a NEW object -- which left any
+        prior `best_candidates()` caller looking at a now-stale set that
+        never sees subsequent inserts. `clear()` is the fix: mutate, don't
+        rebind, matching what a real reference target does in C++.
+        """
+        self._buckets.clear()
+        self._size = 0
 
 
 worst_composite_score = composite_score()

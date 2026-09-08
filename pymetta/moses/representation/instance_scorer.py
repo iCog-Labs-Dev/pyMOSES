@@ -145,7 +145,7 @@ class complexity_based_scorer(iscorer_base):
             # from a `const` global (`virtual composite_score
             # operator()(const instance&) const`) -- every caller gets its
             # own independent copy. `worst_composite_score` here is a
-            # plain Python module-level object (types.py:535); returning
+            # plain Python module-level object (types.py:1156); returning
             # it bare would hand back the SAME shared singleton to every
             # caller. That was inert while every caller only rebound the
             # result, but `composite_score.set_score`/

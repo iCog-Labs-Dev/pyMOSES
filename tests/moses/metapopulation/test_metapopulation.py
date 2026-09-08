@@ -268,6 +268,34 @@ def test_update_best_candidates_on_empty_candidates_is_a_no_op():
     assert before.get_complexity() == after.get_complexity()
 
 
+def test_update_best_candidates_reset_is_visible_through_a_held_reference():
+    """S10 branch review, Minor: `best_candidates()` returns `_best_candidates`
+    BY REFERENCE in C++ (`const scored_combo_tree_set&`, that method's own
+    docstring) -- a caller that holds onto an earlier `best_candidates()`
+    call must see LATER resets too, the same way any C++ reference to a
+    mutated member does. This pins that: capture the reference BEFORE a
+    strictly-better candidate arrives (T2, score 5.0 > T1's seeded 2.0,
+    which triggers the inner "new sole best" branch that resets
+    `_best_candidates`), then check the EARLIER reference reflects the
+    reset -- not a stale snapshot of the old contents.
+
+    Before the fix (`self._best_candidates = scored_combo_tree_set()`,
+    rebinding to a NEW object instead of calling `.clear()` on the
+    existing one), `held` would still show `["$1"]` here, and
+    `held is mp.best_candidates()` would be `False`.
+    """
+    mp = metapopulation(T1, _cscorer())
+    held = mp.best_candidates()
+    assert {combo_tree_to_str(sct.get_tree()).strip() for sct in held} == {"$1"}
+
+    better = scored_combo_tree_set()
+    better.insert(scored_combo_tree(T2, composite_score(5.0, 2)))
+    mp.update_best_candidates(better)
+
+    assert held is mp.best_candidates()  # same object, not a fresh one
+    assert {combo_tree_to_str(sct.get_tree()).strip() for sct in held} == {"and($1 $2)"}
+
+
 # ============================================================ rescore
 
 
@@ -422,16 +450,26 @@ def test_do_boosting_default_false_returns_best_cscore_without_raising():
 
 def test_do_boosting_true_makes_best_composite_score_raise():
     """Pins the do_boosting gate on best_composite_score(): flipping it
-    must reach the unported ensemble/get_cscore(scored_combo_tree_set)
-    path and fail there, rather than silently still returning
-    _best_cscore.
+    must reach `bscore_base.call_ensemble` (scoring_base.py:124) and get
+    its `NotImplementedError` -- "Ensemble scoring not implemented for
+    bscorer %s" (scoring_base.cc:74-75's own message, unconditional,
+    since no bscorer this port ships overrides it) -- not silently still
+    return `_best_cscore`.
+
+    S10 branch review, Minor (CORRECTED here): this test used to assert
+    `pytest.raises(AttributeError)`, pinning an accidental crash
+    (`get_cscore(list)` reading `.data` off something that is not a
+    `combo_tree`) as if it were the intended behaviour. The intended
+    behaviour is the specific `NotImplementedError` `call_ensemble`
+    already provides for exactly this case -- see
+    `best_composite_score`'s own docstring for the full correction.
     """
     pa = metapop_parameters()
     mp = metapopulation(T1, _cscorer(), pa)
     assert mp.best_composite_score().get_score() == 2.0  # gate off: fine
 
     pa.do_boosting = True
-    with pytest.raises(AttributeError):
+    with pytest.raises(NotImplementedError):
         mp.best_composite_score()
 
 

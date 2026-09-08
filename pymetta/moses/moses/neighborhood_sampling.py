@@ -63,8 +63,10 @@ from pymetta.moses.representation.scored_instance import scored_instance
 from pymetta.util.lazy_random_selector import lazy_random_selector
 from pymetta.util.rng import randGen
 
-# DIVERGENCE(C++ moses/moses/moses/neighborhood_sampling.h:27):
-# std::numeric_limits<size_t>::max() pinned to the 64-bit ABI
+# DIVERGENCE(C++ moses/moses/moses/neighborhood_sampling.h:491,514,520):
+# std::numeric_limits<size_t>::max() (three default-argument occurrences;
+# h:27 is only the `#include <limits>` that makes the expression
+# available, not the expression itself) pinned to the 64-bit ABI
 # instance.py already measures and pins (bits_per_packed_t = 64).
 _SIZE_T_MAX = (1 << 64) - 1
 

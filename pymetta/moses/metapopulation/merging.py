@@ -517,24 +517,51 @@ def resize_metapop(self: metapopulation) -> None:
     (no argument) vs `randint(int n)`, the same replacement
     `deme_expander.py`/`neighborhood_sampling.py` already use.
 
-    MEASURED HAZARD this port does not reproduce, by design (same
-    treatment as `representation.get_candidate`'s own width-check
-    DIVERGENCE note): `popsz - offset` (merging.cc:427, both `size_t`)
-    UNDERFLOWS in C++ whenever the population size after phase 1 is below
-    `offset` (50) while a pathologically small `_params.cap_coef` still
-    demands further eviction -- reachable in principle (`_min_pool_size`
-    is only 20, strictly less than `offset`), reproduced here via an
-    EXPLICIT 64-bit mask on the subtraction (CARRY-FORWARD's own
-    "reproduce any wrap with an explicit mask, never clamp" rule) so the
-    SAME enormous value is fed to `randint_n` and consumes a draw from the
-    RNG stream exactly as C++ does. What happens NEXT differs, necessarily:
-    in C++, `std::next(begin(), which)` with a huge `which` is undefined
-    behaviour (out-of-bounds pointer arithmetic, then a dereference) --
-    Python has no raw-pointer analogue to corrupt, so an out-of-range
-    `which` here surfaces as a plain `IndexError` from `ordered[which]`,
-    a safe, loud failure in place of memory corruption, exactly the
-    "reject rather than read out of bounds" precedent
-    `representation.get_candidate`'s own docstring already sets.
+    CORRECTED (S10 branch review, [Important 1]): this docstring used to
+    claim a 64-bit mask fed C++ "the SAME enormous value ... exactly as
+    C++ does". MEASURED FALSE. `MT19937RandGen::randint` takes a plain
+    `int`, not a `size_t` (`mt19937ar.h:54`), so `popsz - offset`
+    (merging.cc:427, both `size_t`) does underflow to a huge 64-bit value
+    in C++'s own subtraction, but that value is NARROWED to 32 bits at the
+    call boundary before any modulo happens -- C++'s `randint(int n)` body
+    never sees the 64-bit value at all. Confirmed against a compiled probe
+    on the real cogutil class (fresh `MT19937RandGen(1)`, three sequential
+    calls): `randint(-25) == 22`, `randint(-1) == 0`, `randint(-29) == 6`
+    -- C++ receives a SMALL SIGNED int (the underflowed subtraction's low
+    32 bits, reinterpreted as two's complement), never an enormous one.
+    Reproduced here via an EXPLICIT SIGNED 32-bit mask (replacing the
+    unsigned 64-bit one this docstring previously specified), matching the
+    narrowing the `int` parameter performs in C++; `rng.py`'s own
+    `randint_n` needed a matching fix (see its own docstring) since
+    Python's `%` takes the sign of the DIVISOR while C's truncating `%`
+    takes the sign of the (here always non-negative) dividend -- the mask
+    alone is not sufficient, both fixes together are, and both are what
+    `test_merging.py` pins against the measured 22/0/6.
+
+    Still reachable only in principle, exactly as before: `_min_pool_size`
+    (20) is strictly less than `offset` (50), and the default
+    `_params.cap_coef` (50) never drives phase 2 this far in practice.
+    What differs from the retracted claim is only the SIZE of what is
+    reproduced -- a small int bounded by `offset` (at most 50 in
+    magnitude), not an astronomical one -- while still consuming exactly
+    one RNG draw per eviction, same as before.
+
+    What happens NEXT still differs from C++, and for a reason broader
+    than the "huge index" story this docstring used to tell: whenever
+    `popsz < offset` (the only way `diff` goes negative), `which = offset
+    + randint_n(diff)` is ALWAYS `>= offset > popsz` -- not just for the
+    formerly-claimed enormous draws, but for EVERY draw reaching this
+    branch. In C++, `_scored_trees` is a `boost::ptr_set` over `std::set`
+    (`types.h:381-395`): `std::next(it, which)` on that bidirectional
+    iterator advances by repeatedly incrementing, walks off `end()`, and
+    keeps incrementing an already-past-the-end iterator -- undefined
+    behaviour regardless of whether `which` is astronomically large or
+    merely a little too big. Python has no raw-iterator analogue to
+    corrupt, so any out-of-range `which` here surfaces as a plain
+    `IndexError` from `ordered[which]`, a safe, loud failure in place of
+    C++'s undefined behaviour, exactly the "reject rather than read out of
+    bounds" precedent `representation.get_candidate`'s own docstring
+    already sets.
     """
     if self.size() <= self._min_pool_size:
         return
@@ -565,7 +592,9 @@ def resize_metapop(self: metapopulation) -> None:
 
     while popsz_cap < popsz:
         offset = 50
-        diff = (popsz - offset) & 0xFFFFFFFFFFFFFFFF
+        diff = (popsz - offset) & 0xFFFFFFFF
+        if diff & 0x80000000:
+            diff -= 0x100000000
         which = offset + randGen().randint_n(diff)
         victim = ordered[which]  # IndexError on an out-of-range draw -- see docstring
         self._scored_trees.erase(victim)

@@ -305,6 +305,60 @@ def test_create_demes_raises_when_fstor_is_set():
         dex.create_demes(str_to_combo_tree("and()"), 0)
 
 
+# ---------------------------------------------------------------------------
+# S10 branch review, [Important 6]: perceptions/actions/linear_contin used to
+# be silently dropped on create_representations' default path with no gate
+# at all -- deme_parameters still carries and accepts non-default values for
+# all three, but representation() (Boolean-only) has no parameter for any of
+# them. Gated the same way fstor/n_subsample_demes already are: raise rather
+# than silently ignore.
+# ---------------------------------------------------------------------------
+
+
+def test_create_representations_raises_when_perceptions_is_set():
+    params = deme_parameters(perceptions="not-a-real-perception-set")
+    params.perm_ratio = -1.0
+    dex = _dex_with(params)
+    with pytest.raises(NotImplementedError):
+        dex.create_representations(str_to_combo_tree("and()"))
+
+
+def test_create_representations_raises_when_actions_is_set():
+    params = deme_parameters(actions="not-a-real-action-set")
+    params.perm_ratio = -1.0
+    dex = _dex_with(params)
+    with pytest.raises(NotImplementedError):
+        dex.create_representations(str_to_combo_tree("and()"))
+
+
+def test_create_representations_raises_when_linear_contin_is_false():
+    """`linear_contin` has no constructor parameter (deme_params.h:49's
+    initializer-list-only default, `True`) -- set as a plain attribute,
+    matching deme_parameters' own constructor docstring.
+    """
+    params = deme_parameters()
+    params.perm_ratio = -1.0
+    params.linear_contin = False
+    dex = _dex_with(params)
+    with pytest.raises(NotImplementedError):
+        dex.create_representations(str_to_combo_tree("and()"))
+
+
+def test_create_representations_does_not_raise_at_the_defaults():
+    """The gates above must not fire on the untouched defaults
+    (`perceptions=None`, `actions=None`, `linear_contin=True`) -- this is
+    the byte-identical-to-C++ case the module docstring's own DIVERGENCE
+    note describes, not a case that should raise.
+    """
+    params = deme_parameters()
+    params.perm_ratio = -1.0
+    assert params.perceptions is None
+    assert params.actions is None
+    assert params.linear_contin is True
+    dex = _dex_with(params)
+    assert dex.create_representations(str_to_combo_tree("and()")) is True
+
+
 def test_optimize_demes_raises_when_fstor_is_set_after_create_demes():
     """The pathological direct-mutation scenario the module docstring's
     consolidation note names: `_params.fstor` set AFTER a successful

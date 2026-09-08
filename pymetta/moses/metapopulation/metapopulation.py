@@ -369,14 +369,36 @@ class metapopulation:
         `behave_cscore.get_cscore` has no ported overload taking a
         `scored_combo_tree_set`/list of scored trees at all
         (behave_cscore.py's own module docstring: "NOT ported ... out of
-        scope for this whole cycle") -- so this call reaches straight into
-        that unported surface and fails there naturally the moment
-        anything actually drives boosting, rather than this method adding
-        its own separate guard.
+        scope for this whole cycle").
+
+        CORRECTED (S10 branch review, Minor): this method used to call
+        `self._cscorer.get_cscore(...)` directly with that list, on the
+        theory that "reaches straight into that unported surface and
+        fails there naturally" was good enough -- MEASURED WRONG:
+        `get_cscore(tr: combo_tree)` (behave_cscore.py) assumes its
+        argument IS a `combo_tree` and reads `.data` off it, so a `list`
+        argument fails with an unrelated `AttributeError: 'list' object
+        has no attribute 'data'`, not the specific, already-ported
+        `NotImplementedError` `bscore_base.call_ensemble`
+        (scoring_base.py:124, `moses/moses/scoring/scoring_base.h:66`)
+        exists for EXACTLY this case ("Ensemble scoring not implemented
+        for bscorer %s"). Real C++'s own `get_cscore(scored_combo_tree_
+        set)` overload would itself call `_bscorer(ensemble)` (the
+        `operator()` `call_ensemble` ports) as part of its own body before
+        ever reaching anything an `AttributeError`-shaped bug could stand
+        in for -- so this now calls `call_ensemble` directly on the
+        underlying bscorer, reaching the SAME raise real C++ reaches (no
+        bscorer this port ships overrides it), one call closer to the
+        real control flow instead of an accidental crash one step removed
+        from it. `call_ensemble` always raises before returning (no
+        subclass overrides it -- see its own docstring), so its declared
+        `-> behavioral_score` return type is never actually exercised
+        here; nothing in this method's own `-> composite_score` signature
+        is violated by a call that never returns.
         """
         if not self._params.do_boosting:
             return copy.copy(self._best_cscore)
-        return self._cscorer.get_cscore(self._ensemble.get_ensemble())
+        return self._cscorer._bscorer.call_ensemble(self._ensemble.get_ensemble())
 
     def best_candidates(self) -> scored_combo_tree_set:
         """C++: moses/moses/metapopulation/metapopulation.cc:222 metapopulation::best_candidates
@@ -488,6 +510,17 @@ class metapopulation:
         (merging.cc:643) is `std::unordered_set::insert(const
         value_type&)`, which likewise copies `cnd` by value -- ported via
         `_copy_sct` (see its own docstring).
+
+        CORRECTED (S10 branch review, Minor): `_best_candidates.clear()`
+        (merging.cc:642) mutates the member IN PLACE in C++, so any
+        earlier `best_candidates()` caller (a genuine `const&` there,
+        `best_candidates`'s own docstring) sees the clear too. This method
+        used to REBIND `self._best_candidates = scored_combo_tree_set()`
+        instead of clearing it -- a different Python object, silently
+        stranding any prior `best_candidates()` caller on the OLD, now
+        stale set, which never sees the fresh inserts below it. Fixed to
+        call `.clear()` (types.py, added for exactly this site), matching
+        C++'s own in-place mutation.
         """
         if candidates.empty():
             return
@@ -504,7 +537,7 @@ class metapopulation:
                     self._best_cscore = copy.copy(csc)
                     best_sc = self._best_cscore.get_score()
                     best_cpx = self._best_cscore.get_complexity()
-                    self._best_candidates = scored_combo_tree_set()
+                    self._best_candidates.clear()
                 self._best_candidates.insert(_copy_sct(cnd))
 
     def rescore(self) -> None:

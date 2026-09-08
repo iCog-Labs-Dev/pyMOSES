@@ -32,21 +32,42 @@ particular `std::sort` permutation apparently groups same-tree instances
 adjacently often enough to remove 4 in classic. Neither language's own
 `sort_demes` promises anything about tie order (`sort_demes`'s own
 docstring in `merging.py`), so this is not a divergence to fix -- it is a
-directly observable consequence of a promise C++ never made. It is
-harmless to the actual exit criterion here for a structural reason,
-verified empirically below, not merely argued: `deme_to_trees` inserts
-every candidate into `pot_candidates`, a `scored_combo_tree_set`
-(`types.py`, `std::unordered_set<..., scored_combo_tree_hash,
-scored_combo_tree_equal>`) that ALREADY deduplicates by TREE STRUCTURE on
-its own, regardless of adjacency -- so whether `keep_top_unique_candidates`
-removes 0 or 4 near-duplicate RAW INSTANCES first, every one of the 17
-instances still gets decoded and fed to `pot_candidates`, which converges
-to the SAME 5 distinct reduced trees either way. The FINAL merged pool --
-this task's actual exit criterion ("merged pool contents and ordering
-match C++") -- is measured below to match the probe EXACTLY: same 5 trees,
-same scores, same order, same `best_composite_score`/`best_tree`, same
-`merge_demes` return value, for BOTH the first merge and a second,
-repeated merge of an independently-rebuilt identical deme.
+directly observable consequence of a promise C++ never made.
+
+CORRECTED (S10 branch review, [Important 2]): the paragraph that used to
+stand here argued this is harmless FOR A STRUCTURAL REASON -- that
+`pot_candidates` (a `scored_combo_tree_set`, `types.py`,
+`std::unordered_set<..., scored_combo_tree_hash, scored_combo_tree_equal>`)
+already dedups by tree structure regardless of adjacency, so tie-order
+inside `keep_top_unique_candidates` supposedly can never matter. MEASURED
+FALSE AS A GENERAL CLAIM: `keep_top_unique_candidates`'s own final
+truncation, `del deme[top_cnd:]` (`merging.py:766`), runs AFTER the
+adjacent-dedup scan and keeps only the first `top_cnd` survivors -- so once
+`top_cnd` is smaller than the naturally-deduplicated length, tie-order
+decides WHICH DISTINCT trees are still present when `deme_to_trees` reads
+the deme, before `pot_candidates` ever sees it. Same multiset, same
+`top_cnd`: order `$1 $1 $2 $3` -> `['$1','$2','$3']`, but order
+`$1 $2 $1 $3` -> `['$1','$2','$1']` -- tree `$3` is lost outright, not
+merely reordered. `test_keep_top_unique_candidates_truncation_is_tie_order_dependent`
+below pins exactly this.
+
+The waiver right above is still correct FOR THIS TEST'S OWN SCENARIO, but
+for a narrower reason than originally stated: `top_cnd` here starts at
+`min(deme.n_evals, len(deme))` = `min(200, 17)` = 17 (the probe's own
+`max_evals=200` comfortably exceeds the 17-instance deme), and neither
+`max_candidates_per_deme` (default, unset -- the `>= 0` gate never fires)
+nor `n_subsample_demes` (default 0) clips it further; `top_cnd` only ever
+shrinks afterward via `top_cnd = min(top_cnd, len(deme))` as the dedup
+scan itself removes instances, so the final `del deme[top_cnd:]` never
+truncates past what dedup already did on its own. THAT configuration --
+`max_candidates_per_deme < 0` and `n_evals >= len(deme)` -- is what makes
+truncation a no-op here, not any property of dedup-then-truncate being
+order-irrelevant in general. The FINAL merged pool -- this task's actual
+exit criterion ("merged pool contents and ordering match C++") -- is
+measured below to match the probe EXACTLY: same 5 trees, same scores,
+same order, same `best_composite_score`/`best_tree`, same `merge_demes`
+return value, for BOTH the first merge and a second, repeated merge of an
+independently-rebuilt identical deme.
 """
 
 from __future__ import annotations
@@ -70,6 +91,7 @@ from pymetta.moses.metapopulation.metapopulation import metapopulation
 from pymetta.moses.moses.optimization.hill_climbing import hc_parameters, hill_climbing
 from pymetta.moses.moses.optimization.optimization import optim_parameters
 from pymetta.moses.moses.types import (
+    _to_score_t,
     composite_score,
     scored_combo_tree,
     scored_combo_tree_set,
@@ -235,6 +257,30 @@ def test_merging_probe_source_is_the_file_this_oracle_cites():
 
 
 # ---------------------------------------------------------------------------
+# useful_score_range
+# ---------------------------------------------------------------------------
+
+
+def test_useful_score_range_narrows_to_score_t():
+    """S10 branch review, [Important 4]: `useful_score_range`'s own
+    `_to_score_t` call (`merging.py:231`) is unguarded -- deleting it
+    survives the whole suite, because no existing caller happens to hit a
+    `complexity_temperature` where the double-precision result and its
+    float32 narrowing diverge in an OBSERVABLE way. `complexity_
+    temperature = 6.0` gives `6.0 * 30.0 / 100.0 == 1.8` exactly in
+    double precision, but float32's nearest representable value is
+    `1.7999999523162842` -- decidable directly by `==`, no
+    `pytest.approx` needed (contrast `1.8`, which is expressible as an
+    exact double literal here purely because Python parses source
+    literals as double in the first place).
+    """
+    mp = _mp()
+    mp._params.complexity_temperature = 6.0
+    assert mp.useful_score_range() == 1.7999999523162842
+    assert mp.useful_score_range() != 1.8
+
+
+# ---------------------------------------------------------------------------
 # trim_down_deme
 # ---------------------------------------------------------------------------
 
@@ -340,6 +386,45 @@ def test_trim_down_deme_never_evaluates_index_zero():
     deme = _plain_deme([(-100.0, 0.0)] + [(0.0, 0.0)] * 20)
     mp.trim_down_deme(deme)
     assert len(deme) == 21  # nothing removed: index 0 exempt despite < bot_sc
+
+
+def test_trim_down_deme_bot_sc_narrowing_matters_at_the_boundary():
+    """S10 branch review, [Important 4]: `bot_sc`'s own `_to_score_t` call
+    (`merging.py:264`) is unguarded -- deleting it survives the whole
+    suite. `test_trim_down_deme_keeps_a_score_exactly_at_the_cutoff`
+    above does NOT catch it: that test's own `top_sc`/`rng` pair happens
+    to round UP when narrowed (`_to_score_t(D) > D` there, per its own
+    comment), so an entry placed at `_to_score_t(D)` compares the same
+    way against both the narrowed and the raw `bot_sc` -- no
+    contradiction is possible either way.
+
+    This picks the OPPOSITE rounding direction: `top_sc = -5.0`,
+    `complexity_temperature = 0.1` gives `rng == 0.029999999329447746`
+    and the raw double `D = top_sc - rng == -5.029999999329448`, whose
+    narrowed value `_to_score_t(D) == -5.03000020980835` is STRICTLY LESS
+    than `D` -- decidable by `==`/`<`, not `pytest.approx`. An entry
+    scored at exactly `_to_score_t(D)` (already float32-exact, so
+    `composite_score`'s own narrowing at construction is a no-op on it)
+    is `< bot_sc` FALSE when `bot_sc` is correctly narrowed to that SAME
+    value (survives), but TRUE when `bot_sc` is left as the raw, less
+    negative `D` (removed) -- proven by mutation.
+    """
+    mp = _mp()
+    mp._params.complexity_temperature = 0.1
+    top_sc = -5.0
+    rng = mp.useful_score_range()
+    assert rng == 0.029999999329447746  # pins the exact float32 rng this test depends on
+
+    raw_bot_sc = top_sc - rng
+    narrowed_bot_sc = _to_score_t(raw_bot_sc)
+    assert raw_bot_sc == -5.029999999329448
+    assert narrowed_bot_sc == -5.03000020980835
+    assert narrowed_bot_sc < raw_bot_sc  # the rounding direction this test needs
+
+    deme = _plain_deme([(top_sc, 0.0)] * 20 + [(narrowed_bot_sc, 0.0)])
+    mp.trim_down_deme(deme)
+
+    assert len(deme) == 21  # survives only because bot_sc is narrowed to this SAME value
 
 
 # ---------------------------------------------------------------------------
@@ -612,6 +697,91 @@ def test_keep_top_unique_candidates_max_candidates_per_deme_gate():
     assert len(deme) == 3  # untouched: default gate off
 
 
+class _FakeRepByIdentity:
+    """Not itself a ported C++ symbol -- stands in for a real
+    `representation` when a test needs `keep_top_unique_candidates`'
+    pairwise dedup scan to see a FEW SPECIFIC, controllable trees rather
+    than a live decode off a real knob/field_set setup. Maps each
+    `instance` object (by IDENTITY, via `id()` -- a bare `instance` is an
+    unhashable `list` subtype, see `instance.py`'s own docstring) to a
+    preset, already-reduced combo tree.
+    """
+
+    def __init__(self, tree_by_instance_id: dict[int, object]) -> None:
+        self._tree_by_instance_id = tree_by_instance_id
+
+    def get_candidate(self, inst: instance, reduce: bool = True) -> object:
+        return self._tree_by_instance_id[id(inst)]
+
+
+def _tied_deme_with_trees(tree_strs: list[str], top_cnd: int) -> tuple[_Deme, _FakeRepByIdentity]:
+    """Builds a `_Deme` of `len(tree_strs)` entries, all tied on penalized
+    score (so `_is_approx_eq` holds for EVERY adjacent pair -- only tree
+    structure decides which pairs collapse), each entry's `.first` a
+    distinct `instance()` object decoding (via the returned fake rep) to
+    the combo tree named at the same position in `tree_strs`.
+    `n_evals` is left at the `_Deme` default (0); `top_cnd` is forced
+    directly via `max_candidates_per_deme` so the caller controls
+    truncation independently of `len(tree_strs)`.
+
+    `scored_instance.__init__` copies its `i` argument (`instance(i)`,
+    the same value-copy `scored_instance.py`'s own docstring documents),
+    so the object actually stored at `.first` is NOT the `instance()`
+    handed to the constructor -- the identity map below is keyed off each
+    entry's OWN `.first` (post-copy), not off a throwaway pre-construction
+    instance.
+    """
+    trees = [str_to_combo_tree(s) for s in tree_strs]
+    deme = _Deme(scored_instance(instance(), composite_score(1.0, 0)) for _ in tree_strs)
+    deme.n_evals = len(deme)
+    rep = _FakeRepByIdentity(
+        {id(entry.first): tree for entry, tree in zip(deme, trees, strict=True)}
+    )
+    return deme, rep
+
+
+def test_keep_top_unique_candidates_truncation_is_tie_order_dependent():
+    """S10 branch review, [Important 2]: pins the counterexample to the
+    (corrected, see this module's own docstring) claim that dedup makes
+    tie-order structurally irrelevant. Same multiset of four tied-score
+    trees (`$1 $1 $2 $3`), same `top_cnd` (3, forced below the
+    4-instance deme via `max_candidates_per_deme`) -- only the ORDER of
+    the two `$1` duplicates relative to `$2`/`$3` differs between the two
+    scenarios below, and that alone decides whether the final
+    `del deme[top_cnd:]` (`merging.py:766`) discards a genuine DUPLICATE
+    or a DISTINCT tree.
+
+    Order `$1 $1 $2 $3`: the two `$1`s are ADJACENT, so the pairwise scan
+    collapses them first (`del deme[1]`, `top_cnd = min(3, 3) = 3`),
+    leaving exactly `[$1, $2, $3]` -- the final truncation to 3 removes
+    nothing further. Order `$1 $2 $1 $3`: the two `$1`s are NOT adjacent
+    (a `$2` sits between them), so the scan finds no adjacent structural
+    tie at all (`it_idx` only ever compares NEIGHBOURS) and reaches
+    `it_idx == top_cnd == 3` with the deme still at its original length
+    4 -- the final `del deme[3:]` then discards `$3` outright, leaving
+    `[$1, $2, $1]` with the duplicate `$1` intact instead.
+    """
+    mp = _mp()
+
+    adjacent_deme, adjacent_rep = _tied_deme_with_trees(["$1", "$1", "$2", "$3"], top_cnd=3)
+    mp._params.max_candidates_per_deme = 3
+    mp.keep_top_unique_candidates([[adjacent_deme]], [adjacent_rep])
+    adjacent_result = [
+        combo_tree_to_str(adjacent_rep.get_candidate(si.first, True)).strip()
+        for si in adjacent_deme
+    ]
+    assert adjacent_result == ["$1", "$2", "$3"]
+
+    separated_deme, separated_rep = _tied_deme_with_trees(["$1", "$2", "$1", "$3"], top_cnd=3)
+    mp._params.max_candidates_per_deme = 3
+    mp.keep_top_unique_candidates([[separated_deme]], [separated_rep])
+    separated_result = [
+        combo_tree_to_str(separated_rep.get_candidate(si.first, True)).strip()
+        for si in separated_deme
+    ]
+    assert separated_result == ["$1", "$2", "$1"]  # $3 is LOST, not merely reordered
+
+
 # ---------------------------------------------------------------------------
 # recompute_scores_over_whole_dataset / ss_filter -- subsample gate
 # ---------------------------------------------------------------------------
@@ -790,6 +960,52 @@ def test_resize_metapop_phase1_uses_penalized_score_not_raw_score():
     assert all(sct.get_score() != trap_raw_score for sct in mp.get_trees())
 
 
+def test_resize_metapop_min_pool_size_protects_below_cutoff_scores_inside_the_top_20():
+    """S10 branch review, [Important 3]: `_min_pool_size`'s entire purpose
+    -- "never trim the top 20" -- is unpinned by every OTHER phase-1 test
+    above, because in each of them the first 20 ranked entries are all
+    the SAME tied top score, so a mutant `idx = 0` scans exactly the same
+    entries the real `idx = self._min_pool_size` does and no test
+    notices. This puts a genuinely BELOW-CUTOFF score inside the
+    protected window instead: the seed "$1" alone at the top (ranked 0 by
+    its own PENALIZED score -- no padding entry ties or beats it here,
+    unlike the other phase-1 tests above), then 25 entries all at one
+    shared LOW score, strictly below `bot_sc` -- so ranks 1..25 (by
+    `sct_score_greater`, best-first) are ALL below the cutoff, and ranks
+    1..19 of them sit INSIDE the first-20 window the scan is never
+    supposed to enter.
+
+    Correct code (`idx = self._min_pool_size` == 20): the scan starts at
+    rank 20, which is already `< worst_score`, so it breaks immediately
+    with `idx == 20` and removes ranks 20.. (6 entries) -- keeping the top
+    entry plus 19 below-cutoff entries alive purely because they are
+    inside the floor, final size 20. Mutant (`idx = 0`): the scan starts
+    at rank 0 (the top entry, not below cutoff, `idx` advances to 1), then
+    immediately finds rank 1 below cutoff and breaks there, removing ranks
+    1.. (25 entries) -- final size 1. The two are far enough apart (20 vs
+    1) that no tolerance/approx issue can blur them.
+    """
+    mp = _mp()
+    # The seed's PENALIZED score (not `.get_score()`'s raw score -- this
+    # exemplar has a non-zero complexity penalty, `-3.0` raw vs `-3.2857..`
+    # penalized here) is what `resize_metapop`'s own `ordered[0].
+    # get_penalized_score()` actually reads as `top_score`.
+    seed_penalized = mp.best_composite_score().get_penalized_score()
+    rng = mp.useful_score_range()
+    bot_sc = seed_penalized - rng
+    low_sc = bot_sc - 1.0  # strictly below the cutoff, unlike every other phase-1 test's padding
+
+    _grow_pool(mp, [(low_sc, 0)] * 25)  # + seed "$1" == 26, ranks 1..25 all below cutoff
+    assert mp.size() == 26
+
+    mp.resize_metapop()
+
+    assert mp.size() == 20  # the first-20 floor, not the cutoff, decided this
+    scores = [sct.get_penalized_score() for sct in mp.get_trees()]
+    assert scores.count(pytest.approx(low_sc)) == 19  # 19 below-cutoff survivors, inside the floor
+    assert max(scores) == pytest.approx(seed_penalized)  # the seed itself, still present
+
+
 def test_resize_metapop_phase2_evicts_down_to_the_computed_cap():
     """Phase 2 (the cap-based random eviction) never compares scores at
     all -- it evicts a uniformly random SURVIVING pool member regardless
@@ -820,32 +1036,45 @@ def test_resize_metapop_phase2_evicts_down_to_the_computed_cap():
     assert mp.size() == expected
 
 
-def test_resize_metapop_unsigned_subtraction_wraps_and_surfaces_as_indexerror():
-    """MEASURED HAZARD, reproduced via an explicit 64-bit mask rather than
-    clamped (CARRY-FORWARD's own rule): `popsz - offset` (both `size_t` in
-    C++) underflows whenever phase 1 leaves the population below `offset`
-    (50) but a pathologically tiny `cap_coef` still demands further
-    eviction. `_min_pool_size` (20) is strictly less than `offset` (50),
-    so a population that survives phase 1 at, say, 25 members reaches
-    phase 2 needing to evict below 50 -- reachable, not contrived away by
-    construction elsewhere in this module.
+def test_resize_metapop_signed_int32_narrowing_matches_cpp_measured_value():
+    """CORRECTED (S10 branch review, [Important 1]): this test used to pin
+    an explicit UNSIGNED 64-bit mask as "the SAME enormous value ... fed
+    to `randint_n`" C++ supposedly received -- MEASURED FALSE, see
+    `resize_metapop`'s own docstring for the full correction.
+    `MT19937RandGen::randint` takes a plain `int` (`mt19937ar.h:54`), so
+    C++'s `randint(popsz - offset)` (both `size_t`, merging.cc:427) hands
+    the callee the underflowed subtraction NARROWED to a signed 32-bit
+    int, not the raw 64-bit underflow. `_min_pool_size` (20) is strictly
+    less than `offset` (50), so a population that survives phase 1 at,
+    say, 25 members reaches phase 2 needing to evict below 50 -- reachable,
+    not contrived away by construction elsewhere in this module.
 
     All entries here share one tied score, so phase 1 (whose cutoff logic
     is independently covered above) removes nothing, isolating phase 2 --
     keeps this test from accidentally exercising phase-1 behaviour instead
-    of the wraparound it targets.
+    of the narrowing it targets.
 
-    The `IndexError` alone does NOT distinguish a correctly-masked
-    subtraction from an unmasked one here: for ANY `popsz < offset`,
-    `which = offset + (popsz_minus_offset % randint())`'s value lands
-    outside `[0, popsz)` either way (`which > popsz` always, whether the
-    pre-modulo dividend is the enormous masked value or the small raw
-    negative one) -- confirmed by mutation: removing the `& MASK64` mask
-    entirely left this test passing unchanged. What DOES distinguish them
-    is the actual argument fed to `randint_n` -- captured directly below,
-    by wrapping (not replacing) the real `randGen()` singleton's method,
-    so the RNG stream itself is consumed exactly as `resize_metapop` would
-    consume it either way.
+    The `IndexError` alone does NOT distinguish a correctly-narrowed
+    subtraction from an incorrectly-masked one here: for ANY `popsz <
+    offset`, `which = offset + randint_n(diff)` lands outside `[0, popsz)`
+    either way (`which >= offset > popsz` always, regardless of `diff`'s
+    magnitude) -- confirmed by mutation: reverting the mask back to
+    `(popsz - offset) & 0xFFFFFFFFFFFFFFFF` leaves this test's
+    `pytest.raises(IndexError)` passing unchanged. What DOES distinguish
+    them is the actual argument fed to `randint_n`, and the value it
+    returns -- both captured directly below, by wrapping (not replacing)
+    the real `randGen()` singleton's method, so the RNG stream itself is
+    consumed exactly as `resize_metapop` would consume it either way.
+
+    Pinned against the measured C++ probe end to end, not just at the
+    `rng.py` layer (contrast `test_rng.py`'s own
+    `test_randint_n_matches_cpp_for_negative_n`, which pins all three of
+    the probe's values off one continuous stream): seed 1 here makes
+    `resize_metapop`'s own single draw the SAME first draw the probe's
+    `MT19937RandGen(1).randint(-25)` consumes, so `captured_results` must
+    match the probe's measured `22` exactly, through this module's own
+    mask and `rng.py`'s own `abs(n)` fix together -- reverting EITHER one
+    changes this value.
     """
     mp = _mp()
     # `_mp()`'s own seed ("$1") is scored by the REAL cscorer, not 0.0 --
@@ -856,16 +1085,19 @@ def test_resize_metapop_unsigned_subtraction_wraps_and_surfaces_as_indexerror():
     _grow_pool(mp, [(seed_score, 0) for _ in range(24)])  # + seed == 25, all tied
     assert mp.size() == 25
 
-    randGen().seed(3)
+    randGen().seed(1)  # matches the compiled probe's own seed
     mp._params.cap_coef = 1e-6  # forces popsz_cap == 0 -- any positive popsz evicts
 
     rng = randGen()
     original_randint_n = rng.randint_n
     captured_diffs: list[int] = []
+    captured_results: list[int] = []
 
     def spy(n: int) -> int:
         captured_diffs.append(n)
-        return original_randint_n(n)
+        result = original_randint_n(n)
+        captured_results.append(result)
+        return result
 
     rng.randint_n = spy
     try:
@@ -874,5 +1106,10 @@ def test_resize_metapop_unsigned_subtraction_wraps_and_surfaces_as_indexerror():
     finally:
         rng.randint_n = original_randint_n
 
-    assert captured_diffs == [(25 - 50) & 0xFFFFFFFFFFFFFFFF]
-    assert captured_diffs[0] > 2**63  # sanity: genuinely the wrapped value, not -25
+    # popsz(25) - offset(50) = -25, narrowed to a SIGNED 32-bit int -- small
+    # and negative, not the unsigned-64-bit wraparound this test used to
+    # pin (`(25 - 50) & 0xFFFFFFFFFFFFFFFF`, > 2**63).
+    assert captured_diffs == [-25]
+    # Matches the compiled probe's measured `MT19937RandGen(1).randint(-25)
+    # == 22` end to end, through the real `resize_metapop` code path.
+    assert captured_results == [22]

@@ -65,6 +65,34 @@ def test_randint_n_zero_returns_zero():
     # C++: n == 0 short-circuits before the modulo, avoiding division by zero
     assert MT19937RandGen(0).randint_n(0) == 0
 
+def test_randint_n_matches_cpp_for_negative_n():
+    """S10 branch review, [Important 1]: `randint_n`'s modulo used to take
+    the sign of Python's DIVISOR (`self.randint() % n`), while C's
+    truncating `%` takes the sign of the (here always non-negative)
+    DIVIDEND -- silently wrong for any negative `n`, unreached until
+    `merging.py`'s `resize_metapop` could pass one (its own `size_t`
+    underflow, narrowed to a signed 32-bit `int` exactly as C++'s `int`
+    parameter does).
+
+    Not part of the `rng.json` golden fixture (which has no negative-`n`
+    series): pinned directly against a compiled probe on the real cogutil
+    `MT19937RandGen`, `-O2 -std=c++17`, linked against `libcogutil.so`
+    (the same recipe `rng_probe.cc` documents) --
+
+        MT19937RandGen g(1u);
+        g.randint(-25);  // == 22
+        g.randint(-1);   // == 0
+        g.randint(-29);  // == 6
+
+    ONE generator, three sequential calls -- each `randint(n)` consumes
+    exactly one draw regardless of `n`, so this is the same
+    RNG-stream-consumption contract `randint_n`'s own docstring already
+    relies on. Before the fix (`self.randint() % n`, sign of the divisor),
+    this sequence returned -3/0/-23 instead.
+    """
+    g = MT19937RandGen(1)
+    assert [g.randint_n(-25), g.randint_n(-1), g.randint_n(-29)] == [22, 0, 6]
+
 def test_randint_is_raw_shifted_right_by_one():
     a, b = MT19937RandGen(0), MT19937RandGen(0)
     assert [b.randint() for _ in range(64)] == [a.genrand_int32() >> 1 for _ in range(64)]

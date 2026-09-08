@@ -71,8 +71,28 @@ class MT19937RandGen:
         return self.genrand_int32() >> 1
 
     def randint_n(self, n: int) -> int:
-        """C++: opencog/util/mt19937ar.cc:66 MT19937RandGen::randint(int n)"""
-        return 0 if n == 0 else self.randint() % n
+        """C++: opencog/util/mt19937ar.cc:66 MT19937RandGen::randint(int n)
+
+        `(int)randint() % n`: C++'s `%` truncates toward zero, so the
+        result's sign follows the DIVIDEND, not the divisor. `randint()`
+        (above) is always non-negative (`std::uniform_int_distribution<int>`
+        over `[0, INT_MAX]`), so for a non-negative dividend the truncated
+        result is non-negative regardless of `n`'s sign, with magnitude
+        `randint() % abs(n)` -- traced by hand and confirmed against a
+        compiled probe on the real cogutil class: fresh `MT19937RandGen(1)`,
+        three sequential calls, `randint(-25) == 22`, `randint(-1) == 0`,
+        `randint(-29) == 6`. Python's own `%` instead takes the sign of the
+        DIVISOR, so the naive `self.randint() % n` used here previously
+        returned -3/0/-23 for that same sequence -- silently wrong for any
+        negative `n`, just never observed, because every OTHER call site in
+        this project (`lazy_random_selector.py`, `deme_expander.py`,
+        `neighborhood_sampling.py`) only ever passes a non-negative `n`
+        (`abs(n) == n` there, so this fix changes nothing for them).
+        `merging.py`'s `resize_metapop` is the one caller that can reach a
+        negative `n` (see that function's own docstring for why), and only
+        once its own C++-int32 narrowing is applied correctly.
+        """
+        return 0 if n == 0 else self.randint() % abs(n)
 
     def randdouble(self) -> float:
         """C++: opencog/util/mt19937ar.cc:55 MT19937RandGen::randdouble"""

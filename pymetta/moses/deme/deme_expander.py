@@ -220,10 +220,20 @@ class deme_expander:
         # three -- its own module docstring already excludes the mutable
         # action/perceptions machinery and continuous domains outright.
         # ``deme_parameters`` still carries all three fields (see
-        # deme_params.py) for struct-shape fidelity; they are simply never
-        # forwarded here, matching representation.py's own scope exactly
-        # (nothing in this port's Boolean-only slice can even construct
-        # a non-``None`` ``perceptions``/``actions`` value to forward).
+        # deme_params.py) for struct-shape fidelity; at their DEFAULTS
+        # (``perceptions=None``, ``actions=None``, ``linear_contin=True``)
+        # simply never forwarding them is byte-identical to C++ forwarding
+        # them (a Boolean signature can never construct a non-``None``
+        # perceptions/actions value in the first place, and
+        # ``linear_contin=True`` is C++'s own default too). GATED below
+        # (S10 branch review, [Important 6]) for the NON-default case,
+        # which this port genuinely cannot honour: raises rather than
+        # silently ignoring a caller's ``perceptions``/``actions``/
+        # ``linear_contin=False`` request. Only inert in practice because
+        # ``build_knobs._validate_request`` already rejects any
+        # non-Boolean signature two layers below -- this gate is what
+        # turns that into a clear message AT THIS CALL SITE instead of a
+        # generic type-signature error further down.
 
         C++'s own bookkeeping is push-then-pop-if-empty (cc:287-302,
         `_reps.push_back(new representation(...)); if (_reps.back().fields
@@ -242,6 +252,26 @@ class deme_expander:
                 "feature_selector.{h,cc}, 710 lines) is P2, gated behind "
                 "--enable-fs; not ported. Construct deme_parameters with "
                 "fstor=None (the default)."
+            )
+        if self._params.perceptions is not None or self._params.actions is not None:
+            raise NotImplementedError(
+                "deme_expander.create_representations: perceptions/actions "
+                "(deme_params.h:41-42,46-47) select the perception/action "
+                "knob-building path (build_knobs.py's action_result_type "
+                "branch -- documented stale legacy embodiment code in this "
+                "project's CLAUDE.md); this port's representation() is "
+                "Boolean-only and has no parameter for either. Construct "
+                "deme_parameters with perceptions=None, actions=None (the "
+                "defaults)."
+            )
+        if self._params.linear_contin is not True:
+            raise NotImplementedError(
+                "deme_expander.create_representations: linear_contin=False "
+                "(deme_params.h:49) selects contin_reduce's non-linear "
+                "knob-building path; this port's representation() has no "
+                "contin knob-building at all (Boolean-only) and cannot "
+                "honour a non-default linear_contin. Leave "
+                "deme_parameters.linear_contin at True (the default)."
             )
 
         ignore_ops_seq = [self._params.ignore_ops]
@@ -300,15 +330,27 @@ class deme_expander:
         # builds a NESTED ss-deme structure in the `if (_filter_params.
         # n_subsample_demes > 1)` arm. Gated -- see module docstring; only
         # the `else` arm (cc:394-396, one deme per representation) is
-        # ported.
-        if self._filter_params.n_subsample_demes > 1:
-            raise NotImplementedError(
-                "deme_expander: subsample-deme filtering (subsample_deme_"
-                "filter_parameters.n_subsample_demes > 1) is P2, not "
-                "ported; leave n_subsample_demes at its default (0)."
-            )
-
+        # ported. CORRECTED (S10 branch review, Minor): the gate check
+        # itself must stay INSIDE the `for i in range(len(self._reps))`
+        # loop below, exactly as C++'s own `if` sits inside its `for
+        # (unsigned i = 0; i < _reps.size(); i++)` (cc:388-397) -- it used
+        # to be hoisted out, before this loop and unconditional. That
+        # differs from C++ exactly when `self._reps` is EMPTY (no viable
+        # representation -- `create_representations` returned `False`):
+        # C++'s loop then runs ZERO iterations, so its `n_subsample_demes
+        # > 1` check is never even evaluated, and `create_demes` simply
+        # returns `not _demes.empty()` == `False` -- a normal "no demes,
+        # caller should try another exemplar" signal, no exception. The
+        # hoisted version raised `NotImplementedError` in that same
+        # zero-rep case whenever the flag was on, which C++ never does.
         for i in range(len(self._reps)):
+            if self._filter_params.n_subsample_demes > 1:
+                raise NotImplementedError(
+                    "deme_expander: subsample-deme filtering "
+                    "(subsample_deme_filter_parameters.n_subsample_demes "
+                    "> 1) is P2, not ported; leave n_subsample_demes at "
+                    "its default (0)."
+                )
             self._demes.append([instance_set(self._reps[i].fields(), self._demeIDs[i])])
 
         return len(self._demes) > 0

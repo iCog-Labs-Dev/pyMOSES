@@ -187,6 +187,33 @@ def test_scored_combo_tree_set_dedups_by_tree_ignoring_score():
     assert len(s) == 2
 
 
+def test_scored_combo_tree_set_clear_empties_in_place():
+    """S10 branch review, Minor: `clear()` (added for `metapopulation.
+    update_best_candidates`, which used to rebind to a fresh
+    `scored_combo_tree_set()` instead of mutating the existing one in
+    place, unlike C++'s `_best_candidates.clear()`) must empty the SAME
+    object -- not just make `len()` report 0, but leave a PRIOR reference
+    to it observing the same emptiness, and allow fresh inserts
+    afterward.
+    """
+    s = scored_combo_tree_set()
+    a = scored_combo_tree(tree(builtin.logical_and), composite_score(-1.0, 3))
+    s.insert(a)
+    assert len(s) == 1
+
+    held = s
+    s.clear()
+
+    assert len(s) == 0
+    assert s.empty() is True
+    assert list(s) == []
+    assert held is s and len(held) == 0  # the SAME object, not a new one
+
+    b = scored_combo_tree(tree(builtin.logical_or), composite_score(-1.0, 3))
+    assert s.insert(b) is True  # still usable after clear()
+    assert len(s) == 1
+
+
 def test_scored_combo_tree_is_unhashable_so_a_bare_set_cannot_hold_it():
     """The concrete reason a bare Python `set()` cannot stand in for
     `scored_combo_tree_set`: `scored_combo_tree.__hash__` is explicitly

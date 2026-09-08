@@ -60,13 +60,22 @@ boosting/domination/diversity in ``metapop_params.py``.
 # actually drive to completion without raising ``NotImplementedError``
 # itself (build_knobs.py's own gate, not this file's).
 #
-# ``max_candidates_per_deme`` is never read anywhere in ``deme_expander.cc``
-# itself (confirmed: zero references in the whole 533-line file) -- if
-# anything in this port's scope reads a ``deme_parameters.
-# max_candidates_per_deme``, it is ``metapopulation``/``merging`` (a
-# concurrent S10 task, out of this task's two owned directories), and
-# whoever wires the two together must populate it first, exactly the
-# obligation the CLI layer already carries in C++.
+# CORRECTED (S10 branch review, Minor): this comment used to claim that
+# whoever reads a ``deme_parameters.max_candidates_per_deme`` would be
+# ``metapopulation``/``merging`` -- MEASURED FALSE. ``deme_params.h:54``'s
+# field is never read ANYWHERE in classic (confirmed: zero references
+# beyond its own declaration and the equally-dead ``deme_expander.cc``,
+# which also never reads it -- zero references in that 533-line file
+# either). ``merging.cc:536``'s ``_params.max_candidates_per_deme`` reads
+# a DIFFERENT field on a DIFFERENT struct: ``metapopulation``'s own
+# ``_params``, of type ``metapop_parameters`` (declared separately, at
+# ``metapop_params.h:183``, and ported here as ``metapop_params.py``'s
+# own ``metapop_parameters.max_candidates_per_deme``) -- the two fields
+# merely share a name and a constructor default (``-1``) by coincidence
+# of both authors solving the same "cap candidates per deme" problem
+# independently; they are not the same storage, and nothing in classic
+# ever copies one into the other. ``deme_params.h:54`` is therefore
+# genuinely dead in classic, not merely dead in this port's own scope.
 #
 # Observed by inspection, NOT measured (no probe was run to confirm this is
 # live UB rather than a technically-legal-but-surprising lifetime): both
