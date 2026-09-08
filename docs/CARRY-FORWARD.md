@@ -165,6 +165,15 @@ These cost real time to find. They are properties of the C++ side, not of the po
   any S9+ oracle that drives `hill_climbing` directly must supply a throwaway
   `representation` for `get_rep()` or hit the same crash. Do not "fix" it in
   the port; reproduce the behaviour and mark DO NOT FIX.
+- **`metapopulationUTest` is NOT an oracle for the metapopulation slice.** It
+  builds and passes, but its only two tests (`metapopulationUTest.cxxtest:74`
+  `test_remove_dominated` and `:119` `test_merge_nondominated_rec`) exercise
+  `remove_dominated`/`get_nondominated_disjoint` — both in `domination.cc`,
+  which is P2 and outside S10. They cover none of `metapopulation.cc` or
+  `merging.cc`'s default path. S10 must build its own probes.
+  **The controller asserted otherwise in the first S10 plan after checking only
+  that it built and passed.** "The oracle exists" and "the oracle covers what I
+  am porting" are different claims; verify the second before planning around it.
 - **`MOSESUTest` is S11's oracle, and it is NOT fully green in classic.**
   Measured 2026-09-08: 23 tests, **1 fails** — `test_ps_2_parity`
   (`moses-framework.h:169`, `fabs(result.first - expected_sc) < 1.0e-8` found

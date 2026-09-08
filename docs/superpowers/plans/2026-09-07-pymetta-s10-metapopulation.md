@@ -20,15 +20,26 @@ that drives this.
 `metapopulation/metapopulation.{h,cc}`, `metapopulation/merging.cc`,
 `metapopulation/metapop_params.{h,cc}`.
 
-## The oracle exists — verified, not assumed
+## The oracle — CORRECTED 2026-09-08: it does NOT cover this slice
 
-`metapopulationUTest` is **registered and active** (`tests/moses/CMakeLists.txt:51`).
-Verified on 2026-09-07: `make -C build metapopulationUTest` builds it and it
-runs 2 tests, "OK!". Use it.
+`metapopulationUTest` is registered and **does** build and pass (2 tests). My
+first version of this plan stopped there and said "use it". That was wrong, and
+wrong in the exact way this document warns about elsewhere: **I verified the
+oracle exists, not that it covers the scope.**
 
-This matters because the spec has twice claimed an oracle that turned out to be
-unavailable. `representationUTest` and `diversityUTest` are **commented out** and
-cannot be used. See CARRY-FORWARD's oracle map.
+Its two tests are `test_remove_dominated` and `test_merge_nondominated_rec`
+(`tests/moses/metapopulationUTest.cxxtest:74,119`), which exercise
+`remove_dominated` and `get_nondominated_disjoint` — both in **`domination.cc`**,
+which is P2 and explicitly **not** in this slice's file list. They cover **none**
+of Task 2's or Task 3's scope.
+
+**Consequence:** this slice has *no* ready-made oracle. Every task must build its
+own bounded C++ probe under `tools/cpp_probe/` (Task 2 did: `metapop_core_probe.cc`).
+Do not plan around `metapopulationUTest`.
+
+The general lesson, now also in `docs/CARRY-FORWARD.md`: "the oracle builds and
+passes" and "the oracle tests what I am porting" are different claims, and only
+the second one licenses using it.
 
 ## Measured scope decisions
 
