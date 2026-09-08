@@ -19,3 +19,4 @@ tools/cpp_probe/build/
 # probe runs from the repo root -- e.g. tools/cpp_probe/table_probe.cc,
 # which links libcogutil and calls loadTable()/istreamSparseITable().
 opencog.log
+moses.log

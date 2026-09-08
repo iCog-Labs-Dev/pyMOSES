@@ -445,6 +445,31 @@ class CTable(dict):
     `count_t` is `double` (table.h:494, "so that this will work with
     weighted features") -- every counter value here is a Python `float`,
     never `int`, so weighted rows (`weighted.csv`) compress correctly.
+
+    SWEPT (S14 Task 0, CARRY-FORWARD.md section 2.5): this class's own
+    `dict[tuple[vertex, ...], Counter[vertex]]` is a vertex collection used
+    as a dict/tuple key with no explicit type discrimination -- the same
+    category of risk `vertex_equal` (comboreduct/combo/vertex.py) exists to
+    guard against, since Python's tuple/dict machinery hashes and compares
+    element-wise with bare `==`/`hash()`, and `hash(1.0) == hash(builtin.
+    logical_true)` is guaranteed whenever `1.0 == builtin.logical_true` is
+    (both `True` in bare Python -- see `vertex_equal`'s own docstring).
+    Checked, not assumed: this is safe FOR EVERY `Table`/`CTable` this
+    package itself ever builds, because every such table is populated by
+    `table_io.py`'s loaders, which infer exactly ONE `type_node` per column
+    (`infer_type_from_token2`) and convert every row's entry in that column
+    through `token_to_vertex(that_one_type, token)` -- so a given tuple
+    POSITION holds values of only one vertex alternative for the table's
+    entire lifetime. The `contin_t`/`builtin` collision requires the SAME
+    tuple position to hold both a `contin_t` and a `builtin` across
+    different rows, which never happens under that invariant: two rows can
+    disagree in VALUE at a position, never in KIND. Not proof against a
+    caller that hand-builds an `ITable`/`CTable` bypassing `table_io.py`
+    (this class enforces nothing at the container level, matching C++'s own
+    `std::vector<vertex_seq>`/`std::map<multi_type_seq, TimedCounter>`,
+    which are equally unchecked containers) -- no such caller exists in
+    this package today (`grep -rn "push_back" comboreduct/` and `grep -rn
+    "insert_col" comboreduct/` show only `table_io.py`'s own loaders).
     """
 
     def __init__(
