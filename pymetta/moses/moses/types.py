@@ -1,21 +1,34 @@
 """C++: moses/moses/moses/types.h and types.cc
 
-`composite_score` (types.h:77), `behavioral_score` (types.h:212),
-`scored_combo_tree` (types.h:259) -- narrowed to exactly the surface
-task-6-brief.md's Interfaces section asks for. Everything else in types.h
-is out of scope for this task and this whole S0-S6 cycle:
+`composite_score` (types.h:77), `demeID_t` (types.h:190), `behavioral_score`
+(types.h:212) and `scored_combo_tree` (types.h:259) were narrowed, by the
+S0-S6 foundation cycle, to exactly the surface task-6-brief.md's Interfaces
+section asked for -- deliberately leaving out the metapopulation container
+plumbing below. S10 Task 0 ports exactly that deferred plumbing:
 
-* `demeID_t` -- a deme-bookkeeping string used by the outer search loop
-  (moses/moses/moses/), which this cycle does not port.
 * `scored_combo_tree_set`/`_tset`/`_ptr_set` and their comparator/hash/
   equality functors (`sct_score_greater`, `sct_tree_greater`,
-  `scored_combo_tree_hash`, `scored_combo_tree_equal`) -- metapopulation
-  container plumbing, likewise out of scope. `bscore_base::operator()
-  (const scored_combo_tree_set&)` (scoring_base.h) is consequently not
-  ported either -- see scoring_base.py's module docstring.
+  `scored_combo_tree_hash`, `scored_combo_tree_equal`). `bscore_base::
+  operator()(const scored_combo_tree_set&)` (scoring_base.h), whose port
+  was blocked on this set type not existing yet, is ported too -- see
+  scoring_base.py's own module docstring.
+* `demeID_t` MOVES here. It was already ported, by S9 Task 0, but had to
+  live in `pymetta/moses/representation/instance_set.py` instead of its
+  real C++ home (types.h:190) because a concurrent S9 task owned this file
+  at the time. S10 Task 0 moves the class itself here verbatim and updates
+  every importer, leaving exactly one definition.
+
+Still out of scope for this whole S0-S6+S10 lineage:
+
 * The `ostream_*`/`istream_*` free functions at the bottom of types.h --
   no stream-printing surface is in this cycle's scope (same narrowing
   table.py's module docstring makes for `Table`).
+* `scored_combo_tree`'s own `get_weight()`/`set_weight()` (the boosting
+  weight) and its `demeID_t`-typed `_deme_id` field/`get_demeID()`
+  accessors -- `demeID_t` the TYPE now lives in this module, but
+  `scored_combo_tree` itself still does not carry one: deme bookkeeping and
+  boosting are both out of scope for this whole cycle (see
+  `scored_combo_tree`'s own class docstring for specifics).
 
 `score_t` (a C++ `typedef float`, i.e. IEEE-754 binary32) and `count_t`
 (CTable's `typedef double`, table.h:494) are DIFFERENT C++ types that this
@@ -101,6 +114,9 @@ the C++ source, not inferred:
 import math
 import struct
 
+from pymetta.comboreduct.combo.argument import argument
+from pymetta.comboreduct.combo.common_def import contin_t
+from pymetta.comboreduct.combo.vertex import builtin, lexicographic_subtree_less, vertex_equal
 from pymetta.moses.moses.complexity import complexity_t, least_complexity
 
 score_t = float  # C++: moses/moses/moses/types.h:63 score_t
@@ -431,6 +447,57 @@ class composite_score:
 
     __hash__ = None  # type: ignore[assignment]
 
+
+class demeID_t(str):
+    """C++: moses/moses/moses/types.h:190 demeID_t
+
+    MOVED here (S10 Task 0) from `pymetta/moses/representation/
+    instance_set.py`, where it was ported, verbatim, by S9 Task 0 -- that
+    task owned `pymetta/moses/representation/` while a concurrent S9 task
+    owned this file, and `instance_set` could not be constructed at all
+    without *some* `demeID_t` to default to, so it was ported inline there
+    rather than left undone. Nothing about the class changed in the move;
+    every importer was updated to reach it here instead (see
+    `instance_set.py`'s own module docstring for what it now imports).
+
+    "Assign a unique ID for each deme. This is used to keep track of which
+    deme each candidate comes from. The demeID is stored as a string,
+    formatted as either a single a single integer EXPANSION or as a pair
+    EXPANSION.BREADTH_FIRST ... Here, EXPANSION is the number of times that
+    the deme expander has been called thus far. BREADTH_FIRST is the index
+    of the deme created by a single call of the deme expander." (types.h:
+    182-189's own comment, reproduced verbatim.) `struct demeID_t : public
+    std::string` with three numbered constructors (types.h:192-194) --
+    Python subclasses `str` the same way `instance.py` subclasses `list`
+    for `std::vector`.
+    """
+
+    def __new__(
+        cls,
+        expansion: int = 0,
+        breadth_first: int | None = None,
+        ss_deme: int | None = None,
+    ) -> demeID_t:
+        """C++: moses/moses/moses/types.cc:43 demeID_t::demeID_t
+
+        Three overloads by trailing-argument presence, matching
+        types.cc:43-50 exactly: `str(expansion)`,
+        `f"{expansion}.{breadth_first}"`, or
+        `f"{expansion}.{breadth_first}.SS-{ss_deme}"`. `demeID_t()` (the
+        default used throughout the codebase) is `demeID_t(0)` == `"0"`,
+        not the empty string.
+        """
+        if breadth_first is None:
+            if ss_deme is not None:
+                raise TypeError("demeID_t requires breadth_first before ss_deme")
+            text = str(expansion)
+        elif ss_deme is None:
+            text = f"{expansion}.{breadth_first}"
+        else:
+            text = f"{expansion}.{breadth_first}.SS-{ss_deme}"
+        return super().__new__(cls, text)
+
+
 # C++: moses/moses/moses/types.h:212 behavioral_score
 #
 # `public std::vector<score_t>`, narrowed to a bare `list[float]` per
@@ -520,16 +587,565 @@ class scored_combo_tree:
         C++: the real operator also compares `get_demeID()` and
         `get_weight()` (types.cc:54, 56) -- both dropped fields, see class
         docstring -- so this compares only tree, bscore and cscore.
+
+        FIX (S10 Task 0): `get_tree() == r.get_tree()` (types.cc:53) is
+        real `combo_tree::operator==` -- a genuine STRUCTURAL comparison
+        (`opencog/util/tree.h:3011`, see `_combo_tree_structural_eq`
+        below). This port's own `tree`/`tree_node` classes
+        (`pymetta/util/tree.py`) define no `__eq__` of their own, so a
+        bare `self.tree == other.tree` silently fell back to Python's
+        default identity comparison (`object.__eq__`) -- `True` only when
+        both `scored_combo_tree`s shared the exact same tree OBJECT, never
+        for two independently-built-but-structurally-identical trees,
+        which real C++ correctly treats as equal. Latent until now: no
+        prior task compared two distinct `scored_combo_tree` instances for
+        equality, and this task's own `scored_combo_tree_equal` functor
+        needed the real structural comparison anyway (see its docstring),
+        so this uses that same helper instead of bare `==`.
         """
         if not isinstance(other, scored_combo_tree):
             return NotImplemented
         return (
-            self.tree == other.tree
+            _combo_tree_structural_eq(self.tree, other.tree)
             and self.bscore == other.bscore
             and self.cscore == other.cscore
         )
 
     __hash__ = None  # type: ignore[assignment]
+
+
+# =======================================================================
+# collections of trees (C++: moses/moses/moses/types.h:320-395)
+#
+# `std::set`/`std::unordered_set`/`boost::ptr_set` with a custom Compare
+# (or hash+equal pair) have no direct Python equivalent -- a bare Python
+# `set()` uses only `__hash__`/`__eq__`, and `scored_combo_tree.__hash__`
+# is explicitly `None` above (its own `__eq__` compares tree, bscore AND
+# cscore together, which is deliberately NOT what any of these three
+# containers dedups by). Every container below is therefore its own small
+# class, reproducing the real container's ORDERING and DEDUPLICATION
+# semantics exactly -- the actual, measured exit criterion for this task --
+# rather than borrowing a stdlib container that would silently get either
+# wrong. See each container's own `# DIVERGENCE` marker for precisely what
+# C++ container it stands in for and why a 1:1 Python equivalent does not
+# exist.
+
+
+def _combo_tree_structural_eq(t1: object, t2: object) -> bool:
+    """C++: opencog/util/tree.h:3011 tree
+
+    Non-identifier member per the project's convention (see
+    `composite_score.__lt__`'s docstring, types.py, for the same pattern):
+    cites the class the operator is templated over (`tree<T>`) at the
+    free function's own line, since a free template `operator==` has no
+    enclosing class of its own to cite. The real symbol is the free
+    template `bool operator==(const tree<T>& t1, const tree<T>& t2)`
+    (tree.h:3011-3014).
+
+    Not itself one of this task's four named functors -- `scored_combo_tree_
+    equal` below (types.cc:70-74) calls it via `tr1.get_tree() ==
+    tr2.get_tree()`, and `scored_combo_tree.__eq__` above now calls it too
+    (see that method's own FIX note) -- but the real *combo_tree* equality
+    check both depend on, ported here since this port's own `tree`/
+    `tree_node` classes (`pymetta/util/tree.py`) define no `__eq__`: a bare
+    `t1 == t2` on two `tree` objects falls back to Python's identity
+    comparison, never to structural comparison, so it cannot be used to
+    implement this.
+
+    `t1.empty() ? t2.empty() : (t2.empty() ? false :
+    t1.equal_subtree(t1.begin(), t2.begin()))` (tree.h:3011-3014), ported
+    directly against `pymetta.util.tree.tree`'s own already-ported
+    `equal_subtree` (tree.py:841). Passes `vertex_equal`, NOT
+    `equal_subtree`'s bare-`==` default, as the element predicate: C++'s
+    real default there is `std::equal_to<T>`, which for `vertex` (a
+    `boost::variant`) discriminates by held alternative before comparing a
+    value, exactly what `vertex_equal` reproduces and bare `==` does not
+    (`tree.equal_subtree`'s own docstring names this trap explicitly; see
+    also `combo/assumption.py`'s `equal_assumptions`, the first call site
+    to hit it).
+    """
+    if t1.empty():
+        return t2.empty()
+    if t2.empty():
+        return False
+    return t1.equal_subtree(t1.begin(), t2.begin(), vertex_equal)
+
+
+def _size_tree_less(t1: object, t2: object) -> bool:
+    """C++: opencog/util/tree.h:3299 size_tree_order<vertex>::operator()(tree, tree)
+
+    Not itself a ported C++ *identifier* (it has no name of its own in
+    C++ beyond the class template `size_tree_order<vertex>` -- see
+    `sct_score_greater`/`sct_tree_greater` below, whose `types.cc` bodies
+    both call `size_tree_order<vertex>()(bs_tr1.get_tree(),
+    bs_tr2.get_tree())` verbatim), but load-bearing for both: "if
+    size(tr1)!=size(tr2) then tr1 < tr2; otherwise
+    lexicographic_subtree_order" (tree.h:3297-3298's own comment) -- a
+    strict "less than" over whole combo trees, smaller tree first, then
+    (for equal sizes) `lexicographic_subtree_order<vertex>::cmp(tr1.begin(),
+    tr2.begin()) > 0`, already ported and promoted for reuse as
+    `lexicographic_subtree_less` (comboreduct/combo/vertex.py).
+    """
+    s1, s2 = t1.size(), t2.size()
+    if s1 == s2:
+        return lexicographic_subtree_less(t1.begin(), t2.begin())
+    return s1 < s2
+
+
+class sct_score_greater:
+    """C++: moses/moses/moses/types.h:337 sct_score_greater
+
+    Non-identifier member per the project's convention (see
+    `instance_scorer.py`'s `iscorer_base.__call__` docstring for the same
+    pattern): the real member is `sct_score_greater::operator()`
+    (types.cc:77-100). "greater_than operator for scored_combo_tree. The
+    order is determined by the composite score ... If the scores are
+    equal ... the tree sizes are compared; if these are equal, the trees
+    are compared lexicographically ... this ordering makes the
+    non-standard assumption that anything is greater than nan" (types.h:
+    323-334's own doc comment, condensed). `sct_score_greater`'s ordering
+    is what `scored_combo_tree_ptr_set` (below) sorts by, and what
+    metapopulation exemplar selection (S10 Task 2, out of THIS task's
+    scope) walks in order -- this is the one comparator this whole task's
+    exit criterion singles out as load-bearing.
+
+    DO NOT FIX (verbatim classic quirk, `types.cc:99`): once score AND raw
+    score are both tied, the final tie-break returns `size_tree_order<
+    vertex>()(bs_tr1.get_tree(), bs_tr2.get_tree())` DIRECTLY -- i.e. the
+    ASCENDING "smaller tree sorts first" relation (`_size_tree_less`
+    above) -- with NO negation, even though every earlier stage of this
+    same comparator returns `True` for the *higher*-scoring (i.e.
+    "greater") operand. `types.cc:108`'s comment even undersells it: "size_
+    tree_order first uses tree size, then lexicographic order" -- it does
+    not say the relation gets flipped, because it does not. Confirmed
+    directly against `types.cc:99`'s literal `return` statement, not
+    inferred from the class's own "greater_than operator" doc comment.
+    """
+
+    def __call__(self, bs_tr1: scored_combo_tree, bs_tr2: scored_combo_tree) -> bool:
+        csc1 = bs_tr1.get_composite_score()
+        csc2 = bs_tr2.get_composite_score()
+
+        if csc1 > csc2:
+            return True
+        if csc1 < csc2:
+            return False
+
+        # Tied composite scores. Break the tie on the raw score (types.cc:
+        # 89-93) before falling through to tree shape below.
+        sc1 = csc1.get_score()
+        sc2 = csc2.get_score()
+
+        if sc1 > sc2:
+            return True
+        if sc1 < sc2:
+            return False
+
+        # DO NOT FIX: see class docstring -- this is the ASCENDING
+        # size/lex relation, not its negation, ported verbatim from
+        # types.cc:99.
+        return _size_tree_less(bs_tr1.get_tree(), bs_tr2.get_tree())
+
+
+class sct_tree_greater:
+    """C++: moses/moses/moses/types.h:346 sct_tree_greater
+
+    Non-identifier member, same convention as `sct_score_greater` above:
+    the real member is `sct_tree_greater::operator()` (types.cc:103-109).
+    "greater_than operator for scored_combo_tree. The order is determined
+    first by tree size, then by tree lexicographic order" (types.h:343-345's
+    own doc comment). This is the comparator `scored_combo_tree_tset`
+    (below) sorts by.
+
+    DO NOT FIX (verbatim classic quirk, `types.cc:108`): the ENTIRE body is
+    `return size_tree_order<vertex>()(bs_tr1.get_tree(), bs_tr2.get_tree());`
+    -- the ASCENDING "smaller/lexicographically-first tree sorts first"
+    relation (`_size_tree_less` above), despite this functor's own
+    "greater_than" name. Same quirk `sct_score_greater` documents at
+    greater length -- see that class's own docstring for why this is
+    ported as-is rather than negated to match the name.
+    """
+
+    def __call__(self, bs_tr1: scored_combo_tree, bs_tr2: scored_combo_tree) -> bool:
+        return _size_tree_less(bs_tr1.get_tree(), bs_tr2.get_tree())
+
+
+_BUILTIN_HASH_HEADROOM = len(builtin)
+# Analogous to C++'s `static const size_t c1 = size_t(id::builtin_count);`
+# (vertex.h:436) -- an offset added to a non-`builtin` vertex's hash so it
+# cannot collide with a `builtin`'s own raw-ordinal hash range (`0` ..
+# `_BUILTIN_HASH_HEADROOM - 1`, see `_vertex_hash` below). NOT the same
+# NUMBER as C++'s `id::builtin_count`: this port's `builtin` enum
+# (comboreduct/combo/vertex.py) does not carry the full real `id::builtin`
+# enumerator list, only this port's own narrower subset -- see
+# `_vertex_hash`'s own DIVERGENCE note for why the exact number does not
+# matter here the way it would for a `score_t` value.
+
+
+def _hash_combine(seed: int, value: int) -> int:
+    """No direct C++ symbol -- stands in for `boost::hash_combine`, which
+    both `hash_value(vertex)` (vertex.h:432) and `scored_combo_tree_hash::
+    operator()` (types.cc:60-68) call in real C++. See `_vertex_hash`'s own
+    DIVERGENCE note for why boost's actual mixing algorithm is not
+    reproduced bit-for-bit. This keeps the same *shape* (fold each new
+    value into a running seed, order-sensitively) using a well-known
+    golden-ratio-constant mix, masked to 64 bits so folding over a large
+    tree cannot grow an unbounded Python int.
+    """
+    seed &= 0xFFFFFFFFFFFFFFFF
+    value &= 0xFFFFFFFFFFFFFFFF
+    seed ^= (value + 0x9E3779B97F4A7C15 + (seed << 6) + (seed >> 2)) & 0xFFFFFFFFFFFFFFFF
+    return seed & 0xFFFFFFFFFFFFFFFF
+
+
+def _vertex_hash(v: object) -> int:
+    """C++: moses/comboreduct/combo/vertex.h:432 hash_value(const vertex&)
+
+    Ported for exactly the four vertex alternatives this port's `vertex`
+    union carries (`builtin | argument | contin_t | str`, comboreduct/
+    combo/vertex.py) -- the other nine `hash_value` branches (wild_card,
+    action, builtin_action, perception, definite_object,
+    indefinite_object, message, procedure_call, action_symbol, ann_type)
+    have no case to dispatch to here, the same narrowing that module's own
+    docstring already makes for the union itself.
+
+    # DIVERGENCE(C++ moses/comboreduct/combo/vertex.h:432-518): the literal
+    # arithmetic is NOT reproduced bit-for-bit for the `contin_t`/`str`
+    # cases. Real C++ combines `boost::hash_value(double)`/`boost::
+    # hash_value(std::string)` with `boost::hash_combine` -- both
+    # library-internal, boost-version-dependent algorithms (they have
+    # changed across boost releases even within C++ itself) -- plus offset
+    # constants (`c2`/`c3`) sized off `id::action_count`, which this port's
+    # `vertex` union has no equivalent alternative for at all. None of that
+    # is reproducible from Python, and -- UNLIKE `score_t` narrowing (this
+    # module's own top-of-file DIVERGENCE marker) -- it does not need to
+    # be: this hash value is never compared against a literal oracle
+    # value anywhere, only used internally by `scored_combo_tree_set`'s
+    # hash-bucketing (below), whose only real behavioural requirement is
+    # hash/equality CONSISTENCY -- `a == b` under `scored_combo_tree_equal`
+    # must imply `hash(a) == hash(b)` -- which this satisfies by
+    # construction. `std::unordered_set` itself makes no iteration-order
+    # promise in C++ either, so no observable behaviour depends on the
+    # literal value. The `builtin`/`argument` cases below need no such
+    # divergence: neither one calls `boost::hash_value` in C++ at all, so
+    # both are ported as exact integer arithmetic.
+    """
+    if isinstance(v, contin_t):
+        return _hash_combine(_BUILTIN_HASH_HEADROOM, hash(v))
+    if isinstance(v, str):
+        return _hash_combine(_BUILTIN_HASH_HEADROOM, hash(v))
+    if isinstance(v, builtin):
+        # C++: vertex.h:449-450 `if (const builtin* h = boost::get<builtin>
+        # (&v)) return size_t(*h);` -- the raw enum ordinal, verbatim.
+        return int(v)
+    if isinstance(v, argument):
+        # C++: vertex.h:452-453 `size_t(a->idx * (a->is_negated() + 2)) +
+        # c1` -- pure integer arithmetic, no `boost::hash_value` call, so
+        # ported exactly (`_BUILTIN_HASH_HEADROOM` stands in for `c1`; see
+        # that constant's own note for why the NUMBER differs from C++'s
+        # while the FORMULA does not).
+        return v.idx * (int(v.is_negated()) + 2) + _BUILTIN_HASH_HEADROOM
+    raise TypeError(f"vertex {v!r} is not one of this port's four alternatives")
+
+
+class scored_combo_tree_hash:
+    """C++: moses/moses/moses/types.h:352 scored_combo_tree_hash
+
+    Non-identifier member, same convention as `sct_score_greater` above:
+    the real member is `scored_combo_tree_hash::operator()` (types.cc:
+    60-68), which folds `_vertex_hash` (standing in for C++'s
+    `combo::hash_value(vertex)`) over EVERY node of the tree -- `for
+    (combo::vertex vtx : tr)` walks the WHOLE tree pre-order, not just its
+    root or top-level children -- via `_hash_combine` (standing in for
+    `boost::hash_combine`), seeded at 0 (types.cc:62's `size_t hash = 0;`).
+    See `_vertex_hash`'s own DIVERGENCE note for what is and is not
+    bit-exact here.
+    """
+
+    def __call__(self, sct: scored_combo_tree) -> int:
+        h = 0
+        for node in sct.get_tree():
+            h = _hash_combine(h, _vertex_hash(node.data))
+        return h
+
+
+class scored_combo_tree_equal:
+    """C++: moses/moses/moses/types.h:356 scored_combo_tree_equal
+
+    Non-identifier member, same convention as `sct_score_greater` above:
+    the real member is `scored_combo_tree_equal::operator()` (types.cc:
+    70-74): `tr1.get_tree() == tr2.get_tree()` -- genuine STRUCTURAL
+    `combo_tree::operator==` (`_combo_tree_structural_eq` above), NOT
+    `scored_combo_tree::operator==` (which also compares bscore/cscore).
+    This functor cares about the TREE alone -- exactly what makes
+    `scored_combo_tree_set`'s dedup "same combo tree regardless of score",
+    not "identical in every field".
+    """
+
+    def __call__(self, tr1: scored_combo_tree, tr2: scored_combo_tree) -> bool:
+        return _combo_tree_structural_eq(tr1.get_tree(), tr2.get_tree())
+
+
+class _sct_comparator_set:
+    """Not itself a ported C++ symbol -- shared sorted-list-plus-binary-
+    search implementation backing `scored_combo_tree_tset` and
+    `scored_combo_tree_ptr_set` below, the SAME approach `comboreduct/
+    reduct/logical_rules.py`'s `subtree_set` and `comboreduct/reduct/
+    flat_normal_form.py`'s `clause` already use for this port's other
+    `std::set`/`boost::ptr_set`-with-custom-`Compare` instances (this port
+    has no balanced-tree/skip-list primitive to reuse instead).
+
+    `comp(a, b)` must be a strict weak ordering ("goes before" -- the same
+    role a `Compare` template parameter plays for `boost::ptr_set`/
+    `std::set`: elements sort ascending by `comp`, i.e. `comp(a, b) is
+    True` places `a` before `b`). Two elements are DEDUPLICATED -- a real
+    `std::set`'s own equivalence-class semantics -- whenever NEITHER
+    compares less than the other under `comp` (`not comp(a, b) and not
+    comp(b, a)`), which is emphatically NOT the same test as `a == b`:
+    `subtree_set`'s own docstring makes exactly this point, and it matters
+    even more here, since neither `sct_tree_greater` nor `sct_score_
+    greater` has anything to do with `scored_combo_tree.__eq__` (which
+    also isn't even reachable this way -- `scored_combo_tree.__hash__` is
+    `None`, so a `scored_combo_tree` could never go into a bare Python
+    `set()` regardless; this class exists precisely to fill that gap).
+    """
+
+    __slots__ = ("_items", "_comp")
+
+    def __init__(self, comp) -> None:
+        self._comp = comp
+        self._items: list[scored_combo_tree] = []
+
+    def _bisect(self, x: scored_combo_tree) -> tuple[int, bool]:
+        lo, hi = 0, len(self._items)
+        comp = self._comp
+        while lo < hi:
+            mid = (lo + hi) // 2
+            v = self._items[mid]
+            if comp(v, x):
+                lo = mid + 1
+            elif comp(x, v):
+                hi = mid
+            else:
+                return mid, True
+        return lo, False
+
+    def insert(self, sct: scored_combo_tree) -> bool:
+        """C++: std::set<T, Compare>::insert / boost::ptr_set<T, Compare>::insert
+
+        Returns whether `sct` was newly inserted (`False` if an element
+        already comparing EQUIVALENT to it -- see class docstring -- was
+        already present).
+        """
+        idx, found = self._bisect(sct)
+        if found:
+            return False
+        self._items.insert(idx, sct)
+        return True
+
+    def erase(self, sct: scored_combo_tree) -> None:
+        """C++: std::set<T, Compare>::erase(const key_type&) / boost::
+        ptr_set<T, Compare>::erase(const key_type&)
+
+        A no-op if no equivalent element is present, matching `std::set`'s
+        own permissive contract (same convention `subtree_set.erase`
+        documents).
+        """
+        idx, found = self._bisect(sct)
+        if found:
+            del self._items[idx]
+
+    def __contains__(self, sct: scored_combo_tree) -> bool:
+        return self._bisect(sct)[1]
+
+    def __iter__(self):
+        return iter(self._items)
+
+    def __len__(self) -> int:
+        return len(self._items)
+
+    def empty(self) -> bool:
+        """C++: std::set::empty / boost::ptr_set::empty"""
+        return not self._items
+
+
+class scored_combo_tree_tset:
+    """C++: moses/moses/moses/types.h:378 scored_combo_tree_tset
+
+    `typedef boost::ptr_set<scored_combo_tree, sct_tree_greater>
+    scored_combo_tree_tset;` -- "fairly fast, mutable storage for combo
+    trees, based on the combo tree itself, and not how its scored ... more
+    stable [than `scored_combo_tree_ptr_set`], precisely because it does
+    not use the scores (which thus are allowed to change, depending on the
+    situation)." (types.h:373-378's own comment, condensed.)
+
+    # DIVERGENCE(C++ moses/moses/moses/types.h:378): `boost::ptr_set` owns
+    # heap-allocated elements by pointer, using `Compare` purely to order
+    # them -- Python has no pointer-owning container at all (ownership is
+    # moot in a garbage-collected language), so this stores plain
+    # `scored_combo_tree` object references directly in a sorted list
+    # (`_sct_comparator_set`, binary-search insert/erase -- see its own
+    # docstring). What this DOES reproduce exactly is the thing this
+    # task's exit criterion actually measures: `sct_tree_greater`'s
+    # ordering, and its "neither compares less" deduplication semantics.
+    """
+
+    def __init__(self, items=()) -> None:
+        self._set = _sct_comparator_set(sct_tree_greater())
+        for x in items:
+            self._set.insert(x)
+
+    def insert(self, sct: scored_combo_tree) -> bool:
+        """C++: boost::ptr_set<scored_combo_tree, sct_tree_greater>::insert"""
+        return self._set.insert(sct)
+
+    def erase(self, sct: scored_combo_tree) -> None:
+        """C++: boost::ptr_set<scored_combo_tree, sct_tree_greater>::erase"""
+        self._set.erase(sct)
+
+    def __contains__(self, sct: scored_combo_tree) -> bool:
+        return sct in self._set
+
+    def __iter__(self):
+        return iter(self._set)
+
+    def __len__(self) -> int:
+        return len(self._set)
+
+    def empty(self) -> bool:
+        """C++: boost::ptr_set::empty"""
+        return self._set.empty()
+
+
+class scored_combo_tree_ptr_set:
+    """C++: moses/moses/moses/types.h:388 scored_combo_tree_ptr_set
+
+    `typedef boost::ptr_set<scored_combo_tree, sct_score_greater>
+    scored_combo_tree_ptr_set;` -- "holds scored combo trees, using the
+    composite score to order the elements ... if the scorer is changing
+    the way in which it is scoring over time ... there is no way to
+    guarantee that a given tree appears only once in the set. You have
+    been warned!" (types.h:381-389's own comment, condensed.) This is the
+    container the metapopulation's exemplar pool is ordered by (S10 Task 2,
+    out of THIS task's scope) -- iterating it in order visits the
+    BEST-scoring candidate first, per `sct_score_greater`'s own ordering.
+
+    # DIVERGENCE(C++ moses/moses/moses/types.h:388): same reason as
+    # `scored_combo_tree_tset` above -- `boost::ptr_set`'s pointer
+    # ownership has no Python equivalent and is not what this task's exit
+    # criterion measures. Backed by the same `_sct_comparator_set` sorted-
+    # list-plus-binary-search implementation, parameterized on
+    # `sct_score_greater` instead of `sct_tree_greater`.
+    """
+
+    def __init__(self, items=()) -> None:
+        self._set = _sct_comparator_set(sct_score_greater())
+        for x in items:
+            self._set.insert(x)
+
+    def insert(self, sct: scored_combo_tree) -> bool:
+        """C++: boost::ptr_set<scored_combo_tree, sct_score_greater>::insert"""
+        return self._set.insert(sct)
+
+    def erase(self, sct: scored_combo_tree) -> None:
+        """C++: boost::ptr_set<scored_combo_tree, sct_score_greater>::erase"""
+        self._set.erase(sct)
+
+    def __contains__(self, sct: scored_combo_tree) -> bool:
+        return sct in self._set
+
+    def __iter__(self):
+        return iter(self._set)
+
+    def __len__(self) -> int:
+        return len(self._set)
+
+    def empty(self) -> bool:
+        """C++: boost::ptr_set::empty"""
+        return self._set.empty()
+
+
+class scored_combo_tree_set:
+    """C++: moses/moses/moses/types.h:369 scored_combo_tree_set
+
+    `typedef std::unordered_set<scored_combo_tree, scored_combo_tree_hash,
+    scored_combo_tree_equal> scored_combo_tree_set;` -- "provides an O(1)
+    way of determining if a combo tree is in the set, or not (and getting
+    its score, if it is) ... invokes the copy constructor for insertion."
+    (types.h:362-367's own comment, condensed.)
+
+    # DIVERGENCE(C++ moses/moses/moses/types.h:369): a real
+    # `std::unordered_set` is a hash table with implementation-defined
+    # bucket layout and, consequently, an UNSPECIFIED iteration order --
+    # C++ itself makes no promise about what order `for (auto& sct :
+    # candidates)` visits elements in. Python has no built-in hash-table
+    # type that accepts a custom hash+equality PAIR the way
+    # `unordered_set`'s two extra template parameters do (a bare `set()`
+    # only ever uses `__hash__`/`__eq__`, and `scored_combo_tree.__hash__`
+    # is explicitly `None` above -- unhashable -- precisely because its
+    # own `__eq__` also compares bscore/cscore, which `scored_combo_tree_
+    # hash`/`scored_combo_tree_equal` deliberately do NOT: types.cc:70-74
+    # defines `scored_combo_tree_equal` as `tr1.get_tree() ==
+    # tr2.get_tree()` alone). This reproduces the actual observable
+    # contract instead: a small hand-rolled hash table (`dict[int,
+    # list[scored_combo_tree]]`, bucketed by `scored_combo_tree_hash`)
+    # that dedups two elements whenever `scored_combo_tree_equal` says
+    # they match -- i.e. whenever their TREES alone are equal, regardless
+    # of score -- which is the one behaviour every real caller of this
+    # type actually depends on. Like real C++, this makes no promise about
+    # iteration order.
+    """
+
+    def __init__(self, items=()) -> None:
+        self._buckets: dict[int, list[scored_combo_tree]] = {}
+        self._size = 0
+        for x in items:
+            self.insert(x)
+
+    def insert(self, sct: scored_combo_tree) -> bool:
+        """C++: std::unordered_set<scored_combo_tree, scored_combo_tree_hash,
+        scored_combo_tree_equal>::insert
+
+        Returns whether `sct` was newly inserted.
+        """
+        h = scored_combo_tree_hash()(sct)
+        eq = scored_combo_tree_equal()
+        bucket = self._buckets.setdefault(h, [])
+        for existing in bucket:
+            if eq(existing, sct):
+                return False
+        bucket.append(sct)
+        self._size += 1
+        return True
+
+    def erase(self, sct: scored_combo_tree) -> None:
+        """C++: std::unordered_set<...>::erase(const key_type&)"""
+        h = scored_combo_tree_hash()(sct)
+        bucket = self._buckets.get(h)
+        if not bucket:
+            return
+        eq = scored_combo_tree_equal()
+        for i, existing in enumerate(bucket):
+            if eq(existing, sct):
+                del bucket[i]
+                self._size -= 1
+                return
+
+    def __contains__(self, sct: scored_combo_tree) -> bool:
+        h = scored_combo_tree_hash()(sct)
+        eq = scored_combo_tree_equal()
+        return any(eq(existing, sct) for existing in self._buckets.get(h, ()))
+
+    def __iter__(self):
+        for bucket in self._buckets.values():
+            yield from bucket
+
+    def __len__(self) -> int:
+        return self._size
+
+    def empty(self) -> bool:
+        """C++: std::unordered_set::empty"""
+        return self._size == 0
 
 
 worst_composite_score = composite_score()

@@ -22,8 +22,8 @@ from pymetta.moses.moses.optimization.optimization import (
     optim_stats,
     optimizer_base,
 )
+from pymetta.moses.moses.types import demeID_t
 from pymetta.moses.representation.field_set import contin_spec, disc_spec, field_set
-from pymetta.moses.representation.instance_set import demeID_t
 from pymetta.moses.representation.scored_instance import scored_instance
 
 

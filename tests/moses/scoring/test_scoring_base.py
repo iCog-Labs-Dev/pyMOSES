@@ -14,6 +14,7 @@ import pytest
 
 from pymetta.comboreduct.combo.vertex import builtin
 from pymetta.comboreduct.table.table import ITable, OTable, Table, type_node
+from pymetta.moses.moses.types import scored_combo_tree_set
 from pymetta.moses.scoring.bscores import ctruth_table_bscore
 from pymetta.moses.scoring.scoring_base import bscore_base, discrete_complexity_coef
 
@@ -86,6 +87,19 @@ def test_set_complexity_coef_rejects_other_argument_counts():
         bsc.set_complexity_coef()
     with pytest.raises(TypeError):
         bsc.set_complexity_coef(1, 2, 3)
+
+
+def test_call_ensemble_raises_boosting_is_out_of_scope():
+    """S10 Task 0: `bscore_base::operator()(const scored_combo_tree_set&)`
+    (scoring_base.h:66) -- the base-class body is an unconditional
+    `OC_ASSERT(false, ...)` (scoring_base.cc:74-75) that no bscorer in
+    this port overrides (boosting stays out of scope). Ported as
+    `call_ensemble`, not `__call__` -- see that method's own docstring.
+    """
+    ctable = _boolean_ctable()
+    bsc = ctruth_table_bscore(ctable)
+    with pytest.raises(NotImplementedError, match="Ensemble scoring not implemented"):
+        bsc.call_ensemble(scored_combo_tree_set())
 
 
 def _boolean_ctable():
