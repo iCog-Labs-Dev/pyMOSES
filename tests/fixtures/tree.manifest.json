@@ -1,0 +1,16 @@
+{
+  "capture_script": "tools/capture_tree.py",
+  "capture_script_sha256": "fb4c163b5c498037b05aebc91f5c9ff7ec5cefe8659b941c731577ada6ec4c9d",
+  "classic_dir": null,
+  "cli_tool": null,
+  "generated_at_utc": "2026-09-03T11:00:33+03:00",
+  "inputs": {
+    "description": "fixed splice-operation and traversal-order test cases hardcoded in tree_probe.cc; no external dataset or seed. Needs only a raw CogUtil source checkout ($COGUTIL) -- no libcogutil link, no moses-legacy prefix, no classic MOSES checkout. tools/capture_tree.py itself did not exist until this task (CARRY-FORWARD.md Sec 5's named gap: 'tree.json has no capture script in-repo')."
+  },
+  "prefix_dir": null,
+  "probe_kind": "cpp_probe",
+  "probe_source": "tools/cpp_probe/tree_probe.cc",
+  "probe_source_sha256": "76124e0dee74e6cfb116e1448e330f28ffe1231aba1116f8b69cd85318bd9f3b",
+  "repo_commit": "dfd2f13cae826aa668c859feafffc6490b1732e1",
+  "schema_version": 1
+}

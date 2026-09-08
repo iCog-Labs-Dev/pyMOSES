@@ -6,53 +6,52 @@ and libraries (moses/comboreduct/cogutil), run it, and save its JSON stdout
 as tests/fixtures/hillclimbing.json. Every subprocess is resource-bounded
 (RLIMIT_AS + a wall-clock timeout) per this session's standing OOM caution.
 
-S9 fix-round hardening (2026-09): two standing weaknesses named in
-docs/CARRY-FORWARD.md Sec 5 ("No fixture carries a checksum, version, or
-input manifest", "ci.sh cannot rebuild the probes") are addressed for THIS
-fixture specifically (the other capture_*.py scripts in this directory
-share the same hardcoded-path pattern but are out of this task's scope):
+S9 fix-round hardening (2026-09), later generalized to every capture
+script (see tools/_capture_env.py, tools/_manifest.py,
+tools/check_fixture_manifests.py) for docs/CARRY-FORWARD.md Sec 5 ("No
+fixture carries a checksum, version, or input manifest", "ci.sh cannot
+rebuild the probes"):
 
-1. `CLASSIC`/`PREFIX` are now overridable via `PYMETTA_CLASSIC_DIR`/
-   `PYMETTA_MOSES_PREFIX` environment variables, defaulting to the exact
-   absolute paths this script always used -- so behaviour on THIS machine
-   is unchanged, but the script is no longer permanently tied to one
-   developer's home directory the way it (and every sibling capture
-   script, and tests/conftest.py) was before.
-2. The written fixture now carries a top-level `_manifest` object (probe
-   source path + its sha256, this capture script's own path, the commit
-   this repo was at, and a UTC timestamp) recording what produced it --
+1. `CLASSIC`/`PREFIX` are resolved via `PYMETTA_CLASSIC_DIR`/
+   `PYMETTA_MOSES_PREFIX` (tools/_capture_env.py) -- REQUIRED, with a
+   clear error if unset, not a personal-machine fallback -- so this
+   script (and now every capture_*.py sibling) is not permanently tied to
+   one developer's home directory.
+2. The written fixture carries a top-level `_manifest` object (schema
+   from tools/_manifest.py: probe source path + its sha256, this capture
+   script's own path + sha256, the commit this repo was at, a UTC
+   timestamp, and the run's inputs) recording what produced it --
    `tests/moses/moses/optimization/test_hill_climbing.py`'s own
    `test_fixture_manifest_matches_current_probe_source` cross-checks the
    recorded sha256 against the CURRENT probe source on every test run, so
    an edit to the probe that never re-runs this script is caught without
    needing the classic checkout, a compiler, or the installed prefix to be
-   present in the environment running the test suite.
+   present in the environment running the test suite. Every other fixture
+   now carries the same manifest as a `<name>.manifest.json` sidecar
+   (see tools/_manifest.py's docstring for why this one embeds instead),
+   checked by `tools/check_fixture_manifests.py`.
 
 This does not, by itself, make `ci.sh` able to rebuild the fixture (ci.sh
 deliberately stays compiler/classic-checkout-free, per its own docstring
 constraints and CLAUDE.md's stdlib-only house rule) -- it makes drift
 between the checked-in fixture and the checked-in probe source DETECTABLE
-by the test suite that already runs there, which is the actionable half of
-"ci.sh cannot rebuild the probes".
+by the test suite (this fixture) and `tools/check_fixture_manifests.py`
+(every fixture) without either needing a C++ toolchain.
 """
 
-import hashlib
 import json
-import os
 import resource
 import subprocess
 import sys
-from datetime import UTC, datetime
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
-CLASSIC = Path(
-    os.environ.get(
-        "PYMETTA_CLASSIC_DIR",
-        "/home/yab/Documents/Projects/iCog/HyperonRelated/MOSES/OpenCog/Moses",
-    )
-)
-PREFIX = Path(os.environ.get("PYMETTA_MOSES_PREFIX", str(Path.home() / "opt" / "moses-legacy")))
+sys.path.insert(0, str(REPO_ROOT))
+from tools._capture_env import classic_dir, moses_prefix  # noqa: E402
+from tools._manifest import build_manifest  # noqa: E402
+
+CLASSIC = classic_dir()
+PREFIX = moses_prefix()
 PROBE_SRC = REPO_ROOT / "tools" / "cpp_probe" / "hillclimbing_probe.cc"
 PROBE_BIN = REPO_ROOT / "tools" / "cpp_probe" / "build" / "hillclimbing_probe"
 FIXTURE_PATH = REPO_ROOT / "tests" / "fixtures" / "hillclimbing.json"
@@ -106,36 +105,23 @@ def build_probe() -> None:
         raise RuntimeError(f"hillclimbing probe compilation failed:\n{result.stderr}")
 
 
-def _git_commit() -> str | None:
-    """Best-effort -- returns None (rather than raising) when `git` is
-    unavailable or this checkout is not a git repo, so a manifest can
-    still be written in either case.
-    """
-    try:
-        result = subprocess.run(
-            ["git", "rev-parse", "HEAD"],
-            cwd=REPO_ROOT,
-            capture_output=True,
-            text=True,
-            timeout=10,
-            check=True,
-        )
-    except (subprocess.SubprocessError, OSError):
-        return None
-    return result.stdout.strip() or None
-
-
 def _build_manifest() -> dict:
-    return {
-        "schema_version": 1,
-        "capture_script": "tools/capture_hillclimbing.py",
-        "probe_source": "tools/cpp_probe/hillclimbing_probe.cc",
-        "probe_source_sha256": hashlib.sha256(PROBE_SRC.read_bytes()).hexdigest(),
-        "repo_commit": _git_commit(),
-        "classic_dir": str(CLASSIC),
-        "prefix_dir": str(PREFIX),
-        "generated_at_utc": datetime.now(UTC).isoformat(timespec="seconds"),
-    }
+    return build_manifest(
+        repo_root=REPO_ROOT,
+        capture_script="tools/capture_hillclimbing.py",
+        capture_script_path=Path(__file__).resolve(),
+        probe_source="tools/cpp_probe/hillclimbing_probe.cc",
+        probe_source_path=PROBE_SRC,
+        probe_kind="cpp_probe",
+        classic_dir=CLASSIC,
+        prefix_dir=PREFIX,
+        inputs={
+            "cases": {
+                "deterministic": {"max_evals": 500, "hc_cross": False},
+                "sampled": {"max_evals": 4000, "hc_widen": True, "hc_cross": False},
+            }
+        },
+    )
 
 
 def capture_fixture() -> None:

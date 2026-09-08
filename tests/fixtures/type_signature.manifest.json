@@ -1,0 +1,16 @@
+{
+  "capture_script": "tools/capture_type_signature.py",
+  "capture_script_sha256": "cdf2647201b33b90a0ed22245e08f5f159bf81f7a01b6e45d113e32deaa50fd3",
+  "classic_dir": "/home/yab/Documents/Projects/iCog/HyperonRelated/MOSES/OpenCog/Moses",
+  "cli_tool": null,
+  "generated_at_utc": "2026-09-07T10:51:09+03:00",
+  "inputs": {
+    "description": "fixed type-signature test cases hardcoded in type_signature_probe.cc; no external dataset or seed"
+  },
+  "prefix_dir": "/home/yab/opt/moses-legacy",
+  "probe_kind": "cpp_probe",
+  "probe_source": "tools/cpp_probe/type_signature_probe.cc",
+  "probe_source_sha256": "7a76502eab5faa4c27961e3b8d7dffd50b3920850a1c0a144eb9d96a4fa74233",
+  "repo_commit": "f3b46529d7ba64687f4c893a60e8e9596fe1ecbe",
+  "schema_version": 1
+}

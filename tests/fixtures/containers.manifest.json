@@ -1,0 +1,16 @@
+{
+  "capture_script": "tools/capture_containers.py",
+  "capture_script_sha256": "56505c98cb896adc20926704082d95e283966ac34b295f5f060eb8b487e8bd26",
+  "classic_dir": "/home/yab/Documents/Projects/iCog/HyperonRelated/MOSES/OpenCog/Moses",
+  "cli_tool": null,
+  "generated_at_utc": "2026-09-07T15:29:36+03:00",
+  "inputs": {
+    "description": "fixed instance_set/scored_instance test cases hardcoded in containers_probe.cc; no external dataset or seed"
+  },
+  "prefix_dir": "/home/yab/opt/moses-legacy",
+  "probe_kind": "cpp_probe",
+  "probe_source": "tools/cpp_probe/containers_probe.cc",
+  "probe_source_sha256": "32be735f563f1cd1d1914c5ff6e52403a4eddc4509c32001bdb3cd6d53bab422",
+  "repo_commit": "4e209d50937b09d0faaa46d035f75e835c6a8c70",
+  "schema_version": 1
+}

@@ -18,6 +18,10 @@ import sys
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
+sys.path.insert(0, str(REPO_ROOT))
+from tools._capture_env import moses_prefix  # noqa: E402
+from tools._manifest import build_manifest, write_sidecar  # noqa: E402
+
 PROBE_DIR = REPO_ROOT / "tools" / "cpp_probe"
 BUILD_DIR = PROBE_DIR / "build"
 FIXTURE_DIR = REPO_ROOT / "tests" / "fixtures"
@@ -26,11 +30,6 @@ FIXTURE_DIR = REPO_ROOT / "tests" / "fixtures"
 PROBES = {
     "rng_probe.cc": "rng.json",
 }
-
-# cogutil install prefix -- same default tools/cpp_probe/score_probe.cc's own
-# build recipe comment uses, and the same one CLAUDE.md's rebuild-moses-local.sh
-# installs to.
-COGUTIL_PREFIX = Path.home() / "opt" / "moses-legacy"
 
 # Probes that need cogutil's headers/library linked in, beyond the plain
 # dependency-free g++ invocation every other probe here gets -- see this
@@ -41,13 +40,17 @@ _NEEDS_COGUTIL = {"rng_probe.cc"}
 def build_probe(source: Path, binary: Path) -> None:
     """Compile one probe. Every probe but `rng_probe.cc` gets a plain,
     dependency-free g++ invocation; `rng_probe.cc` additionally links
-    against the installed cogutil (see this module's own docstring).
+    against the installed cogutil (see this module's own docstring) --
+    resolved via PYMETTA_MOSES_PREFIX (tools/_capture_env.py), only when
+    actually needed, so this function does not require that variable for
+    every other probe in PROBES.
     """
     BUILD_DIR.mkdir(parents=True, exist_ok=True)
     cmd = ["g++", "-O2", "-std=c++17"]
     if source.name in _NEEDS_COGUTIL:
-        include = COGUTIL_PREFIX / "include"
-        lib = COGUTIL_PREFIX / "lib"
+        cogutil_prefix = moses_prefix()
+        include = cogutil_prefix / "include"
+        lib = cogutil_prefix / "lib"
         lib_opencog = lib / "opencog"
         cmd += ["-I", str(include)]
         cmd += ["-o", str(binary), str(source)]
@@ -71,15 +74,41 @@ def capture_fixture(binary: Path, fixture_path: Path) -> None:
     fixture_path.write_text(result.stdout)
 
 
+# Per-probe manifest `inputs` -- deliberately not derivable generically
+# from PROBES, since each probe's actual parameterization lives in its own
+# .cc source, not in this script.
+_INPUTS = {
+    "rng_probe.cc": {
+        "seeds": [0, 1, 7, 42, 12345, 4294967295],
+        "draws_per_seed": 2000,
+        "series": ["raw", "randint", "randint_7", "randbool", "randdouble"],
+    },
+}
+
+
 def main(argv: list[str]) -> int:
     del argv  # no CLI options yet -- one fixed table of probes to (re)run
     FIXTURE_DIR.mkdir(parents=True, exist_ok=True)
     for probe_name, fixture_name in PROBES.items():
         source = PROBE_DIR / probe_name
         binary = BUILD_DIR / probe_name.removesuffix(".cc")
+        fixture_path = FIXTURE_DIR / fixture_name
         build_probe(source, binary)
-        capture_fixture(binary, FIXTURE_DIR / fixture_name)
-        print(f"wrote {FIXTURE_DIR / fixture_name}")
+        capture_fixture(binary, fixture_path)
+        write_sidecar(
+            fixture_path,
+            build_manifest(
+                repo_root=REPO_ROOT,
+                capture_script="tools/capture_golden.py",
+                capture_script_path=Path(__file__).resolve(),
+                probe_source=f"tools/cpp_probe/{probe_name}",
+                probe_source_path=source,
+                probe_kind="cpp_probe",
+                prefix_dir=moses_prefix() if probe_name in _NEEDS_COGUTIL else None,
+                inputs=_INPUTS.get(probe_name, {}),
+            ),
+        )
+        print(f"wrote {fixture_path}")
     return 0
 
 

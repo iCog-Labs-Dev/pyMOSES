@@ -1,0 +1,32 @@
+{
+  "capture_script": "tools/capture_golden.py",
+  "capture_script_sha256": "f12c0c7423061b1f1d56a2a7ec13d220ba2e513e60d8db43c00662442eca78fd",
+  "classic_dir": null,
+  "cli_tool": null,
+  "generated_at_utc": "2026-09-08T11:42:49+00:00",
+  "inputs": {
+    "draws_per_seed": 2000,
+    "seeds": [
+      0,
+      1,
+      7,
+      42,
+      12345,
+      4294967295
+    ],
+    "series": [
+      "raw",
+      "randint",
+      "randint_7",
+      "randbool",
+      "randdouble"
+    ],
+    "verification": "rng_probe.cc/tools/capture_golden.py were rewritten to link the real cogutil MT19937RandGen (previously a hand-copy against bare std::mt19937). A resource-bounded rebuild-and-run during this task's own work (see the fixture-integrity report) proved the rewritten probe's stdout is byte-for-byte identical to the already-committed tests/fixtures/rng.json -- so this manifest records the CURRENT probe/script hashes as verified-consistent, not a stale pre-rewrite hash that would spuriously fail tools/check_fixture_manifests.py forever."
+  },
+  "prefix_dir": "/home/yab/opt/moses-legacy",
+  "probe_kind": "cpp_probe",
+  "probe_source": "tools/cpp_probe/rng_probe.cc",
+  "probe_source_sha256": "7835049d10bd7c2853c91d6d1cc7b71a931005e3eee776c67121703af80bb2f4",
+  "repo_commit": "fc62b4d497ba56dd81c9888793b2d627db031c29",
+  "schema_version": 1
+}

@@ -1,0 +1,16 @@
+{
+  "capture_script": "tools/capture_neighborhood.py",
+  "capture_script_sha256": "257eda733d3e94ec4cecac71118ebf728f61cbd4b41b90febd192757dab07d0b",
+  "classic_dir": "/home/yab/Documents/Projects/iCog/HyperonRelated/MOSES/OpenCog/Moses",
+  "cli_tool": null,
+  "generated_at_utc": "2026-09-07T15:29:53+03:00",
+  "inputs": {
+    "description": "fixed neighborhood_sampling test cases hardcoded in neighborhood_probe.cc; no external dataset or seed"
+  },
+  "prefix_dir": "/home/yab/opt/moses-legacy",
+  "probe_kind": "cpp_probe",
+  "probe_source": "tools/cpp_probe/neighborhood_probe.cc",
+  "probe_source_sha256": "e4c27e983841a9a03522b53ff45a161a627d2d2a9f74af77f78392d602e03887",
+  "repo_commit": "7ade2cc4019804906e514dfe469d63ca318d3a99",
+  "schema_version": 1
+}

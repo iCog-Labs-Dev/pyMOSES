@@ -1,0 +1,28 @@
+{
+  "capture_script": "tools/capture_reduct.py",
+  "capture_script_sha256": "119f266172a56d16faae3bfac5aabf635a036963bcd698a5f85dd8594cd8b557",
+  "classic_dir": "/home/yab/Documents/Projects/iCog/HyperonRelated/MOSES/OpenCog/Moses",
+  "cli_tool": null,
+  "generated_at_utc": "2026-09-07T10:20:58+03:00",
+  "inputs": {
+    "corpus_module": "tools/cpp_probe/reduct_corpus.py",
+    "efforts": [
+      1,
+      2,
+      3
+    ],
+    "sources": [
+      "testTrees.sh",
+      "BooleanReductUTest.cxxtest",
+      "BooleanFullUTest.cxxtest",
+      "FullReductUTest.cxxtest",
+      "GeneralTestCases.py"
+    ]
+  },
+  "prefix_dir": "/home/yab/opt/moses-legacy",
+  "probe_kind": "cpp_probe",
+  "probe_source": "tools/cpp_probe/reduct_effort_probe.cc",
+  "probe_source_sha256": "f221f45ee0217e3d0bffcd72502b0140df601c9e0d45af3905e3adcb21863ce3",
+  "repo_commit": "b816f05500e9993353b017bbbff993177b6b3bd7",
+  "schema_version": 1
+}

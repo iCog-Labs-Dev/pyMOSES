@@ -1,0 +1,27 @@
+{
+  "capture_script": "tools/capture_table.py",
+  "capture_script_sha256": "5efc664fde85e741e396c78a994d0d497e622d4fef82ae47cfc9934b9e150fdf",
+  "classic_dir": "/home/yab/Documents/Projects/iCog/HyperonRelated/MOSES/OpenCog/Moses",
+  "cli_tool": null,
+  "generated_at_utc": "2026-09-03T16:43:01+03:00",
+  "inputs": {
+    "cases": [
+      "dataset.csv",
+      "dataset_force_feature.csv",
+      "sparse.data:target1",
+      "sparse.data:target2",
+      "weighted.csv",
+      "timestamp_table.csv",
+      "timestamp_table2.csv",
+      "timestamp_table3.csv",
+      "trainingBoolean.dat",
+      "trainingBooleanXor.dat"
+    ]
+  },
+  "prefix_dir": "/home/yab/opt/moses-legacy",
+  "probe_kind": "cpp_probe",
+  "probe_source": "tools/cpp_probe/table_probe.cc",
+  "probe_source_sha256": "dc07d3a3f7b297a265bac394bb24fbc8540e2a6ef528c22b712fb3f454f4ca69",
+  "repo_commit": "a54f39b0c6095b6f011cbedceda43bff85297584",
+  "schema_version": 1
+}

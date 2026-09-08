@@ -1,0 +1,16 @@
+{
+  "capture_script": "tools/capture_containers_sct.py",
+  "capture_script_sha256": "2be204b9d909aaa2fd2c309540933a602ace5e1d967b8a4be98f0d6760fd4169",
+  "classic_dir": "/home/yab/Documents/Projects/iCog/HyperonRelated/MOSES/OpenCog/Moses",
+  "cli_tool": null,
+  "generated_at_utc": "2026-09-08T09:36:47+03:00",
+  "inputs": {
+    "description": "fixed scored_combo_tree ordering/dedup test cases hardcoded in containers_sct_probe.cc; no external dataset or seed"
+  },
+  "prefix_dir": "/home/yab/opt/moses-legacy",
+  "probe_kind": "cpp_probe",
+  "probe_source": "tools/cpp_probe/containers_sct_probe.cc",
+  "probe_source_sha256": "f3708d0831152c868397c68fd68f6b4179c8aee05773c454204519d204aa5ab0",
+  "repo_commit": "e88cd293f1eca33a7b642b0405275d32ab81fa6d",
+  "schema_version": 1
+}

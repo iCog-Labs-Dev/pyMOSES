@@ -64,11 +64,16 @@ import sys
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
+sys.path.insert(0, str(REPO_ROOT))
+from tools._capture_env import classic_dir, moses_prefix  # noqa: E402
+from tools._manifest import build_manifest, write_sidecar  # noqa: E402
+
 FIXTURE_PATH = REPO_ROOT / "tests" / "fixtures" / "eval_boolean.json"
 ROUNDTRIP_PATH = REPO_ROOT / "tests" / "fixtures" / "combo_roundtrip.json"
-EVAL_TABLE = Path.home() / "opt" / "moses-legacy" / "bin" / "eval-table"
+PREFIX = moses_prefix()
+EVAL_TABLE = PREFIX / "bin" / "eval-table"
 
-CLASSIC = Path("/home/yab/Documents/Projects/iCog/HyperonRelated/MOSES/OpenCog/Moses")
+CLASSIC = classic_dir()
 DATASETS = [
     {"name": "trainingBoolean.dat", "path": CLASSIC / "trainingBoolean.dat", "target": "y"},
     {"name": "trainingBooleanXor.dat", "path": CLASSIC / "trainingBooleanXor.dat", "target": "y"},
@@ -182,6 +187,24 @@ def main(argv: list[str]) -> int:
         print(f"{dataset['name']}: {len(entries)} (tree, row) comparisons")
     FIXTURE_PATH.parent.mkdir(parents=True, exist_ok=True)
     FIXTURE_PATH.write_text(json.dumps(fixture, indent=2) + "\n")
+    write_sidecar(
+        FIXTURE_PATH,
+        build_manifest(
+            repo_root=REPO_ROOT,
+            capture_script="tools/capture_eval_boolean.py",
+            capture_script_path=Path(__file__).resolve(),
+            probe_source=None,
+            probe_source_path=None,
+            probe_kind="classic_cli",
+            cli_tool="bin/eval-table",
+            classic_dir=CLASSIC,
+            prefix_dir=PREFIX,
+            inputs={
+                "datasets": [d["name"] for d in DATASETS],
+                "combo_corpus_fixture": "tests/fixtures/combo_roundtrip.json",
+            },
+        ),
+    )
     print(f"wrote {FIXTURE_PATH} ({len(fixture)} total comparisons)")
     return 0
 
