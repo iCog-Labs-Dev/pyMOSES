@@ -15,64 +15,70 @@ below reproduces that same construction in Python (not by loading that
 JSON fixture -- this file needs the LIVE `deme_expander`/`representation`
 objects `merge_demes` consumes, not their already-captured trajectory).
 
-## Measured: `keep_top_unique_candidates`'s own deme-size is NOT compared
+## Measured: `keep_top_unique_candidates`'s own deme-size now matches C++
 
 The probe's own `"deme_size"` field (measured: 13, after `merge_demes`
-internally sorts+dedups the original 17-instance deme) is DELIBERATELY not
-asserted against in `test_single_merge_matches_cpp_probe` below. Measured
-directly (see that test's own docstring): this port's `sort_demes` (a
-STABLE sort, `list.sort(reverse=True)`) preserves each tied group's
-original discovery order, while classic's own `boost::sort`/`std::sort`
-(NOT stable) does not -- for THIS exact scenario, hill-climbing discovers
-the deme's eight `!$1`/`!$2`-scoring instances and eight `$1`/$2`-scoring
-instances in an ALTERNATING pattern, so `keep_top_unique_candidates`'s
-purely-ADJACENT-pair dedup scan (`prev_it`/`it` are neighbours only) finds
-zero adjacent ties to collapse in this port (17 stays 17), while some
-particular `std::sort` permutation apparently groups same-tree instances
-adjacently often enough to remove 4 in classic. Neither language's own
-`sort_demes` promises anything about tie order (`sort_demes`'s own
-docstring in `merging.py`), so this is not a divergence to fix -- it is a
-directly observable consequence of a promise C++ never made.
+internally sorts+dedups the original 17-instance deme) IS now asserted
+against in `test_single_merge_matches_cpp_probe` below.
 
-CORRECTED (S10 branch review, [Important 2]): the paragraph that used to
-stand here argued this is harmless FOR A STRUCTURAL REASON -- that
-`pot_candidates` (a `scored_combo_tree_set`, `types.py`,
-`std::unordered_set<..., scored_combo_tree_hash, scored_combo_tree_equal>`)
-already dedups by tree structure regardless of adjacency, so tie-order
-inside `keep_top_unique_candidates` supposedly can never matter. MEASURED
-FALSE AS A GENERAL CLAIM: `keep_top_unique_candidates`'s own final
-truncation, `del deme[top_cnd:]` (`merging.py:766`), runs AFTER the
-adjacent-dedup scan and keeps only the first `top_cnd` survivors -- so once
-`top_cnd` is smaller than the naturally-deduplicated length, tie-order
-decides WHICH DISTINCT trees are still present when `deme_to_trees` reads
-the deme, before `pot_candidates` ever sees it. Same multiset, same
-`top_cnd`: order `$1 $1 $2 $3` -> `['$1','$2','$3']`, but order
-`$1 $2 $1 $3` -> `['$1','$2','$1']` -- tree `$3` is lost outright, not
+CORRECTED (sort_demes review, 2026-09-08): the two paragraphs that used to
+stand here recorded a measured divergence (17 in this port vs. 13 in
+classic) and argued it was harmless. The divergence's ROOT CAUSE has since
+been fixed, not merely waived: `sort_demes` used to be ported as
+`deme.sort(reverse=True)` (a STABLE sort) on the argument that
+`boost::sort`/`std::sort` gives no C++ tie-order for a stable sort to
+diverge from. That argument was measured and found FALSE (see `merging.py`
+-- the block comment above `_sort` -- and docs/CARRY-FORWARD.md Sec 5b.1):
+libstdc++'s `std::sort` deterministically reorders ties, and `sort_demes`
+now reproduces that real permutation via `_sort`, a transliteration of
+libstdc++'s introsort.
+
+Consequence for THIS scenario: with the old stable sort, hill-climbing's
+eight `!$1`/`!$2`-scoring instances and eight `$1`/`$2`-scoring instances
+(discovered in an ALTERNATING pattern) stayed in that alternating order, so
+`keep_top_unique_candidates`'s purely-ADJACENT-pair dedup scan (`prev_it`/
+`it` are neighbours only) found zero adjacent ties to collapse (17 stayed
+17). With `_sort` reproducing classic's real `std::sort` permutation, which
+groups same-tree instances adjacently often enough to remove 4, this port's
+own deme size is now measured to be 13 as well -- an EXACT match, not
+merely a smaller upper bound.
+
+The truncation-order-dependence finding from the PRIOR correction (S10
+branch review, [Important 2]) still stands, unrelated to the fix above:
+`keep_top_unique_candidates`'s own final truncation, `del deme[top_cnd:]`
+(see that function's own docstring in `merging.py` for its current line),
+runs AFTER the adjacent-dedup scan and keeps only the first `top_cnd`
+survivors -- so once `top_cnd` is smaller than the naturally-deduplicated
+length, tie-order decides WHICH DISTINCT trees are still present when
+`deme_to_trees` reads the deme, before `pot_candidates` ever sees it. Same
+multiset, same `top_cnd`: order `$1 $1 $2 $3` -> `['$1','$2','$3']`, but
+order `$1 $2 $1 $3` -> `['$1','$2','$1']` -- tree `$3` is lost outright, not
 merely reordered. `test_keep_top_unique_candidates_truncation_is_tie_order_dependent`
 below pins exactly this.
 
-The waiver right above is still correct FOR THIS TEST'S OWN SCENARIO, but
-for a narrower reason than originally stated: `top_cnd` here starts at
-`min(deme.n_evals, len(deme))` = `min(200, 17)` = 17 (the probe's own
-`max_evals=200` comfortably exceeds the 17-instance deme), and neither
-`max_candidates_per_deme` (default, unset -- the `>= 0` gate never fires)
-nor `n_subsample_demes` (default 0) clips it further; `top_cnd` only ever
-shrinks afterward via `top_cnd = min(top_cnd, len(deme))` as the dedup
-scan itself removes instances, so the final `del deme[top_cnd:]` never
-truncates past what dedup already did on its own. THAT configuration --
-`max_candidates_per_deme < 0` and `n_evals >= len(deme)` -- is what makes
-truncation a no-op here, not any property of dedup-then-truncate being
-order-irrelevant in general. The FINAL merged pool -- this task's actual
-exit criterion ("merged pool contents and ordering match C++") -- is
-measured below to match the probe EXACTLY: same 5 trees, same scores,
-same order, same `best_composite_score`/`best_tree`, same `merge_demes`
-return value, for BOTH the first merge and a second, repeated merge of an
-independently-rebuilt identical deme.
+`top_cnd` in THIS scenario starts at `min(deme.n_evals, len(deme))` =
+`min(200, 17)` = 17 (the probe's own `max_evals=200` comfortably exceeds
+the 17-instance deme), and neither `max_candidates_per_deme` (default,
+unset -- the `>= 0` gate never fires) nor `n_subsample_demes` (default 0)
+clips it further; `top_cnd` only ever shrinks afterward via `top_cnd =
+min(top_cnd, len(deme))` as the dedup scan itself removes instances, so
+the final `del deme[top_cnd:]` never truncates past what dedup already did
+on its own -- truncation is a no-op here regardless of which sort produced
+the dedup count. The FINAL merged pool -- this task's actual exit
+criterion ("merged pool contents and ordering match C++") -- is measured
+below to match the probe EXACTLY: same 5 trees, same scores, same order,
+same `best_composite_score`/`best_tree`, same `merge_demes` return value,
+for BOTH the first merge and a second, repeated merge of an
+independently-rebuilt identical deme -- and now the same intermediate deme
+size too.
 """
 
 from __future__ import annotations
 
+import hashlib
+import json
 import math
+from pathlib import Path
 
 import pytest
 
@@ -97,6 +103,7 @@ from pymetta.moses.moses.types import (
     scored_combo_tree_set,
     very_worst_score,
 )
+from pymetta.moses.representation.field_set import disc_spec, field_set
 from pymetta.moses.representation.instance import instance
 from pymetta.moses.representation.scored_instance import scored_instance
 from pymetta.moses.scoring.behave_cscore import behave_cscore
@@ -105,6 +112,12 @@ from pymetta.util.rng import randGen
 
 _XOR_DATA = "tests/fixtures/table_data/trainingBooleanXor.dat"
 _PROBE_PATH = "tools/cpp_probe/merging_probe.cc"
+
+_REPO_ROOT = Path(__file__).resolve().parents[3]
+_SORT_DEMES_FIXTURE_PATH = _REPO_ROOT / "tests" / "fixtures" / "sort_demes.json"
+_SORT_DEMES_MANIFEST_PATH = _REPO_ROOT / "tests" / "fixtures" / "sort_demes.manifest.json"
+_SORT_DEMES_GOLDEN = json.loads(_SORT_DEMES_FIXTURE_PATH.read_text())
+_SORT_DEMES_MANIFEST = json.loads(_SORT_DEMES_MANIFEST_PATH.read_text())
 
 
 # ---------------------------------------------------------------------------
@@ -174,10 +187,12 @@ def test_single_merge_matches_cpp_probe():
         "best_composite_score": score -1, complexity 0, penalized -1,
         "best_tree":"true"
 
-    See the module docstring for exactly why the probe's own "deme_size"
-    (13) is NOT asserted here (this port's own equivalent, measured just
-    below, is 17) -- a tie-order artifact of `keep_top_unique_candidates`
-    that provably cannot change the final 5-tree pool.
+    See the module docstring for why the probe's own "deme_size" (13) IS
+    now asserted here: it used to be a tie-order artifact this port's old
+    stable `sort_demes` didn't reproduce (17 vs. 13), which provably could
+    not change the final 5-tree pool either way -- but `sort_demes` now
+    reproduces libstdc++'s real permutation, so the intermediate size
+    matches exactly too.
 
     Exact (`==`), not `pytest.approx`: `complexity_penalty`/
     `penalized_score` are genuinely-fractional float32 values
@@ -194,9 +209,11 @@ def test_single_merge_matches_cpp_probe():
 
     done = mp.merge_demes(dex._demes, dex._reps)
 
-    # Measured tie-order artifact (module docstring): 17 in this port,
-    # 13 in the C++ probe -- deliberately not asserted equal to the probe.
-    assert len(dex._demes[0][0]) <= 17
+    # Now an EXACT match against the C++ probe's own "deme_size":13 (module
+    # docstring) -- sort_demes reproduces libstdc++'s real std::sort
+    # permutation, so keep_top_unique_candidates' adjacent-pair dedup scan
+    # collapses the same 4 instances classic's own run does.
+    assert len(dex._demes[0][0]) == 13
 
     assert done is False
     assert mp.size() == 5
@@ -442,6 +459,155 @@ def test_sort_demes_sorts_each_deme_descending_in_place():
 
     assert [si.second.get_score() for si in deme_a] == [5.0, 3.0, 1.0]
     assert [si.second.get_score() for si in deme_b] == [-1.0, -5.0]
+
+
+# ------------------------------------ oracle: sort_demes's std::sort order
+
+
+def _bit_fs(n: int) -> field_set:
+    """`tools/cpp_probe/sort_demes_probe.cc`'s `make_bit_fs`: n single-bit
+    knobs, matching `crossover_probe.cc`'s own helper of the same shape
+    (see `test_crossover.py`).
+    """
+    return field_set([disc_spec(2) for _ in range(n)])
+
+
+def _id_instance(fs: field_set, ident: int) -> instance:
+    """Writes `ident` into the bit knobs the comparator never looks at, so
+    an instance carries a label that survives any permutation.
+    """
+    inst = instance(fs.packed_width())
+    for i in range(fs.n_bits()):
+        fs.set_raw(inst, fs.begin_bit_raw_idx() + i, (ident >> i) & 1)
+    return inst
+
+
+def _instance_id(fs: field_set, inst: instance) -> int:
+    ident = 0
+    for i in range(fs.n_bits()):
+        if fs.get_raw(inst, fs.begin_bit_raw_idx() + i):
+            ident |= 1 << i
+    return ident
+
+
+def _bits_for(n: int) -> int:
+    """`sort_demes_probe.cc`'s own `bits_for`: enough bits for `n` distinct
+    ids.
+    """
+    return max(n, 2).bit_length() + 1
+
+
+def _cs(sample: dict) -> composite_score:
+    return composite_score(
+        sample["score"],
+        sample["complexity"],
+        sample["complexity_penalty"],
+        sample["uniformity_penalty"],
+    )
+
+
+def test_sort_demes_fixture_manifest_matches_current_probe_source():
+    """Compiler-free rot detection, the same guard
+    `test_crossover.py::test_fixture_manifest_matches_current_probe_source`
+    provides for its own fixture: editing `sort_demes_probe.cc` without
+    re-running `tools/capture_sort_demes.py` fails here.
+    """
+    assert _SORT_DEMES_MANIFEST["schema_version"] == 1
+    assert _SORT_DEMES_MANIFEST["probe_source"] == "tools/cpp_probe/sort_demes_probe.cc"
+    assert _SORT_DEMES_MANIFEST["capture_script"] == "tools/capture_sort_demes.py"
+    probe = _REPO_ROOT / "tools" / "cpp_probe" / "sort_demes_probe.cc"
+    expected_sha256 = hashlib.sha256(probe.read_bytes()).hexdigest()
+    assert _SORT_DEMES_MANIFEST["probe_source_sha256"] == expected_sha256
+
+
+@pytest.mark.oracle
+@pytest.mark.parametrize("case", _SORT_DEMES_GOLDEN["full_sort"], ids=lambda c: c["label"])
+def test_sort_matches_libstdcxx_order(case):
+    """The measurement that settles this file's own `sort_demes` question
+    (module docstring): `_sort` -- `merging.py`'s transliteration of
+    libstdc++'s introsort, exercised here through the actual
+    `metapopulation.sort_demes` entry point -- reproduces libstdc++'s
+    `std::sort(v.begin(), v.end(), std::greater<deme_inst_t>())`
+    permutation element for element, at every measured size.
+    """
+    fs = _bit_fs(_bits_for(case["size"]))
+    deme = _Deme(scored_instance(_id_instance(fs, s["id"]), _cs(s)) for s in case["input"])
+
+    _mp().sort_demes([[deme]])
+
+    assert [_instance_id(fs, si.first) for si in deme] == case["order"], case["label"]
+
+
+def test_sort_is_not_a_stable_sort_above_libstdcxx_threshold():
+    """Proves the substitution `sort_demes` used to make (a STABLE
+    `deme.sort(reverse=True)`) was wrong for realistic deme sizes, rather
+    than asserting it: 17 all-tied elements is one past libstdc++'s own
+    `_S_threshold == 16` (bits/stl_algo.h:1807, gcc 16.2.1) -- the smallest
+    size at which a quicksort partition runs before the closing insertion
+    sort -- and libstdc++'s measured order there genuinely differs from a
+    stable descending sort.
+    """
+    case = next(c for c in _SORT_DEMES_GOLDEN["full_sort"] if c["label"] == "all_tied_17")
+    assert case["order"] != list(range(17))  # measured C++: [8, 16, 15, 14, ...]
+
+    fs = _bit_fs(_bits_for(case["size"]))
+    stable = _Deme(scored_instance(_id_instance(fs, s["id"]), _cs(s)) for s in case["input"])
+    stable.sort(reverse=True)
+    assert [_instance_id(fs, si.first) for si in stable] == list(range(17))
+    assert [_instance_id(fs, si.first) for si in stable] != case["order"]
+
+
+def test_sort_matches_a_stable_sort_at_or_below_libstdcxx_threshold():
+    """The other side of the same boundary: for `n <= 16`,
+    `__introsort_loop`'s `while (last - first > 16)` never runs a
+    partition, and the closing `__final_insertion_sort` makes zero moves
+    when every comparison ties -- so libstdc++'s real order happens to
+    equal a stable sort's for these two sizes. Confirms the boundary is
+    exactly 16/17, not merely "small enough in practice".
+    """
+    for label in ("all_tied_15", "all_tied_16"):
+        case = next(c for c in _SORT_DEMES_GOLDEN["full_sort"] if c["label"] == label)
+        assert case["order"] == list(range(case["size"])), label
+
+
+def test_sort_breaks_equal_penalized_scores_by_complexity():
+    """`composite_score::operator<` (types.cc:139-148) falls back to
+    `complexity > r.complexity` when penalized scores are equal, so a
+    HIGHER complexity sorts EARLIER under `<` and therefore LATER under
+    `std::greater` -- true regardless of algorithm, since unequal
+    complexity means these are NOT ties. Pinned against the measured order
+    rather than assumed.
+    """
+    case = next(
+        c for c in _SORT_DEMES_GOLDEN["full_sort"] if c["label"] == "equal_score_diff_complexity_40"
+    )
+    assert [s["complexity"] for s in case["input"]] == list(range(40))
+    assert case["order"] == list(range(40))  # lowest complexity first, exactly
+
+
+def test_sort_demes_truncation_survivors_match_cpp_probe():
+    """Traces the reordering forward to an observable outcome, exactly the
+    way S12 did for `resize_deme`'s `std::partial_sort` (module docstring):
+    `keep_top_unique_candidates`'s own closing line is an UNCONDITIONAL
+    `deme.erase(deme.begin() + top_cnd, deme.end())` (a truncation run
+    directly here, matching `tools/cpp_probe/sort_demes_probe.cc`'s own
+    `keep_top_unique_forward` group, which needs no combo trees to make
+    this point). 100 instances tie completely on score; truncating to the
+    top 17 after a REAL `sort_demes` keeps a completely different id set
+    than truncating after a stable sort would.
+    """
+    case = _SORT_DEMES_GOLDEN["keep_top_unique_forward"]
+    fs = _bit_fs(_bits_for(case["deme_size"]))
+    deme = _Deme(
+        scored_instance(_id_instance(fs, i), composite_score(-3.0, 0, 0.0, 0.0))
+        for i in range(case["deme_size"])
+    )
+
+    _mp().sort_demes([[deme]])
+    del deme[case["top_cnd"] :]
+
+    assert [_instance_id(fs, si.first) for si in deme] == case["survivors"]
+    assert case["survivors"] != list(range(case["top_cnd"]))  # a stable sort's answer
 
 
 # ---------------------------------------------------------------------------

@@ -183,6 +183,7 @@ import math
 from typing import TYPE_CHECKING
 
 from pymetta.moses.metapopulation.metapopulation import _copy_sct, metapopulation
+from pymetta.moses.moses.optimization.hill_climbing import _greater, _partial_sort
 from pymetta.moses.moses.types import (
     _combo_tree_structural_eq,
     _is_approx_eq,
@@ -661,20 +662,281 @@ def get_new_candidates(
     return res
 
 
+# ---------------------------------------------------------------------------
+# libstdc++'s std::sort (introsort), reproduced exactly.
+#
+# `sort_demes` (merging.cc:507) calls `boost::sort(deme,
+# std::greater<scored_instance<composite_score>>())`. `boost::range::sort`
+# (boost/range/algorithm/sort.hpp, read directly on this machine) is a bare
+# forward to `std::sort(begin, end, pred)` -- a DIFFERENT algorithm from the
+# `std::partial_sort` the `_partial_sort` family above/in hill_climbing.py
+# reproduces (heap-select + sort-heap): libstdc++'s `std::sort` is introsort
+# -- median-of-3 quicksort down to chunks of `_S_threshold == 16` elements,
+# then one final insertion-sort pass over the whole range, with a heapsort
+# fallback (`std::__partial_sort(first, last, last, comp)`, i.e. exactly
+# `hill_climbing._partial_sort`) if the `2 * __lg(n)` recursion-depth budget
+# is exhausted. This was previously ported as `deme.sort(reverse=True)`, on
+# the argument that "boost::sort/std::sort makes no stability guarantee, so
+# there is no C++ tie-order for a stable sort to diverge from." **That
+# argument was measured and is FALSE**, the same way S12 found it false for
+# `std::partial_sort` (docs/CARRY-FORWARD.md Sec 5b.1): "no stability
+# guarantee" means the order is unspecified, not that libstdc++ doesn't
+# produce one, deterministically, every time.
+#
+# MEASURED, not assumed: tools/cpp_probe/sort_demes_probe.cc runs
+# `std::sort(v.begin(), v.end(), std::greater<deme_inst_t>())` -- the exact
+# call shape `boost::sort` forwards to -- over hand-built samples straddling
+# libstdc++'s own `_S_threshold = 16` boundary (confirmed by reading
+# `/usr/include/c++/16/bits/stl_algo.h:1807` on this toolchain, gcc 16.2.1)
+# and at realistic MOSES deme sizes (up to 2000; ordinary boolean runs'
+# neighbourhood/deme sizes land in the hundreds to low thousands, e.g. the
+# 703-instance neighbourhood docs/CARRY-FORWARD.md's own crossover
+# measurements record), tagging each element's identity in its INSTANCE BITS
+# (which the comparator never reads) so the dumped id order after sorting IS
+# the chosen permutation. Result (tests/fixtures/sort_demes.json,
+# `test_sort_matches_libstdcxx_order`):
+#
+# * For n <= 16 (all-tied), std::sort reproduces the input order EXACTLY --
+#   `__introsort_loop`'s `while (last - first > 16)` never fires, so no
+#   quicksort partition ever runs, and the closing `__final_insertion_sort`
+#   makes zero moves when every comparison ties (insertion sort only moves
+#   an element strictly before an EARLIER one it's less than).
+# * For n >= 17 (all-tied), std::sort measurably reorders: 17 all-tied
+#   elements come back `[8, 16, 15, 14, 13, 12, 11, 10, 9, 0, 7, 6, 5, 4, 3,
+#   2, 1]`, where a stable sort leaves them `[0, 1, ..., 16]` -- the
+#   quicksort partition that runs once `n > 16` swaps pairs from both ends
+#   of the range inward even when every comparison is a tie (`comp` never
+#   returns true, so `__unguarded_partition`'s two inner `while` loops never
+#   advance, and every outer iteration still swaps and steps inward). The
+#   same reordering appears at every larger size measured (20, 32, 50, 100,
+#   703, 2000) and with NaN ties mixed in.
+# * `sort_demes`'s realistic input is essentially NEVER n <= 16: a boolean
+#   deme's ordinary size is in the hundreds to low thousands (see above), so
+#   this is not a corner case being guarded against -- it is the common
+#   case silently producing the wrong permutation under the old code.
+#
+# That reordering reaches an observable outcome exactly the way it does for
+# `resize_deme` (S12): `sort_demes`'s only caller (`merge_demes`) feeds its
+# result straight to `keep_top_unique_candidates`, whose own closing line is
+# an UNCONDITIONAL `deme.erase(deme.begin() + top_cnd, deme.end())`
+# (merging.cc:600) -- a truncation, so tie order decides which tied
+# instances occupy the surviving prefix. Measured directly (no dedup
+# approximation needed): truncating 100 all-tied instances to the top 17
+# keeps ids `{59..75}` (specifically `[62,74,73,72,71,70,69,68,67,66,65,64,
+# 63,75,61,60,59]`) under std::sort's real order, versus `{0..16}` under a
+# stable sort -- completely disjoint survivor sets from the same input.
+#
+# The source of truth is /usr/include/c++/16/bits/stl_algo.h; the functions
+# below are one-to-one transliterations, keeping libstdc++'s own parameter
+# names so the correspondence is checkable line by line. `_GLIBCXX_MOVE` is
+# a no-op here for the same reason `_partial_sort`'s own block comment
+# (hill_climbing.py) gives: Python assignment rebinds, and every moved-from
+# slot is overwritten before it is read again.
+#
+# PORTABILITY CAVEAT (inherited from `_partial_sort`, docs/CARRY-FORWARD.md
+# Sec 5b.1 / S12 task-report.md Sec 9 item 3): this is pinned to THIS
+# libstdc++'s (16.2.1) actual introsort implementation, in particular
+# `_S_threshold == 16` and the exact partition/pivot/insertion-sort
+# functions above. A different libstdc++ version could change the constant
+# or the algorithm shape; the fixture manifest records the toolchain paths
+# used to capture it, but not the libstdc++ version itself.
+# ---------------------------------------------------------------------------
+
+
+_S_THRESHOLD = 16
+# C++: /usr/include/c++/16/bits/stl_algo.h:1807 `enum { _S_threshold = 16 };`
+# ONE constant, read by both `_introsort_loop` and `_final_insertion_sort`
+# below, exactly as libstdc++'s single `enum` value is read by both of ITS
+# functions -- deliberately not two independent literal `16`s, since
+# `_final_insertion_sort`'s own correctness (unguarded insertion never
+# running off the front of the range) relies on its guarded prefix being AT
+# LEAST as wide as the maximum displacement `_introsort_loop`'s own
+# threshold can leave behind; two literals that could drift apart
+# independently would be a latent correctness hazard `_S_threshold` being
+# one `enum` in C++ does not have.
+
+
+def _lg(n: int) -> int:
+    """Not itself a ported C++ symbol -- libstdc++ `std::__lg`
+    (bits/stl_algobase.h:1558), `floor(log2(n))` for `n > 0`, used only to
+    seed `_sort`'s recursion-depth budget.
+    """
+    return n.bit_length() - 1
+
+
+def _move_median_to_first(v, result: int, a: int, b: int, c: int, comp) -> None:
+    """Not itself a ported C++ symbol -- libstdc++ `std::__move_median_to_first`
+    (bits/stl_algo.h:88). Swaps whichever of `v[a], v[b], v[c]` is the
+    median (under `comp`) into `v[result]`. See the block comment above.
+    """
+    if comp(v[a], v[b]):
+        if comp(v[b], v[c]):
+            v[result], v[b] = v[b], v[result]
+        elif comp(v[a], v[c]):
+            v[result], v[c] = v[c], v[result]
+        else:
+            v[result], v[a] = v[a], v[result]
+    elif comp(v[a], v[c]):
+        v[result], v[a] = v[a], v[result]
+    elif comp(v[b], v[c]):
+        v[result], v[c] = v[c], v[result]
+    else:
+        v[result], v[b] = v[b], v[result]
+
+
+def _unguarded_partition(v, first: int, last: int, pivot: int, comp) -> int:
+    """Not itself a ported C++ symbol -- libstdc++ `std::__unguarded_partition`
+    (bits/stl_algo.h:1833). See the block comment above.
+    """
+    while True:
+        while comp(v[first], v[pivot]):
+            first += 1
+        last -= 1
+        while comp(v[pivot], v[last]):
+            last -= 1
+        if not (first < last):
+            return first
+        v[first], v[last] = v[last], v[first]
+        first += 1
+
+
+def _unguarded_partition_pivot(v, first: int, last: int, comp) -> int:
+    """Not itself a ported C++ symbol -- libstdc++ `std::__unguarded_partition_pivot`
+    (bits/stl_algo.h:1855). See the block comment above.
+    """
+    mid = first + (last - first) // 2
+    second = first + 1
+    _move_median_to_first(v, first, second, mid, last - 1, comp)
+    return _unguarded_partition(v, second, last, first, comp)
+
+
+def _unguarded_linear_insert(v, last: int, comp) -> None:
+    """Not itself a ported C++ symbol -- libstdc++ `std::__unguarded_linear_insert`
+    (bits/stl_algo.h:1750). See the block comment above.
+    """
+    val = v[last]
+    next_ = last - 1
+    while comp(val, v[next_]):
+        v[last] = v[next_]
+        last = next_
+        next_ -= 1
+    v[last] = val
+
+
+def _insertion_sort(v, first: int, last: int, comp) -> None:
+    """Not itself a ported C++ symbol -- libstdc++ `std::__insertion_sort`
+    (bits/stl_algo.h:1770). See the block comment above.
+    """
+    if first == last:
+        return
+    i = first + 1
+    while i != last:
+        if comp(v[i], v[first]):
+            val = v[i]
+            # `std::move_backward(first, i, i + 1)`: shift v[first:i] right
+            # by one slot.
+            j = i
+            while j != first:
+                v[j] = v[j - 1]
+                j -= 1
+            v[first] = val
+        else:
+            _unguarded_linear_insert(v, i, comp)
+        i += 1
+
+
+def _unguarded_insertion_sort(v, first: int, last: int, comp) -> None:
+    """Not itself a ported C++ symbol -- libstdc++ `std::__unguarded_insertion_sort`
+    (bits/stl_algo.h:1796). See the block comment above.
+    """
+    i = first
+    while i != last:
+        _unguarded_linear_insert(v, i, comp)
+        i += 1
+
+
+def _final_insertion_sort(v, first: int, last: int, comp) -> None:
+    """Not itself a ported C++ symbol -- libstdc++ `std::__final_insertion_sort`
+    (bits/stl_algo.h:1813). `_S_threshold` is 16 on this toolchain
+    (bits/stl_algo.h:1807). See the block comment above.
+    """
+    threshold = _S_THRESHOLD
+    if last - first > threshold:
+        _insertion_sort(v, first, first + threshold, comp)
+        _unguarded_insertion_sort(v, first + threshold, last, comp)
+    else:
+        _insertion_sort(v, first, last, comp)
+
+
+def _introsort_loop(v, first: int, last: int, depth_limit: int, comp) -> None:
+    """Not itself a ported C++ symbol -- libstdc++ `std::__introsort_loop`
+    (bits/stl_algo.h:1884). Recurses on the LATER partition and loops on the
+    EARLIER one (`_partial_sort` -- `hill_climbing.py`'s heap-select sort --
+    is the depth-exhausted fallback, i.e. `std::__partial_sort(first, last,
+    last, comp)`), bounding recursion depth to `depth_limit` regardless of
+    input size. See the block comment above.
+
+    UNTESTED, reported rather than claimed as covered: the `depth_limit ==
+    0` branch exists to bound median-of-3 quicksort's OWN known worst case
+    (an adversarially-ordered input can force it to O(n^2) even with
+    median-of-3 pivoting -- this fallback is why introsort is safe against
+    that in the first place). Deliberately reaching it needs a specific
+    adversarial construction (e.g. a McIlroy-style killer sequence), not
+    realistic MOSES score data; every fixture case measured here (including
+    `all_tied_2000`, tied and therefore among the cheapest inputs for THIS
+    exact partition scheme to mis-handle) stays well inside the `2 *
+    _lg(n)` budget. Mutating `_lg` to `n.bit_length()` (raising the budget)
+    passes every test in this file for exactly that reason -- not because
+    the fallback is unreachable in principle, but because none of this
+    file's realistic-sized fixtures happen to reach it either way. Kept
+    faithful to libstdc++ regardless.
+    """
+    threshold = _S_THRESHOLD
+    while last - first > threshold:
+        if depth_limit == 0:
+            _partial_sort(v, first, last, last, comp)
+            return
+        depth_limit -= 1
+        cut = _unguarded_partition_pivot(v, first, last, comp)
+        _introsort_loop(v, cut, last, depth_limit, comp)
+        last = cut
+
+
+def _sort(v, first: int, last: int, comp=_greater) -> None:
+    """Not itself a ported C++ symbol -- libstdc++ `std::__sort`
+    (bits/stl_algo.h:1908), which is what `std::sort(first, last, comp)`
+    (bits/stl_algo.h:4837) forwards to, which is what `boost::sort(deme,
+    comp)` (merging.cc:507) forwards to (`boost::range::sort` is a bare
+    forward to `std::sort`, confirmed by reading
+    boost/range/algorithm/sort.hpp). Sorts `v[first:last]` in place,
+    descending under `comp = _greater` (`std::greater<deme_inst_t>`). See
+    the block comment above for the measurement this reproduces.
+
+    Operates on a slice of `v` by index, exactly as `_partial_sort` does,
+    so the same call shape works for a whole-deme sort or any sub-range.
+    """
+    if first != last:
+        _introsort_loop(v, first, last, _lg(last - first) * 2, comp)
+        _final_insertion_sort(v, first, last, comp)
+
+
 def sort_demes(self: metapopulation, all_demes: list[list[deme_t]]) -> None:
     """C++: moses/moses/metapopulation/merging.cc:503 metapopulation::sort_demes
 
     `boost::sort(deme, std::greater<scored_instance<composite_score>>())`
     (merging.cc:507) sorts each deme DESCENDING by `scored_instance::
     operator>` (`this->second > other.second`, i.e. `composite_score::
-    operator>`). Ported as `deme.sort(reverse=True)` -- the exact
-    convention `hill_climbing.py`'s own `resize_deme` already establishes
-    for the identical `std::greater<deme_inst_t>` shape (`deme_inst_t` and
-    `scored_instance<composite_score>` are the SAME C++ type, per
-    scored_instance.py's own DIVERGENCE note): `boost::sort` (`std::sort`
-    under the hood) makes no stability guarantee, so there is no C++
-    tie-order for Python's own STABLE `reverse=True` sort to diverge from;
-    it can only ever be at least as well-ordered as required.
+    operator>`).
+
+    # DIVERGENCE(C++ moses/moses/metapopulation/merging.cc:507): this used
+    # to be `deme.sort(reverse=True)`, on the argument that "boost::sort
+    # makes no stability guarantee, so there is no C++ tie-order for a
+    # stable sort to diverge from." That argument was measured and found
+    # FALSE -- see the block comment above `_sort` for the counterexample
+    # (17 all-tied elements) and the observable consequence (a truncation
+    # downstream in `keep_top_unique_candidates` that lets tie order decide
+    # survivors). `_sort` now reproduces libstdc++'s real introsort
+    # permutation instead of a merely-valid one.
 
     The rest of `sort_demes` (merging.cc:509-517) is dead code even in
     C++: a nested loop over every instance in every deme that binds
@@ -685,7 +947,7 @@ def sort_demes(self: metapopulation, all_demes: list[list[deme_t]]) -> None:
     """
     for ss_demes in all_demes:
         for deme in ss_demes:
-            deme.sort(reverse=True)
+            _sort(deme, 0, len(deme), _greater)
 
 
 def keep_top_unique_candidates(
