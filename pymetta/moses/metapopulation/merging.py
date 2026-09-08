@@ -23,6 +23,20 @@ part of subsample.cc's own source is trivial and fully visible even though
 the file itself is out of scope); the enabled arm raises, since the real
 work lives in a file this task does not own.
 
+## S11 Task 1 addition: `log_best_candidates`
+
+`metapopulation::log_best_candidates` (merging.cc:652, declared
+metapopulation.h:518) is added here by S11 Task 1, alongside `local_moses.py`
+-- `expand_deme`'s own C++ body calls it (`local_moses.cc:87`), though S11's
+own port of `expand_deme` does NOT call it back (see `local_moses.py`'s
+module docstring for why: it sits inside the SAME `logger().is_info_enabled()`
+block as two `logger().info()` calls, and this port's whole `expand_deme`
+transcription omits that block entirely -- no logging surface anywhere in
+this port, module-wide convention). It is ported here anyway as a directly
+callable, independently testable method: see its own docstring for what
+"port the control flow, not the log text" means for a method whose ONLY
+reason to exist in C++ is to print.
+
 ## Composition: module-level functions the class binds (not a mixin)
 
 Real C++ compiles `merging.cc` into a SECOND translation unit that adds
@@ -819,6 +833,65 @@ def ss_filter(
     return [True] * len(all_demes)
 
 
+def log_best_candidates(self: metapopulation) -> None:
+    """C++: moses/moses/metapopulation/merging.cc:652 metapopulation::log_best_candidates
+
+    "log the best candidates" (merging.cc:651's own comment). See this
+    module's own docstring for why this method is added here rather than
+    called back from `expand_deme` (`local_moses.py`).
+
+    NOT ported: the `logger().is_info_enabled()` early-out (merging.cc:
+    653-654) and every actual `logger()` call (merging.cc:657,661-663,
+    666-668,667-671) -- no logging surface anywhere in this port
+    (`metapopulation.py`'s own module docstring: "ostream_metapop/log_best_
+    candidates/log_selected_exemplar -- printing/logging, no observable
+    effect"). Once every print call is gone, `is_info_enabled()`'s early
+    return has nothing left to guard, so dropping it too is not a SEPARATE
+    divergence -- there is no remaining behaviour for it to gate.
+
+    What IS ported: the two REAL branches this method's control flow
+    walks before it would ever reach a `logger()` call -- `best_candidates
+    ().empty()` (merging.cc:656) and `_params.do_boosting` (merging.cc:
+    659) -- each reaching the SAME live accessor a real logging call would
+    have evaluated as ITS OWN argument: `best_composite_score()` in the
+    non-boosting arm (merging.cc:660, `logger().info() << "..." <<
+    best_composite_score();`), `_ensemble.get_ensemble()` in the boosting
+    arm (merging.cc:664, `_ensemble.get_ensemble().size()`) -- the
+    identical "reach the unported boosting surface rather than stub it out
+    separately" convention `metapopulation.py`'s own `best_composite_score`/
+    `best_tree` already use for this exact `do_boosting` gate. Both
+    accessors are pure reads with no side effect of their own
+    (`best_composite_score` returns a copy; `ensemble.get_ensemble` is a
+    trivial accessor over an ensemble that can never hold anything, since
+    `add_candidates` always raises first -- `ensemble.py`) -- calling them
+    and discarding the result is therefore observably a no-op UNLESS one
+    of them raises, which is exactly the behaviour worth preserving: a
+    caller that sets `do_boosting=True` still reaches the same unported
+    surface through THIS method that it would through `best_composite_
+    score`/`best_tree`, rather than this method silently pretending
+    boosting works.
+
+    NOT ported, in EITHER arm: the per-candidate `for` loops (merging.cc:
+    661-663,667-668) and the nested `logger().is_debug_enabled()` block
+    (merging.cc:665-671) -- every one of them exists SOLELY to format text
+    for a `logger()` call that is itself not ported (`cand.get_score()`/
+    `cand.get_tree()` in the first loop, `cand.get_weight()` in the second
+    -- and `get_weight()` is not even a method this port's `scored_combo_
+    tree` HAS: types.py's own class docstring names the boosting weight
+    field as out of scope for this whole cycle). Looping over every
+    element here would read the whole of `best_candidates()`/the ensemble
+    for no reason but log-formatting busywork with nothing left to format
+    -- dropped along with the print calls they exist to feed, rather than
+    kept as loops that do nothing observable.
+    """
+    if self.best_candidates().empty():
+        return
+    if not self._params.do_boosting:
+        self.best_composite_score()
+    else:
+        self._ensemble.get_ensemble()
+
+
 metapopulation._min_pool_size = _MIN_POOL_SIZE
 metapopulation.useful_score_range = useful_score_range
 metapopulation.trim_down_deme = trim_down_deme
@@ -831,3 +904,4 @@ metapopulation.sort_demes = sort_demes
 metapopulation.keep_top_unique_candidates = keep_top_unique_candidates
 metapopulation.recompute_scores_over_whole_dataset = recompute_scores_over_whole_dataset
 metapopulation.ss_filter = ss_filter
+metapopulation.log_best_candidates = log_best_candidates
