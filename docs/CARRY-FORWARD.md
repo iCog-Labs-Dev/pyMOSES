@@ -336,7 +336,9 @@ member in the docstring body.
   breadcrumbs on constants, and `and <file>:<line>` overload continuations go
   unvalidated. Module headers come in five incompatible shapes.
 - **Error types are inconsistent.** One C++ construct (`OC_ASSERT(false)`) maps to
-  four Python types across the package. "Column not found" is `IndexError` at
+  **six** Python types across the package — `AssertionError`, `IndexError`,
+  `NotImplementedError`, `RuntimeError`, `TypeError`, `ValueError` (counted
+  2026-09-08; this bullet said four, which was already stale). "Column not found" is `IndexError` at
   `table.py:302` but `ValueError` at `table_io.py:431,486,491,676`. The
   "forests unsupported" and `boost::bad_get`→`TypeError` families *are* uniform.
 - ~~**`parse_divergences` captures only the first physical line** of a marker;
@@ -450,6 +452,26 @@ unreachable, and no test covers them: the loop returns as soon as
 objects. The same holds for `max`'s truncation (no `sample_size` below
 200000 makes the wrapped value small enough to change the clamp). Kept as
 faithful reproduction, reported as untested rather than claimed as covered.
+
+### 5.1 A NEW class of fixture risk arrived with S12
+
+Every fixture before S12 was a snapshot of **classic's pinned source**, so it
+could only rot if classic changed. `crossover.json` is different: its
+correctness depends on the **host toolchain**. `_partial_sort` is a
+transliteration of libstdc++ 16's `__heap_select` + `__sort_heap`, chosen
+because `std::partial_sort` gives no stability guarantee and its actual tie
+order decides which instances get crossed — a stable sort turns 27 tests red.
+
+No manifest carries a compiler or stdlib version field (schema-wide), and
+`ci.sh` never rebuilds probes. **A libstdc++ upgrade could therefore leave the
+fixture silently stale while the port stays green** — the exact rot the
+manifest work was meant to prevent, arriving through a door that work did not
+cover. The pin is disclosed in prose, which is honest but not
+machine-checkable.
+
+Whoever next touches the manifest schema should add the toolchain fields. Until
+then, treat an unexplained `test_crossover.py` failure after a system upgrade
+as a suspected toolchain change, not a port regression.
 
 ## 6. Process notes that paid for themselves
 
