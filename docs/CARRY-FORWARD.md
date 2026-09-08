@@ -364,6 +364,93 @@ member in the docstring body.
 
 ---
 
+## 5b. Settled by S12 (crossover) -- do not relitigate
+
+### 5b.1 `std::partial_sort`'s tie order IS reachable, and it decides outcomes
+
+`hill_climbing.py` now carries `_partial_sort`, a line-by-line
+transliteration of libstdc++'s `__heap_select` + `__sort_heap`
+(`/usr/include/c++/16/bits/stl_algo.h:1589,1871`, `bits/stl_heap.h`).
+Measured against classic over 15 samples
+(`tests/fixtures/crossover.json`'s `partial_sort` group): it reproduces
+libstdc++'s permutation element for element, including ties, NaN, +/-inf,
+`mid == 0`, `mid == size` and `size == 1`.
+
+**The "a stable sort can only be at least as well-ordered as an unspecified
+one" argument is FALSE for `partial_sort` and has been withdrawn** in
+`resize_deme` (where the sort is immediately followed by a truncation, so
+tie order decides which tied instances survive). It survives ONLY where the
+result is not truncated or otherwise order-sensitive. `merging.py:674`
+`sort_demes` still uses `deme.sort(reverse=True)` for `boost::sort`; that is
+a DIFFERENT algorithm (introsort-shaped, not heap-select) and was not
+re-examined by S12 -- if a slice ever makes that ordering observable, it
+needs the same treatment, and `_partial_sort` is not the right model for it.
+
+Two `composite_score`s tie under `operator<` exactly when penalized score
+AND complexity are equal (`types.cc:139-148`) -- the normal state of a
+Boolean deme, not a corner case.
+
+### 5b.2 C's `sqrtf`/`cbrtf` conversions must be reproduced, with counterexamples
+
+`unsigned n = sqrtf(2 * x) + 3;` converts `x` to binary32 BEFORE the call,
+computes in binary32, and truncates toward zero. Computing it in Python
+binary64 gives a different integer at `x = 8380417` (4097 vs 4096); the
+`cbrtf(6 * x) + 3` twin differs at `x = 26244` (57 vs 56). Both confirmed
+against a C++ snippet on this toolchain. `_sqrtf_plus_3`/`_cbrtf_plus_3` in
+`hill_climbing.py` do it correctly; `math.cbrt` is not a
+correctly-rounded operation, so that one rests on measurement (5012 inputs)
+rather than an error bound.
+
+### 5b.3 Two claims in `docs/CROSSOVER-INVENTORY.md` were wrong
+
+Both are corrected inline there, with the measurement:
+
+1. "small problems reach crossover ONLY via `last_chance`" -- no.
+   `distance++` (`hill-climbing.cc:367-368`) runs before the `last_chance`
+   block (`:434`), so a `last_chance` crossover is always at
+   `distance >= 2`, where the estimate is `C(nn, 2)` and already exceeds
+   400 for `nn >= 29`. `last_chance` is the deciding conjunct only for
+   `nn <= 28`.
+2. `cross_top_three`'s `k < i` bug "collides or skips" -- it never skips.
+   Every slot below `num_to_make` is written; many are written repeatedly
+   and the LAST write wins, with a `(j, k)` pair the index formula never
+   intended. See the DO NOT FIX marker on `cross_top_three`.
+
+### 5b.4 `(iteration > 2)` in the crossover gate is redundant
+
+`current_number_of_instances >= 3` already excludes iterations 1 and 2:
+iteration 1 runs at distance 0 and appends exactly one instance
+(`hill-climbing.cc:521-522`), so the deme holds 0 then 1. Relaxing the
+conjunct to `iteration > 1` changes nothing measurable -- an equivalent
+mutant, documented as such in `test_crossover.py` rather than papered over
+with a test that does not actually discriminate.
+
+### 5b.5 `check_alignment.py` was silently dropping `) / DO NOT FIX:` markers
+
+A marker written as
+
+    # DIVERGENCE(C++ some/file.cc:687) / DO NOT FIX: ...
+
+never parses: `_read_marker` scans for `"):"`, which that form never
+contains. Two markers in `hill_climbing.py` had been missing from
+`docs/ALIGNMENT.md` since S9 for exactly this reason, undetected -- the
+same class of loss CARRY-FORWARD Sec 5 records for the earlier 49.
+`tools/check_alignment.py` now reports any `# DIVERGENCE(`-opening comment
+line that `parse_divergences` does not turn into a `Divergence`, which
+turns CI red; `tests/test_alignment_checker.py` pins it, including
+repo-wide. **Write markers as `# DIVERGENCE(C++ <ref>): <reason>` and put
+any `DO NOT FIX` note AFTER the colon.**
+
+### 5b.6 Untestable-by-construction masks in `cross_top_two`/`cross_top_three`
+
+The `& _UNSIGNED_MAX` masks on `n` and `ntgt` are faithful but PROVABLY
+unreachable, and no test covers them: the loop returns as soon as
+`num_to_make <= n`, so `n` can only reach 2**32 if `num_to_make` exceeds
+2**32, which would require `deme.resize()` of >4.29e9 `scored_instance`
+objects. The same holds for `max`'s truncation (no `sample_size` below
+200000 makes the wrapped value small enough to change the clamp). Kept as
+faithful reproduction, reported as untested rather than claimed as covered.
+
 ## 6. Process notes that paid for themselves
 
 - **Prove a guard fires.** Requiring "revert it and show the test fail" caught a

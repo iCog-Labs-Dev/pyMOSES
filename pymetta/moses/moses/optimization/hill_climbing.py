@@ -3,24 +3,26 @@
 `hc_parameters` and `hill_climbing` -- "search the local neighborhood of an
 instance for the highest score, move to that spot, and repeat until no
 further improvement is possible" (hill-climbing.h:135-137's own doc
-comment), ported with **crossover left unimplemented**: the crossover
-mechanics themselves (`cross_top_one`, `cross_top_two`, `cross_top_three`,
-`crossover`) are S12 (see `doc/cross_top_two_explanation.md` and
-`doc/cross_top_three_explanation.md` in the classic tree before ever
-attempting them), not this task.
+comment).
 
-# DIVERGENCE(C++ moses/moses/optimization/hill-climbing.h:43): `hc_parameters`'s
-# own constructor default is `cross = true` -- ported faithfully as the
-# Python default too (see `hc_parameters.__init__` below), matching classic's
-# CLI default for `--hc-crossover` (`problem-params.cc:424`, `hc_crossover_opt`,
-# also `true`). But this port cannot actually PERFORM crossover (the mechanics
-# are not ported -- see above), so `hill_climbing.__call__` raises
-# `NotImplementedError` the moment the crossover trigger
-# (hill-climbing.cc:147-150) actually fires, rather than silently skipping it
-# or silently doing something else. A caller wanting the algorithm this port
-# DOES implement must pass `hc_parameters(cross=False)` -- exactly mirroring
-# `--hc-crossover=0` on the command line, per this task's own fidelity
-# requirement.
+Crossover (`cross_top_one`, `cross_top_two`, `cross_top_three`, `crossover`,
+the five-conjunct gate at hill-climbing.cc:139-152 and the `last_chance`
+one-shot at :434-458) is ported here in full, so `hc_parameters(cross=True)`
+-- classic's own default, both in the struct (hill-climbing.h:43) and on the
+command line (`--hc-crossover`, problem-params.cc:424) -- is the
+configuration this port actually runs. S9 shipped this file with the
+crossover branch raising `NotImplementedError`; that guard and its
+DIVERGENCE marker are gone, replaced by the real mechanics. See
+`doc/cross_top_two_explanation.md` and `doc/cross_top_three_explanation.md`
+in the classic tree for the intended simplex enumeration, and
+`docs/CROSSOVER-INVENTORY.md` here for the defaults/gate/budget summary.
+
+All three `cross_top_*` functions order the sample with
+`std::partial_sort(..., std::greater<deme_inst_t>())`, whose tie order the
+C++ standard does not specify at all -- yet that tie order decides WHICH
+instances get crossed. `_partial_sort` below reproduces libstdc++'s actual
+algorithm rather than substituting a Python sort; see its docstring for the
+measurement.
 
 NOT ported (pure logging, no observable effect on `deme`/return values --
 see `optimization.py`'s module docstring for the same class of omission):
@@ -33,7 +35,7 @@ hill-climbing.cc:381-397, and the `#ifdef GATHER_STATS` block
 `optimization.py`'s module docstring).
 
 # DIVERGENCE(C++ moses/moses/optimization/hill-climbing.cc:69,271,278 and
-# hill-climbing.h:267) / DO NOT FIX: the "Search started from"/"Instance:"
+# hill-climbing.h:267): DO NOT FIX -- the "Search started from"/"Instance:"
 # `logger().debug() << ...` calls (also dropped, alongside the ones above)
 # are NOT in the same "no observable effect" class -- each one
 # unconditionally evaluates `iscorer.get_rep()->get_candidate(inst, true)`
@@ -63,6 +65,7 @@ hill-climbing.cc:381-397, and the `#ifdef GATHER_STATS` block
 
 from __future__ import annotations
 
+import math
 import os
 import time
 
@@ -79,6 +82,7 @@ from pymetta.moses.moses.optimization.optimization import (
 from pymetta.moses.moses.types import _to_score_t, score_t, very_worst_score
 from pymetta.moses.representation.field_set import field_set
 from pymetta.moses.representation.instance import instance
+from pymetta.moses.representation.scored_instance import scored_instance
 
 # hill-climbing.cc's own local #define constants, ported as module-level
 # names (Python has no preprocessor) rather than inlined magic numbers, to
@@ -93,6 +97,226 @@ _MIN_TO_KEEP = 20  # hill-climbing.cc:769 MIN_TO_KEEP
 # hill-climbing.cc:144 xover_min_deme -- a local variable in C++, hoisted to
 # a module constant here since nothing else about it varies per call.
 _XOVER_MIN_DEME = 3
+
+# Not itself a ported C++ symbol -- the modulus of a C `unsigned` (32-bit on
+# every ABI classic is built for, and the type `cross_top_two`/
+# `cross_top_three` declare their `max`, `num_to_sort`, `n` and `ntgt` locals
+# with, hill-climbing.cc:627,632,646,657,668,673,684,690). Their arithmetic
+# wraps mod 2^32 where Python ints would grow without bound; see those
+# methods' own DIVERGENCE markers for where that is reachable.
+_UNSIGNED_MAX = (1 << 32) - 1
+
+
+def _c_div2(x: int) -> int:
+    """Not itself a ported C++ symbol -- C/C++ integer division by two,
+    which truncates TOWARD ZERO, where Python's `//` floors. Only the
+    negative arguments differ, and libstdc++'s heap code below really does
+    produce them: `__push_heap` computes `(__holeIndex - 1) / 2` with
+    `__holeIndex == 0`, and `__adjust_heap` computes `(__len - 1) / 2` and
+    `(__len - 2) / 2` with `__len` as small as 0. In C++ those are `0`,
+    `0` and `-1`; in Python `//` would give `-1`, `-1` and `-1`, changing
+    which branch is taken. Used ONLY by the `_partial_sort` family.
+    """
+    return -((-x) // 2) if x < 0 else x // 2
+
+
+def _sqrtf_plus_3(x: int) -> int:
+    """Not itself a ported C++ symbol -- `unsigned num_to_sort =
+    sqrtf(2 * num_to_make) + 3;` (hill-climbing.cc:632), reproduced with
+    every C conversion it performs and Python performs by default.
+
+    Four separate narrowings hide in that one line: the `size_t` argument
+    is converted to `float` (binary32, round-to-nearest) before `sqrtf`
+    sees it; `sqrtf` itself is single-precision; `+ 3` promotes the int to
+    `float` and stays in `float`; and the assignment to `unsigned`
+    truncates toward zero. Computing it in Python `float` (binary64) and
+    rounding once at the end is NOT the same function.
+
+    `_to_score_t` is reused as the binary32 narrowing primitive here (it is
+    a `struct` 'f' round-trip and nothing more); the value being narrowed
+    is a C `float`, not a `score_t`.
+
+    MEASURED against classic's own arithmetic rather than reasoned about:
+    a standalone C++ probe (tools/cpp_probe/, see the S12 task report)
+    evaluated `(unsigned)(sqrtf(2*n) + 3)` for every n in [0, 5000] plus
+    eleven larger values up to 10**12, and this function reproduces all
+    5012 exactly. Python's `math.sqrt` is IEEE-correctly-rounded in
+    binary64, and binary64 has more than the 2p+2 = 50 bits that make
+    double-rounding a square root of a binary32 value equivalent to
+    rounding it directly, so the agreement is not a coincidence of the
+    sample.
+    """
+    arg = _to_score_t((2 * x) & _SIZE_T_MAX)
+    return int(_to_score_t(_to_score_t(math.sqrt(arg)) + 3.0)) & _UNSIGNED_MAX
+
+
+def _cbrtf_plus_3(x: int) -> int:
+    """Not itself a ported C++ symbol -- `unsigned num_to_sort =
+    cbrtf(6 * num_to_make) + 3;` (hill-climbing.cc:673). Same conversion
+    chain as `_sqrtf_plus_3`; see that docstring.
+
+    `cbrt` is not required to be correctly rounded the way `sqrt` is, so
+    agreement here rests on measurement alone, not on an error bound: the
+    same probe evaluated `(unsigned)(cbrtf(6*n) + 3)` over the same 5012
+    inputs and this function reproduces all of them. The realistic domain
+    is far smaller than that -- `crossover` never passes more than
+    `crossover_pop_size / 3` (40 by default) -- so the measured range
+    covers the reachable one with room to spare.
+    """
+    arg = _to_score_t((6 * x) & _SIZE_T_MAX)
+    return int(_to_score_t(_to_score_t(math.cbrt(arg)) + 3.0)) & _UNSIGNED_MAX
+
+
+def _greater(a: scored_instance, b: scored_instance) -> bool:
+    """Not itself a ported C++ symbol -- `std::greater<deme_inst_t>()`, the
+    comparator all three `cross_top_*` functions and `resize_deme` pass to
+    `std::partial_sort`. `std::greater<T>::operator()(a, b)` is `a > b`,
+    which for `deme_inst_t` = `scored_instance<composite_score>` resolves to
+    `scored_instance::operator>` (scored_instance.h:48-51), i.e.
+    `a.second > b.second`, i.e. `composite_score`'s boost-generated `>`,
+    i.e. `b.second < a.second` (types.cc:131-149). Written as a free
+    function rather than reusing `scored_instance.__gt__` so the
+    `_partial_sort` family below reads as the C++ algorithm it reproduces,
+    with the comparator explicit at every call the way libstdc++ passes it.
+    """
+    return b.second < a.second
+
+
+# ---------------------------------------------------------------------------
+# libstdc++'s std::partial_sort, reproduced exactly.
+#
+# All three cross_top_* functions (hill-climbing.cc:604,635,675) and
+# resize_deme (:815) order their sample with
+# `std::partial_sort(first, middle, last, std::greater<deme_inst_t>())`.
+# [alg.sort] gives partial_sort NO stability guarantee, so C++ has no
+# *defined* tie order -- but libstdc++'s actual, deterministic ordering is
+# what classic produces, and it decides which instances get crossed and in
+# which order. Ties are not a corner case here: two composite_scores tie
+# under `operator<` whenever their penalized scores AND complexities are
+# equal (types.cc:139-148), which is the normal state of a Boolean deme
+# where many neighbours score identically.
+#
+# MEASURED, not assumed: tools/cpp_probe/crossover_probe.cc runs
+# `std::partial_sort(v.begin(), v.begin()+mid, v.end(),
+# std::greater<deme_inst_t>())` over 15 hand-built samples (all-tied at
+# sizes 5/8/12/40, two tied blocks, strictly ascending/descending, equal
+# penalized score with differing complexity, penalty-inverted order, NaN,
+# +/-inf, mid == 0, mid == size, size == 1, and a shuffled mix), tagging
+# each element with an id in its instance bits that the comparator never
+# reads, and dumps the resulting permutation. The functions below reproduce
+# all 15 element for element (tests/fixtures/crossover.json,
+# `test_partial_sort_matches_libstdcxx_order`).
+#
+# A Python `sorted`/`list.sort` does NOT: it is stable, so `all_tied_8_mid4`
+# would come back `[0,1,2,3,4,5,6,7]` where libstdc++ measurably produces
+# `[1,3,0,2,4,5,6,7]`. The "a stable sort can only be at least as
+# well-ordered as an unspecified one" argument -- used elsewhere in this
+# port for `std::sort` -- is therefore FALSE here, and was checked rather
+# than inherited.
+#
+# The source of truth is /usr/include/c++/16/bits/stl_algo.h
+# (`__partial_sort`, `__heap_select`) and bits/stl_heap.h (`__make_heap`,
+# `__adjust_heap`, `__push_heap`, `__pop_heap`, `__sort_heap`); the four
+# helpers below are one-to-one transliterations of those, keeping libstdc++'s
+# own parameter names so the correspondence is checkable line by line.
+# `_GLIBCXX_MOVE` is a no-op here: Python assignment rebinds, and every
+# moved-from slot is overwritten before it is read again, exactly as the
+# hole-based C++ algorithms require.
+# ---------------------------------------------------------------------------
+
+
+def _push_heap(v, first: int, holeIndex: int, topIndex: int, value, comp) -> None:
+    """Not itself a ported C++ symbol -- libstdc++ `std::__push_heap`
+    (bits/stl_heap.h:141). See the block comment above.
+    """
+    parent = _c_div2(holeIndex - 1)
+    while holeIndex > topIndex and comp(v[first + parent], value):
+        v[first + holeIndex] = v[first + parent]
+        holeIndex = parent
+        parent = _c_div2(holeIndex - 1)
+    v[first + holeIndex] = value
+
+
+def _adjust_heap(v, first: int, holeIndex: int, length: int, value, comp) -> None:
+    """Not itself a ported C++ symbol -- libstdc++ `std::__adjust_heap`
+    (bits/stl_heap.h:228). See the block comment above.
+    """
+    topIndex = holeIndex
+    secondChild = holeIndex
+    while secondChild < _c_div2(length - 1):
+        secondChild = 2 * (secondChild + 1)
+        if comp(v[first + secondChild], v[first + secondChild - 1]):
+            secondChild -= 1
+        v[first + holeIndex] = v[first + secondChild]
+        holeIndex = secondChild
+    if (length & 1) == 0 and secondChild == _c_div2(length - 2):
+        secondChild = 2 * (secondChild + 1)
+        v[first + holeIndex] = v[first + (secondChild - 1)]
+        holeIndex = secondChild - 1
+    _push_heap(v, first, holeIndex, topIndex, value, comp)
+
+
+def _pop_heap(v, first: int, last: int, result: int, comp) -> None:
+    """Not itself a ported C++ symbol -- libstdc++ `std::__pop_heap`
+    (bits/stl_heap.h:256). See the block comment above.
+    """
+    value = v[result]
+    v[result] = v[first]
+    _adjust_heap(v, first, 0, last - first, value, comp)
+
+
+def _make_heap(v, first: int, last: int, comp) -> None:
+    """Not itself a ported C++ symbol -- libstdc++ `std::__make_heap`
+    (bits/stl_heap.h:340). See the block comment above.
+    """
+    if last - first < 2:
+        return
+    length = last - first
+    parent = _c_div2(length - 2)
+    while True:
+        value = v[first + parent]
+        _adjust_heap(v, first, parent, length, value, comp)
+        if parent == 0:
+            return
+        parent -= 1
+
+
+def _sort_heap(v, first: int, last: int, comp) -> None:
+    """Not itself a ported C++ symbol -- libstdc++ `std::__sort_heap`
+    (bits/stl_heap.h:417). See the block comment above.
+    """
+    while last - first > 1:
+        last -= 1
+        _pop_heap(v, first, last, last, comp)
+
+
+def _heap_select(v, first: int, middle: int, last: int, comp) -> None:
+    """Not itself a ported C++ symbol -- libstdc++ `std::__heap_select`
+    (bits/stl_algo.h:1589). See the block comment above.
+    """
+    _make_heap(v, first, middle, comp)
+    i = middle
+    while i < last:
+        if comp(v[i], v[first]):
+            _pop_heap(v, first, middle, i, comp)
+        i += 1
+
+
+def _partial_sort(v, first: int, middle: int, last: int, comp=_greater) -> None:
+    """Not itself a ported C++ symbol -- libstdc++ `std::__partial_sort`
+    (bits/stl_algo.h:1871), which is what `std::partial_sort(first, middle,
+    last, comp)` (bits/stl_algo.h:4696) forwards to. Sorts `v[first:middle]`
+    in place so it holds the `middle - first` elements of `v[first:last]`
+    that `comp` ranks highest, in `comp` order; `v[middle:last]` is left in
+    an implementation-defined -- but here exactly reproduced -- state.
+
+    Operates on a slice of `v` by index rather than on iterators, so the
+    same call shape works for `resize_deme`'s whole-deme sort and for the
+    `cross_top_*` functions' `[sample_start, sample_start + sample_size)`
+    window. See the block comment above for the measurement.
+    """
+    _heap_select(v, first, middle, last, comp)
+    _sort_heap(v, first, middle, comp)
 
 # Not itself a ported C++ symbol -- `sizeof(instance)` (hill-climbing.cc:72,
 # 577's own `_instance_bytes = sizeof(instance) + sizeof(packed_t) *
@@ -339,6 +563,301 @@ class hill_climbing(optimizer_base):
 
         return number_of_new_instances
 
+    # --------------------------------------------------------------- crossover
+
+    def cross_top_one(
+        self,
+        deme: deme_t,
+        deme_size: int,
+        num_to_make: int,
+        sample_start: int,
+        sample_size: int,
+        base: instance,
+    ) -> int:
+        """C++: moses/moses/optimization/hill-climbing.cc:593 cross_top_one
+
+        "Cross the single top-scoring instance against the next-highest
+        scorers" (hill-climbing.h:194-196's own comment). Appends
+        `num_to_make` new instances at `deme[deme_size:]`, each a copy of
+        one of the sample's 2nd..(num_to_make+1)th best instances with the
+        BEST instance's changes-from-`base` overlaid on top
+        (`merge_instance`, field_set.h:468).
+
+        `OC_ASSERT(sample_size > 0, "Cross-over sample size must be
+        positive")` (hill-climbing.cc:596) becomes `ValueError`, matching
+        this port's established OC_ASSERT-to-exception convention. It is
+        load-bearing rather than decorative: `sample_size - 1` one line
+        below is `size_t` arithmetic, so with `sample_size == 0` it would
+        wrap to 2**64-1 and the clamp would never fire. The assertion makes
+        that wrap unreachable, so -- unlike `n_new_instances`'s `nleft` --
+        there is nothing to reproduce with a mask here, and the guard is
+        ported rather than dropped.
+
+        `reference` is `const instance&` in C++ (:612), bound AFTER the
+        `deme.resize` on the line above (which, in C++, may reallocate and
+        invalidate any reference taken earlier); the Python alias is taken
+        at the same point for the same reason. It is never written by the
+        loop -- every target index `j` is `>= deme_size`, and
+        `deme_size >= sample_start + sample_size` for the only caller,
+        `crossover` -- so the alias-vs-copy distinction is not observable.
+        """
+        if not sample_size > 0:
+            raise ValueError("Cross-over sample size must be positive")
+        if sample_size - 1 < num_to_make:
+            num_to_make = sample_size - 1
+
+        # "We don't actually need them all sorted; we only need the
+        # highest-scoring num_to_make+1 to appear first, and after that, we
+        # don't care about the ordering." (hill-climbing.cc:598-601.) The
+        # ordering libstdc++ actually produces past `middle` is reproduced
+        # anyway -- see `_partial_sort`.
+        _partial_sort(
+            deme, sample_start, sample_start + num_to_make + 1, sample_start + sample_size
+        )
+
+        deme.resize(deme_size + num_to_make)
+
+        # best instance
+        reference = deme[sample_start].first
+
+        # Skip the first entry; its the top scorer.
+        for i in range(num_to_make):
+            j = deme_size + i
+            src = deme[sample_start + i + 1]  # +1 to skip the first one
+            # `deme[j] = deme[...]` is scored_instance COPY-assignment in
+            # C++ (std::pair's, inherited through tagged_item), not an
+            # alias -- CARRY-FORWARD.md 2.4's rule. merge_instance then
+            # mutates only the copy.
+            deme[j] = scored_instance(src.first, src.second)
+            # `merge_instance(deme[j], ...)` in C++ reaches `deme[j].first`
+            # through tagged_item's implicit `operator Item&()`
+            # (opencog/util/functional.h:78-80).
+            deme.fields().merge_instance(deme[j].first, base, reference)
+        return num_to_make
+
+    def cross_top_two(
+        self,
+        deme: deme_t,
+        deme_size: int,
+        num_to_make: int,
+        sample_start: int,
+        sample_size: int,
+        base: instance,
+    ) -> int:
+        """C++: moses/moses/optimization/hill-climbing.cc:624 cross_top_two
+
+        "two-dimensional simplex version of above" (hill-climbing.cc:623).
+        For each pair (j, i) with j < i, appends a copy of sample j with
+        sample i's changes-from-`base` overlaid, at the triangular index
+        `n = i*(i-1)/2 + j`.
+
+        # DIVERGENCE(C++ moses/moses/optimization/hill-climbing.cc:627,632,
+        # 646,657): every one of `max`, `num_to_sort`, `n` and `ntgt` is
+        # declared `unsigned` in C++ -- 32-bit -- while `sample_size`,
+        # `num_to_make` and `deme_size` are `size_t`. So `sample_size *
+        # (sample_size - 1) / 2` is evaluated in 64-bit and then TRUNCATED
+        # to 32 bits on assignment to `max`; `num_to_sort = sample_size`
+        # truncates the same way; `n = i * (i - 1) / 2 + j` wraps mod 2**32
+        # in its own right (i * (i-1) exceeds 2**32 at i >= 65537); and
+        # `ntgt = deme_size + n` is a 64-bit sum truncated to 32 bits.
+        # Python ints are unbounded, so each of those is masked explicitly
+        # below rather than clamped -- the same treatment, and for the same
+        # reason, as `n_new_instances`'s `nleft`. All four wraps need a
+        # deme or a sample of billions of instances to reach and are not
+        # reachable in any configuration this port is tested in; they are
+        # reproduced so that if a caller ever does reach one, the port
+        # wraps where classic wraps instead of quietly computing a
+        # different, "correct" answer.
+        """
+        # sample_size choose two.
+        max_ = ((sample_size * ((sample_size - 1) & _SIZE_T_MAX)) & _SIZE_T_MAX) // 2
+        max_ &= _UNSIGNED_MAX
+        if max_ < num_to_make:
+            num_to_make = max_
+
+        # `_sqrtf_plus_3` applies the `2 *` itself -- see its docstring.
+        num_to_sort = _sqrtf_plus_3(num_to_make)
+        if sample_size < num_to_sort:
+            num_to_sort = sample_size & _UNSIGNED_MAX
+        _partial_sort(deme, sample_start, sample_start + num_to_sort, sample_start + sample_size)
+
+        deme.resize(deme_size + num_to_make)
+
+        # Summation is over a 2-simplex
+        for i in range(1, sample_size):
+            # (i+1)th best instance
+            reference = deme[sample_start + i].first
+
+            # merge with all best instance (better than reference) but
+            # using reference as the one containing the mutations to pass
+            # on the other (better) instance.
+            for j in range(i):
+                n = (((i * ((i - 1) & _UNSIGNED_MAX)) & _UNSIGNED_MAX) // 2 + j) & _UNSIGNED_MAX
+                if num_to_make <= n:
+                    return num_to_make
+                ntgt = (deme_size + n) & _UNSIGNED_MAX
+                src = deme[sample_start + j]
+                deme[ntgt] = scored_instance(src.first, src.second)
+                deme.fields().merge_instance(deme[ntgt].first, base, reference)
+        return num_to_make
+
+    def cross_top_three(
+        self,
+        deme: deme_t,
+        deme_size: int,
+        num_to_make: int,
+        sample_start: int,
+        sample_size: int,
+        base: instance,
+    ) -> int:
+        """C++: moses/moses/optimization/hill-climbing.cc:664 cross_top_three
+
+        "three-dimensional simplex version of above"
+        (hill-climbing.cc:663). Intended to walk strict triples
+        `k < j < i` and place each child at the tetrahedral index
+        `n = i*(i-1)*(i-2)/6 + j*(j-1)/2 + k`.
+
+        # DIVERGENCE(C++ moses/moses/optimization/hill-climbing.cc:687):
+        # DO NOT FIX -- the innermost loop is `for (unsigned k = 0; k < i;
+        # k++)` while the index formula on the very next line assumes
+        # `k < j`. So `n` is not a bijection, and this is what actually
+        # happens (derived from the formula and confirmed against
+        # tests/fixtures/crossover.json, `cross_top_three`'s own cases):
+        #
+        # * NOTHING IS SKIPPED. For a fixed `i` the offsets `j*(j-1)/2 + k`
+        #   produced are the union over j in [1,i) of the i consecutive
+        #   values [j*(j-1)/2, j*(j-1)/2 + i). Successive j-runs start
+        #   j apart with j < i, so the runs overlap and the union is the
+        #   CONTIGUOUS range [0, i*(i-1)/2]. The intended range for block i
+        #   is [0, i*(i-1)/2), so the block covers all of its own slots and
+        #   then one more.
+        # * SLOTS ARE WRITTEN REPEATEDLY, last write wins. Offset m in
+        #   block i is written once for every j in [1,i) with
+        #   0 <= m - j*(j-1)/2 < i, which is up to O(sqrt(i)) times. Only
+        #   the final (j, k) pair survives, and it is not the (j, k) the
+        #   formula intends: e.g. i=3 writes n=3 twice, first as
+        #   (j=1, k=2) and then as (j=2, k=1), and the second wins.
+        # * ONE SLOT OF THE NEXT BLOCK IS CLOBBERED EARLY. The block's last
+        #   offset, i*(i-1)/2, maps to n = C(i+1,3), i.e. block i+1's slot
+        #   0, which block i+1 then rewrites with its own (j=1, k=0).
+        # * The `k == j` and `k > j` cases mean a child can be merged with
+        #   a reference it is itself a copy of (k == j, or k == i), so
+        #   `merge_instance(child, base, jref)` is a no-op and the child is
+        #   a two-way cross wearing a three-way slot.
+        # * `if (num_to_make <= n) return num_to_make;` (:689) still leaves
+        #   no hole below `num_to_make`: because the covered offsets always
+        #   form a contiguous prefix and rise by one within each j-run, the
+        #   first `n >= num_to_make` is reached only after every smaller
+        #   slot has already been written at least once.
+        #
+        # Net effect: the function returns the promised count of
+        # initialized instances, but their CONTENT is a different multiset
+        # of crosses than `k < j` would produce. Reproduced literally,
+        # because bit-identical behaviour against classic is the point.
+        #
+        # The `unsigned` truncations are the same family
+        # `cross_top_two` documents (here `i*(i-1)*(i-2)` already exceeds
+        # 2**32 at i >= 2953, so this one is the most reachable of them);
+        # masked, never clamped.
+        """
+        # sample_size choose three.
+        max_ = sample_size * ((sample_size - 1) & _SIZE_T_MAX) & _SIZE_T_MAX
+        max_ = ((max_ * ((sample_size - 2) & _SIZE_T_MAX)) & _SIZE_T_MAX) // 6
+        max_ &= _UNSIGNED_MAX
+        if max_ < num_to_make:
+            num_to_make = max_
+
+        # `_cbrtf_plus_3` applies the `6 *` itself -- see its docstring.
+        num_to_sort = _cbrtf_plus_3(num_to_make)
+        if sample_size < num_to_sort:
+            num_to_sort = sample_size & _UNSIGNED_MAX
+        _partial_sort(deme, sample_start, sample_start + num_to_sort, sample_start + sample_size)
+        deme.resize(deme_size + num_to_make)
+
+        # Summation is over a 3-simplex
+        for i in range(2, sample_size):
+            iref = deme[sample_start + i].first
+            for j in range(1, i):
+                jref = deme[sample_start + j].first
+                for k in range(i):  # DO NOT FIX: `k < i`, see the docstring
+                    n = (i * ((i - 1) & _UNSIGNED_MAX)) & _UNSIGNED_MAX
+                    n = ((n * ((i - 2) & _UNSIGNED_MAX)) & _UNSIGNED_MAX) // 6
+                    n = (n + ((j * ((j - 1) & _UNSIGNED_MAX)) & _UNSIGNED_MAX) // 2) & _UNSIGNED_MAX
+                    n = (n + k) & _UNSIGNED_MAX
+                    if num_to_make <= n:
+                        return num_to_make
+                    ntgt = (deme_size + n) & _UNSIGNED_MAX
+                    src = deme[sample_start + k]
+                    deme[ntgt] = scored_instance(src.first, src.second)
+                    deme.fields().merge_instance(deme[ntgt].first, base, iref)
+                    deme.fields().merge_instance(deme[ntgt].first, base, jref)
+        return num_to_make
+
+    def crossover(
+        self,
+        deme: deme_t,
+        deme_size: int,
+        max_number_of_new_instances: int,
+        sample_start: int,
+        sample_size: int,
+        base: instance,
+    ) -> int:
+        """C++: moses/moses/optimization/hill-climbing.cc:701 crossover
+
+        "Chain the 3 crossovers methods above and return the number of new
+        instances" (hill-climbing.h:232-234's own comment). The budget is
+        first capped at `crossover_pop_size` (120 by default), then split
+        `num_to_make/3 + num_to_make%3` to `cross_top_one` and
+        `num_to_make/3` to each of the other two -- so the whole remainder
+        goes to `cross_top_one`, and the default 120 splits 40/40/40.
+
+        Each stage is handed `deme_size` ALREADY ADVANCED by what the
+        previous stages actually returned (which can be less than they were
+        asked for, since each clamps to its own simplex size), while
+        `sample_start`/`sample_size` stay pointing at the same, unchanged
+        sample window -- so all three stages re-sort and re-read the SAME
+        window, each on top of the previous stage's permutation of it.
+
+        NOT ported: the commented-out `cross_top_one(deme, deme_size,
+        num_to_make, sample_start, sample_size, base)` call
+        (hill-climbing.cc:709-712) that the live call at :713 replaced.
+        """
+        # Do not make more than the budget
+        num_to_make = min(max_number_of_new_instances, self.hc_params.crossover_pop_size)
+
+        # These cross-over (in the genetic sense) the top-scoring one, two
+        # and three instances, respectively.
+        number_of_new_instances = self.cross_top_one(
+            deme,
+            deme_size,
+            # Add the remainder so that it all sums up to num_to_make in
+            # the end.
+            num_to_make // 3 + num_to_make % 3,
+            sample_start,
+            sample_size,
+            base,
+        )
+
+        number_of_new_instances += self.cross_top_two(
+            deme,
+            deme_size + number_of_new_instances,
+            num_to_make // 3,
+            sample_start,
+            sample_size,
+            base,
+        )
+
+        number_of_new_instances += self.cross_top_three(
+            deme,
+            deme_size + number_of_new_instances,
+            num_to_make // 3,
+            sample_start,
+            sample_size,
+            base,
+        )
+
+        return number_of_new_instances
+
     # ---------------------------------------------------------------- resizing
 
     def resize_by_score(self, deme: deme_t, cutoff: score_t) -> int:
@@ -405,13 +924,32 @@ class hill_climbing(optimizer_base):
             did_resize = True
 
         if self.hc_params.max_allowed_instances < len(deme) or ram_pressure:
-            # std::partial_sort(..., std::greater<deme_inst_t>()) -- a full
-            # stable sort is behaviourally equivalent for "keep the top
-            # max_allowed_instances" (we don't need partial_sort's
-            # performance benefit), and std::partial_sort's own tie-order
-            # is unspecified in C++ itself, so there is no C++ tie-order to
-            # match or diverge from here.
-            deme.sort(reverse=True)
+            # DIVERGENCE(C++ moses/moses/optimization/hill-climbing.cc:815-819):
+            # this used to be `deme.sort(reverse=True)`, on the argument that
+            # a stable sort "can only be at least as well-ordered as" an
+            # unspecified one, so there was no C++ tie order to match. That
+            # argument is FALSE and was withdrawn in S12 after measuring
+            # libstdc++ directly: `std::partial_sort` with ties present
+            # returns a genuinely different permutation from a stable sort
+            # (`all_tied_8_mid4` measures as [1,3,0,2,...] where a stable
+            # sort gives [0,1,2,3,...]), and since the very next line
+            # TRUNCATES the deme, tie order decides which tied instances
+            # survive. `_partial_sort` reproduces libstdc++ exactly; see its
+            # block comment.
+            #
+            # The one thing not reproduced is C++'s out-of-range `middle`:
+            # classic passes `next(deme.begin(), max_allowed_instances)`
+            # unconditionally, so when the RAM-pressure arm fires on a deme
+            # SMALLER than `max_allowed_instances` (the common case -- the
+            # default is 10000), `middle` is past `end()` and the call is
+            # undefined behaviour. Python clamps `middle` to `len(deme)`,
+            # which is what a full sort of the whole deme does and what the
+            # `erase` on the next line then makes a no-op -- the observable
+            # outcome any sane libstdc++ build produces, without pretending
+            # the C++ is defined.
+            _partial_sort(
+                deme, 0, min(self.hc_params.max_allowed_instances, len(deme)), len(deme)
+            )
             del deme[self.hc_params.max_allowed_instances :]
             did_resize = True
 
@@ -489,15 +1027,23 @@ class hill_climbing(optimizer_base):
         distance = 0
         iteration = 0
 
-        # NOT ported: `prev_center`/`prev_start`/`prev_size`
-        # (hill-climbing.cc:93-95,204-206) -- "needed for correlated
-        # neighborhood exploration" (the C++ comment), but their ONLY
-        # reader anywhere in the function is the `crossover(...)` call
-        # inside `if (xover)` (hill-climbing.cc:165-166), which this port
-        # never reaches (the `xover` branch always raises first -- see the
-        # module docstring's DIVERGENCE note). Provably write-only/dead in
-        # this port for the same reason `best_cscore` above is, so not
-        # tracked here at all.
+        # Needed for correlated neighborhood exploration
+        # (hill-climbing.cc:93-95). ASYMMETRY, easy to get wrong: the
+        # crossover branch reads the PREVIOUS iteration's block
+        # (`prev_start`, `prev_size`, `prev_center`, hill-climbing.cc:165-
+        # 166) while the sampling branch reads `center_inst` and the
+        # CURRENT `current_number_of_instances` (:190); both then update
+        # all three at :204-206, before scoring and before `center_inst`
+        # can move. `prev_center` is copied, not aliased, for the same
+        # reason `center_inst` is (:79's "Copy it, don't reference it,
+        # since sorting will mess up a ref").
+        prev_center = instance(center_inst)
+        prev_start = 0
+        prev_size = 0
+
+        # keep track whether the population generated from the same center
+        # has already been crossover. This is to prevent to redo a useless
+        # crossover when distance widening is occurs (hill-climbing.cc:97-99)
         already_xover = False
         last_chance = False
 
@@ -521,32 +1067,42 @@ class hill_climbing(optimizer_base):
             )
 
             if xover:
-                # DIVERGENCE(C++ moses/moses/optimization/hill-climbing.cc:
-                # 152-168): `cross_top_one`/`cross_top_two`/`cross_top_three`/
-                # `crossover` are S12, not ported (see module docstring).
-                # This guard is what proves the crossover trigger never
-                # fires in a supposedly crossover-free run, rather than
-                # merely assuming it: any run with `hc_params.crossover =
-                # True` that reaches this branch raises instead of silently
-                # doing nothing or doing the wrong thing.
-                raise NotImplementedError(
-                    "hill_climbing: crossover triggered (iteration="
-                    f"{iteration}, large_nbh={large_nbh}, last_chance="
-                    f"{last_chance}) but crossover mechanics are not "
-                    "ported (S12); pass hc_parameters(cross=False), "
-                    "matching --hc-crossover=0."
+                # NOT ported: the `why_xover` stringstream and the
+                # `OC_ASSERT(false, "There must be a bug")` that closes it
+                # (hill-climbing.cc:154-162). The assertion is unreachable
+                # -- `xover` is only true when `large_nbh || last_chance`,
+                # which is exactly the disjunction the two branches above
+                # it test -- and the whole block feeds one dropped
+                # `logger().debug()`.
+                number_of_new_instances = self.crossover(
+                    deme,
+                    current_number_of_instances,
+                    number_of_new_instances,
+                    prev_start,
+                    prev_size,
+                    prev_center,
                 )
 
-            # The current_number_of_instances arg is needed only to be
-            # able to manage the size of the deme appropriately.
-            number_of_new_instances = sample_new_instances(
-                total_number_of_neighbors,
-                number_of_new_instances,
-                current_number_of_instances,
-                center_inst,
-                deme,
-                distance,
-            )
+                already_xover = True
+            else:
+                # NOT ported: the matching `whynot_xover` chain and its own
+                # unreachable `OC_ASSERT(false, ...)`
+                # (hill-climbing.cc:170-184).
+                #
+                # The current_number_of_instances arg is needed only to be
+                # able to manage the size of the deme appropriately.
+                number_of_new_instances = sample_new_instances(
+                    total_number_of_neighbors,
+                    number_of_new_instances,
+                    current_number_of_instances,
+                    center_inst,
+                    deme,
+                    distance,
+                )
+
+            prev_start = current_number_of_instances
+            prev_size = number_of_new_instances
+            prev_center = instance(center_inst)
 
             # score all new instances in the deme (hill-climbing.cc:236-240's
             # OMP_ALGO::transform -- a serial loop is faithful, see the
@@ -584,10 +1140,15 @@ class hill_climbing(optimizer_base):
                     or _ACCEPTABLE_RAM_FRACTION * self._total_RAM_bytes < deme_usage
                 ):
                     did_resize = self.resize_deme(deme, best_score)
+                    # "After resizing, some of the variables set above
+                    # become invalid. Some are not needed any more: e.g.
+                    # ibest. Others, we need, esp prev_start and prev_size
+                    # for the cross-over to work."
+                    # (hill-climbing.cc:344-348.)
                     if did_resize:
                         current_number_of_instances = len(deme)
-                        # (hill-climbing.cc:351-352 also resets
-                        # prev_start/prev_size here -- not tracked, see above)
+                        prev_start = 0
+                        prev_size = current_number_of_instances
 
             if has_improved:
                 distance = 1

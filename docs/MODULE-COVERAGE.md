@@ -336,11 +336,11 @@ The outer search loop. `complexity.*` PORTED (S6). `types.*` PARTIAL (S6 -- comp
 
 ## `moses/moses/optimization`
 
-`hill-climbing.*`, `optimization.*` PLANNED: S9 (crossover itself deferred further to S12). `particle-swarm.*`, `star-anneal.*`, `univariate.*` PLANNED: P2 ("the other optimizers," named explicitly).
+`hill-climbing.*`, `optimization.*` PLANNED: S9; crossover was deferred to S12 and is now DONE. `particle-swarm.*`, `star-anneal.*`, `univariate.*` PLANNED: P2 ("the other optimizers," named explicitly).
 
 | File | Lines | Status | pyMeTTa path / Slice / Reason |
 |---|---:|---|---|
-| `moses/moses/optimization/hill-climbing.cc` | 846 | PARTIAL | `pymetta/moses/moses/optimization/hill_climbing.py` -- serial hill-climbing with `crossover=False` (S12 turns it on; `docs/CROSSOVER-INVENTORY.md` holds the groundwork). Reproduces C++'s `size_t` underflow at `hill-climbing.cc:541` via an explicit mask rather than clamping. The single `OMP_ALGO::transform` site is serial here: `std::transform` writes each output at a fixed index, so it is order-independent either way. |
+| `moses/moses/optimization/hill-climbing.cc` | 846 | PARTIAL | `pymetta/moses/moses/optimization/hill_climbing.py` -- serial hill-climbing INCLUDING crossover (S12: `cross_top_one`/`two`/`three`, `crossover`, the gate and `last_chance`), so `crossover=True` -- classic's own default -- is what the port runs. Ports libstdc++'s `std::partial_sort` verbatim as `_partial_sort`, because its (standard-unspecified) tie order decides which instances get crossed and which survive `resize_deme`'s truncation. Reproduces C++'s `size_t` underflow at `hill-climbing.cc:541` and `cross_top_three`'s `k < i` index-collision bug (DO NOT FIX) rather than repairing either. The single `OMP_ALGO::transform` site is serial here: `std::transform` writes each output at a fixed index, so it is order-independent either way. Still PARTIAL only for the dropped logging surface and the dead `#ifdef GATHER_STATS` block. |
 | `moses/moses/optimization/hill-climbing.h` | 280 | PARTIAL | `pymetta/moses/moses/optimization/hill_climbing.py` -- see hill-climbing.cc row. `hc_parameters` defaults ported verbatim and each pinned by test. |
 | `moses/moses/optimization/optimization.cc` | 190 | PARTIAL | `pymetta/moses/moses/optimization/optimization.py` -- `optimizer_base`, `optim_parameters`, `information_theoretic_bits` (correctly kept in `double`, not narrowed). Term-field contribution not ported: term fields are excluded from this port's `field_set`, so that loop's range is always empty. |
 | `moses/moses/optimization/optimization.h` | 192 | PARTIAL | `pymetta/moses/moses/optimization/optimization.py` -- see optimization.cc row. |

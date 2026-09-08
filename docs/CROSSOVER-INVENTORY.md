@@ -1,5 +1,17 @@
 # Crossover inventory (input for S12)
 
+**STATUS: IMPLEMENTED (S12, 2026-09-08).** Everything below is now ported in
+`pymetta/moses/moses/optimization/hill_climbing.py` -- `cross_top_one`,
+`cross_top_two`, `cross_top_three`, `crossover`, the five-conjunct gate and
+the `last_chance` block -- and `hc_parameters(cross=True)`, classic's own
+default, is the configuration the port runs. The oracle is
+`tools/cpp_probe/crossover_probe.cc` -> `tests/fixtures/crossover.json`,
+consumed by `tests/moses/moses/optimization/test_crossover.py`. S9's
+`NotImplementedError` guard and its DIVERGENCE marker are gone.
+
+Two claims below were CORRECTED by measurement during S12; both corrections
+are marked inline. Read them, not the original claim.
+
 Assembled 2026-09-07 from classic's `hill-climbing.{h,cc}`, `problem-params.cc`,
 `optimization.cc`. S9 ports hill-climbing with `crossover = false`; **S12 turns
 it on**. Line numbers were read from source.
@@ -45,8 +57,28 @@ field set. So at the steady-state distance 1:
 > **`large_nbh` <=> `2 * arity >= 400` <=> arity >= 200 knobs.**
 
 This is why crossover never fired in S9's measurements: `trainingBoolean.dat`
-(3 inputs) yields tens of knobs, not hundreds. On such problems crossover fires
-**only** via `last_chance`. Distance > 1 happens only with `-L1`/`-T1`.
+(3 inputs) yields tens of knobs, not hundreds.
+
+> **CORRECTION (S12, measured).** The original next sentence read "On such
+> problems crossover fires **only** via `last_chance`. Distance > 1 happens
+> only with `-L1`/`-T1`." Both halves are wrong.
+>
+> `distance++` at `:367-368` runs BEFORE the `last_chance` block at `:434`,
+> so distance reaches 2 on any non-improving iteration -- no `-L1`/`-T1`
+> needed -- and a `last_chance` crossover therefore always happens at
+> `distance >= 2`, where `estimate_neighborhood` returns
+> `safe_binomial_coefficient(nn, distance)`, not `2 * nn`. For a Boolean
+> field set that is already `>= 400` at distance 2 once `nn >= 29`
+> (`C(29,2) = 406`). So on most "small" problems the gate is opened by
+> `large_nbh`, not `last_chance`, and classic's own log says so: the
+> arity-6 case in `tests/fixtures/crossover.json` logs
+> `n'bhood too large for exhaustive srch: 703>=400`.
+>
+> `last_chance` is the DECIDING conjunct only when
+> `safe_binomial_coefficient(nn, 2) < 400`, i.e. `nn <= 28` -- about 17
+> multiplicity-3 knobs, or an arity-4 exemplar. That is the
+> `last_chance_only` fixture case, and it is the only one classic logs
+> `last chance` for.
 
 ## `last_chance` — the OR that bypasses the size test
 
@@ -80,8 +112,24 @@ others — default 120 gives 40/40/40, and **the remainder all goes to top-one**
 
 `cross_top_three`'s inner loop runs **`k < i`** (`:687`) while its index formula
 `n = i*(i-1)*(i-2)/6 + j*(j-1)/2 + k` assumes `k < j`. So `n` is not a bijection
-for `k >= j` — indices collide or are skipped. Reproduce literally; mark
-DO NOT FIX.
+for `k >= j`. Reproduced literally, marked DO NOT FIX.
+
+> **CORRECTION (S12, derived and confirmed against the fixture).** "indices
+> collide **or are skipped**" -- nothing is ever skipped. For a fixed `i`
+> the offsets produced are the union over `j` in `[1,i)` of the `i`
+> consecutive values `[j(j-1)/2, j(j-1)/2 + i)`; successive runs start `j`
+> apart with `j < i`, so they overlap and the union is the **contiguous**
+> range `[0, i(i-1)/2]`. The intended range is `[0, i(i-1)/2)`, so each
+> block covers all its own slots and then spills exactly one write into the
+> next block's slot 0 (which that block later rewrites). Every slot below
+> `num_to_make` is written; many are written repeatedly (up to O(sqrt(i))
+> times) and **the last write wins** -- with a `(j, k)` pair the formula
+> never intended, e.g. `n = 3` is written as `(i=3, j=1, k=2)` and then as
+> `(i=3, j=2, k=1)`. Because `k` may equal `j` or `i`, some "three-way"
+> crosses are really two-way. The early `return` at `:689` still leaves no
+> hole: the covered offsets form a contiguous prefix at all times, so the
+> first `n >= num_to_make` is only reached after every smaller slot has been
+> written.
 
 ## Two asymmetries that will bite a port
 
@@ -102,3 +150,31 @@ DO NOT FIX.
   be a bug")` at `:183` that is **unreachable** — `!large_nbh` catches the rest.
 - Exhaustive-vs-random is decided later, in `sample_new_instances`
   (`neighborhood_sampling.cc:230-249`).
+
+
+## What S12 measured that this document did not predict
+
+* **`std::partial_sort` tie order is reachable and decisive.** Two
+  `composite_score`s tie under `operator<` whenever penalized score AND
+  complexity are equal -- the normal state of a Boolean deme. libstdc++'s
+  order was measured over 15 samples and reproduced exactly by
+  `hill_climbing.py`'s `_partial_sort` (a transliteration of
+  `__heap_select` + `__sort_heap`). A stable Python sort measurably
+  differs: for eight all-tied elements with `mid = 4`, libstdc++ returns
+  `[1, 3, 0, 2, ...]` where a stable sort returns `[0, 1, 2, 3, ...]`.
+  This also retired the same "a stable sort is at least as well-ordered"
+  argument in `resize_deme`, where the sort is immediately followed by a
+  truncation and therefore decides which tied instances survive.
+* **`sqrtf`/`cbrtf` need C's `float` conversions reproduced.**
+  `sqrtf(2 * num_to_make) + 3` converts the `size_t` to binary32 BEFORE
+  the call and keeps the result in binary32. Measured counterexamples where
+  binary64 gives a different truncated integer: `n = 8380417` (4097 vs
+  4096) and, for `cbrtf(6n) + 3`, `n = 26244` (57 vs 56).
+* **`(iteration > 2)` is redundant.** `current_number_of_instances >= 3`
+  already excludes iterations 1 and 2, because iteration 1 runs at
+  distance 0 and appends exactly one instance. Relaxing it to
+  `iteration > 1` changes nothing measurable.
+* **Crossover ON changes the end-to-end trajectory.** On S11's own
+  five-generation `trainingBoolean.dat` scenario, `n_evals` per generation
+  is 45/58/74/**198**/**214** with crossover at its default versus
+  45/58/74/97/113 with it off.
