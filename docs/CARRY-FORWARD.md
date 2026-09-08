@@ -309,12 +309,28 @@ member in the docstring body.
 
 ## 5. Known weaknesses in our own harness
 
-- **No fixture carries a checksum, version, or input manifest**, and `ci.sh`
-  cannot rebuild the probes. All six fixtures can rot silently.
-- **`tree.json` has no capture script in-repo** — the recipe lives only in the
-  plan document — and it is the only fixture without a shape guard.
+- ~~**No fixture carries a checksum, version, or input manifest**, and `ci.sh`
+  cannot rebuild the probes.~~ ~~**`tree.json` has no capture script in-repo.**~~
+  **Both FIXED** (fixture-integrity task, 2026-09-08, commit `fddb6b6`). All 17
+  fixtures now carry a manifest recording the capture script, the probe source
+  and its SHA-256, and the inputs used — two embedded, fifteen as
+  `<name>.manifest.json` sidecars (five fixtures have exact `set(golden) ==`
+  tests that an embedded key would break, and three are top-level JSON lists).
+  `tools/check_fixture_manifests.py` runs in `ci.sh`, in pure Python with no
+  compiler, and **a new fixture without a manifest turns CI red** — deliberate
+  enforcement. Capture scripts are now path-independent
+  (`PYMETTA_CLASSIC_DIR` / `PYMETTA_COGUTIL_DIR` / `PYMETTA_MOSES_PREFIX`), so
+  a fixture can actually be regenerated; `tree.json` finally has one and
+  rebuilds byte-identically.
+  Rot detection was proven in **both** directions, not merely the passing one:
+  ~20 synthetic perturbation tests plus a live demo that zeroed a
+  `probe_source_sha256`, saw `FAIL: 1/17`, reverted, and saw `OK: 17`.
+  `rng.json`'s probe had been rewritten to link the real cogutil
+  `MT19937RandGen`; a bounded rebuild proved the output byte-identical, so
+  nothing was overwritten — the manifest just records that verification.
+  **Note `tree.json` is still the only fixture without a shape guard**, and
   `test_tree.py`'s 33 oracle tests do not use `parametrize`, so
-  `empty_parameter_set_mark` does not cover them.
+  `empty_parameter_set_mark` does not cover them. That half stands.
 - **`check_alignment.py` checks 218 of 282 C++ citations.** It parses only
   Function/Class docstring first-lines, so module headers, `#`-comment
   breadcrumbs on constants, and `and <file>:<line>` overload continuations go
