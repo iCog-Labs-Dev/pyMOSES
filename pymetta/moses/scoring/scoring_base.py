@@ -12,28 +12,47 @@ docstring for its C++ line.
 
 NOT ported, all deliberately out of scope for this task:
 
-* `bscore_ctable_base` (scoring_base.h:235) -- the `ignore_cols`/
-  `ignore_rows`/`ignore_rows_at_times`/`get_ctable_usize`/`get_ctable`
-  infrastructure for compressing a CTable by feature/row subset during
-  search. `ctruth_table_bscore` (bscores.py) extends `bscore_base`
-  directly and stores its CTable as a plain attribute instead of through
-  this intermediate base -- exactly what task-6-brief.md's interface line
-  (`class ctruth_table_bscore(bscore_base)`) specifies.
-* The whole `_weights`/`use_weighted_scores`/`reset_weights`/
-  `update_weights` apparatus behind `_return_weighted_score` -- boosting
-  is out of scope for this whole cycle. `_return_weighted_score` is kept
-  (defaulting to `False`, exactly its C++ default) purely because
-  `sum_bscore`'s own branch reads it; it is never set to `True` anywhere
-  in this port. `get_complexity(const scored_combo_tree_set&)`
-  (scoring_base.h:204) is likewise NOT ported -- it averages
-  `sct.get_weight()` (scoring_base.cc:96-107), the boosting weight this
-  port's own `scored_combo_tree` (types.py) does not carry.
-* `ignore_cols`/`ignore_rows`/`ignore_rows_at_times`/`get_ctable_usize`/
-  `get_ctable`/`get_error` -- feature-selection and boosting-error
-  plumbing, likewise out of scope.
+* `ignore_cols`/`ignore_rows`/`ignore_rows_at_times` -- the feature/row
+  subsetting infrastructure `bscore_ctable_base` (below) uses to compress
+  a CTable during feature selection. `filtered_preserve_idxs`, the CTable
+  method the real C++ bodies call, does not exist in this port's `CTable`
+  (table.py) -- feature selection itself is an unscheduled subsystem
+  (REMAINING-WORK.md Sec 3d). Ported as raising gates on
+  `bscore_ctable_base` (below), not silently inherited as bscore_base's
+  own harmless no-op default -- silently doing nothing would misrepresent
+  a base class whose whole point is to actually compress the table.
+* `get_complexity(const scored_combo_tree_set&)` (scoring_base.h:204) --
+  it averages `sct.get_weight()` (scoring_base.cc:96-107), the boosting
+  weight this port's own `scored_combo_tree` (types.py) does not carry.
 * `contin_complexity_coef` (scoring_base.h:53) -- used only by
   `contin_bscore`, which is not part of this task's ported surface
   (bscores.py ports `ctruth_table_bscore` only, per task-6-brief.md).
+
+`bscore_ctable_base` (scoring_base.h:236) -- the base class
+`discriminating_bscore`/`select_bscore`/`bscore_ctable_time_dispersion`
+(discriminating_bscore.py/select_bscore.py/time_dispersion.py) all extend
+-- IS now ported below, by the P2 scorer-family task: `ctruth_table_bscore`
+(bscores.py) still extends `bscore_base` directly per its own
+task-6-brief.md interface line, so this class gains its first real users
+only now.
+
+The `_weights`/`use_weighted_scores`/`reset_weights`/`update_weights`
+apparatus behind `_return_weighted_score` was ALSO believed out of scope
+for this whole cycle ("boosting only") until the P2 scorer-family task
+found that assumption false: `select_bscore`'s own constructor
+(select_bscore.cc:80-82) sets `_return_weighted_score = true`
+UNCONDITIONALLY, in ORDINARY (non-boosting) use -- the comment there is
+explicit: "This is needed even if not boosted, as otherwise the
+ignore_cols(), ignore_rows() methods strip out rows, and cause
+mis-matches during scoring." So `sum_bscore`'s weighted branch
+(scoring_base.cc:141-156) IS reachable in this port after all, and is
+ported below alongside `reset_weights`/`update_weights`/
+`use_weighted_scores`. `precision_bscore` (precision_bscore.py), by
+contrast, only sets `_return_weighted_score = true` via the still-out-of-
+scope `use_weighted_scores()` boosting entry point (never called anywhere
+in this port), so its own weighted-branch code in `do_score` stays
+unreachable/untested, exactly as originally assumed for this whole
+apparatus.
 
 S10 Task 0 ports `operator()(const scored_combo_tree_set&)`
 (scoring_base.h:66) -- as `call_ensemble` below, see its own docstring for
@@ -46,8 +65,10 @@ discipline the S10 metapopulation plan uses for every other P2 subsystem.
 
 import math
 from abc import ABC, abstractmethod
+from collections import Counter
 
 from pymetta.comboreduct.combo.vertex import combo_tree
+from pymetta.comboreduct.table.table import CTable
 from pymetta.moses.moses.complexity import complexity_t, tree_complexity
 from pymetta.moses.moses.types import _to_score_t, behavioral_score, score_t, scored_combo_tree_set
 
@@ -75,13 +96,14 @@ class bscore_base(ABC):
     def __init__(self) -> None:
         """C++: moses/moses/scoring/scoring_base.h:59 bscore_base
 
-        `_weights` (scoring_base.h:231) is not initialized here -- it
-        backs the weighted-boosting branch of `sum_bscore`, which this
-        port never takes (`_return_weighted_score` is never set `True`;
-        see module docstring), so there is no `reset_weights()` call site
-        to populate it.
+        `_weights` (scoring_base.h:231, `std::vector<double>`) starts
+        empty, matching C++'s default-constructed `std::vector` -- it is
+        populated by `reset_weights()`, which every `_return_weighted_
+        score`-using constructor calls (see module docstring: this is no
+        longer boosting-only, `select_bscore` needs it in ordinary use).
         """
         self._return_weighted_score = False
+        self._weights: list[float] = []
         self._complexity_coef: score_t = 0.0
         self._size = 0
 
@@ -167,30 +189,102 @@ class bscore_base(ABC):
         """C++: moses/moses/scoring/scoring_base.cc:135 bscore_base::sum_bscore
 
         "Return the (possibly weighted) sum of the behavioral score."
-        (scoring_base.h:97's own comment.) Only the unweighted branch
-        (`not _return_weighted_score`) is reachable in this port -- see
-        module docstring -- so the `_weights`-driven branch
-        (scoring_base.cc:141-156) is not ported.
+        (scoring_base.h:97's own comment.) BOTH branches are reachable in
+        this port -- see module docstring: `select_bscore` sets
+        `_return_weighted_score = True` unconditionally, in ordinary
+        (non-boosting) use.
 
-        `boost::accumulate(bs, 0.0)` (scoring_base.cc:139) is a NAIVE
-        left-to-right double-precision fold -- deliberately NOT Python's
-        builtin `sum()`, which (CPython >=3.12, confirmed on 3.14.7 here:
-        `sum([0.1]*10) == 1.0` exactly, where a naive fold gives
-        `0.9999999999999999`) uses Neumaier/Kahan-style compensated
-        summation and so is systematically MORE accurate than
+        `boost::accumulate(bs, 0.0)` (scoring_base.cc:139, the UNWEIGHTED
+        branch) is a NAIVE left-to-right double-precision fold --
+        deliberately NOT Python's builtin `sum()`, which (CPython >=3.12,
+        confirmed on 3.14.7 here: `sum([0.1]*10) == 1.0` exactly, where a
+        naive fold gives `0.9999999999999999`) uses Neumaier/Kahan-style
+        compensated summation and so is systematically MORE accurate than
         `boost::accumulate` -- a second, independent source of
         double-vs-C++ disagreement beyond float32 narrowing, invisible on
         this port's small (<=8-row) fixture corpus but not in general.
         The double-precision accumulator itself is intentionally never
         narrowed per-element (C++'s accumulator is `double`, initialized
         from the `0.0` literal in `boost::accumulate(bs, 0.0)`) -- only
-        the final return value is narrowed to `score_t`, exactly once,
-        matching `sum_bscore`'s own `score_t` return type.
+        the final return value is narrowed to `score_t`, exactly once.
+
+        The WEIGHTED branch (scoring_base.cc:141-156) is different in
+        kind, not just in formula: `score_t res = 0.0;` declares the
+        accumulator itself as `score_t` (float), so EVERY `+=` narrows,
+        not just the final return -- narrowed here via `_to_score_t`
+        inside each loop iteration, matching a real float32 variable
+        being repeatedly written. `_weights[i] * bs[i]` is a
+        `double * score_t` product (C++ promotes `bs[i]` to `double` for
+        the multiply), computed here at full Python-`float` (double)
+        precision before that per-iteration narrow -- exactly one
+        narrowing point per term, matching C++'s one truncating store per
+        loop iteration. `OC_ASSERT(_size <= bsz, ...)` (scoring_base.cc:
+        146) is ported as `AssertionError`, this port's convention for a
+        direct `OC_ASSERT(false, ...)` (see docs/CARRY-FORWARD.md Sec 5).
         """
-        total = 0.0
-        for x in bs:
-            total += x
-        return _to_score_t(total)
+        if not self._return_weighted_score or self._size == 0 or len(self._weights) == 0:
+            total = 0.0
+            for x in bs:
+                total += x
+            return _to_score_t(total)
+
+        bsz = len(bs)
+        if not (self._size <= bsz):
+            raise AssertionError("Behavioral score too small!")
+
+        res: score_t = 0.0
+        i = 0
+        for i in range(self._size):
+            res = _to_score_t(res + self._weights[i] * bs[i])
+        for i in range(self._size, bsz):
+            res = _to_score_t(res + bs[i])
+        return res
+
+    def use_weighted_scores(self) -> None:
+        """C++: moses/moses/scoring/scoring_base.h:95 bscore_base::use_weighted_scores
+
+        "Return weighted scores instead of flat scores. The weighted
+        scores are needed by the boosting algorithms" (scoring_base.h:
+        92-94's own comment) -- inline in C++ (`{ _return_weighted_score =
+        true; }`). Never called anywhere in THIS port (boosting itself is
+        out of scope) -- kept because it is the one entry point besides
+        `select_bscore`'s own constructor that can set
+        `_return_weighted_score`, and `precision_bscore.do_score`'s own
+        `_return_weighted_score` branch (precision_bscore.py) is written
+        against it existing, even though nothing calls it.
+        """
+        self._return_weighted_score = True
+
+    def reset_weights(self) -> None:
+        """C++: moses/moses/scoring/scoring_base.cc:163 bscore_base::reset_weights
+
+        "Reset the weights to a uniform distribution." (scoring_base.h:
+        119's own comment.) `select_bscore` OVERRIDES this with its own
+        version (select_bscore.py); this base implementation is what
+        `discriminating_bscore`/`precision_bscore` would inherit if either
+        ever called it (neither does in this port -- boosting-only for
+        them, see module docstring).
+        """
+        if self._return_weighted_score:
+            self._weights = [1.0] * self._size
+        else:
+            self._weights = []
+
+    def update_weights(self, rew: list[float]) -> None:
+        """C++: moses/moses/scoring/scoring_base.cc:171 bscore_base::update_weights
+
+        Only the `#if 1` branch (scoring_base.cc:177-180, "Simple
+        rescaling, without normalization") is ported -- the `#else`
+        branch (scoring_base.cc:182-190) is dead code, never compiled
+        (matching this port's own convention of porting only what the
+        active preprocessor branch actually builds).
+        """
+        if not self._return_weighted_score:
+            raise AssertionError("Unexpected use of weights in the bscorer!")
+        if len(rew) != self._size:
+            raise AssertionError("Unexpected size of weight array!")
+        for i in range(self._size):
+            self._weights[i] *= rew[i]
 
     def get_complexity(self, tr: combo_tree) -> complexity_t:
         """C++: moses/moses/scoring/scoring_base.h:200 bscore_base::get_complexity
@@ -266,3 +360,188 @@ class bscore_base(ABC):
                 "set_complexity_coef expects either (complexity_ratio) or "
                 f"(alphabet_size, p); got {len(args)} arguments"
             )
+
+
+def _copy_ctable(ctable: CTable) -> CTable:
+    """Not a ported symbol -- stands in for C++'s implicit copy constructor
+    (`CTable _wrk_ctable(_orig_ctable);`/`_all_rows_wrk_ctable(_wrk_ctable)`,
+    `bscore_ctable_base`'s own member-initializer list below), the same
+    "not a ported symbol" convention `ITable.copy`/`OTable.copy` (table.py)
+    use for the same reason: `CTable` is a mutable Python `dict` subclass,
+    so `new = old` would alias rather than copy (docs/CARRY-FORWARD.md Sec
+    1.2, flagged since S7 and closed here). `CTable` itself defines no
+    `.copy()` -- `dict.copy()` would return a bare `dict` (losing the
+    subclass, `olabel`/`ilabels`/`_signature`) and only shallow-copy each
+    row's `Counter` (aliasing it between old and new) -- neither of which
+    is a value copy, so this helper is written from scratch rather than
+    delegating to it.
+    """
+    new = CTable(ctable.olabel, list(ctable.ilabels), ctable.get_signature())
+    for row, counter in ctable.items():
+        new[row] = Counter(counter)
+    return new
+
+
+def _ieee_div(numerator: float, denominator: float) -> float:
+    """Not a ported symbol -- emulates C/C++ IEEE-754 floating-point
+    division, which NEVER raises: division by zero yields signed
+    infinity (`nan` for `0/0`), unlike Python's `float.__truediv__`,
+    which raises `ZeroDivisionError` even for two `float` operands
+    (`1.0 / 0.0` in plain Python -- confirmed, not merely `1.0 // 0` or
+    an int divisor). Needed wherever a ported formula divides by a
+    table-derived quantity (`_ctable_usize`, `_ctable_weight`) that can
+    genuinely be zero or empty -- `_ctable_usize` in particular can be
+    EXACTLY 0 for a real, non-degenerate weighted table whose total
+    weight truncates below 1.0 (`_to_usize`'s own docstring above; see
+    `discriminating_bscore.min_improv`, whose C++ original,
+    `1.0 / _ctable_usize`, promotes the `size_t` denominator to `double`
+    and divides -- IEEE-754 `1.0 / 0.0 == +inf`, not a crash).
+    """
+    if denominator != 0:
+        return numerator / denominator
+    if numerator > 0:
+        return math.inf
+    if numerator < 0:
+        return -math.inf
+    return math.nan
+
+
+def _to_usize(x: float) -> int:
+    """Not a ported symbol -- reproduces an IMPLICIT C++ narrowing
+    conversion this port's callers must perform explicitly: every one of
+    `bscore_ctable_base::_ctable_usize` (scoring_base.h:332,
+    `mutable size_t`) and `discriminating_bscore::_ctable_usize`
+    (discriminating_bscore.h:146, its OWN, separately-declared `size_t`
+    member that SHADOWS the base class's) is initialized directly from
+    `CTable::uncompressed_size()` -- whose C++ return type is `count_t`
+    (`double`, table.h:578), not `size_t`. `size_t x = count_t_value;` is
+    therefore a TRUNCATING double-to-unsigned narrowing at both call sites
+    (`bscore_ctable_base(const CTable&)`, scoring_base.cc:190; and
+    `discriminating_bscore`'s own constructor, discriminating_bscore.cc:
+    207) -- not a bug callers introduced, an implicit conversion the
+    initializer list performs silently. For a WEIGHTED table
+    (`uncompressed_size()` sums fractional row weights, table.py's own
+    `CTable.uncompressed_size` docstring), this discards the fractional
+    part: `12.7` truncates to `12`. Ported verbatim (DO NOT FIX) -- every
+    downstream formula that reads `_ctable_usize` (`min_improv`,
+    `set_complexity_coef(ratio)`) inherits this truncation exactly as
+    classic does. Python's `int()` on a non-negative float truncates
+    toward zero exactly like a C++ narrowing conversion from a
+    non-negative `double` to `size_t` (`count_t` is never negative in
+    practice: it accumulates weights/counts, never subtracts them below
+    zero) -- see test_scoring_base.py's dedicated regression test on
+    `weighted.csv`, which has a genuinely fractional `uncompressed_size()`.
+    """
+    return int(x)
+
+
+class bscore_ctable_base(bscore_base):
+    """C++: moses/moses/scoring/scoring_base.h:236 bscore_ctable_base
+
+    "Base class for fitness functions that use a ctable. Provides useful
+    table compression." (scoring_base.h:234-235's own doc comment.) The
+    table-COMPRESSION half of that promise (`ignore_cols`/`ignore_rows`/
+    `ignore_rows_at_times`, driving `_wrk_ctable`/`_all_rows_wrk_ctable`
+    down to a genuinely smaller table) is NOT ported -- see this module's
+    own docstring's "NOT ported" list -- so those three methods are raising
+    gates here, not the real, functional C++ bodies. Every OTHER member
+    (`_orig_ctable`/`_wrk_ctable` themselves, `get_ctable_usize`,
+    `get_ctable`, `recompute_weight`/`_ctable_weight`) IS ported, because
+    `discriminating_bscore`/`select_bscore`/`bscore_ctable_time_dispersion`
+    all genuinely need them for their own (non-compression) constructors
+    and formulas.
+    """
+
+    def __init__(self, ctable: CTable) -> None:
+        """C++: moses/moses/scoring/scoring_base.cc:186 bscore_ctable_base::bscore_ctable_base
+
+        `_orig_ctable(ctable)` (scoring_base.cc:188) binds a C++
+        REFERENCE -- no copy -- so `self._orig_ctable = ctable` (a plain
+        alias) is the faithful port: mutating the caller's original
+        `CTable` object after construction is visible through
+        `_orig_ctable` in C++ too, via the same reference. `_wrk_ctable
+        (_orig_ctable)` and `_all_rows_wrk_ctable(_wrk_ctable)`
+        (scoring_base.cc:188-189), by contrast, are genuine C++ VALUE
+        copies (`CTable`'s copy constructor) -- ported via `_copy_ctable`
+        (this module), per docs/CARRY-FORWARD.md Sec 1.2.
+
+        `_ctable_usize(_orig_ctable.uncompressed_size())`
+        (scoring_base.cc:189) truncates -- see `_to_usize`'s own
+        docstring (this module) for why and the exact C++ narrowing this
+        reproduces.
+
+        `_size = ctable.size()` (scoring_base.cc:191) is the COMPRESSED
+        row count (`len(ctable)`), matching `bscore_base._size`'s own
+        semantics elsewhere in this port (bscores.py's `ctruth_table_
+        bscore.__init__`, e.g., which does exactly `len(ctable)` for the
+        same field).
+        """
+        super().__init__()
+        self._orig_ctable = ctable
+        self._wrk_ctable = _copy_ctable(ctable)
+        self._all_rows_wrk_ctable = _copy_ctable(self._wrk_ctable)
+        self._ctable_usize = _to_usize(ctable.uncompressed_size())
+        self._size = len(ctable)
+        self._ctable_weight: float = 0.0
+        self.recompute_weight()
+
+    def recompute_weight(self) -> None:
+        """C++: moses/moses/scoring/scoring_base.cc:196 bscore_ctable_base::recompute_weight
+
+        "Sum of all of the weights in the working table. Note that these
+        weights can be fractional!" (scoring_base.cc:197-198's own
+        comment.) `count_t` (`double`) throughout -- no narrowing, unlike
+        `_ctable_usize` above (`_ctable_weight` is declared `count_t`, not
+        `size_t`, scoring_base.h:333).
+        """
+        total = 0.0
+        for counter in self._wrk_ctable.values():
+            total += sum(counter.values())
+        self._ctable_weight = total
+
+    def ignore_cols(self, idxs: set) -> None:
+        """C++: moses/moses/scoring/scoring_base.cc:220 bscore_ctable_base::ignore_cols
+
+        NOT functionally ported -- see this module's own docstring's "NOT
+        ported" list: the real C++ body calls `CTable::
+        filtered_preserve_idxs`, which does not exist in this port's
+        `CTable` (table.py). Raises unconditionally rather than silently
+        doing nothing, so a caller cannot mistake "no-op" for "there was
+        nothing to ignore".
+        """
+        raise NotImplementedError(
+            "bscore_ctable_base.ignore_cols: feature-selection table "
+            "compression is out of scope for this port (CTable has no "
+            "filtered_preserve_idxs; see scoring_base.py's module docstring)"
+        )
+
+    def ignore_rows(self, idxs: set) -> None:
+        """C++: moses/moses/scoring/scoring_base.cc:267 bscore_ctable_base::ignore_rows
+
+        NOT functionally ported -- see `ignore_cols` above.
+        """
+        raise NotImplementedError(
+            "bscore_ctable_base.ignore_rows: row-subsetting is out of "
+            "scope for this port; see scoring_base.py's module docstring"
+        )
+
+    def ignore_rows_at_times(self, timestamps: set) -> None:
+        """C++: moses/moses/scoring/scoring_base.cc:290 bscore_ctable_base::ignore_rows_at_times
+
+        NOT functionally ported -- see `ignore_cols` above. Also blocked
+        on there being no `TTable`/timestamp representation at all in
+        this port (table.py's own module docstring).
+        """
+        raise NotImplementedError(
+            "bscore_ctable_base.ignore_rows_at_times: out of scope for "
+            "this port (no TTable/timestamp representation; see "
+            "scoring_base.py's and table.py's module docstrings)"
+        )
+
+    def get_ctable_usize(self) -> int:
+        """C++: moses/moses/scoring/scoring_base.cc:318 bscore_ctable_base::get_ctable_usize"""
+        return self._ctable_usize
+
+    def get_ctable(self) -> CTable:
+        """C++: moses/moses/scoring/scoring_base.cc:323 bscore_ctable_base::get_ctable"""
+        return self._orig_ctable
