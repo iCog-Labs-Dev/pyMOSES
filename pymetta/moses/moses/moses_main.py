@@ -70,9 +70,15 @@ the plan's own instruction:
   handled).
 
 # DIVERGENCE(C++ moses/moses/scoring/behave_cscore.h:60-69,127): classic's
-# `behave_cscore` exposes `best_possible_score()`/`worst_possible_score()`/
-# `min_improv()` as public one-line delegations to `_bscorer`, and
-# `get_bscorer()` as a public accessor for `_bscorer` itself. This port's
+# `behave_cscore` exposes `min_improv()` (header-inline, `return
+# _bscorer.min_improv();`) and `get_bscorer()` (`return _bscorer;`) as
+# genuine public one-line delegations/accessors to `_bscorer` -- but
+# `best_possible_score()`/`worst_possible_score()` are NOT one-line
+# delegations: only DECLARED in the header, they are DEFINED out-of-line
+# in behave_cscore.cc:123-131 as `boost::accumulate(_bscorer.best_
+# possible_bscore(), 0.0)` / `boost::accumulate(_bscorer.worst_possible_
+# bscore(), 0.0)` -- a SUM over the bscorer's own vector-valued result,
+# not a bare forward of a same-named call. This port's
 # `behave_cscore` (behave_cscore.py) does not port any of the four --
 # its own module docstring says so explicitly and names the workaround:
 # "Call `.get_bscorer()` (i.e. the `behave_cscore` instance's own
@@ -215,10 +221,17 @@ def autoscale_diversity(sc: behave_cscore, meta_params: metapop_parameters) -> N
     (the function's own doc comment). A no-op whenever diversity is
     disabled (`meta_params.diversity.enabled()` is `False` by default,
     `pressure == 0.0` -- `metapop_params.py`'s own module docstring) --
-    the short-circuiting `and` below means `.autoscale` (deliberately
-    left unset by `diversity_parameters.__init__` when diversity is off,
-    per that class's own DIVERGENCE note) is never even read on that
-    path, matching C++'s own `&&` short-circuit exactly.
+    the short-circuiting `and` below means `.autoscale` -- left unset by
+    `diversity_parameters.__init__` UNCONDITIONALLY, not merely "when
+    diversity is off": `metapop_params.cc:27-34`'s constructor never
+    touches this field at all, regardless of what `pressure`/`enabled()`
+    end up being (that class's own DIVERGENCE note) -- is never even read
+    on this short-circuited path, matching C++'s own `&&` exactly (C++
+    itself never evaluates `.autoscale` there either, so its own
+    genuinely-indeterminate default never gets read on this path; it is
+    this port's explicit `AttributeError`-on-read behavior, not a
+    diversity-off-specific one, that this short-circuit avoids
+    triggering).
 
     `magnitude`/`meta_params.diversity.pressure` are each `score_t`,
     narrowed at every step, matching moses_main.cc:107-108's float32
@@ -278,12 +291,27 @@ def metapop_moses_results_b(
         raise NotImplementedError(
             f"metapop_moses_results_b: optimizer {opt_params.opt_algo!r} "
             "is P2 -- star-anneal/univariate/particle-swarm are not "
-            "ported (moses_main.h:37-39's own #includes for them are the "
-            "ONLY references anywhere in this whole S11 slice: "
-            "moses_main.cc and local_moses.cc use zero of the three). "
-            "Construct optim_parameters(opt_algo='hc') (the default) so "
-            "S9's hill_climbing is wired in directly, per the plan's own "
-            "'Optimizer selection is dependency-injected' note."
+            "ported. moses_main.h:37-39's own #includes for them are NOT "
+            "the only references: moses_main.h:292/295/298 construct all "
+            "three (`new simulated_annealing`/`new univariate_optimization`/"
+            "`new particle_swarm`) inside this very function's C++ "
+            "original, `metapop_moses_results_b` -- neither moses_main.cc "
+            "nor local_moses.cc dispatches to any of the three by name, "
+            "but the header this function is ported from does construct "
+            "them. For 'sa'/'un'/'ps' specifically, this matches one of "
+            "C++'s own recognized branches (moses_main.h:291-299) -- just "
+            "one this port does not implement. For any OTHER string, C++ "
+            "does something different again: it falls through to the "
+            "`else` (moses_main.h:300-306), prints 'Unknown optimization "
+            "algo ...' to stderr, and calls exit(1) -- a hard process "
+            "exit, not a raised/catchable error in either language. This "
+            "port raises NotImplementedError uniformly for every "
+            "non-'hc' value, recognized-but-unported or genuinely unknown "
+            "alike, which is itself a divergence from that exit(1) path, "
+            "not a port of it. Construct optim_parameters(opt_algo='hc') "
+            "(the default) so S9's hill_climbing is wired in directly, "
+            "per the plan's own 'Optimizer selection is dependency-"
+            "injected' note."
         )
     optimizer = hill_climbing(opt_params, hc_params)
 
