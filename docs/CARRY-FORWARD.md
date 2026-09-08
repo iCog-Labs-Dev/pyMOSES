@@ -142,8 +142,19 @@ These cost real time to find. They are properties of the C++ side, not of the po
   immediate next sibling: `src->next_sibling = src`, and `parent->last_child` is
   left stale. Any later traversal hangs; destruction aborts. **Ported faithfully
   with a "DO NOT FIX" marker.** Of 11 call sites in `contin_rules.cc`, ten are
-  safe by construction; `contin_rules.cc:254` could not be cleared — **S14 must
-  trace it.** If reachable, classic has a latent heap-corruption bug.
+  safe by construction. **`contin_rules.cc:254` is now CLEARED TOO (traced
+  2026-09-08) — S14 no longer needs to.** The precise trigger, from
+  `tree.h:1710-1750`: `b_next_sibling = dst->next_sibling` is captured *before*
+  `erase(target)`, so when `source == target->next_sibling` the code runs
+  `b_next_sibling->prev_sibling = src` and `src->next_sibling = b_next_sibling`
+  with `b_next_sibling == src` — the self-cycle. The condition is therefore
+  exactly **`source == target->next_sibling`**. At `contin_rules.cc:254` the
+  target is `tr.append_child(remain_plus)`, a freshly appended **last** child
+  whose `next_sibling` is null, while `source` is `factor_parent.begin()`, which
+  `tree_assert(src)` requires non-null — so it cannot hold.
+  `contin_rules.cc:259-260` has the identical shape and is safe for the same
+  reason. **All 11 call sites are clear**: no reachable heap corruption from
+  these callers. Keep the DO NOT FIX marker — the bug is real, just unreachable.
 - **Classic's own `optimizationUTest` CORE-DUMPS.** Confirmed by the controller
   on 2026-09-07: `./build/tests/moses/optimizationUTest` prints the `Hill:`
   debug header and then dies ("dumped core"). Cause, found during S9 Task 2:
