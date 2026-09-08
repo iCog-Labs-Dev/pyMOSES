@@ -34,7 +34,7 @@ class representation(knob_mapper):
         signature: TypeSignature,
         *,
         ignore_ops: Collection[vertex] = (),
-        perm_ratio: float = -1.0,
+        perm_ratio: float = 0.0,
     ) -> None:
         """C++: moses/moses/representation/representation.cc:99 representation::representation"""
         if not callable(simplify_candidate):

@@ -1,18 +1,30 @@
-"""Deterministic Boolean representation builder.
+"""Boolean representation builder.
 
 This module ports only classic ``build_knobs``' pure-Boolean path. Continuous
-predicates and action expressions remain separate allowed-domain slices; random
-logical pairs and every excluded domain are intentionally absent here.
+predicates and action expressions remain separate allowed-domain slices; every
+excluded domain is intentionally absent here.
+
+Random logical PAIR perms (``build_knobs.cc:435-518``) used to be absent too,
+with ``perm_ratio`` hard-restricted to ``-1`` (classic's "no pairs"
+early-return mode). That was a real, measured behavioural divergence, not a
+cosmetic one: classic's own default is ``perm_ratio = 0.0``
+(``build_knobs.h:56``, ``representation.h:62``, ``problem-params.cc:299``),
+which generates pairs, and without them the ``pa`` (even-parity) demo problem
+is UNSOLVABLE by the port at any budget while classic solves it in a single
+deme expansion. See ``.superpowers/sdd/2026-09-08-pymetta-s13-cli/
+parity-divergence-report.md``. Pair sampling is now ported.
 """
 
 from __future__ import annotations
 
+import math
 from collections.abc import Callable, Collection
 
 from pymetta.comboreduct.combo.argument import argument
 from pymetta.comboreduct.combo.vertex import (
     builtin,
     combo_tree,
+    swap_and_or,
     vertex,
     vertex_equal,
 )
@@ -28,6 +40,7 @@ from pymetta.comboreduct.type_checker.type_signature import (
 from pymetta.moses.moses.complexity import tree_complexity
 from pymetta.moses.representation.knob_mapper import knob_mapper
 from pymetta.moses.representation.knobs import logical_subtree_knob
+from pymetta.util.lazy_random_selector import lazy_random_selector
 from pymetta.util.tree import tree_node
 
 ProbeSimplifier = Callable[[combo_tree], None]
@@ -45,8 +58,11 @@ _FUTURE_OUTPUT_TYPES = frozenset(
 # Boolean/continuous signatures require the unported predicate and continuous
 # builder branches. Continuous and action-result outputs belong to later allowed
 # slices; enum, ANN, object, message, and procedure domains remain excluded.
-# Pair sampling at build_knobs.cc:439-518 is also omitted: this class requires
-# perm_ratio=-1, the classic early-return mode at lines 435-437.
+# Pair sampling (build_knobs.cc:435-518) IS ported, including its
+# `lazy_random_selector` draws, so `perm_ratio` accepts classic's full range.
+# What is still omitted from `sample_logical_perms`/`insert_typed_arg` is only
+# their contin branches (build_knobs.cc:386-393,425-430), unreachable here
+# because `_validate_request` rejects non-Boolean inputs outright.
 class build_knobs:
     """C++: moses/moses/representation/build_knobs.h:47 build_knobs
 
@@ -63,7 +79,7 @@ class build_knobs:
         simplify_knob_building: ProbeSimplifier,
         *,
         ignore_ops: Collection[vertex] = (),
-        perm_ratio: float = -1.0,
+        perm_ratio: float = 0.0,
     ) -> None:
         """C++: moses/moses/representation/build_knobs.cc:53 build_knobs::build_knobs"""
         self._validate_request(
@@ -78,6 +94,17 @@ class build_knobs:
         self._mapper = mapper
         self._simplify_knob_building = simplify_knob_building
         self._ignore_ops = tuple(ignore_ops)
+        # C++: build_knobs.cc:63 `_perm_ratio(perm_ratio)`. Stored as a
+        # Python float, which is a binary64 where C++'s `_perm_ratio` is a
+        # binary32 `float` (build_knobs.h:92). That narrowing is NOT
+        # reproduced: the only two reads (build_knobs.cc:436's `<= -1.0`
+        # test and :476-479's `n_pairs` arithmetic) are a comparison against
+        # an exactly-representable constant and a `floor()` of a product,
+        # and every value the CLI can supply comes from
+        # `po::value<double>` (problem-params.cc:299) before being narrowed
+        # to `float` on the way in -- so the port is, if anything, closer to
+        # the user's own literal than classic is.
+        self._perm_ratio = float(perm_ratio)
         self._arity = type_tree_arity(signature)
         # KNOWN-UNEXERCISED: with every input forced Boolean (this class'
         # scope), `boolean_arity(signature) == type_tree_arity(signature) ==
@@ -137,22 +164,21 @@ class build_knobs:
             raise ValueError("build_knobs requires a fresh, empty knob_mapper")
         if not callable(simplify_knob_building):
             raise TypeError("simplify_knob_building must be callable")
-        # Classic's own early-return test (build_knobs.cc:435) is
+        # Classic's own early-return test (build_knobs.cc:435-437) is
         # `_perm_ratio <= -1.0`, not `== -1.0`: any ratio at or below -1
-        # (e.g. -2.0) also skips pair sampling in C++. This port only
-        # implements the no-pairs path, so it accepts exactly -1.0 and
-        # rejects every other value INCLUDING other ratios classic would
-        # treat identically (like -2.0) -- stricter than necessary, not
-        # merely narrower. Separately: classic's own *default* is 0.0
-        # (build_knobs.h:56, representation.h:62), which is NOT <= -1.0 and
-        # so DOES generate pairs by default -- the "no pairs" behaviour
-        # required here is classic's non-default case, not its default one.
-        if (
-            isinstance(perm_ratio, bool)
-            or not isinstance(perm_ratio, int | float)
-            or float(perm_ratio) != -1.0
-        ):
-            raise ValueError("deterministic Boolean building requires perm_ratio=-1")
+        # (e.g. -2.0) skips pair sampling, everything above it samples
+        # pairs, and classic's own default is 0.0 (build_knobs.h:56,
+        # representation.h:62, problem-params.cc:299). This port used to
+        # accept ONLY -1.0 and reject every other value; that made the
+        # default configuration unreachable and silently removed half the
+        # knobs from every Boolean representation. The whole range is
+        # accepted now. `bool` is still rejected because `isinstance(True,
+        # int)` is True in Python and `perm_ratio=True` is far more likely
+        # to be a caller mistake than a request for ratio 1.0.
+        if isinstance(perm_ratio, bool) or not isinstance(perm_ratio, int | float):
+            raise TypeError("perm_ratio must be a real number")
+        if math.isnan(float(perm_ratio)):
+            raise ValueError("perm_ratio must not be NaN")
 
         arity = type_tree_arity(signature)
         allowed_builtins = (
@@ -259,13 +285,127 @@ class build_knobs:
         knob.clear_exemplar()
         return False
 
-    def sample_logical_perms(self, _it: tree_node) -> list[combo_tree]:
-        """C++: moses/moses/representation/build_knobs.cc:411 build_knobs::sample_logical_perms"""
+    def insert_typed_arg(
+        self,
+        tr: combo_tree,
+        arg: argument,
+        negate: bool = False,
+    ) -> None:
+        """C++: moses/moses/representation/build_knobs.cc:379 build_knobs::insert_typed_arg
+
+        Classic takes the argument's `type_tree_sib_it` and branches on it:
+        Boolean appends a (possibly negated) copy of the argument to the
+        root, contin appends `greater_than_zero($i)` under an optional
+        `not`. `_validate_request` rejects every non-Boolean input in this
+        slice, so only the Boolean branch is reachable and the `arg_type`
+        parameter carries no information -- it is dropped rather than
+        threaded through as an always-`boolean_type` constant. The contin
+        branch belongs with the rest of the continuous slice.
+
+        `argument(arg.idx)` is an explicit copy, matching C++'s `argument
+        cpy_arg(arg)`: `negate()` mutates in place, and `tree.append_child`'s
+        plain-data path stores the caller's object rather than copying it
+        (CARRY-FORWARD.md 2.4), so passing `arg` itself would let the knob
+        alias -- and then renegate -- the caller's argument.
+        """
+        cpy_arg = argument(arg.idx)
+        if negate:
+            cpy_arg.negate()
+        tr.append_child(tr.begin(), cpy_arg)
+
+    def sample_logical_perms(self, it: tree_node) -> list[combo_tree]:
+        """C++: moses/moses/representation/build_knobs.cc:411 build_knobs::sample_logical_perms
+
+        The `perms` out-parameter C++ appends to becomes this function's
+        return value; classic's only caller passes a freshly-declared empty
+        vector (build_knobs.cc:545).
+        """
         permutations: list[combo_tree] = []
         for idx in range(1, self._arity + 1):
             arg = argument(idx)
             if self.permitted_op(arg):
+                # Boolean branch only: the contin branch
+                # (build_knobs.cc:425-430) is unreachable here, see
+                # `insert_typed_arg`.
                 permutations.append(combo_tree(arg))
+
+        # "Negative one correspnds to no pairs." (build_knobs.cc:435)
+        #
+        # `<= -1.0`, not `== -1.0`. Written the C++ way even though the two
+        # are EQUIVALENT IN PYTHON -- proven by mutation: for any ratio
+        # below -1 the `else` branch below computes a NEGATIVE `n_pairs`,
+        # and `range(negative)` is empty, so no pair is built either way.
+        # In C++ they are not equivalent at all: `static_cast<size_t>` of a
+        # negative `floor()` wraps (build_knobs.cc:481's own "Avoid
+        # accidental rounding to MAX_UINT" comment), so there this early
+        # return is what stops `dorepeat(n_pairs)` from running ~2**64
+        # times. Faithful spelling kept; the equivalence is recorded in
+        # `test_pair_count_follows_classic_n_pairs_formula`'s docstring
+        # rather than papered over with a test that cannot discriminate.
+        if self._perm_ratio <= -1.0:
+            return permutations
+
+        # "Also create n random pairs op($i $j) out of the total number
+        # 2 * choose(n,2) == n * (n-1) of possible pairs."
+        # (build_knobs.cc:439-441.)
+        permitted_perms: list[tuple[int, int]] = []
+        for a in range(self._arity):
+            if self.permitted_op(argument(a + 1)):
+                for b in range(self._arity):
+                    if self.permitted_op(argument(b + 1)) and a != b:
+                        permitted_perms.append((a, b))
+
+        max_pairs = len(permitted_perms)
+        if max_pairs == 0:
+            return permutations
+
+        ps = len(permutations)
+        if 0.0 < self._perm_ratio:
+            n_pairs = int(math.floor(ps + self._perm_ratio * (max_pairs - ps)))
+        else:
+            n_pairs = int(math.floor((1.0 + self._perm_ratio) * ps))
+            # C++ guards against `floor` of a negative product wrapping when
+            # cast to `size_t` ("Avoid accidental rounding to MAX_UINT",
+            # build_knobs.cc:481). Python has no such wrap, but the guard is
+            # still load-bearing as a plain `ps < n_pairs -> 0` clamp for
+            # ratios ABOVE 0 that reach this branch -- none do, since the
+            # branch is `_perm_ratio <= 0.0` -- and for the negative ratios
+            # that do, `(1 + r) * ps <= ps` already, so it is a no-op in
+            # every reachable case. Kept verbatim rather than "simplified"
+            # away, since it is the only thing standing between a future
+            # branch-condition change and a silent wrap in C++.
+            if ps < n_pairs:
+                n_pairs = 0
+
+        # DIVERGENCE(C++ moses/moses/representation/build_knobs.cc:487):
+        # classic's `lazy_random_selector randpair(max_pairs)` uses the
+        # default `randGen()` singleton, so `n_pairs` draws are consumed from
+        # the process-wide RNG per junctor visited. This port does the same,
+        # via the same ported selector, so the draw SEQUENCE matches -- but
+        # that also means knob building is RNG-coupled to everything else
+        # drawing from `randGen()`. Verified byte-for-byte against classic's
+        # own `-l DEBUG` "Created prototype:" line for `-Hpa -k2 -r1`: all
+        # four junctors get their two pairs in the same order classic
+        # records (`or(!$1 $2)`/`or($1 $2)` under the first `and`,
+        # `and($1 $2)`/`and(!$1 $2)` under the nested `or`, and so on).
+        randpair = lazy_random_selector(max_pairs)
+        for _ in range(n_pairs):
+            i = randpair()
+            a, b = permitted_perms[i]
+            arg_a = argument(a + 1)
+            arg_b = argument(b + 1)
+
+            perm = combo_tree(swap_and_or(it.data))
+            if b < a:
+                self.insert_typed_arg(perm, arg_b)
+                self.insert_typed_arg(perm, arg_a)
+            else:
+                # "As above, but negate arg_a first." (build_knobs.cc:510.)
+                self.insert_typed_arg(perm, arg_a, True)
+                self.insert_typed_arg(perm, arg_b)
+
+            permutations.append(perm)
+
         return permutations
 
     def add_logical_knobs(

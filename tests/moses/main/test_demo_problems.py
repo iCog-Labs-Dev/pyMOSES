@@ -28,18 +28,24 @@ inferred from `docs/CARRY-FORWARD.md`'s summary that classic's own
 * `test_cp` (`-Hcp -yor(and($2 !$3) $1 !$4 $5) -E3`) -- REPRODUCES
   exactly: classic and this port both return
   `or(and($2 !$3) $1 !$4 $5)` (again the input program itself).
-* `test_2_parity`, `test_2_parity_with_labels` (`-Hpa -k2`[`-W1`]),
-  `test_3_parity_multi_thread` (`-Hpa -k3 -j4`) -- STILL BLOCKED. See
-  `test_2_parity_still_blocked_by_local_moses_local_optimum` below for the
-  full finding: this is NOT a `demo_problems.py`/`logical_bscore` defect.
+* `test_2_parity`, `test_2_parity_with_labels` (`-Hpa -k2`[`-W1`]) --
+  REPRODUCE the score (0). These were blocked when this file was written;
+  the cause was NOT in `demo_problems.py`/`logical_bscore`, and not in
+  `local_moses`/`hill_climbing`/`metapopulation` either, but in
+  `build_knobs::sample_logical_perms`' unported random PAIR perms
+  (`build_knobs.cc:435-518`) plus this port's then-default
+  `perm_ratio = -1` -- see
+  `tests/moses/test_pa_parity_regression.py` and
+  `.superpowers/sdd/2026-09-08-pymetta-s13-cli/parity-divergence-report.md`.
   `-W1` only changes what classic PRINTS (labelled vs `$n` argument
   names), not what it searches for or finds, so `test_2_parity_with_labels`
-  is blocked for the identical reason as `test_2_parity`.
-  `test_3_parity_multi_thread` additionally uses `-j4` (multi-threaded
-  evaluation, `distributed_moses.py`/threading are not part of this
-  port), but that is moot: even the single-threaded `-k2` case already
-  fails to reach score 0, so `-k3` (a strictly harder search) is not
-  separately attempted here.
+  is covered by the identical assertion as `test_2_parity`.
+  `test_3_parity_multi_thread` (`-Hpa -k3 -j4`) additionally uses `-j4`
+  (multi-threaded evaluation; `distributed_moses.py`/threading are not part
+  of this port), so it is not asserted here as an oracle -- but the
+  single-threaded `-Hpa -k3` search it wraps now reaches score 0 and finds
+  classic's own `-r1` tree exactly (measured; too slow at ~9.8k evals to
+  run on every commit).
 
 `sr` (`test_sr_3`) and `test_cp_contin` are S14 (contin) territory,
 already named as such in `docs/CARRY-FORWARD.md`'s own `MOSESUTest`
@@ -99,7 +105,11 @@ def _rule():
 
 def _fresh_deme_parameters() -> deme_parameters:
     pa = deme_parameters()
-    pa.perm_ratio = -1.0  # required: see deme_params.py's own DIVERGENCE note
+    # Classic's own default (problem-params.cc:299, forwarded to
+    # deme_params.perm_ratio at problem-params.cc:2265). This was -1.0
+    # ("no pairs") until pair sampling was ported; -1.0 is what made
+    # `pa` unsolvable here -- see tests/moses/test_pa_parity_regression.py.
+    pa.perm_ratio = 0.0
     return pa
 
 
@@ -804,33 +814,20 @@ def test_maj_k3_converges_to_perfect_score():
 
 
 # ---------------------------------------------------------------------------
-# pa -- STILL BLOCKED. See this file's own module docstring for the full
-# finding; this is a `pytest.mark.skip` rather than an assertion of the
-# wrong score, matching the "known-gap" convention `test_bscores.py`
-# already uses in this project (its own `test_precision_bscore_...` case).
+# pa -- was blocked; unblocked by porting build_knobs' random pair perms.
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.skip(
-    reason="test_2_parity (-Hpa -k2) does not reproduce classic: classic "
-    "(measured live, -r1) finds a score-0 tree "
-    "(and(or(!$1 $2) or($1 !$2))); this port's local_moses/hill_climbing/"
-    "metapopulation search deterministically (same result across seeds "
-    "0,1,2,3) stalls at score -1.0 (tree or($1 !$2)) after 14 expansions, "
-    "848 evals -- select_exemplar() runs out of not-yet-visited candidates "
-    "before ever generating a compound and(or(...) or(...))-shaped "
-    "candidate. CONFIRMED NOT a demo_problems.py/logical_bscore defect: "
-    "the identical stall (same score, same tree, same eval/expansion "
-    "counts) reproduces when the SAME 2-parity truth table is instead "
-    "driven through the independently-owned, already-validated "
-    "ctruth_table_bscore/CTable path (bypassing logical_bscore and this "
-    "module entirely) through the same metapop_moses_results call. This is "
-    "a pre-existing gap in local_moses.py/hill_climbing.py/"
-    "metapopulation.py (S9-S11, not owned by this task) for a function "
-    "even parity is specifically known to be adversarial to hill-climbing "
-    "-- out of scope to fix here; needs its own investigation."
-)
-def test_2_parity_still_blocked_by_local_moses_local_optimum():
-    """C++: tests/moses/MOSESUTest.cxxtest:44 test_2_parity"""
+def test_2_parity_reproduces_mosesutest():
+    """C++: tests/moses/MOSESUTest.cxxtest:44 test_2_parity
+    (`moses_test_score({"-Hpa", "-k2"})`, expected score 0)
+
+    Also covers `test_2_parity_with_labels` (MOSESUTest.cxxtest:49,
+    `{"-Hpa", "-k2", "-W1"}`): `-W1` changes only what classic prints.
+    `moses_test_score` never compares trees, and classic itself prints two
+    distinct score-0 trees for this problem, so only the score is asserted.
+    The full trajectory match against classic (144 evals, one expansion) is
+    pinned separately in `tests/moses/test_pa_parity_regression.py`.
+    """
     mp = _run_bool_problem("pa", 2)
     assert mp.best_score() == 0.0

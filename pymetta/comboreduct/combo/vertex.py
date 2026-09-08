@@ -229,6 +229,23 @@ def negate_vertex(v: vertex) -> vertex:
     )
 
 
+def swap_and_or(v: vertex) -> vertex:
+    """C++: moses/comboreduct/combo/vertex.cc:257 swap_and_or
+
+    Returns id::logical_or for id::logical_and and vice versa. Classic's
+    `OC_ASSERT(v == id::logical_or || v == id::logical_and)` is active in
+    release builds (it is an OC_ASSERT, not a bare `assert`), so it is
+    raised explicitly here rather than written as a Python `assert` that
+    `python -O` would strip -- the same reasoning `argument.__init__`'s own
+    docstring gives for its idx-zero check.
+    """
+    if vertex_equal(v, builtin.logical_and):
+        return builtin.logical_or
+    if vertex_equal(v, builtin.logical_or):
+        return builtin.logical_and
+    raise AssertionError("v == id::logical_or || v == id::logical_and")
+
+
 def is_enum_type(v: vertex) -> bool:
     """C++: moses/comboreduct/combo/vertex.cc:87 is_enum_type
 

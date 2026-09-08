@@ -1,6 +1,7 @@
 """Oracle and boundary tests for deterministic pure-Boolean knob building."""
 
 import copy
+import inspect
 import json
 
 import pytest
@@ -10,7 +11,12 @@ from pymetta.comboreduct.combo.iostream_combo import (
     combo_tree_to_str,
     str_to_combo_tree,
 )
-from pymetta.comboreduct.combo.vertex import builtin, combo_tree, vertex_equal
+from pymetta.comboreduct.combo.vertex import (
+    builtin,
+    combo_tree,
+    swap_and_or,
+    vertex_equal,
+)
 from pymetta.comboreduct.reduct.logical_reduction import logical_reduction
 from pymetta.comboreduct.type_checker.type_signature import (
     TypeSignature,
@@ -19,6 +25,8 @@ from pymetta.comboreduct.type_checker.type_signature import (
 )
 from pymetta.moses.representation.build_knobs import build_knobs
 from pymetta.moses.representation.knob_mapper import knob_mapper
+from pymetta.moses.representation.representation import representation
+from pymetta.util.rng import randGen
 
 _CASE_KEYS = {
     "name",
@@ -235,10 +243,17 @@ def test_builder_rejects_empty_or_structurally_invalid_exemplars():
         build_knobs(constant_parent, signature, knob_mapper(), lambda _tr: None)
 
 
-@pytest.mark.parametrize("perm_ratio", [0, 1, -0.5, True, "-1"])
-def test_builder_rejects_non_deterministic_or_mistyped_perm_ratio(perm_ratio):
+@pytest.mark.parametrize("perm_ratio", [True, "-1", None])
+def test_builder_rejects_mistyped_perm_ratio(perm_ratio):
+    """C++: moses/moses/representation/build_knobs.cc:53 build_knobs::build_knobs
+
+    Classic takes a `float` and has no validation at all; this port keeps a
+    type guard (and rejects `bool`, which `isinstance(True, int)` would
+    otherwise smuggle through as ratio 1.0). It no longer rejects legal
+    RATIOS -- see `test_builder_accepts_classic_perm_ratio_range`.
+    """
     exemplar = str_to_combo_tree("$1")
-    with pytest.raises(ValueError, match="perm_ratio=-1"):
+    with pytest.raises(TypeError, match="perm_ratio must be a real number"):
         build_knobs(
             exemplar,
             gen_signature(type_node.boolean_type, 1),
@@ -246,6 +261,157 @@ def test_builder_rejects_non_deterministic_or_mistyped_perm_ratio(perm_ratio):
             lambda _tr: None,
             perm_ratio=perm_ratio,
         )
+
+
+def test_builder_rejects_nan_perm_ratio():
+    exemplar = str_to_combo_tree("$1")
+    with pytest.raises(ValueError, match="must not be NaN"):
+        build_knobs(
+            exemplar,
+            gen_signature(type_node.boolean_type, 1),
+            knob_mapper(),
+            lambda _tr: None,
+            perm_ratio=float("nan"),
+        )
+
+
+@pytest.mark.parametrize("perm_ratio", [-2.0, -1.0, -0.5, 0, 0.0, 0.5, 1, 1.0])
+def test_builder_accepts_classic_perm_ratio_range(perm_ratio):
+    """C++: moses/moses/representation/build_knobs.cc:435 build_knobs::sample_logical_perms
+
+    Every one of these was rejected outright before pair sampling was
+    ported, INCLUDING classic's own default of 0.0
+    (build_knobs.h:56, representation.h:62, problem-params.cc:299).
+    """
+    randGen().seed(1)
+    exemplar = str_to_combo_tree("and($1 $2)")
+    build_knobs(
+        exemplar,
+        gen_signature(type_node.boolean_type, 2),
+        knob_mapper(),
+        logical_reduction(())(2),
+        perm_ratio=perm_ratio,
+    )
+
+
+@pytest.mark.parametrize(
+    ("source", "arity", "perm_ratio", "expected_knobs"),
+    [
+        # `_perm_ratio <= -1.0` returns before any pair is built
+        # (build_knobs.cc:435-437) -- note -2.0 behaves like -1.0, which the
+        # old `perm_ratio == -1.0` VALIDATION guard rejected outright.
+        ("true", 2, -2.0, 8),
+        ("true", 2, -1.0, 8),
+        # `n_pairs = floor((1 + r) * ps)` (build_knobs.cc:479), ps == 2.
+        ("true", 2, -0.5, 12),
+        # classic's DEFAULT: floor(1.0 * 2) == 2 pairs per junctor.
+        ("true", 2, 0.0, 16),
+        # `n_pairs = floor(ps + r * (max_pairs - ps))` (build_knobs.cc:477).
+        # At arity 2, max_pairs == 2 == ps, so no ratio can exceed 2 pairs.
+        ("true", 2, 0.5, 16),
+        ("true", 2, 1.0, 16),
+        # At arity 3, max_pairs == 6 > ps == 3, so the two branches really
+        # do separate: 3, floor(3 + 0.5*3) == 4, and 6 pairs per junctor.
+        ("and(or($1 $2) !$3)", 3, -1.0, 7),
+        ("and(or($1 $2) !$3)", 3, -0.5, 9),
+        ("and(or($1 $2) !$3)", 3, 0.0, 13),
+        ("and(or($1 $2) !$3)", 3, 0.5, 19),
+        ("and(or($1 $2) !$3)", 3, 1.0, 23),
+    ],
+)
+def test_pair_count_follows_classic_n_pairs_formula(source, arity, perm_ratio, expected_knobs):
+    """C++: moses/moses/representation/build_knobs.cc:474 build_knobs::sample_logical_perms
+
+    `sample_logical_perms` runs once per junctor, so `n_pairs` is not
+    directly observable; the knob count is (`disc_probe` can still veto
+    individual perms, which is why these are measured totals rather than a
+    closed form). What matters is that all three of classic's branches --
+    the `<= -1.0` early return, the `0.0 < _perm_ratio` branch and the
+    `floor((1 + r) * ps)` branch -- are separately visible here.
+
+    EQUIVALENT MUTANT, recorded rather than hidden: rewriting the early
+    return's `self._perm_ratio <= -1.0` as `== -1.0` leaves this entire
+    file green, including the -2.0 row. It is not a gap in the corpus -- the
+    two really are equivalent in Python, because a ratio below -1 makes
+    `floor((1 + r) * ps)` negative and `range(negative)` is empty. In C++
+    they differ (the negative `floor` is cast to `size_t`), which is why
+    the port keeps classic's spelling; see `sample_logical_perms`' own
+    comment. Deleting the early return outright IS caught, by every row
+    below -1 here and by `test_2_parity_stalls_without_pair_perms`.
+    """
+    randGen().seed(1)
+    exemplar = str_to_combo_tree(source)
+    mapper = knob_mapper()
+    build_knobs(
+        exemplar,
+        gen_signature(type_node.boolean_type, arity),
+        mapper,
+        logical_reduction(())(2),
+        perm_ratio=perm_ratio,
+    )
+    assert len(mapper.disc) == expected_knobs
+
+
+@pytest.mark.oracle
+def test_default_perm_ratio_reproduces_classic_pa_k2_decorated_exemplar():
+    """C++: moses/moses/representation/build_knobs.cc:411 build_knobs::sample_logical_perms
+
+    The exact string below was READ OFF classic's own `-l DEBUG` log for
+    `moses -Hpa -k2 -W1 -r1` (the final "Subtree:" line emitted by
+    `build_logical`, immediately before "After knob building, rep size=52 /
+    Total number of field specs: 16"). The inputs reproduce that run's first
+    deme exactly: exemplar `true`, arity 2, `logical_reduction` at effort 2,
+    classic's default `perm_ratio = 0.0`, and seed 1 (classic's own CLI
+    default, `-r1`) -- knob building is the first consumer of `randGen()` in
+    that run, so the seed alone pins the `lazy_random_selector` draws.
+
+    This is the regression guard for the parity divergence: before pair
+    sampling was ported the port produced an 8-knob tree here instead of
+    classic's 16, and the `pa` problem became unsolvable. Every one of the
+    four `or(...)`/`and(...)` pair subtrees below, and their ORDER within
+    each junctor, is RNG-chosen.
+    """
+    randGen().seed(1)
+    exemplar = str_to_combo_tree("true")
+    mapper = knob_mapper()
+    build_knobs(
+        exemplar,
+        gen_signature(type_node.boolean_type, 2),
+        mapper,
+        logical_reduction(())(2),
+        perm_ratio=0.0,
+    )
+
+    assert len(mapper.disc) == 16
+    assert _render(exemplar) == (
+        "or(and(null_vertex($1) null_vertex($2) null_vertex(or(!$1 $2)) "
+        "null_vertex(or($1 $2)) or(null_vertex($1) null_vertex($2) "
+        "null_vertex(and($1 $2)) null_vertex(and(!$1 $2)))) "
+        "null_vertex($1) null_vertex($2) null_vertex(and(!$1 $2)) "
+        "null_vertex(and($1 $2)) and(null_vertex($1) null_vertex($2) "
+        "null_vertex(or($1 $2)) null_vertex(or(!$1 $2))))"
+    )
+
+
+def test_perm_ratio_defaults_match_classic():
+    """C++: moses/moses/representation/build_knobs.h:56 build_knobs
+
+    `float perm_ratio = 0.0` there, and the same default on
+    `representation::representation` (representation.h:62) and on the CLI
+    (`problem-params.cc:299`). This port carried -1.0 in both signatures,
+    which silently halved every Boolean field set; pinned so it cannot
+    drift back unnoticed.
+    """
+    assert inspect.signature(build_knobs).parameters["perm_ratio"].default == 0.0
+    assert inspect.signature(representation).parameters["perm_ratio"].default == 0.0
+
+
+def test_swap_and_or_rejects_non_junctors():
+    """C++: moses/comboreduct/combo/vertex.cc:257 swap_and_or"""
+    assert swap_and_or(builtin.logical_and) is builtin.logical_or
+    assert swap_and_or(builtin.logical_or) is builtin.logical_and
+    with pytest.raises(AssertionError, match="logical_or"):
+        swap_and_or(builtin.logical_true)
 
 
 def test_builder_rejects_bad_collaborators_before_mutation():
