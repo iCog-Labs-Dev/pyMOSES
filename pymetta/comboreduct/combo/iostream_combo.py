@@ -1,13 +1,11 @@
 """C++: moses/comboreduct/combo/iostream_combo.{h,cc}
 
-Combo tree printing and parsing, scoped to the default `output_format::combo`
-format only (iostream_combo.h:42-48's `python`/`python3`/`scheme` formats are
-out of scope for this task) and to the subset of combo-tree GRAMMAR this
-port's parser recognises -- builtin | argument | contin_t token forms only
-(see vertex.py). Stale as of Task 5, corrected here: `vertex.py`'s `vertex`
-alias itself is no longer this narrow (Task 5 widened it to include `str`/
-`enum_t`, for table columns -- see its module docstring), but nothing in
-THIS module's grammar ever produces or expects an enum_t/message/ann_type
+Combo tree printing and parsing, scoped to the subset of combo-tree GRAMMAR
+this port's parser recognises -- builtin | argument | contin_t token forms
+only (see vertex.py). Stale as of Task 5, corrected here: `vertex.py`'s
+`vertex` alias itself is no longer this narrow (Task 5 widened it to include
+`str`/`enum_t`, for table columns -- see its module docstring), but nothing
+in THIS module's grammar ever produces or expects an enum_t/message/ann_type
 token form regardless -- combo-tree syntax and table-column syntax are
 different grammars, and only the latter was widened.
 
@@ -26,13 +24,115 @@ tree.py's module docstring), so str_to_combo_tree parses exactly one
 top-level expression and rejects trailing content, unlike classic's
 strtree_to_combo_tree (iostream_combo.h:203-216) which folds a forest of
 sibling trees under one implicit root.
+
+## S13 Task 3 addition: `output_format`, labels, python-format printing
+
+Originally (S3) this module was scoped to `output_format::combo` only, with
+no `labels` substitution -- both explicitly flagged in `_argument_to_str`'s
+own docstring as "not in this task's scope". S13 Task 3 (`moses_exec.py`/
+`metapop_printer`, `moses_main.py`) is the first caller that needs `-W`
+(label substitution, `$arg1` instead of `$1`) and `--output-format=python`
+(`test_output_labels`/`test_python_output`, `MOSESUTest.cxxtest`), so both
+land here now: `output_format` (iostream_combo.h:42), `parse_output_format`
+(iostream_combo.cc:252), and `labels`/`fmt` parameters threaded through
+`_vertex_to_str`/`_argument_to_str`/`_builtin_to_str`/`_combo_it_to_str`/
+`combo_tree_to_str`, mirroring `ostream_vertex`/`ostream_argument`/
+`ostream_builtin`/`ostream_combo_it`/`ostream_combo_tree`'s own `labels`/
+`fmt` parameters exactly. `output_format::scheme` printing is NOT ported
+(no test in this port's scope needs it): `parse_output_format("scheme")`
+still succeeds, matching C++ (the enum value is real and the string parses),
+but every printing function raises `NotImplementedError` the moment it is
+actually asked to render a `scheme`-format vertex or tree -- gate-then-raise
+for an engaged-but-unported format, not a silent no-op, per this whole S13
+slice's design rule. `output_format::python3` has NO string form in C++
+itself: `parse_output_format` (iostream_combo.cc:252-263) is a plain
+if/else-if chain over `"combo"`/`"python"`/`"scheme"` that never tests for
+`"python3"`, so a CLI user cannot reach it that way in classic either --
+confirmed by reading the function, not inferred. Ported faithfully:
+`parse_output_format("python3")` falls through to the same `OC_ASSERT(false)`
+path as any other unrecognized string (raised here as `ValueError`).
 """
 
 import re
+from collections.abc import Sequence
+from enum import Enum, auto
 
 from pymetta.comboreduct.combo.argument import argument
 from pymetta.comboreduct.combo.common_def import contin_t
 from pymetta.comboreduct.combo.vertex import builtin, combo_tree
+
+# ---------------------------------------------------------------------------
+# output_format -- C++: moses/comboreduct/combo/iostream_combo.h:42
+# ---------------------------------------------------------------------------
+
+
+class output_format(Enum):
+    """C++: moses/comboreduct/combo/iostream_combo.h:42 output_format
+
+    `enum class output_format { combo, python, python3, scheme,
+    output_format_count };` -- `output_format_count` (a C++ enum-counting
+    idiom, "to get the number of formats" per its own comment) has no
+    Python equivalent and is not ported: `len(output_format)` is the
+    direct substitute for any caller that would need it, and nothing in
+    this port ever did (grepped: zero references to
+    `output_format_count` outside iostream_combo.h itself).
+    """
+
+    combo = auto()
+    python = auto()
+    python3 = auto()
+    scheme = auto()
+
+
+def parse_output_format(fmt_str: str) -> output_format:
+    """C++: moses/comboreduct/combo/iostream_combo.cc:252 parse_output_format
+
+        combo::output_format fmt = combo::output_format::combo;
+        if (fmt_str == "combo") fmt = combo::output_format::combo;
+        else if (fmt_str == "python") fmt = combo::output_format::python;
+        else if (fmt_str == "scheme") fmt = combo::output_format::scheme;
+        else OC_ASSERT(false, "Format %s not supported", fmt_str.c_str());
+        return fmt;
+
+    Ported verbatim, including the fact that `"python3"` is NOT one of the
+    recognised strings (see module docstring) -- it raises exactly like any
+    other unrecognized string, not like `"python"`. `OC_ASSERT(false, ...)`
+    on bad CLI input is this port's usual `ValueError` (matching
+    `problem_params.py`'s own convention for malformed option strings).
+    """
+    if fmt_str == "combo":
+        return output_format.combo
+    if fmt_str == "python":
+        return output_format.python
+    if fmt_str == "scheme":
+        return output_format.scheme
+    raise ValueError(f"Format {fmt_str} not supported")
+
+
+# C++'s `enum class output_format { combo, python, python3, scheme,
+# output_format_count };` has no explicit initializers, so the compiler
+# assigns 0, 1, 2, 3 in declaration order -- what `static_cast<unsigned>`
+# reads back in `ostream_builtin`/`ostream_argument`'s own "Format N
+# unknown" fallbacks (see those two functions' docstrings for exactly
+# where this is read). Python's `Enum` with `auto()` (the `output_format`
+# class above) starts at 1, so `.value` alone would NOT reproduce these
+# ordinals -- this table bridges that gap.
+_OUTPUT_FORMAT_ORDINAL: dict[output_format, int] = {
+    output_format.combo: 0,
+    output_format.python: 1,
+    output_format.python3: 2,
+    output_format.scheme: 3,
+}
+
+
+def _output_format_to_int(fmt: output_format) -> int:
+    """C++: moses/comboreduct/combo/iostream_combo.h:42 output_format
+
+    `static_cast<unsigned>(fmt)` -- see `_OUTPUT_FORMAT_ORDINAL`'s own
+    comment for why this indirection exists instead of `fmt.value`.
+    """
+    return _OUTPUT_FORMAT_ORDINAL[fmt]
+
 
 # ---------------------------------------------------------------------------
 # vertex <-> token string tables (combo format only)
@@ -124,6 +224,32 @@ _BUILTIN_TO_STR: dict[builtin, str] = {
     builtin.equ: "equ",
 }
 
+# C++: moses/comboreduct/combo/iostream_combo.cc:266 ostream_builtin
+#
+# The `case output_format::python:` branch (iostream_combo.cc:326-354) only.
+# Restricted, like `_BUILTIN_TO_STR` above, to the builtin members this
+# port's `builtin` enum actually carries -- the C++ branch also handles
+# `id::rand`/`id::list`/`id::car`/.../`id::equ` by falling to its own
+# `default:` ("Builtin %u unknown"), so leaving them out of this table has
+# the same observable effect (`_builtin_to_str`'s `.get(b, ...)` fallback
+# below reproduces that default case) without needing dead entries.
+_BUILTIN_TO_PYTHON_STR: dict[builtin, str] = {
+    builtin.null_vertex: "null_vertex",
+    builtin.logical_and: "and",
+    builtin.logical_or: "or",
+    builtin.logical_not: "not",
+    builtin.logical_true: "True",
+    builtin.logical_false: "False",
+    builtin.plus: "adds",
+    builtin.times: "muls",
+    builtin.div: "pdiv",
+    builtin.greater_than_zero: "l0",
+    builtin.log: "log",
+    builtin.exp: "exp",
+    builtin.sin: "sin",
+    builtin.impulse: "impulse",
+}
+
 
 def _builtin_str_to_vertex(token: str) -> builtin | None:
     """C++: moses/comboreduct/combo/iostream_combo.cc:36 builtin_str_to_vertex
@@ -211,52 +337,126 @@ def _token_to_vertex(token: str):
     )
 
 
-def _vertex_to_str(v) -> str:
+def _vertex_to_str(
+    v, labels: Sequence[str] = (), fmt: output_format = output_format.combo
+) -> str:
     """C++: moses/comboreduct/combo/iostream_combo.cc:428 ostream_vertex
 
-    The combo-format cases only, in the same argument/builtin/contin order
-    ostream_vertex itself checks them in (iostream_combo.cc:433-464, ending
-    in the try/get<contin_t> fallback at 463-467) -- ported as a `match`
-    (mirroring boost::apply_visitor, per task-3-brief.md) rather than a
-    chain of isinstance checks.
+    The argument/builtin/contin branches this port's narrowed vertex can
+    ever hit, in the same order ostream_vertex itself checks them in
+    (iostream_combo.cc:433-464, ending in the try/get<contin_t> fallback at
+    463-467) -- ported as a `match` (mirroring boost::apply_visitor, per
+    task-3-brief.md) rather than a chain of isinstance checks. `labels`/
+    `fmt` (S13 Task 3 addition -- see module docstring) are threaded
+    through to `_argument_to_str`/`_builtin_to_str` unchanged;
+    `_contin_to_str` takes neither, matching ostream_vertex's own fallback
+    (`out << get<contin_t>(v)`, iostream_combo.cc:463-464) printing a
+    contin_t identically regardless of `f`.
     """
     match v:
         case argument():
-            return _argument_to_str(v)
+            return _argument_to_str(v, labels, fmt)
         case builtin():
-            return _builtin_to_str(v)
+            return _builtin_to_str(v, fmt)
         case float():
             return _contin_to_str(v)
         case _:
             raise TypeError(f"don't know how to print vertex {v!r} (combo format)")
 
 
-def _argument_to_str(a: argument) -> str:
-    """C++: moses/comboreduct/combo/iostream_combo.cc:622 ostream_abbreviate_literal
+def _argument_to_str(
+    a: argument, labels: Sequence[str] = (), fmt: output_format = output_format.combo
+) -> str:
+    """C++: moses/comboreduct/combo/iostream_combo.cc:381 ostream_argument
 
-    ostream_argument's `case output_format::combo:` (iostream_combo.cc:
-    386-403) branches on ABBREVIATE_NEGATIVE_LITERAL, #defined at
-    iostream_combo.cc:33 with no corresponding #undef anywhere in the file
-    -- so classic MOSES always takes the ostream_abbreviate_literal path
-    ("!$n") for combo-format output, never the "not($n)" branch guarded by
-    #else (iostream_combo.cc:389-402); only the abbreviated path is ported.
-    The `labels` parameter (empty by default, substituting a variable name
-    for the bare index) is not in this task's scope -- see the module
-    docstring.
+    `case output_format::combo:` (iostream_combo.cc:386-403) branches on
+    ABBREVIATE_NEGATIVE_LITERAL, #defined at iostream_combo.cc:33 with no
+    corresponding #undef anywhere in the file -- so classic MOSES always
+    takes the ostream_abbreviate_literal path ("!$n") for combo-format
+    output, never the "not($n)" branch guarded by #else
+    (iostream_combo.cc:389-402); only the abbreviated path is ported
+    (`ostream_abbreviate_literal`, iostream_combo.cc:622-633: "!" prefix if
+    negated else nothing, then "$" then either `abs_idx()` -- 1-based, no
+    labels -- or `labels[abs_idx_from_zero()]` -- 0-based -- exactly what
+    `argument.abs_idx`/`abs_idx_from_zero` (argument.py) compute).
+
+    `case output_format::python:` (iostream_combo.cc:405-408) ignores
+    `labels` entirely (classic's own python-format branch never reads its
+    `labels` parameter either) and prints the argument as an index into a
+    python function's `i` parameter: `not(i[-idx-1])` when negated, else
+    `i[idx-1])` -- `idx` here is the raw SIGNED C++ member (`a.idx`, this
+    port's `argument.idx`), not `abs_idx()`.
+
+    # DIVERGENCE(C++ moses/comboreduct/combo/iostream_combo.cc:384-424):
+    # NOT a divergence in this port -- recorded here because it is easy to
+    # get wrong by analogy with `_combo_it_to_str`/`ostream_combo_it`
+    # (iostream_combo.h:84-102), which DOES explicitly merge
+    # `output_format::python` and `::python3` into one `case`. This
+    # function's own C++ switch on `fmt` has exactly THREE cases --
+    # `combo`, `python`, `scheme` -- each ending in `return`, with NO
+    # `case output_format::python3:` label at all; `python3` therefore
+    # falls to the switch's own `default:` (iostream_combo.cc:423-424),
+    # `"Format " << static_cast<unsigned>(fmt) << "unknown"` (note: NO
+    # space before "unknown" here, unlike `ostream_builtin`'s otherwise
+    # near-identical default two functions down -- a real, verified
+    # inconsistency between the two, not a transcription slip in this
+    # docstring). Ported below by falling through to the same
+    # `_UNKNOWN_FORMAT` branch `scheme` printing's own unported case does
+    # NOT take -- `python3` is not "unimplemented", it behaves exactly
+    # like any other value C++ itself does not recognise in this
+    # particular function. Unreachable from any real CLI run either way:
+    # `parse_output_format` (this module) never returns `python3` (see
+    # its own docstring), so no port test can reach this path from
+    # `moses_exec.py`; included for a caller that constructs
+    # `output_format.python3` directly.
     """
-    sign = "!" if a.is_negated() else ""
-    return f"{sign}${a.abs_idx()}"
+    if fmt == output_format.combo:
+        sign = "!" if a.is_negated() else ""
+        idx_str = labels[a.abs_idx_from_zero()] if labels else str(a.abs_idx())
+        return f"{sign}${idx_str}"
+    if fmt == output_format.python:
+        if a.is_negated():
+            return f"not(i[{-a.idx - 1}])"
+        return f"i[{a.idx - 1}]"
+    if fmt == output_format.scheme:
+        raise NotImplementedError(
+            "ostream_argument: output_format.scheme printing is not ported "
+            "(iostream_combo.cc:410-421); no test in this port's scope "
+            "needs scheme-format output"
+        )
+    return f"Format {_output_format_to_int(fmt)}unknown"
 
 
-def _builtin_to_str(b: builtin) -> str:
+def _builtin_to_str(b: builtin, fmt: output_format = output_format.combo) -> str:
     """C++: moses/comboreduct/combo/iostream_combo.cc:266 ostream_builtin
 
-    The `case output_format::combo:` branch (iostream_combo.cc:269-325)
-    only, including its `default:` fallback (iostream_combo.cc:323-324,
-    "Builtin %u unknown") for the one enumerator with no case of its own,
-    id::builtin_count.
+    `case output_format::combo:` (iostream_combo.cc:269-325) and
+    `case output_format::python:` (iostream_combo.cc:326-354), each
+    including its own `default:` fallback ("Builtin %u unknown") for a
+    builtin member with no case of its own -- see `_BUILTIN_TO_STR`/
+    `_BUILTIN_TO_PYTHON_STR`'s own docstrings for why that never actually
+    fires for any member this port's `builtin` enum carries.
+
+    Like `_argument_to_str` above, `output_format::python3` is NOT merged
+    with `python` here: this function's outer switch on `f` has no
+    `case output_format::python3:` label either, so it falls to the outer
+    `default:` (iostream_combo.cc:374-375), `"Format " <<
+    static_cast<unsigned>(f) << " unknown"` -- WITH a space this time,
+    unlike `ostream_argument`'s otherwise near-identical default. See that
+    function's own docstring for the full explanation; same unreachable-
+    from-any-real-CLI-run caveat applies here too.
     """
-    return _BUILTIN_TO_STR.get(b, f"Builtin {int(b)} unknown")
+    if fmt == output_format.combo:
+        return _BUILTIN_TO_STR.get(b, f"Builtin {int(b)} unknown")
+    if fmt == output_format.python:
+        return _BUILTIN_TO_PYTHON_STR.get(b, f"Builtin {int(b)} unknown")
+    if fmt == output_format.scheme:
+        raise NotImplementedError(
+            "ostream_builtin: output_format.scheme printing is not ported "
+            "(iostream_combo.cc:355-370); no test in this port's scope "
+            "needs scheme-format output"
+        )
+    return f"Format {_output_format_to_int(fmt)} unknown"
 
 
 def _contin_to_str(c: contin_t) -> str:
@@ -274,31 +474,90 @@ def _contin_to_str(c: contin_t) -> str:
     return format(c, ".6g")
 
 
-def _combo_it_to_str(t: combo_tree, node) -> str:
+def _combo_it_to_str(
+    t: combo_tree,
+    node,
+    labels: Sequence[str] = (),
+    fmt: output_format = output_format.combo,
+) -> str:
     """C++: moses/comboreduct/combo/iostream_combo.h:69 ostream_combo_it
 
-    The `case(output_format::combo):` branch (iostream_combo.h:75-85) only.
+    `case(output_format::combo):` (iostream_combo.h:75-85): vertex text
+    then, if any children, "(" + space-joined recursive child text + ")".
+
+    `case(output_format::python): case(output_format::python3):`
+    (iostream_combo.h:86-101) -- the ONE place in this whole module where
+    `python`/`python3` really are merged into one code path (contrast
+    `_argument_to_str`/`_builtin_to_str`'s docstrings, where they are NOT):
+    `logical_and`/`logical_or` are "infix" -- nothing is written for the
+    vertex itself, only a separator (" and "/" or ", built by writing a
+    leading and trailing space around the vertex's own python text) that
+    joins the children inside parens; a childless infix vertex therefore
+    prints as the EMPTY STRING (matches iostream_combo.h:88-93 precisely:
+    `is_infix` writes only to the local `seperator` stream, never to
+    `out`, and the `out << "("` block only runs `if
+    (it.number_of_children() > 0)`). Every other vertex is "non-infix":
+    its own python text IS written first, separator is ", ", and -- same
+    as combo format -- children (if any) follow in parens.
+
+    `case(output_format::scheme):` (iostream_combo.h:103-108) is not
+    ported (module docstring); raises rather than silently doing
+    something else.
     """
-    s = _vertex_to_str(node.data)
-    children = list(t.children(node))
-    if children:
-        s += "(" + " ".join(_combo_it_to_str(t, child) for child in children) + ")"
-    return s
+    if fmt == output_format.combo:
+        s = _vertex_to_str(node.data, labels, fmt)
+        children = list(t.children(node))
+        if children:
+            s += (
+                "("
+                + " ".join(_combo_it_to_str(t, child, labels, fmt) for child in children)
+                + ")"
+            )
+        return s
+    if fmt in (output_format.python, output_format.python3):
+        v = node.data
+        is_infix = isinstance(v, builtin) and v in (builtin.logical_and, builtin.logical_or)
+        children = list(t.children(node))
+        if is_infix:
+            s = ""
+            sep = " " + _vertex_to_str(v, labels, fmt) + " "
+        else:
+            s = _vertex_to_str(v, labels, fmt)
+            sep = ", "
+        if children:
+            s += "(" + sep.join(_combo_it_to_str(t, c, labels, fmt) for c in children) + ")"
+        return s
+    if fmt == output_format.scheme:
+        raise NotImplementedError(
+            "ostream_combo_it: output_format.scheme printing is not ported "
+            "(iostream_combo.h:103-108); no test in this port's scope needs "
+            "scheme-format output"
+        )
+    raise ValueError(f"Unsupported case: {fmt!r}")
 
 
-def combo_tree_to_str(t: combo_tree) -> str:
+def combo_tree_to_str(
+    t: combo_tree,
+    labels: Sequence[str] = (),
+    fmt: output_format = output_format.combo,
+) -> str:
     """C++: moses/comboreduct/combo/iostream_combo.cc:472 ostream_combo_tree
 
     Iterates `ct.begin()..ct.end()` appending a trailing " " after each
-    top-level tree (iostream_combo.cc:475-479); since a combo_tree here is
-    always single-rooted (pymetta/util/tree.py's module docstring), that
-    loop runs at most once -- an empty tree (ct.begin() == ct.end()) prints
+    top-level tree UNCONDITIONALLY, regardless of `fmt` (iostream_combo.cc:
+    475-479, `it.skip_children(); out << " ";` runs after every top-level
+    tree with no format check at all); since a combo_tree here is always
+    single-rooted (pymetta/util/tree.py's module docstring), that loop
+    runs at most once -- an empty tree (ct.begin() == ct.end()) prints
     nothing at all, exactly as the C++ loop body never executes for one.
+    `labels`/`fmt` (S13 Task 3 addition -- see module docstring) default
+    to empty/`output_format.combo`, matching every existing caller's
+    label-free combo-format-only usage exactly.
     """
     root = t.begin()
     if root is None:
         return ""
-    return _combo_it_to_str(t, root) + " "
+    return _combo_it_to_str(t, root, labels, fmt) + " "
 
 
 # ---------------------------------------------------------------------------

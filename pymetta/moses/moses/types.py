@@ -113,13 +113,53 @@ the C++ source, not inferred:
 
 import math
 import struct
+from collections.abc import Sequence
 
 from pymetta.comboreduct.combo.argument import argument
 from pymetta.comboreduct.combo.common_def import contin_t
+from pymetta.comboreduct.combo.iostream_combo import combo_tree_to_str, output_format
 from pymetta.comboreduct.combo.vertex import builtin, lexicographic_subtree_less, vertex_equal
 from pymetta.moses.moses.complexity import complexity_t, least_complexity
 
 score_t = float  # C++: moses/moses/moses/types.h:63 score_t
+
+# C++: moses/moses/moses/types.h:69 io_score_precision
+#
+# "A number of external tools read the printed results, and parse them.
+# The floating-point scores must be printed with reasonable accuracy, else
+# these tools fail." (moses_main.h:107-109's own comment, its one call
+# site: `ss << std::setprecision(opencog::io_score_precision);` -- applies
+# to the WHOLE `metapop_printer` output stream, not merely composite_score
+# printing, which is why every `_format_score_t` call below shares this
+# one constant rather than each hardcoding "18".
+io_score_precision = 18
+
+
+def _format_score_t(x: float) -> str:
+    """Not itself a ported C++ symbol -- factors out the string rendering
+    every `operator<<`/`ostream_*` function below performs on a raw
+    `score_t`/`double` once `std::setprecision(io_score_precision)`
+    (defaultfloat: no `std::fixed`/`std::scientific`) is in effect on the
+    enclosing stream.
+
+    Verified equivalent to Python's `"{:.18g}"` format spec against a real
+    compiled C++ probe (`std::cout << std::setprecision(18) << v`, this
+    project's own toolchain) over: integral values (-3.0 -> "-3"),
+    negative zero ("-0"), a value needing all 18 significant digits after
+    a float32 round-trip (-3.5714285373687744 -> "-3.57142853736877441",
+    matching `MOSESUTest`'s own captured stdout for `test_it`'s penalized
+    score), scientific notation at both magnitude extremes (1e20, 1e-20),
+    and nan/+-inf (all three print identically -- "nan"/"inf"/"-inf" -- in
+    both languages on this toolchain). See task-3-report.md for the full
+    probe transcript.
+
+    `x` is expected to already be narrowed to its exact float32 value via
+    `_to_score_t` (this module) at the point it was last computed/stored;
+    this function does not re-narrow -- matching C++, where `operator<<`
+    never narrows the `float` it is handed (narrowing, if any, already
+    happened at the last `score_t` assignment).
+    """
+    return format(x, f".{io_score_precision}g")
 
 
 def _to_score_t(x: float) -> score_t:
@@ -447,6 +487,49 @@ class composite_score:
 
     __hash__ = None  # type: ignore[assignment]
 
+    def __str__(self) -> str:
+        """C++: moses/moses/moses/types.h:427 composite_score
+
+        Non-identifier member per the project's convention (see
+        `__lt__`/`__eq__` above, this same class): cites the enclosing
+        class at the free `operator<<`'s own declaration line. The real
+        member is the free function `operator<<(ostream&, const
+        composite_score&)` (types.h:427-436):
+
+            return out << "[score="
+                       << std::setprecision(moses::io_score_precision)
+                       << ts.get_score()
+                       << ", penalized score=" << ts.get_penalized_score()
+                       << ", complexity=" << ts.get_complexity()
+                       << ", complexity penalty=" << ts.get_complexity_penalty()
+                       << ", uniformity penalty=" << ts.get_uniformity_penalty()
+                       << "]";
+
+        Ported as `__str__` (Python's `operator<<`-for-printing
+        equivalent, per this project's convention -- see `demeID_t`'s own
+        class docstring for the analogous `std::string`-subclass choice)
+        rather than a free function, since -- unlike `ostream_scored_
+        combo_tree` below -- C++'s version here is ALREADY a one-tree
+        recursive-free leaf formatter with no extra parameters (labels,
+        output_format, ...) that would make a bound method awkward. Note
+        `std::setprecision` is set only ONCE, before `get_score()`, but a
+        `std::ios`' precision is sticky for the whole stream -- every
+        later `<<` on this same `out` (penalized score, complexity
+        penalty, uniformity penalty) is affected too, not just the first
+        value; `_format_score_t` is applied to all four `score_t` fields
+        for that reason. `complexity` is an `int` (`complexity_t`), never
+        `score_t`-formatted, matching `<<`'s own overload resolution on a
+        plain integer.
+        """
+        return (
+            f"[score={_format_score_t(self.score)}"
+            f", penalized score={_format_score_t(self.penalized_score)}"
+            f", complexity={self.complexity}"
+            f", complexity penalty={_format_score_t(self.complexity_penalty)}"
+            f", uniformity penalty={_format_score_t(self.uniformity_penalty)}"
+            f"]"
+        )
+
 
 class demeID_t(str):
     """C++: moses/moses/moses/types.h:190 demeID_t
@@ -612,6 +695,105 @@ class scored_combo_tree:
         )
 
     __hash__ = None  # type: ignore[assignment]
+
+
+# =======================================================================
+# ostream functions (C++: moses/moses/moses/types.h:399-424, types.cc:
+# 164-199) -- S13 Task 3 addition (`metapop_printer`, moses_main.py). Out
+# of scope for every prior task that touched this module (module
+# docstring's own "Still out of scope" section): S13 is the first caller
+# that needs these to print search results to stdout.
+# =======================================================================
+
+_BEHAVIORAL_SCORE_PREFIX = "behavioral score:"  # C++: types.cc:164 behavioral_score_prefix_str
+
+
+def ostream_behavioral_score(bs: behavioral_score) -> str:
+    """C++: moses/moses/moses/types.cc:166 ostream_behavioral_score
+
+        out << behavioral_score_prefix_str << " ";
+        return ostream_container(out, bs, " ", "[", "]");
+
+    `ostream_container` ($COGUTIL/opencog/util/iostreamContainer.h:61-77)
+    with its own default `empty_lr=true`: left/right brackets print even
+    for an empty `bs` (`"[]"`), space-separated elements, no trailing
+    separator after the last one -- reproduced directly rather than
+    imported, since this port has no generic `ostream_container` helper
+    (nothing else in this port prints an arbitrary container this way).
+    Each element is a `score_t`, formatted the same way every other
+    `score_t` reaching this stream is (`_format_score_t`) -- matches the
+    measured oracle exactly: `-3 and($1 $2)  behavioral score: [-1 -1 -1]`
+    (`$CLASSIC/build/moses/moses/main/moses -i dataset.csv -m1000 -t1`).
+    """
+    elems = " ".join(_format_score_t(x) for x in bs)
+    return f"{_BEHAVIORAL_SCORE_PREFIX} [{elems}]"
+
+
+def ostream_scored_combo_tree(
+    sct: scored_combo_tree,
+    output_score: bool = True,
+    output_cscore: bool = True,
+    output_demeID: bool = True,
+    output_bscore: bool = True,
+    labels: Sequence[str] = (),
+    fmt: output_format = output_format.combo,
+) -> str:
+    """C++: moses/moses/moses/types.cc:175 ostream_scored_combo_tree
+
+        if (output_score) out << sct.get_score() << " ";
+        ostream_combo_tree(out, sct.get_tree(), labels, fmt);
+        static const bool output_weight = false;
+        if (output_weight) out << " weight:" << sct.get_weight();
+        if (output_cscore) out << " " << sct.get_composite_score();
+        if (output_demeID) out << " demeID: " << sct.get_demeID();
+        if (output_bscore and sct.get_bscore().size() > 0)
+            ostream_behavioral_score(out << " ", sct.get_bscore());
+        return out << std::endl;
+
+    Ported line-for-line, string-concatenation in place of `<<` chaining.
+    `output_weight` is a LOCAL `static const bool` hardcoded to `false`
+    with no way to set it from outside this function (not a CLI flag, not
+    a parameter) -- its whole `if` body is dead code in every real build;
+    not ported at all, matching that it can never fire.
+
+    `output_demeID` raises `NotImplementedError` when `True`: this port's
+    `scored_combo_tree` carries no `demeID_t`/`get_demeID()` at all (see
+    that class's own module docstring -- deme bookkeeping is out of scope
+    for this whole port cycle, not merely deferred), so there is no value
+    to print. Classic's CLI default is `--output-deme-id=false`
+    (`problem-params.cc:1121`, `output_deme_id`), so a real `moses_exec.py`
+    run never engages this gate; only a caller passing `output_demeID=True`
+    explicitly (including this function's OWN default, matching
+    `types.h:408`'s `bool output_demeID = true` exactly, which is what
+    classic's bare `operator<<(ostream&, const scored_combo_tree&)`
+    (types.h:421-424) relies on) reaches it -- gate-then-raise for an
+    engaged-but-unported field, not a silent wrong answer, per this
+    slice's design rule.
+
+    `labels`/`fmt` are new parameters with no direct C++ counterpart
+    ordering issue: `ostream_combo_tree`'s own `labels`/`fmt` parameters
+    (iostream_combo.h) are threaded straight through to
+    `combo_tree_to_str`.
+    """
+    parts: list[str] = []
+    if output_score:
+        parts.append(f"{_format_score_t(sct.get_score())} ")
+    parts.append(combo_tree_to_str(sct.get_tree(), labels, fmt))
+    if output_cscore:
+        parts.append(f" {sct.get_composite_score()}")
+    if output_demeID:
+        raise NotImplementedError(
+            "ostream_scored_combo_tree: output_demeID=True needs "
+            "scored_combo_tree.get_demeID(), which this port's "
+            "scored_combo_tree does not carry -- deme bookkeeping is out "
+            "of scope for this whole port cycle (scored_combo_tree's own "
+            "module docstring). Classic's own CLI default "
+            "(--output-deme-id) is False; pass output_demeID=False."
+        )
+    bscore = sct.get_bscore()
+    if output_bscore and len(bscore) > 0:
+        parts.append(" " + ostream_behavioral_score(bscore))
+    return "".join(parts) + "\n"
 
 
 # =======================================================================

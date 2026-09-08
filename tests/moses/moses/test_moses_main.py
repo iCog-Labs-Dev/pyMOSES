@@ -36,7 +36,11 @@ from collections import Counter
 
 import pytest
 
-from pymetta.comboreduct.combo.iostream_combo import combo_tree_to_str
+from pymetta.comboreduct.combo.iostream_combo import (
+    combo_tree_to_str,
+    output_format,
+    str_to_combo_tree,
+)
 from pymetta.comboreduct.combo.vertex import builtin, combo_tree
 from pymetta.comboreduct.reduct.logical_reduction import logical_reduction
 from pymetta.comboreduct.table.table import CTable
@@ -50,10 +54,17 @@ from pymetta.moses.metapopulation.metapop_params import (
 )
 from pymetta.moses.metapopulation.metapopulation import metapopulation
 from pymetta.moses.moses import moses_main
+from pymetta.moses.moses.moses_main import metapop_printer
 from pymetta.moses.moses.moses_params import moses_parameters, moses_statistics
 from pymetta.moses.moses.optimization.hill_climbing import hc_parameters
 from pymetta.moses.moses.optimization.optimization import optim_parameters
-from pymetta.moses.moses.types import _to_score_t, score_t, very_best_score
+from pymetta.moses.moses.types import (
+    _to_score_t,
+    composite_score,
+    score_t,
+    scored_combo_tree,
+    very_best_score,
+)
 from pymetta.moses.scoring.behave_cscore import behave_cscore
 from pymetta.moses.scoring.bscores import ctruth_table_bscore
 
@@ -592,3 +603,258 @@ def test_it_target_ignore_reproduces_mosesutest(tmp_path):
     mp = _run_it_style(tmp_path, "arg2", ignore_features=["res"])
     assert mp.best_score() == -3.0
     assert combo_tree_to_str(mp.best_tree()).strip() == "true"
+
+
+# ---------------------------------------------------------------------------
+# metapop_printer (S13 Task 3) -- pure unit tests against directly-built
+# `scored_combo_tree`/composite_score objects and a lightweight duck-typed
+# `_FakeMetapop`/`_FakeEnsemble`, deliberately NOT routed through a real
+# search (`_run_it_style`/`_fresh_deme_parameters` above hardcodes
+# `perm_ratio = -1.0`, the exact S8 scope decision docs/CARRY-FORWARD.md
+# Sec 5.4 records as "a scope decision that silently became a correctness
+# bug" -- an oracle built on it is exactly what that section warns is
+# unable to detect the port's own configuration being wrong). Every
+# EXPECTED string below is copied verbatim from a real, captured run of
+# `$CLASSIC/build/moses/moses/main/moses` (command quoted in each test's
+# own docstring) -- the genuine "classic's own defaults, no configuration
+# supplied by this port" oracle for `metapop_printer` itself lives in
+# `tests/moses/main/test_moses_exec.py` instead (the REAL CLI path,
+# `problem_params.py` wiring `perm_ratio` to its real default 0.0).
+# ---------------------------------------------------------------------------
+
+
+class _FakeEnsemble:
+    """Not a ported C++ symbol -- a duck-typed stand-in for
+    `pymetta.moses.metapopulation.ensemble.ensemble` that raises exactly
+    where the real class's own `flat_score`/`get_weighted_tree` do (both
+    unported stubs, `ensemble.py`'s own docstring), so a test can assert
+    `metapop_printer.__call__` propagates that failure unmodified rather
+    than masking or mis-handling it.
+    """
+
+    def __init__(self, members=()):
+        self._members = list(members)
+
+    def get_ensemble(self):
+        return self._members
+
+    def flat_score(self):
+        raise NotImplementedError("ensemble::flat_score (ensemble.cc) is not ported")
+
+    def get_weighted_tree(self):
+        raise NotImplementedError("ensemble::get_weighted_tree (ensemble.cc) is not ported")
+
+
+class _FakeMetapop:
+    """Not a ported C++ symbol -- exposes exactly the five methods
+    `metapop_printer.__call__` calls on its `metapop` argument
+    (`size`, `get_ensemble`, `best_candidates`, `get_trees`,
+    `best_score`), so printer-formatting tests do not need a real search
+    (see this section's own header comment for why that matters here).
+    """
+
+    def __init__(self, trees, best=None, ensemble_members=(), best_score_val=0.0, size=None):
+        self._trees = list(trees)
+        self._best = list(best) if best is not None else list(self._trees)
+        self._ensemble = _FakeEnsemble(ensemble_members)
+        self._best_score_val = best_score_val
+        self._size = size if size is not None else len(self._trees)
+
+    def get_trees(self):
+        return self._trees
+
+    def best_candidates(self):
+        return self._best
+
+    def get_ensemble(self):
+        return self._ensemble
+
+    def best_score(self):
+        return self._best_score_val
+
+    def size(self):
+        return self._size
+
+
+def _sct(combo_str, score, complexity, complexity_penalty, uniformity_penalty=0.0, bscore=None):
+    tr = str_to_combo_tree(combo_str)
+    cs = composite_score(score, complexity, complexity_penalty, uniformity_penalty)
+    return scored_combo_tree(tr, cs, bscore if bscore is not None else [])
+
+
+def _printer(**overrides):
+    kwargs = dict(
+        result_count=10,
+        output_score=True,
+        output_cscore=False,
+        output_bscore=False,
+        output_only_best=False,
+        output_ensemble=False,
+        output_eval_number=False,
+        output_with_labels=False,
+        output_demeID=False,
+        ilabels=[],
+        output_file="",
+        fmt=output_format.combo,
+        is_mpi=False,
+    )
+    kwargs.update(overrides)
+    return metapop_printer(**kwargs)
+
+
+def test_metapop_printer_combo_format_no_labels(capsys):
+    """Oracle: `$CLASSIC/build/moses/moses/main/moses -i dataset.csv
+    -m1000` (no `-W`) -> top line `-3 and($1 $2) `.
+    """
+    mp = _FakeMetapop([_sct("and($1 $2)", -3.0, 2, 0.5714285714285714)])
+    _printer()(mp, None, moses_statistics())
+    assert capsys.readouterr().out == "-3 and($1 $2) \n"
+
+
+def test_metapop_printer_combo_format_with_labels(capsys):
+    """Oracle: `$CLASSIC/build/moses/moses/main/moses -i dataset.csv
+    -m1000 -W1` -> top line `-3 and($arg1 $arg2) `.
+    """
+    mp = _FakeMetapop([_sct("and($1 $2)", -3.0, 2, 0.5714285714285714)])
+    printer = _printer(output_with_labels=True, ilabels=["arg1", "arg2"])
+    printer(mp, None, moses_statistics())
+    assert capsys.readouterr().out == "-3 and($arg1 $arg2) \n"
+
+
+def test_metapop_printer_labels_gate_is_mutation_detectable(capsys):
+    """Same fixture as the no-labels test above but with
+    `output_with_labels=False` and `ilabels` populated anyway (exactly
+    what a real `it_table_problem.run()` does: `pms.printer.ilabels` is
+    always set to the table's real column labels regardless of `-W`,
+    table-problems.cc:164 -- only `_labels()`'s own gate decides whether
+    they are actually used). Proves the gate by construction: a version
+    of `_labels()` that ignored `output_with_labels` (returned
+    `self.ilabels` unconditionally) would print `$arg1`/`$arg2` here
+    instead of `$1`/`$2` -- verified by mutation (see task-3-report.md).
+    """
+    mp = _FakeMetapop([_sct("and($1 $2)", -3.0, 2, 0.5714285714285714)])
+    printer = _printer(output_with_labels=False, ilabels=["arg1", "arg2"])
+    printer(mp, None, moses_statistics())
+    assert capsys.readouterr().out == "-3 and($1 $2) \n"
+
+
+def test_metapop_printer_cscore(capsys):
+    """Oracle: `$CLASSIC/build/moses/moses/main/moses -i dataset.csv
+    -m1000 -x1` -> `-3 and($1 $2)  [score=-3, penalized score=
+    -3.57142853736877441, complexity=2, complexity penalty=
+    0.571428596973419189, uniformity penalty=0]`.
+    """
+    mp = _FakeMetapop([_sct("and($1 $2)", -3.0, 2, 0.5714285714285714)])
+    _printer(output_cscore=True)(mp, None, moses_statistics())
+    out = capsys.readouterr().out
+    assert out == (
+        "-3 and($1 $2)  [score=-3, penalized score=-3.57142853736877441, "
+        "complexity=2, complexity penalty=0.571428596973419189, "
+        "uniformity penalty=0]\n"
+    )
+
+
+def test_metapop_printer_bscore(capsys):
+    """Oracle: `$CLASSIC/build/moses/moses/main/moses -i dataset.csv
+    -m1000 -t1` -> `-3 and($1 $2)  behavioral score: [-1 -1 -1]`.
+    """
+    mp = _FakeMetapop([_sct("and($1 $2)", -3.0, 2, 0.5714285714285714, bscore=[-1.0, -1.0, -1.0])])
+    _printer(output_bscore=True)(mp, None, moses_statistics())
+    assert capsys.readouterr().out == "-3 and($1 $2)  behavioral score: [-1 -1 -1]\n"
+
+
+def test_metapop_printer_python_format(capsys):
+    """Oracle: `$CLASSIC/build/moses/moses/main/moses -i dataset.csv
+    -m1000 --output-format=python`, first generated program (verbatim,
+    including its own boilerplate).
+    """
+    mp = _FakeMetapop([_sct("and($1 $2)", -3.0, 2, 0.5714285714285714)])
+    _printer(fmt=output_format.python)(mp, None, moses_statistics())
+    assert capsys.readouterr().out == (
+        "#!/usr/bin/env python\n"
+        "#score: -3\n"
+        "import operator as op\n"
+        "from functools import reduce\n"
+        "from math import log, exp, sin\n"
+        "def l0(i): return 0 < i\n"
+        "def adds(*args): return sum(args)\n"
+        "def muls(*args): return reduce(op.mul, args)\n"
+        "def pdiv(a, b): return a / (b + 0.000001)\n"
+        "def impulse(a): return 1.0 if a else 0.0\n"
+        "def moses_eval(i):\n"
+        "    return (i[0] and i[1]) \n"
+    )
+
+
+@pytest.mark.parametrize(
+    ("result_count", "expected_count"),
+    [(0, 0), (1, 1), (2, 2), (3, 3), (-1, 3)],
+)
+def test_metapop_printer_result_count_boundaries(capsys, result_count, expected_count):
+    """`if (result_count == cnt++) break;` (moses_main.h:159) compares the
+    PRE-increment `cnt` -- `result_count=0` prints NOTHING (breaks before
+    the very first candidate), `result_count=N>0` prints exactly N, and a
+    NEGATIVE `result_count` prints every candidate (`-c`'s own help text:
+    "If negative, then return all results.", problem-params.cc:1083-1084)
+    since `cnt` never goes negative. Mutation-provable: swapping to
+    post-increment comparison (`cnt == result_count` after `cnt += 1`)
+    would print one FEWER candidate at every positive `result_count` --
+    verified red/green (task-3-report.md).
+    """
+    trees = [
+        _sct("and($1 $2)", -3.0, 2, 0.5714285714285714),
+        _sct("$1", -4.0, 1, 0.2857142857142857),
+        _sct("$2", -4.0, 1, 0.2857142857142857),
+    ]
+    mp = _FakeMetapop(trees)
+    _printer(result_count=result_count)(mp, None, moses_statistics())
+    printed_lines = capsys.readouterr().out.splitlines()
+    assert len(printed_lines) == expected_count
+
+
+def test_metapop_printer_output_only_best_selects_best_candidates(capsys):
+    all_trees = [
+        _sct("and($1 $2)", -3.0, 2, 0.5714285714285714),
+        _sct("$1", -4.0, 1, 0.2857142857142857),
+    ]
+    best_only = [all_trees[0]]
+    mp = _FakeMetapop(all_trees, best=best_only)
+    _printer(output_only_best=True)(mp, None, moses_statistics())
+    assert capsys.readouterr().out == "-3 and($1 $2) \n"
+
+
+def test_metapop_printer_output_eval_number(capsys):
+    """Oracle: `$CLASSIC/build/moses/moses/main/moses -i dataset.csv
+    -m1000 -V1` -> last line `n_evals: 33`.
+    """
+    mp = _FakeMetapop([_sct("and($1 $2)", -3.0, 2, 0.5714285714285714)])
+    stats = moses_statistics()
+    stats.n_evals = 33
+    _printer(output_eval_number=True)(mp, None, stats)
+    assert capsys.readouterr().out == "-3 and($1 $2) \nn_evals: 33\n"
+
+
+def test_metapop_printer_output_file_writes_file_not_stdout(capsys, tmp_path):
+    out_path = tmp_path / "results.txt"
+    mp = _FakeMetapop([_sct("and($1 $2)", -3.0, 2, 0.5714285714285714)])
+    _printer(output_file=str(out_path))(mp, None, moses_statistics())
+    assert capsys.readouterr().out == ""
+    assert out_path.read_text() == "-3 and($1 $2) \n"
+
+
+def test_metapop_printer_is_mpi_empty_metapop_produces_no_output(capsys):
+    mp = _FakeMetapop([], size=0)
+    _printer(is_mpi=True, output_eval_number=True)(mp, None, moses_statistics())
+    assert capsys.readouterr().out == ""
+
+
+def test_metapop_printer_output_demeID_raises_not_implemented():
+    mp = _FakeMetapop([_sct("and($1 $2)", -3.0, 2, 0.5714285714285714)])
+    with pytest.raises(NotImplementedError, match="get_demeID"):
+        _printer(output_demeID=True)(mp, None, moses_statistics())
+
+
+def test_metapop_printer_output_ensemble_propagates_unported_failure():
+    mp = _FakeMetapop([], ensemble_members=[])
+    with pytest.raises(NotImplementedError, match="flat_score"):
+        _printer(output_ensemble=True)(mp, None, moses_statistics())
