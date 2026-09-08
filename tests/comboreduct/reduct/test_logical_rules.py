@@ -564,6 +564,59 @@ def test_enf_removes_duplicate_children():
     assert _enf("or($1 $1 $2)") == "or($1 $2)"
 
 
+def test_enf_duplicate_removal_does_not_conflate_contin_with_logical_true():
+    """S14 Task 0 (CARRY-FORWARD.md section 2.5) pin: `reduce_to_enf.reduce`'s
+    duplicate-child removal (logical_rules.cc:604) called bare
+    `tr.equal_subtree(sib1, sib2)` -- the no-predicate overload, whose default
+    comparator is Python's `==`. `builtin.logical_true` is ordinal 1
+    (vertex.py), so `contin_t(1.0) == builtin.logical_true` is `True` in bare
+    Python even though C++'s real `boost::variant` never agrees across held
+    alternatives (`std::equal_to<vertex>`, C++'s own default, discriminates by
+    alternative before ever comparing a value).
+
+    MEASURED, not assumed, via a deliberate revert of this task's own fix (the
+    bare `tr.equal_subtree(sib1, sib2)` this test pins against not
+    regressing): `_enf_raw("and(1.0 true)")` returns `"and(1)"` under the old
+    bare comparison -- `logical_true` is erased as a false "duplicate" of
+    `1.0` -- and correctly returns `"and(1 true)"` once the call passes
+    `vertex_equal` as its predicate. `sort_on_subtrees` (called earlier in
+    `reduce_to_enf.__call__`, using the already-type-safe `vertex_rank`/
+    `vertex_less`) places the `contin_t` child before the `builtin` child --
+    `vertex_rank`'s ordering, not raw ordinal value -- which is why the
+    expected string below is `and(1 true)`, `contin_t` first.
+    """
+    assert _enf_raw("and(1.0 true)") == "and(1 true)"
+
+
+def test_enf_duplicate_removal_does_not_conflate_contin_with_logical_false():
+    """Same shape as the test above, over `builtin.logical_false` (ordinal 2,
+    vertex.py) instead of `logical_true` (ordinal 1) -- the task brief's own
+    suggested second pair, "0.0 vs logical_false", does NOT actually collide
+    under this port's real (C++-transcribed) ordinals: `null_vertex` is
+    ordinal 0, not `logical_false`, so `0.0 == builtin.logical_false` is
+    already `False` even under the OLD bare `==` and cannot discriminate the
+    fix. `contin_t(2.0)` is `logical_false`'s real same-ordinal collision
+    partner (measured: `_enf_raw("or(2.0 false)")` returns `"or(2)"` under the
+    reverted bare comparison, erasing `logical_false` as a false duplicate of
+    `2.0`), so that is the pair pinned here instead, over `logical_or` rather
+    than `logical_and` for path coverage of both duplicate-removal callers.
+    """
+    assert _enf_raw("or(2.0 false)") == "or(2 false)"
+
+
+def test_enf_duplicate_removal_contin_against_argument_was_never_at_risk():
+    """Completeness case the task brief also names ("a contin value against
+    an argument") -- included for coverage, NOT a discriminating mutation
+    test: `argument.__eq__` (argument.py) already returns `NotImplemented`
+    for a non-`argument` other side, so bare `1.0 == argument(1)` is `False`
+    regardless of this task's fix (confirmed identical under both the
+    reverted bare comparison and the fixed one -- `vertex_equal`'s own
+    docstring names this as the one alternative pair that was never actually
+    at risk). Kept as a regression pin, not folded into the two tests above.
+    """
+    assert _enf_raw("and($1 1.0)") == "and(1 $1)"
+
+
 def test_enf_and_or_same_argument_reorders_but_cannot_shrink():
     """`and($1 or($1 $2))`: `$1` DOMINATES the `or` branch structurally,
     but `reduce_or`'s own algorithm has no direct child-vs-dominant

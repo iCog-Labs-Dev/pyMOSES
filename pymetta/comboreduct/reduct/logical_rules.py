@@ -534,6 +534,20 @@ class simplify_predicates(rule):
         """
         super().__init__(name)
         self.reduct_effort = reduct_effort
+        # SWEPT (S14 Task 0, CARRY-FORWARD.md section 2.5): `ignore_ops` is a
+        # `set[vertex]` (logical_reduction.py's own constructor parameter),
+        # stored here but not queried anywhere in this codebase today --
+        # `apply` below always raises NotImplementedError before reaching
+        # the C++ `contin_reduce`/`mixed_reduce` tail (logical_rules.cc:71-77)
+        # that would test membership in it. That tail, and this field's first
+        # real `in`/`not in` use, do not exist in this port yet -- they are
+        # `contin_rules.py`/`mixed_rules.py`, PLANNED: S14 Task 4, not this
+        # task. Flagged forward rather than left silent: whoever implements
+        # that membership test MUST use a type-safe check (e.g. `any(vertex_
+        # equal(v, op) for op in ignore_ops)`, mirroring `build_knobs.py`'s
+        # own `_ignore_ops` guard), never bare `v in ignore_ops` -- a `set`
+        # hashes/compares its elements with bare `==`/`hash()`, exactly the
+        # `contin_t`/`builtin` collision `vertex_equal` exists to prevent.
         self.ignore_ops = ignore_ops
 
     def apply(self, tr: combo_tree, it: tree_node) -> None:
@@ -1280,12 +1294,28 @@ class subtree_to_enf(rule):
             matches the C++ comment's own stated assumption verbatim, not
             re-verified here.
             """
+            # FIX WAVE (S14 Task 0, CARRY-FORWARD.md section 2.5): this call was
+            # bare `tr.equal_subtree(sib1, sib2)` -- the no-predicate overload,
+            # whose default comparator is Python's `==`. C++'s own no-predicate
+            # overload (logical_rules.cc:604, `tr.equal_subtree(sib1, sib2)`)
+            # defaults to `std::equal_to<vertex>`, and `boost::variant`'s
+            # compiler-generated `operator==` never true-positives across held
+            # alternatives -- exactly what `tree.equal_subtree`'s own docstring
+            # (tree.py) says a caller of unproven-type vertex data must guard
+            # against by passing `vertex_equal` explicitly. This site sees only
+            # Boolean vertices today (logical_reduction.py's boolean-only rule
+            # sets), so the bare default was inert -- but `current`'s children
+            # become contin/builtin MIXED the moment mixed/contin reduction
+            # (S14) reaches this rule, at which point `contin_t(1.0) ==
+            # builtin.logical_true` (`True` in bare Python, `False` in real
+            # `boost::variant`) would erase a sibling that is not actually a
+            # duplicate.
             tr = self.tr
             if not tr.is_childless(current):
                 sib1 = current.first_child
                 sib2 = sib1.next_sibling
                 while sib2 is not None:
-                    if tr.equal_subtree(sib1, sib2):
+                    if tr.equal_subtree(sib1, sib2, vertex_equal):
                         sib2 = tr.erase(sib2)
                     else:
                         sib1 = sib2
