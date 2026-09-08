@@ -154,6 +154,28 @@ These cost real time to find. They are properties of the C++ side, not of the po
   any S9+ oracle that drives `hill_climbing` directly must supply a throwaway
   `representation` for `get_rep()` or hit the same crash. Do not "fix" it in
   the port; reproduce the behaviour and mark DO NOT FIX.
+- **`MOSESUTest` is S11's oracle, and it is NOT fully green in classic.**
+  Measured 2026-09-08: 23 tests, **1 fails** — `test_ps_2_parity`
+  (`moses-framework.h:169`, `fabs(result.first - expected_sc) < 1.0e-8` found
+  `1.0000 >= 0.0000`). It uses `-aps` (particle swarm), a **P2 optimizer S11
+  does not port**, so the failure is outside S11's scope. Do not chase it.
+  The 23 cases map to slices by their flags (`tests/moses/MOSESUTest.cxxtest`):
+  * **S11-usable now** (default optimizer = hill-climbing, Boolean):
+    `test_2_parity`, `test_2_parity_with_labels`, `test_3_parity_multi_thread`,
+    `test_1_mux`, `test_2_mux`, `test_it`, `test_it_target_ignore`,
+    `test_cp_simple`, `test_cp`.
+  * **P2 optimizers** (`-asa` star-anneal, `-aps` particle swarm, `-aun`
+    univariate): `test_sa_2_parity`, `test_sa_1_mux`, `test_ps_2_parity`,
+    `test_un_3_pa_multi_thread`.
+  * **P2 boosting:** `test_4_parity_boosting`, `test_5_parity_boosting`.
+  * **S14 (contin):** `test_cp_contin`, `test_sr_3`.
+  * **P2 scorers:** `test_kl`, `test_multi_kl`, `test_precision`,
+    `test_negative_predictive_value`.
+  * **S13 (CLI/output):** `test_output_labels`, `test_python_output`.
+  Note also that `MOSESUTest`'s own output prints a penalized score of
+  `-3.57142853736877441` with complexity penalty `0.571428596973419189` --
+  those are binary32 values printed at double width, independent confirmation
+  that `score_t` narrowing (4.2) is observable in classic's own output.
 - **Which classic `tests/moses` oracles actually exist.** Registered and
   active: `metapopulationUTest` (verified: builds, 2 tests, OK -- the S10
   oracle), `MOSESUTest` (the S11 end-to-end oracle), `optimizationUTest` (see
