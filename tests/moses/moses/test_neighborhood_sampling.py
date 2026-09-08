@@ -13,6 +13,13 @@ bottom of this file, against tests/fixtures/hillclimbing.json -- S9 Task 2's
 own fixture (tools/cpp_probe/hillclimbing_probe.cc), since it needs
 `instance_set`, which did not exist when this file's original oracle
 fixture was captured.
+
+S9 fix-round coverage additions (2026-09): the max_count parameter of
+`count_neighborhood_size_from_index` and the strict `<` routing boundary
+inside `sample_new_instances` were both previously untested branches --
+see `test_count_neighborhood_size_from_index_max_count_stops_recursion_early`
+and `test_sample_new_instances_takes_exhaustive_path_at_the_equality_boundary`
+below for the mutation each one pins.
 """
 
 import json
@@ -134,6 +141,65 @@ def test_safe_binomial_coefficient_k_less_than_n_returns_zero():
     # function's own docstring marker. k < n never occurs at the real call
     # site (count_neighborhood_size_from_index guards dist <= rb first).
     assert safe_binomial_coefficient(3, 4) == 0
+
+
+# --------------------------------------------------- count_neighborhood_size max_count
+
+
+def test_count_neighborhood_size_from_index_max_count_stops_recursion_early():
+    """S9 fix-round coverage: no test in this port called
+    `count_neighborhood_size_from_index` (neighborhood_sampling.cc:99) with
+    a non-default `max_count` before this one, leaving its early-stop
+    guard (neighborhood_sampling.cc:169-170, "stop prematurely if above
+    max_count") completely unpinned. This early return is NOT a pure
+    performance optimisation with an unchanged result -- it makes the
+    function return the "skip this knob" recursive sub-count ALONE,
+    omitting the additive "use this knob" term, so the returned value
+    genuinely differs (and is smaller) whenever the guard fires.
+
+    Needs a genuinely multi-valued disc field (multiplicity 3): a
+    multiplicity-2 `disc_spec` is folded into `field_set`'s bit range
+    (width == 1, see `field_set.py`'s `_build_disc_spec`/`_nbool`), which
+    takes the separate, non-recursive bit branch
+    (neighborhood_sampling.cc:172-179) that has no `max_count` guard at
+    all -- a bit-only field would silently fail to exercise this line.
+
+    C++-observable: measured directly against classic via
+    `tools/cpp_probe/hcextra_max_count_probe.cc` (5 knobs, multiplicity 3,
+    distance 3) --
+
+        g++ -O2 -std=c++17 -I $CLASSIC -I $PREFIX/include \\
+            -o tools/cpp_probe/build/hcextra_max_count_probe \\
+            tools/cpp_probe/hcextra_max_count_probe.cc \\
+            -L $PREFIX/lib -L $PREFIX/lib/opencog \\
+            -Wl,-rpath,$PREFIX/lib -Wl,-rpath,$PREFIX/lib/opencog \\
+            -lmoses -lcomboreduct -lcogutil
+        ( ulimit -v 2097152; timeout 300 ./tools/cpp_probe/build/hcextra_max_count_probe )
+
+    printed (2026-09-08, run under this session's standing OOM bound):
+    `{"begin_disc_raw_idx":0,"end_disc_raw_idx":5,"dist":3,"uncapped":80,
+    "capped":[{"max_count":1,"result":8},{"max_count":5,"result":8},
+    {"max_count":10,"result":32},{"max_count":20,"result":32},
+    {"max_count":50,"result":80},{"max_count":100,"result":80}]}` --
+    bit-identical to this port's own values below (the function is
+    deterministic; no RNG is involved).
+
+    MUTATION: delete the early-return (or force its condition `False`) --
+    verified every capped call then returns the full uncapped 80 instead
+    of 8/8/32/32/80/80. Confirmed by hand: reverting the mutation restores
+    the values asserted below.
+    """
+    fs = _mixed_fs([3, 3, 3, 3, 3])
+    inst = instance(fs.packed_width())
+    assert fs.begin_disc_raw_idx() == 0
+    assert fs.end_disc_raw_idx() == 5
+
+    uncapped = count_neighborhood_size_from_index(fs, inst, 3, 0)
+    assert uncapped == 80
+
+    expected_by_cap = {1: 8, 5: 8, 10: 32, 20: 32, 50: 80, 100: 80}
+    for cap, expected in expected_by_cap.items():
+        assert count_neighborhood_size_from_index(fs, inst, 3, 0, cap) == expected
 
 
 # ------------------------------------------------------------- generate_initial_sample
@@ -368,3 +434,51 @@ def test_sample_new_instances_grows_deme_in_place():
     returned = sample_new_instances(None, 5, 4, center, deme, 1)
     assert returned == 5
     assert len(deme) == 9  # 4 pre-existing + 5 new, not replaced/truncated
+
+
+def test_sample_new_instances_takes_exhaustive_path_at_the_equality_boundary():
+    """S9 fix-round coverage: pins neighborhood_sampling.cc:230's `if
+    (number_of_new_instances < total_number_of_neighbours)` -- STRICTLY
+    less-than -- as the routing condition between the RNG-sampling branch
+    (`sample_from_neighborhood`) and the exhaustive branch
+    (`generate_all_in_neighborhood`). No existing test exercises the exact
+    equality boundary (`number_of_new_instances == total_number_of_
+    neighbours`), where the two branches disagree: at strict equality the
+    correct code must take the EXHAUSTIVE, deterministic branch (there is
+    nothing left to sample), not draw via RNG.
+
+    Both underlying functions are independently oracle-verified elsewhere
+    in this file (`test_deterministic_matches_cpp`,
+    `test_sample_from_neighborhood_matches_cpp`) -- this test does not
+    re-derive their fidelity, only that `sample_new_instances` ROUTES to
+    the right one of the two at this exact boundary, by comparing its
+    output at the boundary against a direct, independent call to
+    `generate_all_in_neighborhood` for the identical (fs, dist, center,
+    total) inputs.
+
+    MUTATION (`<` -> `<=`): verified this routes the equality case into
+    the RNG-sampling branch instead, consuming `randGen()` and producing a
+    result that no longer matches the exhaustive enumeration (measured
+    directly, same seed: `[(0,0,1),(1,0,0),(2,0,0),(3,0,0),(0,1,0),
+    (0,2,0)]` from the correct/exhaustive path vs `[(0,2,0),(0,0,1),
+    (2,0,0),(0,1,0),(0,1,0),(0,2,0)]` -- note the repeated `(0,1,0)` --
+    from the mutated/sampling path). Confirmed by hand: reverting the
+    mutation restores the match asserted below.
+    """
+    fs = _mixed_fs([2, 3, 4])
+    center = instance(fs.packed_width())
+    total = count_neighborhood_size(fs, 1, inst=center)
+    assert total == 6  # (multy-1) summed over the 3 knobs: 1 + 2 + 3
+
+    randGen().seed(5)
+    deme = instance_set(0, fs)
+    returned = sample_new_instances(total, total, 0, center, deme, 1)
+    assert returned == total
+    assert len(deme) == total
+
+    expected: list[instance] = []
+    generate_all_in_neighborhood(fs, 1, expected, total, center_inst=center)
+
+    got = [_raw_tuple(fs, si.first) for si in deme]
+    want = [_raw_tuple(fs, inst) for inst in expected]
+    assert got == want
