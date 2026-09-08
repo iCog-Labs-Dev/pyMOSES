@@ -473,6 +473,37 @@ Whoever next touches the manifest schema should add the toolchain fields. Until
 then, treat an unexplained `test_crossover.py` failure after a system upgrade
 as a suspected toolchain change, not a port regression.
 
+### 5.2 The 13-vs-17 deme size was a REAL divergence, waived twice
+
+Worth recording as a process failure, because two rounds of scrutiny let it
+through.
+
+S10 Task 3 measured its merge probe matching classic on trees, order, scores,
+`best_composite_score`, `best_tree` and return value — but **deliberately did
+not assert** one field: an intermediate deme size of 13 (C++) vs 17 (port). It
+waived that as harmless tie-order, since `deme_to_trees` dedups by tree.
+
+I checked the argument and accepted it. S10's branch review then measured the
+generalisation false — tie-order *does* decide which distinct trees survive
+once `keep_top_unique_candidates` truncates — but concluded the waiver was
+still "right for its scenario". **Both of us were wrong about the cause.**
+
+S12 disproved the underlying premise for `std::partial_sort`, and a follow-up
+investigation disproved it for `sort_demes`' own `std::sort` too: libstdc++'s
+introsort matches a stable sort only for `n <= 16` (`_S_threshold`) and
+measurably reorders ties above it. 17 all-tied elements give
+`[8,16,15,14,13,12,11,10,9,0,7,6,5,4,3,2,1]`, not `[0..16]` — and `n > 16` is
+the ordinary deme size, not an edge case.
+
+Porting libstdc++'s real introsort makes the port produce **13, exactly
+matching classic**. Proven by mutation: restoring `deme.sort(reverse=True)`
+gives `assert 17 == 13`.
+
+**The lesson is the one I stated at the time and then did not act on: a
+deliberately-unasserted field is exactly where a real divergence hides.** An
+unasserted mismatch should be treated as an open finding until its cause is
+identified — not until an argument for its harmlessness sounds convincing.
+
 ## 6. Process notes that paid for themselves
 
 - **Prove a guard fires.** Requiring "revert it and show the test fail" caught a
