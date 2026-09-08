@@ -35,9 +35,13 @@ then silently mutate every other, the same aliasing-defect shape S8 hit in
 # (optimizationUTest.cxxtest) alike -- uses `composite_score`; grepping the
 # whole classic tree for `scored_instance<` turns up no other type argument.
 #
-# DIVERGENCE(C++ opencog/util/functional.h:41-42): the generic
-# `template<class T1, class T2> scored_instance(const std::pair<T1, T2>&)`
-# conversion overload is dropped. `git grep 'scored_instance('` over
+# DIVERGENCE(C++ moses/moses/representation/scored_instance.h:41-42): the
+# generic `template<class T1, class T2> scored_instance(const std::pair<T1,
+# T2>&)` conversion overload is dropped (a prior version of this note cited
+# `opencog/util/functional.h:41-42` -- wrong repo ($COGUTIL instead of
+# $CLASSIC) AND wrong file; the ctor this DIVERGENCE is about is
+# `scored_instance`'s own, in `scored_instance.h`, correctly cited at
+# `__init__`'s own docstring below). `git grep 'scored_instance('` over
 # classic's `moses/` and `tests/` finds zero explicit constructor calls
 # anywhere -- every scored_instance in the real codebase is built implicitly
 # by `std::vector`'s own fill/copy machinery (see instance_set.py's module

@@ -26,9 +26,8 @@ from __future__ import annotations
 import math
 
 from pymetta.moses.moses.types import _to_score_t as _narrow
-from pymetta.moses.moses.types import score_t
+from pymetta.moses.moses.types import demeID_t, score_t
 from pymetta.moses.representation.field_set import field_set
-from pymetta.moses.representation.instance_set import demeID_t
 from pymetta.moses.representation.instance_set import instance_set as deme_t
 from pymetta.moses.representation.scored_instance import scored_instance as deme_inst_t
 

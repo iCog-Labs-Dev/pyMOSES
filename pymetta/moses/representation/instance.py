@@ -41,13 +41,21 @@ _PACKED_MASK = (1 << bits_per_packed_t) - 1
 # scored_instance<ScoreT>>` (instance_set.h:52), not an unordered_map/
 # unordered_set keyed on `instance` or anything containing one. Searching
 # the ENTIRE classic tree (`grep -rn 'unordered_map\|unordered_set'
-# moses/ tests/`, both narrowly for "instance" nearby and broadly for any
-# hit at all near a `scored_instance`/`instance_set`/`iscorer_base` name)
-# finds exactly one match: the hash specialization's own comment line,
-# instance.h:48. No unordered_map/unordered_set anywhere in classic MOSES
-# -- moses/, feature-selection/, or tests/ -- is ever keyed on `instance`
-# (or on `scored_instance`, which has no hash specialization of its own
-# either). The specialization is dead code in the upstream sources this
+# moses/ tests/`) finds 11 hits across 6 files -- NOT "exactly one match"
+# (a claim this note used to make and a prior review round disproved by
+# re-running the same grep): `types.h:32,370` (an `#include` plus a
+# `scored_combo_tree`-keyed `unordered_set` typedef),
+# `metapopulation.h:31-32,381,553` (`#include`s plus a `ptr_pair`-keyed
+# map and another `scored_combo_tree`-keyed one), `flat_normal_form.h:31,
+# 103` (an `#include` plus an `int`-keyed map), `feature-selection.h:228`
+# (a comment), `vertex.h:802` (a comment), and `instance.h:48` itself (the
+# hash specialization's own comment). What the "no container keyed on
+# instance" conclusion below actually rests on is reading each of those
+# 11 hits by hand, not the hit count: NONE of them is a container keyed
+# on `instance` (or on `scored_instance`, which has no hash specialization
+# of its own either) -- every real unordered_map/unordered_set in classic
+# MOSES is keyed on `scored_combo_tree`, `ptr_pair`, or `int`. The
+# specialization is dead code in the upstream sources this
 # fork tracks: written to make `instance` hashable, never actually used
 # for that purpose anywhere the code that would need it ships. `instance`
 # therefore stays deliberately unhashable here -- not because hashing it

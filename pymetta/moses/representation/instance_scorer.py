@@ -15,6 +15,7 @@ functor through them).
 
 from __future__ import annotations
 
+import copy
 from abc import ABC, abstractmethod
 
 from pymetta.comboreduct.combo.vertex import combo_tree
@@ -67,9 +68,17 @@ class distance_based_scorer(iscorer_base):
         `hamming_distance` returns a signed C++ `int`, so this is a plain
         signed negation, not an unsigned wraparound. `score_t sc = ...`
         narrows the negated distance to `score_t` at the point of
-        assignment -- one of this task's own new narrowing sites, in the
-        same spirit as the fourteen `types.py`'s module docstring already
-        traces.
+        assignment -- a narrowing site in the same textual shape as the
+        fourteen `types.py`'s module docstring traces, but UNLIKE those,
+        not one with any demonstrated (or demonstrable) observable effect:
+        `score_t` (float32) represents every integer up to 2**24 exactly,
+        so this narrowing would only ever lose precision for a Hamming
+        distance of at least 2**24 -- i.e. a `field_set` with over 16
+        million raw fields, wildly outside anything this port's fidelity
+        suite (or classic's own test suite) ever constructs. Ported for
+        the same reason the other thirteen sites are -- matching C++'s own
+        `score_t` assignment, not because a difference has been found or
+        is expected here.
         """
         # DIVERGENCE(C++ moses/moses/representation/instance_scorer.h:55-60):
         # classic logs the evaluated instance and score at FINE level
@@ -130,4 +139,24 @@ class complexity_based_scorer(iscorer_base):
             tr: combo_tree = self._rep.get_candidate(inst, self._reduce)
             return self._cscorer.get_cscore(tr)
         except Exception:
-            return worst_composite_score
+            # DIVERGENCE(C++ moses/moses/representation/instance_scorer.h:
+            # 96, and moses/moses/moses/types.cc:112): `return
+            # worst_composite_score;` returns `composite_score` BY VALUE
+            # from a `const` global (`virtual composite_score
+            # operator()(const instance&) const`) -- every caller gets its
+            # own independent copy. `worst_composite_score` here is a
+            # plain Python module-level object (types.py:535); returning
+            # it bare would hand back the SAME shared singleton to every
+            # caller. That was inert while every caller only rebound the
+            # result, but `composite_score.set_score`/
+            # `set_uniformity_penalty` mutate a `composite_score` in
+            # place, and S10's metapopulation does exactly that -- so a
+            # bare return would let one caller's mutation corrupt every
+            # other caller's "worst score" AND the singleton itself,
+            # silently breaking `composite_score() ==
+            # worst_composite_score` everywhere else in the process.
+            # `copy.copy` is a full value copy here: `composite_score`
+            # holds only plain float/int fields (the same reasoning
+            # `scored_instance.py`'s module docstring gives for copying a
+            # `composite_score` via `copy.copy`).
+            return copy.copy(worst_composite_score)

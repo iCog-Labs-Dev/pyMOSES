@@ -24,13 +24,41 @@ attempting them), not this task.
 
 NOT ported (pure logging, no observable effect on `deme`/return values --
 see `optimization.py`'s module docstring for the same class of omission):
-`log_stats_legend` (hill-climbing.cc:825-843), every `logger()` call inside
-`operator()` itself (the "Search started from"/"Instance:"/"Crossover
-enabled"/"Crossover disabled"/"Best score:"/"Terminate Local Search: ..."
-lines, and the `hc_params.prefix_stat_deme` deme-statistics line at
-hill-climbing.cc:381-397), and the `#ifdef GATHER_STATS` block
+`log_stats_legend` (hill-climbing.cc:825-843), the "Crossover enabled"/
+"Crossover disabled"/"Best score:"/"Terminate Local Search: ..." `logger()`
+calls inside `operator()` (hill-climbing.cc:162,184,362,415,421,430,462,470,
+478), the `hc_params.prefix_stat_deme` deme-statistics line at
+hill-climbing.cc:381-397, and the `#ifdef GATHER_STATS` block
 (hill-climbing.cc:291-322, dead code by construction -- see
 `optimization.py`'s module docstring).
+
+# DIVERGENCE(C++ moses/moses/optimization/hill-climbing.cc:69,271,278 and
+# hill-climbing.h:267) / DO NOT FIX: the "Search started from"/"Instance:"
+# `logger().debug() << ...` calls (also dropped, alongside the ones above)
+# are NOT in the same "no observable effect" class -- each one
+# unconditionally evaluates `iscorer.get_rep()->get_candidate(inst, true)`
+# as a plain chained-`<<` argument BEFORE the stream chain's own log-level
+# check can skip anything, and `iscorer_base::get_rep()` (instance_scorer.
+# h:40) defaults to returning `nullptr`, which `distance_based_scorer`
+# (instance_scorer.h:49) never overrides. So in classic, EVERY run of
+# `hill_climbing::operator()` (either overload) with a scorer whose
+# `get_rep()` is null -- `distance_based_scorer` is exactly that --
+# NULL-POINTER-DEREFERENCES on the very first iteration, unconditionally,
+# regardless of configured log level. This is not a corner case:
+# `tests/moses/optimizationUTest.cxxtest`'s own `test_hc`, classic's own
+# REGISTERED unit test, constructs precisely `distance_based_scorer` +
+# `hill_climbing` this way and CORE-DUMPS at hill-climbing.cc:69 (confirmed
+# by building and running it directly -- see docs/CARRY-FORWARD.md and
+# `tools/cpp_probe/hillclimbing_probe.cc`'s own file-header LANDMINE note,
+# which works around it with a throwaway non-null `get_rep()`). This port
+# has no logging surface at all (dropped uniformly, see above), so it never
+# evaluates these `get_candidate()` calls and therefore never crashes here
+# -- `tests/moses/moses/optimization/test_hill_climbing.py:152-164` asserts
+# exactly this success for a `distance_based_scorer` run that would
+# core-dump in classic. Kept as the port's behaviour: DO NOT "fix" this by
+# reproducing the crash, and do not re-describe it as merely dropped
+# logging with no effect -- the C++ behaviour it replaces is a crash, not a
+# no-op.
 """
 
 from __future__ import annotations
@@ -66,26 +94,78 @@ _MIN_TO_KEEP = 20  # hill-climbing.cc:769 MIN_TO_KEEP
 # a module constant here since nothing else about it varies per call.
 _XOVER_MIN_DEME = 3
 
+# Not itself a ported C++ symbol -- `sizeof(instance)` (hill-climbing.cc:72,
+# 577's own `_instance_bytes = sizeof(instance) + sizeof(packed_t) *
+# fields.packed_width();`) has no Python analogue, but `instance` is
+# `std::vector<packed_t>` (instance.h:43) and `packed_t` is `unsigned long`
+# (instance.h:34, pinned 64-bit -- see instance.py), so `sizeof(instance)`
+# is exactly `sizeof(std::vector<unsigned long>)`: measured directly on the
+# same 64-bit libstdc++ ABI instance.py's own DIVERGENCE note pins --
+# 24 bytes (three 8-byte pointers: begin/end/capacity), independent of
+# `packed_width()`. Used only by `_instance_bytes` below, itself dormant
+# behind `resize_to_fit_ram=False` for the same reason `_get_total_ram_
+# bytes` gives.
+_SIZEOF_INSTANCE_BYTES = 24
+
+# DIVERGENCE(C++ moses/moses/optimization/hill-climbing.cc:541): `size_t
+# nleft = max_evals - current_number_of_evals;` -- see `n_new_instances`
+# below for why this mask exists and is load-bearing, not decorative.
+# Pinned to the same 64-bit ABI `instance.py`'s `packed_t`/`_PACKED_MASK`
+# and `neighborhood_sampling.py`'s `_SIZE_T_MAX` already commit to.
+_SIZE_T_MAX = (1 << 64) - 1
+
 
 def _get_total_ram_bytes() -> int:
     """Not itself a ported C++ symbol -- stands in for cogutil's
-    `getTotalRAM()` (declared in `opencog/util/misc.h`, out of this port's
-    scope: cogutil's own platform-RAM-query helpers are not ported
-    anywhere in this project). Used only to compute
-    `hill_climbing._total_RAM_bytes`, which in turn feeds ONLY the
-    `hc_params.resize_to_fit_ram` branches below -- `resize_to_fit_ram`
-    defaults to `False` (matching C++'s own `hc_parameters` default,
-    hill-climbing.h:50) and no test in this port's fidelity suite enables
-    it, since (per hill-climbing.h:119-124's own comment) it makes a run's
-    behaviour depend on the installed RAM of the machine it happens to run
-    on -- the opposite of the bit-identical reproducibility this whole
-    slice exists to prove. Best-effort via `os.sysconf`; falls back to a
-    generous fixed sentinel on any platform where those keys are absent
-    (`os.sysconf` itself is POSIX-only and can raise `ValueError` for an
-    unrecognized key).
+    `getTotalRAM()` (`$COGUTIL/opencog/util/platform.cc:131-135`,
+    `getpagesize() * sysconf(_SC_PHYS_PAGES)`; cogutil's own platform-RAM-
+    query helpers are otherwise out of this port's scope). Used ONLY to
+    compute `hill_climbing._total_RAM_bytes` (the TOTAL-RAM half of the
+    `hc_params.resize_to_fit_ram` branches below) -- for the FREE-RAM half,
+    see `_get_free_ram_bytes` below; the two are NOT interchangeable, and
+    conflating them was a real bug this fix round corrected (see that
+    function's own docstring). `resize_to_fit_ram` defaults to `False`
+    (matching C++'s own `hc_parameters` default, hill-climbing.h:50) and no
+    test in this port's fidelity suite enables it, since (per
+    hill-climbing.h:119-124's own comment) it makes a run's behaviour
+    depend on the installed RAM of the machine it happens to run on -- the
+    opposite of the bit-identical reproducibility this whole slice exists
+    to prove. Best-effort via `os.sysconf`; falls back to a generous fixed
+    sentinel on any platform where those keys are absent (`os.sysconf`
+    itself is POSIX-only and can raise `ValueError` for an unrecognized
+    key).
     """
     try:
         return os.sysconf("SC_PAGE_SIZE") * os.sysconf("SC_PHYS_PAGES")
+    except (ValueError, OSError, AttributeError):
+        return 1 << 34  # 16 GiB fallback
+
+
+def _get_free_ram_bytes() -> int:
+    """Not itself a ported C++ symbol -- stands in for cogutil's
+    `getFreeRAM()` on the Linux path actually exercised here
+    (`$COGUTIL/opencog/util/platform.cc:137-141`, `getpagesize() *
+    sysconf(_SC_AVPHYS_PAGES)` -- "AVailable PHYSical pages", distinct
+    from `_SC_PHYS_PAGES`'s TOTAL physical pages that
+    `_get_total_ram_bytes` above queries). `platform.cc` also has a
+    non-Linux branch (`:115-118`, `getTotalRAM() - getMemUsage()`) that is
+    not reproduced here -- out of scope the same way the rest of
+    `platform.cc` is (see `_get_total_ram_bytes`'s own docstring).
+
+    Used ONLY by `n_new_instances`'s `hc_params.resize_to_fit_ram` branch
+    (hill-climbing.cc:577's own `getFreeRAM()` call) to cap
+    `number_of_new_instances` against actually-available RAM rather than
+    installed RAM -- conflating the two (an earlier version of this file
+    called `_get_total_ram_bytes` here instead) makes `free_ram == total`
+    always, which always picks `ACCEPTABLE_RAM_FRACTION * total` over
+    `MAX_RAM_LIMIT * free` in the `min(...)` two lines below, silently
+    discarding the free-RAM half of that cap entirely. Dormant behind
+    `resize_to_fit_ram=False` for the exact reproducibility reason
+    `_get_total_ram_bytes` gives. Best-effort via `os.sysconf`, same
+    fallback convention as `_get_total_ram_bytes`.
+    """
+    try:
+        return os.sysconf("SC_PAGE_SIZE") * os.sysconf("SC_AVPHYS_PAGES")
     except (ValueError, OSError, AttributeError):
         return 1 << 34  # 16 GiB fallback
 
@@ -204,14 +284,38 @@ class hill_climbing(optimizer_base):
         if number_of_new_instances > self.hc_params.max_nn_evals:
             number_of_new_instances = self.hc_params.max_nn_evals
 
-        # avoid overflow. (hill-climbing.cc:540-541's own comment: the
-        # subtraction is only ever reached with current_number_of_evals <
-        # max_evals -- the loop that calls n_new_instances always breaks
-        # first via `if (max_evals <= current_number_of_evals) break;`,
-        # hill-climbing.cc:413-417 -- so this never actually underflows in
-        # a reachable call; not special-cased for that unreached case,
-        # matching `safe_binomial_coefficient`'s own precedent.)
-        nleft = max_evals - current_number_of_evals
+        # DIVERGENCE(C++ moses/moses/optimization/hill-climbing.cc:540-541):
+        # `size_t nleft = max_evals - current_number_of_evals;` -- despite
+        # the "avoid overflow" comment there, this is exactly where C++
+        # OVERFLOWS: `max_evals` (`unsigned`) promotes to `size_t` for the
+        # subtraction, so `max_evals < current_number_of_evals` WRAPS to a
+        # huge unsigned value rather than clamping to zero or going
+        # negative. This is REACHABLE, not merely a theoretical corner
+        # case: the caller's `if (max_evals <= current_number_of_evals)
+        # break;` guard (hill-climbing.cc:413-417) is skipped on the very
+        # first "distance 0 -> 1" transition by the earlier `if
+        # (number_of_new_instances == 1 && distance == 1) continue;`
+        # (hill-climbing.cc:408-409, mirrored by this port's own matching
+        # `continue` further down in `__call__`), so a second call to
+        # `n_new_instances` can and does land with `current_number_of_evals
+        # > max_evals` already true -- e.g. `hill_climbing()(deme,
+        # distance_based_scorer(fs, target), max_evals=0, 86400)` on a
+        # 3-knob `field_set` reaches exactly this call with `(distance=1,
+        # max_evals=0, current_number_of_evals=1, total_number_of_
+        # neighbors=6)`. Measured directly against classic's own
+        # arithmetic (a standalone probe reproducing this function's exact
+        # `size_t`/`unsigned` types, not merely reasoned about):
+        # `n_new_instances(distance=1, max_evals=1,
+        # current_number_of_evals=3, total_number_of_neighbors=6)` == the
+        # wrapped `nleft` feeding `min(nleft, MINIMUM_DEME_SIZE)` two lines
+        # below, giving **100** -- not a crash, not zero, and not what an
+        # unbounded Python `int` subtraction produces (a plain negative
+        # value, measured as -2 for that same call before this mask was
+        # added). Python ints don't overflow on their own, so reproducing
+        # the wrap requires this explicit mask; DO NOT clamp to 0 instead
+        # -- that would silently "fix" a real, reachable upstream bug
+        # rather than port it, and would not reproduce the measured 100.
+        nleft = (max_evals - current_number_of_evals) & _SIZE_T_MAX
 
         if number_of_new_instances < _MINIMUM_DEME_SIZE:
             number_of_new_instances = min(nleft, _MINIMUM_DEME_SIZE)
@@ -222,7 +326,12 @@ class hill_climbing(optimizer_base):
         if self.hc_params.resize_to_fit_ram:
             new_usage = self._instance_bytes * number_of_new_instances
             if _ACCEPTABLE_RAM_FRACTION * self._total_RAM_bytes < new_usage:
-                free_ram = _get_total_ram_bytes()  # see _get_total_ram_bytes's own DIVERGENCE
+                # C++: hill-climbing.cc:577 `uint64_t free_ram = getFreeRAM();`
+                # -- see `_get_free_ram_bytes`'s own docstring for why this
+                # is NOT `_get_total_ram_bytes` (that was a real bug here,
+                # since fixed: with free==total, the `min(...)` below always
+                # took the ACCEPTABLE_RAM_FRACTION arm).
+                free_ram = _get_free_ram_bytes()
                 cap = min(
                     _ACCEPTABLE_RAM_FRACTION * self._total_RAM_bytes, _MAX_RAM_LIMIT * free_ram
                 )
@@ -346,9 +455,14 @@ class hill_climbing(optimizer_base):
 
         fields = deme.fields()
 
-        # sizeof(instance) has no Python analogue; only resize_to_fit_ram
-        # (off by default, see _get_total_ram_bytes) reads this value.
-        self._instance_bytes = 8 * (1 + fields.packed_width())
+        # C++: hill-climbing.cc:72 `_instance_bytes = sizeof(instance) +
+        # sizeof(packed_t) * fields.packed_width();` -- see
+        # `_SIZEOF_INSTANCE_BYTES`'s own docstring for the `sizeof(instance)`
+        # measurement. This was previously `8 * (1 + fields.packed_width())`
+        # here, i.e. `8 + 8w` instead of the correct `24 + 8w` -- a real
+        # divergence, since fixed. Only `resize_to_fit_ram` (off by default,
+        # see `_get_total_ram_bytes`) reads this value.
+        self._instance_bytes = _SIZEOF_INSTANCE_BYTES + 8 * fields.packed_width()
 
         current_number_of_evals = 0
         current_number_of_instances = 0
