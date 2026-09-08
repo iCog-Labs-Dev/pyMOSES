@@ -62,7 +62,7 @@ from __future__ import annotations
 from collections.abc import Callable
 
 from pymetta.comboreduct.combo.vertex import combo_tree
-from pymetta.comboreduct.type_checker.type_signature import TypeSignature
+from pymetta.comboreduct.type_checker.type_signature import TypeSignature, type_node
 from pymetta.moses.deme.deme_params import deme_parameters
 from pymetta.moses.metapopulation.metapop_params import subsample_deme_filter_parameters
 from pymetta.moses.moses.optimization.optimization import optimizer_base
@@ -264,14 +264,37 @@ class deme_expander:
                 "deme_parameters with perceptions=None, actions=None (the "
                 "defaults)."
             )
-        if self._params.linear_contin is not True:
+        # DIVERGENCE(C++ moses/moses/representation/build_knobs.cc:859):
+        # `linear_contin` is read at EXACTLY ONE place, `if (!_linear_contin)`
+        # inside contin knob building, where it selects `rec_canonize`'s
+        # non-linear expansion. `build_knobs` dispatches on the signature's
+        # OUTPUT TYPE, so a Boolean run never reaches that line and the flag is
+        # irrelevant to it.
+        #
+        # This guard used to fire unconditionally, which was wrong in a way the
+        # CLI made reachable. `deme_parameters`'s own struct default is
+        # `linear_contin(true)` (deme_params.h:49), but the CLI's
+        # `--linear-regression` defaults to FALSE (problem-params.cc:292) and is
+        # assigned unconditionally (`deme_params.linear_contin =
+        # linear_regression`, :2264). So a plain `-H it` run on a BOOLEAN table
+        # -- which classic handles fine, never reading the flag -- would have
+        # raised here. Found by S13 Task 1 while wiring the CLI.
+        #
+        # Narrowed to the case C++ actually uses it: a contin output type. That
+        # is already rejected by `build_knobs._validate_request` two layers
+        # down, so this raise now only ever adds a clearer message at the call
+        # site, never a false rejection.
+        if (
+            self._params.linear_contin is not True
+            and self._type_sig.otype is not type_node.boolean_type
+        ):
             raise NotImplementedError(
                 "deme_expander.create_representations: linear_contin=False "
-                "(deme_params.h:49) selects contin_reduce's non-linear "
-                "knob-building path; this port's representation() has no "
-                "contin knob-building at all (Boolean-only) and cannot "
-                "honour a non-default linear_contin. Leave "
-                "deme_parameters.linear_contin at True (the default)."
+                "selects the non-linear contin knob-building path "
+                "(build_knobs.cc:859's `if (!_linear_contin)` -> rec_canonize); "
+                "this port has no contin knob-building at all (Boolean-only). "
+                "A Boolean signature never reads this flag, so it is only "
+                "rejected for a contin/action output type."
             )
 
         ignore_ops_seq = [self._params.ignore_ops]

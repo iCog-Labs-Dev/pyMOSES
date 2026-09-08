@@ -331,17 +331,29 @@ def test_create_representations_raises_when_actions_is_set():
         dex.create_representations(str_to_combo_tree("and()"))
 
 
-def test_create_representations_raises_when_linear_contin_is_false():
-    """`linear_contin` has no constructor parameter (deme_params.h:49's
-    initializer-list-only default, `True`) -- set as a plain attribute,
-    matching deme_parameters' own constructor docstring.
+def test_linear_contin_false_is_accepted_on_a_boolean_signature():
+    """`linear_contin=False` must NOT raise for a Boolean run.
+
+    This test previously asserted the opposite, and that was wrong in a way
+    the CLI made reachable. `linear_contin` is read at exactly one place in
+    classic -- `if (!_linear_contin)` at build_knobs.cc:859, inside CONTIN
+    knob building -- and `build_knobs` dispatches on the signature's output
+    type, so a Boolean run never reads it.
+
+    Meanwhile `deme_parameters`' struct default is `linear_contin(true)`
+    (deme_params.h:49), but the CLI's `--linear-regression` defaults to
+    FALSE (problem-params.cc:292) and is assigned unconditionally
+    (`deme_params.linear_contin = linear_regression`, :2264). So a plain
+    `-H it` run on a Boolean table -- which classic handles fine -- would
+    have hit the old unconditional raise. Found by S13 Task 1 while wiring
+    the CLI.
     """
     params = deme_parameters()
     params.perm_ratio = -1.0
     params.linear_contin = False
     dex = _dex_with(params)
-    with pytest.raises(NotImplementedError):
-        dex.create_representations(str_to_combo_tree("and()"))
+    # No raise: the Boolean path never consults the flag.
+    dex.create_representations(str_to_combo_tree("and()"))
 
 
 def test_create_representations_does_not_raise_at_the_defaults():
