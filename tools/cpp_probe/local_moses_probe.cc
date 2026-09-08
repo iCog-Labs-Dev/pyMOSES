@@ -29,13 +29,25 @@
 // `premature_termination` (local_moses.cc:128, always `false` on entry).
 // The latter would only matter if some earlier `expand_deme()` call had
 // returned `true` (metapopulation went empty, or every exemplar failed to
-// expand) -- this probe's own scenario avoids that: `advanced` in the
-// JSON output below is `true` only when `stats.n_expansions` increased by
-// EXACTLY one relative to the previous generation, and this probe's own
-// measured run confirms `advanced` is `true` for every one of its
-// generations, so `premature_termination` never actually fired here and
-// this repeated-call construction reproduces exactly what one continuous
-// `local_moses(..., max_gens=N, ...)` call would have done.
+// expand).
+//
+// `advanced` in the JSON output below (`true` when `stats.n_expansions`
+// increased by EXACTLY one relative to the previous generation) does NOT
+// settle whether that happened: `expand_deme()` increments `stats.
+// n_expansions` (local_moses.cc:80) BEFORE computing and returning `done
+// || mp.empty()` (local_moses.cc:92), so a call that DOES terminate
+// prematurely still advances `n_expansions` by exactly one first --
+// `advanced == true` every generation is consistent with EITHER outcome
+// and does not, by itself, prove `premature_termination` never fired.
+// This was measured directly instead: `local_moses_single_call_probe.cc`
+// runs the IDENTICAL scenario as a single `local_moses(..., max_gens=5,
+// ...)` call rather than five max_gens-bumped-by-one calls, and gives
+// BYTE-FOR-BYTE the same final state this probe's own `gen:5` line
+// reports -- `n_expansions=5, n_evals=113, metapop_size=20`, the same
+// `best_composite_score`, and the same `best_tree`. That measured
+// equality, not the `advanced` argument above, is what establishes this
+// repeated-call construction reproduces one continuous
+// `local_moses(..., max_gens=N, ...)` call.
 //
 // Build:
 //   P=$HOME/opt/moses-legacy
@@ -45,7 +57,16 @@
 //       tools/cpp_probe/local_moses_probe.cc \
 //       -L "$P/lib" -L "$P/lib/opencog" \
 //       -Wl,-rpath,"$P/lib" -Wl,-rpath,"$P/lib/opencog" \
-//       -lmoses -lcomboreduct -lcogutil
+//       -lmoses -lcomboreduct -lcogutil -lboost_program_options
+//
+// `-lboost_program_options` is REQUIRED, not optional: `libmoses.so` pulls
+// in `problem-params.cc`'s `boost::program_options::variables_map`
+// machinery transitively, and this is the one probe in this directory
+// that actually reaches something depending on it at link time -- without
+// it, `ld` fails with "undefined reference to symbol
+// '_ZN5boost15program_options13variables_mapC1Ev'" /
+// "DSO missing from command line" (measured directly: the recipe as
+// previously written did not link at all).
 //
 // Run, bounded (CARRY-FORWARD.md's standing OOM-safety rule):
 //   ( ulimit -v 2097152; timeout 300 tools/cpp_probe/build/local_moses_probe )
