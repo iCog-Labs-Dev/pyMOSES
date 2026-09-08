@@ -299,7 +299,7 @@ def _type_to_exemplar(output_type: type_node) -> combo_tree:
 
 # ---------------------------------------------------------------------------
 # even_parity / disjunction / multiplex / majority --
-# moses/moses/example-progs/scoring_iterators.h. Not ported anywhere else in
+# examples/example-progs/scoring_iterators.h. Not ported anywhere else in
 # this project (grepped) -- reimplemented here over a plain `list[bool]`,
 # which is all `_iterator_function_truth_table` ever feeds them (unlike
 # `complete_truth_table`'s own tree-based `_populate`, table.py, which
@@ -311,7 +311,7 @@ def _type_to_exemplar(output_type: type_node) -> combo_tree:
 
 
 def even_parity(bits: Sequence[bool]) -> bool:
-    """C++: moses/moses/example-progs/scoring_iterators.h:44 even_parity
+    """C++: examples/example-progs/scoring_iterators.h:44 even_parity
 
     "even_parity(x1, ..., xn) = true iff (int)x1 + ... + (int)xn is even"
     (scoring_iterators.h:42-43's own comment) -- `parity ^= b` over every
@@ -324,7 +324,7 @@ def even_parity(bits: Sequence[bool]) -> bool:
 
 
 def disjunction(bits: Sequence[bool]) -> bool:
-    """C++: moses/moses/example-progs/scoring_iterators.h:56 disjunction
+    """C++: examples/example-progs/scoring_iterators.h:56 disjunction
 
     "disjunction(x1, ..., xn) = true iff there exists i such that xi is
     true" (scoring_iterators.h:55's own comment).
@@ -333,7 +333,7 @@ def disjunction(bits: Sequence[bool]) -> bool:
 
 
 class multiplex:
-    """C++: moses/moses/example-progs/scoring_iterators.h:68 multiplex
+    """C++: examples/example-progs/scoring_iterators.h:68 multiplex
 
     "multiplex(a1, ..., an, d1, ..., dm) = 1 iff m = 2^n and di = 1 if i
     is the address of the string bit described by a1, ..., an."
@@ -356,7 +356,7 @@ class multiplex:
 
 
 class majority:
-    """C++: moses/moses/example-progs/scoring_iterators.h:94 majority
+    """C++: examples/example-progs/scoring_iterators.h:94 majority
 
     "majority(x1, ..., xn) = 0 iff n/2 or more arguments are false"
     (scoring_iterators.h:93's own comment) -- ported as the literal
