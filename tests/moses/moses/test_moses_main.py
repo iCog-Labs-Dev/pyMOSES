@@ -4,9 +4,13 @@ Three layers, in order:
 
 1. Pure unit tests of `adjust_termination_criteria`/`autoscale_diversity`
    and every gate (`run_moses`'s mpi/distributed branches,
-   `metapop_moses_results_b`'s non-"hc" optimizer branch,
-   `metapop_moses_results`'s SS-fitness branch) -- fast, in-memory
-   `CTable`s, no file I/O, no dependency on `local_moses` being ready.
+   `metapop_moses_results_b`'s UNRECOGNISED-optimizer branch,
+   `metapop_moses_results`'s SS-fitness branch, `metapop_printer`'s
+   `output_demeID`) -- fast, in-memory `CTable`s, no file I/O, no
+   dependency on `local_moses` being ready. Note "unrecognised", not
+   "non-hc": all four names classic recognises (`hc`/`sa`/`un`/`ps`) now
+   construct a real optimizer, which the parametrised dispatch test
+   below asserts BY TYPE.
 
 2. A wiring/integration test that drives the REAL `metapop_moses_results`
    through a FAKE `local_moses` (injected into `sys.modules`, undone by
@@ -56,8 +60,11 @@ from pymetta.moses.metapopulation.metapopulation import metapopulation
 from pymetta.moses.moses import moses_main
 from pymetta.moses.moses.moses_main import metapop_printer
 from pymetta.moses.moses.moses_params import moses_parameters, moses_statistics
-from pymetta.moses.moses.optimization.hill_climbing import hc_parameters
+from pymetta.moses.moses.optimization.hill_climbing import hc_parameters, hill_climbing
 from pymetta.moses.moses.optimization.optimization import optim_parameters
+from pymetta.moses.moses.optimization.particle_swarm import particle_swarm
+from pymetta.moses.moses.optimization.star_anneal import simulated_annealing
+from pymetta.moses.moses.optimization.univariate import univariate_optimization
 from pymetta.moses.moses.types import (
     _to_score_t,
     composite_score,
@@ -284,20 +291,40 @@ def test_autoscale_diversity_reads_autoscale_only_when_enabled():
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.parametrize("opt_algo", ["hc", "sa", "un", "ps"])
-def test_metapop_moses_results_b_accepts_every_algo_classic_recognises(opt_algo):
-    """All four of classic's optimizer branches are ported.
+@pytest.mark.parametrize(
+    ("opt_algo", "expected_type"),
+    [
+        ("hc", hill_climbing),
+        ("sa", simulated_annealing),
+        ("un", univariate_optimization),
+        ("ps", particle_swarm),
+    ],
+)
+def test_metapop_moses_results_b_accepts_every_algo_classic_recognises(opt_algo, expected_type):
+    """All four of classic's optimizer branches are ported, and each one
+    builds the type classic builds.
 
     `moses_main.h:288-299` recognises exactly `hc`, `sa`, `un` and `ps`
-    (names declared at `optimization.h:66-69`) and constructs one of four
-    types. This test previously asserted that every non-`hc` value raised,
-    which was true only while star-anneal, univariate and particle-swarm
-    were unported.
+    (names declared at `optimization.h:66-69`) and constructs
+    `hill_climbing`/`simulated_annealing`/`univariate_optimization`/
+    `particle_swarm` respectively. This test previously asserted that
+    every non-`hc` value raised, which was true only while star-anneal,
+    univariate and particle-swarm were unported.
+
+    The type assertion is the point: an earlier version only asserted
+    that the call did not raise, which a dispatch collapsed to
+    `hill_climbing(...)` in all four arms would satisfy. The constructed
+    optimizer is not returned, so it is recovered through the printer
+    callback -- `metapop_moses_results_b` hands the printer the very
+    `deme_expander` it injected the optimizer into (moses_main.h:318,322),
+    and `deme_expander` stores it as `_optimize` (`optimizer_base&
+    _optimize` in C++).
 
     Asserting construction rather than a full run: the point here is the
     dispatch, and a real search for each algo is covered by their own
     modules' tests.
     """
+    seen = []
     opt_params = optim_parameters(opt_algo=opt_algo)
     moses_main.metapop_moses_results_b(
         [],
@@ -311,8 +338,11 @@ def test_metapop_moses_results_b_accepts_every_algo_classic_recognises(opt_algo)
         subsample_deme_filter_parameters(),
         metapop_parameters(),
         moses_parameters(),
-        lambda mp, dex, stats: None,
+        lambda mp, dex, stats: seen.append(dex._optimize),
     )
+
+    assert len(seen) == 1
+    assert type(seen[0]) is expected_type
 
 
 def test_metapop_moses_results_b_rejects_an_unrecognised_algo():
@@ -664,11 +694,23 @@ def test_it_target_ignore_reproduces_mosesutest(tmp_path):
 
 class _FakeEnsemble:
     """Not a ported C++ symbol -- a duck-typed stand-in for
-    `pymetta.moses.metapopulation.ensemble.ensemble` that raises exactly
-    where the real class's own `flat_score`/`get_weighted_tree` do (both
-    unported stubs, `ensemble.py`'s own docstring), so a test can assert
+    `pymetta.moses.metapopulation.ensemble.ensemble` whose `flat_score`/
+    `get_weighted_tree` raise, so a test can assert
     `metapop_printer.__call__` propagates that failure unmodified rather
     than masking or mis-handling it.
+
+    CORRECTED: this docstring used to say it "raises exactly where the
+    real class's own `flat_score`/`get_weighted_tree` do (both unported
+    stubs, `ensemble.py`'s own docstring)". `ensemble.py` is fully ported
+    now -- `flat_score` (ensemble.cc:427) and `get_weighted_tree`
+    (ensemble.cc:280) are real implementations. The real `flat_score`
+    still fails, but one layer further down and with a DIFFERENT message
+    (`bscore_base.call_ensemble`, which no concrete scorer in this port
+    overrides), so this double no longer reproduces the real failure
+    text. `test_metapop_printer_output_ensemble_flat_score_dies_in_
+    call_ensemble_for_real` below pins the real object's real failure;
+    this double stays only to prove the printer does not swallow an
+    exception raised from that call site.
     """
 
     def __init__(self, members=()):
@@ -891,6 +933,31 @@ def test_metapop_printer_output_demeID_raises_not_implemented():
     mp = _FakeMetapop([_sct("and($1 $2)", -3.0, 2, 0.5714285714285714)])
     with pytest.raises(NotImplementedError, match="get_demeID"):
         _printer(output_demeID=True)(mp, None, moses_statistics())
+
+
+def test_metapop_printer_output_ensemble_flat_score_dies_in_call_ensemble_for_real():
+    """Pins what ACTUALLY stops `output_ensemble=True` in combo format,
+    using the real `ensemble` rather than `_FakeEnsemble`.
+
+    `metapop_printer.__call__` does not gate this branch at all (it is
+    ported inline off moses_main.h:111-136, with no raise in it). The
+    combo-format arm prints `ensm.flat_score()`, and the real
+    `ensemble.flat_score` (ensemble.cc:427) calls
+    `bscore_base.call_ensemble` -- whose base body raises in BOTH
+    languages (`OC_ASSERT(false, "Ensemble scoring not implemented for
+    bscorer %s", ...)`, scoring_base.cc:74-75) because no concrete
+    scorer in this port overrides it yet.
+
+    Asserting the real message text, not just the exception type: that is
+    what distinguishes "stopped one layer down, in the scorer" (true)
+    from "gated in metapop_printer" (what this module's docstring used to
+    claim).
+    """
+    from pymetta.moses.metapopulation.ensemble import ensemble
+
+    ensm = ensemble(_tiny_cscorer())
+    with pytest.raises(NotImplementedError, match="Ensemble scoring not implemented"):
+        ensm.flat_score()
 
 
 def test_metapop_printer_output_ensemble_propagates_unported_failure():

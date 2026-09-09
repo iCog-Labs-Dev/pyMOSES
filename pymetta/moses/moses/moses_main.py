@@ -16,12 +16,27 @@ references" note):
   compile-time git-describe/version string with no runtime effect on the
   search; nothing in this port has an equivalent build step to source it
   from.
-* `ps_parameters` is dropped from every signature below entirely (not
-  merely unused) -- `particle_swarm`/`ps_bscore` are P2 and no
-  `ps_parameters` class exists anywhere in this port to pass one of. The
-  only C++ use of `ps_params` is constructing `particle_swarm`
-  (moses_main.h:298), a branch `metapop_moses_results_b` below raises
-  before ever reaching (see its own docstring).
+* `ps_parameters` is dropped from the two signatures that carry it in
+  C++ (`metapop_moses_results_b`, moses_main.h:278; `metapop_moses_
+  results`, moses_main.h:350) -- but NOT because particle swarm is
+  unported. CORRECTED (this bullet previously said "`particle_swarm`/
+  `ps_bscore` are P2 and no `ps_parameters` class exists anywhere in this
+  port", and that "a branch `metapop_moses_results_b` below raises before
+  ever reaching" it; both were true when written and are false now):
+  `ps_parameters` and `particle_swarm` are BOTH ported
+  (`optimization/particle_swarm.py`, imported at the top of this module),
+  and the `ps` branch of `metapop_moses_results_b` constructs a real
+  `particle_swarm` rather than raising.
+
+  What survives is only the parameter-THREADING: `ps_params` is the one
+  optimizer-parameter bundle these two functions do not accept from their
+  caller, so the `ps` branch constructs `ps_parameters()` with classic's
+  own defaults instead. The two other C++ mentions of `ps_params`
+  (moses_main.h:376,382) are pure pass-throughs from
+  `metapop_moses_results` to `metapop_moses_results_b`; moses_main.h:298
+  is the only place its VALUE is read. A run that customised `ps_params`
+  in C++ would therefore not be reproduced -- see the DIVERGENCE marker
+  on that branch.
 
 Which `MOSESUTest` cases this module's own test suite can actually
 exercise, corrected mid-task from the plan's original (broader) list of
@@ -87,23 +102,50 @@ the plan's own instruction:
   nothing -- `HAVE_MPI` is never defined, CLAUDE.md's own "Known sharp
   edges"; `distributed_moses` is a different, out-of-scope `-j host:N`
   mechanism that shells out to `ssh`).
-* `metapop_moses_results_b`'s non-`"hc"` `opt_algo` branches (`sa`/`un`/
-  `ps` construct `simulated_annealing`/`univariate_optimization`/
-  `particle_swarm` in C++, moses_main.h:288-307 -- none are ported; S11
-  wires hill-climbing in directly, per the plan's "Optimizer selection is
-  dependency-injected" note).
+* `metapop_moses_results_b`'s UNRECOGNISED-`opt_algo` branch
+  (moses_main.h:300-306) -- and that one raises `ValueError`, not
+  `NotImplementedError`, because C++ `exit(1)`s there rather than
+  throwing; see the DIVERGENCE marker at the dispatch itself.
+  CORRECTED: this bullet used to claim the `sa`/`un`/`ps` branches were
+  gated too ("none are ported; S11 wires hill-climbing in directly").
+  All four of classic's named algorithms -- `hc`, `sa`, `un`, `ps`
+  (moses_main.h:288-299) -- now construct a real optimizer here
+  (`hill_climbing`, `simulated_annealing`, `univariate_optimization`,
+  `particle_swarm`), and nothing in the dispatch raises for a recognised
+  name.
 * `metapop_moses_results`'s SS-fitness branch (`ss_bscore.{h,cc}`, P2 --
   see the function's own docstring for how the deliberately-unset
   `subsample_deme_filter_parameters` fields this check reads are
   handled).
 * `metapop_printer.__call__`'s `output_demeID=True` branch (this port's
   `scored_combo_tree` carries no `demeID_t`, see `types.py`'s own
-  docstring) and its `output_ensemble=True` branch (`ensemble.py`'s
-  `get_weight`/`get_weighted_tree`/`flat_score` are themselves unported
-  stubs that raise -- see that module's own docstring; reaching
-  `output_ensemble=True` through a real CLI run is additionally blocked
-  one layer up, by `problem_params.py`'s own `--boost` gate, since only
-  boosting ever populates an ensemble worth printing).
+  docstring). That is the only gate `metapop_printer` raises itself.
+
+  CORRECTED: this bullet used to list `output_ensemble=True` alongside
+  it, "(`ensemble.py`'s `get_weight`/`get_weighted_tree`/`flat_score` are
+  themselves unported stubs that raise)". Both halves are now false.
+  `ensemble.py` is fully ported -- `get_weighted_tree` (ensemble.cc:280)
+  and `flat_score` (ensemble.cc:427) are real implementations, not stubs
+  -- and `metapop_printer.__call__` never gated `output_ensemble` at all:
+  that whole branch (moses_main.h:111-136) is ported inline with no
+  raise anywhere in it. What actually stops it is one layer down, and
+  which thing stops it depends on the output format:
+
+  - combo (and every non-python) format prints `ensm.flat_score()`,
+    which calls `bscore_base.call_ensemble` -- a RAISING base body in
+    both languages (`OC_ASSERT(false, "Ensemble scoring not implemented
+    for bscorer %s", ...)`, scoring_base.cc:74-75), with no concrete
+    override anywhere in this port yet (`ensemble.py`'s own module
+    docstring, "Two REAL prerequisite gaps found", item 3).
+  - `python`/`python3` format prints `sct.get_weight()` once per
+    ensemble member (moses_main.h:124) -- see the gate at that line
+    below for what stops that one and why.
+
+  Reaching `output_ensemble=True` through a real CLI run is separately
+  blocked one layer UP, and that part of the old bullet was right:
+  `output_ensemble` is wired straight from `--boost` (`moses_exec.py`;
+  classic passes `boosting` into the same constructor slot,
+  problem-params.cc:2400-2403), and `problem_params.py` gates `--boost`.
 
 # DIVERGENCE(C++ moses/moses/scoring/behave_cscore.h:60-69,127): classic's
 # `behave_cscore` exposes `min_improv()` (header-inline, `return
@@ -297,10 +339,11 @@ class metapop_printer:
 
         Ported line-for-line off moses_main.h:93-247 (quoted in full in
         this task's own research notes); see the module docstring's
-        "Gated to raise" section for the two branches (`output_demeID`,
-        `output_ensemble`) this port cannot execute and why, and for the
-        `GATHER_STATS`/`logger().is_info_enabled()` blocks that are
-        skipped entirely rather than ported. `dex` is accepted, unused,
+        "Gated to raise" section for the one branch this class gates
+        itself (`output_demeID`), for what actually stops
+        `output_ensemble=True` one layer DOWN (it is not gated here), and
+        for the `GATHER_STATS`/`logger().is_info_enabled()` blocks that
+        are skipped entirely rather than ported. `dex` is accepted, unused,
         purely to match the real 3-argument call signature
         `printer(metapop, dex, stats)` (moses_main.h:322,
         `metapop_moses_results_b`) -- the only thing classic's own
@@ -329,10 +372,7 @@ class metapop_printer:
                 # "return (0.0 < val)" -- NOT "sum": `val` is never defined
                 # anywhere in this generated program. A real bug in
                 # classic itself (moses_main.h:129), reproduced verbatim,
-                # not "fixed" -- see this class's own module-docstring
-                # section for why this whole branch is untestable here
-                # regardless (get_weight()/flat_score()/get_weighted_tree()
-                # are unported stubs one layer down, in ensemble.py).
+                # not "fixed".
                 parts.append("\n    return (0.0 < val)\n")
             else:
                 ensm = metapop.get_ensemble()
