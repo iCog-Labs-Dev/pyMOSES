@@ -41,21 +41,41 @@ itself (`balance`/`nsamples` -> `table-problems.cc`'s `ctable.balance()`/
 `subsampleTable`; `hardness`/`pre_positive`/`gen_best_tree` -> the `pre`/
 `prerec`/`recall`/... bscores; `min_rand_input`/`max_rand_input` -> the
 synthetic-sampling problems; `log_level`/`log_file` -> a `Logger` class this
-port does not have; `result_count`/`output_*` -> the S13-Task-3
-`metapop_printer`, not yet ported) are stored as PLAIN FLAT FIELDS on
-`problem_params`, matching the C++ struct's own field, with NO attempt to
-wire them into an object that does not exist yet -- their eventual
-gate-if-unsupported logic belongs to whichever future task actually wires
-them (`table_problems.py`, `moses_exec.py`), the same "don't invent a
-consumer" discipline `problem.py`'s own docstring states for `option_base`.
-`ps_max_particles` is the same story taken to its limit: `ps_parameters`
-does not exist ANYWHERE in this port (`moses_main.py`'s own docstring: "no
-`ps_parameters` class exists anywhere in this port"), so it is pure stored
-data. None of these needs its own P2 gate here: each is reachable ONLY
-through a problem selector (`-H`) or output path this task does not
-dispatch through, so a wrong value cannot diverge from classic via this
-file alone (this mirrors `-j host:N`'s and `--ps-max-particles`'s reasoning
-below almost exactly).
+port does not have; `result_count`/most of `output_*` -> the S13-Task-3
+`metapop_printer`, which HAS since landed -- `moses_exec.py` wires this
+struct's `output_score`/`output_cscore`/`output_only_best`/
+`output_eval_number`/`output_with_labels`/`output_format_str`/
+`output_file` straight into a real `metapop_printer`, which works end to
+end (`test_moses_exec.py`'s own oracle tests exercise `-W1`/`-x1`/`-C1`/
+`-V1`/`--output-format=python`/`-o<file>` against it directly)) are stored
+as PLAIN FLAT FIELDS on `problem_params`, matching the C++ struct's own
+field, with NO attempt to wire them into an object that does not exist yet
+-- their eventual gate-if-unsupported logic belongs to whichever future
+task actually wires them (`table_problems.py`, `moses_exec.py`), the same
+"don't invent a consumer" discipline `problem.py`'s own docstring states
+for `option_base`. `ps_max_particles` is the same story taken to its
+limit: `ps_parameters` does not exist ANYWHERE in this port
+(`moses_main.py`'s own docstring: "no `ps_parameters` class exists
+anywhere in this port"), so it is pure stored data. None of these needs
+its own P2 gate here: each is reachable ONLY through a problem selector
+(`-H`) or output path this task does not dispatch through, so a wrong
+value cannot diverge from classic via this file alone (this mirrors
+`-j host:N`'s and `--ps-max-particles`'s reasoning below almost exactly).
+
+**Two fields of that same `output_*` group are the deliberate exception,
+gated below like any other subsystem's master switch**: `output_bscore`
+(`-t`) and `output_deme_id` (`--output-deme-id`) each drive an ALREADY-
+WIRED consumer (`meta_params.keep_bscore` below; `metapop_printer`'s own
+`output_bscore`/`output_demeID` constructor arguments, `moses_exec.py`)
+that reaches genuinely unported C++ machinery the instant it is engaged
+(`metapopulation.merge_demes`'s `keep_bscore` recompute block, `merging.cc
+:258-296`; `ostream_scored_combo_tree`'s `output_demeID` branch, `types.cc
+:175`) -- not merely a printer that has not been built yet. Both used to
+reach that unported machinery only after `-m` evaluations had already run,
+several stack frames into a real search, surfacing as an unhandled
+traceback with empty stdout instead of a clean option-parse-time failure
+-- see each gate's own `# DIVERGENCE` marker below for the measurement
+against the real compiled binary.
 
 ## Design rule: gate-then-raise for unported SUBSYSTEMS, not for every field
 
@@ -848,6 +868,41 @@ class problem_params:
         if self.use_well_enough:
             raise NotImplementedError(
                 '--well-enough: the "leave well-enough alone" classifier algorithm is not ported.'
+            )
+        # DIVERGENCE(C++ moses/moses/metapopulation/merging.cc:258-296): classic's
+        # own -t/--output-bscore (keep_bscore, :717 below) succeeds and prints an
+        # extra " behavioral score: [...]" per result line, rc 0 (measured
+        # directly: $CLASSIC/build/moses/moses/main/moses -i tests/moses/dataset.csv
+        # -m1000 -t1 -> 9 lines, exit 0). This port's own gate for keep_bscore
+        # (metapopulation.merge_demes, merging.py, mirroring this exact block) already
+        # raises NotImplementedError -- but only after -m evaluations have already
+        # run, several stack frames into a live run (local_moses -> expand_deme ->
+        # merge_demes), as an unhandled traceback with empty stdout rather than the
+        # clean, immediate failure every other unported subsystem gets here. Gated
+        # at option-parse time instead, before any evaluation happens, matching
+        # every other Phase-2 gate in this file.
+        if self.output_bscore:
+            raise NotImplementedError(
+                "-t/--output-bscore: metapopulation.merge_demes's keep_bscore-gated "
+                "behavioural-score recompute block (merging.cc:258-296) is not "
+                "ported; leave -t/--output-bscore unset."
+            )
+        # DIVERGENCE(C++ moses/moses/moses/types.cc:175): classic's own
+        # --output-deme-id succeeds and prints an extra " demeID: N" per result
+        # line, rc 0 (measured directly: $CLASSIC/build/moses/moses/main/moses -i
+        # tests/moses/dataset.csv -m1000 --output-deme-id=1 -> 9 lines, exit 0).
+        # This port's own gate (ostream_scored_combo_tree's output_demeID branch,
+        # types.py, mirroring scored_combo_tree.get_demeID() -- which this port's
+        # scored_combo_tree does not carry, deme bookkeeping being out of scope for
+        # this whole port cycle) already raises NotImplementedError -- but only
+        # deep inside metapop_printer.__call__, after -m evaluations have already
+        # run, as an unhandled traceback rather than a clean, immediate failure.
+        # Gated at option-parse time instead, matching every other Phase-2 gate.
+        if self.output_deme_id:
+            raise NotImplementedError(
+                "--output-deme-id: scored_combo_tree carries no demeID_t/"
+                "get_demeID() (deme bookkeeping is out of scope for this whole "
+                "port cycle); leave --output-deme-id unset."
             )
 
     # ------------------------------------------------------------ helpers

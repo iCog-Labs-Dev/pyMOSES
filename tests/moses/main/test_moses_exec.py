@@ -287,3 +287,46 @@ def test_moses_exec_accepts_a_plain_string_argv():
     rc, out = _run("moses -Hpa -k1 -r1 -m50")
     assert rc == 0
     assert out == "0 !$1 \n-1 true \n-2 $1 \n"
+
+
+# ---------------------------------------------------------------------------
+# [Important 1] -t/--output-bscore and --output-deme-id parse fine, then
+# used to crash deep inside a real run (metapopulation.merge_demes /
+# ostream_scored_combo_tree, several stack frames past `-m` evaluations
+# already having executed) with an unhandled traceback -- empty stdout,
+# rc traceback -- rather than problem_params.py's other 16 Phase-2 gates'
+# clean, immediate NotImplementedError. See problem_params.py's own
+# `# DIVERGENCE` markers on these two gates for the measurement against
+# the real compiled binary (both succeed there, rc 0, 9 lines).
+# ---------------------------------------------------------------------------
+
+
+def test_moses_exec_output_bscore_raises_cleanly_before_any_evaluation(dataset_csv):
+    """Reproduces this task's own repro command
+    (`moses -i<dataset.csv> -m1000 -t1`) end to end through `moses_exec`:
+    must raise immediately, not run any evaluation first."""
+    with pytest.raises(NotImplementedError, match="merge_demes"):
+        moses_exec(["moses", f"-i{dataset_csv}", "-m1000", "-t1"])
+
+
+def test_moses_exec_output_deme_id_raises_cleanly_before_any_evaluation(dataset_csv):
+    with pytest.raises(NotImplementedError, match="demeID"):
+        moses_exec(["moses", f"-i{dataset_csv}", "-m1000", "--output-deme-id=1"])
+
+
+def test_moses_exec_output_bscore_and_deme_id_defaults_do_not_raise(dataset_csv):
+    """The exit criterion's other half: leaving both flags at their
+    (shared, `False`) default must still reproduce the ordinary oracle."""
+    rc, out = _run(["moses", f"-i{dataset_csv}", "-m1000"])
+    assert rc == 0
+    assert out == (
+        "-3 and($1 $2) \n"
+        "-4 $1 \n"
+        "-4 $2 \n"
+        "-4 and(!$1 !$2) \n"
+        "-4 or(!$1 $2) \n"
+        "-4 or($1 !$2) \n"
+        "-5 true \n"
+        "-5 !$1 \n"
+        "-5 !$2 \n"
+    )

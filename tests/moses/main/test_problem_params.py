@@ -448,11 +448,33 @@ def test_supported_non_default_option_applies_and_does_not_raise(argv, path, exp
         ["--time-dispersion-pressure", "0.1"],
         ["--well-enough", "1"],
         ["--jobs", "2:otherhost"],
+        ["-t", "1"],
+        ["--output-bscore", "1"],
+        ["--output-deme-id", "1"],
     ],
 )
 def test_unsupported_option_raises(argv):
     with pytest.raises(NotImplementedError):
         _parse(*argv)
+
+
+def test_output_bscore_raises_at_parse_time_naming_merge_demes():
+    """[Important 1] `-t`/`--output-bscore` used to parse fine and only
+    crash deep inside a real run (`metapopulation.merge_demes`, several
+    stack frames past `-m` evaluations having already executed) with an
+    unhandled traceback. Pins that it now fails immediately, at
+    `parse_options` time, naming the blocking subsystem -- the same
+    contract every other Phase-2 gate in this file already gives.
+    """
+    with pytest.raises(NotImplementedError, match="merge_demes"):
+        _parse("-t", "1")
+
+
+def test_output_deme_id_raises_at_parse_time_naming_demeid():
+    """[Important 1] Same proof as above for `--output-deme-id`, whose
+    blocking gap is `scored_combo_tree` carrying no `demeID_t`."""
+    with pytest.raises(NotImplementedError, match="demeID"):
+        _parse("--output-deme-id", "1")
 
 
 def test_default_command_line_never_raises():
@@ -479,6 +501,9 @@ def test_default_command_line_never_raises():
         ["--time-dispersion-pressure", "0.0"],
         ["--well-enough", "0"],
         ["--jobs", "4"],  # local job count, not a remote host spec
+        ["-t", "0"],  # -t/--output-bscore's own default
+        ["--output-bscore", "0"],
+        ["--output-deme-id", "0"],  # --output-deme-id's own default
         # Sub-options that are provably inert while their master switch
         # stays at ITS default -- must not raise either (see module
         # docstring's "sub-options... provably inert" paragraph).
