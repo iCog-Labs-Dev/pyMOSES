@@ -18,15 +18,23 @@ reaches through `univariate.cc`'s own include list (`termination.h`,
 * `local_structure.py` -- `local_structure_model`, `univariate` (the
   StructureLearningPolicy), and `local_structure_probs_learning`.
 * `optimize.py` -- the generic `optimize()` EDA loop.
+* `initialization.py` -- `occam_randomize_contin` (both overloads),
+  `uniform_randomize_bit`, `uniform_randomize_disc`, and `randomize` (the
+  combining wrapper). `occam_randomize_term` is not ported: term fields do
+  not exist anywhere in this port (see that module's own docstring).
 
-NOT ported: `initialization.{h,cc}` (`occam_randomize_contin`/
-`occam_randomize_term`/`uniform_randomize_bit`/`uniform_randomize_disc`/
-`randomize`). `univariate.cc` does not include `initialization.h` at all --
-it draws its initial population via `../moses/neighborhood_sampling.h`'s
-`generate_initial_sample` instead (already ported,
-`pymetta/moses/moses/neighborhood_sampling.py`) -- and
-`git grep -rn 'occam_randomize\\|uniform_randomize' $CLASSIC/moses` confirms
-every call site of `initialization.h`'s own functions lives inside
-`initialization.cc` itself; nothing else in `moses/` calls them. Genuinely
-unreachable from this task's scope, not merely deferred.
+CORRECTION (this entry previously said `initialization.{h,cc}` was
+"genuinely unreachable from this task's scope, not merely deferred",
+reasoning that `univariate.cc` does not include `initialization.h` and that
+`git grep -rn 'occam_randomize\\|uniform_randomize' $CLASSIC/moses` finds no
+external call site). That grep was accurate for those two names but never
+checked `randomize(` itself, which DOES have an external call site:
+`neighborhood_sampling.h:58`'s `generate_initial_sample` -- the very
+function `univariate.cc` uses for its initial population, per this same
+paragraph's own next sentence. The reachability claim was simply wrong;
+what was true is narrower: that call site had already been served,
+independently, by a private duplicate (`neighborhood_sampling.py`'s
+`_randomize`/`_uniform_randomize_disc`/`_uniform_randomize_bit`), so no
+NEW behaviour was missing at the time. See `initialization.py`'s own module
+docstring for the full account and the follow-up this leaves open.
 """

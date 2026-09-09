@@ -1,0 +1,16 @@
+{
+  "capture_script": "tools/capture_eda_initialization.py",
+  "capture_script_sha256": "7ebdef148214c528d53ce72a31857784beebcf99e8a5f066b94c6a5f88eb491a",
+  "classic_dir": "/home/yab/Documents/Projects/iCog/HyperonRelated/MOSES/OpenCog/Moses",
+  "cli_tool": null,
+  "generated_at_utc": "2026-09-09T08:54:23+00:00",
+  "inputs": {
+    "description": "fixed field_set shapes and seeds hardcoded in eda_initialization_probe.cc; no external dataset"
+  },
+  "prefix_dir": "/home/yab/opt/moses-legacy",
+  "probe_kind": "cpp_probe",
+  "probe_source": "tools/cpp_probe/eda_initialization_probe.cc",
+  "probe_source_sha256": "08305d1d094cdf31b639df289634eea089d84b3b6243474c346a2d43bbea97b0",
+  "repo_commit": "d170e4932e57ee92e32a51329cb8ba8776187bb9",
+  "schema_version": 1
+}
