@@ -91,6 +91,10 @@ trap is handled. **Remaining, per row:**
   behind it (§4.3).
 - `ss_bscore` does not subclass `bscore_base` and its ctor raises; it is
   implemented but unconstructible.
+- `scored_combo_tree`'s `_deme_id`/`get_demeID()` (`types.h:280-281`), which
+  gates the real `--output-deme-id` flag. Its sibling gap, `get_weight()`/
+  `set_weight()`, closed DURING this audit in concurrent commit `74fff6c` --
+  a live instance of exactly the drift this pass exists to correct.
 - Float32 narrowing missing at `discriminating_bscore.py:150,155,244-252,571,583`
   (`--score-weight` path; measured `2.66` vs C++'s `2.6600000858306885`).
 
@@ -178,8 +182,10 @@ mention them.
    `demo_problems.py:94-121` reaches it through a disclosed narrow substitute
    that cannot detect a cross-argument type mismatch.
 3. **Timestamps are parsed and discarded** (`table_io.py:501-502`, `:532`).
-   No `TTable`/`TimedValue`/`CTableTime`. This alone blocks `ss_bscore`,
-   `time_dispersion`'s `get_timestamp_class`, and time-based subsampling.
+   No `TTable`/`TimedValue`/`CTableTime`, and `CTable` has no `get_timestamps()`
+   -- concurrent commit `9793e5a` pinned that absence rather than closing it.
+   This alone blocks `ss_bscore`, `time_dispersion`'s `get_timestamp_class`, and
+   time-based subsampling.
 4. **The `ostreamTable`/`saveTable` half of `table_io.cc` is unported** (17
    functions). Mostly EXCLUDED-binary-only, but it is the blocker for four
    `feature-selection.cc` functions.
