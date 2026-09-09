@@ -17,15 +17,19 @@ DIVERGENCE note for why (S8's ``representation`` is Boolean-only and has no
 parameter for either).
 
 ``fstor`` (deme_params.h:67) is the dynamic feature-selection hook
-(``deme/feature_selector.{h,cc}``, 710 lines) -- P2, gated behind
-``--enable-fs``, exactly the scope boundary this task's own brief names.
-Stored verbatim (``None`` by default, matching C++'s ``NULL``) but never
-dereferenced by anything in this port: ``deme_expander.create_demeIDs`` and
-``deme_expander.create_representations`` both raise ``NotImplementedError``
-the instant ``fstor is not None``, mirroring classic's own
-``if (_params.fstor)`` branch condition -- "port the gate faithfully, raise
-inside the gated body", the same discipline the S10 plan applies to
-boosting/domination/diversity in ``metapop_params.py``.
+(``deme/feature_selector.{h,cc}``), ``--enable-fs``. Stored verbatim
+(``None`` by default, matching C++'s ``NULL``, a pointer in C++ --
+``const feature_selector* fstor`` -- represented here as an optional
+``pymetta.moses.deme.feature_selector.feature_selector`` instance rather
+than a pointer type, since Python has no pointer/reference distinction to
+preserve). ``deme_expander.create_demeIDs`` and
+``deme_expander.create_representations`` both honour a real ``fstor`` now
+(the P2 feature-selection port) -- see ``deme_expander.py``'s own module
+docstring for exactly what is and is not ported behind it (in short:
+feature-subset selection and representation-building are fully ported;
+``prune_xmplr`` and driving a real ``fstor`` through
+``deme_expander.optimize_demes``'s own search loop are both still gated,
+narrower than before this port existed).
 """
 
 # DIVERGENCE(C++ moses/moses/deme/deme_params.h:54,82): ``max_candidates_per_

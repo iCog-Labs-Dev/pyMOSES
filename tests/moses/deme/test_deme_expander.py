@@ -40,6 +40,7 @@ from pymetta.comboreduct.table.table_io import loadTable
 from pymetta.comboreduct.type_checker.type_signature import gen_signature, type_node
 from pymetta.moses.deme.deme_expander import deme_expander
 from pymetta.moses.deme.deme_params import deme_parameters
+from pymetta.moses.deme.feature_selector import feature_selector, feature_selector_parameters
 from pymetta.moses.metapopulation.metapop_params import subsample_deme_filter_parameters
 from pymetta.moses.moses.optimization.hill_climbing import hc_parameters, hill_climbing
 from pymetta.moses.moses.optimization.optimization import optim_parameters
@@ -266,9 +267,14 @@ def test_total_evals_sums_across_demes_and_ss_demes():
 
 
 # ---------------------------------------------------------------------------
-# Gates: feature selection (fstor) and subsample-deme filtering
-# (n_subsample_demes > 1) both default OFF and both raise NotImplementedError
-# when driven -- "port the gate, raise inside the gated body" (S10 plan).
+# fstor: on-the-fly feature selection is now REAL (P2 feature-selection
+# port, pymetta.moses.deme.feature_selector). create_demeIDs/
+# create_representations both honour a real feature_selector; only
+# fstor.params.prune_xmplr=True and driving a real fstor through
+# optimize_demes's own search loop remain gated -- see deme_expander.py's
+# own module docstring. Subsample-deme filtering (n_subsample_demes > 1)
+# is UNCHANGED and still raises NotImplementedError when driven -- "port
+# the gate, raise inside the gated body" (S10 plan).
 # ---------------------------------------------------------------------------
 
 
@@ -283,26 +289,115 @@ def _dex_with(params: deme_parameters | None = None, filter_params=None) -> deme
     return deme_expander(sig, rule, rule, cscorer, hc, params, filter_params)
 
 
-def test_create_demeIDs_raises_when_fstor_is_set():
-    params = deme_parameters(fstor="not-a-real-feature-selector")
-    dex = _dex_with(params)
-    with pytest.raises(NotImplementedError):
-        dex.create_demeIDs(0)
+def _boolean_dex_and_ctable(params: deme_parameters):
+    """A deme_expander plus its own CTable, over trainingBoolean.dat
+    (arity 3) -- for the fstor tests below, which need a ctable to build
+    a real feature_selector over in the first place (the XOR fixture
+    `_dex_with` above uses is arity 2, too small to usefully ignore a
+    feature).
+    """
+    case = _GOLDEN["cases"]["boolean_empty_and"]
+    table = loadTable(str(_TABLE_DATA_DIR / case["dataset"]), case["target_feature"])
+    ctable = table.compressed()
+    bsc = ctruth_table_bscore(ctable)
+    cscorer = behave_cscore(bsc)
+    rule = logical_reduction(())(2)
+    hc = hill_climbing(optim_parameters(), hc_parameters(cross=False))
+    sig = gen_signature(type_node.boolean_type, case["arity"])
+    dex = deme_expander(sig, rule, rule, cscorer, hc, params)
+    return dex, ctable
 
 
-def test_create_representations_raises_when_fstor_is_set():
-    params = deme_parameters(fstor="not-a-real-feature-selector")
+def test_create_demeIDs_uses_real_fstor_n_demes():
+    """`create_demeIDs` reads `fstor.params.n_demes` off a REAL
+    feature_selector now -- multi-ID branch when > 1 (deme_expander.cc:
+    152), single-ID otherwise, matching the no-fstor case's own IDs
+    (`demeID_t(n_expansions + 1)`, a bare `"<n>"` string). The dataset
+    the feature_selector is built over is irrelevant to this method alone
+    (it never reads `fstor._ctable`, only `fstor.params.n_demes`).
+    """
+    case = _GOLDEN["cases"]["xor_empty_and"]
+    ctable = loadTable(str(_TABLE_DATA_DIR / case["dataset"]), case["target_feature"]).compressed()
+
+    festor = feature_selector(ctable, feature_selector_parameters(n_demes=3))
+    dex = _dex_with(deme_parameters(fstor=festor))
+    dex.create_demeIDs(0)
+    assert [str(d) for d in dex._demeIDs] == ["1.0", "1.1", "1.2"]
+
+    festor_single = feature_selector(ctable, feature_selector_parameters(n_demes=1))
+    dex2 = _dex_with(deme_parameters(fstor=festor_single))
+    dex2.create_demeIDs(0)
+    assert [str(d) for d in dex2._demeIDs] == ["1"]
+
+
+def test_create_representations_builds_a_real_representation_from_fstor():
+    """End-to-end: a real `feature_selector` selects a feature subset for
+    a real exemplar, and `create_representations` builds `ignore_ops`
+    from its COMPLEMENT. Numbers are the "$1", base_target_size=0 case
+    from tests/fixtures/feature_selection.json's own "in_loop" cases
+    (captured straight from classic's `feature_selector::operator()`,
+    tools/cpp_probe/feature_selector_probe.cc) -- restrict_incorrect and
+    ignore_xmplr_features at their defaults (True), increase_target_size
+    at its default (True): `feature_selector` selects `{2}` (x3) for
+    exemplar `$1` against trainingBoolean.dat, then
+    `create_representations` inserts the exemplar's own feature `{0}`
+    (x1) back in (deme_expander.cc:224-232, the non-`prune_xmplr` arm) --
+    considered = `{0, 2}`, so `x2` (index 1) is the only ignored column.
+    """
+    params = deme_parameters()
     params.perm_ratio = -1.0
-    dex = _dex_with(params)
-    with pytest.raises(NotImplementedError):
-        dex.create_representations(str_to_combo_tree("and()"))
+    dex, ctable = _boolean_dex_and_ctable(params)
+    festor_params = feature_selector_parameters()
+    festor_params.fs_params.target_size = 0  # matches the fixture case exactly
+    festor = feature_selector(ctable, festor_params)
+    dex._params.fstor = festor
+
+    randGen().seed(1)
+    created = dex.create_representations(str_to_combo_tree("$1"))
+
+    assert created is True
+    assert len(dex._reps) == 1
+    assert dex._ignore_cols_seq == [{1}]
 
 
-def test_create_demes_raises_when_fstor_is_set():
-    params = deme_parameters(fstor="not-a-real-feature-selector")
-    dex = _dex_with(params)
+def test_create_demes_succeeds_with_a_real_fstor():
+    params = deme_parameters()
+    params.perm_ratio = -1.0
+    dex, ctable = _boolean_dex_and_ctable(params)
+    dex._params.fstor = feature_selector(ctable, feature_selector_parameters())
+
+    randGen().seed(1)
+    assert dex.create_demes(str_to_combo_tree("$1"), 0) is True
+    assert len(dex._demes) == 1
+
+
+def test_create_representations_raises_when_fstor_prune_xmplr_is_true():
+    params = deme_parameters()
+    params.perm_ratio = -1.0
+    dex, ctable = _boolean_dex_and_ctable(params)
+    dex._params.fstor = feature_selector(
+        ctable, feature_selector_parameters(prune_xmplr=True)
+    )
     with pytest.raises(NotImplementedError):
-        dex.create_demes(str_to_combo_tree("and()"), 0)
+        dex.create_representations(str_to_combo_tree("$1"))
+
+
+def test_optimize_demes_raises_when_fstor_is_set_from_the_start():
+    """Narrower than the old blanket gate: create_demeIDs/
+    create_representations now SUCCEED with a real fstor (see the tests
+    above); only optimize_demes's own search-loop branch is still
+    unsupported (needs behave_cscore.ignore_cols/best_possible_score,
+    neither ported -- see optimize_demes's own docstring).
+    """
+    params = deme_parameters()
+    params.perm_ratio = -1.0
+    dex, ctable = _boolean_dex_and_ctable(params)
+    dex._params.fstor = feature_selector(ctable, feature_selector_parameters())
+
+    randGen().seed(1)
+    assert dex.create_demes(str_to_combo_tree("$1"), 0) is True
+    with pytest.raises(NotImplementedError):
+        dex.optimize_demes(200, 86400)
 
 
 # ---------------------------------------------------------------------------

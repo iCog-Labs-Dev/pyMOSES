@@ -6,20 +6,53 @@ builds a ``representation`` (knobs over the exemplar) and an empty
 drives an injected ``optimizer_base`` (S9's ``hill_climbing``, at the test
 level -- see below) to fill and score that deme.
 
-**Single-deme path only**, per this task's own scope: the two axes that
-turn ONE exemplar into MULTIPLE demes are both P2 subsystems, gated exactly
-the way the S10 plan's metapopulation task gates boosting/domination/
-diversity -- "port the gate faithfully, raise inside the gated body" rather
-than half-implementing either:
+**Single-deme path is still the default**, but on-the-fly feature
+selection (``deme_parameters.fstor``, ``--enable-fs``) is now REAL:
 
 * **On-the-fly feature selection** (``deme_parameters.fstor``, wired to
-  ``deme/feature_selector.{h,cc}``, 710 lines, ``--enable-fs``) -- would
-  build one representation PER selected feature set, i.e. multiple demes
-  from one exemplar (deme_expander.cc:205-268's own comment: "a
-  representation, and a deme, for each distinct feature set"). Gated in
-  ``create_demeIDs`` and ``create_representations``: ``fstor is not None``
-  raises ``NotImplementedError`` immediately, matching classic's own
-  ``if (_params.fstor)`` branch condition at both call sites.
+  ``deme/feature_selector.{h,cc}``, ported at
+  ``pymetta.moses.deme.feature_selector``) -- ``create_demeIDs`` and
+  ``create_representations`` both honour a real ``feature_selector``:
+  the exemplar is scored, a feature subset selected (via
+  ``feature_selector.__call__``), and a ``representation`` built with
+  ``ignore_ops`` set to the COMPLEMENT of the selected features -- see
+  ``create_representations``'s own docstring. Since the only ported
+  algorithm, ``"simple"`` (``pymetta.feature_selection.algo.simple``),
+  ALWAYS returns exactly one feature set regardless of
+  ``feature_selector_parameters.n_demes`` (that algorithm's own
+  contract -- see its module docstring), ``create_demeIDs`` can still
+  build MULTIPLE ``demeID_t``s when ``fstor.params.n_demes > 1``, but
+  ``create_representations``'s ``for selected_feats in
+  pop_of_selected_feats`` loop only ever runs ONCE in that case (the
+  population it iterates has length 1) -- extra demeIDs beyond index 0
+  are simply never consumed by a representation. This is classic's OWN
+  behaviour with ``algorithm="simple"``, not a gap this port
+  introduces (measured: cc:205-268's loop is driven by
+  ``pop_of_selected_feats.size()``, never by ``_demeIDs.size()``).
+
+  Two sub-pieces remain gated, both off by default and both narrower
+  than the old blanket "fstor is not ported" gate:
+
+  - ``festor.params.prune_xmplr`` (feature_selector_parameters's own
+    struct default is INDETERMINATE -- see ``feature_selector.py``'s
+    module docstring; this port and every real CLI caller pin it to
+    ``False``) selects ``prune_xmplr`` (deme_expander.cc:308-325,
+    erasing argument leaves from the exemplar under iteration, with a
+    ``type_to_exemplar`` fallback if that empties the tree) -- NOT
+    ported; raises in ``create_representations`` if ever set to
+    ``True``.
+  - ``optimize_demes``'s OWN ``if (_params.fstor)`` branch
+    (deme_expander.cc:432-471) needs
+    ``behave_cscore.ignore_cols()``/``best_possible_score()``, neither
+    ported (``pymetta.moses.scoring`` is not this task's file to edit,
+    and is under concurrent edit by another agent as of this task) --
+    see ``optimize_demes``'s own docstring. A real ``fstor`` therefore
+    builds correct representations/demes but cannot yet be driven
+    through a full search loop; report this as a required follow-up
+    for whoever owns ``pymetta/moses/scoring/`` if a complete
+    ``--enable-fs`` search (not just representation-building) is
+    needed.
+
 * **Subsample-deme filtering**
   (``subsample_deme_filter_parameters.n_subsample_demes``, S10 Task 1's
   ``metapop_params.py``) -- would subdivide EACH representation's single
@@ -30,18 +63,20 @@ than half-implementing either:
   The plan's own scope table lists this as one of the whole S10 slice's
   default-off P2 subsystems, alongside boosting/domination/diversity.
 
-Both gates default OFF (``fstor=None``, ``n_subsample_demes=0``), so the
-fully-ported default path is: exactly one representation, exactly one deme,
-per ``create_demes`` call.
+Both ``fstor=None`` and ``n_subsample_demes=0`` are still the defaults, so
+the fully-ported DEFAULT path is unchanged: exactly one representation,
+exactly one deme, per ``create_demes`` call.
 
 NOT ported at all (not merely gated -- these are feature-selector-only
-helpers with no caller once ``fstor`` is always ``None``, the same
-"omit the whole branch, don't add a placeholder" discipline
-``build_knobs.py`` uses for enum/ANN/object/message/procedure knob
-building): ``fs_to_names`` (deme_expander.h:115, deme_expander.cc:48),
-``log_selected_feature_sets`` (deme_expander.h:121, deme_expander.cc:57),
-``prune_xmplr`` (deme_expander.h:128, deme_expander.cc:308). Also NOT
-ported: the ``#if THIS_IS_DISABLED_UNTIL_ABOVE_IS_FIXED`` block inside
+helpers that are either logging-only or, for ``prune_xmplr``, gated at
+its own call site rather than omitted, since it DOES have a live caller
+now that ``fstor`` is real): ``fs_to_names`` (deme_expander.h:115,
+deme_expander.cc:48) and ``log_selected_feature_sets``
+(deme_expander.h:121, deme_expander.cc:57) are both logging-only (their
+only effect is feeding ``logger().debug()``/``ostream_container`` --
+nothing else observes their return values), matching the "no logging
+surface in this port" convention stated throughout this project. Also
+NOT ported: the ``#if THIS_IS_DISABLED_UNTIL_ABOVE_IS_FIXED`` block inside
 ``optimize_demes`` (deme_expander.cc:460-474) -- dead code by construction
 in C++ itself (the guarding macro is never defined, matching CLAUDE.md's
 treatment of other never-taken ``#ifdef`` branches), and every
@@ -59,11 +94,14 @@ directly at the test level, matching this task's own instruction).
 
 from __future__ import annotations
 
+import copy
 from collections.abc import Callable
 
+from pymetta.comboreduct.combo.argument import argument
 from pymetta.comboreduct.combo.vertex import combo_tree
 from pymetta.comboreduct.type_checker.type_signature import TypeSignature, type_node
 from pymetta.moses.deme.deme_params import deme_parameters
+from pymetta.moses.deme.feature_selector import get_argument_abs_idx_from_zero_set
 from pymetta.moses.metapopulation.metapop_params import subsample_deme_filter_parameters
 from pymetta.moses.moses.optimization.optimization import optimizer_base
 from pymetta.moses.moses.types import demeID_t
@@ -177,40 +215,63 @@ class deme_expander:
     def create_demeIDs(self, n_expansions: int) -> None:
         """C++: moses/moses/deme/deme_expander.cc:148 deme_expander::create_demeIDs
 
-        # DIVERGENCE(C++ moses/moses/deme/deme_expander.cc:152-156): classic
-        # takes the multi-ID branch only when BOTH ``_params.fstor`` is set
-        # AND ``fstor->params.n_demes > 1`` -- with a single-ID fstor
-        # (``n_demes <= 1``) it silently falls through to the SAME
-        # ``emplace_back(n_expansions + 1)`` the no-fstor case uses. This
-        # port cannot draw that distinction: ``feature_selector`` (deme/
-        # feature_selector.{h,cc}) is not ported at all, so there is no
-        # ``.params.n_demes`` to read off a caller-supplied ``fstor``, and
-        # any non-``None`` value is already unsupported regardless of what
-        # it would report. Gating on ``fstor is not None`` alone therefore
-        # raises in a strict SUPERSET of the cases C++ would take the
-        # multi-ID branch for -- never a case C++ would treat as plain
-        # single-deme -- so this cannot silently accept something classic
-        # would have rejected, only reject something (a single-ID fstor)
-        # this port has no way to support in the first place.
+        ``fstor.params.n_demes`` (``feature_selector_parameters.n_demes``,
+        struct default ``1``) selects the multi-ID branch when ``> 1`` --
+        matching ``if (_params.fstor && _params.fstor->params.n_demes >
+        1)`` (cc:152) exactly, now that ``_params.fstor`` is a real
+        ``feature_selector`` (``pymetta.moses.deme.feature_selector``)
+        rather than an always-``None``/always-rejected placeholder. See
+        the module docstring for why extra IDs built here can outlive
+        their use in ``create_representations`` when the selected
+        algorithm (``"simple"``, the only one ported) returns a
+        single-entry population regardless of ``n_demes``.
         """
         self._demeIDs = []
-        if self._params.fstor is not None:
-            raise NotImplementedError(
-                "deme_expander: on-the-fly feature selection (deme/"
-                "feature_selector.{h,cc}, 710 lines) is P2, gated behind "
-                "--enable-fs; not ported. Construct deme_parameters with "
-                "fstor=None (the default)."
-            )
-        self._demeIDs.append(demeID_t(n_expansions + 1))
+        if self._params.fstor is not None and self._params.fstor.params.n_demes > 1:
+            for i in range(self._params.fstor.params.n_demes):
+                self._demeIDs.append(demeID_t(n_expansions + 1, i))
+        else:
+            self._demeIDs.append(demeID_t(n_expansions + 1))
 
     def create_representations(self, exemplar: combo_tree) -> bool:
         """C++: moses/moses/deme/deme_expander.cc:159 deme_expander::create_representations
 
-        Gated on ``_params.fstor`` (see module docstring); only the
-        ``else`` arm -- "no dynamic feature selection" (cc:270's own
-        comment) -- is ported: ``ignore_ops_seq.push_back(_params.
-        ignore_ops); xmplr_seq.push_back(exemplar);`` (cc:271-272), always
-        exactly one entry.
+        Two arms, matching cc:196-269 (``if (_params.fstor)``) and
+        cc:270-272 (``else``) exactly:
+
+        * ``fstor is None`` (the default): ``ignore_ops_seq = [_params.
+          ignore_ops]; xmplr_seq = [exemplar]`` -- always exactly one
+          entry, unchanged from before this port had a real
+          ``feature_selector``.
+        * ``fstor is not None``: copies ``fstor`` (cc:199's own comment,
+          "Copy, as any change in the parameters will not be
+          remembered") -- cheaply: only ``.params`` is deep-copied, not
+          ``._ctable`` (never mutated by any ``feature_selector``
+          method, so sharing the reference is behaviourally identical
+          and avoids copying a potentially large table) -- then calls
+          it on ``exemplar`` to get ``pop_of_selected_feats``
+          (``feature_set_pop``, at most one entry for the only ported
+          algorithm, ``"simple"``). For each selected feature set (cc:
+          205's own loop): the exemplar's own features are inserted
+          back in (cc:224-232's ``else`` arm -- ``prune_xmplr`` is the
+          gated ``if`` arm, see below), then any ``enforce_features``
+          are sampled in and added (cc:234-238); the COMPLEMENT of the
+          final feature set becomes ``ignore_cols``/``ignore_ops``
+          (cc:240-256, one ``argument(i + 1)`` per unselected column
+          index ``i``) and the set itself becomes ``considered_args``
+          (unused beyond an omitted debug log -- see module docstring).
+
+          ``festor.params.prune_xmplr`` (see ``feature_selector.py``'s
+          own module docstring for why this field's C++ default is
+          indeterminate) selects ``prune_xmplr`` (deme_expander.cc:
+          308-325) -- NOT ported (needs ``combo_tree`` erase-under-
+          iteration plus a ``type_to_exemplar`` empty-tree fallback,
+          neither exercised or verified here); raises rather than
+          silently falling back to the non-pruning arm. Off by
+          default and by every real CLI's own default
+          (``--fs-prune-exemplar`` defaults to ``0``,
+          problem-params.cc:1663-1665), so this never fires on the
+          default ``--enable-fs`` path.
 
         # DIVERGENCE(C++ moses/moses/deme/deme_expander.cc:287-294): the
         # real ``representation(...)`` call also forwards ``_params.
@@ -246,13 +307,6 @@ class deme_expander:
         ...")`` (cc:300-301) is the same no-logging-surface omission
         documented elsewhere (see module docstring).
         """
-        if self._params.fstor is not None:
-            raise NotImplementedError(
-                "deme_expander: on-the-fly feature selection (deme/"
-                "feature_selector.{h,cc}, 710 lines) is P2, gated behind "
-                "--enable-fs; not ported. Construct deme_parameters with "
-                "fstor=None (the default)."
-            )
         if self._params.perceptions is not None or self._params.actions is not None:
             raise NotImplementedError(
                 "deme_expander.create_representations: perceptions/actions "
@@ -297,8 +351,46 @@ class deme_expander:
                 "rejected for a contin/action output type."
             )
 
-        ignore_ops_seq = [self._params.ignore_ops]
-        xmplr_seq = [exemplar]
+        ignore_ops_seq: list[set] = []
+        xmplr_seq: list[combo_tree] = []
+
+        if self._params.fstor is not None:
+            copied_params = copy.deepcopy(self._params.fstor.params)
+            festor = type(self._params.fstor)(self._params.fstor._ctable, copied_params)
+            pop_of_selected_feats = festor(exemplar)
+            xmplr_features = get_argument_abs_idx_from_zero_set(exemplar)
+
+            for selected_score, selected_feats in pop_of_selected_feats:
+                del selected_score  # only used for the omitted debug log
+                if festor.params.prune_xmplr:
+                    raise NotImplementedError(
+                        "deme_expander.create_representations: "
+                        "fstor.params.prune_xmplr=True (deme_expander.cc:"
+                        "308-325, needs combo_tree erase-under-iteration + "
+                        "a type_to_exemplar empty-tree fallback) is not "
+                        "ported; leave prune_xmplr at its default (False "
+                        "-- see feature_selector.py's module docstring)."
+                    )
+                selected_feats = set(selected_feats) | xmplr_features
+                xmplr_seq.append(exemplar)
+
+                if festor.params.enforce_features:
+                    enforced = festor.sample_enforced_features()
+                    selected_feats = selected_feats | enforced
+
+                arity = festor._ctable.get_arity()
+                ignore_cols: set[int] = set()
+                ignore_ops: set = set()
+                for i in range(arity):
+                    arg = argument(i + 1)
+                    if i not in selected_feats:
+                        ignore_cols.add(i)
+                        ignore_ops.add(arg)
+                self._ignore_cols_seq.append(ignore_cols)
+                ignore_ops_seq.append(ignore_ops)
+        else:  # no dynamic feature selection
+            ignore_ops_seq.append(self._params.ignore_ops)
+            xmplr_seq.append(exemplar)
 
         for i in range(len(xmplr_seq)):
             rep = representation(
@@ -386,31 +478,41 @@ class deme_expander:
         # DIVERGENCE(C++ moses/moses/deme/deme_expander.cc:432,477,499,508): classic
         # checks `if (_params.fstor)` at TWO points in this function
         # (cc:432 and the post-loop reset at cc:499) and `if (n_ss_demes >
-        # 1)` at two more (cc:477 and the post-loop reset at cc:508). Given
-        # the gates already in `create_demeIDs`/`create_representations`
-        # (fstor) and `create_demes` (n_subsample_demes), `_params.fstor`
-        # and `_filter_params.n_subsample_demes > 1` cannot be true here
-        # without `_reps`/`_demes` already failing to have been populated
-        # by an EARLIER raise -- the only path that ever builds them is
-        # `create_demes`, above -- UNLESS a caller mutates `_params`/
+        # 1)` at two more (cc:477 and the post-loop reset at cc:508).
+        #
+        # UNLIKE `create_demeIDs`/`create_representations` (which now honour
+        # a real `fstor`, see module docstring), this function's OWN
+        # `if (_params.fstor)` body (cc:432-450) is NOT ported: it calls
+        # `_cscorer.ignore_cols(...)` and `_cscorer.best_possible_score()`
+        # to mask the deme's scorer down to the selected columns, and
+        # `pymetta.moses.scoring.behave_cscore` (this task's `moses/deme/`
+        # scope does not extend to `moses/scoring/`, which is also under
+        # concurrent edit by another agent as of this task) has neither
+        # method. A real `fstor` therefore still raises HERE -- narrower
+        # than before (create_demeIDs/create_representations no longer
+        # raise for it), but this function cannot yet drive a full
+        # `--enable-fs` search loop to completion. Report a need for
+        # `behave_cscore.ignore_cols`/`best_possible_score` as a required
+        # follow-up to whoever owns `pymetta/moses/scoring/` if that is
+        # needed. The post-loop reset (cc:499, `_cscorer.ignore_cols({})`)
+        # is unreachable for the same reason and is likewise not ported.
+        #
+        # The `n_subsample_demes` half of the original four checks is
+        # UNCHANGED and still consolidated into the second guard below, at
+        # entry: `_filter_params.n_subsample_demes > 1` cannot be true here
+        # without `create_demes` already having raised first -- the only
+        # path that ever builds `_reps`/`_demes` -- UNLESS a caller mutates
         # `_filter_params` directly between `create_demes()` and this call
         # (no real caller in classic does this; `moses_main.h:318`'s single
-        # real construction site passes both by reference and never
-        # mutates either mid-search). This port consolidates all four
-        # checks into the two below, at entry: they raise exactly as early
-        # as C++ would in every REACHABLE case, without four near-duplicate
-        # guards that can only fire via that same pathological direct
-        # mutation. The `n_subsample_demes` half of this consolidated
-        # check is ALSO, independently, backed by `subsample_by_row`/
-        # `subsample_by_time`'s own gates a few lines below (both are
-        # still called, unconditionally, matching cc:416-421's own
-        # structure) -- measured directly (mutation testing, see the task
-        # report): with ONLY this top-level check disabled, a caller that
-        # reaches the loop still hits one of those two gates on the very
-        # first iteration and gets the same `NotImplementedError`. The
-        # `fstor` half has no such backup inside this function -- it is
-        # the only thing standing between a mutated `_params.fstor` and
-        # running the un-ported `if (_params.fstor)` body past this point.
+        # real construction site passes it by reference and never mutates
+        # it mid-search). That consolidated check is ALSO, independently,
+        # backed by `subsample_by_row`/`subsample_by_time`'s own gates a
+        # few lines below (both are still called, unconditionally, matching
+        # cc:416-421's own structure) -- measured directly (mutation
+        # testing, see the task report): with ONLY this top-level check
+        # disabled, a caller that reaches the loop still hits one of those
+        # two gates on the very first iteration and gets the same
+        # `NotImplementedError`.
         #
         # `size_t nleft = ...`-style unsigned-wrap risk, checked and found
         # INERT here (not measured via a probe -- verified analytically):
@@ -420,9 +522,16 @@ class deme_expander:
         # of hazard as hill-climbing.cc's `nleft` (hill_climbing.py's own
         # DIVERGENCE note). But `_demes.size()` is EXACTLY 1 on every path
         # this port ever reaches (`_reps`/`_demes` have length 0 or 1 --
-        # never more, since the only way to get more than one representation
-        # is the feature-selection multi-deme path, gated above) or 0 (the
-        # empty-representation case, see `create_representations`). Division
+        # never more: with `fstor is None` there is exactly one
+        # `xmplr_seq` entry, as before; with a real `fstor` the only
+        # ported algorithm, `"simple"`, always returns a single-entry
+        # `feature_set_pop` regardless of `n_demes` -- see
+        # `create_representations`'s own docstring -- so `xmplr_seq` is
+        # still length 1 either way) or 0 (the empty-representation case,
+        # see `create_representations`). This function itself still
+        # raises unconditionally whenever `fstor is not None` (see below),
+        # so in practice `_demes.size()` is always exactly 0 or 1 by the
+        # time control ever reaches this division regardless. Division
         # by 1 is the identity on any bit pattern, signed or unsigned, so
         # `max_evals_per_deme == max_evals` bit-for-bit for every possible
         # `int` value, positive or negative -- there is no wrap to
@@ -436,10 +545,14 @@ class deme_expander:
         """
         if self._params.fstor is not None:
             raise NotImplementedError(
-                "deme_expander: on-the-fly feature selection (deme/"
-                "feature_selector.{h,cc}, 710 lines) is P2, gated behind "
-                "--enable-fs; not ported. Construct deme_parameters with "
-                "fstor=None (the default)."
+                "deme_expander.optimize_demes: a real fstor's OWN branch "
+                "here (deme_expander.cc:432-450) needs "
+                "behave_cscore.ignore_cols()/best_possible_score(), "
+                "neither ported (pymetta.moses.scoring is out of this "
+                "task's scope). create_demeIDs/create_representations "
+                "already honour this fstor -- only driving it through a "
+                "full search loop is unsupported. Construct "
+                "deme_parameters with fstor=None to run optimize_demes."
             )
         if self._filter_params.n_subsample_demes > 1:
             raise NotImplementedError(
