@@ -180,6 +180,7 @@ import argparse
 
 from pymetta.comboreduct.combo.iostream_combo import _builtin_str_to_vertex, str_to_combo_tree
 from pymetta.comboreduct.combo.vertex import builtin
+from pymetta.comboreduct.reduct.contin_reduction import contin_reduction
 from pymetta.comboreduct.reduct.logical_reduction import logical_reduction
 from pymetta.moses.deme.deme_params import deme_parameters
 from pymetta.moses.metapopulation.metapop_params import (
@@ -816,12 +817,39 @@ class problem_params:
         self.lr = logical_reduction(ignore_ops)
         self.bool_reduct = self.lr(self.reduct_candidate_effort)
         self.bool_reduct_rep = self.lr(self.reduct_knob_building_effort)
-        # DIVERGENCE(C++ moses/moses/main/problem-params.cc:2393-2394):
-        # `reduct::contin_reduction(...)` -- contin reduction is S14, not
-        # ported anywhere in this port (`reduct.py`'s own module docstring).
-        # Left `None` rather than fabricated; nothing in this port's scope
-        # reads it.
-        self.contin_reduct = None
+        # `reduct::contin_reduction(reduct_candidate_effort, ignore_ops)`
+        # (problem-params.cc:2393-2394), matching C++'s own choice of ONE
+        # rule object for both candidate AND knob-building reduction here
+        # (unlike bool_reduct/bool_reduct_rep's two separate efforts) --
+        # `contin_reduction`'s only two real call sites, table-problems.cc's
+        # REGRESSION macro and demo-problems.cc's polynomial_problem, both
+        # pass `*pms.contin_reduct` for BOTH `reduct_cand` and `reduct_rep`.
+        # `contin_reduction` (S14 Task 4, `d439711`) and `contin_bscore`
+        # (S14 Task 3, `07027b0`) are both genuinely ported and tested now
+        # -- the DIVERGENCE this replaces ("contin reduction is S14, not
+        # ported anywhere in this port") was true when written and is false
+        # today; `self.contin_reduct = None` was a stale claim, not a
+        # measurement.
+        #
+        # DIVERGENCE(C++ moses/moses/main/table-problems.cc:471-535,
+        # moses/moses/main/demo-problems.cc:233-280): wiring this real
+        # `contin_reduct` does NOT make contin regression reachable end to
+        # end through THIS port's CLI. `it_table_problem.run`'s own
+        # `contin_type` branch (table_problems.py, outside this task's
+        # owned scope) and `polynomial_problem.run` (`-H sr`,
+        # demo_problems.py, likewise outside this task's owned scope) each
+        # raise `NotImplementedError` UNCONDITIONALLY before ever reading
+        # `pms.contin_reduct` -- confirmed by measurement: `moses_exec(["moses",
+        # "-i", "tests/fixtures/table_data/contin_regression_sample.csv",
+        # "-u", "y", "-m1000"])` still raises `it_table_problem.run:
+        # contin-output tables need contin_bscore/discretize_contin_bscore
+        # and reduct::contin_reduction ...` with this field genuinely
+        # non-`None`. Both of those files' own docstrings/messages citing
+        # "problem_params.contin_reduct is still None" are consequently now
+        # ALSO false claims about ported code -- reported as a follow-up
+        # for whoever owns `table_problems.py`/`demo_problems.py` next,
+        # not fixed here (out of this task's owned-file list).
+        self.contin_reduct = contin_reduction(self.reduct_candidate_effort, ignore_ops)
 
         # ---------------- Phase 2: gate unported subsystems, fixed order ----------------
         # All four algo names classic recognises (`optimization.h:66-69`) are

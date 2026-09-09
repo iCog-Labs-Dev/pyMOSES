@@ -361,7 +361,23 @@ def test_bool_reduct_and_bool_reduct_rep_built_at_the_default_efforts():
     pp = _parse()
     assert pp.bool_reduct is not None
     assert pp.bool_reduct_rep is not None
-    assert pp.contin_reduct is None  # S14, not ported -- see module docstring
+
+
+def test_contin_reduct_is_wired_for_real():
+    """`contin_reduction`/`contin_bscore` landed (S14 Tasks 3/4, `d439711`/
+    `07027b0`) -- `problem_params.contin_reduct` is no longer the stale
+    `None` placeholder. Classic (`problem-params.cc:2393-2394`) builds ONE
+    `contin_reduct` object and passes it as BOTH `reduct_cand` and
+    `reduct_rep` everywhere it's used (table-problems.cc's REGRESSION
+    macro, demo-problems.cc's polynomial_problem) -- unlike bool_reduct/
+    bool_reduct_rep's two separate efforts -- so this pins that this port
+    does the same, not two independently-built rule objects.
+    """
+    from pymetta.comboreduct.reduct.reduct import rule
+
+    pp = _parse()
+    assert pp.contin_reduct is not None
+    assert isinstance(pp.contin_reduct, rule)
 
 
 # ---------------------------------------------------------------------------

@@ -852,6 +852,16 @@ def test_select_table_problem_end_to_end_hits_the_documented_knob_building_gap(t
 # _regression's contin_reduct gate (S14) -- reachable only through a
 # forced-boolean problem given a contin-rooted custom exemplar (see
 # test_common_type_setup_exemplar_output_type_overrides_forced_out_type).
+#
+# `problem_params.contin_reduct` is no longer `None` from a real,
+# `parse_options`-built `problem_params` (S13 CLI-gate-reconciliation task:
+# `contin_reduction`/`contin_bscore` landed, S14 Tasks 3/4, `d439711`/
+# `07027b0`) -- so `_regression`'s own `if pms.contin_reduct is None: raise`
+# branch is DEFENSIVE code now, not a live gate a real CLI run can reach.
+# This test forces `contin_reduct` back to `None` after building a real
+# `problem_params` (rather than asserting it starts that way) specifically
+# to keep covering that still-real branch in table_problems.py, which is
+# outside this task's owned scope to remove or restructure.
 # ---------------------------------------------------------------------------
 
 
@@ -859,9 +869,32 @@ def test_regression_contin_reduct_gate(tmp_path):
     csv_path = _write_dataset(tmp_path)
     pmr, tpp, pms = _fresh_pms_and_tpp(["-i", csv_path, "-q", "0.5", "-w", "1.0", "-Q", "1"])
     pms.exemplars = [combo_tree(builtin.plus)]
+    pms.contin_reduct = None  # simulate the pre-wiring state; see comment above
     prob = pmr.find_problem("prerec")
-    assert pms.contin_reduct is None
     with pytest.raises(NotImplementedError, match="contin_reduct"):
+        prob.run(pms)
+
+
+def test_regression_with_real_contin_reduct_still_does_not_reach_a_score(tmp_path):
+    """Follow-up documentation, not a claim of working behaviour: with a
+    REAL (non-`None`) `contin_reduct` -- what a `parse_options`-built
+    `problem_params` gives by default now -- this exact scenario no
+    longer hits `_regression`'s `contin_reduct is None` branch at all, but
+    it still does not reach a score: pairing a `+`-rooted (contin_type)
+    forced exemplar with a genuinely boolean table degenerates into a
+    `ZeroDivisionError` somewhere past that gate (measured directly, not
+    guessed). This is NOT this task's scope to fix (`table_problems.py` is
+    outside the owned-file list) -- pinned here so a future change to
+    `_regression`/contin scoring that silently starts raising something
+    else, or silently starts succeeding, is visible as a test diff rather
+    than discovered by surprise.
+    """
+    csv_path = _write_dataset(tmp_path)
+    pmr, tpp, pms = _fresh_pms_and_tpp(["-i", csv_path, "-q", "0.5", "-w", "1.0", "-Q", "1"])
+    pms.exemplars = [combo_tree(builtin.plus)]
+    prob = pmr.find_problem("prerec")
+    assert pms.contin_reduct is not None
+    with pytest.raises(ZeroDivisionError):
         prob.run(pms)
 
 
