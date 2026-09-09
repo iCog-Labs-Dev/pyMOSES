@@ -1,0 +1,19 @@
+{
+  "capture_script": "tools/capture_feature_selection.py",
+  "capture_script_sha256": "8e7ffbcde7c663d84e82c86325e3a6f881659c6fbd3c5bd9653fc596a1d02a4b",
+  "classic_dir": "/home/yab/Documents/Projects/iCog/HyperonRelated/MOSES/OpenCog/Moses",
+  "cli_tool": null,
+  "generated_at_utc": "2026-09-09T06:20:16+00:00",
+  "inputs": {
+    "boolean_csv": "tests/fixtures/table_data/trainingBoolean.dat",
+    "description": "mutualInformation() for every single-feature set of trainingBoolean.dat/trainingBooleanXor.dat; simple_select_feature_sets() at target_size 0-3 (boolean) and 0-2 (xor), both with the RNG-seeded tie-break live (x1/x2 tie on MI in both tables); and feature_selector::operator()() -- the --enable-fs entry point -- for four (exemplar, restrict_incorrect, ignore_xmplr_features, increase_target_size, base_target_size) cases on trainingBoolean.dat, all seeded via randGen().seed(1) immediately before the call that draws (matching a fresh `-r 1` process, algorithm=simple's only draw).",
+    "seed": 1,
+    "xor_csv": "tests/fixtures/table_data/trainingBooleanXor.dat"
+  },
+  "prefix_dir": "/home/yab/opt/moses-legacy",
+  "probe_kind": "cpp_probe",
+  "probe_source": "tools/cpp_probe/feature_selector_probe.cc",
+  "probe_source_sha256": "185a7c0df9906fd2d8f914bfc65c373e81d66e021234d0ace8c560fdd5834d3d",
+  "repo_commit": "69915bd633d2d93e4fae0b7c336216e5a7d70dea",
+  "schema_version": 1
+}

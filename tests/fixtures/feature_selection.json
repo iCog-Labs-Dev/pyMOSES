@@ -1,0 +1,139 @@
+{
+  "in_loop": [
+    {
+      "base_target_size": 1,
+      "effective_target_size": 3,
+      "exemplar": "and($1 $2)",
+      "fs_ctable_compressed_size": 1,
+      "fs_ctable_uncompressed_size": 3,
+      "ignore_xmplr_features": true,
+      "ignored_features": [
+        0,
+        1
+      ],
+      "increase_target_size": true,
+      "n_feature_sets": 1,
+      "restrict_incorrect": true,
+      "restrict_true": false,
+      "selected": [
+        0,
+        1,
+        2
+      ]
+    },
+    {
+      "base_target_size": 1,
+      "effective_target_size": 3,
+      "exemplar": "and($1 $2)",
+      "fs_ctable_compressed_size": 2,
+      "fs_ctable_uncompressed_size": 8,
+      "ignore_xmplr_features": true,
+      "ignored_features": [
+        0,
+        1
+      ],
+      "increase_target_size": true,
+      "n_feature_sets": 1,
+      "restrict_incorrect": false,
+      "restrict_true": false,
+      "selected": [
+        0,
+        1,
+        2
+      ]
+    },
+    {
+      "base_target_size": 1,
+      "effective_target_size": 1,
+      "exemplar": "$1",
+      "fs_ctable_compressed_size": 3,
+      "fs_ctable_uncompressed_size": 3,
+      "ignore_xmplr_features": false,
+      "ignored_features": [],
+      "increase_target_size": false,
+      "n_feature_sets": 1,
+      "restrict_incorrect": true,
+      "restrict_true": false,
+      "selected": [
+        0
+      ]
+    },
+    {
+      "base_target_size": 0,
+      "effective_target_size": 1,
+      "exemplar": "$1",
+      "fs_ctable_compressed_size": 3,
+      "fs_ctable_uncompressed_size": 3,
+      "ignore_xmplr_features": true,
+      "ignored_features": [
+        0
+      ],
+      "increase_target_size": true,
+      "n_feature_sets": 1,
+      "restrict_incorrect": true,
+      "restrict_true": false,
+      "selected": [
+        2
+      ]
+    }
+  ],
+  "mi": {
+    "boolean": {
+      "x1": 0.04879494069539869,
+      "x2": 0.04879494069539869,
+      "x3": 0.5487949406953987
+    },
+    "xor": {
+      "x1": 0.31127812445913294,
+      "x2": 0.31127812445913294
+    }
+  },
+  "simple": {
+    "boolean": {
+      "0": [
+        [
+          0,
+          1,
+          2
+        ]
+      ],
+      "1": [
+        [
+          2
+        ]
+      ],
+      "2": [
+        [
+          1,
+          2
+        ]
+      ],
+      "3": [
+        [
+          0,
+          1,
+          2
+        ]
+      ]
+    },
+    "xor": {
+      "0": [
+        [
+          0,
+          1
+        ]
+      ],
+      "1": [
+        [
+          1
+        ]
+      ],
+      "2": [
+        [
+          0,
+          1
+        ]
+      ]
+    }
+  }
+}
