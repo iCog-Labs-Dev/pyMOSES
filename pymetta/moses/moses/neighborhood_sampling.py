@@ -90,6 +90,7 @@ from pymetta.moses.representation.instance import instance
 from pymetta.moses.representation.instance_set import instance_set
 from pymetta.moses.representation.scored_instance import scored_instance
 from pymetta.util.lazy_random_selector import lazy_random_selector
+from pymetta.util.logger import logger
 from pymetta.util.rng import MT19937RandGen, randGen
 
 # DIVERGENCE(C++ moses/moses/moses/neighborhood_sampling.h:491,514,520):
@@ -951,6 +952,7 @@ def sample_new_instances(
         deme.resize(current_number_of_instances + number_of_new_instances)
         # Sample number_of_new_instances instances at
         # distance 'distance' from the exemplar.
+        logger().debug("Sampling new instances")
         writer = _DemeWriter(deme, current_number_of_instances)
         sample_from_neighborhood(
             deme.fields(),
@@ -965,8 +967,14 @@ def sample_new_instances(
         # Resize the deme so it can take new instances
         deme.resize(current_number_of_instances + number_of_new_instances)
         # Add all instances on the distance dist from the initial instance.
+        logger().debug("Generating all instances")
         writer = _DemeWriter(deme, current_number_of_instances)
         generate_all_in_neighborhood(
             deme.fields(), dist, writer, number_of_new_instances, center_inst=center_inst
+        )
+    if logger().is_debug_enabled():
+        logger().debug(
+            f"SampleNewInstances: {number_of_new_instances}"
+            f" With deme size: {deme.fields().dim_size()}"
         )
     return number_of_new_instances

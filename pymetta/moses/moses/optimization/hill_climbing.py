@@ -65,10 +65,12 @@ hill-climbing.cc:381-397, and the `#ifdef GATHER_STATS` block
 
 from __future__ import annotations
 
+import copy
 import math
 import os
 import time
 
+from pymetta.comboreduct.combo.iostream_combo import tree_to_stream_str
 from pymetta.moses.moses.neighborhood_sampling import (
     safe_binomial_coefficient,
     sample_new_instances,
@@ -79,10 +81,16 @@ from pymetta.moses.moses.optimization.optimization import (
     optim_parameters,
     optimizer_base,
 )
-from pymetta.moses.moses.types import _to_score_t, score_t, very_worst_score
+from pymetta.moses.moses.types import (
+    _to_score_t,
+    score_t,
+    very_worst_score,
+    worst_composite_score,
+)
 from pymetta.moses.representation.field_set import field_set
 from pymetta.moses.representation.instance import instance
 from pymetta.moses.representation.scored_instance import scored_instance
+from pymetta.util.logger import logger, ostream_double
 
 # hill-climbing.cc's own local #define constants, ported as module-level
 # names (Python has no preprocessor) rather than inlined magic numbers, to
@@ -560,8 +568,56 @@ class hill_climbing(optimizer_base):
                     _ACCEPTABLE_RAM_FRACTION * self._total_RAM_bytes, _MAX_RAM_LIMIT * free_ram
                 )
                 number_of_new_instances = int(cap / self._instance_bytes)
+                # C++ writes `%Ld` here (a GNU synonym for `%lld`); the
+                # substituted digits are identical, and `cap` is an integral
+                # `uint64_t`, so `%d` renders the same record.
+                logger().debug(
+                    "Cap new instances. Tot RAM=%d new_usage=%d Free RAM=%d cap=%d",
+                    self._total_RAM_bytes,
+                    new_usage,
+                    free_ram,
+                    cap,
+                )
+
+        logger().debug(
+            "Budget %u samples out of estimated %u neighbors",
+            number_of_new_instances,
+            total_number_of_neighbors,
+        )
 
         return number_of_new_instances
+
+    def log_stats_legend(self) -> None:
+        """C++: moses/moses/optimization/hill-climbing.cc:825 log_stats_legend
+
+        The column legend for the per-iteration `Hill:` rows, prefixed by
+        `hc_params.prefix_stat_deme` (so "DemesHill: # ..." under the CLI,
+        "FSDemesHill: # ..." under in-loop feature selection). One record;
+        the names are tab-separated with no trailing tab.
+
+        It names FIFTEEN columns while the data row (cc:385-396) writes
+        SEVENTEEN values -- `usec` twice and `max_nn_evals` between them are
+        unnamed. That is upstream's, reproduced rather than corrected: the
+        legend is what classic prints.
+        """
+        logger().info(
+            self.hc_params.prefix_stat_deme + "Hill: # "
+            "demeID\t"
+            "iteration\t"
+            "total_steps\t"
+            "total_evals\t"
+            "microseconds\t"
+            "new_instances\t"
+            "num_instances\t"
+            "inst_RAM\t"
+            "num_evals\t"
+            "has_improved\t"
+            "best_weighted_score\t"
+            "delta_weighted\t"
+            "best_raw\t"
+            "delta_raw\t"
+            "complexity"
+        )
 
     # --------------------------------------------------------------- crossover
 
@@ -1023,15 +1079,38 @@ class hill_climbing(optimizer_base):
         move to that spot, and repeat until no further improvement is
         possible (hill-climbing.h:135-146's own doc comment).
         """
+        # C++: hill-climbing.h:265-267, the 4-arg overload's own record,
+        # emitted BEFORE it forwards to the 5-arg body -- so it precedes
+        # "Local Search Optimization", not follows it.
         if init_inst is None:
             init_inst = instance(deme.fields().packed_width())
+            if logger().is_debug_enabled():
+                logger().debug(
+                    f"Init Inst: {deme.fields().to_string(init_inst)}"
+                    f" Tree: {tree_to_stream_str(iscorer.get_rep().get_candidate(init_inst, True))}"
+                )
+
+        logger().debug("Local Search Optimization")
+
+        self.log_stats_legend()
 
         self.nsteps = 0
         self.demeID = deme.getID()
         self.over_budget = False
         start = time.monotonic()
+        # C++ derives `usec` from the SAME `timersub` result whose `.tv_sec`
+        # drives the budget countdown (cc:374-378); this port truncates that
+        # to whole seconds for the countdown (see the DIVERGENCE below), so
+        # the microsecond figure needs its own untruncated reading.
+        start_float = start
 
         fields = deme.fields()
+
+        if logger().is_debug_enabled():
+            logger().debug(
+                f"Search started from: {fields.to_string(init_inst)}"
+                f" Tree: {tree_to_stream_str(iscorer.get_rep().get_candidate(init_inst, True))}"
+            )
 
         # C++: hill-climbing.cc:72 `_instance_bytes = sizeof(instance) +
         # sizeof(packed_t) * fields.packed_width();` -- see
@@ -1059,6 +1138,13 @@ class hill_climbing(optimizer_base):
         # remaining reference to it in hill-climbing.cc. Provably dead once
         # logging is removed, so it is not tracked here at all, rather than
         # kept as an assign-only local that would exist for no reason.
+        # C++: hill-climbing.cc:243 `composite_score best_cscore =
+        # worst_composite_score;`. This used to be dropped, on the correct
+        # observation that its ONLY consumers were logger() calls. Both are
+        # ported now -- the "Best score:" record (cc:362) and the DemesHill
+        # row's trailing `best_cscore.get_complexity()` (cc:396) -- so it is
+        # tracked again. It still feeds no decision.
+        best_cscore = copy.copy(worst_composite_score)
         best_score: score_t = very_worst_score
         best_raw_score: score_t = very_worst_score
 
@@ -1089,6 +1175,7 @@ class hill_climbing(optimizer_base):
 
         while True:
             iteration += 1
+            logger().debug("Iteration: %u", iteration)
 
             total_number_of_neighbors = self.estimate_neighborhood(distance, fields)
 
@@ -1107,13 +1194,22 @@ class hill_climbing(optimizer_base):
             )
 
             if xover:
-                # NOT ported: the `why_xover` stringstream and the
-                # `OC_ASSERT(false, "There must be a bug")` that closes it
-                # (hill-climbing.cc:154-162). The assertion is unreachable
-                # -- `xover` is only true when `large_nbh || last_chance`,
-                # which is exactly the disjunction the two branches above
-                # it test -- and the whole block feeds one dropped
-                # `logger().debug()`.
+                # C++: hill-climbing.cc:154-162. The closing
+                # `OC_ASSERT(false, "There must be a bug")` is unreachable --
+                # `xover` is true only when `large_nbh || last_chance`, which
+                # is exactly the disjunction these two branches test -- and is
+                # reproduced as an `AssertionError` for that reason only.
+                if large_nbh:
+                    why_xover = (
+                        "n'bhood too large for exhaustive srch: "
+                        f"{total_number_of_neighbors}>={xover_min_neighbors}"
+                    )
+                elif last_chance:
+                    why_xover = "last chance"
+                else:
+                    raise AssertionError("There must be a bug")
+                logger().debug(f"Crossover enabled ({why_xover})")
+
                 number_of_new_instances = self.crossover(
                     deme,
                     current_number_of_instances,
@@ -1125,10 +1221,22 @@ class hill_climbing(optimizer_base):
 
                 already_xover = True
             else:
-                # NOT ported: the matching `whynot_xover` chain and its own
-                # unreachable `OC_ASSERT(false, ...)`
-                # (hill-climbing.cc:170-184).
-                #
+                # C++: hill-climbing.cc:170-184 -- the mirror-image chain,
+                # with the same unreachable closing assertion.
+                if not self.hc_params.crossover:
+                    whynot_xover = "user option"
+                elif iteration <= 2:
+                    whynot_xover = "first 2 iterations"
+                elif already_xover:
+                    whynot_xover = "already done from that center"
+                elif current_number_of_instances < _XOVER_MIN_DEME:
+                    whynot_xover = "not enough instances to cross"
+                elif not large_nbh:
+                    whynot_xover = "small enough neighborhood for full search"
+                else:
+                    raise AssertionError("There must be a bug")
+                logger().debug(f"Crossover disabled ({whynot_xover})")
+
                 # The current_number_of_instances arg is needed only to be
                 # able to manage the size of the deme appropriately.
                 number_of_new_instances = sample_new_instances(
@@ -1139,6 +1247,24 @@ class hill_climbing(optimizer_base):
                     deme,
                     distance,
                 )
+
+            # C++: hill-climbing.cc:215-234, guarded, and note the record is
+            # built from the deme slice that starts at the PRE-update
+            # `current_number_of_instances` (cc:209-212's two `std::next`
+            # iterators), which is why it is emitted here, before the three
+            # `prev_*` assignments below shadow that index.
+            if logger().is_debug_enabled():
+                nbh_dst = f"Evaluate {number_of_new_instances} neighbors"
+                if number_of_new_instances > 0:
+                    if xover:
+                        dsts = [
+                            fields.hamming_distance(deme[i].first, center_inst)
+                            for i in range(current_number_of_instances, len(deme))
+                        ]
+                        nbh_dst += f" from distance {min(dsts)} to {max(dsts)}"
+                    else:
+                        nbh_dst += f" at distance {distance}"
+                logger().debug(nbh_dst)
 
             prev_start = current_number_of_instances
             prev_size = number_of_new_instances
@@ -1151,18 +1277,41 @@ class hill_climbing(optimizer_base):
                 deme[i].second = iscorer(deme[i].first)
 
             prev_hi = best_score
+            prev_best_raw = best_raw_score
 
             ibest = current_number_of_instances
             for i in range(current_number_of_instances, len(deme)):
                 inst_cscore = deme[i].second
                 iscore = inst_cscore.get_penalized_score()
                 if iscore > best_score:
+                    best_cscore = copy.copy(inst_cscore)
                     best_score = iscore
                     ibest = i
 
                 rscore = inst_cscore.get_score()
                 if rscore > best_raw_score:
                     best_raw_score = rscore
+
+            # C++: hill-climbing.cc:269-281. Note the per-instance loop walks
+            # the WHOLE deme from index 0, not just the instances added this
+            # iteration, so it re-prints every earlier instance every time.
+            if logger().is_debug_enabled():
+                logger().debug(
+                    f"Search started from: {fields.to_string(center_inst)}"
+                    " Tree: "
+                    + tree_to_stream_str(iscorer.get_rep().get_candidate(center_inst, True))
+                )
+                for i in range(len(deme)):
+                    inst_cscore = deme[i].second
+                    iscore = inst_cscore.get_penalized_score()
+                    logger().debug(
+                        f"Instance: {fields.to_string(deme[i].first)}"
+                        " Tree: "
+                        + tree_to_stream_str(
+                            iscorer.get_rep().get_candidate(deme[i].first, True)
+                        )
+                        + f" Score: {ostream_double(iscore)}"
+                    )
 
             has_improved = self.opt_params.score_improved(best_score, prev_hi)
 
@@ -1193,6 +1342,11 @@ class hill_climbing(optimizer_base):
             if has_improved:
                 distance = 1
                 deme.n_best_evals = current_number_of_instances
+
+                if logger().is_debug_enabled():
+                    logger().debug(f"Best score: {best_cscore}")
+                    if logger().is_fine_enabled():
+                        logger().fine(f"Best instance: {fields.to_string(center_inst)}")
             elif not xover:
                 distance += 1
 
@@ -1215,21 +1369,64 @@ class hill_climbing(optimizer_base):
             # sub-second (true of every test in this port's fidelity
             # suite) never actually decrements `max_time` at all.
             elapsed_tv_sec = int(now - start)
+            usec = int(round((now - start_float) * 1_000_000))
             start = now
+            start_float = now
+
+            # C++: hill-climbing.cc:381-397. Seventeen tab-separated values
+            # behind a 15-name legend -- that mismatch is classic's, not a
+            # transcription slip: `usec` is streamed TWICE (columns 5 and 7,
+            # with `hc_params.max_nn_evals` between them), and `ram_usage` is
+            # a double in MiB. `has_improved` is a bool, so it prints 1/0.
+            if logger().is_info_enabled():
+                ram_usage = current_number_of_instances
+                ram_usage *= self._instance_bytes
+                ram_usage /= 1024 * 1024
+                logger().info(
+                    self.hc_params.prefix_stat_deme
+                    + "Hill: "
+                    + "\t".join(
+                        [
+                            str(self.demeID),
+                            str(iteration),
+                            str(self.total_steps),
+                            str(self.total_evals),
+                            str(usec),
+                            str(self.hc_params.max_nn_evals),
+                            str(usec),
+                            str(number_of_new_instances),
+                            str(current_number_of_instances),
+                            ostream_double(ram_usage),
+                            str(current_number_of_evals),
+                            str(int(has_improved)),
+                            ostream_double(best_score),
+                            ostream_double(_to_score_t(best_score - prev_hi)),
+                            ostream_double(best_raw_score),
+                            ostream_double(_to_score_t(best_raw_score - prev_best_raw)),
+                            str(best_cscore.get_complexity()),
+                        ]
+                    )
+                )
 
             if number_of_new_instances == 1 and distance == 1:
                 continue
 
             if max_evals <= current_number_of_evals:
                 self.over_budget = True
+                logger().debug("Terminate Local Search: Over budget")
                 break
 
             if max_time <= elapsed_tv_sec:
                 self.over_budget = True
+                logger().debug("Terminate Local Search: Out of time")
                 break
             max_time -= elapsed_tv_sec
 
             if self.opt_params.terminate_if_gte <= best_raw_score:
+                logger().debug(
+                    "Best possible score: " + ostream_double(self.opt_params.terminate_if_gte)
+                )
+                logger().debug("Terminate Local Search: Found best score")
                 break
 
             if self.hc_params.crossover:
@@ -1244,12 +1441,17 @@ class hill_climbing(optimizer_base):
                 last_chance = False
 
             if max_distance < distance:
+                logger().debug("Terminate Local Search: Max search distance exceeded")
                 break
 
             if not has_improved and not self.hc_params.widen_search:
+                logger().debug("Terminate Local Search: No improvement")
                 break
 
             if self.hc_params.single_step and has_improved:
+                # "improvment" is classic's own spelling (cc:478).
+                logger().debug("Terminate Local Search: Single-step and found improvment")
                 break
 
         deme.n_evals = current_number_of_evals
+

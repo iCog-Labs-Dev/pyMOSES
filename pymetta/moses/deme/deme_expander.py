@@ -98,6 +98,7 @@ import copy
 from collections.abc import Callable
 
 from pymetta.comboreduct.combo.argument import argument
+from pymetta.comboreduct.combo.iostream_combo import tree_to_stream_str
 from pymetta.comboreduct.combo.vertex import combo_tree
 from pymetta.comboreduct.type_checker.type_signature import TypeSignature
 from pymetta.moses.deme.deme_params import deme_parameters
@@ -109,6 +110,7 @@ from pymetta.moses.representation.instance_scorer import complexity_based_scorer
 from pymetta.moses.representation.instance_set import instance_set
 from pymetta.moses.representation.representation import representation
 from pymetta.moses.scoring.behave_cscore import behave_cscore
+from pymetta.util.logger import logger
 from pymetta.util.rng import randGen
 
 Simplifier = Callable[[combo_tree], None]
@@ -374,6 +376,16 @@ class deme_expander:
             xmplr_seq.append(exemplar)
 
         for i in range(len(xmplr_seq)):
+            if logger().is_debug_enabled():
+                # C++: deme_expander.cc:276-283. ONE guard around two records;
+                # the second, "Using arguments: " (cc:281-282), streams
+                # `considered_args_seq[i]`, a vector classic builds solely to
+                # feed it (cc:251,265 are its only other mentions) and which
+                # this port does not have -- see this module's own note.
+                logger().debug(
+                    f"Attempt to build rep from exemplar for deme "
+                    f"{self._demeIDs[i]} : {tree_to_stream_str(xmplr_seq[i])}"
+                )
             rep = representation(
                 self.simplify_candidate,
                 self.simplify_knob_building,
@@ -402,6 +414,10 @@ class deme_expander:
                 perm_ratio=self._params.perm_ratio,
             )
             if rep.fields().empty():
+                logger().warn(
+                    "The representation is empty, perhaps the reduct "
+                    "effort for knob building is too high."
+                )
                 continue
             self._reps.append(rep)
 
@@ -577,6 +593,12 @@ class deme_expander:
             _ = self.subsample_by_time()
 
             for j in range(n_ss_demes):
+                if logger().is_debug_enabled():
+                    # C++: deme_expander.cc:425-430.
+                    logger().debug(
+                        f"Optimize deme {self._demes[i][j].getID()}; "
+                        f"max evaluations allowed: {max_evals_per_deme}"
+                    )
                 cpx_scorer = complexity_based_scorer(
                     self._cscorer, self._reps[i], self._params.reduce_all
                 )
