@@ -38,6 +38,18 @@ metapopulation`'s "import the package, get the complete method set"
 guarantee, `test_package_binding.py`'s own contract, transitive through
 one more hop).
 
+`diversity.py` (same P2 task) is imported here for the identical reason,
+extended to a SECOND class: it attaches `set_diversity`/
+`gather_diversity_stats`/`aggregated_dps`/`distort_dp` onto
+`metapopulation` AND `__call__`/`erase_ptr_seq`/`gather_stats` onto
+`cached_dst` (declared, constructor-only, in `metapopulation.py`).
+`merge_demes`'s own `diversity_enabled()` gate now calls `set_diversity()`
+for real too (see this module's own Gates section below) -- so this
+import is both the usual "complete method set on import" guarantee AND,
+now, load-bearing for `merge_demes` itself to have a `set_diversity` to
+call, the same way importing `domination` is load-bearing for
+`merge_candidates`'s `merge_nondominated` call.
+
 ## S11 Task 1 addition: `log_best_candidates`
 
 `metapopulation::log_best_candidates` (merging.cc:652, declared
@@ -134,25 +146,25 @@ own docstring.
   `domination.py` ports that whole file, so both arms are ported here
   too. The default-OFF path (`discard_dominated=False`) is unchanged
   byte-for-byte: neither arm's code is even reached.
+* `diversity_enabled()` -- now REAL (P2 metapopulation task,
+  `diversity.py`): `merge_demes`'s `set_diversity()` call (merging.cc:
+  349-350) runs for real, after `merge_candidates`. Previously raised.
 * `diversity_enabled() or _params.do_boosting or _params.discard_dominated
   or _params.keep_bscore` -- `merge_demes`'s behavioural-score recompute
   block (merging.cc:264-296) is now DECOMPOSED rather than raising as one
-  unit: `diversity_enabled() or do_boosting or keep_bscore` still raises
-  (diversity.cc/ensemble boosting/the keep_bscore path are not ported by
-  this task), but `discard_dominated` alone now runs the real recompute
-  (`merge_demes`'s own docstring explains why splitting the single C++
-  `if` into two independent Python ones has no observable effect on the
-  three still-unported flags, individually or combined with
-  `discard_dominated`).
+  unit: `do_boosting or keep_bscore` still raises (ensemble boosting is
+  not ported by this task; `keep_bscore` has no other unported dependency
+  but was never asked for by anything real), but `discard_dominated or
+  diversity_enabled()` now runs the real recompute (`merge_demes`'s own
+  docstring explains why splitting the single C++ `if` into two
+  independent Python ones has no observable effect on the two
+  still-unported flags, individually or combined with either real one).
 * `_params.do_boosting` -- `merge_demes`'s `_ensemble.add_candidates(...)`
   call (merging.cc:344) is reached, not separately guarded: `ensemble.
   add_candidates` (ensemble.py, S10 Task 1) always raises `NotImplementedError`
   already, the same "reach the unported surface" convention
   metapopulation.py's own `best_composite_score`/`best_tree` use for this
   identical flag.
-* `diversity_enabled()` -- `merge_demes`'s `set_diversity()` call
-  (merging.cc:349-350, diversity.cc, not ported anywhere in this project)
-  raises.
 * `_params.merge_callback is not None` -- `merge_demes`'s callback hook
   (merging.cc:338-339) raises; always `None` by default and never set by
   anything in this port (metapop_params.py's own docstring).
@@ -203,6 +215,7 @@ import copy
 import math
 from typing import TYPE_CHECKING
 
+from pymetta.moses.metapopulation import diversity as _diversity  # noqa: F401
 from pymetta.moses.metapopulation import domination as _domination  # noqa: F401
 from pymetta.moses.metapopulation.metapopulation import _copy_sct, metapopulation
 from pymetta.moses.moses.optimization.hill_climbing import _greater, _partial_sort
@@ -414,39 +427,48 @@ def merge_demes(
     `_params.discard_dominated`, `_params.do_boosting`, `diversity_enabled()`,
     `_filter_params.n_subsample_demes` are all gates that default OFF --
     see module docstring's own Gates section for the full table and each
-    one's exact citation.
+    one's exact citation. `discard_dominated` and `diversity_enabled()`
+    are now BOTH real (P2 metapopulation task: `domination.py`/
+    `diversity.py`); `do_boosting`/`keep_bscore` are not.
 
     The behavioural-score recompute block (merging.cc:258-296) gates on
     `diversity_enabled() or do_boosting or discard_dominated or
     keep_bscore` as ONE `if` in C++ (merging.cc:264-265). This port
     DECOMPOSES that single condition into two Python `if`s: the first
-    (`diversity_enabled() or do_boosting or keep_bscore`) still raises --
-    those three routes into machinery this whole project does not
-    implement (diversity.cc, ensemble boosting, and `keep_bscore` alone
-    has no other unported dependency but was never asked for by anything
-    real). The second, entered only once the first has NOT raised, is
-    `if discard_dominated: <run the real recompute>` -- domination's own
-    P2 task. This has no observable effect on the three still-raising
-    flags: whether `discard_dominated` is also `True` alongside them
-    changes only WHETHER the (side-effect-free, purely local) recompute
-    happens to run before the raise fires, never WHETHER it raises, since
-    real C++ would reach do_boosting's/diversity's own SEPARATE unported
-    surfaces (`_ensemble.add_candidates`, `set_diversity`) later in this
+    (`do_boosting or keep_bscore`) still raises -- ensemble boosting is
+    out of this whole project's scope, and `keep_bscore` alone has no
+    other unported dependency but was never asked for by anything real.
+    The second, entered only once the first has NOT raised, is `if
+    discard_dominated or diversity_enabled(): <run the real recompute>`
+    -- both real now. This has no observable effect on the two
+    still-raising flags: whether either of them is also `True` alongside
+    do_boosting/keep_bscore changes only WHETHER the (side-effect-free,
+    purely local) recompute happens to run before the raise fires, never
+    WHETHER it raises, since real C++ would reach do_boosting's own
+    SEPARATE unported surface (`_ensemble.add_candidates`) later in this
     same function regardless of whether the recompute ran first.
 
     "Behavioral scores are needed only if domination-based merging is
-    asked for ... Note that the instances were previously bscored; the
-    bscores were thrown away way back when, to save on RAM... so we have
-    to do it again here" (merging.cc:256-260's own comment) -- `candidates`
-    (from `get_new_candidates`) carry whatever bscore `deme_to_trees`/
+    asked for, or if the uniformity penalty is in use ... Note that the
+    instances were previously bscored; the bscores were thrown away way
+    back when, to save on RAM... so we have to do it again here"
+    (merging.cc:256-260's own comment, condensed) -- `candidates` (from
+    `get_new_candidates`) carry whatever bscore `deme_to_trees`/
     `scored_combo_tree.__init__` defaulted them to (`[]`, types.py), NOT
     real ones; the recompute below rebuilds each one via `_cscorer.
-    get_bscore(cand.get_tree())`. C++ runs this via `OMP_ALGO::for_each`
-    (merging.cc:277, `PARALLEL_SCORE` branch) -- ported as a plain
-    sequential loop, the same "no threading anywhere in this port, no
-    behavioural difference for a pure per-element computation feeding an
-    unordered set" reasoning `deme_to_trees`'s own docstring already gives
-    for its OMP-parallel `select_candidates` lambda. `scored_combo_tree
+    get_bscore(cand.get_tree())` -- LOAD-BEARING for `diversity_enabled()`
+    specifically, not merely an optimisation: `set_diversity()`
+    (diversity.py, called near the bottom of this function) asserts
+    `bsct.get_bscore().size()` on every `_scored_trees` member it walks,
+    INCLUDING the ones this call is about to merge in -- skipping this
+    recompute when only `diversity_enabled()` (not `discard_dominated`)
+    is `True` would make `set_diversity()` raise on the very next call.
+    C++ runs this via `OMP_ALGO::for_each` (merging.cc:277,
+    `PARALLEL_SCORE` branch) -- ported as a plain sequential loop, the
+    same "no threading anywhere in this port, no behavioural difference
+    for a pure per-element computation feeding an unordered set"
+    reasoning `deme_to_trees`'s own docstring already gives for its
+    OMP-parallel `select_candidates` lambda. `scored_combo_tree
     sct(cand.get_tree(), cand.get_demeID(), cand.get_composite_score(),
     bs)` (merging.cc:279-280) drops the `demeID_t` argument -- not a new
     narrowing, the same established `scored_combo_tree` carries no deme id
@@ -467,6 +489,12 @@ def merge_demes(
     block used to be unreachable dead code in this port (the union gate
     above raised for the same flag first); it is reachable now that the
     gate above no longer raises for `discard_dominated` alone.
+
+    `diversity_enabled()`'s OWN second call site, gating `set_diversity()`
+    (merging.cc:349-350) further down still, is likewise now real
+    (`diversity.py`, P2 metapopulation task) -- see that call's own inline
+    comment below for why it runs AFTER `merge_candidates`, matching
+    real C++'s exact statement order.
     """
     self.sort_demes(all_demes)
     self.keep_top_unique_candidates(all_demes, reps)
@@ -486,17 +514,17 @@ def merge_demes(
 
     candidates = self.get_new_candidates(pot_candidates)
 
-    if self.diversity_enabled() or self._params.do_boosting or self._params.keep_bscore:
+    if self._params.do_boosting or self._params.keep_bscore:
         raise NotImplementedError(
             "metapopulation::merge_demes's behavioural-score recompute "
             "block (merging.cc:258-296), gated (along with "
-            "discard_dominated, which IS ported -- domination.py) on "
-            "diversity_enabled() or do_boosting or keep_bscore, is not "
-            "ported for those three; leave diversity disabled (pressure "
-            "== 0.0, the default), do_boosting=False and keep_bscore=False"
+            "discard_dominated/diversity_enabled(), both of which ARE "
+            "ported -- domination.py/diversity.py) on do_boosting or "
+            "keep_bscore, is not ported for those two; leave "
+            "do_boosting=False and keep_bscore=False"
         )
 
-    if self._params.discard_dominated:
+    if self._params.discard_dominated or self.diversity_enabled():
         new_pot = scored_combo_tree_set()
         for cand in candidates:
             bs = list(self._cscorer.get_bscore(cand.get_tree()))
@@ -504,11 +532,13 @@ def merge_demes(
             new_pot.insert(sct)
         candidates = new_pot
 
-        # "trim down the deme some more, so that the final merge can go
-        # faster" (merging.cc:294-296) -- candidates-against-themselves,
-        # NOT the cross-metapopulation check `merge_candidates` (below,
-        # via `merge_nondominated`) performs.
-        self.remove_dominated(candidates, self._params.jobs)
+        if self._params.discard_dominated:
+            # "trim down the deme some more, so that the final merge can
+            # go faster" (merging.cc:294-296) -- candidates-against-
+            # themselves, NOT the cross-metapopulation check
+            # `merge_candidates` (below, via `merge_nondominated`)
+            # performs.
+            self.remove_dominated(candidates, self._params.jobs)
 
     if candidates.empty():
         return False
@@ -529,12 +559,12 @@ def merge_demes(
         self.rescore()
 
     if self.diversity_enabled():
-        raise NotImplementedError(
-            "metapopulation::merge_demes's set_diversity() call "
-            "(merging.cc:349-350, diversity.cc) is not ported; leave "
-            "metapop_parameters.diversity disabled (pressure == 0.0, the "
-            "default)"
-        )
+        # update diversity penalties (merging.cc:349-350) -- runs AFTER
+        # merge_candidates, matching real C++'s exact statement order:
+        # set_diversity() walks the WHOLE _scored_trees pool, including
+        # the candidates merge_candidates just inserted, and needs their
+        # real bscores (the recompute block above) to already be there.
+        self.set_diversity()
 
     self.resize_metapop()
 

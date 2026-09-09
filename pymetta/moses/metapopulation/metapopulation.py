@@ -142,6 +142,7 @@ from typing import TYPE_CHECKING
 
 from pymetta.moses.metapopulation.ensemble import ensemble
 from pymetta.moses.metapopulation.metapop_params import (
+    diversity_parameters,
     metapop_parameters,
     subsample_deme_filter_parameters,
 )
@@ -248,6 +249,93 @@ class _visited_exemplars_counter:
                 entry[1] += 1
                 return
         bucket.append([_copy_sct(sct), 1])
+
+
+class diversity_stats:
+    """C++: moses/moses/metapopulation/metapopulation.h:319 metapopulation::diversity_stats
+
+    "Structure holding stats about diversity" (the header's own comment).
+    All five fields are plain C++ `double` -- NOT `score_t` -- so none of
+    them are narrowed via `_to_score_t` anywhere they are set (P2
+    metapopulation task, `diversity.py`): CARRY-FORWARD's own rule that
+    `score_t`/`count_t`/`contin_t` are three distinct types applies here
+    as "this is a fourth, untyped-in-this-port `double`, narrow nothing".
+    """
+
+    __slots__ = ("count", "mean", "std", "min", "max")
+
+    def __init__(
+        self,
+        count: float = 0.0,
+        mean: float = 0.0,
+        std: float = 0.0,
+        min: float = 0.0,  # noqa: A002 (shadows builtin `min`, matching the C++ field name)
+        max: float = 0.0,  # noqa: A002 (shadows builtin `max`, matching the C++ field name)
+    ) -> None:
+        self.count = count
+        self.mean = mean
+        self.std = std
+        self.min = min
+        self.max = max
+
+
+class cached_dst:
+    """C++: moses/moses/metapopulation/metapopulation.h:355 metapopulation::cached_dst
+
+    "Cache for bscore distance between (for uniformity penalty) ... We
+    don't use {lru,prr}_cache because 1) we don't need a limit on the
+    cache. 2) we need to remove the pairs containing deleted pointers"
+    (the header's own comment). Declared here (a nested struct in
+    metapopulation.h, this file's own C++ home, the same reasoning
+    `_visited_exemplars_counter` above already follows for a
+    header-declared helper type) with ONLY its constructor -- `__call__`/
+    `erase_ptr_seq`/`gather_stats` are `cached_dst::`-qualified DEFINITIONS
+    in diversity.cc (P2 metapopulation task), attached here via `setattr`
+    by `diversity.py`, mirroring `metapopulation` itself being split
+    across `metapopulation.py`/`merging.py`/`domination.py`/`diversity.py`
+    the same way. `diversity.py` must be imported for this class to have
+    its full method set -- see that module's own docstring for the same
+    import-chain guarantee `merging.py`/`domination.py` already document.
+
+    `ENABLE_DST_CACHE` is commented out at its own definition site
+    (`// #define ENABLE_DST_CACHE`, metapopulation.h:53), so in every
+    build this port targets, `hits`/`misses`/`cache` are declared but
+    never actually read from or written to by `__call__` (see its own
+    docstring in diversity.py) -- they are ported anyway, as inert
+    structural fields, for the same "port the whole struct, not just the
+    reachable slice" reasoning `merge_candidates`/`get_new_candidates`
+    already apply to fields with a narrow live surface.
+    """
+
+    def __init__(self, dparams: diversity_parameters) -> None:
+        """C++: moses/moses/metapopulation/metapopulation.h:359 cached_dst::cached_dst
+
+        (`metapopulation::cached_dst::cached_dst` -- class qualifier
+        dropped only to fit the line-length limit.)
+
+        `_dparams(dparams)` is a `const diversity_parameters&` REFERENCE
+        member bound to whatever `diversity_parameters` object the caller
+        passes (`metapopulation`'s own constructor passes `pa.diversity`,
+        C++, or `self._params.diversity`, this port -- see `metapopulation.
+        __init__`'s own docstring for why those are the SAME object here,
+        not merely equal ones, so this reference-vs-value question is
+        moot in practice). Ported as a bare attribute assignment, Python's
+        own default aliasing -- the same "exact match, not a divergence"
+        reasoning `metapopulation.__init__`'s own docstring gives for
+        `_params`/`_filter_params`.
+
+        `misses(0), hits(0)` -- ported as plain `int` attributes (`std::
+        atomic<unsigned>` in C++, for thread-safety this whole port has no
+        need of -- module-wide "no threading" convention).
+
+        `cache` (`std::unordered_map<ptr_pair, dp_t, ...>`, no member
+        initializer -- value-initializes to empty) -- ported as an empty
+        `dict`.
+        """
+        self._dparams = dparams
+        self.misses = 0
+        self.hits = 0
+        self.cache: dict[object, float] = {}
 
 
 def _copy_sct(sct: scored_combo_tree) -> scored_combo_tree:
@@ -371,11 +459,20 @@ class metapopulation:
         the params passed in).
 
         Fields the C++ constructor also initializes that this task does
-        NOT port -- `_cached_dst`, `_merge_count`, `_merge_mutex` --
-        because every method that reads them is itself out of this
-        task's scope (see this module's own docstring). A later task
-        adding `resize_metapop`/diversity's `set_diversity` should add
-        these alongside those methods, not here.
+        NOT port -- `_merge_count`, `_merge_mutex` -- because every
+        method that reads them is itself out of this task's scope (see
+        this module's own docstring); `resize_metapop` (`merging.py`)
+        avoids needing `_merge_count` pre-initialized, see its own
+        docstring.
+
+        UPDATED (P2 metapopulation task): `_cached_dst(pa.diversity)`
+        (metapopulation.cc:39) IS now ported, as `cached_dst(self._params.
+        diversity)` -- `set_diversity`/`gather_diversity_stats`
+        (`diversity.py`) need it. `pa.diversity` vs `self._params.
+        diversity`: the same object either way, since `self._params`
+        already aliases `pa` (this docstring's own paragraph above), so
+        this is not a new aliasing decision, just the same one applied to
+        a second field.
 
         `_visited_exemplars` (`scored_tree_counter _visited_exemplars;`,
         metapopulation.h:557, default-constructed to an empty map) IS
@@ -394,6 +491,7 @@ class metapopulation:
         self._best_candidates = scored_combo_tree_set()
         self._ensemble = ensemble(sc, self._params.ensemble_params)
         self._visited_exemplars = _visited_exemplars_counter()
+        self._cached_dst = cached_dst(self._params.diversity)
         self.init(bases)
 
     def init(self, exemplars: list[combo_tree]) -> None:
@@ -582,6 +680,15 @@ class metapopulation:
     def diversity_enabled(self) -> bool:
         """C++: moses/moses/metapopulation/metapopulation.h:342 metapopulation::diversity_enabled"""
         return self._params.diversity.enabled()
+
+    def get_cached_dst(self) -> cached_dst:
+        """C++: moses/moses/metapopulation/metapopulation.h:172 metapopulation::get_cached_dst
+
+        Trivial accessor, returned by reference in C++ (`const cached_dst&`)
+        -- ported as a direct return, matching that reference semantics
+        (same shape as `get_ensemble`/`get_trees` above).
+        """
+        return self._cached_dst
 
     def update_best_candidates(self, candidates: scored_combo_tree_set) -> None:
         """C++: moses/moses/metapopulation/merging.cc:616 metapopulation::update_best_candidates

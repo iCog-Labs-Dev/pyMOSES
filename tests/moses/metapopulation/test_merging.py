@@ -1087,12 +1087,22 @@ def test_merge_demes_keep_bscore_gate_raises():
         mp.merge_demes([], [])
 
 
-def test_merge_demes_diversity_enabled_gate_raises():
+def test_merge_demes_diversity_enabled_no_longer_raises_on_empty_demes():
+    """P2 metapopulation task: `diversity_enabled()` is now real
+    (`diversity.py`) -- this used to be `test_merge_demes_diversity_
+    enabled_gate_raises`, pinning a `NotImplementedError`. With an EMPTY
+    `all_demes`/`reps`, `candidates` ends up empty regardless of
+    `diversity_enabled()`, so this now reaches the exact same
+    `candidates.empty(): return False` exit
+    `test_merge_demes_default_gates_off_returns_false_on_no_candidates`
+    already pins for the all-defaults case -- `set_diversity()` itself is
+    only ever reached AFTER `merge_candidates`, which an empty
+    `candidates` never gets to. Real `set_diversity()` behaviour (an
+    actual pool to penalize) is covered by test_diversity.py."""
     mp = _mp()
     mp._params.diversity.pressure = 0.5
     assert mp.diversity_enabled() is True
-    with pytest.raises(NotImplementedError):
-        mp.merge_demes([], [])
+    assert mp.merge_demes([], []) is False
 
 
 def test_merge_demes_default_gates_off_returns_false_on_no_candidates():
