@@ -49,6 +49,7 @@ from pymetta.feature_selection.main.feature_selection_params import (
     feature_set,
     feature_set_pop,
 )
+from pymetta.util.logger import logger
 from pymetta.util.rng import randGen
 
 __all__ = [
@@ -290,6 +291,7 @@ class feature_selector:
         ilabels = list(self._ctable.get_input_labels())
         itypes = list(sig.itypes) if sig is not None else []
         if self.params.xmplr_as_feature:
+            logger().debug("Append exemplar feature")  # C++: feature_selector.cc:134
             ilabels.append(EXEMPLAR_FEATURE_NAME)
             itypes.append(cto)
 
@@ -298,6 +300,13 @@ class feature_selector:
 
         interp = boolean_interpreter
         ignored_sorted = sorted(self.params.ignored_features)
+        if self.params.ignored_features:
+            # C++: feature_selector.cc:144-145 -- `ostream_container(...,
+            # params.ignored_features)` with the default " " delimiter, so
+            # a space-separated list after the prefix.
+            logger().debug(
+                "Ignore features: " + " ".join(str(i) for i in ignored_sorted)
+            )
 
         for row, counter in self._ctable.items():
             predicted_out: vertex = interp(list(row))(xmplr)
@@ -321,6 +330,10 @@ class feature_selector:
                 dst = fs_ctable.setdefault(key, type(counter)())
                 for value, count in counter.items():
                     dst[value] = dst.get(value, 0.0) + count
+
+        # C++: feature_selector.cc:220-221. `%u` on a `size_t` is classic's
+        # own format/type mismatch and prints the same digits.
+        logger().debug("CTable size for feature selection = %u", len(fs_ctable))
 
         if self.params.subsampling_ratio < 1.0:
             what = "by-time" if self.params.subsampling_by_time else "by-row"
@@ -390,6 +403,11 @@ class feature_selector:
         for name, probability in self.params.enforce_features.items():
             if probability > randGen().randfloat():  # biased_randbool(probability)
                 sampled_features.append(name)
+
+        if logger().is_debug_enabled():
+            # C++: feature_selector.cc:464-468 -- the sampled NAMES, not the
+            # indices, space-separated after the prefix.
+            logger().debug("Enforce features: " + " ".join(sampled_features))
 
         ilabels = self._ctable.get_input_labels()
         return set(get_indices(sampled_features, ilabels))

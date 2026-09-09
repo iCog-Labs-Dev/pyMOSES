@@ -109,6 +109,7 @@ import math
 import sys
 from typing import TYPE_CHECKING
 
+from pymetta.comboreduct.combo.iostream_combo import tree_to_stream_str
 from pymetta.moses.metapopulation.metapopulation import (
     cached_dst,
     diversity_stats,
@@ -121,6 +122,7 @@ from pymetta.moses.moses.types import (
     scored_combo_tree_ptr_set,
     sct_score_greater,
 )
+from pymetta.util.logger import logger, ostream_double
 
 if TYPE_CHECKING:
     pass
@@ -305,6 +307,8 @@ def set_diversity(self: metapopulation) -> None:
     `metapopulation.clear()`'s own docstring gives for its own
     reassignment-instead-of-`.clear()` choice).
     """
+    logger().debug("Compute diversity penalties of the metapopulation")
+
     dp_max = self._params.diversity.exponent <= 0.0
 
     tmp: list[list] = [[sct, _to_score_t(0.0)] for sct in list(self._scored_trees)]
@@ -343,6 +347,17 @@ def set_diversity(self: metapopulation) -> None:
                     bsct.get_composite_score().multiply_diversity = True
                 bsct.get_composite_score().set_uniformity_penalty(adp)
 
+                if logger().is_fine_enabled():
+                    # C++: diversity.cc:120-128.
+                    logger().fine(
+                        "Diversity for candidate: "
+                        + tree_to_stream_str(bsct.get_tree())
+                        + f", last_dst = {ostream_double(last_dst)}"
+                        + f", last_dp = {ostream_double(last_dp)}"
+                        + f", last_ddp = {ostream_double(last_ddp)}"
+                        + f", adp = {ostream_double(adp)}"
+                    )
+
         best_idx = 0
         for i in range(1, len(tmp)):
             if _bsct_gt(tmp[i][0], tmp[best_idx][0]):
@@ -357,6 +372,13 @@ def set_diversity(self: metapopulation) -> None:
     for sct in pool_members:
         new_pool.insert(sct)
     self._scored_trees = new_pool
+
+    # DIVERGENCE(C++ moses/moses/metapopulation/diversity.cc:170): the
+    # closing FINE block dumps the whole metapopulation through
+    # `ostream_metapop` (metapopulation.cc:236), which is not ported
+    # (logging-only; every call site in classic sits inside a `logger()`
+    # block). Dropped rather than half-emitted, same as the two other
+    # `ostream_metapop` sites (merging.py, local_moses.py).
 
 
 def gather_diversity_stats(self: metapopulation, n: int) -> diversity_stats:
