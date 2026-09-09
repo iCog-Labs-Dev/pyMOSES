@@ -176,3 +176,39 @@ class rule(ABC):
         # never-mutated-through-a-reference reason.
         """
         return copy.copy(self)
+
+
+def replace_without_changing_it(tr: combo_tree, dst: tree_node, src: tree_node) -> None:
+    """C++: moses/comboreduct/reduct/reduct.h:252 replace_without_changing_it
+
+    S14 Task 4 addition: `meta_rules.py`'s `ignore_size_increase` and
+    `contin_rules.py`'s `reduce_distribute` are this helper's only two real
+    call sites in $CLASSIC (reduct.py's own module docstring already noted
+    both, deferring the port to "S14, out of scope" -- that deferral ends
+    here). C++'s own comment: replace `dst`'s subtree with a copy of `src`'s,
+    WITHOUT changing which node `dst` itself refers to -- needed because the
+    reduct engine assumes a rule never changes the iterator it was handed.
+
+    `*dst = *src;` copies `src`'s own vertex value onto `dst` in place
+    (`copy.copy`, matching every other subtree-copy entry point's use of
+    `_copy_value` for the identical `argument`-aliasing reason -- see
+    `tree.py`'s own module docstring). Then: if `src` is childless, `dst`'s
+    children are simply erased (`tr.erase_children(dst)`); otherwise C++
+    calls the general sibling-RANGE `replace(dst.begin(), dst.end(),
+    src.begin(), src.end())` overload, which this port's `tree.replace`
+    does not carry (scoped, like `tree.sort`/`tree.partition`, to the one
+    shape every real caller in this port needs -- see those methods' own
+    docstrings for the same scoping convention). Reproduced here directly:
+    erase `dst`'s current children, then deep-copy each of `src`'s children
+    onto `dst` in order via `tr.append_child` (already a subtree-copying
+    primitive) -- net effect identical to the general range-replace for
+    this "replace ALL of dst's children with copies of ALL of src's"
+    shape, which is the only shape either real call site ever needs (C++'s
+    own comment: "it is assumed (for now) that dst and src have the same
+    number of children" -- a note about its two callers' inputs, not a
+    precondition this function enforces either in C++ or here).
+    """
+    dst.data = copy.copy(src.data)
+    tr.erase_children(dst)
+    for child in list(tr.children(src)):
+        tr.append_child(dst, child)

@@ -10,18 +10,18 @@ converge to a different normal form than C++, silently, with no
 rule-level test able to catch it (see the task brief and
 docs/superpowers/plans/2026-09-04-pymetta-s7-reduct.md's Task 2 section).
 
-Two C++ symbols this same header declares are DELIBERATELY NOT PORTED:
-
-* `when` (meta_rules.h:44-56) and `ignore_size_increase` (meta_rules.h:
-  60-71) -- both real meta-rules, but zero call sites anywhere within S7's
-  actual scope: `grep -rln "when(\\|ignore_size_increase(" logical_
-  reduction.cc general_rules.cc logical_rules.cc clean_reduction.cc`
-  under $CLASSIC's moses/comboreduct/reduct/ returns nothing. Both are
-  used only by `contin_reduction.cc` (S14, mixed/contin reduction --
-  CLAUDE.md's own "Known gap, deliberate"). `ignore_size_increase` is
-  also the ONLY real call site of reduct.h's `replace_without_changing_it`
-  (see reduct.py's own module docstring), which is why that helper is
-  likewise not ported here.
+S14 Task 4 UPDATE: `when` (meta_rules.h:44-56) and `ignore_size_increase`
+(meta_rules.h:60-71) are now ported below -- they were DELIBERATELY NOT
+PORTED through S7-S13 (zero call sites anywhere in those slices' scope:
+`grep -rln "when(\\|ignore_size_increase(" logical_reduction.cc
+general_rules.cc logical_rules.cc clean_reduction.cc` under $CLASSIC's
+moses/comboreduct/reduct/ returns nothing), because both are used only by
+`contin_reduction.cc` (S14 Task 4's own `contin_reduction.py`, which wires
+`ignore_size_increase` around `complete_factorize`/`complete_distribute`,
+and `contin_rules.cc`'s `#ifndef`-guarded call sites gate `when` on
+`ignore_ops` membership). `ignore_size_increase` is also the real call
+site of reduct.h's `replace_without_changing_it`, now ported in
+`reduct.py` for this same reason.
 
 VISIT ORDER, verified against the real compiled library, not inferred
 from the C++ comments alone (`tools/cpp_probe/meta_rules_probe.cc`,
@@ -73,7 +73,7 @@ that module's docstring and task-5-report.md).
 
 from pymetta.comboreduct.combo.assumption import copy_all_assumptions, equal_assumptions
 from pymetta.comboreduct.combo.vertex import combo_tree, equal_subtree_vertex_safe
-from pymetta.comboreduct.reduct.reduct import rule
+from pymetta.comboreduct.reduct.reduct import replace_without_changing_it, rule
 from pymetta.comboreduct.table.table import type_node
 from pymetta.comboreduct.type_checker.type_tree import get_output_type_tree, type_tree
 from pymetta.util.tree import tree_node
@@ -333,3 +333,61 @@ class assum_iterative(rule):
             )
             if same_tree and equal_assumptions(tmp, tr):
                 break
+
+
+class when(rule):
+    """C++: moses/comboreduct/reduct/meta_rules.h:46 when
+
+    Apply the wrapped rule only when `cond` is true. `cond` is a plain
+    Python `bool` computed ONCE, by the caller, at construction time --
+    matching every real C++ call site (`contin_reduction.cc`'s
+    `when(downwards(reduce_sin()), ignore_ops.find(id::sin) ==
+    ignore_ops.end())`): the `ignore_ops.find(...)` membership test runs
+    exactly once, while the static rule tree is being assembled, not once
+    per `apply()` call.
+    """
+
+    def __init__(self, r: rule, cond: bool, name: str = "when") -> None:
+        """C++: moses/comboreduct/reduct/meta_rules.h:47 when::when"""
+        super().__init__(name)
+        self.r = r.clone()
+        self.cond = cond
+
+    def apply(self, tr: combo_tree, it: tree_node) -> None:
+        """C++: moses/comboreduct/reduct/meta_rules.cc:60 when::operator()"""
+        if self.cond:
+            self.r(tr, it)
+
+
+class ignore_size_increase(rule):
+    """C++: moses/comboreduct/reduct/meta_rules.h:61 ignore_size_increase
+
+    Apply the wrapped rule; if doing so did not DECREASE the size of the
+    combo_tree (stayed the same or grew), revert `it`'s subtree back to
+    what it was before the wrapped rule ran.
+    """
+
+    def __init__(self, r: rule, name: str = "ignore_size_increase") -> None:
+        """C++: moses/comboreduct/reduct/meta_rules.h:62 ignore_size_increase"""
+        super().__init__(name)
+        self.r = r.clone()
+
+    def apply(self, tr: combo_tree, it: tree_node) -> None:
+        """C++: moses/comboreduct/reduct/meta_rules.cc:68 ignore_size_increase::operator()
+
+        `combo_tree tmp(it)` (C++) snapshots `it`'s subtree BEFORE the
+        wrapped rule runs -- ported as `combo_tree(it)`, this port's same
+        iterator-copy constructor `iterative.apply` already uses above.
+        C++ then compares that pre-mutation size against a SECOND,
+        POST-mutation snapshot's size (`combo_tree(it).size()`, a fresh
+        deep copy taken only to read `.size()` off it and immediately
+        discarded). `tr.count(it)` (subtree_size) reads the identical
+        number directly off the now-mutated live tree without the
+        redundant deep copy -- both count exactly the nodes in `it`'s
+        current subtree, so this is not a behavioural difference, only an
+        implementation one.
+        """
+        tmp = combo_tree(it)
+        self.r(tr, it)
+        if tmp.size() <= tr.count(it):
+            replace_without_changing_it(tr, it, tmp.begin())
