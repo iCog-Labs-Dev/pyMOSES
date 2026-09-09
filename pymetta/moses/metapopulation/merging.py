@@ -15,12 +15,43 @@ other bound method.
 metapopulation.h but DEFINED in subsample.cc -- a file outside this whole
 S10 slice (deme_expander.{h,cc}, deme_params.h, metapopulation.{h,cc},
 merging.cc, metapop_params.{h,cc}). `merge_demes` (this task's own scope)
-calls both unconditionally, so they are ported here too, AS GATES: the
-disabled arm (`n_subsample_demes <= 1`, the default) reproduces the real
-no-op/all-true behaviour exactly (that part of subsample.cc's own source
-is trivial and fully visible even though the file itself is out of
-scope); the enabled arm raises, since the real work lives in a file this
-task does not own (`subsample.cc` -- P2's own remaining-work list).
+calls both unconditionally. THIS USED TO mean they were ported here too,
+as gates (the disabled arm reproducing the real no-op/all-true behaviour
+exactly, the enabled arm raising since subsample.cc itself was out of
+scope) -- see the P2 metapopulation SUBSAMPLE task note just below: both
+are now fully real, and now live in `subsample.py`, not here.
+
+## P2 metapopulation task: `subsample.cc` is now real
+
+`subsample.py` (new module, same free-function + `setattr` composition)
+ports the whole of `subsample.cc` (488 lines) -- `recompute_scores_over_
+whole_dataset`/`ss_filter` (the two symbols that used to be defined,
+as gates, right in THIS file -- removed from here, moved there in full)
+plus `ss_score_dev_filter`/`ss_average_agreement`/both `ss_tanimoto_stats`
+overloads/`ss_tanimoto_filter` (declared in metapopulation.h but never
+previously defined anywhere in this port). `merging.py` imports
+`subsample` for the same "import the package, get the complete method
+set" transitivity reason it imports `domination`/`diversity` -- see the
+import's own inline comment (placed deliberately AFTER `_sort`'s
+definition, not with the other two imports at the top of this file) for
+why the ORDER matters here specifically.
+
+## P2 metapopulation task: `ensemble.cc`'s real AdaBoost/expert boosting
+## is now real
+
+`ensemble.py` (same file, rewritten in full) now implements
+`add_adaboost`/`add_expert`/`get_adaboost_tree`/`get_exact_tree`/
+`get_expert_tree`/`flat_score` for real -- see that module's own
+docstring. `merge_demes`'s `_ensemble.add_candidates(candidates)` call
+(merging.cc:344) was already reached unconditionally (not separately
+guarded here) even when `ensemble.add_candidates` always raised; it now
+actually drives real boosting whenever `_params.do_boosting` is `True`.
+The ONLY code change this needed in `merge_demes` itself is splitting the
+combined `do_boosting or keep_bscore` raise (merging.cc:264-265's single
+`if`, previously ported as two Python `if`s per this module's OLDER "Gates
+ported" note below) so that `do_boosting` ALONE no longer raises --
+`keep_bscore` alone still does, unchanged, since it has no other unported
+dependency but was never asked for by anything real either.
 
 ## P2 metapopulation task: `discard_dominated` is now real
 
@@ -151,27 +182,32 @@ own docstring.
   349-350) runs for real, after `merge_candidates`. Previously raised.
 * `diversity_enabled() or _params.do_boosting or _params.discard_dominated
   or _params.keep_bscore` -- `merge_demes`'s behavioural-score recompute
-  block (merging.cc:264-296) is now DECOMPOSED rather than raising as one
-  unit: `do_boosting or keep_bscore` still raises (ensemble boosting is
-  not ported by this task; `keep_bscore` has no other unported dependency
-  but was never asked for by anything real), but `discard_dominated or
-  diversity_enabled()` now runs the real recompute (`merge_demes`'s own
+  block (merging.cc:264-296) is DECOMPOSED rather than gated as one unit:
+  `keep_bscore` ALONE still raises (it has no other unported dependency
+  but was never asked for by anything real); `discard_dominated or
+  diversity_enabled() or do_boosting` (P2 metapopulation task: `do_boosting`
+  added to the real-recompute condition once `ensemble.py` went real --
+  boosting NEEDS real bscores on every candidate exactly as much as
+  diversity/domination do, since `ensemble.add_candidates`, reached
+  further down this same function, calls `_bscorer.get_error(sct.
+  get_bscore())`) now runs the real recompute. `merge_demes`'s own
   docstring explains why splitting the single C++ `if` into two
-  independent Python ones has no observable effect on the two
-  still-unported flags, individually or combined with either real one).
-* `_params.do_boosting` -- `merge_demes`'s `_ensemble.add_candidates(...)`
-  call (merging.cc:344) is reached, not separately guarded: `ensemble.
-  add_candidates` (ensemble.py, S10 Task 1) always raises `NotImplementedError`
-  already, the same "reach the unported surface" convention
-  metapopulation.py's own `best_composite_score`/`best_tree` use for this
-  identical flag.
+  independent Python ones has no observable effect on `keep_bscore`,
+  the one flag still gated, whether alone or combined with any real one.
+* `_params.do_boosting` -- now REAL (P2 metapopulation task, `ensemble.py`):
+  `merge_demes`'s `_ensemble.add_candidates(...)` call (merging.cc:344) is
+  reached, not separately guarded, and now actually drives AdaBoost/expert
+  boosting instead of always raising `NotImplementedError`. See
+  `ensemble.py`'s own module docstring for what "real" covers and does
+  not.
 * `_params.merge_callback is not None` -- `merge_demes`'s callback hook
   (merging.cc:338-339) raises; always `None` by default and never set by
   anything in this port (metapop_params.py's own docstring).
-* `_filter_params.n_subsample_demes > 1` -- gates
-  `recompute_scores_over_whole_dataset`/`ss_filter` (see module docstring
-  above); the disabled arm's real behaviour (a no-op / an all-`True`
-  vector) is ported exactly, not merely stubbed.
+* `_filter_params.n_subsample_demes > 1` -- now REAL (P2 metapopulation
+  task, `subsample.py`): gates `recompute_scores_over_whole_dataset`/
+  `ss_filter`, both fully ported there now (see this module's own
+  "subsample.cc is now real" note above). The disabled arm's behaviour
+  (a no-op / an all-`True` vector) is unchanged.
 
 ## Aliasing discipline
 
@@ -427,26 +463,27 @@ def merge_demes(
     `_params.discard_dominated`, `_params.do_boosting`, `diversity_enabled()`,
     `_filter_params.n_subsample_demes` are all gates that default OFF --
     see module docstring's own Gates section for the full table and each
-    one's exact citation. `discard_dominated` and `diversity_enabled()`
-    are now BOTH real (P2 metapopulation task: `domination.py`/
-    `diversity.py`); `do_boosting`/`keep_bscore` are not.
+    one's exact citation. All four are now real (P2 metapopulation task:
+    `domination.py`/`diversity.py`, then `subsample.py`/`ensemble.py`);
+    only `_params.keep_bscore` remains unported.
 
     The behavioural-score recompute block (merging.cc:258-296) gates on
     `diversity_enabled() or do_boosting or discard_dominated or
     keep_bscore` as ONE `if` in C++ (merging.cc:264-265). This port
     DECOMPOSES that single condition into two Python `if`s: the first
-    (`do_boosting or keep_bscore`) still raises -- ensemble boosting is
-    out of this whole project's scope, and `keep_bscore` alone has no
-    other unported dependency but was never asked for by anything real.
-    The second, entered only once the first has NOT raised, is `if
-    discard_dominated or diversity_enabled(): <run the real recompute>`
-    -- both real now. This has no observable effect on the two
-    still-raising flags: whether either of them is also `True` alongside
-    do_boosting/keep_bscore changes only WHETHER the (side-effect-free,
-    purely local) recompute happens to run before the raise fires, never
-    WHETHER it raises, since real C++ would reach do_boosting's own
-    SEPARATE unported surface (`_ensemble.add_candidates`) later in this
-    same function regardless of whether the recompute ran first.
+    (`keep_bscore` alone) still raises -- it has no other unported
+    dependency but was never asked for by anything real. The second,
+    entered only once the first has NOT raised, is `if discard_dominated
+    or diversity_enabled() or do_boosting: <run the real recompute>` --
+    all three real now (P2 metapopulation task added `do_boosting` to
+    this condition once `ensemble.py` went real: boosting needs real
+    bscores on every candidate exactly as much as diversity/domination
+    do, since `_ensemble.add_candidates`, reached further down this same
+    function, calls `_bscorer.get_error(sct.get_bscore())` on each one).
+    This has no observable effect on the one still-raising flag:
+    whether `keep_bscore` is combined with any of the three real ones
+    changes only WHETHER the (side-effect-free, purely local) recompute
+    happens to run before the raise fires, never WHETHER it raises.
 
     "Behavioral scores are needed only if domination-based merging is
     asked for, or if the uniformity penalty is in use ... Note that the
@@ -514,17 +551,17 @@ def merge_demes(
 
     candidates = self.get_new_candidates(pot_candidates)
 
-    if self._params.do_boosting or self._params.keep_bscore:
+    if self._params.keep_bscore:
         raise NotImplementedError(
             "metapopulation::merge_demes's behavioural-score recompute "
             "block (merging.cc:258-296), gated (along with "
-            "discard_dominated/diversity_enabled(), both of which ARE "
-            "ported -- domination.py/diversity.py) on do_boosting or "
-            "keep_bscore, is not ported for those two; leave "
-            "do_boosting=False and keep_bscore=False"
+            "discard_dominated/diversity_enabled()/do_boosting, all of "
+            "which ARE ported -- domination.py/diversity.py/subsample.py/"
+            "ensemble.py) on keep_bscore, is not ported for that one "
+            "flag; leave keep_bscore=False"
         )
 
-    if self._params.discard_dominated or self.diversity_enabled():
+    if self._params.discard_dominated or self.diversity_enabled() or self._params.do_boosting:
         new_pot = scored_combo_tree_set()
         for cand in candidates:
             bs = list(self._cscorer.get_bscore(cand.get_tree()))
@@ -1134,59 +1171,6 @@ def keep_top_unique_candidates(
             del deme[top_cnd:]
 
 
-def recompute_scores_over_whole_dataset(
-    self: metapopulation,
-    all_demes: list[list[deme_t]],
-    reps: list[representation],
-) -> None:
-    """C++: moses/moses/metapopulation/subsample.cc:42 recompute_scores_over_whole_dataset
-
-    Declared in metapopulation.h but DEFINED in subsample.cc -- a file
-    outside this whole S10 slice's file list, the same way domination.cc
-    is (see module docstring). Called unconditionally from `merge_demes`
-    (this task's own scope), so it needs a gate here the way
-    `discard_dominated`'s domination arm does. Real C++'s entire body is
-    `if (_filter_params.n_subsample_demes > 1) { ... }`
-    (subsample.cc:47) -- a pure no-op when subsampling is disabled (the
-    default, `n_subsample_demes == 0`). Ported as exactly that gate: the
-    disabled arm does nothing, matching real C++ exactly rather than
-    approximating it; the enabled arm raises, since subsample.cc's real
-    body (re-scoring every candidate over the whole, un-subsampled
-    dataset) is out of every file this task owns.
-    """
-    if self._filter_params.n_subsample_demes > 1:
-        raise NotImplementedError(
-            "metapopulation::recompute_scores_over_whole_dataset "
-            "(subsample.cc, gated on n_subsample_demes > 1) is not "
-            "ported; leave subsample_deme_filter_parameters."
-            "n_subsample_demes <= 1 (the default)"
-        )
-
-
-def ss_filter(
-    self: metapopulation,
-    all_demes: list[list[deme_t]],
-    reps: list[representation],
-) -> list[bool]:
-    """C++: moses/moses/metapopulation/subsample.cc:77 metapopulation::ss_filter
-
-    Same out-of-slice-file situation as `recompute_scores_over_whole_dataset`
-    above. "Breadth first demes pass vector. By default they all pass the
-    filter" (subsample.cc's own comment): `std::vector<bool> bfpass(
-    all_demes.size(), true);` is constructed BEFORE the
-    `n_subsample_demes > 1` gate and returned unchanged whenever
-    subsampling is disabled -- ported as exactly that.
-    """
-    if self._filter_params.n_subsample_demes > 1:
-        raise NotImplementedError(
-            "metapopulation::ss_filter (subsample.cc, gated on "
-            "n_subsample_demes > 1) is not ported; leave "
-            "subsample_deme_filter_parameters.n_subsample_demes <= 1 "
-            "(the default)"
-        )
-    return [True] * len(all_demes)
-
-
 def log_best_candidates(self: metapopulation) -> None:
     """C++: moses/moses/metapopulation/merging.cc:652 metapopulation::log_best_candidates
 
@@ -1256,6 +1240,27 @@ metapopulation.resize_metapop = resize_metapop
 metapopulation.get_new_candidates = get_new_candidates
 metapopulation.sort_demes = sort_demes
 metapopulation.keep_top_unique_candidates = keep_top_unique_candidates
-metapopulation.recompute_scores_over_whole_dataset = recompute_scores_over_whole_dataset
-metapopulation.ss_filter = ss_filter
 metapopulation.log_best_candidates = log_best_candidates
+
+# P2 metapopulation task (subsample): `recompute_scores_over_whole_dataset`/
+# `ss_filter` (subsample.cc, declared metapopulation.h) USED to be defined
+# right here as gates that raised `NotImplementedError` whenever
+# `_filter_params.n_subsample_demes > 1` -- see this module's own top-of-
+# file docstring's "Gates ported" section for the historical shape. Both
+# are now REAL, ported whole (alongside every other subsample.cc symbol:
+# `ss_score_dev_filter`, `ss_average_agreement`, both `ss_tanimoto_stats`
+# overloads, `ss_tanimoto_filter`) in `subsample.py`, which binds them onto
+# `metapopulation` itself via the same setattr composition this file uses.
+#
+# This import MUST come after `_sort` is defined above (not alongside the
+# `diversity`/`domination` imports at the top of this file): `subsample.py`
+# does `from pymetta.moses.metapopulation.merging import _sort` at ITS OWN
+# top, and this module (`merging`) is still MID-EXECUTION the first time
+# Python loads `subsample.py` (triggered by the import below) -- Python
+# resolves that against whatever `merging`'s own namespace already holds,
+# which only includes `_sort` once execution has reached PAST its
+# definition. Importing `subsample` any earlier here would be a genuine
+# circular-import failure (`ImportError: cannot import name '_sort'`),
+# not merely a style preference -- verified by moving this import back to
+# the top of the file and observing that exact failure, then reverting.
+from pymetta.moses.metapopulation import subsample as _subsample  # noqa: E402,F401

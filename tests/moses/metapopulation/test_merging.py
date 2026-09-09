@@ -979,8 +979,45 @@ def test_keep_top_unique_candidates_truncation_is_tie_order_dependent():
 
 
 # ---------------------------------------------------------------------------
-# recompute_scores_over_whole_dataset / ss_filter -- subsample gate
+# recompute_scores_over_whole_dataset / ss_filter -- P2 metapopulation task
+# (subsample.py): now real. `test_ss_filter_n_subsample_demes_gate_raises`/
+# `test_recompute_scores_over_whole_dataset_n_subsample_demes_gate_raises`
+# used to pin `NotImplementedError`; both are now tests of real behaviour
+# (renamed, not deleted, per this task's own brief). Deeper unit coverage
+# of every subsample.cc function individually (`ss_score_dev_filter`,
+# `ss_tanimoto_filter`, `ss_average_agreement`, both `ss_tanimoto_stats`
+# overloads, the RNG draw-order oracle) lives in test_subsample.py; this
+# file keeps only the GATE-level tests (default-off no-op, classic's own
+# CLI defaults with subsampling merely switched on, and a real
+# filter-actually-filters case) plus `merge_demes`'s own wiring.
 # ---------------------------------------------------------------------------
+
+
+def _ss_params(
+    n_subsample_demes: int = 0, n_top_candidates: int = 1
+) -> subsample_deme_filter_parameters:
+    """Not itself a ported C++ symbol -- builds a `subsample_deme_filter_
+    parameters` with all EIGHT fields `subsample.py` reads populated at
+    classic's own literal CLI defaults (`problem-params.cc:1929-2047`'s
+    own `->default_value(...)` calls, reproduced verbatim: `std_dev_
+    threshold=FLT_MAX`, every tanimoto threshold `1.0`, `n_best_bfdemes=0`,
+    every tanimoto weight `0.0`) -- see `subsample.py`'s own module
+    docstring for why these eight (not the other two of the ten genuinely-
+    uninitialized fields) are this file's concern. Callers override only
+    what a given test needs to change, matching `diversity.py`'s own
+    `test_set_diversity_matches_classics_own_defaults` precedent ("changes
+    ONLY pressure away from 0.0").
+    """
+    fp = subsample_deme_filter_parameters(n_subsample_demes, n_top_candidates)
+    fp.std_dev_threshold = _to_score_t(3.4028234663852886e38)  # C++ FLT_MAX
+    fp.tanimoto_mean_threshold = 1.0
+    fp.tanimoto_geo_mean_threshold = 1.0
+    fp.tanimoto_max_threshold = 1.0
+    fp.n_best_bfdemes = 0
+    fp.tanimoto_mean_weight = 0.0
+    fp.tanimoto_geo_mean_weight = 0.0
+    fp.tanimoto_max_weight = 0.0
+    return fp
 
 
 def test_ss_filter_default_passes_every_breadth_first_deme():
@@ -988,11 +1025,51 @@ def test_ss_filter_default_passes_every_breadth_first_deme():
     assert mp.ss_filter([[], [], []], []) == [True, True, True]
 
 
-def test_ss_filter_n_subsample_demes_gate_raises():
+def test_ss_filter_classics_own_defaults_with_subsampling_switched_on_still_pass_every_deme():
+    """Runs classic's own CLI defaults (`_ss_params`), changing ONLY
+    `n_subsample_demes` (0 -> 2) to switch subsampling on -- with every
+    threshold/weight left at its real default, NEITHER the std-dev filter
+    (`std_dev_threshold == FLT_MAX`, `< FLT_MAX` is False, so `ss_score_
+    dev_filter` is never even called) NOR the Tanimoto filter (every
+    threshold `== 1.0`, `< 1.0` is False for all three) ever fires --
+    `bfpass` stays all-`True`, the SAME observable result as subsampling
+    being off, which is exactly what classic's own defaults do: `ss-*`
+    flags exist to be turned on deliberately, not merely by raising
+    `--ss-n-subsample-demes` alone. `reps=[None, None]`: neither filter
+    reads `rep` when disabled (`ss_score_dev_filter`'s own C++ body never
+    uses its `rep` parameter at all -- ported faithfully as an unused
+    parameter, subsample.py's own function signature).
+    """
     mp = _mp()
-    mp._filter_params.n_subsample_demes = 2
-    with pytest.raises(NotImplementedError):
-        mp.ss_filter([[]], [])
+    mp._filter_params = _ss_params(n_subsample_demes=2)
+    assert mp.ss_filter([[], []], [None, None]) == [True, True]
+
+
+def test_ss_filter_std_dev_threshold_actually_filters():
+    """Proves the guard does something: two breadth-first indices, each
+    with two single-candidate SS-demes (`n_top_candidates=1` -> the tuple
+    space is exactly {0}, so `ss_score_dev_filter`'s own RNG draw is
+    deterministic regardless of seed -- `lazy_random_selector(1)` can only
+    ever return 0). Index 0's two candidates are tied (penalized score 5.0
+    both) -> population std 0.0 -> passes a threshold of 1.0. Index 1's
+    are far apart (0.0, 10.0) -> mean 5.0, population variance
+    ((0-5)**2+(10-5)**2)/2 == 25.0, std 5.0 -> fails (not < 1.0).
+    """
+    mp = _mp()
+    mp._filter_params = _ss_params(n_subsample_demes=2, n_top_candidates=1)
+    mp._filter_params.std_dev_threshold = 1.0
+
+    tied = [_plain_deme([(5.0, 0.0)]), _plain_deme([(5.0, 0.0)])]
+    spread = [_plain_deme([(0.0, 0.0)]), _plain_deme([(10.0, 0.0)])]
+
+    assert mp.ss_filter([tied, spread], [None, None]) == [True, False]
+
+
+# `ss_filter`'s OTHER branch (`n_best_bfdemes > 0`, mutually exclusive with
+# the threshold branch above -- needs a real CTable-backed bscore to drive
+# `ss_tanimoto_stats`, so it lives in test_subsample.py's own
+# `test_ss_filter_n_best_bfdemes_keeps_lowest_aggregate_tanimoto_distance`
+# instead, alongside that file's `_CTableBscore` test double.
 
 
 def test_recompute_scores_over_whole_dataset_default_is_a_no_op():
@@ -1000,11 +1077,44 @@ def test_recompute_scores_over_whole_dataset_default_is_a_no_op():
     mp.recompute_scores_over_whole_dataset([], [])  # must not raise
 
 
-def test_recompute_scores_over_whole_dataset_n_subsample_demes_gate_raises():
+def test_recompute_scores_over_whole_dataset_classics_own_defaults_with_subsampling_switched_on():
+    """Runs classic's own CLI defaults, changing only `n_subsample_demes`,
+    with an EMPTY `ss_deme` -- proves the enabled arm's loop structure
+    itself does not crash under classic's real defaults when there is
+    nothing to rescore (mirrors `test_merge_demes_default_gates_off_
+    returns_false_on_no_candidates`'s own "prove the no-op shape, not just
+    the disabled gate" reasoning). The REAL rescoring behaviour (a wrong
+    stored score gets overwritten with the true one) is proven by the
+    dedicated test below.
+    """
     mp = _mp()
-    mp._filter_params.n_subsample_demes = 2
-    with pytest.raises(NotImplementedError):
-        mp.recompute_scores_over_whole_dataset([], [])
+    mp._filter_params = _ss_params(n_subsample_demes=2)
+    mp.recompute_scores_over_whole_dataset([[]], [None])  # must not raise
+
+
+def test_recompute_scores_over_whole_dataset_actually_rescores_candidates():
+    """Builds one ss_deme with a single `scored_instance` carrying a
+    deliberately WRONG stored score (`composite_score(-99.0, 0)`), whose
+    fake rep decodes it to `"$1"` -- a real tree the real `_build_cscorer`
+    (`ctruth_table_bscore` over the XOR dataset) can score for real.
+    After `recompute_scores_over_whole_dataset`, the deme's OWN entry
+    (`select_tag()(sc_inst) = sc`, subsample.cc:70 -- an in-place mutation
+    through the pair reference, not a re-insertion) must hold the TRUE
+    `get_cscore("$1")`, not the stale -99.0.
+    """
+    cscorer = _build_cscorer()
+    mp = metapopulation(str_to_combo_tree("$1"), cscorer, metapop_parameters())
+    mp._filter_params = _ss_params(n_subsample_demes=2)
+
+    deme = _Deme([scored_instance(instance(), composite_score(-99.0, 0))])
+    rep = _FakeRepByIdentity({id(deme[0].first): str_to_combo_tree("$1")})
+
+    true_cscore = cscorer.get_cscore(str_to_combo_tree("$1"))
+
+    mp.recompute_scores_over_whole_dataset([[deme]], [rep])
+
+    assert deme[0].second.get_score() == true_cscore.get_score()
+    assert deme[0].second.get_score() != -99.0
 
 
 # ---------------------------------------------------------------------------
@@ -1016,11 +1126,21 @@ def test_recompute_scores_over_whole_dataset_n_subsample_demes_gate_raises():
 # ---------------------------------------------------------------------------
 
 
-def test_merge_demes_do_boosting_gate_raises():
+def test_merge_demes_do_boosting_no_longer_raises_on_empty_demes():
+    """P2 metapopulation task: `do_boosting` is now real (`ensemble.py`) --
+    this used to be `test_merge_demes_do_boosting_gate_raises`, pinning a
+    `NotImplementedError`. With an EMPTY `all_demes`/`reps`, `candidates`
+    ends up empty regardless of `do_boosting`, so this now reaches the
+    exact same `candidates.empty(): return False` exit
+    `test_merge_demes_default_gates_off_returns_false_on_no_candidates`
+    already pins for the all-defaults case -- `_ensemble.add_candidates`
+    is never even reached (same shape as `discard_dominated`/
+    `diversity_enabled()`'s own "no longer raises on empty demes" tests
+    above). Real end-to-end boosting (a non-empty candidate set actually
+    driving `add_adaboost`) is covered by test_ensemble.py."""
     mp = _mp()
     mp._params.do_boosting = True
-    with pytest.raises(NotImplementedError):
-        mp.merge_demes([], [])
+    assert mp.merge_demes([], []) is False
 
 
 def test_merge_demes_discard_dominated_no_longer_raises_on_empty_demes():
@@ -1122,11 +1242,21 @@ def test_merge_demes_merge_callback_gate_raises():
         mp.merge_demes(dex._demes, dex._reps)
 
 
-def test_merge_demes_n_subsample_demes_gate_raises_before_processing_demes():
+def test_merge_demes_n_subsample_demes_no_longer_raises_before_processing_demes():
+    """P2 metapopulation task: `n_subsample_demes > 1` is now real
+    (`subsample.py`) -- this used to pin `NotImplementedError` raised
+    BEFORE `merge_demes` ever reached its own deme-processing loop
+    (`recompute_scores_over_whole_dataset`/`ss_filter` run first,
+    unconditionally, merging.cc:258/261). Now real: classic's own CLI
+    defaults (`_ss_params`) with `n_subsample_demes` switched on, one
+    breadth-first index whose OWN ss_demes list is empty (`[[]]` --
+    `all_demes[0] == []`) reaches both functions for real (a no-op, per
+    their own tests above) and then correctly falls through to the same
+    empty-candidates exit every other all-defaults-but-one-flag test in
+    this file reaches."""
     mp = _mp()
-    mp._filter_params.n_subsample_demes = 2
-    with pytest.raises(NotImplementedError):
-        mp.merge_demes([[]], [None])
+    mp._filter_params = _ss_params(n_subsample_demes=2)
+    assert mp.merge_demes([[]], [None]) is False
 
 
 # ---------------------------------------------------------------------------
