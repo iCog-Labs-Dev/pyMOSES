@@ -210,3 +210,43 @@ def test_vertex_to_bool_rejects_colliding_contin_not_just_wrong_type():
         vertex_to_bool(1.0)
     with pytest.raises(AssertionError):
         vertex_to_bool(2.0)
+
+
+def test_is_contin_expr_is_immune_to_the_intenum_value_collision():
+    """`is_contin_expr` cannot be fooled by a contin whose value equals a
+    builtin's ordinal.
+
+    `contin_t` is `float` and `builtin` is an `IntEnum`, so in Python
+    `8.0 == builtin.div` is `True` where C++'s variant alternatives never
+    compare equal across types. Both prior Criticals in this project were
+    that confusion, so the function's chain of bare `==` comparisons looks
+    like a hazard.
+
+    It is not, and this pins why: `is_contin(v)` is a genuine type check and
+    it comes FIRST, so any contin value short-circuits before a comparison
+    can misfire. `builtin.div`'s ordinal is 8, and `contin_t(8.0)` is the
+    exact input that would expose an ordering mistake.
+
+    Note the result is stable even under reordering here, because a contin
+    value's correct answer is `True` either way -- so this test pins the
+    outcome, not the mechanism. Two agents disagreed about whether this
+    function was safe; measured, it is.
+    """
+    from pymetta.comboreduct.combo.common_def import contin_t
+    from pymetta.comboreduct.combo.vertex import builtin, is_contin, is_contin_expr
+
+    assert int(builtin.div) == 8
+    colliding = contin_t(8.0)
+
+    # The collision is real at the Python level ...
+    assert colliding == builtin.div
+    # ... but the type check fires first, so the answer is right for the
+    # right reason: it is contin-typed, not "equal to div".
+    assert is_contin(colliding) is True
+    assert is_contin_expr(colliding) is True
+
+    # A builtin that is NOT a contin operator must still be rejected, which
+    # is what a value-only comparison would get wrong.
+    assert is_contin(builtin.logical_and) is False
+    assert is_contin_expr(builtin.logical_and) is False
+    assert is_contin_expr(argument(1)) is False
