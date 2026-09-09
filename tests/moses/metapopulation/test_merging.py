@@ -1360,7 +1360,16 @@ def test_resize_metapop_signed_int32_narrowing_matches_cpp_measured_value():
         with pytest.raises(IndexError):
             mp.resize_metapop()
     finally:
-        rng.randint_n = original_randint_n
+        # DELETE the instance attribute rather than reassigning
+        # `original_randint_n`. `randGen()` is a module-level singleton, and
+        # assigning the captured bound method back leaves a PERMANENT instance
+        # attribute that shadows the class method for the rest of the session.
+        # A later test that patches the CLASS (as
+        # test_univariate.py::test_tournament_selection_draw_order_is_exact
+        # does) then observes nothing, because instance attributes win --
+        # measured: its spy recorded 0 calls when this file ran first, and the
+        # failure vanished when either file ran alone.
+        del rng.randint_n
 
     # popsz(25) - offset(50) = -25, narrowed to a SIGNED 32-bit int -- small
     # and negative, not the unsigned-64-bit wraparound this test used to
