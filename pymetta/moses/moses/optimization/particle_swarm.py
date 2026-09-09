@@ -470,10 +470,26 @@ class particle_swarm(optimizer_base):
             bestp_inst = best_parts[i].first
             vel = velocities[i]
             self._update_bit_particle(temp_inst, bestp_inst, best_instance, vel, fields)
+            # DIVERGENCE(C++ moses/moses/optimization/particle-swarm.cc:325-326)
+            # -- DO NOT FIX. `disc_best_it` is initialised at :317 alongside
+            # the other four iterators, but the loop's increment list
+            # (`temp_it++, bestp_it++, vels_it++, disc_temp_it++`) OMITS it.
+            # So `*disc_best_it` is frozen at
+            # `disc_parts.best_personal[0]` for every particle, while its
+            # four siblings advance. Every other iterator in the list is
+            # incremented, so this reads as an upstream oversight rather
+            # than intent -- but classic's behaviour is the specification
+            # here, and reproducing it is the whole point.
+            #
+            # This port advanced it with `i` (the "obviously correct"
+            # reading) until 2026-09-09, and that was the SOLE cause of
+            # `-aps` diverging from classic: 8 of 10 runs differed across
+            # trainingBooleanXor.dat and trainingBoolean.dat at seeds 1-5,
+            # 10 of 10 identical after this change.
             self._update_disc_particle(
                 temp_inst,
                 disc_parts.temp[i],
-                disc_parts.best_personal[i],
+                disc_parts.best_personal[0],
                 disc_best_instance,
                 vel,
                 fields,

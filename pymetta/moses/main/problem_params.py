@@ -120,13 +120,16 @@ source shows it is the subsystem's actual master switch
 (`filter_params.n_subsample_demes|n_subsample_fitnesses > 1` -- straight
 from the header's own "if 0 or 1 remains disactivated"/"Ignored is 0 r 1"
 comments, `enable_feature_selection`, `boosting`, `opt_algo != "hc"`,
-`time_bscore`, `time_dispersion_pressure`, `use_well_enough`,
-`discretize_thresholds` non-empty, and non-local `--jobs`/`-j host:N`).
-Four options have come OFF this list as their subsystems landed:
+`time_bscore`, `time_dispersion_pressure`, `discretize_thresholds`
+non-empty, and non-local `--jobs`/`-j host:N`).
+Five options have come OFF this list:
 `diversity_pressure > 0` and `discard_dominated` when the P2
 metapopulation task ported `diversity.cc`/`domination.cc` for real
-(`0c1beda`/`f1c439f`), and `contin_depth != 5` and `it_abs_err` when
-`it_table_problem.run`'s contin branch was wired (2026-09-09) -- each
+(`0c1beda`/`f1c439f`); `contin_depth != 5` and `it_abs_err` when
+`it_table_problem.run`'s contin branch was wired (2026-09-09); and
+`use_well_enough`, which was never a divergence at all -- classic accepts
+it, ignores it off the enum path, and produces byte-identical output, so
+gating it made this port REFUSE a command line classic runs. Each
 un-gating is proven end to end against classic's own binary; see the gate
 section's own comments.
 Sub-options that are PROVABLY inert while their master switch stays at
@@ -1054,10 +1057,21 @@ class problem_params:
                 "time_dispersion.py's own module docstring); leave "
                 "--time-dispersion-pressure unset."
             )
-        if self.use_well_enough:
-            raise NotImplementedError(
-                '--well-enough: the "leave well-enough alone" classifier algorithm is not ported.'
-            )
+        # `--well-enough` is deliberately NOT gated. It was, until
+        # 2026-09-09, and that was an over-gate: measured, classic accepts
+        # `--well-enough=1` on a boolean table, exits 0, and prints output
+        # byte-identical to the same run without the flag, while this port
+        # refused to start.
+        #
+        # `use_well_enough` has exactly ONE reader in the whole classic tree
+        # (`table-problems.cc:493`, grep-confirmed), and it sits inside
+        # `it_table_problem::run`'s `else if (output_type == id::enum_type)`
+        # arm. Enum output is EXCLUDED from this port's scope entirely, not
+        # deferred, so that arm raises earlier and for its own accurate
+        # reason. The flag is therefore inert here for exactly the tables it
+        # is inert for in classic, which is what this file's own gating rule
+        # asks: gate a field only where the C++ source shows it is the
+        # subsystem's actual master switch on a path this port can reach.
         # DIVERGENCE(C++ moses/moses/metapopulation/merging.cc:258-296): classic's
         # own -t/--output-bscore (keep_bscore, :717 below) succeeds and prints an
         # extra " behavioral score: [...]" per result line, rc 0 (measured

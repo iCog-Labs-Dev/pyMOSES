@@ -446,6 +446,12 @@ def test_hc_allow_resize_deme_is_a_deprecated_alias_for_the_same_dest():
         # a MODULE-level static rather than on `pms`, so it gets its own
         # test below instead of a row here.
         (["--it-abs-err", "1"], "it_abs_err", True),
+        # Un-gated 2026-09-09: `use_well_enough` has exactly one reader
+        # in classic (table-problems.cc:493) and it is inside the enum
+        # arm, a domain this port excludes. Classic accepts the flag on
+        # a boolean table, ignores it, and prints byte-identical output;
+        # gating it made this port refuse a command line classic runs.
+        (["--well-enough", "1"], "use_well_enough", True),
     ],
 )
 def test_supported_non_default_option_applies_and_does_not_raise(argv, path, expected):
@@ -519,7 +525,6 @@ def test_contin_depth_reaches_representations_module_static():
         # own two rows for both.
         ["--time-bscore", "1"],
         ["--time-dispersion-pressure", "0.1"],
-        ["--well-enough", "1"],
         ["--jobs", "2:otherhost"],
         ["-t", "1"],
         ["--output-bscore", "1"],

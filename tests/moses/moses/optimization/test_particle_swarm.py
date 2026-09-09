@@ -315,3 +315,73 @@ def test_gen_cont_value_bug_is_near_inert_for_stepper_direction():
     fs.set_contin(inst_fixed, 0, fixed_target)
     # ... but the raw Left/Right/Stop encoding they produce is identical.
     assert list(fs.iter_raw(inst_buggy)) == list(fs.iter_raw(inst_fixed))
+
+
+# ------------------------------- DIVERGENCE: frozen disc_best_it in update_particles
+
+
+def test_update_particles_freezes_disc_best_personal_at_index_zero():
+    """DO NOT FIX marker, and the test that would have caught this.
+
+    `update_particles` (particle-swarm.cc:308) initialises FIVE iterators
+    at :311-317, but its loop header at :325-326 increments only four:
+
+        for(;temp_it != end_temp; temp_it++, bestp_it++,
+                vels_it++, disc_temp_it++){
+
+    `disc_best_it` is missing from that list, so `*disc_best_it` stays
+    pinned at `disc_parts.best_personal[0]` for EVERY particle while its
+    four siblings advance. Every other iterator is incremented, so this
+    reads as an upstream oversight rather than intent -- but classic's
+    behaviour is the specification, and this port must reproduce it.
+
+    This port used `best_personal[i]` (the "obviously correct" reading)
+    until 2026-09-09. Nothing in this file caught it: every existing test
+    here either uses a single particle, or a boolean-only field_set where
+    the discrete path never runs. It was found by driving the CLI, where
+    `-aps` differed from classic on 8 of 10 runs across
+    trainingBooleanXor.dat and trainingBoolean.dat at seeds 1-5; after the
+    fix, 36 of 36 across six problem specs, three seeds and two budgets.
+
+    The assertion below is what discriminates: particle 1's discrete
+    update must be driven by `best_personal[0]`, not `best_personal[1]`.
+    """
+    ps = _ps()
+    fs = field_set([disc_spec(4), disc_spec(4)])  # 2 disc fields, no bits
+    assert fs.n_disc_fields() == 2
+    assert fs.n_bits() == 0
+
+    n_parts = 2
+    seen: list[list[float]] = []
+
+    original = ps._update_disc_particle
+
+    def spy(temp_inst, disc_temp, disc_personal, disc_global, vel, fields):
+        # Record WHICH best_personal row this call was handed.
+        seen.append(list(disc_personal))
+        return original(temp_inst, disc_temp, disc_personal, disc_global, vel, fields)
+
+    ps._update_disc_particle = spy
+    try:
+        deme = instance_set(n_parts, fs)
+        temp_parts = [deme[i] for i in range(n_parts)]
+        best_parts = [deme[i] for i in range(n_parts)]
+        velocities = [[0.0] * fs.dim_size() for _ in range(n_parts)]
+        dp = _DiscreteParticles(n_parts, fs.n_disc_fields())
+        # Make the two rows distinguishable: row 0 is all 0.25, row 1 all 0.75.
+        dp.best_personal[0] = [0.25] * fs.n_disc_fields()
+        dp.best_personal[1] = [0.75] * fs.n_disc_fields()
+        randGen().seed(5)
+        ps._update_particles(temp_parts, best_parts, 0, velocities, dp, fs)
+    finally:
+        # Delete the instance attribute rather than reassigning the bound
+        # method: reassigning leaves a permanent shadow, which is exactly
+        # how an earlier RNG test in this project leaked across the suite.
+        del ps._update_disc_particle
+
+    assert len(seen) == n_parts
+    # BOTH particles must have been handed row 0 -- the frozen iterator.
+    assert seen == [[0.25, 0.25], [0.25, 0.25]], (
+        "particle 1 was handed best_personal[1]; classic freezes disc_best_it "
+        "at best_personal[0] for every particle (particle-swarm.cc:325-326)"
+    )
