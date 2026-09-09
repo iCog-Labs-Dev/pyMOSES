@@ -190,14 +190,26 @@ def _setup_logging(pms: problem_params, explicit: dict[str, object]) -> None:
 
     # DIVERGENCE(C++ moses/moses/main/problem-params.cc:2069): this block's C++
     # home is the middle of `problem_params::parse_options`, i.e.
-    # `problem_params.py`, which this task does not own. It is called from
-    # `moses_exec` instead, immediately after `parse_options` returns.
+    # `problem_params.py`, which this task does not own. It runs from
+    # `moses_exec` instead, via the hook described below.
     # Ordering is unaffected: NOTHING between problem-params.cc:2069 and the
     # end of `parse_options` writes to the log except the three records
     # emitted here, and `table_problem_params::parse_options` -- the only
     # other `option_base` in the set -- has no `logger()` call at all
-    # (grep-verified over table-problems.cc). Moving it to its C++ home is a
-    # one-line insert; see this task's report.
+    # (grep-verified over table-problems.cc).
+    #
+    # To move it to its C++ home, `problem_params.parse_options` needs ONE
+    # line, right after its `self.log_file = args.log_file`:
+    #
+    #     getattr(args, "_setup_logging", lambda: None)()
+    #
+    # No import: `problem_params.py` CANNOT import `moses_exec.py`, since
+    # `moses_exec` imports `problem_params` (a cycle). `moses_exec` attaches
+    # that callable to the namespace before calling `parse_options`, and the
+    # callable is run-once, so adding the line moves WHERE the records are
+    # emitted without changing WHETHER -- the hook and the fallback call
+    # below cannot both fire. `getattr` with a no-op default keeps every
+    # direct caller that hand-builds a namespace working unchanged.
 
     # DIVERGENCE(C++ moses/moses/main/problem-params.cc:2097): C++ prints to
     # cerr and `exit(1)` on an unparseable `-l`. `problem_params.parse_options`
@@ -210,6 +222,10 @@ def _setup_logging(pms: problem_params, explicit: dict[str, object]) -> None:
     # ported -- `backtrace()` is a no-op in this port (logger.py's own
     # DIVERGENCE), so the handler would log a bare line and nothing else.
     """
+    if getattr(pms, "_logging_configured", False):
+        return
+    pms._logging_configured = True
+
     log_file = pms.log_file
 
     # C++: :2070 `vm.count(log_file_dep_opt_opt.first) > 0` -- the presence of
@@ -292,6 +308,15 @@ def moses_exec(argv: Sequence[str] | str) -> int:
     parser = build_parser()
 
     ns = parser.parse_args(argv_list[1:])
+
+    # The drop-in hook `_setup_logging`'s own DIVERGENCE marker describes:
+    # once `problem_params.parse_options` grows its one line, the records are
+    # emitted from inside it, at classic's own position; until then the
+    # fallback call below emits them, and the run-once flag stops both firing.
+    ns._setup_logging = lambda: _setup_logging(
+        pp, _explicit_options(build_parser, argv_list[1:])
+    )
+
     pp.parse_options(ns)
     tpp.parse_options(ns)
     dp.combo_str = ns.combo_str
@@ -299,10 +324,9 @@ def moses_exec(argv: Sequence[str] | str) -> int:
 
     # C++: problem-params.cc:2069-2113 and :2185-2186, reached from
     # `option_manager::parse_options`' `for (auto ob : _option_set)
-    # ob->parse_options(vm);` loop (problem.cc:75-77). See `_setup_logging`'s
-    # own DIVERGENCE marker for why it is called from here rather than from
-    # inside `problem_params.parse_options`.
-    _setup_logging(pp, _explicit_options(build_parser, argv_list[1:]))
+    # ob->parse_options(vm);` loop (problem.cc:75-77). A no-op if the hook
+    # above already ran it; see `_setup_logging`'s own DIVERGENCE marker.
+    ns._setup_logging()
 
     # C++: moses/moses/main/problem.cc:82-87 -- the tail of
     # `option_manager::parse_options`, whose own comment explains the
