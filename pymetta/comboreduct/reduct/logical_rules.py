@@ -572,6 +572,22 @@ class simplify_predicates(rule):
         tools/cpp_probe/gen_predicate_corpus.py excludes `log` outright --
         see its own comment.
 
+        ONE CONSEQUENCE OF MAKING THIS TAIL LIVE, measured rather than
+        predicted: `contin_reduction`'s process-wide singleton (see that
+        module's own DO-NOT-FIX docstring) is now READ on the Boolean path,
+        where it never was before. It was already BUILT on that path --
+        `problem_params.py` constructs `self.contin_reduct` unconditionally
+        at option-parse time, as problem-params.cc:2394 does -- so the leak
+        is pre-existing; what changed is that it is now observable. Running
+        several `moses_exec` invocations with DIFFERENT `--ignore-operator`
+        sets inside ONE Python process makes every run after the first use
+        the first run's contin rule, and the searches then diverge from
+        classic (measured: 8 varied CLI runs in one process, 1 divergence;
+        the same 8 with the singleton reset between them, 0). Classic never
+        meets this because each invocation is its own process. Anything
+        driving `moses_exec` repeatedly in-process must reset the
+        `_reset_cache_for_testing()` hooks between runs to model that.
+
         FOUR MUTANTS OF THIS FUNCTION SURVIVE, and the honest reading is
         "equivalent mutant", not "no coverage". Each was applied and run
         against all 280 oracle rows (137 distinct predicate trees at
