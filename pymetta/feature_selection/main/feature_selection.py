@@ -1,45 +1,61 @@
 """C++: moses/feature-selection/main/feature-selection.{h,cc}
 
 The algorithm dispatcher (``select_feature_sets``/``select_features``) plus
-two small library helpers (``initial_features``, ``score_individual_
-features``) shared by the standalone ``feature-selection`` binary and the
-in-loop ``feature_selector`` (``pymetta.moses.deme.feature_selector``,
-which calls ``select_feature_sets`` directly -- feature_selector.cc:275).
+the small library helper ``score_individual_features``, shared by the
+standalone ``feature-selection`` binary and the in-loop ``feature_selector``
+(``pymetta.moses.deme.feature_selector``, which calls ``select_feature_sets``
+directly -- feature_selector.cc:275). ``initial_features``/``fs_scorer``
+(also feature-selection.{h,cc} symbols) live in ``main/
+feature_selection_params.py`` instead -- see that module's own docstrings
+for why (breaking a would-be circular import between this module and
+``algo/``).
+
+Algorithm dispatch (``select_feature_sets``): ALL FIVE algorithms are
+ported -- ``"simple"`` (``algo/simple.py``), ``"inc"``
+(``algo/incremental.py``), ``"smd"`` (``algo/stochastic_max_dependency.py``),
+``"random"`` (``algo/random.py``), and ``"hc"`` (``algo/deme_optimize.py``,
+which runs MOSES's own ``hill_climbing`` optimizer as the search --
+``pymetta.moses.moses.optimization.hill_climbing``, read-only import).
+classic's own "unknown algorithm" branch (feature-selection.cc:170-174,
+``cerr`` + ``exit(1)``) is not a real return path here -- an unrecognized
+``algorithm`` string raises ``NotImplementedError`` instead.
 
 NOT ported: ``fs-main.cc``'s ``main()`` (argument parsing via
 ``boost::program_options``, log-level setup, ``randGen().seed(rand_seed)``)
-and feature-selection.cc's own top-level orchestration/output helpers
-(``feature_selection()``, ``write_results``, ``log_selected_features``,
-``err_empty_features``) -- these are CLI/file-I/O glue with no caller once
-there is no CLI in this port's scope (no logging surface either, matching
-the convention ``deme_expander.py``'s module docstring already states for
-every other logger()-only routine in this project). A caller that wants
-the standalone binary's behaviour reproduced calls ``select_features``
-directly on a loaded ``Table``/``CTable``, as this package's own tests do.
-
-Algorithm dispatch (``select_feature_sets``): only ``"simple"``
-(``algo/simple.py``) is ported. ``"inc"`` (incremental.cc, 310 lines),
-``"smd"`` (stochastic_max_dependency.cc, 198 lines), ``"random"``
-(random.cc), and ``"hc"`` (deme_optimize.cc -- runs MOSES itself as the
-search) all raise ``NotImplementedError`` naming the algorithm and the
-C++ file that would need porting. classic's own "unknown algorithm"
-branch (feature-selection.cc:170-174, ``cerr`` + ``exit(1)``) is likewise
-not a real return path here -- an unrecognized ``algorithm`` string
-raises the same way.
+-- no CLI in this port's scope (CLI wiring is ``problem_params.py``'s
+concern, another package). Also NOT ported: feature-selection.cc's own
+``feature_selection()`` top-level orchestration, ``write_results``,
+``log_selected_features``, and ``err_empty_features`` -- all four need
+either ``ostreamTable``/``saveTable`` (``moses/comboreduct/table/table_io.h``,
+CONFIRMED absent from this port's own ``pymetta.comboreduct.table.
+table_io`` -- a search for ``def ostreamTable`` or ``def saveTable`` over
+that package returns nothing; its own docstring says explicitly "out of scope")
+or a logging surface this project does not provide (matching the
+convention every other logger()-only routine in this project follows, see
+e.g. ``deme_expander.py``'s module docstring). A caller that wants the
+standalone binary's behaviour reproduced calls ``select_features``
+directly on a loaded ``Table``/``CTable`` and, if it wants the selected
+table's per-feature scores, ``score_individual_features`` -- exactly what
+this package's own tests do.
 """
 
 from __future__ import annotations
 
-from collections.abc import Sequence
-
 from pymetta.comboreduct.table.table import CTable, Table
+from pymetta.feature_selection.algo.deme_optimize import moses_select_feature_sets
+from pymetta.feature_selection.algo.incremental import incremental_select_feature_sets
+from pymetta.feature_selection.algo.random import random_select_feature_sets
 from pymetta.feature_selection.algo.simple import simple_select_feature_sets
+from pymetta.feature_selection.algo.stochastic_max_dependency import smd_select_feature_sets
 from pymetta.feature_selection.main.feature_selection_params import (
     feature_selection_parameters,
     feature_set,
     feature_set_pop,
+    fs_scorer,
+    initial_features,
 )
-from pymetta.feature_selection.scorers.mutual_info import MICScorerCTable
+from pymetta.moses.moses.optimization.hill_climbing import hc_parameters, hill_climbing
+from pymetta.moses.moses.optimization.optimization import optim_parameters
 
 __all__ = [
     "initial_features",
@@ -47,35 +63,6 @@ __all__ = [
     "select_feature_sets",
     "select_features",
 ]
-
-_PORTED_ALGORITHMS = {
-    "inc": "moses/feature-selection/algo/incremental.cc",
-    "smd": "moses/feature-selection/algo/stochastic_max_dependency.cc",
-    "random": "moses/feature-selection/algo/random.cc",
-    "hc": "moses/feature-selection/algo/deme_optimize.cc",
-}
-
-
-def _fs_scorer(ctable: CTable, fs_params: feature_selection_parameters):
-    """C++: moses/feature-selection/main/feature-selection.h:158 fs_scorer
-
-    Dispatches on ``fs_params.scorer`` -- only ``"mi"`` (``MICScorerCTable``)
-    is ported; ``"pre"`` (precision, ``moses/moses/scoring/scoring.h``'s
-    ``pre_scorer``) is scoring-subsystem territory out of this package's
-    scope and raises.
-    """
-    if fs_params.scorer == "mi":
-        return MICScorerCTable(ctable, fs_params.mi_confi)
-    if fs_params.scorer == "pre":
-        raise NotImplementedError(
-            "fs_scorer: scorer='pre' (precision, moses/moses/scoring/"
-            "scoring.h pre_scorer) is not ported -- out of this package's "
-            "scope. Use scorer='mi' (the default)."
-        )
-    raise NotImplementedError(
-        f"fs_scorer: unknown feature selection scorer {fs_params.scorer!r} "
-        "(feature-selection.h:190's own OC_ASSERT(false, ...))."
-    )
 
 
 def score_individual_features(
@@ -91,44 +78,64 @@ def score_individual_features(
     log lines at ``-l INFO``).
     """
     ctable = table.compressed()
-    scorer = _fs_scorer(ctable, fs_params)
+    scorer = fs_scorer(ctable, fs_params)
     return [scorer(feature_set({idx})) for idx in range(table.get_arity())]
-
-
-def initial_features(
-    ilabels: Sequence[str], fs_params: feature_selection_parameters
-) -> feature_set:
-    """C++: moses/feature-selection/main/feature-selection.cc:104 initial_features
-
-    Converts ``fs_params.initial_features`` (label strings) into a
-    ``feature_set`` of column indices, silently ignoring (with a would-be
-    ``logger().warn`` -- no logging surface, see module docstring) any
-    name not present in ``ilabels``.
-    """
-    res: feature_set = feature_set()
-    for name in fs_params.initial_features:
-        try:
-            idx = ilabels.index(name)
-        except ValueError:
-            continue
-        res.add(idx)
-    return res
 
 
 def select_feature_sets(
     ctable: CTable, fs_params: feature_selection_parameters
 ) -> feature_set_pop:
-    """C++: moses/feature-selection/main/feature-selection.cc:135 select_feature_sets"""
+    """C++: moses/feature-selection/main/feature-selection.cc:137 select_feature_sets
+
+    The ``"hc"`` branch builds ``optim_parameters``/``hc_parameters``
+    exactly as feature-selection.cc:141-159 does: a fresh
+    ``hc_parameters()`` (its own C++ default constructor -- ``widen_
+    search=False``, ``single_step=False``, ``crossover=True``,
+    ``fraction_of_nn=2.0``, matching this port's own ``hc_parameters()``
+    defaults) with ``widen_search``/``fraction_of_nn``/``single_step``/
+    ``crossover``/``crossover_pop_size``/``crossover_min_neighbors``/
+    ``prefix_stat_deme`` then explicitly overwritten from ``fs_params``
+    (or a literal, for ``single_step=False`` and
+    ``prefix_stat_deme="FSDemes"``) -- reproduced here as direct
+    constructor keyword arguments for ``optim_parameters`` (whose own
+    ``__init__`` already ends by calling ``set_min_score_improv``, so
+    passing ``min_score_improv=0.0`` to the constructor has the exact
+    same effect as C++'s separate ``op_params.set_min_score_improv
+    (0.0)`` call after a default-constructed ``optim_parameters()`` --
+    not a behavioural difference, just a different way to reach the
+    same field values) and direct attribute assignment for
+    ``hc_parameters`` (which C++ also does, since only four of its
+    fields are even constructor parameters -- see ``hc_parameters.
+    __init__``'s own docstring).
+    """
+    if fs_params.algorithm == "hc":
+        op_params = optim_parameters(
+            opt_algo="hc",
+            pop_size_ratio=20.0,
+            terminate_if_gte=fs_params.hc_max_score,
+            max_dist=4,
+            min_score_improv=0.0,
+        )
+        hc_params = hc_parameters()
+        hc_params.widen_search = fs_params.hc_widen_search
+        hc_params.fraction_of_nn = fs_params.hc_fraction_of_nn
+        hc_params.single_step = False
+        hc_params.crossover = fs_params.hc_crossover
+        hc_params.crossover_pop_size = fs_params.hc_crossover_pop_size
+        hc_params.crossover_min_neighbors = fs_params.hc_crossover_min_neighbors
+        hc_params.prefix_stat_deme = "FSDemes"
+        hc = hill_climbing(op_params, hc_params)
+        return moses_select_feature_sets(ctable, hc, fs_params)
+    if fs_params.algorithm == "inc":
+        return incremental_select_feature_sets(ctable, fs_params)
+    if fs_params.algorithm == "smd":
+        return smd_select_feature_sets(ctable, fs_params)
+    if fs_params.algorithm == "random":
+        return random_select_feature_sets(ctable, fs_params)
     if fs_params.algorithm == "simple":
         return simple_select_feature_sets(ctable, fs_params)
-    if fs_params.algorithm in _PORTED_ALGORITHMS:
-        raise NotImplementedError(
-            f"select_feature_sets: algorithm={fs_params.algorithm!r} "
-            f"({_PORTED_ALGORITHMS[fs_params.algorithm]}) is not ported. "
-            "Use algorithm='simple' (the default)."
-        )
     raise NotImplementedError(
-        f"select_feature_sets: unknown algorithm {fs_params.algorithm!r} "
+        f"select_feature_sets: algorithm={fs_params.algorithm!r} is unknown "
         "(feature-selection.cc:170's own cerr+exit(1) path)."
     )
 

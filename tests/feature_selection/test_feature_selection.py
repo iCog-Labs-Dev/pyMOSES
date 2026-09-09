@@ -20,7 +20,6 @@ with bare MI here), so no second probe run was needed.
 """
 
 import json
-import re
 from pathlib import Path
 
 import pytest
@@ -39,8 +38,10 @@ from pymetta.util.rng import randGen
 _FIXTURE_PATH = (
     Path(__file__).resolve().parents[1] / "fixtures" / "feature_selection.json"
 )
+_STANDALONE_FIXTURE_PATH = Path(__file__).resolve().parents[1] / "fixtures" / "fs_standalone.json"
 _TABLE_DATA_DIR = Path(__file__).resolve().parents[1] / "fixtures" / "table_data"
 _GOLDEN = json.loads(_FIXTURE_PATH.read_text())
+_STANDALONE_GOLDEN = json.loads(_STANDALONE_FIXTURE_PATH.read_text())
 
 
 @pytest.fixture()
@@ -60,37 +61,85 @@ def test_select_feature_sets_dispatches_to_simple_and_matches_classic(boolean_ct
     assert sorted(pop[0][1]) == _GOLDEN["simple"]["boolean"]["2"][0]
 
 
+@pytest.mark.oracle
 @pytest.mark.parametrize(
-    "algorithm,expected_file",
-    [
-        ("inc", "incremental.cc"),
-        ("smd", "stochastic_max_dependency.cc"),
-        ("random", "random.cc"),
-        ("hc", "deme_optimize.cc"),
-    ],
+    "algorithm,golden_group",
+    [("random", "random"), ("smd", "smd"), ("inc", "inc")],
 )
-def test_select_feature_sets_raises_for_unported_algorithms(
-    boolean_ctable, algorithm, expected_file
+def test_select_feature_sets_dispatches_to_every_ported_algorithm(
+    boolean_ctable, algorithm, golden_group
 ):
-    # The C++ FILE CITATION is asserted, not just the exception type or the
-    # algorithm name: `select_feature_sets`'s final "unknown algorithm"
-    # branch ALSO raises NotImplementedError with the algorithm name in its
-    # own message (`{fs_params.algorithm!r}`), so neither a bare
-    # `pytest.raises(NotImplementedError)` NOR a match on the algorithm name
-    # alone can tell "this specific algorithm's own gate fired" from "the
-    # dispatch fell all the way through to the unknown-algorithm branch" --
-    # proven by mutation: removing the `algorithm in _PORTED_ALGORITHMS`
-    # gate still raised NotImplementedError, with the algorithm name still
-    # in the message, from the OTHER (unknown-algorithm) branch, and both
-    # weaker assertions missed it. Only the specific C++ file name
-    # discriminates the two branches.
-    with pytest.raises(NotImplementedError, match=re.escape(expected_file)):
-        select_feature_sets(boolean_ctable, feature_selection_parameters(algorithm=algorithm))
+    """All five algorithms are now real dispatch targets. Checks the
+    EXACT oracle value per algorithm at ``target_size=1`` (not just "is a
+    well-formed population") -- proven necessary by mutation: a version
+    of this test that only checked shape (score is a float, feature set
+    is a subset of the table's columns) did NOT go red when the
+    dispatcher's own "inc"/"smd" branches were swapped (both algorithms
+    happen to produce shape-valid, but algorithm-WRONG, results on this
+    fixture at ``target_size=1``) -- only comparing against each
+    algorithm's own fixture group catches that. See ``test_random.py``/
+    ``test_stochastic_max_dependency.py``/``test_incremental.py`` for
+    each algorithm's own full oracle coverage; this test is scoped to
+    proving the DISPATCH itself, not re-deriving that coverage.
+    """
+    randGen().seed(1)
+    pop = select_feature_sets(
+        boolean_ctable, feature_selection_parameters(algorithm=algorithm, target_size=1)
+    )
+    got = [(score, sorted(fs)) for score, fs in pop]
+    if golden_group == "inc":
+        # fs_standalone.json's own "inc" group is a plain list of cases,
+        # not keyed by target_size -- case 0 is (boolean, target_size=1,
+        # threshold=0, terms=1), see test_incremental.py's own _CASES.
+        want = [
+            (e["score"], sorted(e["fs"])) for e in _STANDALONE_GOLDEN["inc"][0]["pop"]
+        ]
+    else:
+        want = [
+            (e["score"], sorted(e["fs"]))
+            for e in _STANDALONE_GOLDEN[golden_group]["boolean"]["1"]
+        ]
+    assert got == want
+
+
+def test_select_feature_sets_hc_dispatch_reaches_deme_optimize(boolean_ctable):
+    """Classic's OWN "hc" path segfaults unconditionally (see
+    ``pymetta.feature_selection.algo.deme_optimize``'s module docstring
+    and ``tools/cpp_probe/fs_standalone_probe.cc``'s header comment for
+    the confirmed upstream bug) -- there is no golden value to compare
+    against, so this only proves the dispatcher builds a real
+    ``hill_climbing`` optimizer and reaches ``moses_select_feature_sets``
+    without raising, and that the result is a well-formed population.
+    See ``tests/feature_selection/test_deme_optimize.py`` for the
+    algorithm's own dedicated coverage.
+    """
+    randGen().seed(1)
+    pop = select_feature_sets(
+        boolean_ctable,
+        feature_selection_parameters(algorithm="hc", target_size=1, hc_max_evals=100),
+    )
+    assert len(pop) >= 1
+    for _score, fs in pop:
+        assert fs <= set(range(boolean_ctable.get_arity()))
 
 
 def test_select_feature_sets_raises_for_an_unknown_algorithm(boolean_ctable):
-    with pytest.raises(NotImplementedError, match="unknown algorithm"):
+    with pytest.raises(NotImplementedError, match="is unknown"):
         select_feature_sets(boolean_ctable, feature_selection_parameters(algorithm="bogus"))
+
+
+def test_select_feature_sets_unknown_algorithm_message_is_not_confused_with_a_real_gate(
+    boolean_ctable,
+):
+    """Mutation-proven distinguishing test (mirrors this test module's
+    former unported-algorithm test, now that all five algorithms are
+    real): a typo'd algorithm name must NOT silently match one of the
+    five real dispatch branches (which all use exact ``==`` string
+    comparison, not e.g. a prefix or case-insensitive match).
+    """
+    with pytest.raises(NotImplementedError) as excinfo:
+        select_feature_sets(boolean_ctable, feature_selection_parameters(algorithm="Simple"))
+    assert "algorithm='Simple'" in str(excinfo.value)
 
 
 def test_select_features_ctable_returns_the_top_entry(boolean_ctable):
