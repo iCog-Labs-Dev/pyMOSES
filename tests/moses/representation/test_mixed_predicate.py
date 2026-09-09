@@ -11,6 +11,13 @@ and ``sample_logical_perms`` (build_knobs.cc:425-430). Its shadowed twin --
 fixture, because ``disc_probe`` routes every knob probe through exactly that
 rule and so the two cannot be separated on this path anyway.
 
+The ``logical_reduce`` half is 280 rows: the 140 predicate-bearing trees in
+``tools/cpp_probe/mixed_predicate_corpus.txt`` at efforts 2 and 3. The 20
+CURATED trees at the top of that file were not enough on their own -- four
+``simplify_predicates`` mutants survived them -- so the 120 generated ones
+are there to settle which of those four are genuinely equivalent mutants
+(see that rule's own docstring in ``logical_rules.py``).
+
 Both halves come from ``tests/fixtures/mixed_predicate.json``, captured by
 ``tools/capture_mixed_predicate.py`` from
 ``tools/cpp_probe/mixed_predicate_probe.cc``, which drives the REAL classic
@@ -93,7 +100,7 @@ _CONTIN_KEYS = {
 _REDUCE_KEYS = {"input", "effort", "ok", "reduced", "size_before", "size_after"}
 
 _CASE_COUNT = 40
-_REDUCE_COUNT = 40
+_REDUCE_COUNT = 280
 
 
 @pytest.fixture(scope="module")

@@ -560,6 +560,45 @@ class simplify_predicates(rule):
         `it`'s subtree (its rules `insert_above`/`erase` strictly at or
         below `cit`), never `it` itself -- so `mixed_reduce(tr, it)`
         receives the same predicate node C++ hands it.
+
+        UPSTREAM NON-TERMINATION, ported faithfully -- DO NOT FIX.
+        `logical_reduce` NEVER TERMINATES on a predicate over a `log` of a
+        negative constant. Measured on CLASSIC ITSELF, not merely on this
+        port (tools/cpp_probe/mixed_predicate_probe.cc, bounded runs):
+        `0<(log(-1))`, `0<(log(*(-1 1)))` and `0<(+(log(-1) 1))` each ran
+        past 60s producing nothing, while the same `log(-1)` NOT under a
+        predicate reduces in about a second. This port hangs identically
+        (measured the same way, 90s, no output). It is why
+        tools/cpp_probe/gen_predicate_corpus.py excludes `log` outright --
+        see its own comment.
+
+        FOUR MUTANTS OF THIS FUNCTION SURVIVE, and the honest reading is
+        "equivalent mutant", not "no coverage". Each was applied and run
+        against all 280 oracle rows (137 distinct predicate trees at
+        efforts 2 and 3), the 40 representation cases, and the whole reduct
+        suite; all four produced ZERO failures:
+
+        * rooting `contin_reduce` at `it` rather than at `cit`. Both meta
+          walks (`downwards`/`upwards`) are rooted-subtree walks, so the
+          higher root only adds a visit to the `0<` node itself, and no
+          contin rule matches a `greater_than_zero`.
+        * dropping the `is_argument(cit.data)` early return. Reached only
+          when the predicate's argument is a bare `$i`: `contin_reduce` on
+          a childless argument is a no-op, and no `mixed_reduce` rule
+          matches `0<($i)`. The guard is an optimization in C++ too.
+        * not stripping the leading `logical_not`. `downwards` from the
+          `not` reaches the `0<` beneath it anyway, and this rule is
+          separately invoked AT that `0<` by `logical_reduction`'s own
+          per-node walk.
+        * passing a different `reduct_effort`. This one is dead in any real
+          process for a structural reason: `contin_reduction` caches its
+          rule in a process-wide singleton built by the FIRST call
+          anywhere, and `problem-params.cc:2394` (port:
+          `problem_params.py`'s own `self.contin_reduct = ...`) makes that
+          call unconditionally at option-parse time, before any reduction
+          runs. So the effort this rule passes is always ignored. It is
+          also unobservable even with a fresh cache on this corpus:
+          logical efforts 2 and 3 give identical output for all 137 trees.
         """
         # Deferred import, NOT a style choice: `mixed_reduction` imports
         # THIS module at module scope (for `reduce_and_assumptions`), so a

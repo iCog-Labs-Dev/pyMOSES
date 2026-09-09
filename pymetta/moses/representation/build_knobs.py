@@ -549,6 +549,16 @@ class build_knobs:
         alias -- and then renegate -- the caller's argument. The contin arm
         copies for the same reason, where C++ gets its copy for free from
         `append_child(pos, const T&)`.
+
+        Both copies are DEFENSIVE, and measured to be so: aliasing `arg`
+        instead, in either arm, kills nothing across the whole corpus. The
+        only caller is `sample_logical_perms`' pair loop, which builds a
+        fresh `argument` per iteration and hands each to exactly one
+        `insert_typed_arg` call, so nothing observable is left aliased
+        today. Kept because C++ copies by value at both sites and because
+        CARRY-FORWARD.md 2.4's rule ("appending some_node.data to another
+        tree is always a bug unless copied") has no way to notice a new
+        caller that does reuse one.
         """
         if arg_type is type_node.boolean_type:
             cpy_arg = argument(arg.idx)
@@ -693,13 +703,19 @@ class build_knobs:
         here as an early `return`, with one exception kept literal: the
         `logical_not` arm, which asserts and THEN falls through to the same
         "not canonical, nothing to do" return classic reaches by leaving
-        `flip` at its sentinel. That arm is unreachable from a canonized
-        exemplar -- `logical_canonize` wraps a root predicate (negated or
-        not) in `or(and(...))`, and a `not(0<(...))` CHILD is caught by the
-        `is_predicate` branch below, never by the recursive call -- so the
-        assertion is carried for the same reason classic carries it: it is
-        the only thing that would catch a caller handing this function a
-        non-normal-form tree.
+        `flip` at its sentinel.
+
+        UNREACHABLE, MEASURED (not merely argued): making that whole arm
+        raise on entry leaves the entire mixed-predicate corpus green -- 40
+        representation cases, 280 reduct oracle rows, three CLI oracles --
+        so `build_logical` is never once called with a `logical_not` at its
+        root. The reason: `logical_canonize` wraps a root predicate
+        (negated or not) in `or(and(...))`, and a `not(0<(...))` CHILD is
+        caught by the `is_predicate` branch below, never by the recursive
+        call. The assertion is carried for the same reason classic carries
+        it -- it is the only thing that would catch a caller handing this
+        function a non-normal-form tree -- and dropping it is therefore a
+        surviving mutant by construction, not for want of a test.
         """
         if vertex_equal(it.data, builtin.logical_not):
             # We allow not's, but only if they preceed a predicate. This
@@ -742,6 +758,13 @@ class build_knobs:
                     pit = pit.first_child
                 cit = pit.first_child  # get the arg of predicate.
 
+                # The BRANCH is reached constantly (forcing this condition
+                # true fails 24 tests), but the condition itself is never
+                # satisfied by any tree the corpus can build: combo's own
+                # type checker has already rejected a predicate over a
+                # non-contin term long before knob building. Dropping the
+                # assertion is therefore a surviving mutant by
+                # construction. Classic asserts here for the same reason.
                 if not (is_argument(cit.data) or is_contin_expr(cit.data)):
                     raise AssertionError("Error: predicate term must be made of contin")
 

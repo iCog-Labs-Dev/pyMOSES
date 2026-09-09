@@ -41,6 +41,8 @@
 #include <moses/moses/representation/representation.h>
 #include <opencog/util/mt19937ar.h>
 
+#include <cstdlib>
+#include <fstream>
 #include <iostream>
 #include <sstream>
 #include <string>
@@ -207,8 +209,33 @@ static void emit_reduce_case(const string& source, int effort, bool last)
     cout << "}" << (last ? "\n" : ",\n");
 }
 
-int main()
+// Reads the `logical_reduce` corpus from a file: one combo tree per line,
+// blank lines and `#` comments skipped. Defaults to
+// tools/cpp_probe/mixed_predicate_corpus.txt (relative to the repo root, so
+// run the probe from there or pass an explicit path), mirroring
+// contin_mixed_reduct_probe.cc's own external-corpus convention.
+static vector<string> read_corpus(const string& path)
 {
+    ifstream in(path);
+    if (!in) {
+        cerr << "cannot open corpus " << path << endl;
+        exit(2);
+    }
+    vector<string> out;
+    string line;
+    while (getline(in, line)) {
+        while (!line.empty() && (line.back() == '\r' || line.back() == ' ')) line.pop_back();
+        if (line.empty() || line[0] == '#') continue;
+        out.push_back(line);
+    }
+    return out;
+}
+
+int main(int argc, char** argv)
+{
+    const string corpus_path = (argc > 1)
+        ? string(argv[1])
+        : string("tools/cpp_probe/mixed_predicate_corpus.txt");
     cout << unitbuf;
     cout << "{\n  \"stepsize\":1.0,\n  \"expansion\":2.0,\n  \"depth\":5,\n"
          << "  \"linear_contin\":false,\n  \"reduct_effort\":2,\n  \"cases\":[\n";
@@ -285,37 +312,7 @@ int main()
     }
     cout << "  ],\n  \"logical_reduce\":[\n";
 
-    vector<string> reduce_corpus = {
-        // The three shapes docs/REMAINING-WORK.md Sec 2 names as reproduced
-        // against classic.
-        "0<(+($1 $2))",
-        "and(0<(+($1 $2)) $3)",
-        "or(0<(*($1 $2)) $3)",
-        // logical_rules.cc:78-80's own two named "pathological" examples.
-        "0<(1)",
-        "0<(/(1 $1))",
-        // The is_argument early return (logical_rules.cc:74): the tail must
-        // NOT run for a bare argument.
-        "0<($1)",
-        "not(0<($1))",
-        // Constant folding through the predicate.
-        "0<(-1)",
-        "0<(+(1 -1))",
-        "0<(*(2 $1))",
-        "0<(+(*(2 $1) *(3 $1)))",
-        // Predicates over the transcendental ops and over a division.
-        "or(0<(sin($1)) 0<(exp($2)))",
-        "and(0<(log($1)) $2)",
-        "0<(/($1 $1))",
-        "0<(/($1 2))",
-        // A predicate nested inside a contin expression inside a predicate.
-        "0<(+(impulse(0<($1)) $2))",
-        // Boolean-level reduction interacting with predicates.
-        "and(0<($1) not(0<($1)))",
-        "or(0<(+($1 1)) 0<(+($1 1)))",
-        "and(0<(+($1 1)) 0<(+($1 2)))",
-        "not(0<(+(0.5 $1)))",
-    };
+    vector<string> reduce_corpus = read_corpus(corpus_path);
     size_t r_emitted = 0;
     const size_t r_total = reduce_corpus.size() * 2;
     for (int effort : {2, 3}) {

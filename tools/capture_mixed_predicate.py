@@ -23,13 +23,15 @@ The fixture has two independent halves, both produced by the one probe run:
   the ONLY caller of ``insert_typed_arg``), with ``randGen()`` reseeded to
   1 immediately before construction.
 
-* ``logical_reduce`` -- 40 rows: 20 predicate-bearing combo trees reduced
-  at efforts 2 and 3 with classic's own real default (empty) ``ignore_ops``.
-  This is the oracle for ``simplify_predicates``' contin/mixed tail
-  (logical_rules.cc:76-81), which is the first element of ``p_medium`` and
-  therefore runs on both efforts. ``logical-reductor``
-  (moses/comboreduct/main/) cannot serve here: its ``complete_truth_table``
-  equivalence check aborts on ``0<`` (measured live, exit 134).
+* ``logical_reduce`` -- 280 rows: the 140 predicate-bearing combo trees in
+  ``tools/cpp_probe/mixed_predicate_corpus.txt`` (20 curated plus 120
+  generated), each reduced at efforts 2 and 3 with classic's own real
+  default (empty) ``ignore_ops``. This is the oracle for
+  ``simplify_predicates``' contin/mixed tail (logical_rules.cc:76-81),
+  which is the first element of ``p_medium`` and therefore runs on both
+  efforts. ``logical-reductor`` (moses/comboreduct/main/) cannot serve
+  here: its ``complete_truth_table`` equivalence check aborts on ``0<``
+  (measured live, exit 134).
 """
 
 import json
@@ -87,7 +89,7 @@ _CONTIN_KEYS = {
 _REDUCE_KEYS = {"input", "effort", "ok", "reduced", "size_before", "size_after"}
 
 _EXPECTED_CASE_COUNT = 40
-_EXPECTED_REDUCE_COUNT = 40
+_EXPECTED_REDUCE_COUNT = 280
 
 
 def _bound_resources() -> None:
@@ -199,7 +201,7 @@ def _validate_fixture(fixture: object) -> None:
             raise ValueError("logical_reduce rows must be captured at effort 2 and 3")
         if row["reduced"].strip() != row["input"]:
             changed += 1
-    if changed < _EXPECTED_REDUCE_COUNT // 2:
+    if changed < _EXPECTED_REDUCE_COUNT // 3:
         raise ValueError(
             "fewer than half the logical_reduce rows actually changed -- a corpus "
             "of no-ops cannot discriminate simplify_predicates' tail from its stub"
@@ -262,9 +264,10 @@ def capture_fixture() -> None:
                     "inputs, an ignored argument and an ignored "
                     "greater_than_zero -- plus 3 contin-output shapes with a "
                     "predicate nested under impulse; each run at perm_ratio "
-                    "-1 and 0 with randGen() reseeded to 1; plus 20 "
-                    "predicate-bearing combo trees reduced by logical_reduce "
-                    "at efforts 2 and 3 with empty ignore_ops. No external "
+                    "-1 and 0 with randGen() reseeded to 1; plus the 140 "
+                    "predicate-bearing combo trees in tools/cpp_probe/"
+                    "mixed_predicate_corpus.txt reduced by logical_reduce at "
+                    "efforts 2 and 3 with empty ignore_ops. No external "
                     "dataset"
                 ),
                 "case_count": _EXPECTED_CASE_COUNT,
