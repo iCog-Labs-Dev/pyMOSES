@@ -16,14 +16,23 @@ sites, not one: `metapopulation.cc:185` (this port's own, the four-argument
 form with an explicit `rng`) and `moses/moses/eda/local_structure.cc:146`
 (also the four-argument form, `roulette_select(dtr->begin(), --(dtr->end()),
 dtr->back())` -- three arguments AT THE CALL SITE because `rng` takes its
-default there, not a different overload). The second call site is in
-`local_structure.cc`, EDA machinery that is P2 and outside every file this
-whole port's scope touches (CARRY-FORWARD.md's oracle map), so it changes
-nothing about what needs porting here -- but "exactly one call site" was a
-confident, checkable claim that was simply false; corrected instead of
-re-asserted. `tournament_selection` (selection.h:39-70) is a different
-algorithm entirely with its own zero call sites in this port's scope and is
-not touched here either.
+default there, not a different overload). At the time this note was
+written the second call site was outside every file this whole port's
+scope touched; the P2 optimizer-port task that added `local_structure.py`
+(`pymetta/moses/eda/`) reuses `roulette_select` for exactly that call site
+rather than re-porting it -- see that module's own docstring.
+
+`tournament_selection` (selection.h:39-70) WAS also outside scope when the
+note above was written ("a different algorithm entirely with its own zero
+call sites in this port's scope, not touched here either"). The same P2
+optimizer-port task added it below: `univariate.cc:81` is its one reachable
+call site (`tournament_selection((unsigned)eda_params.selection)`), needed
+because `eda_parameters` defaults to tournament selection
+(`eda_parameters::selection(2)`, `is_tournament_selection()` returning
+`selection > 1`) and `univariate_optimization::operator()`'s ELSE branch
+(truncation selection) is `OC_ASSERT(false, "Trunction selection not
+implemented...")` in classic itself -- i.e. truncation selection is
+unreachable in ANY real classic build, not merely unported here.
 
 # DIVERGENCE(C++ opencog/util/selection.h:89): the real function is
 # a template over `It` (any iterator type) and `ScoreT` (any type
@@ -52,7 +61,7 @@ from pymetta.util.rng import randGen
 if TYPE_CHECKING:
     from pymetta.util.rng import MT19937RandGen
 
-__all__ = ["roulette_select"]
+__all__ = ["roulette_select", "tournament_selection"]
 
 
 def roulette_select(
@@ -121,3 +130,58 @@ def roulette_select(
             break
 
     return cursor - 1
+
+
+class tournament_selection:
+    """C++: opencog/util/selection.h:39 tournament_selection
+
+    "Selects randomly n_select elements in [from, to) such that each
+    element is the winner of a random selection of t_size elements in
+    [from, to). That is, a tournament is played n_select times. The winner
+    of each tournament is the largest element from a set of t_size
+    randomly chosen elements." (the header's own doc comment.)
+
+    `items` stands in for the `[from, to)` iterator pair (this port's usual
+    convention, see module docstring); `dst` stands in for the `Out dst`
+    output iterator -- an `n_select`-entry APPEND target, matching
+    `pymetta/moses/moses/neighborhood_sampling.py`'s own append-based output
+    convention rather than a pre-sized index-assignment target.
+    """
+
+    def __init__(self, t_size: int, rng: MT19937RandGen | None = None) -> None:
+        """C++: opencog/util/selection.h:41 tournament_selection
+
+        `_rng` (`rng` in C++) defaults to `randGen()`, matching every other
+        RNG-defaulting constructor already ported in this project
+        (`lazy_random_selector.__init__`, `rtr_replacement`'s C++ own).
+        """
+        # DIVERGENCE(C++ opencog/util/selection.h:44): OC_ASSERT becomes
+        # ValueError.
+        if t_size <= 0:
+            raise ValueError("tournament_selection: t_size must be > 0")
+        self.t_size = t_size
+        self._rng = rng if rng is not None else randGen()
+
+    def __call__(self, items: Sequence, dst: list, n_select: int) -> None:
+        """C++: opencog/util/selection.h:60 operator()
+
+        `dorepeat (n_select) { In res = from + rng.randint(d); dorepeat
+        (t_size - 1) { In tmp = from + rng.randint(d); if (*res < *tmp) res
+        = tmp; } *dst++ = *res; }` -- `rng.randint(d)` is
+        `RandGen::randint(int n)`, this port's already-ported
+        `MT19937RandGen.randint_n` (`randint() % n`, `pymetta/util/rng.py`),
+        NOT the zero-argument `RandGen::randint()` (`raw >> 1`). Draw order
+        preserved exactly: `t_size` draws per tournament (the first
+        unconditional, the remaining `t_size - 1` each followed by a `<`
+        comparison against the running winner), `n_select` tournaments in
+        sequence, each appending exactly one winner.
+        """
+        d = len(items)
+        rng = self._rng
+        for _ in range(n_select):
+            res = items[rng.randint_n(d)]
+            for _ in range(self.t_size - 1):
+                tmp = items[rng.randint_n(d)]
+                if res < tmp:
+                    res = tmp
+            dst.append(res)

@@ -1,4 +1,5 @@
-"""Unit tests for pymetta.util.selection.roulette_select.
+"""Unit tests for pymetta.util.selection.roulette_select and
+tournament_selection.
 
 No C++ probe of its own: `roulette_select`'s only real call site anywhere
 this port reaches is `metapopulation::select_exemplar` (metapopulation.cc:
@@ -12,10 +13,20 @@ controlled, since reverse-engineering a real MT19937 draw to land exactly
 on a boundary value is unnecessary when the function already accepts any
 object shaped like `MT19937RandGen` (duck typing, matching every other
 `rng: RandGen = randGen()` parameter in this port).
+
+`tournament_selection` was added by the P2 optimizer-port task
+(star-anneal/univariate/particle-swarm; see `pymetta/util/selection.py`'s
+own module docstring) for `univariate.cc:81`'s one reachable call site.
+Its own tests pin draw ORDER against a scripted RNG -- `t_size` draws per
+tournament, `n_select` tournaments -- the property this task's fidelity
+requirements call out most (`randint_n`, not `randint`).
 """
 
-from pymetta.moses.moses.types import _to_score_t
-from pymetta.util.selection import roulette_select
+import pytest
+
+from pymetta.moses.moses.types import _to_score_t, composite_score
+from pymetta.util.rng import randGen
+from pymetta.util.selection import roulette_select, tournament_selection
 
 
 class _FixedRng:
@@ -220,7 +231,125 @@ def test_narrows_each_loop_subtraction_not_only_the_final_sum():
 # ---------------------------------------------------------------------------
 
 
-def test_module_exports_only_roulette_select():
+def test_module_exports_roulette_select_and_tournament_selection():
+    """Updated by the P2 optimizer-port task (star-anneal/univariate/
+    particle-swarm): `tournament_selection` was added alongside
+    `roulette_select` -- see `pymetta/util/selection.py`'s own module
+    docstring for why (`univariate.cc:81`'s one reachable call site).
+    """
     import pymetta.util.selection as mod
 
-    assert mod.__all__ == ["roulette_select"]
+    assert mod.__all__ == ["roulette_select", "tournament_selection"]
+
+
+# ---------------------------------------------------------------------------
+# tournament_selection
+# ---------------------------------------------------------------------------
+
+
+class _ScriptedRng:
+    """Not itself a ported C++ symbol -- a `randint_n(n)`-only stand-in
+    that returns a scripted sequence of draws, recording every `n` it was
+    asked for (so a test can also confirm `d = len(items)` was passed
+    correctly, not just the resulting winners).
+    """
+
+    def __init__(self, draws: list[int]) -> None:
+        self._draws = list(draws)
+        self.calls: list[int] = []
+
+    def randint_n(self, n: int) -> int:
+        self.calls.append(n)
+        return self._draws.pop(0)
+
+
+def _si(score: float) -> composite_score:
+    return composite_score(score)
+
+
+def test_rejects_non_positive_tournament_size():
+    with pytest.raises(ValueError):
+        tournament_selection(0)
+    with pytest.raises(ValueError):
+        tournament_selection(-1)
+
+
+def test_single_tournament_picks_the_larger_of_two_draws():
+    items = [_si(1.0), _si(9.0), _si(3.0)]
+    rng = _ScriptedRng([0, 2])  # draws index 0 (1.0), then index 2 (3.0)
+    sel = tournament_selection(2, rng)
+    dst: list = []
+    sel(items, dst, 1)
+    assert dst == [items[2]]  # 3.0 beats 1.0
+    assert rng.calls == [3, 3]  # d == len(items) passed both times
+
+
+def test_draw_order_is_t_size_draws_per_tournament_n_select_tournaments():
+    """Fidelity requirement: `t_size` draws per tournament (the first
+    unconditional, the remaining `t_size - 1` each compared against the
+    running winner), `n_select` tournaments in sequence -- total draws
+    == `t_size * n_select`, in that exact grouping.
+    """
+    items = [_si(float(i)) for i in range(5)]
+    # 2 tournaments of t_size=3: (idx1=1,2,0) then (idx2=4,3,2)
+    rng = _ScriptedRng([1, 2, 0, 4, 3, 2])
+    sel = tournament_selection(3, rng)
+    dst: list = []
+    sel(items, dst, 2)
+    assert len(rng.calls) == 6  # t_size * n_select
+    # Tournament 1: res=items[1](1.0); tmp=items[2](2.0) -> res=items[2];
+    #               tmp=items[0](0.0) -> res stays items[2].
+    # Tournament 2: res=items[4](4.0); tmp=items[3](3.0) -> res stays;
+    #               tmp=items[2](2.0) -> res stays items[4].
+    assert dst == [items[2], items[4]]
+
+
+def test_a_single_element_tournament_size_never_compares():
+    """`t_size=1` means the inner `dorepeat(t_size - 1)` loop runs zero
+    times -- exactly one draw per tournament, and the drawn element wins
+    unconditionally (no `<` comparison at all, so `randdouble`/comparison
+    behaviour of `composite_score` is never exercised here).
+    """
+    items = [_si(1.0), _si(2.0)]
+    rng = _ScriptedRng([1, 0])
+    sel = tournament_selection(1, rng)
+    dst: list = []
+    sel(items, dst, 2)
+    assert dst == [items[1], items[0]]
+    assert rng.calls == [2, 2]
+
+
+def test_defaults_to_the_process_wide_rng():
+    randGen().seed(7)
+    sel = tournament_selection(2)
+    assert sel._rng is randGen()
+
+
+def test_mutation_off_by_one_in_inner_loop_changes_draw_count():
+    """Mutation proof: replacing `range(self.t_size - 1)` with
+    `range(self.t_size)` (one extra draw per tournament) is exactly the
+    kind of off-by-one this fidelity requirement guards against --
+    demonstrated directly by running the mutated loop shape inline and
+    showing it consumes a DIFFERENT number of draws for the same inputs.
+    """
+    items = [_si(float(i)) for i in range(3)]
+    rng = _ScriptedRng([0, 1, 2, 0, 1, 2])
+
+    def mutant_call(items, dst, n_select, t_size, rng):
+        d = len(items)
+        for _ in range(n_select):
+            res = items[rng.randint_n(d)]
+            for _ in range(t_size):  # BUG: should be t_size - 1
+                tmp = items[rng.randint_n(d)]
+                if res < tmp:
+                    res = tmp
+            dst.append(res)
+
+    dst_mutant: list = []
+    mutant_call(items, dst_mutant, 1, 2, rng)
+    assert len(rng.calls) == 3  # mutant draws t_size (=2) + 1 = 3, not 2
+
+    rng2 = _ScriptedRng([0, 1])
+    dst_real: list = []
+    tournament_selection(2, rng2)(items, dst_real, 1)
+    assert len(rng2.calls) == 2  # faithful port draws exactly t_size == 2
