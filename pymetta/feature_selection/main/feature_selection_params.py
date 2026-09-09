@@ -72,7 +72,12 @@ them.
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 from dataclasses import dataclass, field
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from pymetta.comboreduct.table.table import CTable
 
 # C++: <climits> INT_MAX, used verbatim as feature_selection_parameters's
 # own `max_time(INT_MAX)` default (a `time_t`, but initialized from the
@@ -146,3 +151,91 @@ class feature_selection_parameters:
     pre_min_activation: float = 0.5
     pre_max_activation: float = 1.0
     pre_positive: bool = True
+
+
+def fs_scorer(ctable: CTable, fs_params: feature_selection_parameters):
+    """C++: moses/feature-selection/main/feature-selection.h:160 fs_scorer<FeatureSet>
+
+    "A wrapper, simply so that optimizer gets the iscorer_base base
+    class" -- no, that is ``iscorer_cache`` (feature-selection.h:143-156,
+    not ported: zero callers once ``algo/deme_optimize.py`` uses a plain
+    ``dict``-based memoization instead, see that module's own docstring).
+    THIS wrapper (feature-selection.h:159-200) is the ``mi``/``pre``
+    scorer union C++ builds with two nullable pointers and a runtime
+    ``OC_ASSERT`` for anything else -- collapsed here into a single
+    factory function returning the concrete scorer object directly
+    (Python has no need for the pointer-pair-plus-destructor dance
+    C++'s own lack of a tagged-union type forces).
+
+    Placed in THIS module (feature-selection.h's own params file), not
+    ``main/feature_selection.py`` (feature-selection.cc's own dispatch
+    file), because ``algo/stochastic_max_dependency.py`` and
+    ``algo/deme_optimize.py`` both need it too (stochastic_max_
+    dependency.h:40, deme_optimize.h:124 both instantiate ``fs_scorer
+    <std::set<arity_t>>`` directly) -- exactly mirroring feature-
+    selection.h being a header ``algo/*.h`` files `#include`, while
+    feature-selection.cc (this port's ``main/feature_selection.py``) is
+    the one file that includes the algo headers, not the reverse.
+    """
+    # Local imports: mutual_info/moses_matrix both import CTable and (via
+    # fs_scorer_base) sit one layer below this module in the dependency
+    # graph; importing at call time (rather than module level) avoids
+    # nothing here structurally but keeps this module's own import list
+    # minimal for readers who never touch scorer="pre".
+    from pymetta.feature_selection.scorers.moses_matrix import pre_scorer
+    from pymetta.feature_selection.scorers.mutual_info import MICScorerCTable
+
+    if fs_params.scorer == MI_SCORER:
+        return MICScorerCTable(ctable, fs_params.mi_confi)
+    if fs_params.scorer == PRE_SCORER:
+        return pre_scorer(
+            ctable,
+            fs_params.mi_confi,
+            fs_params.pre_penalty,
+            fs_params.pre_min_activation,
+            fs_params.pre_max_activation,
+            fs_params.pre_positive,
+        )
+    raise NotImplementedError(
+        f"fs_scorer: unknown feature selection scorer {fs_params.scorer!r} "
+        "(feature-selection.h:178's own OC_ASSERT(false, ...))."
+    )
+
+
+def initial_features(
+    ilabels: Sequence[str], fs_params: feature_selection_parameters
+) -> feature_set:
+    """C++: moses/feature-selection/main/feature-selection.cc:108 initial_features
+
+    Converts ``fs_params.initial_features`` (label strings) into a
+    ``feature_set`` of column indices, silently ignoring (with a would-be
+    ``logger().warn`` -- no logging surface, see ``feature_selection.py``'s
+    module docstring for the convention) any name not present in
+    ``ilabels``.
+
+    Placed in THIS module, not ``main/feature_selection.py`` (feature-
+    selection.cc's own dispatch/orchestration file), for the same reason
+    ``fs_scorer`` above is: ``algo/stochastic_max_dependency.py``
+    (stochastic_max_dependency.cc:48) and ``algo/deme_optimize.py``
+    (deme_optimize.cc:35, via ``initial_instance``) both call it directly,
+    and ``main/feature_selection.py`` itself calls INTO those algo
+    modules for ``select_feature_sets``'s own dispatch -- defining
+    ``initial_features`` there would make the two modules import each
+    other. C++ has no such problem: ``initial_features`` is DECLARED in
+    feature-selection.h (:135, this module's own header) and DEFINED in
+    feature-selection.cc, and every algo ``.cc`` file links against that
+    one definition through the header declaration alone -- Python's
+    import-time module graph has no equivalent of a header/impl split, so
+    the definition moves to the header-shaped module instead.
+    ``main/feature_selection.py`` re-exports this name unchanged so
+    existing callers of ``pymetta.feature_selection.main.feature_selection.
+    initial_features`` are unaffected.
+    """
+    res: feature_set = feature_set()
+    for name in fs_params.initial_features:
+        try:
+            idx = ilabels.index(name)
+        except ValueError:
+            continue
+        res.add(idx)
+    return res
