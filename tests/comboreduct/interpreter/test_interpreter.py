@@ -584,6 +584,42 @@ def test_contin_unsupported_vertex_raises_naming_the_vertex():
         contin_interpreter([])(tr)
 
 
+@pytest.mark.parametrize(
+    ("contin_literal", "colliding_builtin_name"),
+    [
+        ("6", "plus"),
+        ("7", "times"),
+        ("8", "div"),
+        ("9", "exp"),
+        ("10", "log"),
+        ("11", "sin"),
+        ("12", "greater_than_zero"),
+        ("14", "rand"),
+    ],
+)
+def test_contin_integral_collision_with_builtin_ordinal_does_not_misroute(
+    contin_literal, colliding_builtin_name
+):
+    """The task brief's central trap, at contin_interpreter's own outer
+    type-first `match` (this module's FIX WAVE comment, same shape as
+    boolean_interpreter's own Critical-2 regression above): a bare
+    contin_t leaf whose value happens to equal a builtin's ordinal (6.0
+    == builtin.plus, 7.0 == builtin.times, ...) must be evaluated as the
+    NUMBER it is, not misrouted into that builtin's arithmetic case --
+    which for e.g. `div`/`log`/`sin` would immediately crash trying to
+    recurse into `it.first_child` of a childless leaf. Proven by mutation
+    (see task report): removing the outer `case builtin():` type guard
+    and matching these values directly makes this test fail with an
+    AttributeError instead of returning the plain float.
+    """
+    tr = str_to_combo_tree(contin_literal)
+    assert tr.begin().data == float(contin_literal)
+    res = contin_interpreter([])(tr)
+    assert type(res) is float
+    assert res == float(contin_literal)
+    assert colliding_builtin_name not in repr(res)
+
+
 def test_contin_rand_delegates_to_randgen_randfloat():
     # rng.py's randfloat() is not yet implemented (PLANNED: P2, see
     # docs/MODULE-COVERAGE.md) -- this proves contin_interpreter's own
@@ -657,6 +693,27 @@ def test_mixed_unsupported_builtin_raises_naming_the_vertex():
     tr = str_to_combo_tree("list($1 $2)")
     with pytest.raises(ValueError, match="list"):
         mixed_interpreter([1.0, 2.0])(tr)
+
+
+@pytest.mark.parametrize(
+    ("contin_literal", "colliding_builtin_name"),
+    [
+        ("6", "plus"),
+        ("11", "sin"),
+        ("12", "greater_than_zero"),
+    ],
+)
+def test_mixed_integral_collision_with_builtin_ordinal_does_not_misroute(
+    contin_literal, colliding_builtin_name
+):
+    # Same trap as contin_interpreter's own regression above, at
+    # mixed_eval's outer type-first match (interpreter.cc:294's own
+    # `boost::get<builtin>(&v)`). Proven by mutation (see task report).
+    tr = str_to_combo_tree(contin_literal)
+    res = mixed_interpreter([])(tr)
+    assert type(res) is float
+    assert res == float(contin_literal)
+    assert colliding_builtin_name not in repr(res)
 
 
 # ---------------------------------------------------------------------------
