@@ -470,8 +470,8 @@ class particle_swarm(optimizer_base):
             bestp_inst = best_parts[i].first
             vel = velocities[i]
             self._update_bit_particle(temp_inst, bestp_inst, best_instance, vel, fields)
-            # DIVERGENCE(C++ moses/moses/optimization/particle-swarm.cc:325-326)
-            # -- DO NOT FIX. `disc_best_it` is initialised at :317 alongside
+            # DIVERGENCE(C++ moses/moses/optimization/particle-swarm.cc:325-326):
+            # DO NOT FIX. `disc_best_it` is initialised at :317 alongside
             # the other four iterators, but the loop's increment list
             # (`temp_it++, bestp_it++, vels_it++, disc_temp_it++`) OMITS it.
             # So `*disc_best_it` is frozen at
