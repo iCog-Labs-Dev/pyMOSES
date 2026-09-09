@@ -68,6 +68,9 @@ first still represents the name of the supposed executable").
 from __future__ import annotations
 
 import argparse
+import contextlib
+import os
+import socket
 import sys
 from collections.abc import Sequence
 
@@ -76,8 +79,30 @@ from pymetta.moses.main.demo_problems import register_demo_problems
 from pymetta.moses.main.problem import problem_manager
 from pymetta.moses.main.problem_params import problem_params
 from pymetta.moses.moses.moses_main import metapop_printer
+from pymetta.util.log_prog_name import determine_log_name
+from pymetta.util.logger import Logger, logger
 
 __all__ = ["moses_exec"]
+
+# C++: moses/moses/moses/moses_main.cc:47 `version_string`. Its home is
+# `moses_main.cc`, whose Python counterpart `moses_main.py` this task does not
+# own, so the constant is defined here instead of there.
+#
+# The value looks wrong and is not. `moses/moses/CMakeLists.txt:1` passes
+# `-DMOSES_VERSION_MAJOR="3"` -- a define whose expansion is a STRING LITERAL,
+# quotes included -- and `moses_main.cc:35-36`'s `stringify(x)` is `#x`, which
+# stringifies that literal a second time. So `version_string` is
+# `"3"."7"."0"`, WITH the embedded quote characters, and classic's log really
+# does read `moses version "3"."7"."0"`. Measured against the binary
+# 2026-09-09. The three numbers come from CMakeLists.txt:13-15.
+_VERSION_STRING = '"3"."7"."0"'
+
+# C++: moses/moses/main/moses_exec_def.h:54-55 -- `default_log_file_prefix`
+# ("moses") and `default_log_file_suffix` ("log"). `problem_params` already
+# carries the `default_log_file` built from them as its `-f` default; `-F`
+# needs the two halves separately.
+_DEFAULT_LOG_FILE_PREFIX = "moses"
+_DEFAULT_LOG_FILE_SUFFIX = "log"
 
 
 def _add_demo_options(parser) -> None:
@@ -95,6 +120,125 @@ def _add_demo_options(parser) -> None:
     """
     parser.add_argument("-y", "--combo-program", dest="combo_str", type=str, default="")
     parser.add_argument("-k", "--problem-size", dest="problem_size", type=int, default=5)
+
+
+def _explicit_options(build_parser, args: Sequence[str]) -> dict[str, object]:
+    """C++: opencog/util/log_prog_name.cc:64 determine_log_name (its `defaulted()` test)
+
+    Not a C++ symbol of its own. `determine_log_name` filters
+    `boost::program_options::variables_map` with `!it->second.defaulted()`,
+    and `variables_map` records that flag per option; argparse does not, so
+    the filter has to be reconstructed.
+
+    Comparing the parsed value against `parser.get_default(dest)` would be
+    wrong: boost calls an option non-defaulted when the user TYPED it, even
+    if they typed its default value, so `-m 100` with a default of 100 still
+    lands in the file name. Re-parsing against a parser whose every default
+    is `argparse.SUPPRESS` reproduces the real test -- the resulting namespace
+    holds exactly the options that appeared on the command line.
+
+    `build_parser` is a zero-argument callable that returns a FRESH parser
+    with the same options registered, because the defaults have to be
+    suppressed on a parser nobody else is using.
+
+    Returns a mapping from LONG option name (without `--`, the key boost's
+    `variables_map` uses) to the parsed value.
+    """
+    parser = build_parser()
+    dest_to_long: dict[str, str] = {}
+    for action in parser._actions:
+        action.default = argparse.SUPPRESS
+        for opt in action.option_strings:
+            if opt.startswith("--"):
+                dest_to_long[action.dest] = opt[2:]
+                break
+    ns = parser.parse_args(list(args))
+    return {dest_to_long[dest]: value for dest, value in vars(ns).items() if dest in dest_to_long}
+
+
+def _setup_logging(pms: problem_params, explicit: dict[str, object]) -> None:
+    """C++: moses/moses/main/problem-params.cc:2069 problem_params::parse_options
+
+    The `-l` / `-f` / `-F` half of `parse_options`, transliterated from
+    problem-params.cc:2069-2113 and :2185-2186:
+
+        bool have_log_file_opt = vm.count(log_file_dep_opt_opt.first) > 0;
+        if (have_log_file_opt) { ... log_file = determine_log_name(...); }
+        remove(log_file.c_str());
+        logger().set_filename(log_file);
+        boost::trim(log_level);
+        Logger::Level level = logger().get_level_from_string(log_level);
+        if (level != Logger::BAD_LEVEL) logger().set_level(level);
+        else { cerr << ...; exit(1); }
+        logger().set_backtrace_level(Logger::ERROR);
+        ...
+        logger().info() << "moses version " << version_string;
+        gethostname(hname, 256); logger().info("hostname: %s", hname);
+        ...
+        logger().warn("WARNING: This version of MOSES does NOT have MPI support!\\n");
+
+    Three details are easy to lose and all three are observable:
+
+    * `remove(log_file)` runs BEFORE `set_filename`, because the writer opens
+      the file with `fopen(..., "a")` and would otherwise append to the
+      previous run's log.
+    * `set_backtrace_level(ERROR)` is what makes `Logger::log` flush after
+      every ERROR record.
+    * the MPI warning ends in an explicit `\\n` ON TOP of the newline
+      `Logger::log` adds, so classic's log has a BLANK LINE after it. That
+      blank line is real output, not a formatting artifact.
+
+    # DIVERGENCE(moses/moses/main/problem-params.cc:2069): this block's C++
+    # home is the middle of `problem_params::parse_options`, i.e.
+    # `problem_params.py`, which this task does not own. It is called from
+    # `moses_exec` instead, immediately after `parse_options` returns.
+    # Ordering is unaffected: NOTHING between problem-params.cc:2069 and the
+    # end of `parse_options` writes to the log except the three records
+    # emitted here, and `table_problem_params::parse_options` -- the only
+    # other `option_base` in the set -- has no `logger()` call at all
+    # (grep-verified over table-problems.cc). Moving it to its C++ home is a
+    # one-line insert; see this task's report.
+
+    # DIVERGENCE(moses/moses/main/problem-params.cc:2097): C++ prints to
+    # cerr and `exit(1)` on an unparseable `-l`. `problem_params.parse_options`
+    # already raises `ValueError` for exactly that case and runs FIRST, so the
+    # `else` arm here is unreachable from the CLI; it is written as a plain
+    # return rather than duplicating either behaviour.
+
+    # DIVERGENCE(moses/moses/main/problem-params.cc:2103): classic installs a
+    # SIGHUP handler that logs "Caught SIGHUP" and dumps the stack. Not
+    # ported -- `backtrace()` is a no-op in this port (logger.py's own
+    # DIVERGENCE), so the handler would log a bare line and nothing else.
+    """
+    log_file = pms.log_file
+
+    # C++: :2070 `vm.count(log_file_dep_opt_opt.first) > 0` -- the presence of
+    # `-F`, not its value; it is declared with no `po::value<>` at all.
+    if pms.log_file_dep_opt:
+        # C++: :2085 `std::set<std::string> ignore_opt{log_file_dep_opt_opt.first};`
+        log_file = determine_log_name(
+            _DEFAULT_LOG_FILE_PREFIX,
+            explicit,
+            {"log-file-dep-opt"},
+            "." + _DEFAULT_LOG_FILE_SUFFIX,
+        )
+        pms.log_file = log_file
+
+    # C++: :2091 `remove(log_file.c_str());` -- C's remove() ignores a
+    # missing file, so the FileNotFoundError is suppressed rather than raised.
+    with contextlib.suppress(FileNotFoundError):
+        os.remove(log_file)
+
+    logger().set_filename(log_file)
+    level = Logger.get_level_from_string(pms.log_level.strip())
+    if level == Logger.Level.BAD_LEVEL:
+        return
+    logger().set_level(level)
+    logger().set_backtrace_level(Logger.Level.ERROR)
+
+    logger().info("moses version " + _VERSION_STRING)
+    logger().info("hostname: %s", socket.gethostname())
+    logger().warn("WARNING: This version of MOSES does NOT have MPI support!\n")
 
 
 def moses_exec(argv: Sequence[str] | str) -> int:
@@ -137,16 +281,38 @@ def moses_exec(argv: Sequence[str] | str) -> int:
     dp = register_demo_problems(pmr)
 
     pp = problem_params()
-    parser = argparse.ArgumentParser(prog="moses", add_help=True)
-    pp.add_options(parser)
-    tpp.add_options(parser)
-    _add_demo_options(parser)
+
+    def build_parser() -> argparse.ArgumentParser:
+        p = argparse.ArgumentParser(prog="moses", add_help=True)
+        pp.add_options(p)
+        tpp.add_options(p)
+        _add_demo_options(p)
+        return p
+
+    parser = build_parser()
 
     ns = parser.parse_args(argv_list[1:])
     pp.parse_options(ns)
     tpp.parse_options(ns)
     dp.combo_str = ns.combo_str
     dp.problem_size = ns.problem_size
+
+    # C++: problem-params.cc:2069-2113 and :2185-2186, reached from
+    # `option_manager::parse_options`' `for (auto ob : _option_set)
+    # ob->parse_options(vm);` loop (problem.cc:75-77). See `_setup_logging`'s
+    # own DIVERGENCE marker for why it is called from here rather than from
+    # inside `problem_params.parse_options`.
+    _setup_logging(pp, _explicit_options(build_parser, argv_list[1:]))
+
+    # C++: moses/moses/main/problem.cc:82-87 -- the tail of
+    # `option_manager::parse_options`, whose own comment explains the
+    # placement: "Log command-line args. Do this after above, since one of
+    # the options might change the log file location." `option_manager` is
+    # not ported (see this module's docstring), so its one logging statement
+    # lands here, at the point in this function that corresponds to the end
+    # of that C++ function. C++ joins ALL of `argv`, including `argv[0]`, each
+    # preceded by a space -- so the record reads "Command line: ./moses -i ...".
+    logger().info("Command line:" + "".join(" " + a for a in argv_list))
 
     # C++: problem-params.cc:2396-2403, the tail of
     # `problem_params::parse_options` -- `combo::output_format fmt =
