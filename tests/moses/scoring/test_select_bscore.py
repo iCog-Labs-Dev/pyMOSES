@@ -3,16 +3,32 @@
 Differential oracle against tests/fixtures/scorers.json's "select" cases,
 plus direct unit/boundary/mutation-proof tests.
 
-UPDATED (S14 Task 1): `__call__` (`operator()`) used to be untestable
-end-to-end here because it requires the "mixed" interpreter (contin
-inputs, boolean output), which was out of scope for the whole port before
-this task ported `contin_interpreter`/`mixed_interpreter`
-(comboreduct/interpreter/interpreter.py) and wired `interpreter_visitor`
-to route a contin-input row to `mixed_interpreter`. `__call__` now runs;
-see `test_call_now_evaluates_via_mixed_interpreter_instead_of_raising`
-below. Every OTHER case here tests the constructor's own computed state
-and the tree-free methods (`best_possible_bscore`/`worst_possible_bscore`/
-`min_improv`), as before.
+`__call__` (`operator()`) requires the "mixed" interpreter (contin
+inputs, boolean output). Whether that is available is decided at
+COLLECTION TIME by `_MIXED_INTERPRETER_AVAILABLE` (probed directly,
+below -- not hardcoded), because this file does not own
+`pymetta/comboreduct/` and cannot assume which side of a concurrent
+mixed-interpreter port landed first:
+
+* Unavailable: `test_call_raises_on_the_missing_mixed_interpreter` runs,
+  proving the gate raises cleanly rather than returning a silently wrong
+  bscore.
+* Available (S14 Task 1 ported `contin_interpreter`/`mixed_interpreter`,
+  comboreduct/interpreter/interpreter.py, and wired `interpreter_visitor`
+  to route a contin-input row to it): `test_call_matches_recorded_cpp_
+  bscore_rows` runs instead, proving `__call__` does not merely complete
+  but reproduces classic's own recorded per-row values (`tests/fixtures/
+  scorers.json`'s "select" cases carry `bscore_rows`/
+  `sum_bscore_weighted`, recorded from classic, previously unused because
+  `__call__` used to raise before reaching them).
+
+Both tests are `skipif`-gated on the SAME probe, in opposite directions,
+so they can never both run (double-counting) or both skip (silent
+coverage loss) for one process -- see the probe's own docstring.
+
+Every OTHER case here tests the constructor's own computed state and the
+tree-free methods (`best_possible_bscore`/`worst_possible_bscore`/
+`min_improv`), independent of interpreter availability.
 """
 
 import json
@@ -81,41 +97,98 @@ def test_select_bscore_matches_cpp_probe(case_name):
 
 
 # ---------------------------------------------------------------------------
-# __call__ -- UPDATED by S14 Task 1: `interpreter_visitor` now dispatches a
-# genuine `vector<contin_t>` row (this scorer's own case: contin inputs,
-# boolean output) to `mixed_interpreter`, closing the "whole-project
-# missing mixed interpreter" gap this test used to document (see
-# select_bscore.py's own module docstring, still stale as of this
-# writing -- it predates this fix). `__call__` now runs to completion
-# instead of raising `NotImplementedError`.
+# __call__ -- gated on a live capability probe, not a hardcoded assumption
+# about merge order (see module docstring). [Important 3, branch review]
 # ---------------------------------------------------------------------------
 
 
-def test_call_now_evaluates_via_mixed_interpreter_instead_of_raising():
-    """S14 Task 1 ported `contin_interpreter`/`mixed_interpreter`
-    (comboreduct/interpreter/interpreter.py) and wired
-    `interpreter_visitor` to route a `vector<contin_t>` row through
-    `mixed_interpreter` (table.h:332-336's own "the output might be
-    non-contin" rule) -- exactly the shape `select_bscore.__call__` needs
-    (contin inputs, boolean output). This proves `__call__` now runs to
-    completion and returns one score per distinct row, rather than
-    raising.
-
-    Exact end-to-end numeric correctness of `select_bscore.__call__`
-    against classic (not merely "it doesn't raise") is not this task's
-    scope -- `select_bscore.py`/`test_table_problems.py` belong to a
-    different owner, and driving `-Hselect` all the way through still
-    hits a SEPARATE, later gap: contin exemplars have no knob-building
-    support yet (S14 Task 2, not Task 1) -- see
-    tests/moses/main/test_table_problems.py's
-    test_select_table_problem_end_to_end_hits_the_documented_knob_building_gap.
+def _mixed_interpreter_available() -> bool:
+    """Probes the EXACT call both tests below care about -- a genuinely
+    contin-input row through `select_bscore.__call__` -- rather than
+    inspecting `pymetta.comboreduct.interpreter` internals this file does
+    not own. Evaluated once, at collection time, and cached in
+    `_MIXED_INTERPRETER_AVAILABLE` below, so
+    `test_call_raises_on_the_missing_mixed_interpreter` and
+    `test_call_matches_recorded_cpp_bscore_rows` key off the identical
+    boolean and can never disagree about which regime they are in.
     """
     ct = _contin_ctable([0.1, 0.5, 0.9])
     bsc = select_bscore(ct, 0.0, 1.0, 1.0, True)
     tr = str_to_combo_tree("0<($1)")
+    try:
+        bsc(tr)
+    except NotImplementedError:
+        return False
+    return True
+
+
+_MIXED_INTERPRETER_AVAILABLE = _mixed_interpreter_available()
+
+
+@pytest.mark.skipif(
+    _MIXED_INTERPRETER_AVAILABLE,
+    reason="mixed interpreter is available (S14 Task 1 landed); superseded "
+    "by test_call_matches_recorded_cpp_bscore_rows below",
+)
+def test_call_raises_on_the_missing_mixed_interpreter():
+    """Proves the gate raises cleanly rather than returning a silently
+    wrong bscore -- see select_bscore.py's own module docstring. Runs
+    ONLY while `_mixed_interpreter_available()` measures `False`; once
+    the mixed interpreter lands for real, `test_call_matches_recorded_
+    cpp_bscore_rows` below takes over -- see this module's own docstring
+    for why the two cannot both run or both skip.
+    """
+    ct = _contin_ctable([0.1, 0.5, 0.9])
+    bsc = select_bscore(ct, 0.0, 1.0, 1.0, True)
+    tr = str_to_combo_tree("0<($1)")
+    with pytest.raises(NotImplementedError):
+        bsc(tr)
+
+
+@pytest.mark.skipif(
+    not _MIXED_INTERPRETER_AVAILABLE,
+    reason="mixed interpreter not yet available (whole-project gap; see "
+    "module docstring) -- __call__ still raises NotImplementedError, "
+    "covered instead by test_call_raises_on_the_missing_mixed_interpreter",
+)
+@pytest.mark.parametrize("case_name", sorted(_CASES), ids=sorted(_CASES))
+def test_call_matches_recorded_cpp_bscore_rows(case_name):
+    """`__call__` was 0% covered before this test: a mutant negating the
+    entire returned bscore (`return [-x for x in bs]`) passed the whole
+    module, because the only test that ever exercised `__call__`
+    (`test_call_now_evaluates_via_mixed_interpreter_instead_of_raising`,
+    S14 Task 1's own commit, now superseded by this one) asserted only
+    `len(bs) == len(ct)` / `all(isinstance(x, float) for x in bs)` --
+    never a single VALUE.
+
+    `tests/fixtures/scorers.json`'s own "select" cases already carry
+    `bscore_rows`/`sum_bscore_weighted`, recorded from classic and
+    unused until now (`__call__` used to raise before ever reaching
+    them). Verified independently against those recorded C++ values: all
+    4 "select" cases match exactly.
+
+    Row order is compared as a sorted MULTISET, not positionally: this
+    port's `CTable` does not reproduce `std::map`'s sorted iteration
+    order -- the same, already-established caveat
+    `test_discriminating_bscore.py`'s own oracle documents and works
+    around for `prerec`'s row-keyed bscore prefix. `sum_bscore_weighted`
+    is checked too, as an order-independent second measurement (the
+    negate-everything mutant this test was written to kill flips the sign
+    of the sum as well as of every element, so either assertion alone
+    already kills it -- both are kept because they are cheap and prove
+    different things: per-row values vs. the aggregate `local_moses`
+    actually reads).
+    """
+    case = _CASES[case_name]
+    table = loadTable(str(_TABLE_DATA_DIR / case["file"]), case["target_feature"])
+    ct = table.compressed()
+    bsc = select_bscore(
+        ct, case["lower_percentile"], case["upper_percentile"], case["hardness"], case["positive"]
+    )
+    tr = str_to_combo_tree(case["tree"])
     bs = bsc(tr)
-    assert len(bs) == len(ct)
-    assert all(isinstance(x, float) for x in bs)
+    assert sorted(bs) == sorted(r["value"] for r in case["bscore_rows"]), case_name
+    assert bsc.sum_bscore(bs) == pytest.approx(case["sum_bscore_weighted"]), case_name
 
 
 # ---------------------------------------------------------------------------
@@ -163,9 +236,26 @@ def test_percentiles_are_clamped_to_0_1():
     `fmax(0.0, ...)`/`fmin(1.0, ...)` BEFORE the ordering check -- an
     out-of-range pair that still orders correctly after clamping must
     construct without raising.
+
+    [Minor, branch review] Used to assert nothing beyond "did not raise",
+    so a mutant clamping to `(0.1, 0.9)` instead of `(0.0, 1.0)` survived.
+    20 evenly-weighted rows (not the 9-row helper call other tests in
+    this module use) are needed to DISCRIMINATE the two clamps: with 9
+    rows, `0.1*9=0.9` and `0.0*9=0` both land in the SAME first row
+    (`ceil` to the first row whose cumulative weight is >= the
+    threshold), so a (0.1, 0.9) mutant would have been invisible even
+    with `_lower_bound`/`_upper_bound` asserted -- checked directly
+    against a live run before writing this. With 20 rows, `0.1*20=2` and
+    `0.9*20=18` land on the SECOND and 18th rows respectively, distinct
+    from the first and 20th -- so `_lower_bound`/`_upper_bound` under the
+    (0.1, 0.9) mutant would be the data's 2nd-smallest/19th-smallest
+    values, not its true min/max.
     """
-    ct = _contin_ctable([x / 10.0 for x in range(1, 10)])
-    select_bscore(ct, -5.0, 5.0)  # clamps to (0.0, 1.0) -- must not raise
+    vals = [x / 100.0 for x in range(1, 21)]
+    ct = _contin_ctable(vals)
+    bsc = select_bscore(ct, -5.0, 5.0)  # clamps to (0.0, 1.0) -- must not raise
+    assert bsc._lower_bound == pytest.approx(min(vals))
+    assert bsc._upper_bound == pytest.approx(max(vals))
 
 
 # ---------------------------------------------------------------------------
