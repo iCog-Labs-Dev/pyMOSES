@@ -206,6 +206,19 @@ These cost real time to find. They are properties of the C++ side, not of the po
   `-3.57142853736877441` with complexity penalty `0.571428596973419189` --
   those are binary32 values printed at double width, independent confirmation
   that `score_t` narrowing (4.2) is observable in classic's own output.
+- **The `get_rep()` null-deref crashes classic in TWO places, and the port is
+  MORE capable than classic as a result.** The known instance is
+  `optimizationUTest`, which core-dumps because `distance_based_scorer`
+  null-derefs through `iscorer_base::get_rep()` inside an unconditional
+  `hill-climbing.cc` debug-log line. A second was found in S13's P2 work
+  (2026-09-09) and confirmed live: `feature-selection --algo hc` **dumps core
+  unconditionally** — same root cause, gdb-confirmed.
+  **Consequence for the port:** its `hc` feature-selection algorithm runs to
+  completion, because this port drops `logger()` calls project-wide, so it never
+  evaluates the expression that crashes classic. That means **there is no oracle
+  for `hc` at all** — classic cannot produce a reference output — and the port is
+  strictly more capable there than the thing it ports. Mark it; do not present
+  `hc` as verified, and do not "fix" classic.
 - **Which classic `tests/moses` oracles actually exist.** Registered and
   active: `metapopulationUTest` (verified: builds, 2 tests, OK -- the S10
   oracle), `MOSESUTest` (the S11 end-to-end oracle), `optimizationUTest` (see
