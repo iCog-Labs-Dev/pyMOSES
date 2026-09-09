@@ -40,7 +40,7 @@ zero-call-site verification, not a guess:
 import copy
 from abc import ABC, abstractmethod
 
-from pymetta.comboreduct.combo.vertex import combo_tree
+from pymetta.comboreduct.combo.vertex import combo_tree, vertex_equal
 from pymetta.util.tree import tree_node
 
 # No direct C++ symbol. Sentinel for `rule.__call__`'s omitted-`it` default
@@ -212,3 +212,23 @@ def replace_without_changing_it(tr: combo_tree, dst: tree_node, src: tree_node) 
     tr.erase_children(dst)
     for child in list(tr.children(src)):
         tr.append_child(dst, child)
+
+
+def ignores(ignore_ops, op) -> bool:
+    """No direct C++ symbol: reproduces `ignore_ops.find(id::xxx) ==
+    ignore_ops.end()` -- NEGATED, i.e. this returns True exactly when
+    `id::xxx` IS a member of `ignore_ops` (callers write `not ignores(...)`
+    for the C++ `== end()` "not found" sense; `contin_reduction.py`/
+    `mixed_reduction.py`/`full_reduction.py`'s `when(...)` gates all read
+    this way). `vertex_set::find` is a type-safe `boost::variant` lookup in
+    C++; a bare Python `op in ignore_ops` would instead go through
+    `set.__contains__`'s hash/`__eq__` machinery, which -- exactly this
+    port's recurring "type before value" hazard -- can true-positive across
+    alternatives a `boost::variant` never would (`hash(11.0) == hash(11)`,
+    so a stray `contin_t` value numerically equal to some `builtin`'s
+    ordinal could otherwise appear to "ignore" an unrelated operator).
+    `op` here is always a known `builtin` constant (`id::sin`, `id::div`,
+    ...); the scan is over `ignore_ops`'s actual members, whatever their
+    real type turns out to be.
+    """
+    return any(vertex_equal(v, op) for v in ignore_ops)
