@@ -22,8 +22,8 @@ from pathlib import Path
 
 import pytest
 
-from pymetta.comboreduct.combo.iostream_combo import str_to_combo_tree
-from pymetta.comboreduct.combo.vertex import builtin, combo_tree, enum_t
+from pymetta.comboreduct.combo.iostream_combo import _contin_to_str, str_to_combo_tree
+from pymetta.comboreduct.combo.vertex import builtin, combo_tree, enum_t, is_boolean, vertex_to_bool
 from pymetta.comboreduct.crutil.exception import OverflowException
 from pymetta.comboreduct.interpreter.interpreter import (
     boolean_interpreter,
@@ -776,3 +776,94 @@ def test_mixed_interpreter_matches_cpp_probe(label):
     else:
         expected = _parse_probe_contin(case["value"])
     assert got == expected
+
+
+# ---------------------------------------------------------------------------
+# Differential oracle: Python interpreter_visitor/mixed_interpreter vs.
+# eval-table, over a fixed 9-tree contin/mixed corpus against a SAMPLE of
+# trainingRegression.dat's 8,000 rows (the S14 Task 1 plan's own named
+# oracle). See tools/capture_eval_contin.py for the full rationale,
+# including why every row here routes through mixed_interpreter -- even
+# the purely-arithmetic trees -- exactly as classic's own OTable
+# constructor does for an all-contin ITable (table.h:332-336).
+# ---------------------------------------------------------------------------
+
+_EVAL_CONTIN_PATH = _FIXTURE_DIR / "eval_contin.json"
+_EVAL_CONTIN_CASES = (
+    json.loads(_EVAL_CONTIN_PATH.read_text()) if _EVAL_CONTIN_PATH.exists() else []
+)
+
+
+def _format_like_table_fmt_vertex_to_str(v) -> str:
+    """Not a ported symbol -- a minimal, local stand-in for
+    `table_fmt_vertex_to_str` (table.cc:63, "Boolean values are output in
+    binary form (0 for false, 1 for true)") built from vertex.py's own
+    `is_boolean`/`vertex_to_bool` (added this task) plus
+    `iostream_combo.py`'s existing `_contin_to_str`, since `ostreamTable`/
+    `table_fmt_vertex_to_str` themselves are out of this task's scope
+    (table.py's module docstring) -- this test only needs the FORMATTING
+    convention, not a ported `OTable`-writing pipeline.
+    """
+    if is_boolean(v):
+        return "1" if vertex_to_bool(v) else "0"
+    return _contin_to_str(v)
+
+
+def test_eval_contin_golden_fixture_has_expected_shape():
+    assert len(_EVAL_CONTIN_CASES) > 0
+    for entry in _EVAL_CONTIN_CASES:
+        assert set(entry) == {"tree", "row_index", "row", "expected"}
+        assert isinstance(entry["tree"], str)
+        assert isinstance(entry["row_index"], int)
+        assert isinstance(entry["row"], list)
+        assert isinstance(entry["expected"], str)
+
+
+@pytest.mark.oracle
+@pytest.mark.parametrize(
+    "case",
+    _EVAL_CONTIN_CASES,
+    ids=lambda case: f"{case['tree']}:{case['row_index']}",
+)
+def test_interpreter_visitor_matches_eval_table_over_training_regression(case):
+    tr = str_to_combo_tree(case["tree"])
+    iv = interpreter_visitor(tr)
+    result = iv(case["row"])
+    assert _format_like_table_fmt_vertex_to_str(result) == case["expected"]
+
+
+# ---------------------------------------------------------------------------
+# The same oracle, but through the REAL table_io.loadTable -> ITable
+# pipeline instead of a hand-parsed CSV row -- closes the loop that
+# table_io.py's own contin-column parsing (already in place before this
+# task -- see task report's inventory) really does feed
+# interpreter_visitor/mixed_interpreter identically to classic, not just
+# that a bespoke float() parse does. tests/fixtures/table_data/
+# regression_sample.csv is the SAME 40 sampled rows as eval_contin.json,
+# with ORIGINAL tokens (tools/capture_eval_contin.py writes both from the
+# one capture run), so row order lines up by position.
+# ---------------------------------------------------------------------------
+
+
+def test_loadtable_itable_rows_feed_interpreter_visitor_matching_eval_table(fixture_dir):
+    from pymetta.comboreduct.table.table_io import loadTable
+
+    csv_path = fixture_dir / "table_data" / "regression_sample.csv"
+    table = loadTable(str(csv_path), "y")
+    assert table.get_arity() == 2
+
+    row_indices_in_fixture_order = sorted({c["row_index"] for c in _EVAL_CONTIN_CASES})
+    assert len(table.itable) == len(row_indices_in_fixture_order)
+    position_of_row_index = {
+        row_idx: pos for pos, row_idx in enumerate(row_indices_in_fixture_order)
+    }
+
+    checked = 0
+    for case in _EVAL_CONTIN_CASES:
+        tr = str_to_combo_tree(case["tree"])
+        iv = interpreter_visitor(tr)
+        itable_row = list(table.itable[position_of_row_index[case["row_index"]]])
+        result = iv(itable_row)
+        assert _format_like_table_fmt_vertex_to_str(result) == case["expected"]
+        checked += 1
+    assert checked == len(_EVAL_CONTIN_CASES)

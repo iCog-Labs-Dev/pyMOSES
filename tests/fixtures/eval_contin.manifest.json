@@ -1,0 +1,31 @@
+{
+  "capture_script": "tools/capture_eval_contin.py",
+  "capture_script_sha256": "493a35d86b3058991694a721ec4a97acbf65d92095859f283ceecec341b2e674",
+  "classic_dir": "/home/yab/Documents/Projects/iCog/HyperonRelated/MOSES/OpenCog/Moses",
+  "cli_tool": "bin/eval-table",
+  "generated_at_utc": "2026-09-09T06:10:13+00:00",
+  "inputs": {
+    "dataset": "trainingRegression.dat",
+    "n_rows_sampled": 40,
+    "n_rows_total": 8000,
+    "row_stride": 200,
+    "sample_csv": "tests/fixtures/table_data/regression_sample.csv",
+    "trees": [
+      "+($1 $2)",
+      "*($1 $2)",
+      "/($1 $2)",
+      "log($1)",
+      "exp($2)",
+      "sin($1)",
+      "+(*(2.5 $1) *(-1.0 $2))",
+      "0<(+($1 *(-1.0 $2)))",
+      "impulse(0<(+($1 *(-1.0 $2))))"
+    ]
+  },
+  "prefix_dir": "/home/yab/opt/moses-legacy",
+  "probe_kind": "classic_cli",
+  "probe_source": null,
+  "probe_source_sha256": null,
+  "repo_commit": "48536f6166062d25a4c669076e01d0aa6ecd08dc",
+  "schema_version": 1
+}
