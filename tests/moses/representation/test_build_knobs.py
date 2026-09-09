@@ -193,14 +193,27 @@ def test_builder_rejects_every_non_boolean_non_contin_output_before_mutation(out
 
 
 @pytest.mark.parametrize(
-    "input_type", [node for node in type_node if node is not type_node.boolean_type]
+    "input_type",
+    [
+        node
+        for node in type_node
+        if node not in (type_node.boolean_type, type_node.contin_type)
+    ],
 )
-def test_builder_rejects_every_non_boolean_input_before_mutation(input_type):
+def test_builder_rejects_every_unsupported_input_before_mutation(input_type):
+    """``contin_type`` input is excluded from this parametrization -- as of
+    the mixed-predicate slice it is a SUPPORTED Boolean-output input
+    (build_knobs.cc:82-86: "Exemplar may consist of a mix of boolean and
+    contin-typed variables and functions, but we want the end result to be
+    typed boolean"), covered positively by
+    ``tests/moses/representation/test_mixed_predicate.py`` rather than by
+    this "every other type is still rejected" sweep.
+    """
     exemplar = str_to_combo_tree("$1")
     before = _render(exemplar)
     signature = TypeSignature((input_type,), type_node.boolean_type)
 
-    with pytest.raises(NotImplementedError, match="non-Boolean inputs"):
+    with pytest.raises(NotImplementedError, match="Boolean or contin inputs"):
         build_knobs(exemplar, signature, knob_mapper(), lambda _tr: None)
 
     assert _render(exemplar) == before
@@ -209,7 +222,11 @@ def test_builder_rejects_every_non_boolean_input_before_mutation(input_type):
 @pytest.mark.parametrize(
     ("source", "arity", "message"),
     [
-        ("not($1)", 1, "unsupported or non-reduced"),
+        # A `not` above anything but a predicate is build_knobs.cc:608-611's
+        # own "must not contain logical_not nodes" assertion, hoisted to
+        # construction time. `not(0<($1))` IS accepted -- see
+        # test_mixed_predicate.py's own `root-predicate-negated` case.
+        ("not($1)", 1, "logical_not is only permitted"),
         ("null_vertex($1)", 1, "unsupported or non-reduced"),
         ("0", 0, "unsupported or non-reduced"),
         # 3.0 equals IntEnum builtin.logical_and under bare Python equality.
@@ -473,10 +490,15 @@ def test_contin_builder_rejects_mistyped_linear_contin():
 @pytest.mark.parametrize(
     ("source", "itypes", "message"),
     [
-        # A predicate is rejected everywhere in a contin exemplar, whether
-        # at the exemplar's own root or nested under `impulse`.
-        ("0<($1)", (type_node.contin_type,), "unsupported.*predicate"),
-        ("impulse(0<($1))", (type_node.contin_type,), "unsupported.*predicate"),
+        # A `cond` is not part of a canonizable contin expression: classic's
+        # own `rec_canonize` (build_knobs.cc:839) dispatches on
+        # plus/sin/log/exp/times/div/impulse/argument and asserts on
+        # anything else. (A PREDICATE used to be rejected here too; as of
+        # the mixed-predicate slice `rec_canonize`'s `impulse` arm hands its
+        # Boolean argument to a `logical_canonize` that handles predicates,
+        # so `0<($1)` and `impulse(0<($1))` are both accepted now -- see
+        # test_mixed_predicate.py.)
+        ("cond($1 $1 $1)", (type_node.contin_type,), "unsupported or non-reduced"),
         # Out-of-range argument for the declared arity.
         ("$2", (type_node.contin_type,), "outside signature arity"),
         # An input type that is neither contin nor Boolean.

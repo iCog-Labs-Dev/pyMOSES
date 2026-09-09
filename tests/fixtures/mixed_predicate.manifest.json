@@ -1,0 +1,25 @@
+{
+  "capture_script": "tools/capture_mixed_predicate.py",
+  "capture_script_sha256": "2f7441b52b02a8bb1c6518fa7631e63e9be74d46d17fb22b9c48c31103a39a09",
+  "classic_dir": "/home/yab/Documents/Projects/iCog/HyperonRelated/MOSES/OpenCog/Moses",
+  "cli_tool": null,
+  "generated_at_utc": "2026-09-09T19:17:24+00:00",
+  "inputs": {
+    "case_count": 40,
+    "description": "17 fixed Boolean-output exemplar shapes over contin (and mixed contin/Boolean) inputs -- bare `and`, bare and negated root predicates, predicates as junctor children, predicates over +/*//sin/constants, mixed inputs, an ignored argument and an ignored greater_than_zero -- plus 3 contin-output shapes with a predicate nested under impulse; each run at perm_ratio -1 and 0 with randGen() reseeded to 1; plus 20 predicate-bearing combo trees reduced by logical_reduce at efforts 2 and 3 with empty ignore_ops. No external dataset",
+    "logical_reduce_row_count": 40,
+    "rng_seed": 1
+  },
+  "prefix_dir": "/home/yab/opt/moses-legacy",
+  "probe_kind": "cpp_probe",
+  "probe_source": "tools/cpp_probe/mixed_predicate_probe.cc",
+  "probe_source_sha256": "6d8e4199702294354fdb15aeb920401d3cbe273ab3a160fa937f697bf25621a3",
+  "repo_commit": "54eca739aa8a6c7eb8c6a17cbe46260cf4fb2e7c",
+  "schema_version": 2,
+  "toolchain": {
+    "boost_lib_version": "1_92",
+    "cxx": "g++ (GCC) 16.2.1 20260810",
+    "glibcxx_max_symbol": "GLIBCXX_3.4.36",
+    "libstdcxx_soname": "libstdc++.so.6.0.36"
+  }
+}

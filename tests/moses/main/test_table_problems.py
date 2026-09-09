@@ -41,6 +41,7 @@ from pymetta.moses.main.table_problems import (
     f_one_table_problem,
     it_table_problem,
     parse_table_args,
+    pre_conj_table_problem,
     pre_table_problem,
     prerec_table_problem,
     recall_table_problem,
@@ -975,33 +976,33 @@ def test_select_table_problem_builds_the_right_scorer_and_calls_metapop_moses_re
     assert mbcscore.get_bscore is not None  # a real behave_cscore, not a placeholder
 
 
-def test_select_table_problem_end_to_end_hits_the_documented_knob_building_gap(tmp_path):
-    """UPDATED (S14 Task 1): this test used to hit `interpreter_visitor`'s
-    missing `mixed_interpreter` path -- that gap is now closed
-    (comboreduct/interpreter/interpreter.py ports `contin_interpreter`/
-    `mixed_interpreter`, and `interpreter_visitor` now routes a
-    `vector<contin_t>` row to `mixed_interpreter`, matching table.h:
-    332-336). Running this end-to-end now progresses PAST tree
-    evaluation and instead hits a SEPARATE, later, still-open gap:
-    `select` searches over BOOLEAN-output programs against CONTIN
-    inputs, and knob-building for a contin-input exemplar
-    ("non-Boolean inputs require their corresponding domain builder
-    slice") is S14 Task 2, not yet ported. Classic itself handles this
-    fine (measured: `-Hselect -q0.2 -w0.8` against
-    `select_regression.csv` succeeds, top line "-15 true"); this port's
-    `select_table_problem` is correctly wired (previous test) and now
-    correctly SCORES a mixed-signature table too, but cannot yet build
-    knobs for a contin exemplar.
+def test_select_table_problem_end_to_end_matches_classic():
+    """UPDATED twice. It first hit `interpreter_visitor`'s missing
+    `mixed_interpreter` path; then, once that closed, it hit the
+    knob-building gap for a contin-input exemplar ("non-Boolean inputs
+    require their corresponding domain builder slice") and asserted that
+    `NotImplementedError`. The mixed-predicate slice closed THAT gap too --
+    `build_logical`'s `is_predicate` branch (build_knobs.cc:640) --
+    so `-Hselect` over a contin-input table now runs end to end.
+
+    `_fresh_pms_and_tpp` installs a null printer, so this test only asserts
+    that the run COMPLETES and reaches the printer with a populated
+    metapopulation. The byte-for-byte stdout comparison against classic for
+    exactly this argv lives at the CLI level, in
+    ``tests/moses/representation/test_mixed_predicate.py::
+    test_select_over_a_contin_table_matches_classic_byte_for_byte``.
     """
     csv_path = "tests/fixtures/table_data/select_regression.csv"
     pmr, tpp, pms = _fresh_pms_and_tpp(
         ["-i", csv_path, "-u", "y", "-m", "30", "-q", "0.2", "-w", "0.8"]
     )
+    seen = []
+    pms.printer = lambda mp, dex, stats: seen.append(
+        [combo_tree_to_str(sct.get_tree()) for sct in mp.best_candidates()]
+    )
     prob = pmr.find_problem("select")
-    with pytest.raises(
-        NotImplementedError, match="non-Boolean inputs require their corresponding domain"
-    ):
-        prob.run(pms)
+    prob.run(pms)
+    assert seen == [["true "]]
 
 
 # ---------------------------------------------------------------------------
@@ -1059,6 +1060,112 @@ def test_regression_with_real_contin_reduct_still_does_not_reach_a_score(tmp_pat
 
 
 # ---------------------------------------------------------------------------
+# pre_conj_table_problem -- table-problems.cc:410.
+# ---------------------------------------------------------------------------
+
+
+def test_pre_conj_is_registered_under_the_HYPHENATED_name(tmp_path):
+    """`pre_conj_table_problem::name()` returns `"pre-conj"`, with a
+    hyphen (table-problems.h:134). This is the whole reason `-Hpre_conj`
+    is refused by classic AND by this port -- there is no such name in
+    either registry, so `find_problem` misses and `moses_exec` prints
+    `problem type "pre_conj" is currently unsupported.` and returns 1
+    (measured against the real binary, 2026-09-09).
+    """
+    pmr = problem_manager()
+    register_table_problems(pmr)
+    assert isinstance(pmr.find_problem("pre-conj"), pre_conj_table_problem)
+    assert pmr.find_problem("pre_conj") is None
+    assert pmr.find_problem("pre-conj").description() == "Precision-Conjunction-Maximization"
+
+
+def test_pre_conj_builds_precision_conj_bscore_with_hardness_and_positive(tmp_path, monkeypatch):
+    """MUTATION PROVEN. `REGRESSION(ctable, precision_conj_bscore,
+    (ctable, pms.hardness, pms.pre_positive))` (table-problems.cc:421-422)
+    -- both non-table arguments come from `pms`, not from the scorer's
+    own defaults. Hardcoding either (`hardness=1.0`, or dropping
+    `pms.pre_positive` so the default `positive=True` applies) makes one
+    of these two parametrized cases fail.
+    """
+    from pymetta.moses.scoring.precision_bscore import precision_conj_bscore
+
+    csv_path = _write_dataset(tmp_path)
+    pmr, tpp, pms = _fresh_pms_and_tpp(["-i", csv_path, "-Q", "3", "--pre-positive", "0"])
+    calls = _capture_metapop_moses_results(monkeypatch)
+
+    prob = pmr.find_problem("pre-conj")
+    prob.run(pms)
+
+    assert len(calls) == 1
+    bscore = calls[0][0][4]._bscorer
+    assert isinstance(bscore, precision_conj_bscore)
+    assert bscore.hardness == 3.0
+    assert bscore.positive is False
+
+
+def test_pre_conj_rejects_boosting_like_classic(tmp_path):
+    """C++: table-problems.cc:419-420 `OC_ASSERT(not pms.meta_params.
+    do_boosting, "Boosting not supported for the pre problem!")`. Classic
+    throws `AssertionException` out of `main` and dumps core; this port
+    raises `NotImplementedError`, the same mapping `demo_problems.py`
+    uses for its own three identical `OC_ASSERT(not do_boosting)` sites.
+    Deleting the check lets the run proceed past it and this fails.
+    """
+    csv_path = _write_dataset(tmp_path)
+    pmr, tpp, pms = _fresh_pms_and_tpp(["-i", csv_path])
+    pms.meta_params.do_boosting = True
+    prob = pmr.find_problem("pre-conj")
+    with pytest.raises(NotImplementedError, match="Boosting not supported"):
+        prob.run(pms)
+
+
+# ---------------------------------------------------------------------------
+# ps_params reaches metapop_moses_results from every table-problem caller.
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    ("problem_name", "extra_argv"),
+    [
+        ("it", []),
+        # `pre` is the HAND-INLINED copy of the REGRESSION macro
+        # (table-problems.cc:358-408), a separate call site from
+        # `_regression`'s -- the argument had to be added twice.
+        ("pre", ["-q", "0.1", "-w", "1.0"]),
+        ("pre-conj", []),
+        ("prerec", ["-Q", "1", "-q", "0.5", "-w", "1.0"]),
+    ],
+)
+def test_every_table_problem_passes_pms_ps_params_in_C_PLUS_PLUS_position(
+    tmp_path, monkeypatch, problem_name, extra_argv
+):
+    """MUTATION PROVEN. C++'s `REGRESSION` macro and
+    `pre_table_problem::run` both call `metapop_moses_results(...,
+    pms.opt_params, pms.hc_params, pms.ps_params, pms.deme_params, ...)`
+    (table-problems.cc:352-355, :404-407). This port dropped the
+    `ps_params` argument entirely until 2026-09-09.
+
+    Position 7 is checked, not just presence: swapping `pms.ps_params`
+    and `pms.hc_params` (or inserting it after `deme_params`) type-checks
+    fine in Python and would silently hand `particle_swarm` an
+    `hc_parameters`. Deleting the argument from any ONE of these call
+    sites fails exactly that case.
+    """
+    csv_path = _write_dataset(tmp_path)
+    pmr, tpp, pms = _fresh_pms_and_tpp(["-i", csv_path, *extra_argv])
+    calls = _capture_metapop_moses_results(monkeypatch)
+
+    pmr.find_problem(problem_name).run(pms)
+
+    assert len(calls) == 1
+    args = calls[0][0]
+    assert args[5] is pms.opt_params
+    assert args[6] is pms.hc_params
+    assert args[7] is pms.ps_params
+    assert args[8] is pms.deme_params
+
+
+# ---------------------------------------------------------------------------
 # register_table_problems -- composition on top of problem.py without
 # editing it.
 # ---------------------------------------------------------------------------
@@ -1067,6 +1174,7 @@ def test_regression_with_real_contin_reduct_still_does_not_reach_a_score(tmp_pat
 _REAL_NAMES_AND_CLASSES = {
     "it": it_table_problem,
     "pre": pre_table_problem,
+    "pre-conj": pre_conj_table_problem,
     "prerec": prerec_table_problem,
     "recall": recall_table_problem,
     "bep": bep_table_problem,
@@ -1074,7 +1182,7 @@ _REAL_NAMES_AND_CLASSES = {
     "select": select_table_problem,
     "cluster": cluster_table_problem,
 }
-_STUB_NAMES = ("ip", "ann-it", "pre-conj")
+_STUB_NAMES = ("ip", "ann-it")
 
 
 def test_register_table_problems_registers_all_eleven_names():
@@ -1084,7 +1192,7 @@ def test_register_table_problems_registers_all_eleven_names():
         assert pmr.find_problem(name) is not None, name
 
 
-def test_register_table_problems_wires_the_eight_real_classes():
+def test_register_table_problems_wires_the_nine_real_classes():
     pmr = problem_manager()
     tpp = register_table_problems(pmr)
     for name, cls in _REAL_NAMES_AND_CLASSES.items():
@@ -1093,7 +1201,7 @@ def test_register_table_problems_wires_the_eight_real_classes():
         assert prob._tpp is tpp, name
 
 
-def test_register_table_problems_leaves_three_stubs_raising():
+def test_register_table_problems_leaves_two_stubs_raising():
     pmr = problem_manager()
     register_table_problems(pmr)
     for name in _STUB_NAMES:

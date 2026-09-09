@@ -245,20 +245,30 @@ def test_set_stepsize_expansion_depth_change_subsequent_field_specs():
         representation_module.set_depth(5)
 
 
-def test_a_predicate_anywhere_in_a_contin_exemplar_is_still_rejected():
-    """The mixed logical-predicate branches (build_knobs.cc's
-    `is_predicate` cases inside `logical_canonize`/`build_logical`) remain
-    unported for BOTH output directions -- this pins that a
-    `greater_than_zero` predicate is rejected even nested under `impulse`
-    inside an otherwise-supported contin exemplar, not merely at top level.
+def test_a_predicate_under_impulse_in_a_contin_exemplar_is_accepted():
+    """This test used to assert the OPPOSITE ("...is still rejected"), on
+    the grounds that build_knobs' `is_predicate` branches were unported for
+    both output directions. The mixed-predicate slice ported them, and
+    `rec_canonize`'s own `impulse` arm (build_knobs.cc:903-905) hands its
+    Boolean argument to `logical_canonize`, which now handles a predicate.
+
+    The byte-for-byte comparison against classic for this exact shape lives
+    in ``tests/moses/representation/test_mixed_predicate.py`` (fixture rows
+    ``contin-impulse-of-predicate``, ``contin-sum-with-impulse-predicate``
+    and ``contin-impulse-of-negated-predicate``). What is asserted here is
+    only the property that used to be inverted, plus the one thing classic
+    does NOT do: the contin path never calls `build_logical`, so the
+    predicate this canonizes gets contin knobs and no disc knobs at all.
     """
-    with pytest.raises(ValueError, match="unsupported.*predicate"):
-        representation(
-            lambda _tr: None,
-            lambda _tr: None,
-            str_to_combo_tree("impulse(0<($1))"),
-            gen_signature([type_node.contin_type], type_node.contin_type),
-        )
+    rep = representation(
+        lambda _tr: None,
+        lambda _tr: None,
+        str_to_combo_tree("impulse(0<($1))"),
+        gen_signature([type_node.contin_type], type_node.contin_type),
+    )
+    assert len(rep.disc) == 0
+    assert len(rep.contin) > 0
+    assert "0<" in combo_tree_to_str(rep.exemplar())
 
 
 def _bare_contin_representation(tr, knobs):
