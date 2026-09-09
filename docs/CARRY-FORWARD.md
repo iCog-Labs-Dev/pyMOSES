@@ -478,7 +478,7 @@ objects. The same holds for `max`'s truncation (no `sample_size` below
 200000 makes the wrapped value small enough to change the clamp). Kept as
 faithful reproduction, reported as untested rather than claimed as covered.
 
-### 5.1 A NEW class of fixture risk arrived with S12
+### 5.1 CLOSED — the toolchain-dependent fixture risk S12 introduced
 
 Every fixture before S12 was a snapshot of **classic's pinned source**, so it
 could only rot if classic changed. `crossover.json` is different: its
@@ -487,16 +487,33 @@ transliteration of libstdc++ 16's `__heap_select` + `__sort_heap`, chosen
 because `std::partial_sort` gives no stability guarantee and its actual tie
 order decides which instances get crossed — a stable sort turns 27 tests red.
 
-No manifest carries a compiler or stdlib version field (schema-wide), and
-`ci.sh` never rebuilds probes. **A libstdc++ upgrade could therefore leave the
-fixture silently stale while the port stays green** — the exact rot the
-manifest work was meant to prevent, arriving through a door that work did not
-cover. The pin is disclosed in prose, which is honest but not
-machine-checkable.
+**CLOSED 2026-09-09 — manifest schema 2 records the toolchain.** Manifests now
+carry a `toolchain` object (`cxx`, `libstdcxx_soname`, `glibcxx_max_symbol`,
+`boost_lib_version`), and `check_fixture_manifests.py --show-toolchain-drift`
+reports any fixture captured on a different one.
 
-Whoever next touches the manifest schema should add the toolchain fields. Until
-then, treat an unexplained `test_crossover.py` failure after a system upgrade
-as a suspected toolchain change, not a port regression.
+Two design decisions worth keeping, because both are the kind that get
+"helpfully" reversed later:
+
+- **Drift is reported, never failed.** A g++ patch bump would otherwise fail
+  all 35 fixtures at once, including the many that cannot possibly depend on
+  the toolchain, and a check that cries wolf gets ignored. The field's job is
+  to make the first question after an unexplained failure — "did the toolchain
+  move under us?" — answerable from the repo. `test_a_differing_toolchain_is_
+  NOT_an_error` exists to break if someone tightens this.
+- **Pre-schema-2 fixtures record `toolchain: null`, not today's values.**
+  Backfilling would be recording a measurement nobody took — this project's
+  most-repeated defect in another costume. The two fixtures §5.1 is actually
+  about (`crossover.json`, and `contin_enumeration.json`, which depends on
+  boost's binomial rounding and GCC's double→unsigned conversion) were
+  RE-CAPTURED instead, and came back byte-identical, which is itself the
+  evidence that no drift has occurred since they were first taken.
+
+The residual gap: `ci.sh` still never rebuilds the probes, so a toolchain
+change is detected only when someone re-runs a `capture_*.py`. Treat an
+unexplained `test_crossover.py` or `test_contin_enumeration.py` failure after a
+system upgrade as a suspected toolchain change first, and run
+`--show-toolchain-drift` before suspecting the port.
 
 ### 5.2 The 13-vs-17 deme size was a REAL divergence, waived twice
 

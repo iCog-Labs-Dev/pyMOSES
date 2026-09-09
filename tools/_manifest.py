@@ -46,6 +46,39 @@ authoritative list; summary:
   inputs                 free-form dict: seeds/datasets/exemplars/corpus
                           actually used for this run.
 
+Fields added in schema_version 2:
+
+  toolchain              dict, or None when unknown. Records the host C++
+                          toolchain that produced the fixture:
+                          {"cxx": "g++ (GCC) 16.2.1 ...",
+                           "libstdcxx_soname": "libstdc++.so.6.0.36",
+                           "glibcxx_max_symbol": "GLIBCXX_3.4.36",
+                           "boost_lib_version": "1_92"}.
+
+Why `toolchain` exists (docs/CARRY-FORWARD.md Sec 5.1). Several fixtures
+encode behaviour that is a property of the HOST C++ IMPLEMENTATION, not of
+classic's source: `crossover.json` depends on libstdc++'s `std::sort`
+permutation for equal elements, and `contin_enumeration.json` depends on
+boost's `binomial_coefficient<double>` rounding and on GCC's
+double->unsigned conversion. Re-capturing any of those on a different
+toolchain can legitimately produce different bytes, and until schema 2
+nothing recorded which toolchain a fixture came from -- so an upgrade could
+leave a fixture silently stale, or make a genuine divergence look like a
+port bug.
+
+`toolchain` is NOT re-checked as an equality assertion by
+tools/check_fixture_manifests.py, and deliberately so: a g++ patch bump
+would otherwise fail every fixture at once, including the many that cannot
+possibly depend on the toolchain, and a check that cries wolf gets ignored.
+It is validated for SHAPE, reported by `--show-toolchain-drift`, and is
+there so that when a fixture DOES start disagreeing, the first question --
+"did the toolchain move under us?" -- is answerable from the repo instead
+of unanswerable.
+
+`toolchain: null` means genuinely unknown, and is what every fixture
+captured before schema 2 carries. It is not backfilled with today's values:
+that would be recording a measurement nobody took.
+
 `capture_script_sha256`/`probe_source_sha256` are what
 tools/check_fixture_manifests.py recomputes and compares against the
 CURRENT tools/capture_*.py and tools/cpp_probe/*.cc bytes to detect rot --
@@ -60,12 +93,71 @@ import subprocess
 from datetime import UTC, datetime
 from pathlib import Path
 
-SCHEMA_VERSION = 1
+SCHEMA_VERSION = 2
 PROBE_KINDS = ("cpp_probe", "classic_cli", "python_only")
 
 
 def sha256_of(path: Path) -> str:
     return hashlib.sha256(path.read_bytes()).hexdigest()
+
+
+def _first_line(command: list[str]) -> str | None:
+    """Best-effort single-line command output, or None. Never raises: a
+    manifest must still be writable on a host missing any of these tools.
+    """
+    try:
+        result = subprocess.run(
+            command, capture_output=True, text=True, timeout=10, check=True
+        )
+    except (subprocess.SubprocessError, OSError):
+        return None
+    line = result.stdout.splitlines()[0].strip() if result.stdout.strip() else ""
+    return line or None
+
+
+def detect_toolchain() -> dict | None:
+    """Record the host C++ toolchain -- see this module's docstring for why.
+
+    Every field is independently best-effort and may be None; the whole
+    dict is None only if nothing at all could be determined, which is the
+    same "unknown" the pre-schema-2 fixtures carry.
+    """
+    cxx = _first_line(["g++", "--version"])
+
+    # The libstdc++ the probes actually link against, by resolved soname
+    # rather than by package version: it is the soname that changes when
+    # the sort/algorithm implementations change.
+    libstdcxx_soname = None
+    glibcxx_max_symbol = None
+    for candidate in (Path("/usr/lib/libstdc++.so.6"), Path("/usr/lib64/libstdc++.so.6")):
+        if candidate.exists():
+            try:
+                libstdcxx_soname = candidate.resolve().name
+            except OSError:
+                libstdcxx_soname = None
+            strings_out = _first_line(
+                ["sh", "-c", f"strings {candidate} | grep -o 'GLIBCXX_[0-9.]*' | sort -V | tail -1"]
+            )
+            glibcxx_max_symbol = strings_out
+            break
+
+    boost_lib_version = None
+    boost_version_hpp = Path("/usr/include/boost/version.hpp")
+    if boost_version_hpp.is_file():
+        for line in boost_version_hpp.read_text().splitlines():
+            if line.startswith("#define BOOST_LIB_VERSION"):
+                boost_lib_version = line.split('"')[1] if '"' in line else None
+                break
+
+    toolchain = {
+        "cxx": cxx,
+        "libstdcxx_soname": libstdcxx_soname,
+        "glibcxx_max_symbol": glibcxx_max_symbol,
+        "boost_lib_version": boost_lib_version,
+    }
+    if all(value is None for value in toolchain.values()):
+        return None
+    return toolchain
 
 
 def git_commit(repo_root: Path) -> str | None:
@@ -102,6 +194,7 @@ def build_manifest(
     inputs: dict | None = None,
     generated_at_utc: str | None = None,
     repo_commit: str | None | object = "AUTO",
+    toolchain: dict | None | object = "AUTO",
 ) -> dict:
     """Build a schema-1 fixture manifest dict.
 
@@ -118,6 +211,8 @@ def build_manifest(
         raise ValueError("probe_source and probe_source_path must both be set or both be None")
     if repo_commit == "AUTO":
         repo_commit = git_commit(repo_root)
+    if toolchain == "AUTO":
+        toolchain = detect_toolchain()
     return {
         "schema_version": SCHEMA_VERSION,
         "capture_script": capture_script,
@@ -130,6 +225,7 @@ def build_manifest(
         "classic_dir": str(classic_dir) if classic_dir is not None else None,
         "prefix_dir": str(prefix_dir) if prefix_dir is not None else None,
         "generated_at_utc": generated_at_utc or datetime.now(UTC).isoformat(timespec="seconds"),
+        "toolchain": toolchain,
         "inputs": inputs if inputs is not None else {},
     }
 

@@ -77,9 +77,18 @@ from pathlib import Path
 REPO_ROOT = Path(__file__).resolve().parent.parent
 FIXTURE_DIR = REPO_ROOT / "tests" / "fixtures"
 
-SUPPORTED_SCHEMA_VERSIONS = (1,)
+SUPPORTED_SCHEMA_VERSIONS = (1, 2)
 PROBE_KINDS = ("cpp_probe", "classic_cli", "python_only")
 _SHA256_LEN = 64
+
+# This module otherwise duplicates rather than imports `_manifest`'s
+# constants, deliberately, so that a validator failure can never be caused
+# by the thing it is validating. `detect_toolchain` is the one exception:
+# drift reporting has to ask the SAME question the capture side answered,
+# and a second implementation of it would drift from the first -- which is
+# precisely the bug class this field exists to detect.
+sys.path.insert(0, str(REPO_ROOT))
+from tools._manifest import detect_toolchain  # noqa: E402
 
 
 def _is_sha256(value: object) -> bool:
@@ -235,6 +244,28 @@ def validate_manifest(manifest: dict, repo_root: Path = REPO_ROOT) -> list[str]:
                 f"generated_at_utc={generated_at_utc!r} is not a valid ISO-8601 timestamp"
             )
 
+    # `toolchain` (schema 2). Validated for SHAPE ONLY -- a value that
+    # differs from the current host is NOT an error. See _manifest.py's
+    # docstring: a g++ patch bump would otherwise fail every fixture at
+    # once, including those that cannot depend on the toolchain, and a
+    # check that cries wolf gets ignored. Drift is REPORTED instead, by
+    # `--show-toolchain-drift`.
+    #
+    # Absent entirely is fine at schema 1 (the field did not exist);
+    # present-but-null is the schema-2 way of saying "genuinely unknown",
+    # which is what every fixture captured before schema 2 carries.
+    toolchain = manifest.get("toolchain")
+    if schema_version == 2 and "toolchain" not in manifest:
+        errors.append("toolchain must be present at schema_version 2 (use null if unknown)")
+    elif toolchain is not None and not isinstance(toolchain, dict):
+        errors.append("toolchain must be a JSON object or null")
+    elif isinstance(toolchain, dict):
+        for key in ("cxx", "libstdcxx_soname", "glibcxx_max_symbol", "boost_lib_version"):
+            if key not in toolchain:
+                errors.append(f"toolchain is missing key {key!r} (use null if unknown)")
+            elif toolchain[key] is not None and not isinstance(toolchain[key], str):
+                errors.append(f"toolchain[{key!r}] must be a string or null")
+
     inputs = manifest.get("inputs")
     if not isinstance(inputs, dict):
         errors.append("inputs must be a JSON object")
@@ -262,12 +293,61 @@ def check_all_fixtures(
     return results
 
 
+def toolchain_drift(fixture_dir: Path = FIXTURE_DIR) -> dict[str, dict]:
+    """Fixtures whose recorded `toolchain` differs from this host's.
+
+    Informational, never a failure -- see `validate_manifest`'s own comment
+    and _manifest.py's docstring. Fixtures with `toolchain: null` (unknown)
+    are skipped: "we do not know" is not "it drifted".
+
+    Returned mapping is fixture name -> {field: (recorded, current)} for
+    the fields that actually differ.
+    """
+    current = detect_toolchain() or {}
+    drift: dict[str, dict] = {}
+    for fixture_path in discover_fixtures(fixture_dir):
+        manifest, load_error = load_manifest(fixture_path)
+        if load_error is not None:
+            continue
+        recorded = manifest.get("toolchain")
+        if not isinstance(recorded, dict):
+            continue
+        differing = {
+            key: (recorded.get(key), current.get(key))
+            for key in sorted(set(recorded) | set(current))
+            if recorded.get(key) != current.get(key)
+        }
+        if differing:
+            drift[fixture_path.name] = differing
+    return drift
+
+
 def main(argv: list[str]) -> int:
-    del argv  # no options -- always checks every tests/fixtures/*.json
+    show_drift = "--show-toolchain-drift" in argv
+    unknown = [a for a in argv if a != "--show-toolchain-drift"]
+    if unknown:
+        print(f"unknown argument(s): {unknown}", file=sys.stderr)
+        return 2
+
     fixtures = discover_fixtures(FIXTURE_DIR)
     if not fixtures:
         print(f"no fixtures found under {FIXTURE_DIR}", file=sys.stderr)
         return 1
+
+    if show_drift:
+        drift = toolchain_drift(FIXTURE_DIR)
+        if drift:
+            print(
+                f"toolchain drift in {len(drift)} fixture(s) -- informational, not a failure.\n"
+                "A fixture that also starts DISAGREEING with classic is the one to re-capture:\n"
+            )
+            for name in sorted(drift):
+                print(f"  {name}:")
+                for key, (recorded, now) in drift[name].items():
+                    print(f"    - {key}: captured with {recorded!r}, host now has {now!r}")
+            print()
+        else:
+            print("no toolchain drift among fixtures that record one\n")
 
     failures = check_all_fixtures(FIXTURE_DIR)
     if failures:

@@ -39,11 +39,13 @@ from pathlib import Path
 
 import pytest
 
+from tools._manifest import detect_toolchain
 from tools.check_fixture_manifests import (
     FIXTURE_DIR,
     check_all_fixtures,
     discover_fixtures,
     load_manifest,
+    toolchain_drift,
     validate_manifest,
 )
 
@@ -297,7 +299,7 @@ def test_probe_kind_classic_cli_requires_cli_tool_and_forbids_probe_source(tmp_p
     # probe_source is still set from _valid_manifest -- both problems at once.
     errors = validate_manifest(manifest, repo_root=repo_root)
     assert any("cli_tool" in e for e in errors)
-    assert any('probe_source is set' in e for e in errors)
+    assert any("probe_source is set" in e for e in errors)
 
 
 def test_bad_repo_commit_format_is_detected(tmp_path):
@@ -354,3 +356,131 @@ def test_discover_fixtures_excludes_sidecar_manifest_files(tmp_path):
 
     found = discover_fixtures(fixture_dir)
     assert [p.name for p in found] == ["thing.json"]
+
+
+# ---------------------------------------------------------------------
+# `toolchain` (schema 2) -- CARRY-FORWARD.md Sec 5.1.
+#
+# Several fixtures encode behaviour of the HOST C++ implementation rather
+# than of classic's source (crossover.json depends on libstdc++'s sort
+# permutation for equal elements; contin_enumeration.json on boost's
+# binomial rounding and GCC's double->unsigned conversion). Until schema 2
+# nothing recorded which toolchain produced a fixture.
+#
+# The design decision these tests pin: a toolchain MISMATCH is reported,
+# never failed. A g++ patch bump would otherwise fail all 35 fixtures at
+# once -- including the many that cannot depend on the toolchain -- and a
+# check that cries wolf gets ignored. So the tests below assert both
+# halves: the shape IS validated, and a differing value is NOT an error.
+# ---------------------------------------------------------------------
+
+
+def _valid_schema2_manifest(script_path: Path, probe_path: Path) -> dict:
+    manifest = _valid_manifest(script_path, probe_path)
+    manifest["schema_version"] = 2
+    manifest["toolchain"] = {
+        "cxx": "g++ (GCC) 1.2.3",
+        "libstdcxx_soname": "libstdc++.so.6.0.99",
+        "glibcxx_max_symbol": "GLIBCXX_3.4.99",
+        "boost_lib_version": "1_00",
+    }
+    return manifest
+
+
+def test_a_valid_schema2_manifest_passes(tmp_path):
+    repo_root, script_path, probe_path = _make_repo(tmp_path)
+    manifest = _valid_schema2_manifest(script_path, probe_path)
+    assert validate_manifest(manifest, repo_root=repo_root) == []
+
+
+def test_schema2_toolchain_may_be_null_meaning_unknown(tmp_path):
+    """`null` is how a fixture says "nobody recorded this". It must pass:
+    backfilling a real-looking value for a fixture captured before the
+    field existed would be recording a measurement nobody took.
+    """
+    repo_root, script_path, probe_path = _make_repo(tmp_path)
+    manifest = _valid_schema2_manifest(script_path, probe_path)
+    manifest["toolchain"] = None
+    assert validate_manifest(manifest, repo_root=repo_root) == []
+
+
+def test_schema2_without_a_toolchain_key_is_detected(tmp_path):
+    """Absent is different from null: at schema 2 the field must be
+    written out, so that "unknown" is an explicit statement rather than
+    an omission that could equally mean the writer forgot.
+    """
+    repo_root, script_path, probe_path = _make_repo(tmp_path)
+    manifest = _valid_schema2_manifest(script_path, probe_path)
+    del manifest["toolchain"]
+    errors = validate_manifest(manifest, repo_root=repo_root)
+    assert any("toolchain must be present" in e for e in errors), errors
+
+
+def test_schema1_manifest_needs_no_toolchain_key(tmp_path):
+    """Schema 1 predates the field; the 33 fixtures still at schema 1 must
+    keep validating without one.
+    """
+    repo_root, script_path, probe_path = _make_repo(tmp_path)
+    manifest = _valid_manifest(script_path, probe_path)
+    assert "toolchain" not in manifest
+    assert validate_manifest(manifest, repo_root=repo_root) == []
+
+
+@pytest.mark.parametrize(
+    "key", ["cxx", "libstdcxx_soname", "glibcxx_max_symbol", "boost_lib_version"]
+)
+def test_schema2_toolchain_missing_a_key_is_detected(tmp_path, key):
+    repo_root, script_path, probe_path = _make_repo(tmp_path)
+    manifest = _valid_schema2_manifest(script_path, probe_path)
+    del manifest["toolchain"][key]
+    errors = validate_manifest(manifest, repo_root=repo_root)
+    assert any(f"missing key {key!r}" in e for e in errors), errors
+
+
+def test_schema2_toolchain_wrong_type_is_detected(tmp_path):
+    repo_root, script_path, probe_path = _make_repo(tmp_path)
+    manifest = _valid_schema2_manifest(script_path, probe_path)
+    manifest["toolchain"] = "g++ 16"
+    errors = validate_manifest(manifest, repo_root=repo_root)
+    assert any("must be a JSON object or null" in e for e in errors), errors
+
+
+def test_a_differing_toolchain_is_NOT_an_error(tmp_path):
+    """The load-bearing half of the design. `_valid_schema2_manifest`
+    records g++ 1.2.3 / boost 1_00, which is certainly not this host --
+    and `test_a_valid_schema2_manifest_passes` above shows that validates
+    clean. This test states the intent explicitly so a later change that
+    "helpfully" turns drift into a failure breaks a test that says why
+    it must not.
+    """
+    repo_root, script_path, probe_path = _make_repo(tmp_path)
+    manifest = _valid_schema2_manifest(script_path, probe_path)
+    current = detect_toolchain() or {}
+    assert manifest["toolchain"]["cxx"] != current.get("cxx"), (
+        "this test is vacuous unless the recorded toolchain really differs from the host's"
+    )
+    assert validate_manifest(manifest, repo_root=repo_root) == []
+
+
+def test_toolchain_drift_is_clean_on_the_real_repo():
+    """Every fixture that records a toolchain must record THIS one --
+    otherwise its bytes were produced somewhere else and may be stale.
+    Fixtures recording `null` are skipped by `toolchain_drift`; that is
+    the "unknown, not drifted" case.
+    """
+    assert toolchain_drift(FIXTURE_DIR) == {}
+
+
+def test_at_least_the_toolchain_sensitive_fixtures_record_one():
+    """CARRY-FORWARD Sec 5.1 names crossover.json (libstdc++ sort
+    permutations) and, since the contin work, contin_enumeration.json
+    (boost binomial rounding + GCC's double->unsigned conversion). Those
+    two must not be left at "unknown" -- they are the whole reason the
+    field exists.
+    """
+    for name in ("crossover.json", "contin_enumeration.json"):
+        manifest, load_error = load_manifest(FIXTURE_DIR / name)
+        assert load_error is None, f"{name}: {load_error}"
+        assert isinstance(manifest.get("toolchain"), dict), (
+            f"{name} records no toolchain; re-run its tools/capture_*.py"
+        )
