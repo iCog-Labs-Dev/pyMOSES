@@ -27,6 +27,7 @@ import pytest
 
 from pymetta.comboreduct.table.table import CTable
 from pymetta.comboreduct.table.table_io import loadTable
+from pymetta.feature_selection.algo import stochastic_max_dependency as smd_module
 from pymetta.feature_selection.algo.stochastic_max_dependency import (
     _random_shuffle,
     smd_select_feature_sets,
@@ -123,3 +124,47 @@ def test_smd_selection_edge_case_returns_empty_when_target_size_le_init_size():
         features={0, 1, 2}, init_features={0, 1}, scorer=scorer, num_features=1
     )
     assert pop == []
+
+
+def test_shuffle_starts_from_the_sorted_feature_order_not_python_set_order(monkeypatch):
+    """`std::vector<feature_id> shuffle(features.begin(), features.end())`
+    (stochastic_max_dependency.h:122) copies from a `std::set<arity_t>`
+    (feature-selection.h:124), so the vector handed to `random_shuffle` is
+    SORTED ascending. This port built it with `list(features_set)`, which
+    iterates a Python set in hash order.
+
+    The two coincide for every input the sole caller can produce
+    (`feature_set(range(arity))`; CPython iterates small contiguous ints
+    ascending -- measured for 0..n up to n=1000, and for 0..49 minus a
+    few). So this was right for the wrong reason rather than broken. They
+    diverge as soon as the set mixes small and >=32 values, which is the
+    case used here.
+
+    `_random_shuffle` is stubbed to a no-op so the order the algorithm
+    walks IS the starting order, making the difference directly
+    observable rather than smeared through the RNG.
+    """
+    sparse = {1, 33, 65, 2}
+    # Precondition: without this, the test proves nothing.
+    assert list(sparse) != sorted(sparse), (
+        "CPython's set order matches sorted() for these values; pick others"
+    )
+
+    monkeypatch.setattr(smd_module, "_random_shuffle", lambda seq: None)
+
+    scored_singletons: list[int] = []
+
+    def scorer(fs):
+        fs = set(fs)
+        if len(fs) == 1:
+            scored_singletons.append(next(iter(fs)))
+        return 0.0
+
+    stochastic_max_dependency_selection(
+        set(sparse), set(), scorer, num_features=1, threshold=0.0, top_size=4
+    )
+
+    assert scored_singletons == sorted(sparse), (
+        f"features were walked in {scored_singletons}, i.e. Python-set order; "
+        f"classic walks std::set order {sorted(sparse)}"
+    )

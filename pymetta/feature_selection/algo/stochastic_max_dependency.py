@@ -113,7 +113,25 @@ def stochastic_max_dependency_selection(
     if len(features_set) < num_features:
         num_features = len(features_set)
 
-    shuffle = list(features_set)
+    # C++: `std::vector<feature_id> shuffle(features.begin(), features.end())`
+    # (stochastic_max_dependency.h:122), where `feature_set` is
+    # `std::set<arity_t>` (feature-selection.h:124) -- an ORDERED set, so
+    # the vector handed to `random_shuffle` is sorted ascending. A Python
+    # `set` iterates in hash order, so `list(features_set)` is not the same
+    # sequence in general, and `_random_shuffle` permutes a different
+    # starting order even with an identical RNG stream.
+    #
+    # In practice the two coincide for every input this port can currently
+    # produce -- the sole caller passes `feature_set(range(arity))`, and
+    # CPython iterates a set of small contiguous ints in ascending order
+    # (measured: contiguous 0..n for n up to 1000, and 0..49 minus a few,
+    # all in order). They diverge as soon as the set mixes small and
+    # >=32 values: `{1, 33, 65, 2}` iterates as `[65, 1, 2, 33]`.
+    #
+    # So this was right for the wrong reason -- relying on a CPython
+    # implementation detail rather than on `std::set`'s contract. Sorted
+    # explicitly.
+    shuffle = sorted(features_set)
     _random_shuffle(shuffle)
 
     ranks: list[tuple[float, feature_set]] = []
