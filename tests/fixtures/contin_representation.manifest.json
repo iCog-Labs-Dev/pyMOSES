@@ -1,0 +1,16 @@
+{
+  "capture_script": "tools/capture_contin_representation.py",
+  "capture_script_sha256": "3c566782d34c876e39a1235e79cd2e493c50a3bf4c8ab825fca3f71d5bd270c9",
+  "classic_dir": "/home/yab/Documents/Projects/iCog/HyperonRelated/MOSES/OpenCog/Moses",
+  "cli_tool": null,
+  "generated_at_utc": "2026-09-09T06:58:35+00:00",
+  "inputs": {
+    "description": "8 fixed small contin-output exemplar shapes (bare argument, sum, sin, impulse-of-boolean, mixed contin/boolean inputs, div, times-with-constant, bare childless plus), each run at both linear_contin=true and linear_contin=false; no RNG or external dataset"
+  },
+  "prefix_dir": "/home/yab/opt/moses-legacy",
+  "probe_kind": "cpp_probe",
+  "probe_source": "tools/cpp_probe/contin_representation_probe.cc",
+  "probe_source_sha256": "d487027b79d9ea2c602c8dc8f48e34012ab7ce6524b92ae3109fc296709d4add",
+  "repo_commit": "6c50fc811cc4a8fbbac54bd77b7b0858c2c7f550",
+  "schema_version": 1
+}
