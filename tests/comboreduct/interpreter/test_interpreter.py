@@ -41,6 +41,10 @@ _EVAL_BOOLEAN_PATH = _FIXTURE_DIR / "eval_boolean.json"
 _EVAL_BOOLEAN_CASES = (
     json.loads(_EVAL_BOOLEAN_PATH.read_text()) if _EVAL_BOOLEAN_PATH.exists() else []
 )
+_CONTIN_PROBE_PATH = _FIXTURE_DIR / "contin_probe.json"
+_CONTIN_PROBE_CASES = (
+    json.loads(_CONTIN_PROBE_PATH.read_text()) if _CONTIN_PROBE_PATH.exists() else {}
+)
 
 
 # ---------------------------------------------------------------------------
@@ -434,16 +438,44 @@ def test_interpreter_visitor_rejects_combo_tree_seq_input():
 # ---------------------------------------------------------------------------
 
 
-def test_contin_plus_over_no_children_returns_the_plus_sentinel():
-    # C++: interpreter.cc:133-134 -- "for correct foldr behaviour",
-    # symmetric to boolean_interpreter's and()/or() sentinels.
+def test_contin_plus_over_no_children_returns_the_ordinal_as_a_contin_t():
+    # C++: interpreter.cc:133-140 -- `return *b;` with `contin_eval`'s
+    # return type being `contin_t` (double, NOT `builtin`) implicitly
+    # converts the builtin enum -> int -> double, so a childless plus()
+    # returns id::plus's ORDINAL (6) as a genuine contin_t 6.0 -- NOT a
+    # symbolic sentinel the way boolean_interpreter's and()/or() childless
+    # case is (there the return type really is `builtin`, so no
+    # conversion happens). Measured directly against the real C++
+    # (tools/cpp_probe/contin_interpreter_probe.cc,
+    # "plus_over_no_children=VALUE:6"). `type(...) is float`, not merely
+    # `== 6.0`, is asserted because `builtin.plus == 6.0` is ALSO True in
+    # bare Python (IntEnum-vs-float numeric equality) -- a value-only
+    # assertion would not have caught this port returning the wrong TYPE.
     tr = str_to_combo_tree("+()")
-    assert contin_interpreter([])(tr) == builtin.plus
+    res = contin_interpreter([])(tr)
+    assert type(res) is float
+    assert res == float(builtin.plus) == 6.0
 
 
-def test_contin_times_over_no_children_returns_the_times_sentinel():
+def test_contin_times_over_no_children_returns_the_ordinal_as_a_contin_t():
+    # Same mechanism as plus above (interpreter.cc:143-155); measured:
+    # "times_over_no_children=VALUE:7" (id::times's ordinal).
     tr = str_to_combo_tree("*()")
-    assert contin_interpreter([])(tr) == builtin.times
+    res = contin_interpreter([])(tr)
+    assert type(res) is float
+    assert res == float(builtin.times) == 7.0
+
+
+def test_contin_plus_leaks_the_ordinal_into_a_nested_sum():
+    # The practical consequence of the quirk above: plus($1 plus()) adds
+    # 6.0 (NOT 0.0) into the sum -- this is a real, if surely unintended,
+    # upstream behaviour, ported verbatim rather than "fixed" into a true
+    # additive identity. Not directly probed (the probe only measures the
+    # bare childless case), but it follows deterministically from the
+    # same C++ conversion measured there, and Python's own IntEnum
+    # arithmetic reproduces it via ordinary `+=` for the same reason.
+    tr = str_to_combo_tree("+($1 +())")
+    assert contin_interpreter([10.0])(tr) == 16.0
 
 
 def test_contin_div_by_zero_raises_overflow_with_the_signed_infinity():
@@ -655,3 +687,92 @@ def test_boolean_interpreter_matches_eval_table(case):
     tr = str_to_combo_tree(case["tree"])
     expected = builtin.logical_true if case["expected"] == "1" else builtin.logical_false
     assert boolean_interpreter(inputs)(tr) == expected
+
+
+# ---------------------------------------------------------------------------
+# Differential oracle: Python contin_interpreter/mixed_interpreter vs. a
+# direct C++ probe (tools/cpp_probe/contin_interpreter_probe.cc), for the
+# edge cases (overflow reconstruction, the builtin->contin_t ordinal leak,
+# greater_than_zero's OverflowException recovery, cond) that
+# interpreterUTest.cxxtest's own three tests do not reach. See
+# tools/capture_contin_probe.py.
+# ---------------------------------------------------------------------------
+
+# label -> (combo tree, contin_interpreter inputs, mixed_interpreter
+# inputs) -- kept in lockstep with contin_interpreter_probe.cc's own
+# case list by name; a label present in the fixture but missing here (or
+# vice versa) fails loudly via the two shape-guard tests below rather
+# than silently comparing fewer cases than the fixture actually has.
+_CONTIN_PROBE_TREES: dict[str, tuple[str, list[float]]] = {
+    "div_by_zero_positive_numerator": ("/($1 $2)", [1.0, 0.0]),
+    "div_by_zero_negative_numerator": ("/($1 $2)", [-1.0, 0.0]),
+    "div_zero_numerator_shortcuts_denominator": ("/($1 log($2))", [0.0, 0.0]),
+    "log_of_zero": ("log($1)", [0.0]),
+    "log_of_negative": ("log($1)", [-1.0]),
+    "exp_overflow": ("exp($1)", [1000.0]),
+    "sin_of_infinity_no_throw": ("sin($1)", [math.inf]),
+    "contin_constant_nan_leaf": ("nan", []),
+    "contin_constant_inf_leaf": ("inf", []),
+    "plus_over_no_children": ("+()", []),
+    "times_over_no_children": ("*()", []),
+}
+
+_MIXED_PROBE_TREES: dict[str, tuple[str, list]] = {
+    "mixed_gtz_recovers_positive_infinity": ("0<(/(1.0 0.0))", []),
+    "mixed_gtz_recovers_negative_infinity": ("0<(/(-1.0 0.0))", []),
+    "mixed_cond_true_predicate": ("cond($1 10.0 20.0)", [builtin.logical_true]),
+    "mixed_cond_false_predicate_falls_to_else": ("cond($1 10.0 20.0)", [builtin.logical_false]),
+}
+
+
+def test_contin_probe_fixture_has_expected_shape():
+    assert len(_CONTIN_PROBE_CASES) > 0
+    assert set(_CONTIN_PROBE_CASES) == set(_CONTIN_PROBE_TREES) | set(_MIXED_PROBE_TREES)
+    for entry in _CONTIN_PROBE_CASES.values():
+        assert set(entry) == {"status", "value"}
+        assert entry["status"] in ("VALUE", "OVERFLOW")
+
+
+def _parse_probe_contin(value: str) -> float:
+    # C++'s default ostream formatting prints a negative NaN as "-nan";
+    # math.isnan is sign-agnostic, and float("-nan") already parses fine
+    # in Python, so no special-casing is needed here beyond a straight
+    # float() call.
+    return float(value)
+
+
+@pytest.mark.oracle
+@pytest.mark.parametrize("label", sorted(_CONTIN_PROBE_TREES), ids=sorted(_CONTIN_PROBE_TREES))
+def test_contin_interpreter_matches_cpp_probe(label):
+    case = _CONTIN_PROBE_CASES[label]
+    tree, inputs = _CONTIN_PROBE_TREES[label]
+    tr = str_to_combo_tree(tree)
+    expected = _parse_probe_contin(case["value"])
+    if case["status"] == "OVERFLOW":
+        with pytest.raises(OverflowException) as exc_info:
+            contin_interpreter(inputs)(tr)
+        got = exc_info.value.get_vertex()
+    else:
+        got = contin_interpreter(inputs)(tr)
+    if math.isnan(expected):
+        assert math.isnan(got)
+    else:
+        assert got == expected
+
+
+@pytest.mark.oracle
+@pytest.mark.parametrize("label", sorted(_MIXED_PROBE_TREES), ids=sorted(_MIXED_PROBE_TREES))
+def test_mixed_interpreter_matches_cpp_probe(label):
+    case = _CONTIN_PROBE_CASES[label]
+    tree, inputs = _MIXED_PROBE_TREES[label]
+    tr = str_to_combo_tree(tree)
+    got = mixed_interpreter(inputs)(tr)
+    # Every mixed case in this fixture is a VALUE, never an OVERFLOW --
+    # greater_than_zero always resolves an OverflowException into a
+    # plain boolean before it can propagate out of mixed_eval.
+    assert case["status"] == "VALUE"
+    if case["value"] in ("true", "false"):
+        expected = builtin.logical_true if case["value"] == "true" else builtin.logical_false
+    else:
+        expected = _parse_probe_contin(case["value"])
+    assert got == expected

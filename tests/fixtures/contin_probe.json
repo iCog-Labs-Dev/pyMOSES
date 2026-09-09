@@ -1,0 +1,62 @@
+{
+  "contin_constant_inf_leaf": {
+    "status": "OVERFLOW",
+    "value": "inf"
+  },
+  "contin_constant_nan_leaf": {
+    "status": "OVERFLOW",
+    "value": "nan"
+  },
+  "div_by_zero_negative_numerator": {
+    "status": "OVERFLOW",
+    "value": "-inf"
+  },
+  "div_by_zero_positive_numerator": {
+    "status": "OVERFLOW",
+    "value": "inf"
+  },
+  "div_zero_numerator_shortcuts_denominator": {
+    "status": "VALUE",
+    "value": "0"
+  },
+  "exp_overflow": {
+    "status": "OVERFLOW",
+    "value": "inf"
+  },
+  "log_of_negative": {
+    "status": "OVERFLOW",
+    "value": "-nan"
+  },
+  "log_of_zero": {
+    "status": "OVERFLOW",
+    "value": "-inf"
+  },
+  "mixed_cond_false_predicate_falls_to_else": {
+    "status": "VALUE",
+    "value": "20"
+  },
+  "mixed_cond_true_predicate": {
+    "status": "VALUE",
+    "value": "10"
+  },
+  "mixed_gtz_recovers_negative_infinity": {
+    "status": "VALUE",
+    "value": "false"
+  },
+  "mixed_gtz_recovers_positive_infinity": {
+    "status": "VALUE",
+    "value": "true"
+  },
+  "plus_over_no_children": {
+    "status": "VALUE",
+    "value": "6"
+  },
+  "sin_of_infinity_no_throw": {
+    "status": "VALUE",
+    "value": "-nan"
+  },
+  "times_over_no_children": {
+    "status": "VALUE",
+    "value": "7"
+  }
+}

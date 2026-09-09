@@ -287,12 +287,33 @@ class contin_interpreter:
             case builtin():
                 match v:
                     case builtin.plus:
-                        # C++: interpreter.cc:133-140 -- childless plus()
-                        # returns the operator token itself ("for correct
-                        # foldr behaviour", same idiom as
-                        # boolean_interpreter's and()/or()).
+                        # C++: interpreter.cc:133-140 -- `return *b;` where
+                        # `*b` is a `const builtin&` and the function's
+                        # return type is `contin_t` (double): this is NOT
+                        # "return the operator token as a sentinel" the
+                        # way boolean_interpreter's and()/or() childless
+                        # case is (there, the return type IS `builtin`, so
+                        # no conversion happens) -- `contin_eval` returns
+                        # `contin_t`, so `*b` implicitly converts
+                        # builtin(enum) -> int -> double, i.e. `id::plus`'s
+                        # ordinal (6) becomes the contin_t VALUE `6.0`.
+                        # Measured directly (tools/cpp_probe/
+                        # contin_interpreter_probe.cc,
+                        # "plus_over_no_children=VALUE:6"): a nested
+                        # `plus($1 plus())` really does add 6.0 into the
+                        # sum, not 0.0 -- this is a real, if likely
+                        # unintended, upstream quirk, ported verbatim, not
+                        # "fixed" into a true additive identity.
+                        # `contin_t(v)` reproduces the same conversion
+                        # Python's own `IntEnum` already performs under
+                        # bare arithmetic (`0.0 + builtin.plus == 6.0` --
+                        # verified) -- made explicit here so the RETURN
+                        # TYPE also matches (a bare top-level childless
+                        # `+()` must come back as a genuine `contin_t`,
+                        # not a `builtin` enum member, for any caller that
+                        # inspects the result's type, e.g. `is_contin`).
                         if it.first_child is None:
-                            return v
+                            return contin_t(v)
                         res = 0.0
                         sib = it.first_child
                         while sib is not None:
@@ -301,9 +322,12 @@ class contin_interpreter:
                         return res
 
                     case builtin.times:
-                        # C++: interpreter.cc:143-155
+                        # C++: interpreter.cc:143-155 -- same implicit
+                        # builtin->contin_t conversion as `plus` above
+                        # (measured: "times_over_no_children=VALUE:7",
+                        # `id::times`'s ordinal).
                         if it.first_child is None:
-                            return v
+                            return contin_t(v)
                         res = 1.0
                         sib = it.first_child
                         while sib is not None:
