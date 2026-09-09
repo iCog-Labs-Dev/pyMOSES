@@ -653,6 +653,19 @@ class problem_params:
         self.log_level = args.log_level
         self.log_file_dep_opt = args.log_file_dep_opt
         self.log_file = args.log_file
+        # C++: moses/moses/main/problem-params.cc:2069-2113 -- classic sets
+        # up the logger HERE, inside `parse_options`, right after reading
+        # `-l`/`-f`/`-F`, because a later option can still change the log
+        # file's location.
+        #
+        # Called through the namespace rather than imported: `moses_exec`
+        # imports this module, so importing it back would be a cycle. It
+        # attaches this callable before calling `parse_options`, and the
+        # callable is run-once, so this and `moses_exec`'s own fallback call
+        # cannot both fire -- moving WHERE the three startup records are
+        # emitted without changing WHETHER. The no-op default keeps every
+        # caller that hand-builds a namespace working unchanged.
+        getattr(args, "_setup_logging", lambda: None)()
 
         self.enable_feature_selection = args.enable_feature_selection
         self.fs_focus = args.fs_focus
