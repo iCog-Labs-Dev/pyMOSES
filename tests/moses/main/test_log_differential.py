@@ -333,3 +333,51 @@ def test_a_negative_nan_prints_with_its_sign(tmp_path):
     assert ostream_double(-abs(float("nan"))) == "-nan"
     assert ostream_double(abs(float("nan"))) == "nan"
     assert ostream_double(float("-inf")) == "-inf"
+
+
+# --- the guards: what they gate is EVALUATION, not which records appear -----
+
+
+def test_a_level_guard_is_false_for_a_more_verbose_level(tmp_path):
+    """`is_fine_enabled()` is False at DEBUG -- `FINE <= currentLevel` fails.
+
+    Every guard this task ported wraps calls at the SAME level the guard
+    tests, and `Logger.log` re-checks the level anyway, so REMOVING a guard
+    cannot change which records appear. Mutation confirms it: deleting
+    `trim_down_deme`'s `is_debug_enabled()` guard, or
+    `log_selected_exemplar`'s negated early-out, kills zero tests. That is
+    "no trap", not "no coverage" -- what a guard changes is whether its
+    ARGUMENTS are evaluated, which the next test measures directly.
+    """
+    from pymetta.util.logger import Logger
+
+    lg = Logger(str(tmp_path / "g.log"), Logger.Level.DEBUG)
+    assert lg.is_debug_enabled()
+    assert not lg.is_fine_enabled()
+    lg.set_level(Logger.Level.NONE)
+    assert not lg.is_error_enabled()
+
+
+def test_log_candidate_bscore_does_not_render_the_tree_below_fine(tmp_path, monkeypatch):
+    """scoring_base.h:342's guard stops the tree being rendered at all.
+
+    This is the one place in the ported set where the guard is worth more
+    than the record: `log_candidate_bscore` runs at the tail of every
+    `operator()`, i.e. once per scored candidate, and rendering a combo
+    tree there at DEBUG would cost real time for output nobody asked for.
+    A tree whose rendering raises proves the guard, since a missing guard
+    would let the exception out.
+    """
+    import pymetta.moses.scoring.scoring_base as sb
+    from pymetta.util.logger import Logger, logger
+
+    class _Explodes:
+        def begin(self):
+            raise AssertionError("the tree must not be rendered below FINE")
+
+    monkeypatch.setattr(logger(), "_current_level", Logger.Level.DEBUG)
+    sb.log_candidate_bscore(_Explodes(), [1.0])  # must not raise
+
+    monkeypatch.setattr(logger(), "_current_level", Logger.Level.FINE)
+    with pytest.raises(AssertionError):
+        sb.log_candidate_bscore(_Explodes(), [1.0])
