@@ -97,8 +97,10 @@ If none of their commits are present, none of that work survived; re-dispatch.
   PLANNED rather than EXCLUDED, because the exclusion boilerplate used for
   `comboreduct/main/*` is factually false for them (§3).
 - Coverage rows for `table-problems.*`, `demo-problems.*`, `bscores.*` and
-  `table.*` moved when `-H cluster`/`-H sr` landed and have **not** been
-  re-audited. Treat them as stale.
+  `table.*` were re-audited after `-H cluster`/`-H sr` landed. All four keep
+  status PARTIAL -- each still has a real gap (`--nsamples`/`--balance`,
+  the excluded ANN domain, `discretize_contin_bscore`, `CTable::balance`) --
+  but their REASONS had gone stale and were rewritten.
 
 ### Method notes worth keeping
 
