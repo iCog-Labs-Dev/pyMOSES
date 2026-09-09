@@ -143,6 +143,7 @@ import copy
 import math
 from typing import TYPE_CHECKING
 
+from pymetta.comboreduct.combo.iostream_combo import tree_to_stream_str
 from pymetta.moses.metapopulation.metapop_params import (
     diversity_parameters,
     metapop_parameters,
@@ -159,6 +160,7 @@ from pymetta.moses.moses.types import (
     scored_combo_tree_set,
     worst_composite_score,
 )
+from pymetta.util.logger import logger
 from pymetta.util.rng import randGen
 from pymetta.util.selection import roulette_select
 
@@ -523,9 +525,7 @@ class metapopulation:
         """
         bases: list[combo_tree] = exemplars if isinstance(exemplars, list) else [exemplars]
         self._params = pa if pa is not None else metapop_parameters()
-        self._filter_params = (
-            subp if subp is not None else subsample_deme_filter_parameters()
-        )
+        self._filter_params = subp if subp is not None else subsample_deme_filter_parameters()
         self._cscorer = sc
         self._best_cscore = copy.copy(worst_composite_score)
         self._scored_trees = scored_combo_tree_ptr_set()
@@ -794,6 +794,14 @@ class metapopulation:
                     best_sc = self._best_cscore.get_score()
                     best_cpx = self._best_cscore.get_complexity()
                     self._best_candidates.clear()
+                    # C++: merging.cc:643-644, INSIDE the inner gate and
+                    # after the clear -- so it fires once per genuinely new
+                    # best, not once per accepted candidate. The `\n\t`
+                    # makes this a two-physical-line record.
+                    logger().debug(
+                        f"New best score: {self._best_cscore}"
+                        f"\n\tfor tree: {tree_to_stream_str(cnd.get_tree())}"
+                    )
                 self._best_candidates.insert(_copy_sct(cnd))
 
     def rescore(self) -> None:
@@ -883,6 +891,49 @@ class metapopulation:
         # property a real `end()` iterator has against every real element.
         """
         return None
+
+    def log_selected_exemplar(self, exemplar: scored_combo_tree | None, pos: int) -> None:
+        """C++: moses/moses/metapopulation/metapopulation.cc:81 log_selected_exemplar
+
+        The real symbol is `metapopulation::log_selected_exemplar`; the
+        qualified form does not fit the 100-column limit on one line.
+
+        Emits what `select_exemplar` chose. Note the negated early-out
+        (`if (not logger().is_debug_enabled()) return;`, metapopulation.cc:83)
+        -- ported as the same guard rather than as four separate ones, since
+        C++ leaves `std::distance` and the `_visited_exemplars` lookup below
+        it unevaluated when DEBUG is off.
+
+        The final record is empty by construction: metapopulation.cc:100-101
+        declares a `std::stringstream ss;`, never writes to it, and logs
+        `ss.str()`. So classic really does emit a bare `[DEBUG] ` line here,
+        and reproducing the blank record is reproducing the code.
+
+        `pos` replaces C++'s `std::distance(_scored_trees.cbegin(),
+        exemplar_it) + 1`: `select_exemplar` returns a dereferenced
+        candidate rather than an iterator in this port (see its docstring),
+        so the index is passed in from the one place that still has it.
+        `exemplar is None` is this port's `end()`, so it selects the
+        "No exemplar found" arm.
+
+        # DIVERGENCE(moses/moses/metapopulation/metapopulation.cc:93): the
+        # "Selected the Nth exemplar, from deme D, for the Nth time(s)"
+        # record is NOT emitted. It streams `xmplr.get_demeID()`, and this
+        # port's `scored_combo_tree` carries no `demeID_t` at all -- the
+        # same gap that gates `--output-deme-id` (problem_params.py:1116-1126
+        # and moses_main.py:127-128). Emitting it with a placeholder deme
+        # would be inventing a value; the other three records are emitted,
+        # so the only loss is that one line.
+        """
+        if not logger().is_debug_enabled():
+            return
+
+        if exemplar is None:
+            logger().debug("No exemplar found")
+        else:
+            logger().debug("Exemplar tree : " + tree_to_stream_str(exemplar.get_tree()))
+            logger().debug(f"With composite score : {exemplar.get_composite_score()}")
+            logger().debug("")
 
     def select_exemplar(self) -> scored_combo_tree | None:
         """C++: moses/moses/metapopulation/metapopulation.cc:105 metapopulation::select_exemplar
@@ -990,6 +1041,8 @@ class metapopulation:
         if self.empty():
             raise AssertionError("Empty metapopulation in select_exemplar().")
 
+        logger().debug("Select exemplar")
+
         ordered: list[scored_combo_tree] = list(self._scored_trees)
 
         if len(ordered) == 1:
@@ -1000,6 +1053,10 @@ class metapopulation:
                 self._visited_exemplars.increment(selex)
             else:
                 selex = None
+            # C++: metapopulation.cc:120 -- the shortcut logs before it
+            # returns, exactly as the general case does. `cbegin()+1` is 1
+            # for the single candidate, and 0 for the `end()` arm (unused).
+            self.log_selected_exemplar(selex, 1)
             return selex
 
         probs: list[score_t] = []
@@ -1020,6 +1077,9 @@ class metapopulation:
                 probs.append(math.nan)
 
         if not found_exemplar:
+            # C++: metapopulation.cc:152 `log_selected_exemplar(
+            # _scored_trees.cend());` -- the "No exemplar found" arm.
+            self.log_selected_exemplar(None, 0)
             return None
 
         inv_temp: score_t = _to_score_t(100.0 / self._params.complexity_temperature)
@@ -1041,5 +1101,10 @@ class metapopulation:
         selex = ordered[fwd]
 
         self._visited_exemplars.increment(selex)
+
+        # C++: metapopulation.cc:194-195. `fwd` is `std::distance(probs.
+        # begin(), roulette_select(...))`, and `probs`/`ordered` are
+        # index-aligned, so `fwd + 1` is C++'s own `pos`.
+        self.log_selected_exemplar(selex, fwd + 1)
 
         return selex

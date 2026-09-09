@@ -90,8 +90,15 @@ from enum import IntEnum
 from pymetta.comboreduct.combo.vertex import builtin, combo_tree, get_contin, negate_vertex, vertex
 from pymetta.comboreduct.interpreter.interpreter import interpreter_visitor
 from pymetta.comboreduct.table.table import CTable, ITable, OTable, Table, type_node
-from pymetta.moses.moses.types import _to_score_t, behavioral_score, score_t, very_best_score
+from pymetta.moses.moses.types import (
+    _to_score_t,
+    behavioral_score,
+    ostream_behavioral_score,
+    score_t,
+    very_best_score,
+)
 from pymetta.moses.scoring.scoring_base import bscore_base
+from pymetta.util.logger import logger
 
 
 class ctruth_table_bscore(bscore_base):
@@ -206,6 +213,12 @@ class ctruth_table_bscore(bscore_base):
             )
             for counter in self._ctable.values()
         ]
+
+        # C++: bscores.cc:373-374, the last statement of the function.
+        logger().info(
+            "ctruth_table_bscore: Best possible: "
+            + ostream_behavioral_score(self._best_possible_score)
+        )
 
     def best_possible_bscore(self) -> behavioral_score:
         """C++: moses/moses/scoring/bscores.cc:377 ctruth_table_bscore::best_possible_bscore
@@ -403,9 +416,7 @@ class contin_bscore(bscore_base):
             )
         self.init(eft)
 
-    def init(
-        self, eft: contin_bscore.err_function_type = err_function_type.squared_error
-    ) -> None:
+    def init(self, eft: contin_bscore.err_function_type = err_function_type.squared_error) -> None:
         """C++: moses/moses/scoring/bscores.h:186 contin_bscore::init
 
         Selects the per-row error function -- `sq(y1 - y2)` for

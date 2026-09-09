@@ -53,6 +53,7 @@ from pymetta.comboreduct.table.table import CTable
 from pymetta.moses.moses.complexity import complexity_t
 from pymetta.moses.moses.types import _to_score_t, composite_score, score_t
 from pymetta.moses.scoring.scoring_base import bscore_base
+from pymetta.util.logger import logger
 from pymetta.util.tree import tree_node
 
 
@@ -132,6 +133,43 @@ class behave_cscore:
         self._bscorer = bscorer
         self._have_cache = cache_size > 0
         self._cscore_cache: dict[tuple, composite_score] = {}
+        # C++: `_cscore_cache(initial_cache_size, _wrapper, "composite scores")`
+        # (behave_cscore.cc:36) constructs a `prr_cache_threaded`, whose
+        # `inf_cache_base` base ctor logs `"Cache %s"` unconditionally
+        # ($COGUTIL/opencog/util/lru_cache.h:55-58) -- note "unconditionally":
+        # the record appears even when `initial_cache_size` is 0 and the cache
+        # is never used, because the member is constructed either way.
+        self._cache_name = "composite scores"
+        self._cache_hits = 0
+        self._cache_misses = 0
+        logger().info("Cache %s", self._cache_name)
+
+    def __del__(self) -> None:
+        """C++: opencog/util/lru_cache.h:52 inf_cache_base
+
+        Cites the enclosing struct: the real symbol is `~inf_cache_base()`
+        (lru_cache.h:60-63), a destructor, which this project's breadcrumb
+        convention cannot name directly. It logs the cache's hit and miss
+        totals, and it is the LAST record in a normal MOSES run -- classic's
+        `behave_cscore` is a local of `it_table_problem::run` and dies after
+        `metapop_printer` has already printed the best candidate.
+
+        # DIVERGENCE(opencog/util/lru_cache.h:60): C++ destroys the scorer
+        # deterministically at scope exit. CPython's refcounting gives the
+        # same timing for the same local, but only while nothing else holds a
+        # reference and no cycle is involved -- so this record's POSITION is
+        # reproduced by refcount semantics rather than guaranteed by them. It
+        # is emitted for the counters classic reports; `prr_cache_threaded`'s
+        # own random-replacement eviction is not ported (this port's cache is
+        # an unbounded dict), so the counts agree only when nothing would have
+        # been evicted.
+        """
+        logger().info(
+            "Cache %s hits=%u misses=%u",
+            self._cache_name,
+            self._cache_hits,
+            self._cache_misses,
+        )
 
     def get_bscore(self, tr: combo_tree) -> list[score_t]:
         """C++: moses/moses/scoring/behave_cscore.cc:41 behave_cscore::get_bscore"""
@@ -195,8 +233,14 @@ class behave_cscore:
         """
         if self._have_cache:
             key = _cache_key(tr)
+            # C++: `inf_cache_base` counts a hit whenever the key is already
+            # present and a miss otherwise ($COGUTIL/opencog/util/lru_cache.h);
+            # the two totals are what the destructor's record reports.
             if key not in self._cscore_cache:
+                self._cache_misses += 1
                 self._cscore_cache[key] = self.get_cscore_nocache(tr)
+            else:
+                self._cache_hits += 1
             return self._cscore_cache[key]
         return self.get_cscore_nocache(tr)
 

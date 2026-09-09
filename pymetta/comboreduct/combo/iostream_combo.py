@@ -564,6 +564,36 @@ def _combo_it_to_str(
     raise ValueError(f"Unsupported case: {fmt!r}")
 
 
+def tree_to_stream_str(t: combo_tree, precision: int = DEFAULT_OSTREAM_PRECISION) -> str:
+    """C++: opencog/util/tree.h:3396 operator<<
+
+    What `logger().debug() << some_combo_tree` actually produces. It is NOT
+    `ostream_combo_tree`: `iostream_combo.h` declares `operator<<` for
+    `ann_type`, `builtin`, `wild_card`, `argument` and `vertex`, but NOT for
+    `combo_tree`, so streaming a tree resolves to the generic
+    `operator<<(ostream&, const tree<T>&)` in cogutil's tree.h, which calls
+    `subtree_to_string` (tree.h:3353) and prints each node through
+    `operator<<(ostream&, const vertex&)`.
+
+    The observable difference from `combo_tree_to_str` is the TRAILING
+    SPACE: `ostream_combo_tree` appends one after every top-level tree
+    (iostream_combo.cc:478, unconditionally), `subtree_to_string` does not.
+    Measured against classic's own log 2026-09-09: `[DEBUG] Exemplar tree :
+    true` and `[DEBUG] and($1 $2)` both end at the last character of the
+    tree, with no trailing blank.
+
+    The two agree on everything else for `output_format.combo` with no
+    labels -- `subtree_to_string`'s `node(child child ...)` shape is the same
+    shape `ostream_combo_it` builds, and both delegate leaf rendering to the
+    same `vertex` printer -- so this is implemented by reusing
+    `_combo_it_to_str` rather than by writing a second tree walker.
+    """
+    root = t.begin()
+    if root is None:
+        return ""
+    return _combo_it_to_str(t, root, (), output_format.combo, precision)
+
+
 def combo_tree_to_str(
     t: combo_tree,
     labels: Sequence[str] = (),

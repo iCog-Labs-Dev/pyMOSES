@@ -59,7 +59,7 @@ import threading
 import time
 from enum import IntEnum
 
-__all__ = ["Logger", "logger"]
+__all__ = ["Logger", "logger", "ostream_double"]
 
 # C++: Logger.cc:70 `const char* levelStrings[]`. Indexed BY the enum value,
 # which is why NONE must stay at index 0.
@@ -502,6 +502,29 @@ class Logger:
         """C++: opencog/util/Logger.cc:256 Logger::flush"""
         if self._log_writer is not None:
             self._log_writer.flush()
+
+
+def ostream_double(x: float) -> str:
+    """C++: opencog/util/Logger.h:215 Logger::Base
+
+    Not a C++ symbol of its own: `logger().debug() << some_double` writes
+    through a freshly constructed `std::stringstream` (`Logger::Base::ss`,
+    Logger.h:234), which carries an `ostream`'s DEFAULT precision of 6 and
+    `defaultfloat` formatting -- equivalent to C's `%.6g`, which Python's
+    `".6g"` format spec matches byte for byte (the same equivalence
+    `iostream_combo._contin_to_str` already relies on, verified there
+    against `combo-fmt-converter` over 3.14, 3.0, 0.0001, 1e-100, -0.0 and
+    others).
+
+    This is NOT `io_score_precision`. That 18-digit setting is applied by
+    `composite_score`'s own `operator<<` via an explicit `setprecision`;
+    a log record that never calls `setprecision` does not inherit it,
+    because each record gets its own fresh stream. A `score_t` streamed
+    bare into a log line therefore prints at SIX digits even though the
+    same value inside a printed `composite_score` prints at eighteen --
+    both appear in classic's log, two lines apart.
+    """
+    return format(x, ".6g")
 
 
 def _timestamp() -> str:

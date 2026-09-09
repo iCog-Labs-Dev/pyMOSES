@@ -76,7 +76,13 @@ from collections import Counter
 from pymetta.comboreduct.combo.vertex import combo_tree
 from pymetta.comboreduct.table.table import CTable
 from pymetta.moses.moses.complexity import complexity_t, tree_complexity
-from pymetta.moses.moses.types import _to_score_t, behavioral_score, score_t, scored_combo_tree_set
+from pymetta.moses.moses.types import (
+    _to_score_t,
+    behavioral_score,
+    score_t,
+    scored_combo_tree_set,
+)
+from pymetta.util.logger import logger, ostream_double
 
 
 def discrete_complexity_coef(alphabet_size: int, p: float) -> score_t:
@@ -333,9 +339,12 @@ class bscore_base(ABC):
         p==0.0 and p==0.5 are singularities in the forumla [sic]. See the
         explanation in the comment above ctruth_table_bscore.").
 
-        NOT ported: the `logger().info()` diagnostic line each C++
-        overload ends with (scoring_base.cc:58-60, 69) -- no logging
-        surface exists in this port.
+        Each overload ends with a `logger().info()` line
+        (scoring_base.cc:58-60 and :69) that streams `1.0/_complexity_coef`
+        -- note that is the RECIPROCAL of the stored coefficient, computed
+        in `double` from the `score_t` member, and that a zero coefficient
+        therefore prints `inf` rather than dividing by zero at any earlier
+        point. Both are reproduced below at the same point in each branch.
 
         Both `complexity_ratio` (one-arg form) and `p` (two-arg form) are
         `score_t`/`float`-typed C++ PARAMETERS (`set_complexity_coef
@@ -352,6 +361,12 @@ class bscore_base(ABC):
             self._complexity_coef = 0.0
             if complexity_ratio > 0.0:
                 self._complexity_coef = _to_score_t(1.0 / complexity_ratio)
+            # C++: scoring_base.cc:69. A bare `<<` on a fresh stream, so the
+            # double is rendered at an ostream's DEFAULT precision of 6, not
+            # at `io_score_precision`.
+            logger().info(
+                f"BScore complexity ratio = {ostream_double(1.0 / self._complexity_coef)}"
+            )
         elif len(args) == 2:
             alphabet_size, p = args
             p = _to_score_t(p)
@@ -361,6 +376,12 @@ class bscore_base(ABC):
                 # narrowed value (see its own docstring) -- no second
                 # narrowing needed here.
                 self._complexity_coef = discrete_complexity_coef(alphabet_size, p)
+            # C++: scoring_base.cc:58-60. "alphabest" is classic's own typo.
+            logger().info(
+                f"BScore noise = {ostream_double(p)}"
+                f" alphabest size = {alphabet_size}"
+                f" complexity ratio = {ostream_double(1.0 / self._complexity_coef)}"
+            )
         else:
             raise TypeError(
                 "set_complexity_coef expects either (complexity_ratio) or "

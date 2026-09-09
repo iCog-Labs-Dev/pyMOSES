@@ -83,6 +83,7 @@ from pymetta.comboreduct.type_checker.type_signature import (
     contin_arity,
     type_node,
 )
+from pymetta.util.logger import logger
 from pymetta.util.rng import randGen
 
 # Compatibility re-export for existing table/scoring callers.  New code should
@@ -821,9 +822,7 @@ class CTable(dict):
         """
         idxs = list(filter_indices)
         sig = self._signature
-        new_sig = (
-            Signature([sig.itypes[i] for i in idxs], sig.otype) if sig is not None else None
-        )
+        new_sig = Signature([sig.itypes[i] for i in idxs], sig.otype) if sig is not None else None
         res = CTable(self.olabel, [self.ilabels[i] for i in idxs], new_sig)
         for row, counter in self.items():
             key = tuple(row[i] for i in idxs)
@@ -945,12 +944,18 @@ class Table:
         `get_signature()` (not a filtered signature) exactly the same
         way. Not fixed here; this is what classic actually does.
         """
+        # C++: table.cc:503. `%d` fed an unsigned `size()` is classic's own
+        # format/type mismatch; on x86-64 it prints the same digits.
+        logger().debug("Compress the dataset, current size is %d", len(self.itable))
         signature = self.get_signature()
         if not weighting_feature:
             res = CTable(self.otable.get_label(), self.itable.get_labels(), signature)
             for row, out in zip(self.itable, self.otable, strict=True):
                 counter = res.setdefault(tuple(row), Counter())
                 counter[out] = counter.get(out, 0.0) + 1.0
+            # C++: table.cc:519 uses `%u` here and `%d` at :551 for the same
+            # quantity -- reproduced as written rather than harmonised.
+            logger().debug("Size of the compressed dataset is %u", len(res))
             return res
 
         trimmed = self.itable.copy()
@@ -961,6 +966,7 @@ class Table:
             weight = get_contin(orig_row[widx])
             counter = res.setdefault(tuple(row), Counter())
             counter[out] = counter.get(out, 0.0) + weight
+        logger().debug("Size of the compressed dataset is %d", len(res))
         return res
 
     def __eq__(self, other: object) -> bool:

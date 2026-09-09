@@ -72,6 +72,8 @@ from collections.abc import Iterable, Sequence
 
 from pymetta.comboreduct.combo.vertex import builtin, enum_t, vertex
 from pymetta.comboreduct.table.table import ITable, OTable, Table, get_indices, type_node
+from pymetta.comboreduct.type_checker.type_signature import gen_signature, ostream_type_signature
+from pymetta.util.logger import logger
 
 # ---------------------------------------------------------------------------
 # get_data_line and friends -- table_io.cc:56-121
@@ -146,6 +148,7 @@ def get_header(file_name: str) -> list[str]:
 # ---------------------------------------------------------------------------
 # Tokenizing -- table_io.cc:156 get_row_tokenizer / table_io.h:84 tokenizeRow
 # ---------------------------------------------------------------------------
+
 
 # DIVERGENCE(C++ moses/comboreduct/table/table_io.cc:156): `get_row_tokenizer`
 # is a `boost::escaped_list_separator(escape='\\\\', separators=",\\t ",
@@ -442,6 +445,14 @@ def _infer_table_attributes(
         otype = types[0]
         itypes = types[1:]
 
+    # C++: table_io.cc:1021 `logger().debug() << "Infered type tree: " << tt;`
+    # -- classic's own spelling of "Inferred". `tt` is the `gen_signature(
+    # itypes, otype)` built just above (table_io.cc:1013/:1017), so it is
+    # rebuilt here rather than threaded through `_InferredAttributes`, which
+    # deliberately keeps the two halves separate (see its own docstring).
+    # Only the DENSE path reaches this: the sparse branch returns at
+    # table_io.cc:929-933, before the log.
+    logger().debug("Infered type tree: " + ostream_type_signature(gen_signature(itypes, otype)))
     return _InferredAttributes(itypes, otype, has_header, False)
 
 
@@ -524,9 +535,7 @@ def _load_dense_table(
         inputs, output_str, _timestamp_str = _tokenize_row_iot(
             line, ignore_idxs, target_idx, timestamp_idx
         )
-        row = tuple(
-            token_to_vertex(t, tok) for t, tok in zip(itypes, inputs, strict=True)
-        )
+        row = tuple(token_to_vertex(t, tok) for t, tok in zip(itypes, inputs, strict=True))
         itable.push_back(row)
         if output_str != "":
             otable_values[i] = token_to_vertex(otype, output_str)

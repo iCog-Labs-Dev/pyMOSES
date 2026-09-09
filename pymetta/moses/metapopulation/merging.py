@@ -251,6 +251,7 @@ import copy
 import math
 from typing import TYPE_CHECKING
 
+from pymetta.comboreduct.combo.iostream_combo import tree_to_stream_str
 from pymetta.moses.metapopulation import diversity as _diversity  # noqa: F401
 from pymetta.moses.metapopulation import domination as _domination  # noqa: F401
 from pymetta.moses.metapopulation.metapopulation import _copy_sct, metapopulation
@@ -264,6 +265,7 @@ from pymetta.moses.moses.types import (
     scored_combo_tree_set,
     very_worst_score,
 )
+from pymetta.util.logger import logger, ostream_double
 from pymetta.util.rng import randGen
 
 if TYPE_CHECKING:
@@ -346,8 +348,15 @@ def trim_down_deme(self: metapopulation, deme: deme_t) -> None:
     if self._min_pool_size >= len(deme):
         return
 
+    if logger().is_debug_enabled():
+        logger().debug(f"Trim down deme {deme.getID()} of size: {len(deme)}")
+
     top_sc = deme[0].second.get_penalized_score()
     bot_sc = _to_score_t(top_sc - self.useful_score_range())
+    # C++: merging.cc:69-70. Both are bare `score_t` streams into a fresh
+    # log stream, so SIX significant digits, not `io_score_precision`.
+    logger().debug("TopScore: " + ostream_double(top_sc))
+    logger().debug("UsefullScoreRange: " + ostream_double(bot_sc))
 
     i = len(deme) - 1
     while i > 0:
@@ -355,6 +364,9 @@ def trim_down_deme(self: metapopulation, deme: deme_t) -> None:
         if score < bot_sc:
             deme.pop()
         i -= 1
+
+    if logger().is_debug_enabled():
+        logger().debug(f"Deme trimmed down, new size: {len(deme)}")
 
 
 def deme_to_trees(
@@ -397,6 +409,12 @@ def deme_to_trees(
     passed explicitly to reproduce that copy (see module docstring's
     Aliasing discipline section).
     """
+    # C++: merging.cc:116-119. Logged BEFORE the loop -- the lambda above it
+    # is only defined at that point, not yet run -- so this record precedes
+    # every per-tree record below it.
+    if logger().is_debug_enabled():
+        logger().debug(f"Select {len(deme)} candidates from deme {deme.getID()}")
+
     for inst in deme:
         inst_csc = inst.second
         inst_sc = inst_csc.get_score()
@@ -404,6 +422,9 @@ def deme_to_trees(
             continue
 
         tr = rep.get_candidate(inst.first, True)
+        # C++: merging.cc:107 `logger().debug() << tr;` -- a bare tree, with
+        # no prefix of any kind, one record per selected instance.
+        logger().debug(tree_to_stream_str(tr))
         sct = scored_combo_tree(tr, copy.copy(inst_csc))
         pot_candidates.insert(sct)
 
@@ -436,11 +457,29 @@ def merge_candidates(self: metapopulation, candidates: scored_combo_tree_set) ->
     previously `NotImplementedError` (`domination.cc` was outside every
     file the S10/S11 slices touched).
     """
+    if logger().is_debug_enabled():
+        logger().debug("Going to merge %u candidates with the metapopulation", len(candidates))
+        # DIVERGENCE(moses/moses/metapopulation/merging.cc:150): the nested
+        # `is_fine_enabled()` block streams every candidate through
+        # `operator<<(ostream&, const scored_combo_tree&)`, whose default
+        # `output_demeID` arm needs `scored_combo_tree::get_demeID()` --
+        # absent from this port (types.py; the same gap that gates
+        # `--output-deme-id`). The record is dropped rather than emitted
+        # with an invented deme id or raised on, since dropping is what
+        # every other demeID-dependent record in this port already does.
+
+    old_size = self.size()
     if not self._params.discard_dominated:
+        logger().debug("Insert all candidates in the metapopulation")
         for cnd in candidates:
             self._scored_trees.insert(_copy_sct(cnd))
     else:
+        logger().debug("Insert non-dominated candidates in the metapopulation")
         self.merge_nondominated(candidates, self._params.jobs)
+        logger().debug(
+            "Inserted %u non-dominated candidates in the metapopulation",
+            self.size() - old_size,
+        )
 
 
 def merge_demes(
@@ -533,6 +572,8 @@ def merge_demes(
     comment below for why it runs AFTER `merge_candidates`, matching
     real C++'s exact statement order.
     """
+    logger().debug("Close and merge demes")
+
     self.sort_demes(all_demes)
     self.keep_top_unique_candidates(all_demes, reps)
 
@@ -547,9 +588,21 @@ def merge_demes(
         for i in range(len(demes)):
             deme = demes[i]
             self.trim_down_deme(deme)
+            logger().debug("Processing %u candidate After trim_down_deme", len(deme))
             self.deme_to_trees(deme, reps[j], pot_candidates)
+            logger().debug("Processing %u candidate from demes After deme_to_trees", len(deme))
+            logger().debug(
+                "Processing %u candidate from pot_candidates After deme_to_trees",
+                len(pot_candidates),
+            )
+    logger().debug("Selected %u candidate trees to be merged into the metapop", len(pot_candidates))
 
     candidates = self.get_new_candidates(pot_candidates)
+    logger().debug(
+        "Selected %u candidates (%u were already in the metapopulation)",
+        len(candidates),
+        len(pot_candidates) - len(candidates),
+    )
 
     if self._params.keep_bscore:
         raise NotImplementedError(
@@ -562,6 +615,8 @@ def merge_demes(
         )
 
     if self._params.discard_dominated or self.diversity_enabled() or self._params.do_boosting:
+        # C++: merging.cc:266. `%d` fed an unsigned `size()` is classic's own.
+        logger().debug("Compute behavioral score of %d selected candidates", len(candidates))
         new_pot = scored_combo_tree_set()
         for cand in candidates:
             bs = list(self._cscorer.get_bscore(cand.get_tree()))
@@ -570,12 +625,19 @@ def merge_demes(
         candidates = new_pot
 
         if self._params.discard_dominated:
+            logger().debug("Remove dominated candidates")
+            old_cnd_size = len(candidates)
             # "trim down the deme some more, so that the final merge can
             # go faster" (merging.cc:294-296) -- candidates-against-
             # themselves, NOT the cross-metapopulation check
             # `merge_candidates` (below, via `merge_nondominated`)
             # performs.
             self.remove_dominated(candidates, self._params.jobs)
+            logger().debug(
+                "Removed %u dominated candidates out of %u",
+                old_cnd_size - len(candidates),
+                old_cnd_size,
+            )
 
     if candidates.empty():
         return False
@@ -758,9 +820,7 @@ def resize_metapop(self: metapopulation) -> None:
     # nothing for a stub to do.
 
 
-def get_new_candidates(
-    self: metapopulation, mcs: scored_combo_tree_set
-) -> scored_combo_tree_set:
+def get_new_candidates(self: metapopulation, mcs: scored_combo_tree_set) -> scored_combo_tree_set:
     """C++: moses/moses/metapopulation/merging.cc:460 metapopulation::get_new_candidates
 
     "Given a set of candidates, return the set of candidates not already
@@ -1074,9 +1134,11 @@ def sort_demes(self: metapopulation, all_demes: list[list[deme_t]]) -> None:
     commented out). Not ported -- it has no observable effect in classic
     either.
     """
+    logger().debug("Sort the deme(s)")
     for ss_demes in all_demes:
         for deme in ss_demes:
             _sort(deme, 0, len(deme), _greater)
+    logger().debug("Sorted Demes")
 
 
 def keep_top_unique_candidates(
@@ -1153,6 +1215,17 @@ def keep_top_unique_candidates(
             if self._filter_params.n_subsample_demes > 1:
                 top_cnd = min(top_cnd, self._filter_params.n_top_candidates)
 
+            if logger().is_debug_enabled():
+                logger().debug(
+                    f"Keep {top_cnd} top unique candidates from deme "
+                    f"{deme.getID()} of size: {len(deme)}"
+                )
+
+            # C++: merging.cc:567. The "logging" it refers to is the big
+            # commented-out block at merging.cc:551-566; the record itself is
+            # live and unguarded.
+            logger().debug("Finished logging now to the actual work")
+
             it_idx = 1
             prev_idx = 0
             while it_idx < top_cnd:
@@ -1169,6 +1242,9 @@ def keep_top_unique_candidates(
                 it_idx += 1
 
             del deme[top_cnd:]
+
+            if logger().is_debug_enabled():
+                logger().debug(f"Kept unique top candidates, new size: {len(deme)}")
 
 
 def log_best_candidates(self: metapopulation) -> None:
@@ -1222,12 +1298,35 @@ def log_best_candidates(self: metapopulation) -> None:
     -- dropped along with the print calls they exist to feed, rather than
     kept as loops that do nothing observable.
     """
-    if self.best_candidates().empty():
+    if not logger().is_info_enabled():
         return
-    if not self._params.do_boosting:
-        self.best_composite_score()
+
+    if self.best_candidates().empty():
+        logger().info("No best candidates")
+    elif not self._params.do_boosting:
+        logger().info(
+            f"The following candidate(s) have the best score {self.best_composite_score()}"
+        )
+        for cand in self.best_candidates():
+            # C++: merging.cc:663 `cand.get_score() << " " << cand.get_tree()`
+            # -- a bare `score_t` at an ostream's default SIX digits, not the
+            # eighteen `composite_score`'s own printer sets.
+            logger().info(
+                ostream_double(cand.get_score()) + " " + tree_to_stream_str(cand.get_tree())
+            )
     else:
-        self._ensemble.get_ensemble()
+        logger().info(
+            f"Ensemble has {len(self._ensemble.get_ensemble())} members, "
+            f"and a score of {self.best_composite_score()}"
+        )
+        if logger().is_debug_enabled():
+            logger().debug("The ensemble is \n")
+            # DIVERGENCE(moses/moses/metapopulation/merging.cc:670): the
+            # per-member loop streams `cand.get_weight()`, which this port's
+            # `scored_combo_tree` does not have (types.py's class docstring
+            # puts the boosting weight out of scope). Unreachable in any
+            # case -- `ensemble.add_candidates` raises before an ensemble
+            # can hold anything -- so the loop is dropped, not stubbed.
 
 
 metapopulation._min_pool_size = _MIN_POOL_SIZE

@@ -207,3 +207,76 @@ def boolean_arity(signature: TypeSignature) -> int:
 def action_result_arity(signature: TypeSignature) -> int:
     """C++: moses/comboreduct/type_checker/type_tree.cc:340 action_result_arity"""
     return signature.itypes.count(type_node.action_result_type)
+
+
+# ---------------------------------------------------------------------------
+# Printing -- needed because several MOSES log records stream a type_tree
+# ---------------------------------------------------------------------------
+
+# C++: type_tree.cc:1360-1410 `operator<<(ostream&, const type_node&)`. A
+# switch, not a table, and the spellings are NOT the enumerator names: the
+# enum is `boolean_type` but it prints as `boolean`, and `enum_type` prints
+# as `enum_t`. Reproduced verbatim, including that asymmetry.
+_TYPE_NODE_STRINGS = {
+    type_node.lambda_type: "->",
+    type_node.application_type: "application",
+    type_node.union_type: "union",
+    type_node.arg_list_type: "arg_list",
+    type_node.boolean_type: "boolean",
+    type_node.contin_type: "contin",
+    type_node.enum_type: "enum_t",
+    type_node.action_result_type: "action_result",
+    type_node.definite_object_type: "definite_object",
+    type_node.action_definite_object_type: "action_definite_object",
+    type_node.indefinite_object_type: "indefinite_object",
+    type_node.message_type: "message",
+    type_node.action_symbol_type: "action_symbol",
+    type_node.wild_card_type: "wild_card",
+    type_node.unknown_type: "unknown",
+    type_node.ill_formed_type: "ill_formed",
+}
+
+
+def ostream_type_node(n: type_node) -> str:
+    """C++: moses/comboreduct/type_checker/type_tree.cc:1360 operator<<
+
+    The `type_node` half of printing a signature. Two cases the table above
+    cannot hold: an `argument_type`-or-higher ordinal prints as `$1`, `$2`,
+    ... (`out << "$" << n - (int)id::argument_type + 1`), and anything else
+    prints `UNKNOWN_HANDLE`. `list_type` and `ann_type` fall in that second
+    group -- classic's switch has no `case` for either, which is why they are
+    absent from the table rather than merely unported here.
+    """
+    if n in _TYPE_NODE_STRINGS:
+        return _TYPE_NODE_STRINGS[n]
+    if int(n) >= int(type_node.argument_type):
+        return f"${int(n) - int(type_node.argument_type) + 1}"
+    return "UNKNOWN_HANDLE"
+
+
+def ostream_type_signature(signature: TypeSignature) -> str:
+    """C++: opencog/util/tree.h:3396 operator<<
+
+    Prints a signature the way classic's log does: `->(boolean boolean
+    boolean)` for a two-input Boolean table.
+
+    The real symbol is `operator<<(std::ostream&, const tree<T>&)`
+    (tree.h:3396), which delegates to `subtree_to_string` (tree.h:3353):
+    a childless node prints bare, and a node with children prints
+    `node(child child ...)` with SINGLE spaces and no trailing space. A
+    signature is a `lambda_type` root -- which `ostream_type_node` renders
+    as `->` -- whose children are the input types followed by the output
+    type, so a zero-input signature is `->(boolean)`, not `->()`.
+
+    # DIVERGENCE(opencog/util/tree.h:3396): this port has no compound
+    # `tree<type_node>`; `TypeSignature` stores `(itypes, otype)` flat (see
+    # this module's own DIVERGENCE marker above `TypeSignature`). The arrow
+    # form is therefore reconstructed here rather than produced by a generic
+    # tree printer, which also means a nested signature -- an input that is
+    # itself an arrow type, e.g. `->(->(boolean boolean) boolean)` -- cannot
+    # be represented, let alone printed. Nothing this port loads produces
+    # one: `gen_signature` builds leaf inputs only.
+    """
+    children = [ostream_type_node(t) for t in signature.itypes]
+    children.append(ostream_type_node(signature.otype))
+    return ostream_type_node(type_node.lambda_type) + "(" + " ".join(children) + ")"
