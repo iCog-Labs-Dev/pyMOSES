@@ -702,7 +702,7 @@ class metapopulation:
         return self._params.diversity.enabled()
 
     def get_cached_dst(self) -> cached_dst:
-        """C++: moses/moses/metapopulation/metapopulation.h:172 metapopulation::get_cached_dst
+        """C++: moses/moses/metapopulation/metapopulation.h:387 metapopulation::get_cached_dst
 
         Trivial accessor, returned by reference in C++ (`const cached_dst&`)
         -- ported as a direct return, matching that reference semantics

@@ -51,8 +51,6 @@ EXPECTED_LINES = 62299
 STATUS_ORDER = [
     "PORTED",
     "PARTIAL",
-    "PLANNED: S13",
-    "PLANNED: S14",
     "PLANNED: P2",
     "EXCLUDED",
 ]

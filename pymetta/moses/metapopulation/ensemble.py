@@ -329,7 +329,7 @@ class ensemble:
                 break
 
     def add_expert(self, cands: scored_combo_tree_set) -> None:
-        """C++: moses/moses/metapopulation/ensemble.cc:151 ensemble::add_expert
+        """C++: moses/moses/metapopulation/ensemble.cc:179 ensemble::add_expert
 
         "Add trees that expertly select rows ... At most,
         `_params.num_to_promote` are added." (ensemble.cc:139-150's own
@@ -464,7 +464,7 @@ class ensemble:
         return self._weighted_tree
 
     def get_exact_tree(self) -> combo_tree:
-        """C++: moses/moses/metapopulation/ensemble.cc:335 ensemble::get_exact_tree
+        """C++: moses/moses/metapopulation/ensemble.cc:361 ensemble::get_exact_tree
 
         "Returns the combo tree expressing or_i tree_i, i.e. true if any
         member of the ensemble picked true." (ensemble.cc:327-332's own
@@ -491,7 +491,7 @@ class ensemble:
         return self._weighted_tree
 
     def get_expert_tree(self) -> combo_tree:
-        """C++: moses/moses/metapopulation/ensemble.cc:362 ensemble::get_expert_tree
+        """C++: moses/moses/metapopulation/ensemble.cc:391 ensemble::get_expert_tree
 
         "Returns the combo tree expressing (sum_i weight_i * (tree_i ?
         1.0 : 0.0)) > _bias), i.e. true if the summation is greater than

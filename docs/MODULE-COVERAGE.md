@@ -8,11 +8,9 @@ $CLASSIC = `/home/yab/Documents/Projects/iCog/HyperonRelated/MOSES/OpenCog/Moses
 
 | Status | Files | Lines | % of files | % of lines |
 |---|---:|---:|---:|---:|
-| PORTED | 17 | 4,901 | 6.9% | 7.9% |
-| PARTIAL | 67 | 25,975 | 27.2% | 41.7% |
-| PLANNED: S13 | 11 | 4,037 | 4.5% | 6.5% |
-| PLANNED: S14 | 9 | 4,057 | 3.7% | 6.5% |
-| PLANNED: P2 | 59 | 12,281 | 24.0% | 19.7% |
+| PORTED | 30 | 6,828 | 12.2% | 11.0% |
+| PARTIAL | 96 | 38,861 | 39.0% | 62.4% |
+| PLANNED: P2 | 37 | 5,562 | 15.0% | 8.9% |
 | EXCLUDED | 83 | 11,048 | 33.7% | 17.7% |
 | **Total** | **246** | **62,299** | 100.0% | 100.0% |
 
@@ -20,13 +18,13 @@ $CLASSIC = `/home/yab/Documents/Projects/iCog/HyperonRelated/MOSES/OpenCog/Moses
 
 | Macro status | Files | Lines |
 |---|---:|---:|
-| PORTED | 17 | 4,901 |
-| PARTIAL | 67 | 25,975 |
-| PLANNED: S9-S14 (named backlog slices) | 20 | 8,094 |
-| PLANNED: P2 (deferred tail) | 59 | 12,281 |
+| PORTED | 30 | 6,828 |
+| PARTIAL | 96 | 38,861 |
+| PLANNED: S9-S14 (named backlog slices) | 0 | 0 |
+| PLANNED: P2 (deferred tail) | 37 | 5,562 |
 | EXCLUDED | 83 | 11,048 |
 
-**Reading this table.** PORTED (17 files, 4,901 lines) and PARTIAL (62 files, 25,041 lines) together are the completed S0-S10 footprint: 79 files / 29,942 lines out of 62,144 (48.2%) have *some* Python behind them, but only the 17 PORTED files (7.9% of lines) are complete with no named gap. **After S9 and S10 the PARTIAL bucket is where nearly all the real code lives**, so the per-row limitations are the honest reading, not the headline percentage. EXCLUDED is 83 files / 11,048 lines (17.8%): legacy/dead code, C++-only tools, and the enum, ANN, list/fold, object, message and procedure-call domains that are outside the port's boolean/continuous/action scope. The remaining 59+24 = 83 files / 21,154 lines (34.0%) are PLANNED, split between the 24 files / 8,873 lines named to S11-S14 and the 59 files / 12,281 lines in the P2 tail.
+**Reading this table.** PORTED (30 files, 6,828 lines) and PARTIAL (96 files, 38,861 lines) together are the completed S0-S14 footprint plus most of the P2 tail: **126 of 246 files / 45,689 of 62,299 lines (73.3%) have Python behind them**, and 30 are complete with no named gap. The PARTIAL bucket holds most of the real code, so its per-row limitations -- not the headline percentage -- are the honest reading. EXCLUDED is 83 files / 11,048 lines (17.7%): legacy/dead code, C++-only tools, and the enum, ANN, list/fold, object, message and procedure-call domains outside the port's boolean/continuous/action scope. What remains is 37 files / 5,562 lines (8.9%) in the P2 tail -- chiefly the standalone feature-selection binary, `eda/`'s remaining machinery, `partial.cc`, `similarity.cc`, `ss_bscore.cc`, and `distributed_moses` (which shells out to `ssh`/`pgrep` and warrants a scope decision rather than an automatic port).
 
 ## `moses/comboreduct/ant_combo_vocabulary`
 
@@ -146,18 +144,18 @@ The reduction rule engine. S7 completed `meta_rules.*` and `clean_reduction.cc`;
 | `moses/comboreduct/reduct/action_rules.h` | 272 | EXCLUDED | Same as action_reduction.cc. |
 | `moses/comboreduct/reduct/ann_reduction.cc` | 36 | EXCLUDED | ANN output domain; explicitly outside this port's boolean/continuous/action scope. |
 | `moses/comboreduct/reduct/ann_rules.h` | 55 | EXCLUDED | ANN output domain; explicitly outside this port's boolean/continuous/action scope. |
-| `moses/comboreduct/reduct/branch_rules.cc` | 171 | PLANNED: S14 | PLANNED: S14 -- only included by contin_reduction.cc/mixed_reduction.cc/full_reduction.cc (cond-reduction rules), never by logical_reduction.cc or clean_reduction.cc. Needed only once contin/mixed land. |
-| `moses/comboreduct/reduct/branch_rules.h` | 93 | PLANNED: S14 | PLANNED: S14 -- only included by contin_reduction.cc/mixed_reduction.cc/full_reduction.cc (cond-reduction rules), never by logical_reduction.cc or clean_reduction.cc. Needed only once contin/mixed land. |
+| `moses/comboreduct/reduct/branch_rules.cc` | 171 | PORTED | `pymetta/comboreduct/reduct/branch_rules.py`. |
+| `moses/comboreduct/reduct/branch_rules.h` | 93 | PORTED | `pymetta/comboreduct/reduct/branch_rules.py`. |
 | `moses/comboreduct/reduct/clean_reduction.cc` | 58 | PORTED | `pymetta/comboreduct/reduct/clean_reduction.py` (S7). `clean_reduce()` and its null-vertex removal path are ported; this is also the cleanup dependency needed by S8 representation work. |
-| `moses/comboreduct/reduct/contin_reduction.cc` | 138 | PLANNED: S14 | Named explicitly in the S14 backlog line (contin_rules). |
-| `moses/comboreduct/reduct/contin_rules.cc` | 1025 | PLANNED: S14 | Named explicitly in the S14 backlog line. |
-| `moses/comboreduct/reduct/contin_rules.h` | 191 | PLANNED: S14 | Named explicitly in the S14 backlog line. |
+| `moses/comboreduct/reduct/contin_reduction.cc` | 138 | PORTED | `pymetta/comboreduct/reduct/contin_reduction.py` -- effort-keyed rule sets with classic's exact rule order, which determines the normal form. |
+| `moses/comboreduct/reduct/contin_rules.cc` | 1025 | PARTIAL | `pymetta/comboreduct/reduct/contin_rules.py` -- ported in full. Measured 53/53 byte-identical against a purpose-built probe at contin effort 2, at classic's own empty `ignore_ops`. `move_ontop`'s self-cycle bug is reproduced, not fixed; all 11 call sites here were traced and none can reach it (target is always a freshly appended last child). |
+| `moses/comboreduct/reduct/contin_rules.h` | 191 | PARTIAL | `pymetta/comboreduct/reduct/contin_rules.py` -- see contin_rules.cc row. |
 | `moses/comboreduct/reduct/flat_normal_form.cc` | 79 | PARTIAL | `pymetta/comboreduct/reduct/flat_normal_form.py` (S7). ENF/DNF/CNF conversion and the concrete iterator shapes used by logical reduction are ported; the generic C++ iterator/range overload surface is intentionally narrowed. |
 | `moses/comboreduct/reduct/flat_normal_form.h` | 281 | PARTIAL | Same as flat_normal_form.cc. |
 | `moses/comboreduct/reduct/fold_reduction.cc` | 41 | EXCLUDED | List/fold domain; explicitly outside this port's boolean/continuous/action scope. Classic's active FoldReductUTest does not create a Python-port obligation. |
 | `moses/comboreduct/reduct/fold_rules.cc` | 61 | EXCLUDED | List/fold domain; explicitly outside this port's boolean/continuous/action scope. |
 | `moses/comboreduct/reduct/fold_rules.h` | 23 | EXCLUDED | List/fold domain; explicitly outside this port's boolean/continuous/action scope. |
-| `moses/comboreduct/reduct/full_reduction.cc` | 238 | PLANNED: S14 | Combines branch_rules + logical_rules + contin_rules + mixed_rules -- cannot be completed before S14 lands (needs contin/mixed, which S7 does not provide). |
+| `moses/comboreduct/reduct/full_reduction.cc` | 238 | PARTIAL | `pymetta/comboreduct/reduct/full_reduction.py` -- measured 19/19 byte-identical. Gap: `gaussJordanElimination`/`gaussianElimination` are untested here because they are dead code in classic too. |
 | `moses/comboreduct/reduct/general_rules.cc` | 141 | PARTIAL | `pymetta/comboreduct/reduct/general_rules.py` (S7). The general combinators and constant evaluation needed by logical reduction are ported; evaluation remains limited to the builtin/argument/contin vertex grammar supported by `eval.py`. |
 | `moses/comboreduct/reduct/general_rules.h` | 77 | PARTIAL | Same as general_rules.cc. |
 | `moses/comboreduct/reduct/logical_reduction.cc` | 164 | PARTIAL | `pymetta/comboreduct/reduct/logical_reduction.py` (S7). Boolean logical reduction is ported and oracle-tested. Predicate simplification over contin/mixed expressions is incomplete and remains part of S14. |
@@ -165,9 +163,9 @@ The reduction rule engine. S7 completed `meta_rules.*` and `clean_reduction.cc`;
 | `moses/comboreduct/reduct/logical_rules.h` | 286 | PARTIAL | Same as logical_rules.cc. |
 | `moses/comboreduct/reduct/meta_rules.cc` | 156 | PORTED | `pymetta/comboreduct/reduct/meta_rules.py` (S7). Rule combinators and traversal strategies are ported. |
 | `moses/comboreduct/reduct/meta_rules.h` | 177 | PORTED | Same as meta_rules.cc. |
-| `moses/comboreduct/reduct/mixed_reduction.cc` | 142 | PLANNED: S14 | Named explicitly in the S14 backlog line (mixed_rules). |
-| `moses/comboreduct/reduct/mixed_rules.cc` | 1765 | PLANNED: S14 | Named explicitly in the S14 backlog line. |
-| `moses/comboreduct/reduct/mixed_rules.h` | 294 | PLANNED: S14 | Named explicitly in the S14 backlog line. |
+| `moses/comboreduct/reduct/mixed_reduction.cc` | 142 | PORTED | `pymetta/comboreduct/reduct/mixed_reduction.py`. |
+| `moses/comboreduct/reduct/mixed_rules.cc` | 1765 | PARTIAL | `pymetta/comboreduct/reduct/mixed_rules.py` -- all 27 rule classes ported. Measured 53/53 byte-identical for `mixed_reduce` plus 4/4 with assumptions. Gap: the 129-case corpus is 100%-matching but not exhaustive over this file's ~1,765 lines; 9 recursive classes are exercised through the pipeline rather than in isolation. |
+| `moses/comboreduct/reduct/mixed_rules.h` | 294 | PARTIAL | `pymetta/comboreduct/reduct/mixed_rules.py` -- see mixed_rules.cc row. |
 | `moses/comboreduct/reduct/perception_reduction.cc` | 82 | EXCLUDED | PerceptionReductUTest is commented out (tests/comboreduct/reduct/CMakeLists.txt:42); legacy embodiment (spec S3 non-goal). |
 | `moses/comboreduct/reduct/perception_rules.cc` | 209 | EXCLUDED | Same as perception_reduction.cc. |
 | `moses/comboreduct/reduct/perception_rules.h` | 85 | EXCLUDED | Same as perception_reduction.cc. |
@@ -248,8 +246,8 @@ All 5 files PLANNED: P2 (feature selection).
 | `moses/moses/deme/deme_expander.cc` | 533 | PARTIAL | `pymetta/moses/deme/deme_expander.py` -- single-deme path: `create_demeIDs`, `create_representations`, `create_demes`, `optimize_demes`, `free_demes`, `total_evals`. Feature selection (`fstor`) and subsampling raise. Measured BIT-FOR-BIT against classic over 3 cases: field-set shape, knob count/order/text, and all 79 scored instances' packed values plus every `composite_score` field by exact `==`. |
 | `moses/moses/deme/deme_expander.h` | 158 | PARTIAL | `pymetta/moses/deme/deme_expander.py` -- see deme_expander.cc row. Keeps C++'s injection seam: the optimizer is passed in, never constructed (deme_expander.h:44,83). |
 | `moses/moses/deme/deme_params.h` | 88 | PARTIAL | `pymetta/moses/deme/deme_params.py` -- defaults pinned. `fstor` (feature selection) is carried but any non-None value raises; `max_candidates_per_deme` is ported although `deme_params.h:54`'s copy is never read anywhere in classic (merging.cc:536 reads the metapop_parameters field of the same name). |
-| `moses/moses/deme/feature_selector.cc` | 477 | PLANNED: P2 | The per-deme feature-selection integration point the S10 backlog line explicitly excludes ("no feature selection"); grouped with feature-selection (P2). |
-| `moses/moses/deme/feature_selector.h` | 233 | PLANNED: P2 | Same as feature_selector.cc. |
+| `moses/moses/deme/feature_selector.cc` | 477 | PARTIAL | `pymetta/moses/deme/feature_selector.py` -- the in-loop `--enable-fs` path: `preprocess_params`, `build_fs_ctable`, `operator()`. Every MI value and `simple`-algorithm selection matches classic bit-for-bit. Still gated: the `inc`/`smd`/`random`/`hc` algorithms, the `pre` scorer, non-boolean output, subsampling<1.0, diversity_pressure>0, prune_xmplr. |
+| `moses/moses/deme/feature_selector.h` | 233 | PARTIAL | `pymetta/moses/deme/feature_selector.py` -- see feature_selector.cc row. |
 
 ## `moses/moses/eda`
 
@@ -272,25 +270,25 @@ The CLI layer. `moses-exec.cc`, `moses_exec.*`, `moses_exec_def.*`, `problem.*`,
 
 | File | Lines | Status | pyMeTTa path / Slice / Reason |
 |---|---:|---|---|
-| `moses/moses/main/demo-problems.cc` | 516 | PLANNED: P2 | Toy CLI problems (pa/dj/mux/sr/cp registered via demo-problems.cc, per CLAUDE.md). Not named in S13's backlog line (CLI parity for the table-based problems); not core to that exit criterion. SURPRISE (no assigned slice). |
-| `moses/moses/main/demo-problems.h` | 36 | PLANNED: P2 | Same as demo-problems.cc. |
+| `moses/moses/main/demo-problems.cc` | 516 | PARTIAL | `pymetta/moses/main/demo_problems.py` -- `pa`, `dj`, `maj`, `mux`, `cp` plus `logical_bscore`. Unblocked four previously-blocked MOSESUTest cases, three with exact tree matches. `sr` and `ann-cp` and `cp`'s contin branch are raising stubs (contin search is beyond this port's demo scope). |
+| `moses/moses/main/demo-problems.h` | 36 | PARTIAL | `pymetta/moses/main/demo_problems.py` -- see demo-problems.cc row. |
 | `moses/moses/main/eval-candidate-likelihood.cc` | 443 | EXCLUDED | CLI tool (likelihood-weighted candidate scoring), no named oracle role. EXCLUDED -- C++ CLI tool with no Python-port target in the spec's repository layout (S4). |
 | `moses/moses/main/eval-candidate-likelihood.h` | 57 | EXCLUDED | Same as eval-candidate-likelihood.cc. |
 | `moses/moses/main/eval-candidate.cc` | 386 | EXCLUDED | Retained as the S6 differential-testing oracle (spec S7 Tier 2, "already built"). EXCLUDED -- C++ CLI tool with no Python-port target in the spec's repository layout (S4). |
 | `moses/moses/main/eval-candidate.h` | 57 | EXCLUDED | Same as eval-candidate.cc. |
 | `moses/moses/main/eval-diversity.cc` | 190 | EXCLUDED | CLI tool tied to the future diversity feature (PLANNED: P2, moses/moses/metapopulation/diversity.cc); no separate Python-CLI plan exists for it. EXCLUDED -- C++ CLI tool with no Python-port target in the spec's repository layout (S4). |
 | `moses/moses/main/eval-diversity.h` | 91 | EXCLUDED | Same as eval-diversity.cc. |
-| `moses/moses/main/moses-exec.cc` | 26 | PLANNED: S13 | Three-line main(); part of the moses_exec.py CLI target named in S13. |
-| `moses/moses/main/moses_exec.cc` | 84 | PLANNED: S13 | The actual moses_exec() implementation (CLAUDE.md); PLANNED: S13 (moses_exec.py). moses_exec.py's own `pp.printer = metapop_printer(...)` construction is the site this port wires `output_bscore`/`output_deme_id` into -- see problem-params.cc's row below for the disclosed gap on those two flags (gated in problem_params.py, not here). |
-| `moses/moses/main/moses_exec.h` | 45 | PLANNED: S13 | moses_exec() declaration; S13. |
-| `moses/moses/main/moses_exec_def.cc` | 36 | PLANNED: S13 | Supporting declarations for moses_exec(); S13. |
-| `moses/moses/main/moses_exec_def.h` | 94 | PLANNED: S13 | Same as moses_exec_def.cc. |
-| `moses/moses/main/problem-params.cc` | 2407 | PLANNED: S13 | PLANNED: S13 (problem_params.py), but explicitly NOT line-by-line -- spec S3 non-goal: "2407 lines of boost::program_options boilerplate; only the option names and defaults are reproduced, via argparse." DISCLOSED GAP: `-t`/`--output-bscore` and `--output-deme-id` parse fine in classic and succeed (rc 0, extra " behavioral score: [...]" / " demeID: N" per result line) but hit genuinely unported machinery the instant either is engaged (`metapopulation.merge_demes`'s keep_bscore recompute block, merging.cc:258-296; `ostream_scored_combo_tree`'s output_demeID branch, types.cc:175) -- `problem_params.parse_options` now gates both with a clear `NotImplementedError` at option-parse time (see its own `# DIVERGENCE` markers), rather than the unhandled traceback deep in a real run this port used to produce. |
-| `moses/moses/main/problem-params.h` | 240 | PLANNED: S13 | Same scope note as problem-params.cc. |
-| `moses/moses/main/problem.cc` | 206 | PLANNED: S13 | problem_base / problem_manager registry (CLAUDE.md architecture); PLANNED: S13 (problem_params.py). |
-| `moses/moses/main/problem.h` | 80 | PLANNED: S13 | Same as problem.cc. |
-| `moses/moses/main/table-problems.cc` | 585 | PLANNED: S13 | Named explicitly (table_problems.py) in spec S4's repository layout for S13. |
-| `moses/moses/main/table-problems.h` | 234 | PLANNED: S13 | Same as table-problems.cc. |
+| `moses/moses/main/moses-exec.cc` | 26 | PORTED | `pymetta/moses/main/moses_exec.py` -- the three-line `main()`. |
+| `moses/moses/main/moses_exec.cc` | 84 | PARTIAL | `pymetta/moses/main/moses_exec.py` -- the CLI entry point. Stdout verified byte-identical to classic across 24 flag combinations, including 16 behaviour-changing ones. `-t`/`--output-bscore` and `--output-deme-id` raise at parse time (their subsystems are unported) where classic succeeds -- a disclosed divergence. |
+| `moses/moses/main/moses_exec.h` | 45 | PARTIAL | `pymetta/moses/main/moses_exec.py` -- see moses_exec.cc row. |
+| `moses/moses/main/moses_exec_def.cc` | 36 | PORTED | `pymetta/moses/main/problem_params.py` -- the option name/short-flag pairs. |
+| `moses/moses/main/moses_exec_def.h` | 94 | PORTED | `pymetta/moses/main/problem_params.py` -- see moses_exec_def.cc row. |
+| `moses/moses/main/problem-params.cc` | 2407 | PARTIAL | `pymetta/moses/main/problem_params.py` -- 126 options, surface diffed byte-for-byte against the compiled binary's `--help`, every default machine-checked against `default_value(...)`. Options whose subsystem is unported raise rather than being silently ignored. |
+| `moses/moses/main/problem-params.h` | 240 | PARTIAL | `pymetta/moses/main/problem_params.py` -- see problem-params.cc row. |
+| `moses/moses/main/problem.cc` | 206 | PORTED | `pymetta/moses/main/problem.py` -- `problem_base`, `problem_manager`, `register_problem`, `find_problem`. Reproduces `std::map::insert` semantics: a duplicate registration is a no-op and the first registered wins; `find_problem` returns None for an unknown name. |
+| `moses/moses/main/problem.h` | 80 | PORTED | `pymetta/moses/main/problem.py` -- see problem.cc row. |
+| `moses/moses/main/table-problems.cc` | 585 | PARTIAL | `pymetta/moses/main/table_problems.py` -- `it` plus `pre`, `prerec`, `recall`, `bep`, `f_one`, `select`. `-H it` reproduces classic byte-identically at classic's own defaults. Still stubbed: `pre-conj`, `cluster` (missing scorer); `ip`, `ann-it` (excluded domains). `f_one` and five others at pure defaults reproduce classic's OWN upstream crash, verified against the binary. |
+| `moses/moses/main/table-problems.h` | 234 | PARTIAL | `pymetta/moses/main/table_problems.py` -- see table-problems.cc row. |
 
 ## `moses/moses/metapopulation`
 
@@ -298,17 +296,17 @@ The CLI layer. `moses-exec.cc`, `moses_exec.*`, `moses_exec_def.*`, `problem.*`,
 
 | File | Lines | Status | pyMeTTa path / Slice / Reason |
 |---|---:|---|---|
-| `moses/moses/metapopulation/diversity.cc` | 307 | PLANNED: P2 | Named explicitly in the spec's P2 tail ("diversity"). diversityUTest is commented out in tests/moses/CMakeLists.txt:122. |
-| `moses/moses/metapopulation/domination.cc` | 309 | PLANNED: P2 | Named explicitly in the spec's P2 tail ("domination"). |
-| `moses/moses/metapopulation/ensemble.cc` | 438 | PLANNED: P2 | Named explicitly in the spec's P2 tail ("ensembles/boosting"). ORDERING HAZARD: moses/moses/metapopulation/metapopulation.h:45 unconditionally #includes ensemble.h -- S10's backlog line ("metapopulation/ + merging.py") does not mention ensembles at all, yet the header it must port structurally pulls it in. |
-| `moses/moses/metapopulation/ensemble.h` | 98 | PARTIAL | `pymetta/moses/metapopulation/ensemble.py` -- a MINIMAL ensemble: constructible and holdable (C++ constructs it unconditionally at metapopulation.cc:41) but RAISES if actually driven, since it is read only under `do_boosting` (metapopulation.cc:207). Full boosting stays P2 with ensemble.cc. |
+| `moses/moses/metapopulation/diversity.cc` | 307 | PORTED | `pymetta/moses/metapopulation/diversity.py` -- `set_diversity`, `gather_diversity_stats`, the `cached_dst` methods. |
+| `moses/moses/metapopulation/domination.cc` | 309 | PORTED | `pymetta/moses/metapopulation/domination.py` -- `dominates`, `get_nondominated_*`, `remove_dominated`, `merge_nondominated`. Verified against classic's `metapopulationUTest`, whose only two tests exercise exactly these. |
+| `moses/moses/metapopulation/ensemble.cc` | 438 | PARTIAL | `pymetta/moses/metapopulation/ensemble.py` -- real AdaBoost/experts boosting, replacing the raising stub. `add_expert`'s inexact-experts branch is a faithful deliberate crash, matching classic's own "XXX currently broken". |
+| `moses/moses/metapopulation/ensemble.h` | 98 | PARTIAL | `pymetta/moses/metapopulation/ensemble.py` -- see ensemble.cc row. |
 | `moses/moses/metapopulation/ensemble_params.h` | 54 | PARTIAL | `pymetta/moses/metapopulation/ensemble_params.py` -- parameter struct with defaults pinned, so the minimal ensemble can be constructed. The boosting algorithm it configures stays P2. |
 | `moses/moses/metapopulation/merging.cc` | 679 | PARTIAL | `pymetta/moses/metapopulation/merging.py` -- `merge_candidates`/`merge_demes` default insert-all path (merging.cc:163-175; `discard_dominated` defaults false so `merge_nondominated` is unreachable), plus `sort_demes`, `keep_top_unique_candidates`, `trim_down_deme`, `resize_metapop`, `log_best_candidates`. Domination/diversity/boosting/subsampling arms raise. `sort_demes`' dead tail (merging.cc:509-517) not ported -- it is dead in C++ too. |
 | `moses/moses/metapopulation/metapop_params.cc` | 90 | PARTIAL | `pymetta/moses/metapopulation/metapop_params.py` -- every default ported verbatim and pinned. Gap: `diversity_parameters.autoscale` and the ten `subsample_deme_filter_parameters` fields are genuinely UNINITIALIZED in C++; this port leaves them unset so reading one raises `AttributeError` rather than returning indeterminate values. The S13 CLI wiring that sets them must populate them first. |
 | `moses/moses/metapopulation/metapop_params.h` | 250 | PARTIAL | `pymetta/moses/metapopulation/metapop_params.py` -- see metapop_params.cc row. |
 | `moses/moses/metapopulation/metapopulation.cc` | 248 | PARTIAL | `pymetta/moses/metapopulation/metapopulation.py` -- core pool, `init`, `select_exemplar`, `best_*`, `update_best_candidates`, `rescore`. Diversity, domination, boosting and subsampling are ported as GATES that RAISE (all default off), so no P2 subsystem is half-implemented. Probe-measured; note metapopulation's `_params`/`_filter_params` are C++ reference members bound to constructor-default temporaries and dangle after construction (gdb-confirmed) -- documented, not reproduced. |
 | `moses/moses/metapopulation/metapopulation.h` | 574 | PARTIAL | `pymetta/moses/metapopulation/metapopulation.py` -- see metapopulation.cc row. `get_ensemble()` returns the minimal ensemble that raises if driven. |
-| `moses/moses/metapopulation/subsample.cc` | 488 | PLANNED: P2 | Named explicitly in the spec's P2 tail ("subsampling"). |
+| `moses/moses/metapopulation/subsample.cc` | 488 | PARTIAL | `pymetta/moses/metapopulation/subsample.py` -- `ss_filter`, `recompute_scores_over_whole_dataset`, tuple sampling and Tanimoto filters. RNG draw order verified element-for-element through `lazy_random_selector`. Reads 8 of the 10 genuinely-uninitialized filter fields, only inside the enabled arm. |
 
 ## `moses/moses/moses`
 
@@ -344,12 +342,12 @@ The outer search loop. `complexity.*` PORTED (S6). `types.*` PARTIAL (S6 -- comp
 | `moses/moses/optimization/hill-climbing.h` | 280 | PARTIAL | `pymetta/moses/moses/optimization/hill_climbing.py` -- see hill-climbing.cc row. `hc_parameters` defaults ported verbatim and each pinned by test. |
 | `moses/moses/optimization/optimization.cc` | 190 | PARTIAL | `pymetta/moses/moses/optimization/optimization.py` -- `optimizer_base`, `optim_parameters`, `information_theoretic_bits` (correctly kept in `double`, not narrowed). Term-field contribution not ported: term fields are excluded from this port's `field_set`, so that loop's range is always empty. |
 | `moses/moses/optimization/optimization.h` | 192 | PARTIAL | `pymetta/moses/moses/optimization/optimization.py` -- see optimization.cc row. |
-| `moses/moses/optimization/particle-swarm.cc` | 380 | PLANNED: P2 | Named explicitly in the spec's P2 tail ("the other optimizers: star-anneal, univariate, particle-swarm"). |
-| `moses/moses/optimization/particle-swarm.h` | 356 | PLANNED: P2 | Named explicitly in the spec's P2 tail ("the other optimizers: star-anneal, univariate, particle-swarm"). |
-| `moses/moses/optimization/star-anneal.cc` | 165 | PLANNED: P2 | Named explicitly in the spec's P2 tail ("the other optimizers: star-anneal, univariate, particle-swarm"). |
-| `moses/moses/optimization/star-anneal.h` | 160 | PLANNED: P2 | Named explicitly in the spec's P2 tail ("the other optimizers: star-anneal, univariate, particle-swarm"). |
-| `moses/moses/optimization/univariate.cc` | 104 | PLANNED: P2 | Named explicitly in the spec's P2 tail ("the other optimizers: star-anneal, univariate, particle-swarm"). Uses moses/eda/ (see that row). |
-| `moses/moses/optimization/univariate.h` | 80 | PLANNED: P2 | Named explicitly in the spec's P2 tail ("the other optimizers: star-anneal, univariate, particle-swarm"). |
+| `moses/moses/optimization/particle-swarm.cc` | 380 | PARTIAL | `pymetta/moses/moses/optimization/particle_swarm.py`. Note `test_ps_2_parity` FAILS in classic itself, so it is not a usable oracle and was not chased. |
+| `moses/moses/optimization/particle-swarm.h` | 356 | PARTIAL | `pymetta/moses/moses/optimization/particle_swarm.py` -- see particle-swarm.cc row. |
+| `moses/moses/optimization/star-anneal.cc` | 165 | PORTED | `pymetta/moses/moses/optimization/star_anneal.py`. `-asa` reproduces classic's stdout byte-identically through the CLI. |
+| `moses/moses/optimization/star-anneal.h` | 160 | PORTED | `pymetta/moses/moses/optimization/star_anneal.py`. |
+| `moses/moses/optimization/univariate.cc` | 104 | PARTIAL | `pymetta/moses/moses/optimization/univariate.py` -- `-aun` reproduces classic's stdout byte-identically. Disclosed divergence: `local_structure_model`'s dependency-order shuffle draws from `randGen()` where classic uses an unseeded `std::rand()`, affecting trajectory-exactness but not the score. |
+| `moses/moses/optimization/univariate.h` | 80 | PARTIAL | `pymetta/moses/moses/optimization/univariate.py` -- see univariate.cc row. |
 
 ## `moses/moses/representation`
 
@@ -381,18 +379,18 @@ As of S8, 10 of these 13 files are PARTIAL: the Boolean vertical slice `exemplar
 | `moses/moses/scoring/behave_cscore.h` | 135 | PORTED | Same as behave_cscore.cc. |
 | `moses/moses/scoring/bscores.cc` | 1085 | PARTIAL | PARTIAL -- pymetta/moses/scoring/bscores.py (S6) ports ctruth_table_bscore (bscores.h:360, bscores.cc:276-424) only, per that file's own explicit docstring. NOT ported: logical_bscore (:52), discretize_contin_bscore (:91), contin_bscore (:181, PLANNED: S14 explicitly), enum_table_bscore/enum_filter_bscore/enum_graded_bscore/enum_effective_bscore (:409-516, EXCLUDED with the enum domain), interesting_predicate_bscore (:553), cluster_bscore (:613). Of the allowed-domain gaps, only contin_bscore has an assigned slice (S14); logical_bscore, interesting_predicate_bscore and cluster_bscore have none. SURPRISE. |
 | `moses/moses/scoring/bscores.h` | 632 | PARTIAL | Same as bscores.cc. |
-| `moses/moses/scoring/discriminating_bscore.cc` | 698 | PLANNED: P2 | PLANNED: P2 -- recall_bscore/prerec_bscore/bep_bscore/f_one_bscore, named explicitly in the spec's P2 tail ("precision/recall/BEP/F1/select scorers"). |
-| `moses/moses/scoring/discriminating_bscore.h` | 238 | PLANNED: P2 | PLANNED: P2 -- recall_bscore/prerec_bscore/bep_bscore/f_one_bscore, named explicitly in the spec's P2 tail ("precision/recall/BEP/F1/select scorers"). |
-| `moses/moses/scoring/precision_bscore.cc` | 838 | PLANNED: P2 | Named explicitly in the spec's P2 tail ("precision... scorers"). Depends on time_dispersion.h's bscore_ctable_time_dispersion base. |
-| `moses/moses/scoring/precision_bscore.h` | 235 | PLANNED: P2 | Same as precision_bscore.cc. |
+| `moses/moses/scoring/discriminating_bscore.cc` | 698 | PARTIAL | `pymetta/moses/scoring/discriminating_bscore.py` (+ `bscore_ctable_base` in scoring_base.py) -- binary32-exact against a purpose-built probe, 14/14. `scoringUTest` has only 2 live tests and covers none of this. |
+| `moses/moses/scoring/discriminating_bscore.h` | 238 | PARTIAL | `pymetta/moses/scoring/discriminating_bscore.py` -- see the .cc row. |
+| `moses/moses/scoring/precision_bscore.cc` | 838 | PARTIAL | `pymetta/moses/scoring/precision_bscore.py` (+ `precision_conj_bscore`) -- binary32-exact, 5/5. Gaps: `precision_conj_bscore` has no probe mode (its tests use literal expected values with the formula in a comment); `time_bscore`, `dispersion_pressure>0` and the boosting paths raise. |
+| `moses/moses/scoring/precision_bscore.h` | 235 | PARTIAL | `pymetta/moses/scoring/precision_bscore.py` -- see the .cc row. |
 | `moses/moses/scoring/scoring_base.cc` | 329 | PARTIAL | PARTIAL -- pymetta/moses/scoring/scoring_base.py (S6) ports bscore_base only, per that file's own explicit docstring. NOT ported: bscore_ctable_base (scoring_base.h:236, the ignore_cols/ignore_rows/get_ctable_usize/get_ctable infrastructure used by feature-selection to subset a CTable -- CARRY-FORWARD 1.2 flags a copy-vs-alias trap here, labelling it for "S8" though its real consumer looks like feature-selection/P2, an unresolved discrepancy worth settling next cycle); the scored_combo_tree_set-based operator() and the whole _weights/use_weighted_scores/update_weights ensemble/boosting apparatus (-> P2, ensembles). |
 | `moses/moses/scoring/scoring_base.h` | 351 | PARTIAL | PARTIAL -- pymetta/moses/scoring/scoring_base.py (S6) ports bscore_base only, per that file's own explicit docstring. NOT ported: bscore_ctable_base (scoring_base.h:236, the ignore_cols/ignore_rows/get_ctable_usize/get_ctable infrastructure used by feature-selection to subset a CTable -- CARRY-FORWARD 1.2 flags a copy-vs-alias trap here, labelling it for "S8" though its real consumer looks like feature-selection/P2, an unresolved discrepancy worth settling next cycle); the scored_combo_tree_set-based operator() and the whole _weights/use_weighted_scores/update_weights ensemble/boosting apparatus (-> P2, ensembles). |
-| `moses/moses/scoring/select_bscore.cc` | 348 | PLANNED: P2 | Named explicitly in the spec's P2 tail ("select scorer"). |
-| `moses/moses/scoring/select_bscore.h` | 86 | PLANNED: P2 | Same as select_bscore.cc. |
+| `moses/moses/scoring/select_bscore.cc` | 348 | PARTIAL | `pymetta/moses/scoring/select_bscore.py` -- binary32-exact, 4/4. `__call__`'s ranking is now covered by the fixture's own `bscore_rows`, gated on a capability probe against the mixed interpreter. |
+| `moses/moses/scoring/select_bscore.h` | 86 | PARTIAL | `pymetta/moses/scoring/select_bscore.py` -- see the .cc row. |
 | `moses/moses/scoring/ss_bscore.cc` | 162 | PLANNED: P2 | Subsample-scorer; matches the spec's P2 tail item "subsampling" (moses/moses/metapopulation/subsample.cc). |
 | `moses/moses/scoring/ss_bscore.h` | 83 | PLANNED: P2 | Same as ss_bscore.cc. |
-| `moses/moses/scoring/time_dispersion.cc` | 118 | PLANNED: P2 | bscore_ctable_time_dispersion, the base class precision_bscore.h needs; grouped with the P2 precision scorer. |
-| `moses/moses/scoring/time_dispersion.h` | 109 | PLANNED: P2 | Same as time_dispersion.cc. |
+| `moses/moses/scoring/time_dispersion.cc` | 118 | PARTIAL | `pymetta/moses/scoring/time_dispersion.py` -- binary32-exact, 8/8. `get_timestamp_class` raises: this port's CTable is timestamp-free. |
+| `moses/moses/scoring/time_dispersion.h` | 109 | PARTIAL | `pymetta/moses/scoring/time_dispersion.py` -- see the .cc row. |
 
 ## `moses/pleasure`
 
