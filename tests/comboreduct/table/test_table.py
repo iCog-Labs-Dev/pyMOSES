@@ -37,7 +37,7 @@ from pathlib import Path
 import pytest
 
 from pymetta.comboreduct.combo.vertex import builtin
-from pymetta.comboreduct.table.table import ITable, OTable, Table, type_node
+from pymetta.comboreduct.table.table import CTable, ITable, OTable, Table, type_node
 from pymetta.comboreduct.table.table_io import loadTable
 
 olabel = "happiness"
@@ -362,6 +362,71 @@ def test_timestamp_feature(fixture_dir):
     assert table.itable.get_labels() == ["width"]
     assert table.otable.get_label() == "length"
     assert list(table.otable) == pytest.approx([12.0, 10.0, 14.0])
+
+
+def test_ctable_has_no_timestamp_surface(tmp_path):
+    """The port's `CTable` carries no timestamp DATA, so it has none of
+    classic's three timestamp members -- and the absence is load-bearing,
+    not cosmetic.
+
+    Classic's `CTable` is `map<multi_type_seq, TimedCounter>` and its
+    `TimedCounter` is `Counter<TimedValue, count_t>`, where `TimedValue`
+    is `(vertex value, TTable::value_type timestamp)` with a member-wise
+    `operator==` (table.h:472-490,496). `Table::compressed` fills the
+    timestamp half only when `ttable` is non-empty (table.cc:534-550),
+    which `loadTable` only ever makes it when `--timestamp-feature` was
+    given (table_io.cc:1109-1110,1144). This port has no `TTable` at all,
+    so every key collapses to a bare vertex and there is nothing for
+    `get_timestamps` (table.h:697), `remove_rows_at_time` (table.h:692)
+    or `remove_rows_at_times` (table.h:687) to read.
+
+    Why pin the ABSENCE rather than shrug at it: classic's own
+    `get_timestamps` skips any default (not-a-date) timestamp
+    (table.cc:740), so a vacuous `def get_timestamps(self): return set()`
+    would return the numerically correct answer for every table this port
+    can build -- and would still be a real defect, because
+    `ss_bscore.__init__` (moses/scoring/ss_bscore.py) gates on
+    `hasattr(ctable, "get_timestamps")`. Defining one turns that clear
+    `NotImplementedError` into an `ss_bscore` that silently believes the
+    dataset is untimestamped.
+
+    And measured, not assumed: THIS test is the only thing that catches
+    that. `test_construction_raises_because_get_timestamps_is_missing`
+    (tests/moses/scoring/test_ss_bscore.py) looks like it guards the same
+    property, but it feeds `ss_bscore` a `_CTableDouble` -- an empty
+    test-local class that has no `get_timestamps` by construction -- so
+    it stays green no matter what the real `CTable` grows. Verified by
+    adding a vacuous `CTable.get_timestamps` returning `set()`: this test
+    failed, that one did not.
+    """
+    assert not hasattr(CTable, "get_timestamps")
+    assert not hasattr(CTable, "remove_rows_at_time")
+    assert not hasattr(CTable, "remove_rows_at_times")
+    assert not hasattr(Table(), "ttable")
+
+    # Two rows agreeing on inputs AND output but differing in date. In
+    # classic these are two distinct TimedValue keys, each counted 1.0;
+    # here they collapse to one bare-vertex key counted 2.0. Scoring is
+    # unaffected -- TimedCounter::get(const vertex&) is defined as "the
+    # sum of that counter across all timestamps with vertex equal to v"
+    # (table.h:497-500), which is exactly what one collapsed entry gives.
+    path = tmp_path / "dupe_rows_distinct_dates.csv"
+    path.write_text("time,width,length\n2012-Jan-11,6,12\n2012-Feb-18,6,12\n2012-Mar-23,3,10\n")
+    table = loadTable(str(path), "length", "time")
+    assert table.itable.get_labels() == ["width"]  # timestamp column excluded
+
+    ctable = table.compressed()
+    assert dict(ctable) == {(6.0,): Counter({12.0: 2.0}), (3.0,): Counter({10.0: 1.0})}
+
+    # Every counter key is a bare vertex, never a (value, timestamp) pair
+    # -- the concrete reason get_timestamps() cannot be implemented here.
+    for counter in ctable.values():
+        for key in counter:
+            assert not isinstance(key, tuple)
+
+    # Total observations are preserved either way, which is why the
+    # collapse is scoring-neutral.
+    assert ctable.uncompressed_size() == 3.0
 
 
 def test_ostream_timestamp_table(fixture_dir):

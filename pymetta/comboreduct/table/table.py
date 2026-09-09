@@ -28,6 +28,39 @@ on every method:
   column from `itable`, matching classic's column-exclusion behaviour
   exactly, but the timestamp values themselves are discarded rather than
   captured in a `TTable`. See table_io.py's module docstring.
+
+  What that costs, spelled out because "no TTable" understates it. The
+  timestamp is not a column the port drops on the way to an otherwise
+  identical `CTable`: in classic it becomes part of the CTable's VALUE
+  KEY. `Table::compressed` keys `TimedValue(*out_it, *time_it)` when
+  `ttable` is non-empty and `TimedValue(*out_it)` -- a default,
+  not-a-date timestamp -- when it is empty (table.cc:534-550), and
+  `TimedValue` is `(vertex value, TTable::value_type timestamp)` with a
+  member-wise `operator==` (table.h:472-490). So two rows sharing inputs
+  AND output but differing in date occupy TWO `TimedCounter` entries in
+  classic and ONE `Counter[vertex]` entry here.
+
+  That is scoring-neutral -- `TimedCounter::get(const vertex&)` is
+  explicitly "the sum of that counter across all timestamps with vertex
+  equal to v" (table.h:497-500), which is what the port's plain counter
+  lookup already gives -- but it is why three `CTable` members are
+  absent here rather than merely unimplemented, since none of them has
+  any data to read: `get_timestamps` (table.h:697, table.cc:735),
+  `remove_rows_at_time` (table.h:692, table.cc:713) and
+  `remove_rows_at_times` (table.h:687, table.cc:707). Note in particular
+  that classic's own `get_timestamps` filters on
+  `timestamp != boost::gregorian::date()` (table.cc:740), so a vacuous
+  Python `def get_timestamps(self): return set()` would be *numerically*
+  right for every table this port can build -- and would still be wrong
+  to add: `ss_bscore.__init__` (moses/scoring/ss_bscore.py) gates on
+  `hasattr(ctable, "get_timestamps")`, so defining one silently turns a
+  clear `NotImplementedError` into an `ss_bscore` that believes the
+  dataset has no timestamps. The absence is load-bearing, and the only
+  test that actually protects it is
+  `test_ctable_has_no_timestamp_surface` in
+  tests/comboreduct/table/test_table.py -- `test_ss_bscore.py`'s own
+  construction gate feeds a test-local `_CTableDouble`, so it cannot see
+  the real class change.
 """
 
 from collections import Counter
