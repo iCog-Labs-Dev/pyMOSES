@@ -854,10 +854,35 @@ class problem_params:
         # ---------------- Phase 2: gate unported subsystems, fixed order ----------------
         # All four algo names classic recognises (`optimization.h:66-69`) are
         # now ported and dispatched at `moses_main.py`'s
-        # `metapop_moses_results_b`. An unrecognised name is NOT rejected here:
-        # classic validates it at the dispatch (`moses_main.h:300-306`), not at
-        # option-parse time, and this port raises there too, so failing early
-        # would move the error to a place classic never reports it.
+        # `metapop_moses_results_b`.
+        #
+        # DIVERGENCE(C++ moses/moses/moses/moses_main.h:288-306): classic
+        # validates an unrecognised `--opt-algo` name only at DISPATCH time,
+        # deep inside `metapop_moses_results_b` (:300-306) -- after `-H`'s
+        # problem is resolved, the table loaded and the exemplar built --
+        # printing "Unknown optimization algo ..." and `exit(1)`. This
+        # correction replaces an EARLIER, wrong version of this same
+        # comment that claimed the opposite ("NOT rejected here... this
+        # port raises there too") while the very next line already raised
+        # here -- measured directly: `moses_exec(["moses", "-i", D, "-m",
+        # "30", "-a", "zz"])` raises from THIS `parse_options` call
+        # (`problem_params.py`), never reaching `moses_main.py`'s dispatch
+        # check at all. The raise below is deliberately kept, not deleted:
+        # it fails immediately, before any table I/O or evaluation, the
+        # same "clean, immediate failure over a deep unhandled traceback"
+        # choice already made -- and disclosed -- for `-t/--output-bscore`
+        # and `--output-deme-id` further down this same method. The outcome
+        # (not just the timing) is identical either way: all four names
+        # classic recognises dispatch identically in both languages, and
+        # any other name fails in both. `metapop_moses_results_b`
+        # (moses_main.py) still carries classic's own dispatch-time check
+        # too, with its own correct DIVERGENCE marker (raises `ValueError`,
+        # not `exit(1)`) and its own test (`test_moses_main.py`) -- that
+        # code path is unreachable from a run that goes through THIS
+        # method first, but stays correct for a caller that builds/mutates
+        # a `problem_params` directly, bypassing `parse_options` (the same
+        # "direct-call fidelity" caveat `table_problems.py`'s own
+        # `_regression` docstring states for its own redundant checks).
         if self.opt_algo not in _SUPPORTED_OPT_ALGOS:
             raise NotImplementedError(
                 f"opt-algo {self.opt_algo!r} is not a ported optimizer. "

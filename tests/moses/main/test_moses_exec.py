@@ -283,6 +283,31 @@ def test_moses_exec_discard_dominated_and_diversity_pressure_defaults_still_matc
     )
 
 
+def test_moses_exec_opt_algo_bad_name_raises_immediately_at_parse_time():
+    """[opt-algo comment fix] An unrecognised `--opt-algo` name raises
+    `NotImplementedError` from `problem_params.parse_options` itself,
+    BEFORE any table I/O or evaluation -- proven end to end through the
+    real CLI (no `-i`/dataset needed at all: the raise fires before the
+    table would even be opened), not merely at the unit level.
+
+    This is the corrected version of `problem_params.py`'s own comment on
+    this gate: an EARLIER version of that comment claimed classic's
+    dispatch-time check (`moses_main.h:300-306`) was the ONLY place this
+    got validated, and that this port "raises there too" instead of here
+    -- false, since the very next line already raised here. The gate
+    itself is intentionally KEPT (not moved to the dispatch) as a
+    disclosed, deliberate timing divergence -- fail immediately rather
+    than deep in a live run, the same choice already made for
+    `-t/--output-bscore`/`--output-deme-id`. `moses_main.py`'s own
+    dispatch-time check (`test_moses_main.py`'s own test) stays correct
+    for a caller that builds/mutates a `problem_params` directly,
+    bypassing `parse_options` -- it is simply unreachable from THIS entry
+    point, which always goes through `parse_options` first.
+    """
+    with pytest.raises(NotImplementedError, match="opt-algo 'zz' is not a ported optimizer"):
+        moses_exec(["moses", "--opt-algo=zz"])
+
+
 # ---------------------------------------------------------------------------
 # A second, independent oracle that does NOT need table_problems.py: the
 # `-Hcp` demo problem (already-committed, S13 P2 track). Exercises the
