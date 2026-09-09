@@ -25,6 +25,7 @@ what was actually run.
 from __future__ import annotations
 
 import argparse
+import importlib
 
 import pytest
 
@@ -440,11 +441,51 @@ def test_hc_allow_resize_deme_is_a_deprecated_alias_for_the_same_dest():
             "meta_params.diversity.pressure",
             pytest.approx(0.1),
         ),
+        # Un-gated 2026-09-09 with `it_table_problem.run`'s contin branch.
+        # `--it-abs-err` is checked on `pms` here; `--contin-depth` lands on
+        # a MODULE-level static rather than on `pms`, so it gets its own
+        # test below instead of a row here.
+        (["--it-abs-err", "1"], "it_abs_err", True),
     ],
 )
 def test_supported_non_default_option_applies_and_does_not_raise(argv, path, expected):
     pp = _parse(*argv)
     assert _get(pp, path) == expected
+
+
+def test_contin_depth_reaches_representations_module_static():
+    """`--contin-depth` is the one un-gated option whose effect is NOT
+    visible on `problem_params`: classic threads it through the
+    process-wide `representation.cc:63` static via `set_depth(contin_depth)`
+    (problem-params.cc:2372), and the port does the same. Asserting only
+    "does not raise" would leave the wiring untested -- which is this
+    project's most-repeated defect -- so this reads the static back.
+
+    Restores the module global afterwards: it is process-wide state, and a
+    leaked value would silently change every later contin test in the run.
+    An earlier RNG test in this project leaked exactly this way.
+    """
+    # `importlib` rather than an `import` statement: the package
+    # `pymetta.moses.representation` re-exports a CLASS also named
+    # `representation`, which shadows the submodule for BOTH
+    # `from ... import representation` and `import ....representation as x`
+    # (the latter rebinds by attribute lookup after loading). Going through
+    # `import_module` returns the module out of `sys.modules` by name.
+    rep = importlib.import_module("pymetta.moses.representation.representation")
+
+    before = rep._depth
+    try:
+        _parse("--contin-depth", "6")
+        assert rep._depth == 6
+        _parse("--contin-depth", "9")
+        assert rep._depth == 9
+        # And the default still sets it explicitly, rather than relying on
+        # the module's own initial value happening to be 5.
+        rep.set_depth(123)
+        _parse()
+        assert rep._depth == 5
+    finally:
+        rep.set_depth(before)
 
 
 # ---------------------------------------------------------------------------
@@ -470,8 +511,12 @@ def test_supported_non_default_option_applies_and_does_not_raise(argv, path, exp
         ["--ss-n-subsample-demes", "2"],
         ["--ss-n-subsample-fitnesses", "2"],
         ["--discretize-threshold", "1.0"],
-        ["--contin-depth", "6"],
-        ["--it-abs-err", "1"],
+        # NOTE: --contin-depth and --it-abs-err are DELIBERATELY ABSENT --
+        # both were gated on the grounds that their only CLI-reachable
+        # consumers raised unconditionally, which stopped being true when
+        # `it_table_problem.run`'s contin branch was wired (2026-09-09).
+        # See test_supported_non_default_option_applies_and_does_not_raise's
+        # own two rows for both.
         ["--time-bscore", "1"],
         ["--time-dispersion-pressure", "0.1"],
         ["--well-enough", "1"],
@@ -492,14 +537,6 @@ def test_unsupported_option_raises(argv):
         (["--enable-fs", "1"], "table_problems.py's _regression never constructs"),
         (["--boost", "1"], "AdaBoost/experts engine IS ported"),
         (["--ss-n-subsample-demes", "2"], "subsample.cc port"),
-        (
-            ["--contin-depth", "6"],
-            "contin_canonize/build_contin ARE ported",
-        ),
-        (
-            ["--it-abs-err", "1"],
-            "contin_bscore.abs_error/squared_error selection IS ported and tested",
-        ),
         (
             ["--time-dispersion-pressure", "0.1"],
             "get_time_dispersion_penalty's math IS ported and tested",

@@ -99,7 +99,7 @@ from collections.abc import Callable
 
 from pymetta.comboreduct.combo.argument import argument
 from pymetta.comboreduct.combo.vertex import combo_tree
-from pymetta.comboreduct.type_checker.type_signature import TypeSignature, type_node
+from pymetta.comboreduct.type_checker.type_signature import TypeSignature
 from pymetta.moses.deme.deme_params import deme_parameters
 from pymetta.moses.deme.feature_selector import get_argument_abs_idx_from_zero_set
 from pymetta.moses.metapopulation.metapop_params import subsample_deme_filter_parameters
@@ -318,38 +318,19 @@ class deme_expander:
                 "deme_parameters with perceptions=None, actions=None (the "
                 "defaults)."
             )
-        # DIVERGENCE(C++ moses/moses/representation/build_knobs.cc:859):
-        # `linear_contin` is read at EXACTLY ONE place, `if (!_linear_contin)`
-        # inside contin knob building, where it selects `rec_canonize`'s
-        # non-linear expansion. `build_knobs` dispatches on the signature's
-        # OUTPUT TYPE, so a Boolean run never reaches that line and the flag is
-        # irrelevant to it.
+        # `linear_contin` is read at exactly one place in classic --
+        # `if (!_linear_contin)` at build_knobs.cc:859, inside contin knob
+        # building, where it selects `rec_canonize`'s non-linear expansion.
         #
-        # This guard used to fire unconditionally, which was wrong in a way the
-        # CLI made reachable. `deme_parameters`'s own struct default is
-        # `linear_contin(true)` (deme_params.h:49), but the CLI's
-        # `--linear-regression` defaults to FALSE (problem-params.cc:292) and is
-        # assigned unconditionally (`deme_params.linear_contin =
-        # linear_regression`, :2264). So a plain `-H it` run on a BOOLEAN table
-        # -- which classic handles fine, never reading the flag -- would have
-        # raised here. Found by S13 Task 1 while wiring the CLI.
-        #
-        # Narrowed to the case C++ actually uses it: a contin output type. That
-        # is already rejected by `build_knobs._validate_request` two layers
-        # down, so this raise now only ever adds a clearer message at the call
-        # site, never a false rejection.
-        if (
-            self._params.linear_contin is not True
-            and self._type_sig.otype is not type_node.boolean_type
-        ):
-            raise NotImplementedError(
-                "deme_expander.create_representations: linear_contin=False "
-                "selects the non-linear contin knob-building path "
-                "(build_knobs.cc:859's `if (!_linear_contin)` -> rec_canonize); "
-                "this port has no contin knob-building at all (Boolean-only). "
-                "A Boolean signature never reads this flag, so it is only "
-                "rejected for a contin/action output type."
-            )
+        # This used to raise for any non-Boolean output type, on the stated
+        # grounds that "this port has no contin knob-building at all". That
+        # was true when written and became false when S14 Task 2 landed
+        # `contin_canonize`/`build_contin`/`rec_canonize` (`f03ba17`), whose
+        # knob counts match classic 18/18 including at `linear_contin=False`.
+        # The guard then blocked the very path it was describing as missing,
+        # and was the last thing preventing a contin regression run from
+        # reaching the search. Removed 2026-09-09 after driving the CLI
+        # against classic's binary on a real contin table.
 
         ignore_ops_seq: list[set] = []
         xmplr_seq: list[combo_tree] = []

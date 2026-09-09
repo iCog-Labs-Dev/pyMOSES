@@ -78,28 +78,59 @@ never acted on. DO NOT FIX: ported exactly this way (`self._tables[0]`/
 
 ## Unreachable-but-ported branches
 
-`it_table_problem.run`'s enum/contin branches and `_alphabet_size`'s
-contin/enum/ann branches are ported for fidelity (matching
-`demo_problems.py`'s own precedent for `_alphabet_size`'s contin/ann
-branches) even though nothing in this task's six-boolean-signature
-problem set (`it`+boolean, `pre`, `prerec`, `recall`, `bep`, `f_one`,
-`select` -- every one of the last six forces `common_type_setup(pms,
-boolean_type)`) can ever reach them: `_alphabet_size`'s boolean branch
-(`3 + arity`) is the only one live here, so its contin branch's
-`8 + arity - len(ignore_ops)` subtraction never executes in this task's
-scope. Noted anyway per this task's own "check every subtraction for the
-size_t-wrap shape" instruction:
+## `_alphabet_size`'s contin branch, and its two-stage integer wrap
 
-# DIVERGENCE(C++ moses/moses/main/problem.cc:156,168): `as = 8 + arity -
-# ignore_ops.size()` computes in `size_t` (unsigned 64-bit) in C++ --
-# `ignore_ops.size() > 8 + arity` wraps to a huge unsigned value rather
-# than going negative. `len(ignore_ops)` here is a Python `int`
-# (arbitrary precision, never wraps), so the equivalent Python expression
-# would go negative instead of wrapping. Inert for the same reason noted
-# above (unreachable from this task's scope), not exercised by any test
-# here, and not "fixed" -- flagged because a later task that reaches this
-# branch inherits a real behavioural difference from C++ if it is ever
-# hit with `len(ignore_ops) > 8 + arity`.
+Six of this file's seven wired problems (`pre`, `prerec`, `recall`,
+`bep`, `f_one`, `select`) force `common_type_setup(pms, boolean_type)`,
+so `_alphabet_size`'s boolean branch (`3 + arity`) is the only one they
+reach. `it_table_problem` is the exception: it calls `common_type_setup`
+with no forced type, and since 2026-09-09 its contin arm no longer
+raises, so **`8 + arity - len(ignore_ops)` is now live** on any
+`-H it` run against a contin-output table.
+
+That subtraction wraps twice in C++, and the port reproduces both stages
+literally:
+
+1. `problem.cc:156` computes `as = 8 + arity - ignore_ops.size()` where
+   `as` is `unsigned` (32-bit, `problem.cc:139`/`problem.h:73`) and
+   `ignore_ops.size()` is `size_t` (64-bit unsigned). `8 + arity`
+   promotes to `size_t`, so `len(ignore_ops) > 8 + arity` yields a
+   near-2**64 value, which is then TRUNCATED to 32 bits on assignment.
+2. `table-problems.cc:335` (the `REGRESSION` macro) and `:372`
+   (`pre_table_problem`'s hand-inlined copy) then both do
+   `int as = alphabet_size(...)`, converting that `unsigned` to `int`.
+   GCC's two's-complement conversion turns 0xFFFFFFFF into -1.
+
+MEASURED, against the real `alphabet_size` linked out of
+`libmoses_exec.so` (probe: `tools/cpp_probe/alphabet_size_probe.cc`,
+2026-09-09), for arity 1..3 and 0..12 ignored operators. At arity 1 the
+`unsigned`/`int` pair goes `... 1 -> 1`, `0 -> 0`, then
+`4294967295 -> -1`, `4294967294 -> -2`, `4294967293 -> -3`. So C++ does
+reach negative `as` values, and `set_noise_or_ratio` hands them straight
+to `set_complexity_coef`.
+
+**The port's masking changes no reachable result.** Over that whole
+measured range the two-stage wrap lands on exactly the value plain
+Python arithmetic would produce, and it must: the wrap only becomes
+observable once `8 + arity - len(ignore_ops)` passes -2**31, which needs
+about two billion distinct ignored operators. The masking below is
+therefore fidelity, not a bug fix -- it makes the agreement follow from
+C++'s declared types instead of from a coincidence a reader would have
+to re-derive. It is written down here rather than left implicit because
+this project's rule is that every subtraction gets checked for the
+wrap shape, and "checked, reproduced, and inert" is a different claim
+from "checked and ignored".
+
+This is reachable from the CLI: `--ignore-operator` inserts any operator
+`builtin_str_to_vertex` recognizes, not only the seven contin ones
+(`problem-params.cc:2136-2142`), and `--linear-regression` silently adds
+four more (`:2146-2151`).
+
+FOLLOW-UP, not this file's to fix: `demo-problems.cc:112`
+(`ann_problem`) declares `unsigned as`, not `int as`, so it does NOT
+apply stage 2. `demo_problems.py` carries its own copy of
+`_alphabet_size` and needs the same treatment with that one difference
+preserved.
 
 ## `f_one_table_problem`: wired, and faithfully unusable
 
@@ -151,7 +182,7 @@ from pymetta.moses.main.problem import (
 from pymetta.moses.main.problem_params import problem_params
 from pymetta.moses.moses.moses_main import metapop_moses_results
 from pymetta.moses.scoring.behave_cscore import behave_cscore
-from pymetta.moses.scoring.bscores import ctruth_table_bscore
+from pymetta.moses.scoring.bscores import contin_bscore, ctruth_table_bscore
 from pymetta.moses.scoring.discriminating_bscore import (
     bep_bscore,
     f_one_bscore,
@@ -207,6 +238,24 @@ def _granularity_from_str(gran: str) -> TemporalGranularity:
         raise ValueError(f"Granularity {gran} not implemented") from None
 
 
+# C++ `unsigned` is 32-bit and `int` is 32-bit two's-complement on every
+# platform this port targets; `_alphabet_size` returns the former and its
+# callers immediately narrow it to the latter, mirroring `problem.cc:139`'s
+# `unsigned as` and `table-problems.cc:335,372`'s `int as = alphabet_size(...)`.
+_UINT32_MAX = 0xFFFFFFFF
+
+
+def _to_int32(value: int) -> int:
+    """C++ `unsigned` -> `int` conversion, as GCC performs it.
+
+    Formally implementation-defined before C++20; GCC (and every compiler
+    this port is measured against) reinterprets the two's-complement bit
+    pattern, which is what `table-problems.cc:335,372`'s
+    `int as = alphabet_size(...)` relies on.
+    """
+    return value - 0x100000000 if value > 0x7FFFFFFF else value
+
+
 def _alphabet_size(sig: TypeSignature, ignore_ops) -> int:
     """C++: moses/moses/main/problem.cc:138 alphabet_size
 
@@ -227,10 +276,15 @@ def _alphabet_size(sig: TypeSignature, ignore_ops) -> int:
         # 3 operators: and, or, not
         return 3 + arity
     if output_type == type_node.contin_type:
-        # See this module's own docstring's DIVERGENCE marker: unreachable
-        # from every problem this file wires (all force boolean output),
-        # ported for fidelity only.
-        return 8 + arity - len(ignore_ops)
+        # C++ assigns this to `unsigned as` (problem.cc:139) after
+        # computing it in `size_t`, so an `ignore_ops` larger than
+        # `8 + arity` wraps near 2**64 and is then truncated to 32 bits.
+        # See this module's docstring for the full two-stage wrap and why
+        # it is reproduced rather than left to Python's arbitrary-precision
+        # ints. Reachable since `it_table_problem.run`'s contin arm was
+        # wired; the comment here used to say "unreachable from every
+        # problem this file wires".
+        return (8 + arity - len(ignore_ops)) & _UINT32_MAX
     if output_type == type_node.ann_type:
         return 2 + arity * arity
     if output_type == type_node.enum_type:
@@ -468,9 +522,7 @@ class table_problem_base(problem_base):
         if self.output_type == type_node.unknown_type:
             self.output_type = out_type
 
-        self.cand_type_signature = gen_signature(
-            self.table_type_signature.itypes, self.output_type
-        )
+        self.cand_type_signature = gen_signature(self.table_type_signature.itypes, self.output_type)
 
     def _regression(self, pms: problem_params, bscore) -> None:
         """C++: moses/moses/main/table-problems.cc:328 REGRESSION (macro)
@@ -497,7 +549,11 @@ class table_problem_base(problem_base):
                 "table-problems.cc:330-334"
             )
 
-        as_ = _alphabet_size(self.cand_type_signature, pms.ignore_ops)
+        # C++: table-problems.cc:335,372 `int as = alphabet_size(...)` --
+        # the `unsigned` return narrowed to a signed 32-bit `int`. Only the
+        # contin/enum branches can produce a value this changes; see this
+        # module's docstring for the two-stage wrap.
+        as_ = _to_int32(_alphabet_size(self.cand_type_signature, pms.ignore_ops))
         _set_noise_or_ratio(bscore, as_, pms.noise, pms.complexity_ratio)
         if pms.meta_params.do_boosting:
             bscore.use_weighted_scores()
@@ -512,12 +568,19 @@ class table_problem_base(problem_base):
         reduct_rep = pms.bool_reduct_rep
         # Use the contin reductors for everything else.
         if self.output_type != type_node.boolean_type:
+            # `problem_params.__init__` builds a real
+            # `contin_reduction(reduct_candidate_effort, ignore_ops)` since
+            # `d439711`, so this is a defensive check for a hand-built
+            # `problem_params` that bypassed the constructor, not a gate on
+            # an unported subsystem. It read "problem_params.contin_reduct
+            # is still None ... S14 this port has not built" until
+            # 2026-09-09; that claim was false by then.
             if pms.contin_reduct is None:
-                raise NotImplementedError(
+                raise ValueError(
                     "table_problem_base._regression: non-boolean output "
-                    "needs reduct::contin_reduction, S14 "
-                    "(problem_params.contin_reduct is still None) -- "
-                    "table-problems.cc:346-350"
+                    "needs pms.contin_reduct, which is None -- a "
+                    "problem_params built without running its constructor's "
+                    "reductor setup (table-problems.cc:346-350)"
                 )
             reduct_cand = pms.contin_reduct
             reduct_rep = pms.contin_reduct
@@ -568,13 +631,31 @@ class it_table_problem(table_problem_base):
                 "this project (P2) -- table-problems.cc:483-509"
             )
         elif self.output_type == type_node.contin_type:
-            raise NotImplementedError(
-                "it_table_problem.run: contin-output tables need "
-                "contin_bscore/discretize_contin_bscore and "
-                "reduct::contin_reduction, all S14 territory this port has "
-                "not built (problem_params.contin_reduct is still None) -- "
-                "table-problems.cc:512-525"
-            )
+            # C++: moses/moses/main/table-problems.cc:511-525 -- the contin
+            # branch picks `contin_bscore` when `discretize_thresholds` is
+            # empty, with `abs_error` if `--it-abs-err` is set and
+            # `squared_error` otherwise (cc:514-518).
+            #
+            # This raised unconditionally until 2026-09-09, on the stated
+            # grounds that contin_bscore and reduct::contin_reduction were
+            # "S14 territory this port has not built". Both had in fact
+            # landed -- contin_bscore in `07027b0`, contin_reduction in
+            # `d439711` -- so the message was false and the branch was
+            # blocking work that already existed. Found by driving the CLI
+            # against classic on a real contin table.
+            if pms.discretize_thresholds:
+                # DIVERGENCE(C++ moses/moses/main/table-problems.cc:520-524):
+                # the `--discretize-threshold` arm needs
+                # `discretize_contin_bscore`, which is genuinely NOT ported
+                # (bscores.py ports `ctruth_table_bscore` and `contin_bscore`
+                # only). Classic runs this arm; this port raises.
+                raise NotImplementedError(
+                    "it_table_problem.run: --discretize-threshold needs "
+                    "discretize_contin_bscore (bscores.h), which is not "
+                    "ported -- table-problems.cc:520-524"
+                )
+            eft = contin_bscore.abs_error if pms.it_abs_err else contin_bscore.squared_error
+            self._regression(pms, contin_bscore(self.table, eft=eft))
         else:
             # C++: table-problems.cc:528-535 logs an error and exit(1)s --
             # ported as a hard-failure ValueError, this port's usual
@@ -582,8 +663,7 @@ class it_table_problem(table_problem_base):
             # input (matching demo_problems.py's mux_problem.get_arity
             # convention).
             raise ValueError(
-                f"it_table_problem.run: output type {self.output_type!r} "
-                "currently not supported."
+                f"it_table_problem.run: output type {self.output_type!r} currently not supported."
             )
 
 
@@ -620,7 +700,11 @@ class pre_table_problem(table_problem_base):
                 "table-problems.cc:367-370"
             )
 
-        as_ = _alphabet_size(self.cand_type_signature, pms.ignore_ops)
+        # C++: table-problems.cc:335,372 `int as = alphabet_size(...)` --
+        # the `unsigned` return narrowed to a signed 32-bit `int`. Only the
+        # contin/enum branches can produce a value this changes; see this
+        # module's docstring for the two-stage wrap.
+        as_ = _to_int32(_alphabet_size(self.cand_type_signature, pms.ignore_ops))
         bscore = precision_bscore(
             self.ctable,
             pms.hardness,

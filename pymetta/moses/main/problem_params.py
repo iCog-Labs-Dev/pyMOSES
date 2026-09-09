@@ -121,12 +121,14 @@ source shows it is the subsystem's actual master switch
 from the header's own "if 0 or 1 remains disactivated"/"Ignored is 0 r 1"
 comments, `enable_feature_selection`, `boosting`, `opt_algo != "hc"`,
 `time_bscore`, `time_dispersion_pressure`, `use_well_enough`,
-`discretize_thresholds` non-empty, `contin_depth != 5`, `it_abs_err`, and
-non-local `--jobs`/`-j host:N`). `diversity_pressure > 0` and
-`discard_dominated` are NO LONGER on this list -- the P2 metapopulation
-task ported `diversity.cc`/`domination.cc` for real (`0c1beda`/`f1c439f`)
-and this file's own gate section below un-gates both, each proven end to
-end against classic's own binary (see that section's own comments).
+`discretize_thresholds` non-empty, and non-local `--jobs`/`-j host:N`).
+Four options have come OFF this list as their subsystems landed:
+`diversity_pressure > 0` and `discard_dominated` when the P2
+metapopulation task ported `diversity.cc`/`domination.cc` for real
+(`0c1beda`/`f1c439f`), and `contin_depth != 5` and `it_abs_err` when
+`it_table_problem.run`'s contin branch was wired (2026-09-09) -- each
+un-gating is proven end to end against classic's own binary; see the gate
+section's own comments.
 Sub-options that are PROVABLY inert while their master switch stays at
 its default are never independently gated: `--diversity-autoscale`/
 `-exponent`/`-normalize`/`-dst`/`-p-norm`/`-dst2dp` (dead unless `pressure
@@ -192,6 +194,7 @@ from pymetta.moses.moses.moses_params import moses_parameters
 from pymetta.moses.moses.optimization.hill_climbing import hc_parameters
 from pymetta.moses.moses.optimization.optimization import optim_parameters
 from pymetta.moses.moses.types import _to_score_t, very_best_score
+from pymetta.moses.representation.representation import set_depth
 from pymetta.util.rng import randGen
 
 __all__ = ["parse_args", "problem_params"]
@@ -797,6 +800,17 @@ class problem_params:
         hc_params.prefix_stat_deme = "Demes"
         self.hc_params = hc_params
 
+        # -- Set depth (C++: :2371-2372 `set_depth(contin_depth)`) --
+        # `representation.py`'s module-level `_depth` static, exactly as
+        # classic sets its own process-wide `representation.cc:63` static
+        # here. That module's own comment said "wiring that flag is
+        # moses/main's job, out of this module's owned-file scope; these
+        # setters exist so that later slice has something to call" -- this
+        # is that call. Until 2026-09-09 it was missing and `--contin-depth`
+        # was gated instead, on the (then-true, now-false) grounds that no
+        # contin path could read it.
+        set_depth(self.contin_depth)
+
         # -- moses_parameters (C++: :2374-2382) --
         self.max_evals = args.max_evals
         self.max_gens = args.max_gens
@@ -831,24 +845,14 @@ class problem_params:
         # today; `self.contin_reduct = None` was a stale claim, not a
         # measurement.
         #
-        # DIVERGENCE(C++ moses/moses/main/table-problems.cc:471-535,
-        # moses/moses/main/demo-problems.cc:233-280): wiring this real
-        # `contin_reduct` does NOT make contin regression reachable end to
-        # end through THIS port's CLI. `it_table_problem.run`'s own
-        # `contin_type` branch (table_problems.py, outside this task's
-        # owned scope) and `polynomial_problem.run` (`-H sr`,
-        # demo_problems.py, likewise outside this task's owned scope) each
-        # raise `NotImplementedError` UNCONDITIONALLY before ever reading
-        # `pms.contin_reduct` -- confirmed by measurement: `moses_exec(["moses",
-        # "-i", "tests/fixtures/table_data/contin_regression_sample.csv",
-        # "-u", "y", "-m1000"])` still raises `it_table_problem.run:
-        # contin-output tables need contin_bscore/discretize_contin_bscore
-        # and reduct::contin_reduction ...` with this field genuinely
-        # non-`None`. Both of those files' own docstrings/messages citing
-        # "problem_params.contin_reduct is still None" are consequently now
-        # ALSO false claims about ported code -- reported as a follow-up
-        # for whoever owns `table_problems.py`/`demo_problems.py` next,
-        # not fixed here (out of this task's owned-file list).
+        # A DIVERGENCE marker stood here saying that wiring a real
+        # `contin_reduct` "does NOT make contin regression reachable end to
+        # end through THIS port's CLI", because `it_table_problem.run`'s
+        # contin branch and `polynomial_problem.run` (`-H sr`) both raised
+        # unconditionally before reading it. That was measured and true on
+        # 2026-09-08. `it_table_problem.run`'s contin branch was wired on
+        # 2026-09-09, so the claim no longer holds for `-H it`; `-H sr` is
+        # tracked separately in `demo_problems.py`.
         self.contin_reduct = contin_reduction(self.reduct_candidate_effort, ignore_ops)
 
         # ---------------- Phase 2: gate unported subsystems, fixed order ----------------
@@ -1012,47 +1016,16 @@ class problem_params:
                 "exist anywhere in this port (contin/mixed, S14); leave "
                 "--discretize-threshold unset."
             )
-        # DIVERGENCE(C++ moses/moses/representation/build_knobs.cc:710,758
-        # contin_canonize/build_contin): contin knob building itself IS
-        # ported now (`build_knobs.py`'s own `contin_canonize`/
-        # `build_contin`) -- but `contin_depth`'s VALUE is never threaded
-        # anywhere: `problem_params.py` stores `self.contin_depth` and
-        # never assigns it onto `deme_parameters` or any knob-building
-        # call, so even a real caller of `build_contin` today gets
-        # whatever depth that function hardcodes, never this flag's value.
-        # Also moot in practice: `contin_depth`'s only two CLI-reachable
-        # consumers in classic (`it_table_problem`'s contin-type branch,
-        # `polynomial_problem`/`-H sr`) both still raise unconditionally
-        # before any knob building happens (see the `contin_reduct`
-        # DIVERGENCE above) -- so wiring the value would not make this
-        # flag observable through the CLI regardless.
-        if self.contin_depth != 5:
-            raise NotImplementedError(
-                "--contin-depth: contin_canonize/build_contin ARE ported "
-                "(build_knobs.py), but contin_depth's value is never wired "
-                "from problem_params into deme_parameters or build_knobs "
-                "anywhere in this port, and its only CLI-reachable consumers "
-                "(it_table_problem's contin branch, -H sr) are separately "
-                "gated regardless; leave --contin-depth at its default (5)."
-            )
-        # DIVERGENCE(C++ moses/moses/scoring/bscores.h:183-186
-        # contin_bscore::err_function_type): the abs_error/squared_error
-        # selector itself IS fully ported and tested (`bscores.py`,
-        # `07027b0`) -- what blocks this flag is that its only two
-        # CLI-reachable consumers, `it_table_problem`'s contin-type branch
-        # (table_problems.py) and `polynomial_problem`/`-H sr`
-        # (demo_problems.py), both raise `NotImplementedError`
-        # UNCONDITIONALLY before ever reading `pms.it_abs_err` (same two
-        # files named in the `contin_reduct` DIVERGENCE above, outside
-        # this task's owned scope).
-        if self.it_abs_err:
-            raise NotImplementedError(
-                "--it-abs-err: contin_bscore.abs_error/squared_error selection "
-                "IS ported and tested (bscores.py), but its only two "
-                "CLI-reachable consumers (it_table_problem's contin branch, "
-                "-H sr) both raise unconditionally before reading this flag; "
-                "leave --it-abs-err unset."
-            )
+        # `--contin-depth` and `--it-abs-err` were BOTH gated here until
+        # 2026-09-09, each on the same stated grounds: that their only
+        # CLI-reachable consumers (`it_table_problem`'s contin branch and
+        # `polynomial_problem`/`-H sr`) "raise unconditionally before
+        # reading this flag". That was true when the gates were written
+        # and false once the contin branch was wired, so both gates are
+        # gone: `--contin-depth` now reaches `set_depth` above (the call
+        # whose absence was the gate's other stated reason), and
+        # `--it-abs-err` now reaches `contin_bscore`'s err-function
+        # selector through `it_table_problem.run`.
         if self.time_bscore:
             raise NotImplementedError(
                 "--time-bscore: the time-spread bscore variant is not ported."

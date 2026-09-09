@@ -26,11 +26,13 @@ so they stay fast.
 
 from __future__ import annotations
 
+from pathlib import Path
+
 import pytest
 
 from pymetta.comboreduct.combo.iostream_combo import combo_tree_to_str
 from pymetta.comboreduct.combo.vertex import builtin, combo_tree
-from pymetta.comboreduct.type_checker.type_signature import type_node
+from pymetta.comboreduct.type_checker.type_signature import gen_signature, type_node
 from pymetta.moses.main import table_problems as tp
 from pymetta.moses.main.problem import _unported_table_problem, problem_manager
 from pymetta.moses.main.table_problems import (
@@ -74,6 +76,34 @@ def _write_dataset(tmp_path) -> str:
     p = tmp_path / "dataset.csv"
     p.write_text(_DATASET_CSV)
     return str(p)
+
+
+# The contin-output table used by the `it` contin-branch tests below: the
+# same 20-row vendored slice of classic's `trainingRegression.dat` that
+# `capture_contin_bscore.py` already established as this project's contin
+# fixture, reused rather than re-vendored.
+_CONTIN_SAMPLE = (
+    Path(__file__).resolve().parents[2] / "fixtures" / "table_data" / "contin_regression_sample.csv"
+)
+
+# The operators `--ignore-operator` can name, in the SAME ORDER as
+# `tools/cpp_probe/alphabet_size_probe.cc`'s own `all[]` array -- the
+# `_ALPHABET_SIZE_CONTIN_ROWS` table below is indexed by a prefix length
+# of this list, so the order is load-bearing, not cosmetic.
+_IGNORABLE_OPS = [
+    builtin.plus,
+    builtin.times,
+    builtin.div,
+    builtin.exp,
+    builtin.log,
+    builtin.sin,
+    builtin.impulse,
+    builtin.logical_and,
+    builtin.logical_or,
+    builtin.logical_not,
+    builtin.greater_than_zero,
+    builtin.cond,
+]
 
 
 def _fresh_pms_and_tpp(argv):
@@ -335,18 +365,145 @@ def test_it_table_problem_enum_output_raises_not_implemented(tmp_path, monkeypat
         prob.run(pms)
 
 
-def test_it_table_problem_contin_output_raises_not_implemented(tmp_path, monkeypatch):
-    csv_path = _write_dataset(tmp_path)
-    pmr, tpp, pms = _fresh_pms_and_tpp(["-i", csv_path])
+# ---------------------------------------------------------------------------
+# it_table_problem's CONTIN branch (table-problems.cc:511-525).
+#
+# This arm raised `NotImplementedError("... S14 territory this port has not
+# built")` until 2026-09-09, and a test here asserted that raise. Both were
+# wrong by then: `contin_bscore` landed in `07027b0` and `contin_reduction`
+# in `d439711`, so the message was false and the gate was blocking a path
+# that already existed. The tests below replace that one, and pin what the
+# branch actually does rather than that it refuses.
+# ---------------------------------------------------------------------------
+
+_CONTIN_CSV = _CONTIN_SAMPLE.read_text()
+
+
+def _write_contin_dataset(tmp_path) -> str:
+    p = tmp_path / "contin.csv"
+    p.write_text(_CONTIN_CSV)
+    return str(p)
+
+
+def test_it_table_problem_contin_output_builds_a_contin_bscore(tmp_path, monkeypatch):
+    """The contin arm reaches `metapop_moses_results` with a real
+    `contin_bscore`, and -- per the `REGRESSION` macro's
+    `if (id::boolean_type != output_type)` (table-problems.cc:347-350) --
+    with `pms.contin_reduct` as BOTH reductors, not `bool_reduct`.
+    """
+    csv_path = _write_contin_dataset(tmp_path)
+    pmr, tpp, pms = _fresh_pms_and_tpp(["-i", csv_path, "-u", "y"])
+    calls = _capture_metapop_moses_results(monkeypatch)
     prob = pmr.find_problem("it")
 
-    def fake_common_type_setup(self, pms, out_type=type_node.unknown_type):
-        del pms, out_type
-        self.output_type = type_node.contin_type
+    prob.run(pms)
 
-    monkeypatch.setattr(table_problem_base, "common_type_setup", fake_common_type_setup)
-    with pytest.raises(NotImplementedError, match="S14"):
-        prob.run(pms)
+    assert len(calls) == 1
+    args, _ = calls[0]
+    reduct_cand, reduct_rep, mbcscore = args[2], args[3], args[4]
+    assert reduct_cand is pms.contin_reduct
+    assert reduct_rep is pms.contin_reduct
+    assert reduct_cand is not pms.bool_reduct
+    assert isinstance(mbcscore._bscorer, tp.contin_bscore)
+
+
+def test_it_table_problem_contin_defaults_to_squared_error(tmp_path, monkeypatch):
+    """`eft = pms.it_abs_err ? abs_error : squared_error`
+    (table-problems.cc:516-518), and `--it-abs-err` defaults false.
+
+    Checked behaviourally rather than by comparing the stored callable,
+    because `contin_bscore.init` binds a lambda: squared error of a
+    3.0 residual is 9.0, absolute error is 3.0.
+    """
+    csv_path = _write_contin_dataset(tmp_path)
+    pmr, tpp, pms = _fresh_pms_and_tpp(["-i", csv_path, "-u", "y"])
+    assert pms.it_abs_err is False
+    calls = _capture_metapop_moses_results(monkeypatch)
+    pmr.find_problem("it").run(pms)
+
+    bscore = calls[0][0][4]._bscorer
+    assert bscore._err_func(3.0, 0.0) == pytest.approx(9.0)
+
+
+def test_it_table_problem_contin_it_abs_err_selects_abs_error(tmp_path, monkeypatch):
+    csv_path = _write_contin_dataset(tmp_path)
+    pmr, tpp, pms = _fresh_pms_and_tpp(["-i", csv_path, "-u", "y", "--it-abs-err=1"])
+    assert pms.it_abs_err is True
+    calls = _capture_metapop_moses_results(monkeypatch)
+    pmr.find_problem("it").run(pms)
+
+    bscore = calls[0][0][4]._bscorer
+    assert bscore._err_func(3.0, 0.0) == pytest.approx(3.0)
+
+
+def test_discretize_threshold_is_rejected_at_parse_time(tmp_path):
+    """`discretize_contin_bscore` (table-problems.cc:520-524) is the one
+    contin arm that is genuinely NOT ported, and `problem_params`' own
+    Phase-2 gate rejects `--discretize-threshold` during option parsing --
+    before any problem runs. That is this port's established discipline,
+    and it means a CLI user never reaches the run-time gate below.
+    """
+    csv_path = _write_contin_dataset(tmp_path)
+    with pytest.raises(NotImplementedError, match="discretize_contin_bscore"):
+        _fresh_pms_and_tpp(["-i", csv_path, "-u", "y", "--discretize-threshold=0.5"])
+
+
+def test_it_table_problem_discretize_threshold_run_time_gate(tmp_path):
+    """The run-time half of the same gate, reached by setting the field
+    directly after a clean parse -- the only way in, since the parse-time
+    gate above fires first for any real command line.
+
+    Both gates are kept: the parse-time one is what a user meets, and this
+    one stops a direct `run()` caller (or a future parse-time change) from
+    silently falling through to `contin_bscore` and producing scores for
+    the wrong scorer.
+    """
+    csv_path = _write_contin_dataset(tmp_path)
+    pmr, tpp, pms = _fresh_pms_and_tpp(["-i", csv_path, "-u", "y"])
+    pms.discretize_thresholds = [0.5]
+    with pytest.raises(NotImplementedError, match="discretize_contin_bscore"):
+        pmr.find_problem("it").run(pms)
+
+
+# ---------------------------------------------------------------------------
+# `_alphabet_size`'s contin branch and its two-stage integer wrap.
+#
+# Rows measured against the REAL `opencog::moses::alphabet_size` linked out
+# of `libmoses_exec.so` -- `tools/cpp_probe/alphabet_size_probe.cc`, run
+# 2026-09-09 under `( ulimit -v 2097152; timeout 60 ... )`. Each row is
+# `(arity, n_ignored, unsigned_as, int_as)`: the value C++ stores in
+# `unsigned as` (problem.cc:139) and the value it then stores in
+# `int as = alphabet_size(...)` (table-problems.cc:335,372).
+#
+# Note what these rows do and do not show. They DO show C++ reaching
+# negative `as`. They do NOT show a divergence from naive Python
+# arithmetic -- the wrap only becomes observable past -2**31, which needs
+# ~2e9 distinct ignored operators. The port masks anyway so the agreement
+# follows from C++'s declared types; see the module docstring.
+# ---------------------------------------------------------------------------
+
+_ALPHABET_SIZE_CONTIN_ROWS = [
+    (1, 0, 9, 9),
+    (1, 8, 1, 1),
+    (1, 9, 0, 0),
+    (1, 10, 4294967295, -1),
+    (1, 11, 4294967294, -2),
+    (1, 12, 4294967293, -3),
+    (2, 10, 0, 0),
+    (2, 11, 4294967295, -1),
+    (2, 12, 4294967294, -2),
+    (3, 11, 0, 0),
+    (3, 12, 4294967295, -1),
+]
+
+
+@pytest.mark.parametrize(("arity", "n_ignored", "as_u", "as_i"), _ALPHABET_SIZE_CONTIN_ROWS)
+def test_alphabet_size_contin_matches_classic(arity, n_ignored, as_u, as_i):
+    sig = gen_signature(type_node.contin_type, type_node.contin_type, arity)
+    ignore_ops = set(_IGNORABLE_OPS[:n_ignored])
+    assert len(ignore_ops) == n_ignored
+    assert tp._alphabet_size(sig, ignore_ops) == as_u
+    assert tp._to_int32(tp._alphabet_size(sig, ignore_ops)) == as_i
 
 
 def test_it_table_problem_unsupported_output_raises_value_error(tmp_path, monkeypatch):
@@ -639,9 +796,7 @@ def test_hardness_nonzero_fallback_not_triggered(tmp_path, monkeypatch, problem_
     csv_path = _write_dataset(tmp_path)
     # -Q1 (hardness=1.0, not 0) plus classic-valid -q/-w so the scorer
     # itself doesn't also raise before the fallback question is answered.
-    pmr, tpp, pms = _fresh_pms_and_tpp(
-        ["-i", csv_path, "-Q", "1", "-q", "0.5", "-w", "1.0"]
-    )
+    pmr, tpp, pms = _fresh_pms_and_tpp(["-i", csv_path, "-Q", "1", "-q", "0.5", "-w", "1.0"])
     calls = _capture_metapop_moses_results(monkeypatch)
     prob = pmr.find_problem(problem_name)
     prob.run(pms)
@@ -871,7 +1026,11 @@ def test_regression_contin_reduct_gate(tmp_path):
     pms.exemplars = [combo_tree(builtin.plus)]
     pms.contin_reduct = None  # simulate the pre-wiring state; see comment above
     prob = pmr.find_problem("prerec")
-    with pytest.raises(NotImplementedError, match="contin_reduct"):
+    # ValueError, not NotImplementedError: since `d439711` a
+    # `parse_options`-built `problem_params` always carries a real
+    # `contin_reduction`, so a `None` here means a caller bypassed the
+    # constructor -- a bad argument, not an unported subsystem.
+    with pytest.raises(ValueError, match="contin_reduct"):
         prob.run(pms)
 
 
