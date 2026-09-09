@@ -37,6 +37,7 @@ from pymetta.moses.metapopulation.metapop_params import (
 from pymetta.moses.moses.moses_params import moses_parameters
 from pymetta.moses.moses.optimization.hill_climbing import hc_parameters
 from pymetta.moses.moses.optimization.optimization import optim_parameters
+from pymetta.moses.moses.optimization.particle_swarm import ps_parameters
 from pymetta.util.rng import randGen
 
 # Classic's own default, `problem-params.cc:299`
@@ -67,12 +68,16 @@ class _FakeParams:
         self.meta_params = metapop_parameters()
         self.opt_params = optim_parameters()
         self.hc_params = hc_parameters()
+        self.ps_params = ps_parameters()
         self.deme_params = deme_parameters()
         self.deme_params.perm_ratio = perm_ratio
         self.filter_params = subsample_deme_filter_parameters()
         self.moses_params = moses_parameters(max_evals=max_evals)
         self.noise = -1.0
         self.complexity_ratio = 3.5
+        # Read by `bool_problem_base.run` for demo-problems.cc:99-100's
+        # "Feature selection is not supported for the demo problems" warning.
+        self.enable_feature_selection = False
         self.printer = lambda mp, dex, stats: None
 
 

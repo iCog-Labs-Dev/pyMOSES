@@ -1,7 +1,7 @@
 """C++: moses/moses/main/table-problems.{h,cc}
 
 Ports the shared table-loading machinery (`table_problem_params`,
-`table_problem_base::common_setup`/`common_type_setup`) plus **eight** of
+`table_problem_base::common_setup`/`common_type_setup`) plus **nine** of
 the eleven problems `register_table_problems` (table-problems.cc:562-580)
 registers: `it` (this file's original reachable target), and `pre`,
 `prerec`, `recall`, `bep`, `f_one`, `select` -- six more that turned out
@@ -9,21 +9,23 @@ to be straightforward to wire given the P2 scorer track's own
 `precision_bscore`/`discriminating_bscore`/`select_bscore`/
 `time_dispersion` (commits `e998da6`, `9e918d7`, `4a2a67f`, `3fc6e61`)
 landed already fully ported -- plus `cluster`, wired later once
-`cluster_bscore` was ported (bscores.py).
+`cluster_bscore` was ported (bscores.py), and `pre-conj`.
 
-The remaining three -- `ip`, `ann-it`, `pre-conj` -- stay the raising
-stubs `pymetta/moses/main/problem.py`'s own `_unported_table_problem`
-provides. Each stub now states its OWN reason (see that function): `ip`
-needs `interesting_predicate_bscore`, which is not ported; `ann-it` needs
-the ANN vocabulary, excluded project-wide; `pre-conj` needs only wiring --
-its scorer `precision_conj_bscore` IS ported (precision_bscore.py) -- and
-was simply never in any task's scope.
+The remaining two -- `ip` and `ann-it` -- stay the raising stubs
+`pymetta/moses/main/problem.py`'s own `_unported_table_problem` provides.
+Each stub states its OWN reason (see that function): `ip` needs
+`interesting_predicate_bscore`, which is not ported; `ann-it` needs the
+ANN vocabulary, excluded project-wide.
 
 This paragraph said "**seven** ... The remaining four -- `ip`, `ann-it`,
 `pre-conj`, `cluster` ... `pre-conj`/`cluster` ... need
 `precision_conj_bscore`/`cluster_bscore`" until `cluster_table_problem`
-landed below. Both halves of that were also wrong about `pre-conj` even
-then: `precision_conj_bscore` had already been ported.
+landed below, then "**eight** ... The remaining three -- `ip`, `ann-it`,
+`pre-conj`" until `pre_conj_table_problem` landed below it. Every version
+of it was wrong about `pre-conj` for the same reason: it said the scorer
+was missing when `precision_conj_bscore` had already been ported, and
+then that "was simply never in any task's scope" was a reason to keep
+a stub whose own message admitted only wiring was left.
 
 ## Composing on top of `problem.py`
 
@@ -45,8 +47,8 @@ file's real registrations had already shadowed -- a shadowed stub is
 invisible, so a wrong reason string inside it can never be seen to be
 wrong, which is exactly how the shared "precision/discriminating/select
 bscore" message survived long after it stopped being true of any of them.
-The three stubs `problem.py` still carries (`ip`, `ann-it`, `pre-conj`)
-are the three this file genuinely does not wire.
+The two stubs `problem.py` still carries (`ip`, `ann-it`) are the two
+this file genuinely does not wire.
 
 ## `table_problem_params`: the CLI surface `problem_params.py` deliberately
 ## does not carry
@@ -191,7 +193,12 @@ import argparse
 from pymetta.comboreduct.combo.vertex import builtin, combo_tree
 from pymetta.comboreduct.table.table import CTable, Table, type_node
 from pymetta.comboreduct.table.table_io import loadTable
-from pymetta.comboreduct.type_checker.type_signature import TypeSignature, gen_signature
+from pymetta.comboreduct.type_checker.type_signature import (
+    TypeSignature,
+    gen_signature,
+    ostream_type_node,
+    ostream_type_signature,
+)
 from pymetta.comboreduct.type_checker.type_tree import get_output_type_tree
 from pymetta.moses.main.problem import (
     _register_unported_table_problems,
@@ -208,9 +215,10 @@ from pymetta.moses.scoring.discriminating_bscore import (
     prerec_bscore,
     recall_bscore,
 )
-from pymetta.moses.scoring.precision_bscore import precision_bscore
+from pymetta.moses.scoring.precision_bscore import precision_bscore, precision_conj_bscore
 from pymetta.moses.scoring.select_bscore import select_bscore
 from pymetta.moses.scoring.time_dispersion import TemporalGranularity
+from pymetta.util.logger import logger
 
 __all__ = [
     "bep_table_problem",
@@ -276,6 +284,20 @@ def _to_int32(value: int) -> int:
     return value - 0x100000000 if value > 0x7FFFFFFF else value
 
 
+def _log_alphabet_size(alphabet_size: int, output_type: type_node) -> int:
+    """C++: moses/moses/main/problem.cc:138 alphabet_size
+
+    Not a C++ symbol: `alphabet_size` has one `as` variable, one switch and
+    one `logger().info() << "Alphabet size = " << as << " output = " <<
+    output_type;` at problem.cc:198-200 before its single `return`. This
+    port's `_alphabet_size` returns early from each arm instead, so the
+    shared tail lives here. Returns its first argument so a call site reads
+    `return _log_alphabet_size(<expr>, output_type)`.
+    """
+    logger().info(f"Alphabet size = {alphabet_size} output = {ostream_type_node(output_type)}")
+    return alphabet_size
+
+
 def _alphabet_size(sig: TypeSignature, ignore_ops) -> int:
     """C++: moses/moses/main/problem.cc:138 alphabet_size
 
@@ -292,9 +314,14 @@ def _alphabet_size(sig: TypeSignature, ignore_ops) -> int:
     """
     arity = len(sig.itypes)
     output_type = sig.otype
+    # C++ assigns each branch to a single `as` and falls through to ONE
+    # `logger().info()` at problem.cc:198-200, just before `return as`
+    # (the unsupported-type arm never reaches it -- `log_output_error_exit`
+    # exits). `_log_alphabet_size` below is that single exit point, applied
+    # to every arm that returns.
     if output_type == type_node.boolean_type:
         # 3 operators: and, or, not
-        return 3 + arity
+        return _log_alphabet_size(3 + arity, output_type)
     if output_type == type_node.contin_type:
         # C++ assigns this to `unsigned as` (problem.cc:139) after
         # computing it in `size_t`, so an `ignore_ops` larger than
@@ -304,9 +331,9 @@ def _alphabet_size(sig: TypeSignature, ignore_ops) -> int:
         # ints. Reachable since `it_table_problem.run`'s contin arm was
         # wired; the comment here used to say "unreachable from every
         # problem this file wires".
-        return (8 + arity - len(ignore_ops)) & _UINT32_MAX
+        return _log_alphabet_size((8 + arity - len(ignore_ops)) & _UINT32_MAX, output_type)
     if output_type == type_node.ann_type:
-        return 2 + arity * arity
+        return _log_alphabet_size(2 + arity * arity, output_type)
     if output_type == type_node.enum_type:
         raise NotImplementedError(
             "alphabet_size: enum_type needs enum_t.size()/contains_type, not "
@@ -457,13 +484,18 @@ class table_problem_base(problem_base):
 
         self._tables = []
         self._ctables = []
+        # C++: table-problems.cc:111 `size_t num_rows = 0;` -- accumulated
+        # across every `-i` file purely to feed the log line after the loop.
+        num_rows = 0
         for idf in self._tpp.input_data_files:
+            logger().info("Read data file %s", idf)
             table = loadTable(
                 idf,
                 self._tpp.target_feature,
                 self._tpp.timestamp_feature,
                 self._tpp.ignore_features_str,
             )
+            num_rows += table.size()
 
             # C++: if (pms.nsamples > 0) subsampleTable(...) --
             # table-problems.cc:121-122. `subsampleTable` is not ported
@@ -491,6 +523,8 @@ class table_problem_base(problem_base):
                     "(table.py) -- table-problems.cc:133-134"
                 )
 
+        logger().info("Number of rows in tables = %d", num_rows)
+
         # DO NOT FIX: see this module's own docstring, "The
         # multi-input-file quirk" -- classic validates arity across every
         # `-i` file (below) but only ever scores against the FIRST one.
@@ -513,6 +547,8 @@ class table_problem_base(problem_base):
                         f"{self._tpp.input_data_files[i]} has arity {test_arity}"
                     )
 
+        logger().info("Inferred arity = %d", self.arity)
+
         # C++: pms.mmr_pa.ilabels = ilabels (table-problems.cc:164). See
         # this module's own docstring, "`pms.printer` stands in for
         # `pms.mmr_pa`".
@@ -523,6 +559,7 @@ class table_problem_base(problem_base):
     ) -> None:
         """C++: moses/moses/main/table-problems.cc:170 table_problem_base::common_type_setup"""
         self.table_type_signature = self.table.get_signature()
+        logger().info("Table signature " + ostream_type_signature(self.table_type_signature))
 
         if out_type == type_node.unknown_type:
             # C++: get_type_node(get_signature_output(table_type_signature))
@@ -544,15 +581,28 @@ class table_problem_base(problem_base):
 
         self.cand_type_signature = gen_signature(self.table_type_signature.itypes, self.output_type)
 
-    def _regression(self, pms: problem_params, bscore) -> None:
+        logger().info("Inferred output type: " + ostream_type_node(self.output_type))
+
+    def _regression(self, pms: problem_params, make_bscore) -> None:
         """C++: moses/moses/main/table-problems.cc:328 REGRESSION (macro)
+
+        `make_bscore` is a zero-argument factory, not an already-built
+        scorer. The macro's statement order is
+        `int as = alphabet_size(...); SCORER bscore ARGS;` -- `as` FIRST --
+        and that order is observable: `alphabet_size` logs
+        "Alphabet size = ...", every `bscore_ctable_base` subclass' ctor
+        logs something of its own (`ctruth_table_bscore`'s
+        `set_best_possible_bscore`, for one), and classic's log shows the
+        alphabet line first. Passing a constructed scorer in, as this method
+        did until the logging surface landed, silently reversed the two.
 
         Shared by every `*_table_problem::run()` that uses the
         `REGRESSION` macro verbatim in classic and is wired for real
         here: `it` (both the boolean and the contin branch), `prerec`,
         `recall`, `bep`, `f_one`, `select` and `cluster`. NOT used by
-        `pre_table_problem` (hand-inlined in classic too, see this
-        module's own docstring) nor by `pre_conj` (not wired here).
+        `pre_table_problem` alone (hand-inlined in classic too, see
+        this module's own docstring); `pre-conj` DOES use it, as classic
+        does (table-problems.cc:421-422).
 
         The macro's FIRST argument (`table`/`ctable`) has no counterpart
         parameter here: classic uses it only to construct a
@@ -579,6 +629,9 @@ class table_problem_base(problem_base):
         # contin/enum branches can produce a value this changes; see this
         # module's docstring for the two-stage wrap.
         as_ = _to_int32(_alphabet_size(self.cand_type_signature, pms.ignore_ops))
+        # C++: table-problems.cc:336 `SCORER bscore ARGS ;` -- constructed
+        # here, after `as`, never before.
+        bscore = make_bscore()
         _set_noise_or_ratio(bscore, as_, pms.noise, pms.complexity_ratio)
         if pms.meta_params.do_boosting:
             bscore.use_weighted_scores()
@@ -618,6 +671,7 @@ class table_problem_base(problem_base):
             mbcscore,
             pms.opt_params,
             pms.hc_params,
+            pms.ps_params,
             pms.deme_params,
             pms.filter_params,
             pms.meta_params,
@@ -647,7 +701,7 @@ class it_table_problem(table_problem_base):
         self.common_type_setup(pms)
 
         if self.output_type == type_node.boolean_type:
-            self._regression(pms, ctruth_table_bscore(self.ctable))
+            self._regression(pms, lambda: ctruth_table_bscore(self.ctable))
         elif self.output_type == type_node.enum_type:
             raise NotImplementedError(
                 "it_table_problem.run: enum-output tables need "
@@ -680,7 +734,7 @@ class it_table_problem(table_problem_base):
                     "ported -- table-problems.cc:520-524"
                 )
             eft = contin_bscore.abs_error if pms.it_abs_err else contin_bscore.squared_error
-            self._regression(pms, contin_bscore(self.table, eft=eft))
+            self._regression(pms, lambda: contin_bscore(self.table, eft=eft))
         else:
             # C++: table-problems.cc:528-535 logs an error and exit(1)s --
             # ported as a hard-failure ValueError, this port's usual
@@ -769,11 +823,62 @@ class pre_table_problem(table_problem_base):
             mbcscore,
             pms.opt_params,
             pms.hc_params,
+            pms.ps_params,
             pms.deme_params,
             pms.filter_params,
             pms.meta_params,
             pms.moses_params,
             pms.printer,
+        )
+
+
+# ---------------------------------------------------------------------------
+# pre_conj_table_problem -- table-problems.h:129 / table-problems.cc:410.
+# ---------------------------------------------------------------------------
+
+
+class pre_conj_table_problem(table_problem_base):
+    """C++: moses/moses/main/table-problems.h:129 pre_conj_table_problem
+
+    Registered under the name `pre-conj`, with a HYPHEN
+    (`table-problems.h:134`, `return "pre-conj";`) -- classic has no
+    `pre_conj` name at all, so `-Hpre_conj` prints `problem type
+    "pre_conj" is currently unsupported.` and exits 1 there just as it
+    does here (measured against the real binary, 2026-09-09; the port
+    reaches the identical message through `moses_exec.py`'s own
+    `find_problem` miss). The class NAME keeps C++'s underscore
+    spelling; only `name()` carries the hyphen.
+    """
+
+    def name(self) -> str:
+        return "pre-conj"
+
+    def description(self) -> str:
+        return "Precision-Conjunction-Maximization"
+
+    def run(self, ob: object) -> None:
+        """C++: moses/moses/main/table-problems.cc:410 pre_conj_table_problem::run
+
+        The plain `REGRESSION` macro shape (unlike `pre_table_problem`,
+        which hand-inlines a variant of it), so `_regression` does the
+        rest.
+        """
+        pms = ob
+        self.common_setup(pms)
+        self.common_type_setup(pms, type_node.boolean_type)
+
+        # C++: table-problems.cc:419-420 `OC_ASSERT(not pms.meta_params.
+        # do_boosting, "Boosting not supported for the pre problem!")`,
+        # with classic's own message text (it says "pre", not "pre-conj").
+        # Mapped to `NotImplementedError` the same way `demo_problems.py`
+        # maps its three identical `OC_ASSERT(not do_boosting)` sites;
+        # classic throws `AssertionException` out of `main` and dumps
+        # core, which is not reproducible as library behaviour.
+        if pms.meta_params.do_boosting:
+            raise NotImplementedError("Boosting not supported for the pre problem!")
+
+        self._regression(
+            pms, lambda: precision_conj_bscore(self.ctable, pms.hardness, pms.pre_positive)
         )
 
 
@@ -801,8 +906,12 @@ class prerec_table_problem(table_problem_base):
             pms.hardness = 1.0
             pms.min_rand_input = 0.5
             pms.max_rand_input = 1.0
-        bscore = prerec_bscore(self.ctable, pms.min_rand_input, pms.max_rand_input, pms.hardness)
-        self._regression(pms, bscore)
+        self._regression(
+            pms,
+            lambda: prerec_bscore(
+                self.ctable, pms.min_rand_input, pms.max_rand_input, pms.hardness
+            ),
+        )
 
 
 class recall_table_problem(table_problem_base):
@@ -824,8 +933,12 @@ class recall_table_problem(table_problem_base):
             pms.hardness = 1.0
             pms.min_rand_input = 0.8
             pms.max_rand_input = 1.0
-        bscore = recall_bscore(self.ctable, pms.min_rand_input, pms.max_rand_input, pms.hardness)
-        self._regression(pms, bscore)
+        self._regression(
+            pms,
+            lambda: recall_bscore(
+                self.ctable, pms.min_rand_input, pms.max_rand_input, pms.hardness
+            ),
+        )
 
 
 class bep_table_problem(table_problem_base):
@@ -847,8 +960,10 @@ class bep_table_problem(table_problem_base):
             pms.hardness = 1.0
             pms.min_rand_input = 0.0
             pms.max_rand_input = 0.5
-        bscore = bep_bscore(self.ctable, pms.min_rand_input, pms.max_rand_input, pms.hardness)
-        self._regression(pms, bscore)
+        self._regression(
+            pms,
+            lambda: bep_bscore(self.ctable, pms.min_rand_input, pms.max_rand_input, pms.hardness),
+        )
 
 
 class f_one_table_problem(table_problem_base):
@@ -871,8 +986,8 @@ class f_one_table_problem(table_problem_base):
         self.common_setup(pms)
         self.common_type_setup(pms, type_node.boolean_type)
 
-        bscore = f_one_bscore(self.ctable)  # DO NOT FIX: always raises.
-        self._regression(pms, bscore)  # pragma: no cover -- unreachable
+        # DO NOT FIX: `f_one_bscore` always raises.
+        self._regression(pms, lambda: f_one_bscore(self.ctable))  # pragma: no cover
 
 
 class select_table_problem(table_problem_base):
@@ -890,10 +1005,16 @@ class select_table_problem(table_problem_base):
         self.common_setup(pms)
         self.common_type_setup(pms, type_node.boolean_type)
 
-        bscore = select_bscore(
-            self.ctable, pms.min_rand_input, pms.max_rand_input, pms.hardness, pms.pre_positive
+        self._regression(
+            pms,
+            lambda: select_bscore(
+                self.ctable,
+                pms.min_rand_input,
+                pms.max_rand_input,
+                pms.hardness,
+                pms.pre_positive,
+            ),
         )
-        self._regression(pms, bscore)
 
 
 # ---------------------------------------------------------------------------
@@ -944,7 +1065,7 @@ class cluster_table_problem(table_problem_base):
         self.common_setup(pms)
         self.common_type_setup(pms, type_node.contin_type)
 
-        self._regression(pms, cluster_bscore(self.table.itable))
+        self._regression(pms, lambda: cluster_bscore(self.table.itable))
 
 
 # ---------------------------------------------------------------------------
@@ -962,18 +1083,20 @@ def register_table_problems(pmr: problem_manager) -> table_problem_params:
     equivalent, same convention `demo_problems.py`'s `register_demo_problems`
     already established for its own shared `demo_params`).
 
-    Registers the EIGHT problems this port has wired for real, then
+    Registers the NINE problems this port has wired for real, then
     defers to `problem.py`'s own `_register_unported_table_problems` for
-    the remaining three (`ip`, `ann-it`, `pre-conj`) -- see this module's
-    own docstring, "Composing on top of `problem.py` without editing it",
+    the remaining two (`ip`, `ann-it`) -- see this module's own
+    docstring, "Composing on top of `problem.py` without editing it",
     for why calling it AFTER the real registrations is safe
     (`register_problem`'s `dict.setdefault` semantics). It said "seven ...
     remaining four (..., `cluster`)" until `cluster_table_problem` landed
-    below.
+    below, and "EIGHT ... remaining three (..., `pre-conj`)" until
+    `pre_conj_table_problem` did.
     """
     tpp = table_problem_params()
     pmr.register_problem(it_table_problem(tpp))
     pmr.register_problem(pre_table_problem(tpp))
+    pmr.register_problem(pre_conj_table_problem(tpp))
     pmr.register_problem(prerec_table_problem(tpp))
     pmr.register_problem(recall_table_problem(tpp))
     pmr.register_problem(bep_table_problem(tpp))

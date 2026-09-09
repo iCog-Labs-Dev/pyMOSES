@@ -1036,27 +1036,32 @@ def test_regression_contin_reduct_gate(tmp_path):
         prob.run(pms)
 
 
-def test_regression_with_real_contin_reduct_still_does_not_reach_a_score(tmp_path):
-    """Follow-up documentation, not a claim of working behaviour: with a
-    REAL (non-`None`) `contin_reduct` -- what a `parse_options`-built
-    `problem_params` gives by default now -- this exact scenario no
-    longer hits `_regression`'s `contin_reduct is None` branch at all, but
-    it still does not reach a score: pairing a `+`-rooted (contin_type)
-    forced exemplar with a genuinely boolean table degenerates into a
-    `ZeroDivisionError` somewhere past that gate (measured directly, not
-    guessed). This is NOT this task's scope to fix (`table_problems.py` is
-    outside the owned-file list) -- pinned here so a future change to
-    `_regression`/contin scoring that silently starts raising something
-    else, or silently starts succeeding, is visible as a test diff rather
-    than discovered by surprise.
+def test_regression_with_real_contin_reduct_now_runs_to_completion(tmp_path):
+    """This pin fired, and it was right to.
+
+    It used to assert `pytest.raises(ZeroDivisionError)`, with its own note
+    that it existed "so a future change ... that silently starts succeeding
+    is visible as a test diff rather than discovered by surprise". That is
+    exactly what happened: the ZeroDivisionError was a PORT DEFECT, not a
+    property of the scenario. `prerec_bscore::operator()` divides its whole
+    behavioural score by `pos_total` (discriminating_bscore.cc:513), which
+    is zero whenever no ctable row is positive -- IEEE division in C++,
+    yielding NaN, but an exception in Python. Comparing classic's own
+    `-l DEBUG` log against the port's found it: classic logged
+    `Score: -nan` where the port logged `Score: -3.40282e+38`, because the
+    exception was caught upstream and turned into the worst possible score,
+    and the two runs then kept different numbers of candidates (25 vs 23).
+
+    With `_ieee_div` in place the scenario runs to completion, as it does
+    in classic. Pinned in the new direction for the same reason it was
+    pinned in the old one.
     """
     csv_path = _write_dataset(tmp_path)
     pmr, tpp, pms = _fresh_pms_and_tpp(["-i", csv_path, "-q", "0.5", "-w", "1.0", "-Q", "1"])
     pms.exemplars = [combo_tree(builtin.plus)]
     prob = pmr.find_problem("prerec")
     assert pms.contin_reduct is not None
-    with pytest.raises(ZeroDivisionError):
-        prob.run(pms)
+    prob.run(pms)
 
 
 # ---------------------------------------------------------------------------

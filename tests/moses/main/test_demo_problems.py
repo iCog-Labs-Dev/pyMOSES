@@ -97,6 +97,7 @@ from pymetta.moses.metapopulation.metapop_params import (
 from pymetta.moses.moses.moses_params import moses_parameters
 from pymetta.moses.moses.optimization.hill_climbing import hc_parameters
 from pymetta.moses.moses.optimization.optimization import optim_parameters
+from pymetta.moses.moses.optimization.particle_swarm import ps_parameters
 from pymetta.moses.scoring.bscores import ctruth_table_bscore
 from pymetta.moses.scoring.scoring_base import bscore_base
 from pymetta.util.rng import randGen
@@ -139,11 +140,17 @@ class _FakeParams:
         self.meta_params = metapop_parameters()
         self.opt_params = optim_parameters()
         self.hc_params = hc_parameters()
+        self.ps_params = ps_parameters()
         self.deme_params = _fresh_deme_parameters()
         self.filter_params = subsample_deme_filter_parameters()
         self.moses_params = moses_parameters(max_evals=max_evals)
         self.noise = -1.0
         self.complexity_ratio = 3.5
+        # `bool_problem_base.run` reads this to decide whether to emit
+        # demo-problems.cc:99-100's "Feature selection is not supported for
+        # the demo problems" warning. Classic only WARNS -- it does not
+        # refuse the flag -- so `False` is the ordinary path.
+        self.enable_feature_selection = False
         self.printer = lambda mp, dex, stats: None
         # -- contin-problem fields (`sr`, and `cp`'s contin arm). Values are
         # classic's own CLI defaults: problem-params.cc:150
@@ -501,6 +508,33 @@ def test_bool_problem_base_run_raises_for_boosting(monkeypatch):
 
     with pytest.raises(NotImplementedError, match="boost"):
         prob.run(pms)
+
+
+def test_bool_problem_base_run_passes_pms_ps_params_in_C_PLUS_PLUS_position(monkeypatch):
+    """MUTATION PROVEN. `demo-problems.cc:117-120` calls
+    `metapop_moses_results(..., pms.opt_params, pms.hc_params,
+    pms.ps_params, pms.deme_params, ...)`; this port dropped
+    `ps_params` from all four `demo_problems.py` call sites until
+    2026-09-09. Position 7 is asserted, not mere presence -- a swap with
+    `hc_params` type-checks fine in Python and would hand
+    `particle_swarm` an `hc_parameters`.
+    """
+    calls = []
+    monkeypatch.setattr(
+        demo_problems,
+        "metapop_moses_results",
+        lambda *args: calls.append(args),
+    )
+    prob = pa_problem(demo_params(problem_size=2))
+    pms = _FakeParams()
+
+    prob.run(pms)
+
+    assert len(calls) == 1
+    assert calls[0][5] is pms.opt_params
+    assert calls[0][6] is pms.hc_params
+    assert calls[0][7] is pms.ps_params
+    assert calls[0][8] is pms.deme_params
 
 
 def test_bool_problem_base_run_passes_correct_signature_and_complexity_coef(monkeypatch):
