@@ -474,17 +474,31 @@ def test_do_boosting_true_makes_best_composite_score_raise():
         mp.best_composite_score()
 
 
-def test_do_boosting_true_makes_best_tree_raise():
-    """Pins the do_boosting gate on best_tree(): it must route into
-    ensemble.get_weighted_tree(), which always raises NotImplementedError.
+def test_do_boosting_true_routes_best_tree_through_the_real_ensemble():
+    """P2 metapopulation task: `ensemble.get_weighted_tree()` is now real
+    -- this used to be `test_do_boosting_true_makes_best_tree_raise`,
+    pinning `NotImplementedError`. `best_tree()`'s do_boosting arm
+    (metapopulation.cc:230-231) routes DIRECTLY to `_ensemble.get_
+    weighted_tree()`, unlike `best_composite_score()` (which reaches the
+    STILL-unported `call_ensemble`, `test_do_boosting_true_makes_best_
+    composite_score_raise` above, unaffected by this task) -- so this one
+    genuinely no longer raises. `mp._ensemble` here was never driven
+    (`add_candidates` never called on it -- this test only flips the
+    METAPOP_PARAMETERS `do_boosting` flag, which does not itself call
+    anything on the ensemble), so `get_adaboost_tree()` takes its
+    zero-members shape: `greater_than_zero(plus())`, a real, if
+    degenerate, combo tree -- not a crash, matching what an ensemble that
+    has never had a candidate promoted into it actually produces in
+    EITHER language (real C++ would build the identical empty `plus` node
+    from an empty `_scored_trees`, `ensemble.cc:298-326`'s own `for`
+    loop over zero elements).
     """
     pa = metapop_parameters()
     mp = metapopulation(T1, _cscorer(), pa)
     assert combo_tree_to_str(mp.best_tree()).strip() == "$1"  # gate off: fine
 
     pa.do_boosting = True
-    with pytest.raises(NotImplementedError):
-        mp.best_tree()
+    assert combo_tree_to_str(mp.best_tree()).strip() == "0<(+)"
 
 
 def test_discard_dominated_default_false_constructs_and_populates_pool():

@@ -73,20 +73,23 @@ module docstring for the same table):
 
 * `do_boosting` (`metapop_parameters.do_boosting`, default `False`,
   `metapop_params.h:170`) gates `best_composite_score`/`best_tree`'s
-  boosting arm. Both reach straight into Task 1's `ensemble` (`ensemble.py`)
-  rather than raising here separately -- `ensemble.get_ensemble()` itself
-  never raises (it is a trivial accessor over an ensemble that can never
-  hold anything, since `add_candidates` always raises first), so
-  `best_composite_score`'s boosting arm calls it and then feeds the result
-  into `behave_cscore.get_cscore`, which has no ported overload for a
-  `scored_combo_tree_set`/list of scored trees (`behave_cscore.py`'s own
-  module docstring: that overload is "out of scope for this whole cycle")
-  -- so the call fails there, naturally, the first time it actually tries
-  to use the unported machinery. `best_tree`'s boosting arm calls
-  `ensemble.get_weighted_tree()` directly, which always raises
-  `NotImplementedError` (ensemble.py) -- per this task's own instruction,
-  "The ensemble from Task 1 already raises if driven -- so the boosting
-  arm should reach it rather than being stubbed out separately."
+  boosting arm. Both reach straight into `ensemble` (`ensemble.py`) rather
+  than raising here separately. `best_tree`'s boosting arm (`ensemble.
+  get_weighted_tree()`) is now REAL (P2 metapopulation task: `ensemble.py`
+  ports the whole of `add_adaboost`/`add_expert`/the weighted-tree
+  getters). `best_composite_score`'s boosting arm still raises, for a
+  DIFFERENT reason than before: it feeds `ensemble.get_ensemble()` (now a
+  real, populatable `scored_combo_tree_set`) into `self._cscorer._bscorer.
+  call_ensemble(...)`, and NO concrete scorer anywhere in this port
+  overrides that method yet (`bscore_base.call_ensemble`'s own base body
+  is itself an unconditional raise, matching classic's own `OC_ASSERT
+  (false, ...)` -- `ensemble.py`'s own module docstring, prerequisite gap
+  #3, has the full citation and the required follow-up this needs).
+  `add_candidates`/`get_ensemble`/`get_weighted_tree`/`flat_score` are all
+  real now; only the `call_ensemble`-dependent paths (`best_composite_
+  score`'s boosting arm, and `add_expert`'s exact-experts weight update
+  and `flat_score` against a real scorer other than a test double) remain
+  blocked on that one prerequisite.
 * `discard_dominated` (`metapop_parameters.discard_dominated`, default
   `False`, `metapop_params.h:211`) used to gate an inlined fragment of
   `merge_candidates` this file carried directly (inside `init`) with a
@@ -140,7 +143,6 @@ import copy
 import math
 from typing import TYPE_CHECKING
 
-from pymetta.moses.metapopulation.ensemble import ensemble
 from pymetta.moses.metapopulation.metapop_params import (
     diversity_parameters,
     metapop_parameters,
@@ -380,6 +382,23 @@ def _copy_sct(sct: scored_combo_tree) -> scored_combo_tree:
     return scored_combo_tree(
         sct.get_tree(), copy.copy(sct.get_composite_score()), list(sct.get_bscore())
     )
+
+
+# P2 metapopulation task (ensemble): `ensemble.py` now imports `_copy_sct`
+# from THIS module (real `add_adaboost`/`add_expert` need it to copy a
+# candidate into `_scored_trees`, the same "every container a C++ insert
+# copies into needs `_copy_sct`" rule this module's own docstring states).
+# This import MUST come after `_copy_sct` is defined above (not with the
+# other imports at the top of this file): `ensemble.py` does `from
+# pymetta.moses.metapopulation.metapopulation import _copy_sct` at ITS OWN
+# top, and THIS module is still mid-execution the first time Python loads
+# `ensemble.py` -- moving this import back to the top reproduces the exact
+# circular-import failure the analogous `subsample`/`_sort` import in
+# `merging.py` already documents (verified live there the same way this
+# reordering was verified here: moving it earlier and observing `ImportError:
+# cannot import name '_copy_sct' from partially initialized module`, then
+# reverting).
+from pymetta.moses.metapopulation.ensemble import ensemble  # noqa: E402
 
 
 class metapopulation:
@@ -627,10 +646,11 @@ class metapopulation:
         about it, not because this port diverges.
 
         Gate: `_params.do_boosting` routes to `_ensemble.get_weighted_tree()`
-        directly (metapopulation.cc:230-231), which always raises
-        `NotImplementedError` (ensemble.py) -- reaching the unported
-        boosting machinery rather than adding a separate raise here, same
-        convention as `best_composite_score` above.
+        directly (metapopulation.cc:230-231) -- now REAL (P2 metapopulation
+        task, `ensemble.py`), unlike `best_composite_score` above (which
+        still raises: its own do_boosting arm reaches `call_ensemble`, a
+        DIFFERENT, still-unported surface -- see that method's own
+        docstring).
         """
         if self._params.do_boosting:
             return self._ensemble.get_weighted_tree()
