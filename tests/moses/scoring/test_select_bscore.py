@@ -3,14 +3,16 @@
 Differential oracle against tests/fixtures/scorers.json's "select" cases,
 plus direct unit/boundary/mutation-proof tests.
 
-`__call__` (`operator()`) cannot be exercised end-to-end here -- see
-select_bscore.py's own module docstring: it requires the "mixed"
-interpreter (contin inputs, boolean output), which is out of scope for
-the whole port, not just this task. Every case below therefore tests the
-constructor's own computed state and the tree-free methods
-(`best_possible_bscore`/`worst_possible_bscore`/`min_improv`), plus a
-dedicated test proving `__call__` raises cleanly rather than silently
-misbehaving.
+UPDATED (S14 Task 1): `__call__` (`operator()`) used to be untestable
+end-to-end here because it requires the "mixed" interpreter (contin
+inputs, boolean output), which was out of scope for the whole port before
+this task ported `contin_interpreter`/`mixed_interpreter`
+(comboreduct/interpreter/interpreter.py) and wired `interpreter_visitor`
+to route a contin-input row to `mixed_interpreter`. `__call__` now runs;
+see `test_call_now_evaluates_via_mixed_interpreter_instead_of_raising`
+below. Every OTHER case here tests the constructor's own computed state
+and the tree-free methods (`best_possible_bscore`/`worst_possible_bscore`/
+`min_improv`), as before.
 """
 
 import json
@@ -79,19 +81,41 @@ def test_select_bscore_matches_cpp_probe(case_name):
 
 
 # ---------------------------------------------------------------------------
-# __call__ is blocked on the (whole-project) missing mixed interpreter
+# __call__ -- UPDATED by S14 Task 1: `interpreter_visitor` now dispatches a
+# genuine `vector<contin_t>` row (this scorer's own case: contin inputs,
+# boolean output) to `mixed_interpreter`, closing the "whole-project
+# missing mixed interpreter" gap this test used to document (see
+# select_bscore.py's own module docstring, still stale as of this
+# writing -- it predates this fix). `__call__` now runs to completion
+# instead of raising `NotImplementedError`.
 # ---------------------------------------------------------------------------
 
 
-def test_call_raises_on_the_missing_mixed_interpreter():
-    """Proves the gate raises cleanly rather than returning a silently
-    wrong bscore -- see select_bscore.py's own module docstring.
+def test_call_now_evaluates_via_mixed_interpreter_instead_of_raising():
+    """S14 Task 1 ported `contin_interpreter`/`mixed_interpreter`
+    (comboreduct/interpreter/interpreter.py) and wired
+    `interpreter_visitor` to route a `vector<contin_t>` row through
+    `mixed_interpreter` (table.h:332-336's own "the output might be
+    non-contin" rule) -- exactly the shape `select_bscore.__call__` needs
+    (contin inputs, boolean output). This proves `__call__` now runs to
+    completion and returns one score per distinct row, rather than
+    raising.
+
+    Exact end-to-end numeric correctness of `select_bscore.__call__`
+    against classic (not merely "it doesn't raise") is not this task's
+    scope -- `select_bscore.py`/`test_table_problems.py` belong to a
+    different owner, and driving `-Hselect` all the way through still
+    hits a SEPARATE, later gap: contin exemplars have no knob-building
+    support yet (S14 Task 2, not Task 1) -- see
+    tests/moses/main/test_table_problems.py's
+    test_select_table_problem_end_to_end_hits_the_documented_knob_building_gap.
     """
     ct = _contin_ctable([0.1, 0.5, 0.9])
     bsc = select_bscore(ct, 0.0, 1.0, 1.0, True)
     tr = str_to_combo_tree("0<($1)")
-    with pytest.raises(NotImplementedError):
-        bsc(tr)
+    bs = bsc(tr)
+    assert len(bs) == len(ct)
+    assert all(isinstance(x, float) for x in bs)
 
 
 # ---------------------------------------------------------------------------

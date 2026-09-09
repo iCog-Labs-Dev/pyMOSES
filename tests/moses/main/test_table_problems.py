@@ -787,10 +787,12 @@ def test_select_table_problem_builds_the_right_scorer_and_calls_metapop_moses_re
     tmp_path, monkeypatch
 ):
     """Proves the WIRING (scorer constructed with the right arguments,
-    `metapop_moses_results` called) without depending on the pre-existing
-    contin/mixed-interpreter gap the next test documents -- see
-    `select_bscore.py`'s own module docstring ("__call__ is unreachable
-    end-to-end in this port today").
+    `metapop_moses_results` called) without depending on the SEPARATE
+    contin knob-building gap the next test documents -- see
+    `build_knobs.py`'s own "non-Boolean inputs require their
+    corresponding domain builder slice" gate (S14 Task 2, not yet
+    ported). `metapop_moses_results` is monkeypatched here, so this test
+    never reaches actual tree evaluation/knob building either way.
     """
     calls = _capture_metapop_moses_results(monkeypatch)
     pmr, tpp, pms = _fresh_pms_and_tpp(
@@ -817,25 +819,32 @@ def test_select_table_problem_builds_the_right_scorer_and_calls_metapop_moses_re
     assert mbcscore.get_bscore is not None  # a real behave_cscore, not a placeholder
 
 
-def test_select_table_problem_end_to_end_hits_the_documented_interpreter_gap(tmp_path):
-    """Documents (does not "fix") a pre-existing, whole-project gap:
-    `select` searches over BOOLEAN-output programs against CONTIN inputs,
-    and `interpreter_visitor` (comboreduct/interpreter/interpreter.py)
-    implements only the pure-boolean `vector<builtin>` overload -- not
-    the mixed contin-input/boolean-output evaluation `select_bscore.
-    __call__` needs the moment a real candidate (even the default `and()`
-    exemplar) is scored against a row of contin values. Classic itself
-    handles this fine (measured: `-Hselect -q0.2 -w0.8` against
+def test_select_table_problem_end_to_end_hits_the_documented_knob_building_gap(tmp_path):
+    """UPDATED (S14 Task 1): this test used to hit `interpreter_visitor`'s
+    missing `mixed_interpreter` path -- that gap is now closed
+    (comboreduct/interpreter/interpreter.py ports `contin_interpreter`/
+    `mixed_interpreter`, and `interpreter_visitor` now routes a
+    `vector<contin_t>` row to `mixed_interpreter`, matching table.h:
+    332-336). Running this end-to-end now progresses PAST tree
+    evaluation and instead hits a SEPARATE, later, still-open gap:
+    `select` searches over BOOLEAN-output programs against CONTIN
+    inputs, and knob-building for a contin-input exemplar
+    ("non-Boolean inputs require their corresponding domain builder
+    slice") is S14 Task 2, not yet ported. Classic itself handles this
+    fine (measured: `-Hselect -q0.2 -w0.8` against
     `select_regression.csv` succeeds, top line "-15 true"); this port's
-    `select_table_problem` is correctly wired (previous test) but cannot
-    get past the FIRST scoring call for a genuinely mixed-signature table.
+    `select_table_problem` is correctly wired (previous test) and now
+    correctly SCORES a mixed-signature table too, but cannot yet build
+    knobs for a contin exemplar.
     """
     csv_path = "tests/fixtures/table_data/select_regression.csv"
     pmr, tpp, pms = _fresh_pms_and_tpp(
         ["-i", csv_path, "-u", "y", "-m", "30", "-q", "0.2", "-w", "0.8"]
     )
     prob = pmr.find_problem("select")
-    with pytest.raises(NotImplementedError, match="mixed_interpreter"):
+    with pytest.raises(
+        NotImplementedError, match="non-Boolean inputs require their corresponding domain"
+    ):
         prob.run(pms)
 
 
