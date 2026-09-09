@@ -1242,6 +1242,44 @@ def test_merge_demes_merge_callback_gate_raises():
         mp.merge_demes(dex._demes, dex._reps)
 
 
+def test_merge_demes_callback_user_data_alone_is_faithfully_ignored():
+    """The gate is on `merge_callback`, NOT on `callback_user_data` -- and
+    that asymmetry is faithful, not an oversight.
+
+    `merging.cc:338-339` reads `_params.callback_user_data` ONLY inside
+    `if (_params.merge_callback)`, so classic itself ignores a
+    non-default `callback_user_data` whenever `merge_callback` is NULL.
+    Reproducing that means NOT gating it.
+
+    Uses the SAME real-candidate setup as
+    `test_merge_demes_merge_callback_gate_raises` above, deliberately:
+    an empty `all_demes` returns at the `candidates.empty()` exit
+    (merging.cc:330-331) BEFORE the callback line is ever reached, so an
+    `mp.merge_demes([], [])` version of this test is vacuous -- measured,
+    not assumed: a spurious `callback_user_data is not None` raise
+    inserted next to the real gate left the empty-demes form GREEN. With
+    a real deme the merge runs all the way through the callback line and
+    on to `merge_candidates`, so the pool assertion below also proves the
+    merge actually happened rather than short-circuiting somewhere.
+
+    Adding a `callback_user_data is not None` raise alongside the
+    `merge_callback` one turns this red -- and would be a divergence from
+    classic, not a fix.
+    """
+    cscorer = _build_cscorer()
+    mp = metapopulation(str_to_combo_tree("$1"), cscorer, metapop_parameters())
+    dex = _build_dex(cscorer, seed=1)
+    mp._params.callback_user_data = object()  # anything not None
+    assert mp._params.merge_callback is None
+
+    done = mp.merge_demes(dex._demes, dex._reps)
+
+    # Identical outcome to the all-defaults run pinned by
+    # test_merge_demes_seed1_xor_pool_matches_cpp_probe above.
+    assert done is False
+    assert mp.size() == 5
+
+
 def test_merge_demes_n_subsample_demes_no_longer_raises_before_processing_demes():
     """P2 metapopulation task: `n_subsample_demes > 1` is now real
     (`subsample.py`) -- this used to pin `NotImplementedError` raised
