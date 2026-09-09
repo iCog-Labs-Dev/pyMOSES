@@ -203,7 +203,6 @@ def test_register_same_object_twice_under_same_name_is_a_harmless_noop():
 _EXPECTED_STUBS = {
     "ip": "Find interesting patterns",
     "ann-it": "ANN-based regression on input table",
-    "pre-conj": "Precision-Conjunction-Maximization",
 }
 
 
@@ -211,7 +210,7 @@ def test_unported_table_problems_is_non_vacuous():
     """CARRY-FORWARD.md Sec 5/6: an empty corpus a parametrize walks over
     passes silently. Pin the count directly, independent of `parametrize`.
     """
-    assert len(_unported_table_problems()) == 3 == len(_EXPECTED_STUBS)
+    assert len(_unported_table_problems()) == 2 == len(_EXPECTED_STUBS)
 
 
 def test_unported_table_problems_names_and_descriptions_match_classic():
@@ -222,13 +221,22 @@ def test_unported_table_problems_names_and_descriptions_match_classic():
 
 
 @pytest.mark.parametrize(
-    "name", ["it", "pre", "prerec", "recall", "bep", "f_one", "select", "cluster"]
+    "name", ["it", "pre", "pre-conj", "prerec", "recall", "bep", "f_one", "select", "cluster"]
 )
 def test_unported_table_problems_excludes_every_wired_problem(name):
     """The clean seam `table_problems.py` fills in: a problem wired for
-    real there must not also appear here. `cluster` is the newest member
-    of that list; the rest were already wired when this file still
-    stubbed them.
+    real there must not also appear here. `pre-conj` is the newest member
+    of that list (`cluster` was the one before it); the rest were already
+    wired when this file still stubbed them.
+
+    MUTATION PROVEN for `pre-conj`: restoring its entry to
+    `_unported_table_problems` makes this case fail. It is not merely a
+    bookkeeping assertion -- `register_problem` is `dict.setdefault` and
+    `table_problems.py` registers first, so a resurrected stub would be
+    SHADOWED and invisible, which is precisely how the old `pre-conj`
+    stub's reason string ("what is missing is only a
+    pre_conj_table_problem in table_problems.py") stayed true-but-unacted-
+    on for so long.
     """
     assert name not in {p.name() for p in _unported_table_problems()}
 
@@ -240,18 +248,23 @@ def test_unported_table_problem_reasons_are_distinct_and_specific():
     interesting-predicates scoring". That was false for `cluster`
     (`cluster_bscore`, a one-dimensional k-means -- neither of those) and
     for `pre-conj` (whose `precision_conj_bscore` IS ported). Collapsing
-    the three reasons back to one identical string makes this fail.
+    the two remaining reasons to one identical string makes this fail.
+
+    `pre-conj` is no longer among them: a stub whose own message said the
+    scorer was ported and only the wiring was missing had no business
+    still blocking the problem, so `table_problems.py` wired it. Both
+    survivors name a dependency that genuinely does not exist in this
+    port.
     """
     reasons = [p._reason for p in _unported_table_problems()]
     assert len(set(reasons)) == len(reasons)
     by_name = {p.name(): p._reason for p in _unported_table_problems()}
     assert "interesting_predicate_bscore" in by_name["ip"]
     assert "ANN" in by_name["ann-it"]
-    # The one whose scorer IS ported must say so rather than claim a
-    # missing bscore.
-    assert "precision_conj_bscore IS ported" in by_name["pre-conj"]
     for reason in reasons:
         assert "precision/discriminating/select" not in reason
+        # No surviving stub may claim a scorer that IS ported.
+        assert "precision_conj_bscore" not in reason
 
 
 @pytest.mark.parametrize("name", sorted(_EXPECTED_STUBS))

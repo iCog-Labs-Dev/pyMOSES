@@ -104,6 +104,58 @@ def test_multiplier_other_than_one_raises():
         _ConcreteTD(ct, multiplier=2)
 
 
+def test_month_granularity_raises_on_any_non_empty_ctable():
+    """MUTATION PROVEN. Classic's constructor calls `get_timestamp_class`
+    once per observation (time_dispersion.cc:49-51); at `month` that
+    OC_ASSERTs `!timestamp.is_not_a_date()` (:61-64), and every timestamp
+    this port can produce IS not-a-date, so the assertion fires on the
+    first observation. Deleting the `granularity == month` check in
+    `bscore_ctable_time_dispersion.__init__` makes this test fail (no
+    exception raised) while every other test in this file still passes --
+    which is exactly how the divergence survived: nothing here or in
+    test_precision_bscore.py ever passed a non-default granularity.
+
+    Measured against the real binary, 2026-09-09:
+    `-Hpre -i$CLASSIC/tests/moses/dataset.csv -m300 -W1 -q0.1 -w1.0
+    --time-bscore-granularity=month` exits 134 in classic (`terminate
+    called after throwing ... AssertionException / what(): timestamp is
+    not a valid date ... (time_dispersion.cc:62)`, core dumped); the same
+    command with the flag omitted -- or with `=day` -- exits 0 and prints
+    a normal candidate list in both classic and this port.
+    """
+    table = loadTable(str(_TABLE_DATA_DIR / "trainingBoolean.dat"), "y")
+    ct = table.compressed()
+    with pytest.raises(AssertionError, match="timestamp is not a valid date"):
+        _ConcreteTD(ct, granularity=TemporalGranularity.month)
+
+
+def test_day_granularity_does_not_raise_on_the_same_ctable():
+    """The complement, and the thing the gate above must NOT break:
+    `get_timestamp_class` at `day` is the identity (time_dispersion.cc:
+    59-60) and cannot fail, so the default path is untouched. A gate
+    written without the granularity test -- raising for every
+    construction -- fails here.
+    """
+    table = loadTable(str(_TABLE_DATA_DIR / "trainingBoolean.dat"), "y")
+    ct = table.compressed()
+    assert _ConcreteTD(ct, granularity=TemporalGranularity.day)._Hmax == 0.0
+
+
+def test_month_granularity_on_an_EMPTY_ctable_does_not_raise():
+    """The other half of the boundary, and it is classic's behaviour, not
+    a convenience: the assertion lives INSIDE the per-observation loop
+    (`for (iorow : _ctable) for (tcv : iorow.second)`,
+    time_dispersion.cc:49-51), so a table with zero observations never
+    evaluates it and `_Hmax` is `log2(0) == -inf` at either granularity.
+    A gate written as an unconditional `if granularity == month: raise`
+    fails here.
+    """
+    from pymetta.comboreduct.table.table import CTable
+
+    ct = CTable("y", ["x1"])
+    assert _ConcreteTD(ct, granularity=TemporalGranularity.month)._Hmax == -math.inf
+
+
 def test_get_timestamp_class_is_a_raising_gate():
     table = loadTable(str(_TABLE_DATA_DIR / "trainingBoolean.dat"), "y")
     ct = table.compressed()

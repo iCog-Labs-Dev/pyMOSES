@@ -119,17 +119,18 @@ no adaptation is needed there.
 `Callable[[combo_tree], None]`) here, matching that module's own
 established type for exactly this role.
 
-`ps_params` is accepted by the constructor (matching classic's own
-signature) but never threaded anywhere: `metapop_moses_results`
-(moses_main.py, NOT this task's file, but not excluded either) has no
-`ps_params` parameter in its own PORTED signature at all -- see that
-module's own docstring, which asserts (now stale: `particle_swarm.py`'s
-own `ps_parameters` class shows the specific REASONING given there --
-"no ps_parameters class exists anywhere in this port" -- is no longer
-accurate) that this is because no such class exists. The class exists
-now; the SIGNATURE still omits the parameter regardless, so the practical
-consequence for this file is unchanged. Reported as a follow-up
-(moses_main.py is not this task's file to edit), not fixed here.
+`ps_params` is accepted and stored by the constructor, matching
+classic's own signature (partial.h:49, partial.cc:54), and is not
+threaded any further from HERE -- but that is now purely because
+`solve()`'s own `metapop_moses_results` call sites (partial.cc:106,122)
+are unreachable in this port: every path into them raises on the
+un-ported enum bscores first (see `_ENUM_BSCORE_MISSING` below).
+CORRECTED: this paragraph used to say the reason was that
+`metapop_moses_results` "has no `ps_params` parameter in its own PORTED
+signature at all". That was true when written and is false now --
+`moses_main.py` threads `ps_params` in C++'s own position, so whenever
+`solve()` becomes reachable the two calls it makes must pass
+`self._ps_params` between `self._hc_params` and `self._deme_params`.
 """
 
 from __future__ import annotations

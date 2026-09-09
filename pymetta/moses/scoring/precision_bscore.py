@@ -1,7 +1,9 @@
 """C++: moses/moses/scoring/precision_bscore.h and precision_bscore.cc
 
 Ports `precision_bscore` (the `-H pre` problem's scorer) and
-`precision_conj_bscore` (the `-H pre_conj` problem's scorer).
+`precision_conj_bscore` (the `-H pre-conj` problem's scorer -- the
+registered name has a HYPHEN, table-problems.h:134; `-Hpre_conj` names
+nothing in classic's registry and is refused there and here alike).
 
 ## Scope: the boolean, non-time, non-boosting path -- exactly what the
 ## registered `-H pre` problem actually constructs

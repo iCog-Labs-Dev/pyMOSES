@@ -91,13 +91,21 @@ same "port the gate, raise inside it" discipline `ensemble.py`,
 `merging.py` and `deme_expander.py` use for their own P2 subsystems -- so
 an unported `-H` fails loudly rather than acting as a no-op.
 
-That leaves exactly three: `ip`, `ann-it` and `pre-conj`.
-`table_problems.py` registers its eight real problems FIRST and
+That leaves exactly two: `ip` and `ann-it`.
+`table_problems.py` registers its nine real problems FIRST and
 `problem_manager.register_problem` is `dict.setdefault`, so the ordering
 would tolerate extra stubs here -- but a stub for a problem that runs has
 nothing true to say, so the seven that had become dead were removed rather
-than left behind. Each surviving stub carries its OWN reason string; see
-`_unported_table_problem.run` for why a single shared reason was wrong.
+than left behind, and `pre-conj`'s went the same way once
+`pre_conj_table_problem` landed in `table_problems.py`. That last one is
+worth recording: its reason string said, accurately, that "what is
+missing is only a pre_conj_table_problem in table_problems.py" -- and an
+accurate description of a defect is not a discharge of it. The stub sat
+there blocking a problem classic runs fine (measured 2026-09-09:
+`-Hpre-conj -i tests/fixtures/table_data/precision.csv -m100 -W1` prints
+a normal candidate list in classic). Each surviving stub carries its OWN
+reason string; see `_unported_table_problem.run` for why a single shared
+reason was wrong.
 
 CORRECTED (this whole paragraph): it used to say only `it_table_problem`
 was reachable and that "the other ten need subsystems this port has not
@@ -106,7 +114,8 @@ built (precision/discriminating/select bscores for `pre`/`pre-conj`/
 that is now false. `precision_bscore`/`discriminating_bscore`/
 `select_bscore`/`precision_conj_bscore` are all ported; `cluster`'s
 scorer was never any of those -- it is `cluster_bscore` (bscores.h:613), a
-one-dimensional k-means, and it is ported too.
+one-dimensional k-means, and it is ported too. All nine of those problems
+are wired for real in `table_problems.py`.
 """
 
 from __future__ import annotations
@@ -307,28 +316,6 @@ def _unported_table_problems() -> list[problem_base]:
                 "excluded project-wide -- and classic itself aborts with boost::bad_get "
                 "on an ordinary table",
             ),
-            (
-                "pre-conj",
-                "Precision-Conjunction-Maximization",
-                "table-problems.h:129 pre_conj_table_problem",
-                # The ONLY stub here whose scorer is ported:
-                # `precision_conj_bscore` (precision_bscore.py) is
-                # complete and unit-tested. What is missing is four lines
-                # of wiring in table_problems.py -- classic's
-                # `pre_conj_table_problem::run` is `common_setup`,
-                # `common_type_setup(boolean_type)`, an
-                # `OC_ASSERT(not do_boosting)` and one `REGRESSION`
-                # (table-problems.cc:410-423). Classic RUNS this problem
-                # fine; measured, `-Hpre-conj
-                # -i$CLASSIC/tests/moses/dataset.csv -m200 -W1` prints a
-                # normal candidate list. (`-Hpre_conj`, with an
-                # underscore, is a different thing entirely: no such name
-                # is registered, so classic prints `problem type
-                # "pre_conj" is currently unsupported.` and returns 1.)
-                "its scorer precision_conj_bscore IS ported (precision_bscore.py); "
-                "what is missing is only a pre_conj_table_problem in "
-                "table_problems.py (table-problems.cc:410)",
-            ),
         )
     ]
 
@@ -337,9 +324,9 @@ def _register_unported_table_problems(pmr: problem_manager) -> None:
     """Not a C++ function -- the stub half of what
     `register_table_problems` (table-problems.cc:562-580) would do in a
     complete port; see the module docstring. `table_problems.py` owns
-    registering the eight real problems and calls this afterwards for the
-    remaining three; it will supersede this function entirely once
-    `ip`/`ann-it`/`pre-conj` are ported for real. Nothing outside
+    registering the nine real problems and calls this afterwards for the
+    remaining two; it will supersede this function entirely once
+    `ip`/`ann-it` are ported for real. Nothing outside
     `table_problems.py` and this module's own tests calls it.
     """
     for prob in _unported_table_problems():

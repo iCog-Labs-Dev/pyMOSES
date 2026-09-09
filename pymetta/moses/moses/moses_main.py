@@ -16,27 +16,35 @@ references" note):
   compile-time git-describe/version string with no runtime effect on the
   search; nothing in this port has an equivalent build step to source it
   from.
-* `ps_parameters` is dropped from the two signatures that carry it in
-  C++ (`metapop_moses_results_b`, moses_main.h:278; `metapop_moses_
-  results`, moses_main.h:350) -- but NOT because particle swarm is
-  unported. CORRECTED (this bullet previously said "`particle_swarm`/
-  `ps_bscore` are P2 and no `ps_parameters` class exists anywhere in this
-  port", and that "a branch `metapop_moses_results_b` below raises before
-  ever reaching" it; both were true when written and are false now):
-  `ps_parameters` and `particle_swarm` are BOTH ported
-  (`optimization/particle_swarm.py`, imported at the top of this module),
-  and the `ps` branch of `metapop_moses_results_b` constructs a real
-  `particle_swarm` rather than raising.
 
-  What survives is only the parameter-THREADING: `ps_params` is the one
-  optimizer-parameter bundle these two functions do not accept from their
-  caller, so the `ps` branch constructs `ps_parameters()` with classic's
-  own defaults instead. The two other C++ mentions of `ps_params`
-  (moses_main.h:376,382) are pure pass-throughs from
-  `metapop_moses_results` to `metapop_moses_results_b`; moses_main.h:298
-  is the only place its VALUE is read. A run that customised `ps_params`
-  in C++ would therefore not be reproduced -- see the DIVERGENCE marker
-  on that branch.
+That list has exactly one entry. `ps_parameters` used to be its second
+and no longer is: both signatures below carry `ps_params`, in C++'s own
+position -- `..., opt_params, hc_params, ps_params, deme_params,
+filter_params, meta_params, moses_params, printer`
+(`metapop_moses_results_b`, moses_main.h:277-279; `metapop_moses_results`,
+moses_main.h:349-351) -- and the `ps` branch of `metapop_moses_results_b`
+hands the CALLER's bundle to `particle_swarm`, exactly as
+moses_main.h:298 does. The two other C++ mentions (moses_main.h:376,382)
+are pure pass-throughs from `metapop_moses_results` to
+`metapop_moses_results_b`, reproduced here as such.
+
+That entry previously read "`ps_parameters` is dropped from the two
+signatures that carry it in C++" -- first on the (then-true) grounds that
+no such class existed in this port, and later, once `particle_swarm.py`
+landed, on the narrower grounds that only the THREADING was missing, so
+"a run that customised `ps_params` in C++ would not be reproduced". The
+narrower version was accurate, and the cost it named was real:
+`--ps-max-particles` was parsed and stored by `problem_params` and went
+no further, so `-aps --ps-max-particles=N` printed classic's N=50 answer
+for every N. Measured 2026-09-09 on
+`tests/fixtures/table_data/contin_regression_sample.csv -u y -m300 -W1
+-aps -r1`: over the sixteen values of N sampled, classic prints FIVE
+distinct candidate lists -- {4,5,6,7,8,9,10,11}, {12,13}, {14,15,16},
+{20}, {30,40,50} -- and this port printed the N=50 list for every one of
+them. (`calc_swarm_size` clamps `n_bits * 3/4 + n_contin * 3` to
+`[4, max_parts]`, particle-swarm.cc:239-250, so the flag is observable
+only where the unclamped total exceeds 4.) A documented divergence is not a discharged one
+(docs/CARRY-FORWARD.md Sec 5.2/5.4, the same failure mode twice).
 
 Which `MOSESUTest` cases this module's own test suite can actually
 exercise, corrected mid-task from the plan's original (broader) list of
@@ -577,6 +585,7 @@ def metapop_moses_results_b(
     sc: behave_cscore,
     opt_params: optim_parameters,
     hc_params: hc_parameters,
+    ps_params: ps_parameters,
     deme_params: deme_parameters,
     filter_params: subsample_deme_filter_parameters,
     meta_params: metapop_parameters,
@@ -586,8 +595,9 @@ def metapop_moses_results_b(
     """C++: moses/moses/moses/moses_main.h:270 metapop_moses_results_b
 
     "Create metapopulation, run moses, print results." (the template's
-    own doc comment.) `ps_params` is dropped from this signature entirely
-    -- see the module docstring and the DIVERGENCE at the `ps` branch.
+    own doc comment.) `ps_params` sits between `hc_params` and
+    `deme_params`, matching moses_main.h:277-279's own parameter order,
+    and is handed straight to `particle_swarm` by the `ps` branch.
     All four of classic's optimizer branches (moses_main.h:288-299) are now
     ported: `hc`, `sa`, `un` and `ps`. The unrecognised-name branch
     (:300-306) diverges deliberately -- C++ exits the process, this port
@@ -628,13 +638,7 @@ def metapop_moses_results_b(
     elif opt_params.opt_algo == "un":
         optimizer = univariate_optimization(opt_params)
     elif opt_params.opt_algo == "ps":
-        # DIVERGENCE(C++ moses/moses/moses/moses_main.h:298): C++ threads a
-        # caller-supplied `ps_params` through this signature; this port
-        # dropped that parameter (see the docstring below), so the defaults
-        # are used. Those defaults are ported verbatim from
-        # `particle-swarm.h`, so a default-configured run matches; a run
-        # that customised ps_params in C++ would not.
-        optimizer = particle_swarm(opt_params, ps_parameters())
+        optimizer = particle_swarm(opt_params, ps_params)
     else:
         raise ValueError(
             f"Unknown optimization algo {opt_params.opt_algo}. Supported "
@@ -663,6 +667,7 @@ def metapop_moses_results(
     c_scorer: behave_cscore,
     opt_params: optim_parameters,
     hc_params: hc_parameters,
+    ps_params: ps_parameters,
     deme_params: deme_parameters,
     filter_params: subsample_deme_filter_parameters,
     meta_params: metapop_parameters,
@@ -672,8 +677,11 @@ def metapop_moses_results(
     """C++: moses/moses/moses/moses_main.h:342 metapop_moses_results
 
     "like [metapop_moses_results_b] above, but assumes that the score is
-    bscore based" (moses_main.h:340-341's own comment). `ps_params` is
-    dropped -- see the module docstring.
+    bscore based" (moses_main.h:340-341's own comment). `ps_params` is a
+    pure pass-through here, exactly as at moses_main.h:376,382 -- it is
+    not one of the "parameters that might get tweaked", so it is NOT
+    copied (C++ takes it by value in this signature and by const-reference
+    in `metapop_moses_results_b`'s; neither function ever writes to it).
 
     "Parameters that might get tweaked are copied" (moses_main.h:357's
     own comment): C++'s copy constructors are compiler-generated
@@ -749,6 +757,7 @@ def metapop_moses_results(
         c_scorer,
         twk_opt_params,
         hc_params,
+        ps_params,
         deme_params,
         filter_params,
         twk_meta_params,

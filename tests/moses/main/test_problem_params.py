@@ -273,6 +273,32 @@ def test_hc_parameters_wiring():
     assert hc.prefix_stat_deme == "Demes"
 
 
+def test_ps_parameters_wiring():
+    """C++: problem-params.cc:2369-2370 -- `ps_params.max_parts =
+    ps_max_particles;`. `problem_params` owns a whole `ps_parameters` by
+    value (problem-params.h:222) and the CLI touches exactly one field.
+
+    MUTATION PROVEN: deleting the `ps_params` construction (leaving
+    `ps_max_particles` stored and nothing reading it, which is what stood
+    here until 2026-09-09) makes this fail with `AttributeError`.
+    """
+    pp = _parse()
+    assert pp.ps_params.max_parts == 50  # == --ps-max-particles default
+    assert pp.ps_max_particles == 50
+    # Every other field keeps particle-swarm.h's own defaults.
+    assert pp.ps_params.bit_max_vel == 6
+
+
+def test_ps_max_particles_reaches_ps_params():
+    """The flag's ONLY consumer. `--ps-max-particles=7` must change
+    `ps_params.max_parts`, not merely the flat `ps_max_particles` field
+    (which is what it used to do, and only that).
+    """
+    pp = _parse("--ps-max-particles", "7")
+    assert pp.ps_max_particles == 7
+    assert pp.ps_params.max_parts == 7
+
+
 def test_deme_parameters_wiring():
     """C++: problem-params.cc:2262-2265"""
     pp = _parse()

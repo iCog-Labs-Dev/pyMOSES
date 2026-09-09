@@ -32,9 +32,14 @@ Two consequences, handled differently:
    (table_io.py's own module docstring: a timestamp column's VALUES are
    discarded at parse time, never captured). So in classic itself,
    restricted to the only input shape this port can ever produce, EVERY
-   observation's timestamp is the SAME single sentinel value, and
+   observation's timestamp is the SAME single sentinel value, so at
+   `granularity == day` (where `get_timestamp_class` is the identity)
    `timestamp_classes` always has EXACTLY 0 elements (an empty table) or
-   EXACTLY 1 (any non-empty table) -- never more. `_Hmax = log2(1) == 0.0`
+   EXACTLY 1 (any non-empty table) -- never more. At `month` classic
+   never finishes the loop at all: `get_timestamp_class` OC_ASSERTs that
+   the timestamp is a real date (time_dispersion.cc:61-64), which the
+   sentinel is not, so the constructor throws on the first observation.
+   `__init__` below reproduces both halves. `_Hmax = log2(1) == 0.0`
    or `log2(0) == -inf` are therefore not approximations of what this
    port's constructor computes: they are the EXACT values classic itself
    computes for the only case this port (or, for that matter, an
@@ -115,6 +120,21 @@ class bscore_ctable_time_dispersion(bscore_ctable_base):
         returns `-HUGE_VAL` (`-inf`) -- handled explicitly here rather
         than via `_to_score_t`, which only narrows precision, not this
         library-behaviour difference.
+
+        The constructor loop is COUNTED rather than run only for
+        `granularity == day`, where `get_timestamp_class` is the identity
+        (time_dispersion.cc:59-60) and cannot fail. For `month` classic
+        evaluates `OC_ASSERT(!timestamp.is_not_a_date(), ...)`
+        (time_dispersion.cc:61-64) once per observation, and every
+        timestamp this port (or an un-flagged classic run) can produce IS
+        not-a-date -- so the assertion fires on the first observation of
+        any non-empty table. Reproduced below, with classic's own message
+        text, because skipping the loop silently made the port MORE
+        permissive than the thing it ports. Measured 2026-09-09,
+        `-Hpre -i $CLASSIC/tests/moses/dataset.csv -m300 -W1 -q0.1 -w1.0
+        --time-bscore-granularity=month`: classic exits 134
+        (AssertionException at time_dispersion.cc:62, core dumped) and
+        this port used to exit 0 printing the `day` answer.
         """
         if multiplier != 1:
             raise AssertionError("Multiplier other than 1 is not supported yet")
@@ -125,6 +145,12 @@ class bscore_ctable_time_dispersion(bscore_ctable_base):
         self._exponent = _to_score_t(time_dispersion_exponent)
 
         n_observations = sum(len(counter) for counter in ctable.values())
+        if n_observations > 0 and granularity == TemporalGranularity.month:
+            raise AssertionError(
+                "timestamp is not a valid date, "
+                "are you sure you have loaded a timestamp feature "
+                "(option --timestamp-feature)?"
+            )
         n_timestamp_classes = 1 if n_observations > 0 else 0
         self._Hmax: score_t = (
             _to_score_t(math.log2(n_timestamp_classes)) if n_timestamp_classes > 0 else -math.inf

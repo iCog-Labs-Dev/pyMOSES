@@ -62,7 +62,10 @@ from pymetta.moses.moses.moses_main import metapop_printer
 from pymetta.moses.moses.moses_params import moses_parameters, moses_statistics
 from pymetta.moses.moses.optimization.hill_climbing import hc_parameters, hill_climbing
 from pymetta.moses.moses.optimization.optimization import optim_parameters
-from pymetta.moses.moses.optimization.particle_swarm import particle_swarm
+from pymetta.moses.moses.optimization.particle_swarm import (
+    particle_swarm,
+    ps_parameters,
+)
 from pymetta.moses.moses.optimization.star_anneal import simulated_annealing
 from pymetta.moses.moses.optimization.univariate import univariate_optimization
 from pymetta.moses.moses.types import (
@@ -334,6 +337,7 @@ def test_metapop_moses_results_b_accepts_every_algo_classic_recognises(opt_algo,
         _tiny_cscorer(),
         opt_params,
         hc_parameters(),
+        ps_parameters(),
         _fresh_deme_parameters(),
         subsample_deme_filter_parameters(),
         metapop_parameters(),
@@ -343,6 +347,75 @@ def test_metapop_moses_results_b_accepts_every_algo_classic_recognises(opt_algo,
 
     assert len(seen) == 1
     assert type(seen[0]) is expected_type
+
+
+def test_metapop_moses_results_b_gives_particle_swarm_the_CALLERS_ps_params():
+    """MUTATION PROVEN: replacing `particle_swarm(opt_params, ps_params)`
+    with `particle_swarm(opt_params, ps_parameters())` -- the exact code
+    that stood here until 2026-09-09 -- makes this fail (50 != 7).
+
+    `ps_params` is the ONLY optimizer-parameter bundle that used to be
+    dropped from this signature, and `moses_main.h:298` reads its VALUE.
+    `calc_swarm_size` clamps to `[4, max_parts]` (particle-swarm.cc:248),
+    so `max_parts` decides how many particles the search actually gets.
+    """
+    seen = []
+    ps_params = ps_parameters()
+    ps_params.max_parts = 7
+    moses_main.metapop_moses_results_b(
+        [],
+        gen_signature(type_node.boolean_type, 1),
+        _rule(),
+        _rule(),
+        _tiny_cscorer(),
+        optim_parameters(opt_algo="ps"),
+        hc_parameters(),
+        ps_params,
+        _fresh_deme_parameters(),
+        subsample_deme_filter_parameters(),
+        metapop_parameters(),
+        moses_parameters(),
+        lambda mp, dex, stats: seen.append(dex._optimize),
+    )
+    assert len(seen) == 1
+    assert seen[0].ps_params.max_parts == 7
+
+
+def test_metapop_moses_results_passes_ps_params_through_unmodified(monkeypatch):
+    """`metapop_moses_results` is a pure pass-through for `ps_params`
+    (moses_main.h:376,382) -- it is not one of the "parameters that might
+    get tweaked" (moses_main.h:357), so it is neither copied nor altered
+    on the way to `metapop_moses_results_b`. Dropping it from the
+    forwarding call, or forwarding a fresh `ps_parameters()`, fails here.
+    """
+    received = []
+    monkeypatch.setattr(
+        moses_main,
+        "metapop_moses_results_b",
+        lambda *args: received.append(args),
+    )
+    ps_params = ps_parameters()
+    ps_params.max_parts = 11
+    moses_main.metapop_moses_results(
+        [],
+        gen_signature(type_node.boolean_type, 1),
+        _rule(),
+        _rule(),
+        _tiny_cscorer(),
+        optim_parameters(),
+        hc_parameters(),
+        ps_params,
+        _fresh_deme_parameters(),
+        subsample_deme_filter_parameters(),
+        metapop_parameters(),
+        moses_parameters(),
+        lambda mp, dex, stats: None,
+    )
+    assert len(received) == 1
+    # Position 7, between hc_params (6) and deme_params (8) -- C++'s own
+    # argument order at moses_main.h:376-379.
+    assert received[0][7] is ps_params
+    assert received[0][7].max_parts == 11
 
 
 def test_metapop_moses_results_b_rejects_an_unrecognised_algo():
@@ -365,6 +438,7 @@ def test_metapop_moses_results_b_rejects_an_unrecognised_algo():
             _tiny_cscorer(),
             opt_params,
             hc_parameters(),
+            ps_parameters(),
             _fresh_deme_parameters(),
             subsample_deme_filter_parameters(),
             metapop_parameters(),
@@ -392,6 +466,7 @@ def test_metapop_moses_results_b_accepts_hc_optimizer(monkeypatch):
         _tiny_cscorer(),
         optim_parameters(opt_algo="hc"),
         hc_parameters(),
+        ps_parameters(),
         _fresh_deme_parameters(),
         subsample_deme_filter_parameters(),
         metapop_parameters(),
@@ -424,6 +499,7 @@ def test_metapop_moses_results_b_does_not_mutate_caller_bases(monkeypatch):
         _tiny_cscorer(),
         optim_parameters(opt_algo="hc"),
         hc_parameters(),
+        ps_parameters(),
         _fresh_deme_parameters(),
         subsample_deme_filter_parameters(),
         metapop_parameters(),
@@ -479,6 +555,7 @@ def _wire_with_fake_local_moses(monkeypatch, *, filter_params=None, meta_params=
         _tiny_cscorer(),
         opt_params,
         hc_parameters(),
+        ps_parameters(),
         _fresh_deme_parameters(),
         filter_params,
         meta_params,
@@ -649,6 +726,7 @@ def _run_it_style(tmp_path, target_feature, ignore_features=()):
         sc,
         optim_parameters(),
         hc_parameters(cross=False),  # see this section's own module-docstring note
+        ps_parameters(),
         _fresh_deme_parameters(),
         subsample_deme_filter_parameters(),
         metapop_parameters(),

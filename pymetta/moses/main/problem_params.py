@@ -53,14 +53,17 @@ field, with NO attempt to wire them into an object that does not exist yet
 -- their eventual gate-if-unsupported logic belongs to whichever future
 task actually wires them (`table_problems.py`, `moses_exec.py`), the same
 "don't invent a consumer" discipline `problem.py`'s own docstring states
-for `option_base`. `ps_max_particles` is the same story taken to its
-limit: `ps_parameters` does not exist ANYWHERE in this port
-(`moses_main.py`'s own docstring: "no `ps_parameters` class exists
-anywhere in this port"), so it is pure stored data. None of these needs
-its own P2 gate here: each is reachable ONLY through a problem selector
-(`-H`) or output path this task does not dispatch through, so a wrong
-value cannot diverge from classic via this file alone (this mirrors
-`-j host:N`'s and `--ps-max-particles`'s reasoning below almost exactly).
+for `option_base`. CORRECTED: `ps_max_particles` used to be listed here
+too, as "the same story taken to its limit: `ps_parameters` does not
+exist ANYWHERE in this port ... so it is pure stored data". Both halves
+went stale -- `optimization/particle_swarm.py` ports `ps_parameters` in
+full, and `moses_main.py` now threads a `ps_params` bundle from here all
+the way to `particle_swarm`. It is built below, next to `hc_params`,
+exactly where classic builds it (:2369-2370). None of the fields that
+ARE still stored flat needs its own P2 gate here: each is reachable ONLY
+through a problem selector (`-H`) or output path this task does not
+dispatch through, so a wrong value cannot diverge from classic via this
+file alone (this mirrors `-j host:N`'s reasoning below almost exactly).
 
 **Two fields of that same `output_*` group are the deliberate exception,
 gated below like any other subsystem's master switch**: `output_bscore`
@@ -196,6 +199,7 @@ from pymetta.moses.metapopulation.metapop_params import (
 from pymetta.moses.moses.moses_params import moses_parameters
 from pymetta.moses.moses.optimization.hill_climbing import hc_parameters
 from pymetta.moses.moses.optimization.optimization import optim_parameters
+from pymetta.moses.moses.optimization.particle_swarm import ps_parameters
 from pymetta.moses.moses.types import _to_score_t, very_best_score
 from pymetta.moses.representation.representation import set_depth
 from pymetta.util.rng import randGen
@@ -802,6 +806,15 @@ class problem_params:
         hc_params.resize_to_fit_ram = self.hc_resize_to_fit_ram
         hc_params.prefix_stat_deme = "Demes"
         self.hc_params = hc_params
+
+        # -- ps_parameters (C++: :2369-2370 `ps_params.max_parts =
+        # ps_max_particles`) -- `problem_params` owns a whole
+        # `ps_parameters` by value in C++ too (problem-params.h:222), and
+        # `max_parts` is the ONE field the CLI touches; every other field
+        # keeps the class's own default (particle-swarm.h:50-...).
+        ps_params = ps_parameters()
+        ps_params.max_parts = self.ps_max_particles
+        self.ps_params = ps_params
 
         # -- Set depth (C++: :2371-2372 `set_depth(contin_depth)`) --
         # `representation.py`'s module-level `_depth` static, exactly as

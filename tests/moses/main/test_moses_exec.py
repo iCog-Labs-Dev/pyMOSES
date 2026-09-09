@@ -360,13 +360,15 @@ def test_moses_exec_unknown_problem_returns_1_and_writes_stderr(capsys):
     assert captured.err == 'problem type "bogus-problem-name" is currently unsupported.\n'
 
 
-@pytest.mark.parametrize("name", ["ip", "ann-it", "pre-conj"])
+@pytest.mark.parametrize("name", ["ip", "ann-it"])
 def test_moses_exec_unregistered_stub_problem_raises(name):
-    """The three problems `table_problems.py` still leaves as
+    """The two problems `table_problems.py` still leaves as
     `problem.py`'s own raising `_unported_table_problem` stub. This test
     was `-H cluster` alone until `cluster_table_problem` was wired for
     real (table_problems.py); `-H cluster` now RUNS, and its oracle is
-    `test_moses_exec_reproduces_classic_cluster_*` below.
+    `test_moses_exec_reproduces_classic_cluster_*` below. `-H pre-conj`
+    was the most recent to leave this list -- its oracle is
+    `test_moses_exec_reproduces_classic_pre_conj_oracle` below.
     """
     with pytest.raises(NotImplementedError, match=name):
         moses_exec(["moses", f"-H{name}"])
@@ -953,3 +955,321 @@ def test_cluster_oracles_are_not_all_degenerate():
         if line and line.split()[0] not in ("-inf", "inf", "nan")
     ]
     assert len(set(finite)) >= 10, finite
+
+
+# ---------------------------------------------------------------------------
+# -H pre-conj end to end.
+#
+# `pre_conj_table_problem` (table-problems.cc:410) was a raising stub in
+# `problem.py` until 2026-09-09, on the recorded grounds that "what is
+# missing is only a pre_conj_table_problem in table_problems.py" -- an
+# accurate description of the defect, kept for weeks as though it were a
+# discharge of it. Classic RUNS the problem; the port now does too.
+#
+# The name is `pre-conj`, with a HYPHEN (table-problems.h:134). `-Hpre_conj`
+# names nothing in either registry and is refused by both -- see
+# `test_moses_exec_pre_conj_UNDERSCORE_is_unsupported_in_both` below.
+#
+# Captured: ( ulimit -v 2097152; timeout 120
+#   $CLASSIC/build/moses/moses/main/moses -Hpre-conj
+#   -i$CLASSIC/tests/moses/dataset.csv -m1000 -W1 [flag] )
+# ---------------------------------------------------------------------------
+
+_EXPECTED_PRE_CONJ = (
+    "0 false \n"
+    "0.5 and(!$arg1 !$arg2) \n"
+    "0.166666686534881592 and($arg1 $arg2) \n"
+    "-0.555555582046508789 true \n"
+    "-0.166666656732559204 and(!$arg1 $arg2) \n"
+    "-0.166666656732559204 and($arg1 !$arg2) \n"
+    "-0.5 $arg1 \n"
+    "-0.5 $arg2 \n"
+    "0.333333343267440796 or(and(!$arg1 !$arg2) and($arg1 $arg2)) \n"
+    "-0.666666626930236816 !$arg1 \n"
+)
+
+# -Q3 == `--alpha 3`, i.e. `pms.hardness = 3.0`, the SECOND argument of
+# `precision_conj_bscore (ctable, pms.hardness, pms.pre_positive)`.
+_EXPECTED_PRE_CONJ_Q3 = (
+    "-0.5 and(!$arg1 !$arg2) \n"
+    "-0.833333313465118408 and($arg1 $arg2) \n"
+    "-0.333333313465118408 or(and(!$arg1 !$arg2) and($arg1 $arg2)) \n"
+    "-1.16666662693023682 and(!$arg1 $arg2) \n"
+    "-1.16666662693023682 and($arg1 !$arg2) \n"
+    "-0.666666626930236816 or(and(!$arg1 $arg2) and($arg1 !$arg2)) \n"
+    "-2 false \n"
+    "-0.833333313465118408 and(or(and(!$arg1 !$arg2) and($arg1 $arg2)) or(!$arg1 $arg2)) \n"
+    "-0.833333313465118408 and(or(and(!$arg1 !$arg2) and($arg1 $arg2)) or($arg1 $arg2)) \n"
+    "-2.55555558204650879 true \n"
+)
+
+# `--pre-positive=0` is the THIRD argument, `positive`.
+_EXPECTED_PRE_CONJ_NEGATIVE = (
+    "0 false \n"
+    "0.5 and(!$arg1 !$arg2) \n"
+    "0.166666686534881592 and(!$arg1 $arg2) \n"
+    "0.166666686534881592 and($arg1 !$arg2) \n"
+    "-0.444444417953491211 true \n"
+    "-0.333333313465118408 !$arg1 \n"
+    "-0.333333313465118408 !$arg2 \n"
+    "-0.166666656732559204 and($arg1 $arg2) \n"
+    "-0.5 $arg1 \n"
+    "-0.5 $arg2 \n"
+)
+
+
+@pytest.mark.oracle
+def test_moses_exec_reproduces_classic_pre_conj_oracle(dataset_csv):
+    rc, out = _run(["moses", "-Hpre-conj", f"-i{dataset_csv}", "-m1000", "-W1"])
+    assert rc == 0
+    assert out == _EXPECTED_PRE_CONJ
+
+
+@pytest.mark.oracle
+def test_moses_exec_pre_conj_hardness_reaches_the_scorer(dataset_csv):
+    """`-Q3` (hardness) changes every printed score AND the surviving
+    candidate set. Hardcoding `precision_conj_bscore`'s `hardness`
+    argument makes this fail while the default-options oracle above still
+    passes -- the two together are what pin `pms.hardness` as the source.
+    """
+    rc, out = _run(["moses", "-Hpre-conj", f"-i{dataset_csv}", "-m1000", "-W1", "-Q3"])
+    assert rc == 0
+    assert out == _EXPECTED_PRE_CONJ_Q3
+    assert out != _EXPECTED_PRE_CONJ
+
+
+@pytest.mark.oracle
+def test_moses_exec_pre_conj_pre_positive_reaches_the_scorer(dataset_csv):
+    """The third `REGRESSION` argument, `pms.pre_positive`. Dropping it
+    (so `precision_conj_bscore`'s own `positive=True` default applies)
+    makes this fail.
+    """
+    rc, out = _run(["moses", "-Hpre-conj", f"-i{dataset_csv}", "-m1000", "-W1", "--pre-positive=0"])
+    assert rc == 0
+    assert out == _EXPECTED_PRE_CONJ_NEGATIVE
+    assert out != _EXPECTED_PRE_CONJ
+
+
+def test_moses_exec_pre_conj_UNDERSCORE_is_unsupported_in_both(dataset_csv, capsys):
+    """Measured against the real binary, 2026-09-09:
+
+      ( ulimit -v 2097152; timeout 120 $CLASSIC/build/moses/moses/main/moses
+        -Hpre_conj -i<precision.csv> -u y -m100 -W1 )
+      -> problem type "pre_conj" is currently unsupported.   (exit 1)
+
+    `pre_conj_table_problem::name()` returns `"pre-conj"` (table-problems.h
+    :134), so the underscore spelling names nothing in classic's registry
+    either. Wiring `-Hpre_conj` as an alias would make this port ACCEPT
+    an invocation classic rejects; this test exists to stop that.
+    """
+    rc = moses_exec(["moses", "-Hpre_conj", f"-i{dataset_csv}", "-m100", "-W1"])
+    assert rc == 1
+    assert capsys.readouterr().err == 'problem type "pre_conj" is currently unsupported.\n'
+
+
+# ---------------------------------------------------------------------------
+# --ps-max-particles end to end (-a ps).
+#
+# `problem_params` parsed and stored `ps_max_particles` and nothing read
+# it: `moses_main.metapop_moses_results_b` built `ps_parameters()` fresh
+# instead of taking the caller's. C++ threads a `ps_params` bundle through
+# both `metapop_moses_results*` signatures (moses_main.h:278,350) and
+# `problem-params.cc:2370` sets `ps_params.max_parts = ps_max_particles`.
+#
+# `calc_swarm_size` (particle-swarm.cc:239-250) is
+# `clamp(n_bits * 3/4 + n_contin * 3, 4, max_parts)`, so the flag is
+# observable only where the unclamped total EXCEEDS 4 -- which is why the
+# 2-input `dataset.csv` shows no difference at any N (measured: identical
+# output for N in {4,6,8,12,50}) and cannot be the corpus here. The
+# 3-input `trainingBoolean.dat` gives three distinct answers.
+#
+# Captured: ( ulimit -v 2097152; timeout 120
+#   $CLASSIC/build/moses/moses/main/moses
+#   -i<trainingBoolean.dat> -u y -aps -m300 -W1 -r1 [--ps-max-particles=N] )
+# ---------------------------------------------------------------------------
+
+_TABLE_DATA = Path(__file__).resolve().parents[2] / "fixtures" / "table_data"
+_BOOL3_PATH = _TABLE_DATA / "trainingBoolean.dat"
+
+_EXPECTED_PS_N4 = (
+    "0 or(and($x1 $x2) !$x3) \n"
+    "-1 !$x3 \n"
+    "-2 or(!$x1 $x2 !$x3) \n"
+    "-2 or($x1 !$x2 !$x3) \n"
+    "-3 true \n"
+    "-2 and(or(and(or(!$x2 $x3) !$x1) $x2) !$x3) \n"
+    "-3 and($x1 !$x3) \n"
+    "-3 or(!$x1 $x2) \n"
+    "-3 or($x1 $x2) \n"
+    "-4 and(or(!$x1 $x3) $x2) \n"
+)
+
+_EXPECTED_PS_N6 = (
+    "-1 or($x2 !$x3) \n"
+    "-2 or(!$x1 $x2 !$x3) \n"
+    "-2 or($x1 !$x2 !$x3) \n"
+    "-2 or(and($x1 !$x2) !$x3) \n"
+    "-3 true \n"
+    "-3 $x1 \n"
+    "-2 or(and(or(!$x2 $x3) !$x1) $x2 !$x3) \n"
+    "-3 and($x1 $x2) \n"
+    "-3 and(or(and(!$x1 !$x2) !$x3) or(!$x1 $x2)) \n"
+    "-4 and($x1 $x2 !$x3) \n"
+)
+
+# N=8 already saturates the clamp for this field_set, so it is also what
+# the DEFAULT (50) prints -- see the two tests below.
+_EXPECTED_PS_SATURATED = (
+    "-1 or($x2 !$x3) \n"
+    "-2 or(!$x1 $x2 !$x3) \n"
+    "-2 or($x1 !$x2 !$x3) \n"
+    "-3 true \n"
+    "-3 $x1 \n"
+    "-2 or(and(or(!$x2 $x3) !$x1) $x2 !$x3) \n"
+    "-3 or($x1 $x2) \n"
+    "-3 or(and(or(!$x1 !$x2) or($x1 !$x3)) $x2 $x3) \n"
+    "-4 or(!$x1 !$x2 $x3) \n"
+    "-4 or(!$x1 $x2 $x3) \n"
+)
+
+
+def _run_ps(extra):
+    return _run(["moses", f"-i{_BOOL3_PATH}", "-u", "y", "-aps", "-m300", "-W1", "-r1", *extra])
+
+
+@pytest.mark.oracle
+@pytest.mark.parametrize(
+    ("n", "expected"),
+    [
+        (4, _EXPECTED_PS_N4),
+        (6, _EXPECTED_PS_N6),
+        (8, _EXPECTED_PS_SATURATED),
+    ],
+    ids=["N4", "N6", "N8-saturated"],
+)
+def test_moses_exec_ps_max_particles_reaches_particle_swarm(n, expected):
+    """MUTATION PROVEN, and it is the mutation the defect WAS: restoring
+    `particle_swarm(opt_params, ps_parameters())` in
+    `metapop_moses_results_b` makes the N=4 and N=6 cases fail (both
+    print the saturated N>=8 answer) while N=8 still passes -- exactly
+    the shape of the original bug, and exactly why sampling only one or
+    two configurations missed it.
+
+    Dropping `pms.ps_params` from any single `metapop_moses_results` call
+    site is caught the same way, and removing the
+    `ps_params.max_parts = self.ps_max_particles` assignment in
+    `problem_params` is caught by all three.
+    """
+    rc, out = _run_ps([f"--ps-max-particles={n}"])
+    assert rc == 0
+    assert out == expected
+
+
+def test_moses_exec_ps_oracles_actually_differ():
+    """Guards the guard (CARRY-FORWARD.md Sec 5.9 / the "corpus holding
+    only values where faithful and broken agree" failure mode): if the
+    three expectations above ever collapse to one string, the
+    parametrized test above would pass no matter what `ps_params` did.
+    """
+    assert len({_EXPECTED_PS_N4, _EXPECTED_PS_N6, _EXPECTED_PS_SATURATED}) == 3
+
+
+@pytest.mark.oracle
+def test_moses_exec_ps_default_max_particles_is_50():
+    """No flag at all must give classic's default-50 answer, which for
+    this field_set is the same saturated output `--ps-max-particles=8`
+    produces (the clamp's upper bound stops binding at 8). Setting the
+    default to anything below 8 in `problem_params` breaks this.
+    """
+    rc, out = _run_ps([])
+    assert rc == 0
+    assert out == _EXPECTED_PS_SATURATED
+
+
+# ---------------------------------------------------------------------------
+# --time-bscore-granularity=month: classic ABORTS, and so must the port.
+#
+# Reported by an earlier audit, then twice recorded as "did not
+# reproduce" -- because the reproduction needs `-H pre` (the only problem
+# that constructs a `precision_bscore`, and hence the only one that
+# constructs the `bscore_ctable_time_dispersion` base whose constructor
+# reads the granularity) AND `-q/-w` bounds that get past
+# `precision_bscore`'s own earlier activation-bounds assert
+# (precision_bscore.cc:163). With `-H it` (the default problem) the flag
+# is genuinely inert in classic too, which is what the "both exit 0,
+# byte-identical" check had actually measured.
+#
+# Measured 2026-09-09:
+#   ( ulimit -v 2097152; timeout 120 $CLASSIC/build/moses/moses/main/moses
+#     -Hpre -i<dataset.csv> -m300 -W1 -q0.1 -w1.0
+#     [--time-bscore-granularity=month] )
+#   no flag / =day -> exit 0, the candidate list below
+#   =month        -> exit 134, "terminate called after throwing an
+#                    instance of 'opencog::AssertionException' / what():
+#                    timestamp is not a valid date, are you sure you have
+#                    loaded a timestamp feature (option
+#                    --timestamp-feature)? (time_dispersion.cc:62)",
+#                    core dumped
+# ---------------------------------------------------------------------------
+
+_EXPECTED_PRE_DAY = (
+    "0.444444447755813599 true \n"
+    "0.5 $arg1 \n"
+    "0.5 $arg2 \n"
+    "0.666666686534881592 and($arg1 $arg2) \n"
+    "0.333333313465118408 !$arg1 \n"
+    "0.333333313465118408 !$arg2 \n"
+    "0.5 or(!$arg1 $arg2) \n"
+    "0.5 or($arg1 !$arg2) \n"
+    "0.444444447755813599 or($arg1 $arg2) \n"
+    "0.333333313465118408 and(!$arg1 $arg2) \n"
+)
+
+
+@pytest.mark.oracle
+@pytest.mark.parametrize("extra", [[], ["--time-bscore-granularity=day"]])
+def test_moses_exec_pre_day_granularity_matches_classic(dataset_csv, extra):
+    rc, out = _run(["moses", "-Hpre", f"-i{dataset_csv}", "-m300", "-W1", "-q0.1", "-w1.0", *extra])
+    assert rc == 0
+    assert out == _EXPECTED_PRE_DAY
+
+
+def test_moses_exec_pre_month_granularity_fails_like_classic(dataset_csv):
+    """MUTATION PROVEN: deleting the `granularity == month` check in
+    `bscore_ctable_time_dispersion.__init__` makes this test fail -- the
+    run completes with exit 0 and prints `_EXPECTED_PRE_DAY`, i.e. this
+    port silently accepting an invocation that core-dumps classic. That
+    was the live behaviour until 2026-09-09.
+
+    The message is classic's own (time_dispersion.cc:62). The exception
+    TYPE differs by this project's usual OC_ASSERT convention -- classic
+    throws `AssertionException` out of `main` and dumps core, which is
+    not reproducible as library behaviour.
+    """
+    with pytest.raises(AssertionError, match="timestamp is not a valid date"):
+        moses_exec(
+            [
+                "moses",
+                "-Hpre",
+                f"-i{dataset_csv}",
+                "-m300",
+                "-W1",
+                "-q0.1",
+                "-w1.0",
+                "--time-bscore-granularity=month",
+            ]
+        )
+
+
+@pytest.mark.oracle
+def test_moses_exec_it_month_granularity_is_inert_in_both(dataset_csv):
+    """The complement, and the measurement that made this defect look
+    unreproducible: `-H it` never constructs a `precision_bscore`, so the
+    flag is read by nothing and classic runs to completion. Byte-checked
+    against `-i<dataset.csv> -m1000 -W1`'s own oracle above. A gate put
+    in `problem_params` instead of at the point of use would break this.
+    """
+    argv = ["moses", f"-i{dataset_csv}", "-m1000", "-W1", "--time-bscore-granularity=month"]
+    rc, out = _run(argv)
+    assert rc == 0
+    assert out == _EXPECTED_IT_LABELS
