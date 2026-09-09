@@ -64,7 +64,17 @@ wrong until proven otherwise.
 | `--discard-dominated=1`, `--diversity-pressure=0.1`, `--well-enough=1` | |
 | `--ignore-operator=div --ignore-operator=sin`, `--complexity-ratio=1.5` | |
 
-A 90-flag sweep found **zero** flags where both binaries succeed and disagree.
+A 90-flag sweep, a 25-case flag-COMBINATION sweep and a 12-case error-path
+sweep each found **zero** cases where both binaries succeed and disagree.
+
+**Every `-H` problem, surveyed 2026-09-10.** Byte-identical: `it`, `pre`,
+`pre-conj`, `prerec`, `recall`, `bep`, `select`, `cluster`, `pa`, `dj`,
+`maj`, `mux`, `sr`, `cp` — 14 of 18. The other four are not port gaps:
+`f_one` reproduces classic's own `AssertionException` (its bscore is
+unconstructible upstream), and `ip`/`ann-it`/`ann-cp` are excluded domains
+where both binaries fail. Note six of these ABORT in classic at their
+defaults and only run once given `-q`/`-w`/`-Q`; a survey that omits those
+flags will read them as "both fail" and prove nothing.
 
 **Measure against a clean checkout when other agents are running.** A dirty
 worktree produced 23 false "port fails" in one sweep, all of them a concurrent

@@ -850,6 +850,37 @@ implying a live hazard. **A zero-kill mutation means one of two things — no
 coverage, or no trap — and the two demand opposite responses, so always
 determine which.**
 
+### 5.10 The session shell is zsh, which does NOT word-split
+
+Three times in one session I read a differential result that was an artefact of
+my own harness, not of the port:
+
+1. `-Hpa -k3 --boost=1` reported classic rejecting a problem named
+   `"pa -k3 --boost=1"`. The whole argument string had arrived as ONE word.
+2. An error-path sweep reported a port-only failure on `-e 'and($1 $99)'`;
+   the `$1`/`$99` had been expanded as the *script's own* positional
+   parameters before classic ever saw them.
+3. A `--ps-max-particles` sweep reported "SAME across N" on all four datasets,
+   including the one where classic's output genuinely does change.
+
+Cause of (1) and (3): **zsh does not perform word splitting on unquoted
+parameter expansions**, unlike bash. `cmd $args` passes `$args` as a single
+argument. Cause of (2): single quotes protect `$` from the *outer* shell, not
+from a function's positional parameters once the string is re-evaluated.
+
+**Rules.**
+- Build differential harnesses as `bash script.sh` files with `"$@"` arrays,
+  not as inline loops over a `$args` string. Every sweep in this project that
+  ran under `bash` was correct; every inline zsh loop that interpolated a
+  string was not.
+- In zsh, `${=args}` forces splitting — but prefer an array.
+- **Treat "no difference" with the same suspicion as "a difference."** All
+  three artefacts above pointed the *safe* way (nothing to fix), which is
+  exactly why they nearly survived. A sweep that finds nothing should be
+  checked for whether it could have found anything: verify the command that
+  actually ran, and verify the outputs being compared are non-empty. Comparing
+  two empty files reports agreement.
+
 ## 6. Process notes that paid for themselves
 
 - **Prove a guard fires.** Requiring "revert it and show the test fail" caught a
