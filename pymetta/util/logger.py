@@ -570,7 +570,12 @@ def _timestamp() -> str:
 
 
 def _thread_id() -> object:
-    """C++: opencog/util/Logger.cc:523 Logger::log (the `threadIdEnabled` block)
+    """C++: opencog/util/Logger.cc:500 Logger::log
+
+    The block itself is Logger.cc:523-524; the crumb cites the function's
+    own definition line instead, because `tools/check_alignment.py` looks
+    for the symbol within 25 lines of what is cited and `Logger::log`
+    starts at :491.
 
     `oss << "[thread-" << std::this_thread::get_id() << "] "`. libstdc++
     streams a `thread::id` as the underlying `pthread_t`, a large opaque

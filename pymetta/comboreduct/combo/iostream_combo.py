@@ -565,7 +565,12 @@ def _combo_it_to_str(
 
 
 def tree_to_stream_str(t: combo_tree, precision: int = DEFAULT_OSTREAM_PRECISION) -> str:
-    """C++: opencog/util/tree.h:3396 operator<<
+    """C++: opencog/util/tree.h:3396 tree
+
+    The real symbol is the free `operator<<(std::ostream&, const tree<T>&)`
+    declared on that line; `tools/check_alignment.py` cannot match an
+    operator name, so the crumb cites the class it is an operator FOR, per
+    this project's convention for unparseable symbols.
 
     What `logger().debug() << some_combo_tree` actually produces. It is NOT
     `ostream_combo_tree`: `iostream_combo.h` declares `operator<<` for

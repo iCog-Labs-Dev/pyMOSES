@@ -238,7 +238,11 @@ _TYPE_NODE_STRINGS = {
 
 
 def ostream_type_node(n: type_node) -> str:
-    """C++: moses/comboreduct/type_checker/type_tree.cc:1360 operator<<
+    """C++: moses/comboreduct/type_checker/type_tree.cc:1360 type_node
+
+    The real symbol is the free `operator<<(ostream&, const type_node&)`
+    defined on that line; the crumb cites the type it prints, since
+    `tools/check_alignment.py` cannot match an operator name.
 
     The `type_node` half of printing a signature. Two cases the table above
     cannot hold: an `argument_type`-or-higher ordinal prints as `$1`, `$2`,
@@ -255,7 +259,11 @@ def ostream_type_node(n: type_node) -> str:
 
 
 def ostream_type_signature(signature: TypeSignature) -> str:
-    """C++: opencog/util/tree.h:3396 operator<<
+    """C++: opencog/util/tree.h:3396 tree
+
+    The real symbol is the free `operator<<(std::ostream&, const tree<T>&)`
+    declared on that line; the crumb cites the class it prints, since
+    `tools/check_alignment.py` cannot match an operator name.
 
     Prints a signature the way classic's log does: `->(boolean boolean
     boolean)` for a two-input Boolean table.
