@@ -215,3 +215,34 @@ def test_negative_penalty_with_fractional_exponent_gives_nan_not_a_raise():
     ctt = _synthetic_ctt([5.0, 5.0])
     penalty = bsc.get_time_dispersion_penalty(ctt)
     assert math.isnan(penalty)
+
+
+def test_fractional_counts_are_truncated_to_unsigned_as_cpp_does():
+    """`row_count` truncates toward zero, because C++ assigns a double to an
+    `unsigned`.
+
+    `time_dispersion.cc:87` is `unsigned row_count = tio.second.total_count();`
+    and `total_count()` returns `count_t`, which is `typedef double`
+    (`table.h:494`). That implicit conversion truncates. `CTable` counts really
+    are floats -- weighted rows produce fractional ones -- so this is reachable,
+    not theoretical.
+
+    Every other penalty case here uses whole-number counts, where truncation is
+    a no-op, so none of them can tell the faithful code from a version that
+    drops it. Found by an independent verification pass: removing `_to_usize`
+    left the whole suite green.
+
+    With buckets `[0.5, 2.5]` and a fixed false count of 1.0 each, truncation
+    gives row counts 1 and 3; without it, 1.5 and 3.5 -- different
+    distributions, different entropy, and a penalty that differs in the second
+    decimal place.
+    """
+    table = loadTable(str(_TABLE_DATA_DIR / "trainingBoolean.dat"), "y")
+    ct = table.compressed()
+    bsc = _ConcreteTD(ct, time_dispersion_pressure=1.0, time_dispersion_exponent=1.0)
+    bsc._Hmax = _to_score_t(math.log2(2))
+
+    penalty = bsc.get_time_dispersion_penalty(_synthetic_ctt([0.5, 2.5]))
+
+    # Truncating: 0.20120501518249512. Not truncating: 0.1678072214126587.
+    assert penalty == pytest.approx(0.20120501518249512, abs=0.0)

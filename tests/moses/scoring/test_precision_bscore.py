@@ -203,6 +203,41 @@ def test_activation_penalty_zero_at_exact_boundaries():
     assert bsc.get_activation_penalty(0.7) == 0.0
 
 
+def test_activation_penalty_narrows_the_ratio_before_subtracting():
+    """The under-activation branch narrows TWICE, and both narrowings matter.
+
+    `precision_bscore.cc:627` is `dst = 1.0 - activation / min_activation;`.
+    Both operands are `float`, so the division happens in float -- one
+    narrowing -- then `1.0 - <float>` promotes to double and narrows again on
+    assignment to `score_t dst`. Collapsing that into a single narrowing
+    changes the result; the identical fix in `discriminating_bscore` is already
+    proven necessary by a mutation there.
+
+    Every other activation test here lands on a boundary returning 0.0, so none
+    could distinguish the two forms. Found by an independent verification pass:
+    collapsing the narrow left the whole suite green.
+
+    At activation 2/7 with min_activation 0.287 (float32 0.28700000047683716)
+    the two forms differ in the 8th significant digit -- the double-rounding
+    signature.
+    """
+    table = loadTable(str(_PRECISION_CSV), "target")
+    ct = table.compressed()
+    bsc = precision_bscore(
+        ct, activation_pressure=1.0, min_activation=0.287, max_activation=0.9
+    )
+    activation = 2.0 / 7.0
+
+    faithful_dst = _to_score_t(1.0 - _to_score_t(activation / bsc.min_activation))
+    collapsed_dst = _to_score_t(1.0 - activation / bsc.min_activation)
+    assert faithful_dst != collapsed_dst, "inputs must discriminate the two forms"
+
+    expected = _to_score_t(
+        bsc.activation_pressure * _to_score_t(math.log(1.0 - faithful_dst))
+    )
+    assert bsc.get_activation_penalty(activation) == expected
+
+
 def test_activation_penalty_minus_infinity_at_zero_activation():
     """UNLIKE `discriminating_bscore.get_threshold_penalty`, this method
     has NO `0.99999999 < dst` saturation clamp -- `activation=0.0`
@@ -300,6 +335,27 @@ def test_precision_conj_bscore_call_counts_and_conjunctions():
     # A single top-level `and` contributes exactly 1 to conj_n -- penalty
     # = hardness * (-1 / (1 + 1)) = -0.5.
     assert bs[1] == pytest.approx(-0.5)
+
+
+def test_precision_conj_bscore_counts_nested_and_siblings_not_just_the_head():
+    """`conj_n` counts the head AND each immediate `and` child.
+
+    `precision_bscore.cc:806-814` increments once for `*head == logical_and`
+    and once more per immediate sibling that is also `logical_and`. The test
+    above uses `and($1 $2)`, whose only `and` is the head -- so it cannot tell
+    the faithful code from one that drops the sibling loop entirely. Found by
+    an independent verification pass: deleting that loop left the suite green.
+
+    `and(and($1 $2) $3)` has an `and` head and one `and` child, so conj_n = 2
+    and the penalty is `-1 / (1 + 2)`. Without the sibling loop conj_n would be
+    1 and the penalty `-0.5`.
+    """
+    table = loadTable(str(_PRECISION_CSV), "target")
+    ct = table.compressed()
+    bsc = precision_conj_bscore(ct, hardness=1.0)
+    bs = bsc(str_to_combo_tree("and(and($1 $2) $3)"))
+    assert len(bs) == 2
+    assert bs[1] == pytest.approx(-1.0 / 3.0)
 
 
 def test_precision_conj_bscore_zero_activation_gives_perfect_precision():
