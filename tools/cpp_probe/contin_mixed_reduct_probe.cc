@@ -17,11 +17,11 @@
 // convention instead (Task 6's oracle for logical_reduce).
 //
 // Reads combo-tree text-format strings, one per line, from a file and for
-// the given <mode> ("contin" or "mixed") and (contin only) <effort>, runs
-// contin_reduce/mixed_reduce with an EMPTY ignore_ops (classic's own real
-// default -- CLAUDE.md's own §5.4 lesson: "at least one oracle must run
-// classic's own defaults") over every line, printing one JSON-lines object
-// per input.
+// the given <mode> ("contin", "mixed" or "full") and (contin only)
+// <effort>, runs contin_reduce/mixed_reduce/full_reduce with an EMPTY
+// ignore_ops (classic's own real default -- CLAUDE.md's own §5.4 lesson:
+// "at least one oracle must run classic's own defaults") over every line,
+// printing one JSON-lines object per input.
 //
 // Build:
 //   P=$HOME/opt/moses-legacy
@@ -120,8 +120,10 @@ int main(int argc, char** argv)
                 vertex_set ignore_ops;  // classic's own real default: empty
                 if (mode == "contin") {
                     contin_reduce(tr, effort, ignore_ops);
-                } else {
+                } else if (mode == "mixed") {
                     mixed_reduce(tr);
+                } else {
+                    full_reduce(tr);
                 }
             } catch (std::exception& e) {
                 ok = false;

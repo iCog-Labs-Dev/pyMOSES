@@ -1,0 +1,156 @@
+{
+  "full": [
+    {
+      "input": "and(not(not($1)) 0<(exp($2)))",
+      "mode": "full",
+      "ok": true,
+      "reduced": "$1",
+      "size_before": 7,
+      "size_after": 1
+    },
+    {
+      "input": "or(and($1 $2) 0<(*(-1.0 exp($3))))",
+      "mode": "full",
+      "ok": true,
+      "reduced": "and($1 $2)",
+      "size_before": 9,
+      "size_after": 3
+    },
+    {
+      "input": "and($1 not($1))",
+      "mode": "full",
+      "ok": true,
+      "reduced": "false",
+      "size_before": 4,
+      "size_after": 1
+    },
+    {
+      "input": "or($1 not($1))",
+      "mode": "full",
+      "ok": true,
+      "reduced": "true",
+      "size_before": 4,
+      "size_after": 1
+    },
+    {
+      "input": "and(0<($1) 0<($2))",
+      "mode": "full",
+      "ok": true,
+      "reduced": "and(0<($1) 0<($2))",
+      "size_before": 5,
+      "size_after": 5
+    },
+    {
+      "input": "and(0<(+($1 1.0)) 0<(+($1 2.0)))",
+      "mode": "full",
+      "ok": true,
+      "reduced": "0<(+(1 $1))",
+      "size_before": 9,
+      "size_after": 4
+    },
+    {
+      "input": "and(not(not($1)) +($2 0.0))",
+      "mode": "full",
+      "ok": true,
+      "reduced": "and($1 $2)",
+      "size_before": 7,
+      "size_after": 3
+    },
+    {
+      "input": "0<(+(impulse(and($1 $2)) 3.0))",
+      "mode": "full",
+      "ok": true,
+      "reduced": "0<(+(3 impulse(and($1 $2))))",
+      "size_before": 7,
+      "size_after": 7
+    },
+    {
+      "input": "and(0<(exp($1)) $2)",
+      "mode": "full",
+      "ok": true,
+      "reduced": "$2",
+      "size_before": 5,
+      "size_after": 1
+    },
+    {
+      "input": "or(0<(*(-1.0 exp($1))) $2)",
+      "mode": "full",
+      "ok": true,
+      "reduced": "$2",
+      "size_before": 7,
+      "size_after": 1
+    },
+    {
+      "input": "and(0<($1) not(0<($1)))",
+      "mode": "full",
+      "ok": true,
+      "reduced": "false",
+      "size_before": 6,
+      "size_after": 1
+    },
+    {
+      "input": "contin_if(and($1 not(not($2))) 1.0 0.0)",
+      "mode": "full",
+      "ok": true,
+      "reduced": "impulse(and($1 $2))",
+      "size_before": 8,
+      "size_after": 4
+    },
+    {
+      "input": "and(0<(*($1 $1)) or($2 not($2)))",
+      "mode": "full",
+      "ok": true,
+      "reduced": "0<(*($1 $1))",
+      "size_before": 9,
+      "size_after": 4
+    },
+    {
+      "input": "+(*($1 $2) *($1 3.0))",
+      "mode": "full",
+      "ok": true,
+      "reduced": "*(+(3 $2) $1)",
+      "size_before": 7,
+      "size_after": 5
+    },
+    {
+      "input": "/(*($1 $2) *($1 3.0))",
+      "mode": "full",
+      "ok": true,
+      "reduced": "*(0.333333 $2)",
+      "size_before": 7,
+      "size_after": 3
+    },
+    {
+      "input": "log(*(exp($1) $2))",
+      "mode": "full",
+      "ok": true,
+      "reduced": "+(log($2) $1)",
+      "size_before": 5,
+      "size_after": 4
+    },
+    {
+      "input": "sin(+($1 4.0))",
+      "mode": "full",
+      "ok": true,
+      "reduced": "sin(+(-2.28319 $1))",
+      "size_before": 4,
+      "size_after": 4
+    },
+    {
+      "input": "and($1 0<($2))",
+      "mode": "full",
+      "ok": true,
+      "reduced": "and(0<($2) $1)",
+      "size_before": 4,
+      "size_after": 4
+    },
+    {
+      "input": "or($1 not(0<($2)))",
+      "mode": "full",
+      "ok": true,
+      "reduced": "or(not(0<($2)) $1)",
+      "size_before": 5,
+      "size_after": 5
+    }
+  ]
+}

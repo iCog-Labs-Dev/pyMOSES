@@ -1,0 +1,17 @@
+{
+  "capture_script": "tools/capture_full_reduction.py",
+  "capture_script_sha256": "ed4adeec021310fdce292dc22d59d6f4eacec95aaba7cf09b52614f4c643aba0",
+  "classic_dir": "/home/yab/Documents/Projects/iCog/HyperonRelated/MOSES/OpenCog/Moses",
+  "cli_tool": null,
+  "generated_at_utc": "2026-09-09T07:50:41+00:00",
+  "inputs": {
+    "corpus_size": 19,
+    "description": "19 hand-picked trees mixing logical/contin/mixed structure in tools/cpp_probe/full_reduct_corpus.txt, reduced via full_reduce with classic's own real default (empty) ignore_ops; no external dataset or seed"
+  },
+  "prefix_dir": "/home/yab/opt/moses-legacy",
+  "probe_kind": "cpp_probe",
+  "probe_source": "tools/cpp_probe/contin_mixed_reduct_probe.cc",
+  "probe_source_sha256": "7635861e03a9f3e30d3afd7af0b713588e46d019dfd2b021412e06cc49f16050",
+  "repo_commit": "6a021678f98c6a50a3255edf6740019f00ded7dc",
+  "schema_version": 1
+}
