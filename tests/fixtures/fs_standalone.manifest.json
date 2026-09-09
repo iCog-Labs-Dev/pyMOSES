@@ -1,0 +1,19 @@
+{
+  "capture_script": "tools/capture_fs_standalone.py",
+  "capture_script_sha256": "eb846496236d2b12cf81e13cc55bc61da85983d5f03d6f5034a179b53ef0d7b4",
+  "classic_dir": "/home/yab/Documents/Projects/iCog/HyperonRelated/MOSES/OpenCog/Moses",
+  "cli_tool": null,
+  "generated_at_utc": "2026-09-09T09:22:33+00:00",
+  "inputs": {
+    "boolean_csv": "tests/fixtures/table_data/trainingBoolean.dat",
+    "description": "random_select_feature_sets() and smd_select_feature_sets() at target_size 0-3 (boolean) / 0-2 (xor), seed reset to 1 immediately before each call (matching a fresh -r 1 process); incremental_select_feature_sets() for seven target_size/threshold/inc_interaction_terms combinations on both tables (fully deterministic, no RNG); smd_select_feature_sets() with scorer='pre' (pre_scorer, moses_matrix.h) at two target_sizes, with the four otherwise-uninitialized pre_* fields set to their real CLI defaults. 'hc' (algo/deme_optimize.{h,cc}) is deliberately NOT captured -- classic's own --algo hc path segfaults unconditionally, confirmed against the real installed binary and a gdb backtrace (hill_climbing::operator() dereferences a null iscorer.get_rep() in an unconditional debug-log line, hill-climbing.cc:69) -- see fs_standalone_probe.cc's own header comment.",
+    "seed": 1,
+    "xor_csv": "tests/fixtures/table_data/trainingBooleanXor.dat"
+  },
+  "prefix_dir": "/home/yab/opt/moses-legacy",
+  "probe_kind": "cpp_probe",
+  "probe_source": "tools/cpp_probe/fs_standalone_probe.cc",
+  "probe_source_sha256": "74fc089d6aec2044a3b5212cde756e2c1cbb377641c975a6f9e4beccb7d6a248",
+  "repo_commit": "7a980031e1886d80d714197f798986e545ef96dc",
+  "schema_version": 1
+}
