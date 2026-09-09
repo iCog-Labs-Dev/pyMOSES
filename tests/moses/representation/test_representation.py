@@ -244,7 +244,11 @@ def test_invalid_instances_fail_without_mutating_representation(golden):
     assert combo_tree_to_str(rep.exemplar()) == expected
 
 
-def test_representation_rejects_non_boolean_builder_paths_without_source_mutation():
+def test_representation_rejects_still_future_builder_paths_without_source_mutation():
+    """``contin_type`` output moved from "future" to supported in S14 Task 2
+    (see ``test_contin_representation.py``'s own oracle tests); this now
+    exercises a domain that remains genuinely unported instead.
+    """
     source = str_to_combo_tree("$1")
     before = combo_tree_to_str(source)
     with pytest.raises(NotImplementedError, match="future allowed domain slice"):
@@ -252,7 +256,7 @@ def test_representation_rejects_non_boolean_builder_paths_without_source_mutatio
             lambda _tr: None,
             lambda _tr: None,
             source,
-            gen_signature(type_node.contin_type, 1),
+            gen_signature(type_node.action_result_type, 1),
         )
     assert combo_tree_to_str(source) == before
 

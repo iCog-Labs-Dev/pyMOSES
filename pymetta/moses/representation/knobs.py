@@ -1,13 +1,14 @@
-"""Logical discrete knob primitives for MOSES representation trees.
+"""Discrete and continuous knob primitives for MOSES representation trees.
 
-Only ``logical_subtree_knob`` is in this slice. Classic's continuous and
-action knob classes are intentionally absent until their domain slices are
-implemented; enum, ANN, object, and procedure knobs remain excluded.
+``contin_knob`` (S14 Task 2) joins ``logical_subtree_knob`` here. Classic's
+two action knob classes are still intentionally absent until that domain
+slice is implemented; enum, ANN, object, and procedure knobs remain excluded.
 """
 
-# DIVERGENCE(C++ moses/moses/representation/knobs.h:128-333): this Boolean
-# slice defers contin_knob and the two action knob classes. No knob for an
-# excluded enum, ANN, object, or procedure domain is introduced in their place.
+# DIVERGENCE(C++ moses/moses/representation/knobs.h:128-333): this slice still
+# defers the two action knob classes (action_subtree_knob,
+# simple_action_subtree_knob). No knob for an excluded enum, ANN, object, or
+# procedure domain is introduced in their place.
 
 from __future__ import annotations
 
@@ -16,10 +17,17 @@ from abc import ABC, abstractmethod
 
 from pymetta.comboreduct.combo.argument import argument
 from pymetta.comboreduct.combo.iostream_combo import combo_tree_to_str
-from pymetta.comboreduct.combo.vertex import builtin, combo_tree, vertex_equal
+from pymetta.comboreduct.combo.vertex import (
+    builtin,
+    combo_tree,
+    get_contin,
+    is_contin,
+    vertex_equal,
+)
 from pymetta.comboreduct.reduct.logical_reduction import logical_reduction
 from pymetta.moses.moses.complexity import complexity_t, tree_complexity
-from pymetta.moses.representation.field_set import disc_spec
+from pymetta.moses.representation.field_set import contin_spec, disc_spec
+from pymetta.moses.representation.instance import contin_t
 from pymetta.util.tree import tree_node
 
 
@@ -105,6 +113,86 @@ class disc_knob_base(knob_base, ABC):
     def complexity_bound(self) -> complexity_t:
         """C++: moses/moses/representation/knobs.h:125 disc_knob_base::complexity_bound"""
         pass
+
+
+class contin_knob(knob_base):
+    """C++: moses/moses/representation/knobs.h:128 contin_knob
+
+    Unlike ``discrete_knob``/``logical_subtree_knob``, a contin knob's spec
+    is captured once, at construction, straight off the target vertex's
+    current value -- there is no probe/disallow step the way discrete knobs
+    have (``build_knobs.disc_probe``): ``build_contin`` (build_knobs.cc:758)
+    inserts every ``contin_knob`` it builds into the mapper unconditionally.
+    """
+
+    def __init__(
+        self,
+        tr: combo_tree,
+        target: tree_node,
+        step_size: contin_t,
+        expansion: contin_t,
+        depth: int,
+    ) -> None:
+        """C++: moses/moses/representation/knobs.cc:36 contin_knob::contin_knob"""
+        super().__init__(tr, target)
+        # DIVERGENCE(C++ moses/moses/representation/knobs.cc:36-40): classic
+        # relies on the caller (``build_contin``, which already checked
+        # ``is_contin(*it)``) to pass a live contin-valued target; a bad
+        # target is undefined `combo::get_contin` behaviour there. Python
+        # validates explicitly instead.
+        if not tr.is_valid(target):
+            raise ValueError("contin_knob: target is erased or invalid")
+        if not is_contin(target.data):
+            raise TypeError("contin_knob: target vertex must hold a contin_t")
+        self._spec = contin_spec(get_contin(target.data), step_size, expansion, depth)
+
+    def in_exemplar(self) -> bool:
+        """C++: moses/moses/representation/knobs.cc:42 contin_knob::in_exemplar
+
+        Always true: unlike a discrete knob, a contin knob has no "absent"
+        setting to compare against -- the exemplar's own value at
+        construction time IS the knob's default/center (``_spec.mean``).
+        """
+        return True
+
+    def clear_exemplar(self) -> None:
+        """C++: moses/moses/representation/knobs.cc:44 contin_knob::clear_exemplar
+
+        A literal no-op in C++ too (`{}`) -- classic's own `@todo: it does
+        not go back to the initial state` comment (knobs.h:143) is kept
+        below rather than silently fixed.
+        """
+        # @todo: it does not go back to the initial state (knobs.h:143).
+        return None
+
+    def turn(self, x: contin_t) -> None:
+        """C++: moses/moses/representation/knobs.cc:46 contin_knob::turn"""
+        loc = self._require_live_location("turn")
+        loc.data = contin_t(x)
+
+    def append_to(
+        self, candidate: combo_tree, parent_dst: tree_node | None, c: contin_t
+    ) -> tree_node:
+        """C++: moses/moses/representation/knobs.cc:48 contin_knob::append_to"""
+        if candidate.empty():
+            return candidate.set_head(contin_t(c))
+        if parent_dst is None:
+            raise ValueError("append_to: nonempty candidate requires a destination parent")
+        return candidate.append_child(parent_dst, contin_t(c))
+
+    def spec(self) -> contin_spec:
+        """C++: moses/moses/representation/knobs.cc:56 contin_knob::spec
+
+        C++ returns a reference into a spec that is NOT part of any field
+        set (the class's own comment, knobs.h:151-152); this returns the
+        same frozen dataclass value every call, so aliasing is moot.
+        """
+        return self._spec
+
+    def toStr(self) -> str:
+        """C++: moses/moses/representation/knobs.cc:58 contin_knob::toStr"""
+        loc = self._require_live_location("toStr")
+        return f"[{_vertex_to_string(loc.data)}]"
 
 
 class discrete_knob(disc_knob_base):

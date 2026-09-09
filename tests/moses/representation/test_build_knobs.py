@@ -56,7 +56,6 @@ _EXPECTED_CASES = (
 )
 
 _FUTURE_OUTPUT_TYPES = {
-    type_node.contin_type,
     type_node.action_result_type,
 }
 
@@ -170,9 +169,18 @@ def test_deterministic_boolean_builder_matches_classic(golden):
 
 
 @pytest.mark.parametrize(
-    "output_type", [node for node in type_node if node is not type_node.boolean_type]
+    "output_type",
+    [
+        node
+        for node in type_node
+        if node not in (type_node.boolean_type, type_node.contin_type)
+    ],
 )
-def test_builder_rejects_every_non_boolean_output_before_mutation(output_type):
+def test_builder_rejects_every_non_boolean_non_contin_output_before_mutation(output_type):
+    """``contin_type`` output is excluded from this parametrization -- it is
+    now a SUPPORTED output (S14 Task 2), covered by its own positive tests
+    below, not by this "every other type is still rejected" sweep.
+    """
     exemplar = str_to_combo_tree("$1")
     before = _render(exemplar)
     signature = gen_signature(type_node.boolean_type, output_type, 1)
