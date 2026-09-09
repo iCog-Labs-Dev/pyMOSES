@@ -935,6 +935,44 @@ def test_metapop_printer_output_demeID_raises_not_implemented():
         _printer(output_demeID=True)(mp, None, moses_statistics())
 
 
+def test_metapop_printer_python_format_ensemble_gates_on_the_boosting_weight():
+    """The python-format ensemble arm prints `sct.get_weight()` per member
+    (moses_main.h:124), and this port gates it rather than printing a
+    wrong number.
+
+    `scored_combo_tree.get_weight()` exists (types.py, ported off
+    types.h:291) and returns the constructor's own 1.0 default. But
+    `ensemble.py` stores its real AdaBoost/experts weights in a private
+    `_sct_weights` dict keyed by object identity, not on the
+    `scored_combo_tree` -- so without the gate every member would print a
+    flat `1.0` where classic prints its real alpha. Before `get_weight`
+    was ported this line failed with `AttributeError`; the gate exists so
+    that adding the accessor could not silently convert an accidental
+    failure into wrong output.
+
+    The `if tree_set:` guard is deliberate and asserted below: an EMPTY
+    ensemble reaches no `get_weight()` call at all, so gating it would
+    raise on a case that has nothing wrong with it.
+    """
+    member = _sct("and($1 $2)", -3.0, 2, 0.5714285714285714)
+    mp = _FakeMetapop([], ensemble_members=[member])
+    with pytest.raises(NotImplementedError, match="get_weight"):
+        _printer(output_ensemble=True, fmt=output_format.python)(mp, None, moses_statistics())
+
+
+def test_metapop_printer_python_format_empty_ensemble_is_not_gated(capsys):
+    """The negative half of the gate above: with NO members there is no
+    `get_weight()` call to be wrong about, so the branch must run and
+    emit classic's boilerplate -- including the `return (0.0 < val)` bug
+    reproduced verbatim off moses_main.h:129 (`val` is never defined).
+    """
+    mp = _FakeMetapop([], ensemble_members=[], best_score_val=-3.0)
+    _printer(output_ensemble=True, fmt=output_format.python)(mp, None, moses_statistics())
+    out = capsys.readouterr().out
+    assert out.startswith("#!/usr/bin/env python\n#score: -3\n")
+    assert out.endswith("    return (0.0 < val)\n")
+
+
 def test_metapop_printer_output_ensemble_flat_score_dies_in_call_ensemble_for_real():
     """Pins what ACTUALLY stops `output_ensemble=True` in combo format,
     using the real `ensemble` rather than `_FakeEnsemble`.

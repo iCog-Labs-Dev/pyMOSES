@@ -41,14 +41,21 @@ with no CTable/table-loading setup).
 ## (both files are outside this task's owned scope, `pymetta/moses/
 ## metapopulation/`)
 
-1. **`scored_combo_tree` (`types.py`) has no `get_weight()`/`set_weight()`**
-   -- the boosting weight field itself. That class's own docstring already
-   flags this as deliberately dropped ("NOT ported: ... `get_weight()`/
-   `set_weight()` (the boosting weight, `_weight` -- boosting is out of
-   scope for this whole task)") from BEFORE boosting was in anyone's
-   scope; it still applies today, and `__slots__ = ("bscore", "cscore",
-   "tree")` means a plain dynamic attribute is not even possible as a
-   workaround. Worked around HERE, not there: this class keeps its own
+1. **[CLOSED in `types.py`; NOT yet consumed here]
+   `scored_combo_tree` (`types.py`) had no `get_weight()`/`set_weight()`**
+   -- the boosting weight field itself. That is fixed:
+   `scored_combo_tree` now carries `weight` (`types.h:274`) with
+   `get_weight`/`set_weight` (`types.h:291,295`), it is in `__slots__`,
+   `__eq__` compares it (`types.cc:56`) and `_copy_sct` carries it across
+   a copy. THIS FILE has not been rewired onto it -- doing so is a
+   behavioural change to a fully-ported module and belonged to neither
+   task -- so everything below still describes what this class actually
+   does today, and an `ensemble` member's `sct.get_weight()` still reads
+   back the constructor's 1.0 default rather than its real alpha. The
+   one place that difference was observable, `metapop_printer`'s
+   python-format ensemble output (`moses_main.h:124`), is explicitly
+   gated in `moses_main.py` so the accessor's arrival could not turn an
+   `AttributeError` into silently wrong output. Worked around HERE: this class keeps its own
    `_sct_weights: dict[id(scored_combo_tree), float]` (keyed by object
    IDENTITY, not the unhashable `scored_combo_tree` itself --
    `scored_combo_tree.__hash__` is explicitly `None`, types.py) via
@@ -60,10 +67,11 @@ with no CTable/table-loading setup).
    never aliased elsewhere in this file), so identity-keying is safe: the
    dict entry and the set membership share exactly one lifetime, mirrored
    explicitly at the one place they must move together (the "perfect
-   score" branch in `add_adaboost`, which clears both together). The real
-   fix belongs in `types.py`: add `get_weight`/`set_weight` (and drop
-   them from `__slots__`'s omission) so a `scored_combo_tree` can carry
-   its own weight the way classic's real one does.
+   score" branch in `add_adaboost`, which clears both together). The
+   remaining work is entirely in THIS file: replace `_get_weight`/
+   `_set_weight` and the `_sct_weights` dict with direct
+   `sct.get_weight()`/`sct.set_weight()` calls, which is what classic
+   does, and then drop `moses_main.py`'s python-format ensemble gate.
 2. **`behave_cscore` has no `get_bscorer()`** -- already noted by the
    PRIOR stub's own docstring (see class docstring below, unchanged):
    `cs._bscorer` stands in for it, matching that module's own documented

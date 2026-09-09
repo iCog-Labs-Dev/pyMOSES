@@ -138,8 +138,14 @@ the plan's own instruction:
     override anywhere in this port yet (`ensemble.py`'s own module
     docstring, "Two REAL prerequisite gaps found", item 3).
   - `python`/`python3` format prints `sct.get_weight()` once per
-    ensemble member (moses_main.h:124) -- see the gate at that line
-    below for what stops that one and why.
+    ensemble member (moses_main.h:124). That accessor exists now
+    (`types.py`), but `ensemble.py` keeps its real boosting weights in a
+    private identity-keyed side dict rather than on the
+    `scored_combo_tree`, so every member would print a flat `1.0`.
+    Explicitly gated with a `NotImplementedError` at that loop -- see
+    the comment there. Before `get_weight` was ported this line died with
+    `AttributeError`; the gate exists so that adding the accessor could
+    not silently turn that failure into wrong output.
 
   Reaching `output_ensemble=True` through a real CLI run is separately
   blocked one layer UP, and that part of the old bullet was right:
@@ -365,6 +371,33 @@ class metapop_printer:
                 parts.append(f"#score: {_format_score_t(metapop.best_score())}\n")
                 parts.append("def moses_eval(i):\n")
                 parts.append("    sum = 0.0 \\\n")
+                # GATE, and it is the whole reason it exists: the loop
+                # below prints `sct.get_weight()` per ensemble member
+                # (moses_main.h:124). `scored_combo_tree.get_weight()`
+                # exists now (types.py) and returns the constructor's own
+                # 1.0 default -- but this port's `ensemble.py` does not
+                # store its AdaBoost/experts weights THERE. It keeps them
+                # in a private `_sct_weights` dict keyed by object
+                # identity (its own module docstring, "Two REAL
+                # prerequisite gaps found", item 1), so every member would
+                # print a flat `1.0` where classic prints its real alpha.
+                # Before `get_weight` was ported this line died with
+                # `AttributeError`; adding the accessor would otherwise
+                # have turned that accidental failure into SILENTLY WRONG
+                # output, which is the one outcome this project's gating
+                # rule exists to prevent. Raise instead, until `ensemble.py`
+                # is rewired onto the real field.
+                if tree_set:
+                    raise NotImplementedError(
+                        "metapop_printer: --output-format=python with an "
+                        "ensemble prints scored_combo_tree.get_weight() per "
+                        "member (moses_main.h:124), but ensemble.py keeps its "
+                        "boosting weights in a private _sct_weights dict keyed "
+                        "by object identity, not on the scored_combo_tree -- so "
+                        "every member would print 1.0 instead of its real "
+                        "AdaBoost weight. Rewire ensemble.py onto "
+                        "scored_combo_tree.set_weight() first."
+                    )
                 for sct in tree_set:
                     parts.append(f"      + {_format_score_t(sct.get_weight())} * ")
                     parts.append(combo_tree_to_str(sct.get_tree(), self._labels(), self.fmt))

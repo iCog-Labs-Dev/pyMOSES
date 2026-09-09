@@ -379,9 +379,31 @@ def _copy_sct(sct: scored_combo_tree) -> scored_combo_tree:
     future task that ever mutates a stored tree in place knows to revisit
     this.
     """
-    return scored_combo_tree(
+    copied = scored_combo_tree(
         sct.get_tree(), copy.copy(sct.get_composite_score()), list(sct.get_bscore())
     )
+    # `scored_combo_tree`'s constructor always starts `_weight(1.0)`
+    # (types.h:266) -- it takes no weight parameter in either language --
+    # but the C++ COPY constructor this helper stands in for
+    # (`new scored_combo_tree(cnd)`, merging.cc:167; `new scored_combo_tree
+    # (*cnd)`, domination.cc:304) is the compiler-generated memberwise one,
+    # which copies `_weight` along with everything else. Carried across
+    # explicitly, so this helper stays a faithful copy now that
+    # `scored_combo_tree` actually has the field (types.py). Inert today
+    # -- nothing in this port calls `set_weight` yet -- and deliberately
+    # written anyway: the moment `ensemble.py` stops keeping its weights in
+    # a side dict, a copy that silently reset every member to 1.0 would be
+    # a real, hard-to-find boosting bug.
+    #
+    # NOT applicable to the OTHER `scored_combo_tree(...)` call sites in
+    # this package (`metapopulation.init`, and `merging.merge_demes`'s
+    # deme-to-trees and bscore-recompute blocks): each of those is a
+    # fresh CONSTRUCTION in C++ too (e.g. merging.cc:279-280 builds
+    # `scored_combo_tree sct(cand.get_tree(), cand.get_demeID(),
+    # cand.get_composite_score(), bs)`), so classic resets the weight to
+    # 1.0 at those points as well and this port matches by doing nothing.
+    copied.set_weight(sct.get_weight())
+    return copied
 
 
 # P2 metapopulation task (ensemble): `ensemble.py` now imports `_copy_sct`

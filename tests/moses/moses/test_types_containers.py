@@ -394,3 +394,143 @@ def test_cpp_unordered_set_dedup_matches(fixture_dir):
     ]
     assert results == fixture["unordered_set_insert_results"]
     assert len(uset) == fixture["unordered_set_size"]
+
+
+# ---------------------------------------------------------------------------
+# scored_combo_tree's boosting weight (types.h:274,291,295; types.cc:56)
+# ---------------------------------------------------------------------------
+
+
+def _sct(combo_str: str, score: float = 0.0, complexity: int = 0) -> scored_combo_tree:
+    from pymetta.comboreduct.combo.iostream_combo import str_to_combo_tree
+
+    return scored_combo_tree(str_to_combo_tree(combo_str), composite_score(score, complexity))
+
+
+def test_weight_defaults_to_one():
+    """`_weight(1.0)` is the last entry of the constructor's own
+    member-initializer list (types.h:266) -- a fixed initial value, so a
+    freshly built `scored_combo_tree` weighs exactly 1.0.
+
+    Asserted as `== 1.0` AND as a `float`, so a mutant defaulting to 0.0
+    (the other obvious choice, and the one that would silently zero every
+    AdaBoost term) dies here.
+    """
+    sct = _sct("$1")
+    assert sct.get_weight() == 1.0
+    assert isinstance(sct.get_weight(), float)
+
+
+def test_weight_is_not_a_constructor_parameter():
+    """C++'s constructor takes `(tr, id, cs, bs)` (types.h:262-265) -- no
+    weight argument in either language; only `set_weight` changes it.
+    """
+    from pymetta.comboreduct.combo.iostream_combo import str_to_combo_tree
+
+    with pytest.raises(TypeError):
+        scored_combo_tree(str_to_combo_tree("$1"), composite_score(), [], 2.0)
+
+
+def test_set_weight_round_trips_at_double_precision_not_score_t():
+    """`_weight` is `double` (types.h:274), NOT `score_t`.
+
+    0.1 is chosen because it is the standard witness that binary64 and
+    binary32 disagree: narrowing it changes the value. A mutant that
+    routed `set_weight` (or the field) through `_to_score_t` would be
+    invisible to a round-trip on, say, 0.5 -- this one kills it.
+    """
+    from pymetta.moses.moses.types import _to_score_t
+
+    assert _to_score_t(0.1) != 0.1  # the witness is a real witness
+
+    sct = _sct("$1")
+    sct.set_weight(0.1)
+    assert sct.get_weight() == 0.1
+    assert sct.get_weight() != _to_score_t(0.1)
+
+
+def test_eq_compares_weight():
+    """`scored_combo_tree::operator==` compares `get_weight()`
+    (types.cc:56) alongside tree/bscore/cscore.
+
+    Nothing in this port sets a weight yet, so this term is inert in
+    ordinary use -- which is exactly why it needs a test of its own
+    rather than being assumed covered by the existing `__eq__` tests
+    (every one of which compares two default-weighted trees).
+    """
+    a, b = _sct("$1", -1.0, 1), _sct("$1", -1.0, 1)
+    assert a == b  # identical in every field, weights both 1.0
+
+    b.set_weight(0.25)
+    assert a != b
+    assert b != a  # symmetric
+
+    a.set_weight(0.25)
+    assert a == b  # equal again once the weights agree
+
+
+def test_scored_combo_tree_equal_functor_still_ignores_weight():
+    """The functor is `tr1.get_tree() == tr2.get_tree()` and nothing else
+    (types.cc:70-74) -- deliberately NOT `scored_combo_tree::operator==`.
+
+    So two trees that differ ONLY in weight must still be "equal" to it,
+    which is what keeps `scored_combo_tree_set`'s dedup meaning "same
+    combo tree regardless of score" (that class's own docstring). A
+    mutant that routed the functor through `__eq__` -- now that `__eq__`
+    compares weight -- dies here.
+    """
+    a, b = _sct("$1", -1.0, 1), _sct("$1", -1.0, 1)
+    b.set_weight(0.25)
+
+    assert a != b  # differ under scored_combo_tree.__eq__ ...
+    assert scored_combo_tree_equal()(a, b) is True  # ... but not to the functor
+    assert scored_combo_tree_hash()(a) == scored_combo_tree_hash()(b)
+
+
+def test_copy_sct_carries_the_weight():
+    """`_copy_sct` (metapopulation.py) stands in for C++'s COPY
+    constructor -- `new scored_combo_tree(cnd)` (merging.cc:167),
+    `new scored_combo_tree(*cnd)` (domination.cc:304) -- which is the
+    compiler-generated memberwise copy and therefore copies `_weight`.
+
+    Lives in this module rather than test_metapopulation.py because what
+    it pins is a `scored_combo_tree` field's semantics: the helper builds
+    its copy field by field, so every field added to the class is one the
+    helper can silently drop. Inert today (nothing calls `set_weight` in
+    the package), and pinned precisely because an inert dropped field is
+    the shape of bug docs/CARRY-FORWARD.md Sec 5.2/5.4 both record.
+    """
+    from pymetta.moses.metapopulation.metapopulation import _copy_sct
+
+    original = _sct("$1", -1.0, 1)
+    original.set_weight(0.375)
+
+    copied = _copy_sct(original)
+
+    assert copied is not original
+    assert copied.get_weight() == 0.375
+    assert copied == original
+
+
+def test_fresh_construction_resets_the_weight_the_way_classic_does():
+    """The complement of the copy test above, and the reason it is not a
+    blanket "always carry the weight" rule.
+
+    `merging.cc:279-280` builds `scored_combo_tree sct(cand.get_tree(),
+    cand.get_demeID(), cand.get_composite_score(), bs)` -- a fresh
+    CONSTRUCTION from another tree's parts, not a copy -- so classic
+    resets that one to 1.0 too. `merge_demes`'s bscore-recompute block
+    (merging.py) and `metapopulation.init` mirror it by doing nothing,
+    and this pins that a "helpfully" propagated weight there would be a
+    divergence.
+    """
+    original = _sct("$1", -1.0, 1)
+    original.set_weight(0.375)
+
+    rebuilt = scored_combo_tree(
+        original.get_tree(),
+        original.get_composite_score(),
+        list(original.get_bscore()),
+    )
+
+    assert rebuilt.get_weight() == 1.0

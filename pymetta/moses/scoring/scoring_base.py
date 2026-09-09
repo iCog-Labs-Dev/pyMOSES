@@ -22,8 +22,14 @@ NOT ported, all deliberately out of scope for this task:
   own harmless no-op default -- silently doing nothing would misrepresent
   a base class whose whole point is to actually compress the table.
 * `get_complexity(const scored_combo_tree_set&)` (scoring_base.h:204) --
-  it averages `sct.get_weight()` (scoring_base.cc:96-107), the boosting
-  weight this port's own `scored_combo_tree` (types.py) does not carry.
+  it averages `sct.get_weight()` (scoring_base.cc:96-107), for ensembles.
+  CORRECTED: this bullet used to justify the omission with "the boosting
+  weight this port's own `scored_combo_tree` (types.py) does not carry".
+  That reason is gone -- `scored_combo_tree` carries `weight` now
+  (types.h:274,291,295) -- but the overload itself is still unported, and
+  `ensemble.py` still keeps its real weights in a private side dict
+  rather than on the `scored_combo_tree`, so a port of this overload
+  would have to be rewired along with it.
 * `contin_complexity_coef` (scoring_base.h:53) -- used only by
   `contin_bscore`, which is not part of this task's ported surface
   (bscores.py ports `ctruth_table_bscore` only, per task-6-brief.md).

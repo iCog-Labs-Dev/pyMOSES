@@ -23,12 +23,19 @@ Still out of scope for this whole S0-S6+S10 lineage:
 * The `ostream_*`/`istream_*` free functions at the bottom of types.h --
   no stream-printing surface is in this cycle's scope (same narrowing
   table.py's module docstring makes for `Table`).
-* `scored_combo_tree`'s own `get_weight()`/`set_weight()` (the boosting
-  weight) and its `demeID_t`-typed `_deme_id` field/`get_demeID()`
-  accessors -- `demeID_t` the TYPE now lives in this module, but
-  `scored_combo_tree` itself still does not carry one: deme bookkeeping and
-  boosting are both out of scope for this whole cycle (see
+* `scored_combo_tree`'s `demeID_t`-typed `_deme_id` field and its
+  `get_demeID()` accessor -- `demeID_t` the TYPE now lives in this module,
+  but `scored_combo_tree` itself still does not carry one: deme
+  bookkeeping is out of scope for this whole cycle (see
   `scored_combo_tree`'s own class docstring for specifics).
+
+  CORRECTED: this bullet used to list `get_weight()`/`set_weight()` (the
+  boosting weight) alongside `demeID_t`. They are ported now -- see
+  `scored_combo_tree.get_weight` below -- because `ensemble.py`'s
+  AdaBoost/experts engine has since landed and had to keep every member's
+  weight in a private side dict keyed by object identity for want of the
+  field. Porting the field does NOT by itself rewire `ensemble.py`; that
+  is recorded as a follow-up in `get_weight`'s own docstring.
 
 `score_t` (a C++ `typedef float`, i.e. IEEE-754 binary32) and `count_t`
 (CTable's `typedef double`, table.h:494) are DIFFERENT C++ types that this
@@ -603,17 +610,21 @@ class scored_combo_tree:
     """C++: moses/moses/moses/types.h:259 scored_combo_tree
 
     "A single combo tree, together with various score metrics for it."
-    (types.h:247's doc comment, reproduced verbatim.) Only the fields
-    and accessors task-6-brief.md's interface actually needs are ported:
-    the tree, its composite score, its behavioral score. NOT ported:
-    `demeID_t`/`get_demeID()` (deme-bookkeeping, out of scope -- see
-    module docstring) and `get_weight()`/`set_weight()` (the boosting
-    weight, `_weight` -- boosting is out of scope for this whole task,
-    same narrowing bscores.py's ctruth_table_bscore makes for the
-    ensemble `operator()` overload).
+    (types.h:247's doc comment, reproduced verbatim.) The class's own
+    doc comment lists exactly what it holds: "a composite score ..., a
+    behavioral score ..., a boosting weight (used to implement the
+    boosting algorithm)" (types.h:253-258). All three are ported, plus
+    the tree. NOT ported: `demeID_t`/`get_demeID()` (deme-bookkeeping,
+    out of scope -- see module docstring).
+
+    `weight` corresponds to C++'s `double _weight` (types.h:274). The
+    port's other three fields already drop C++'s leading underscore
+    (`_tree`/`_cscore`/`_bscore` -> `tree`/`cscore`/`bscore`, since
+    Python has no private-with-public-accessor idiom to reproduce), and
+    this one follows that established local convention.
     """
 
-    __slots__ = ("bscore", "cscore", "tree")
+    __slots__ = ("bscore", "cscore", "tree", "weight")
 
     def __init__(
         self,
@@ -628,10 +639,25 @@ class scored_combo_tree:
         imported by combo_tree's own consumers (bscores.py,
         behave_cscore.py) -- carries no import-cycle risk. `demeID_t`
         (types.h:263's `id` parameter) is dropped -- see class docstring.
+
+        `weight` is NOT a constructor parameter in either language: the
+        C++ member-initializer list ends `_weight(1.0)` (types.h:266), a
+        fixed initial value with no way to set it at construction. Only
+        `set_weight` changes it.
+
+        `_weight` is declared `double` (types.h:274), NOT `score_t` --
+        so it is deliberately not routed through `_to_score_t`. Every
+        C++ reader of it either keeps it as `double` (`scoring_base.cc:
+        103`) or narrows at the point of use, in its own expression
+        (`score_t trweight = sct.get_weight();`, select_bscore.cc:198,
+        precision_bscore.cc:460; `score_t weight = sct.get_weight();`,
+        bscores.cc:92,314). Narrowing it here would narrow it twice for
+        those readers and once too often for `scoring_base.cc:103`.
         """
         self.tree = tr
         self.cscore = cs if cs is not None else composite_score()
         self.bscore: behavioral_score = bs if bs is not None else []
+        self.weight: float = 1.0
 
     def get_tree(self) -> object:
         """C++: moses/moses/moses/types.h:277 scored_combo_tree::get_tree"""
@@ -644,6 +670,39 @@ class scored_combo_tree:
     def set_bscore(self, bs: behavioral_score) -> None:
         """C++: moses/moses/moses/types.h:287 scored_combo_tree::set_bscore"""
         self.bscore = bs
+
+    def get_weight(self) -> float:
+        """C++: moses/moses/moses/types.h:291 scored_combo_tree::get_weight
+
+        The boosting weight -- "a boosting weight (used to implement the
+        boosting algorithm)" (types.h:258). `double`, not `score_t`; see
+        `__init__` for why it is not narrowed.
+
+        Read in C++ by every `call_ensemble` implementation
+        (bscores.cc:92,314; select_bscore.cc:198; precision_bscore.cc:460),
+        by `bscore_base::get_complexity(const scored_combo_tree_set&)`
+        (scoring_base.cc:103), by `metapop_printer`'s python-format
+        ensemble output (moses_main.h:124) and by `merging.cc:671`'s debug
+        log. Written only by `ensemble.cc`'s AdaBoost/experts weight
+        updates.
+
+        FOLLOW-UP, deliberately not done in the change that added this
+        field: `ensemble.py` still keeps its members' weights in a private
+        `_sct_weights` dict keyed by `id(scored_combo_tree)`, because this
+        field did not exist when that file was written (its own module
+        docstring, "Two REAL prerequisite gaps found", item 1, names this
+        exact fix). Adding the field does not rewire it, so an
+        `ensemble`'s members still all read back `1.0` here. Everything
+        that would print or score from that -- classic's whole
+        `output_ensemble` path -- is gated; see `metapop_printer.__call__`
+        (moses_main.py) for the gate that exists precisely so this field's
+        arrival could not silently turn a raise into wrong output.
+        """
+        return self.weight
+
+    def set_weight(self, w: float) -> None:
+        """C++: moses/moses/moses/types.h:295 scored_combo_tree::set_weight"""
+        self.weight = w
 
     def get_composite_score(self) -> composite_score:
         """C++: moses/moses/moses/types.h:299 scored_combo_tree::get_composite_score"""
@@ -667,9 +726,18 @@ class scored_combo_tree:
         Non-identifier member per the project's convention (see
         `composite_score.__lt__` above): the real member is
         `scored_combo_tree::operator==` (types.cc:52-58). NARROWED versus
-        C++: the real operator also compares `get_demeID()` and
-        `get_weight()` (types.cc:54, 56) -- both dropped fields, see class
-        docstring -- so this compares only tree, bscore and cscore.
+        C++ by exactly one term: the real operator also compares
+        `get_demeID()` (types.cc:54), a field this port does not carry
+        (see class docstring).
+
+        `get_weight()` (types.cc:56) IS compared, as of the change that
+        added the field. It was listed alongside `demeID_t` here while
+        the field did not exist; leaving it out once it does would have
+        been a NEW divergence introduced by adding the field, not an
+        inherited one. Nothing in this port sets a weight yet, so every
+        `scored_combo_tree` compares at the constructor's own 1.0 default
+        and this term is inert today -- which is exactly why it needs its
+        own test rather than being assumed covered.
 
         FIX (S10 Task 0): `get_tree() == r.get_tree()` (types.cc:53) is
         real `combo_tree::operator==` -- a genuine STRUCTURAL comparison
@@ -691,6 +759,7 @@ class scored_combo_tree:
         return (
             _combo_tree_structural_eq(self.tree, other.tree)
             and self.bscore == other.bscore
+            and self.weight == other.weight
             and self.cscore == other.cscore
         )
 
