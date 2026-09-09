@@ -19,14 +19,18 @@ probe this port configured -- see ``test_all_...`` below.
 """
 
 import json
+import sys
 
 import pytest
 
-import sys
-
 from pymetta.comboreduct.combo.iostream_combo import combo_tree_to_str, str_to_combo_tree
 from pymetta.comboreduct.combo.vertex import combo_tree
+from pymetta.comboreduct.interpreter.interpreter import contin_interpreter
 from pymetta.comboreduct.type_checker.type_signature import gen_signature, type_node
+from pymetta.moses.representation.field_set import field_set
+from pymetta.moses.representation.instance import instance
+from pymetta.moses.representation.knob_mapper import knob_mapper
+from pymetta.moses.representation.knobs import contin_knob
 from pymetta.moses.representation.representation import representation
 
 # DIVERGENCE(no C++ symbol): `pymetta/moses/representation/__init__.py` does
@@ -255,3 +259,70 @@ def test_a_predicate_anywhere_in_a_contin_exemplar_is_still_rejected():
             str_to_combo_tree("impulse(0<($1))"),
             gen_signature([type_node.contin_type], type_node.contin_type),
         )
+
+
+def _bare_contin_representation(tr, knobs):
+    """Builds a `representation` directly from a hand-decorated exemplar and
+    a fixed list of `contin_knob`s, bypassing `build_knobs` entirely --
+    same technique test_representation.py's own
+    `test_candidate_recursion_descends_into_a_composite_knob_subtree` uses
+    for a composite DISC knob, applied here to contin knobs instead.
+    """
+    rep = representation.__new__(representation)
+    knob_mapper.__init__(rep)
+    rep._exemplar = tr
+    rep._simplify_candidate = lambda _tr: None
+    rep._simplify_knob_building = lambda _tr: None
+    for kb in knobs:
+        rep.add_contin_knob(kb)
+    rep.finalize()
+    rep._fields = field_set([entry.spec for entry in rep.contin])
+    rep._it_disc_idx = {}
+    start = rep._fields.begin_contin_raw_idx()
+    rep._it_contin_idx = {
+        entry.knob.get_loc(): start + offset for offset, entry in enumerate(rep.contin)
+    }
+    return rep
+
+
+def test_get_candidate_turns_each_contin_knob_through_field_set_independently():
+    """Pins `representation._get_candidate_rec`'s contin branch end to end:
+    an all-zero instance (every raw two-bit field at ``Stop``) reproduces
+    each knob's own MEAN unchanged; setting one knob's raw fields away from
+    its mean changes ONLY that knob's leaf in the rebuilt candidate, and the
+    result is a real, evaluable combo tree (checked with the S14 Task 1
+    `contin_interpreter`, not just string-compared).
+    """
+    tr = str_to_combo_tree("plus(0 1)")
+    first_leaf, second_leaf = list(tr.children(tr.begin()))
+    kb0 = contin_knob(tr, first_leaf, step_size=1.0, expansion=2.0, depth=4)
+    kb1 = contin_knob(tr, second_leaf, step_size=1.0, expansion=2.0, depth=4)
+    rep = _bare_contin_representation(tr, [kb0, kb1])
+    assert len(rep.contin) == 2
+
+    inst = instance(rep.fields().packed_width())
+    baseline = rep.get_candidate(inst, False)
+    assert combo_tree_to_str(baseline) == "+(0 1) "
+    assert contin_interpreter([])(baseline) == 1.0
+
+    index_of = {entry.knob: idx for idx, entry in enumerate(rep.contin)}
+    rep.fields().set_contin(inst, index_of[kb0], 5.0)
+    turned = rep.get_candidate(inst, False)
+    assert combo_tree_to_str(turned) == "+(5 1) "
+    assert contin_interpreter([])(turned) == 6.0
+    # kb1's own leaf is untouched by turning kb0.
+    assert rep.fields().get_contin(inst, index_of[kb1]) == 1.0
+
+    rep.fields().set_contin(inst, index_of[kb1], -2.5)
+    achieved = rep.fields().get_contin(inst, index_of[kb1])
+    # depth=4 cannot represent -2.5 exactly from a mean of 1.0 at these
+    # step/expansion settings; assert against what `set_contin` actually
+    # achieved rather than the unreachable exact target.
+    assert achieved != 1.0
+    both_turned = rep.get_candidate(inst, False)
+    assert combo_tree_to_str(both_turned) == f"+(5 {achieved:g}) "
+    assert contin_interpreter([])(both_turned) == 5.0 + achieved
+
+    # get_candidate never mutates the exemplar (representation.cc:313's own
+    # "does not modify the rep at all").
+    assert combo_tree_to_str(rep.exemplar()) == "+(0 1) "

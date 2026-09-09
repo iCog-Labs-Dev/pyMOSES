@@ -11,7 +11,8 @@ from pymetta.comboreduct.combo.iostream_combo import (
 from pymetta.comboreduct.combo.vertex import builtin, combo_tree, vertex_equal
 from pymetta.comboreduct.reduct.clean_reduction import clean_reduce
 from pymetta.comboreduct.reduct.logical_reduction import logical_reduction
-from pymetta.moses.representation.knobs import logical_subtree_knob
+from pymetta.moses.representation.field_set import contin_spec
+from pymetta.moses.representation.knobs import contin_knob, logical_subtree_knob
 from pymetta.util.tree import tree
 
 
@@ -481,3 +482,67 @@ def test_constructor_rejects_dead_target_and_copy_source():
     dead_subtree.erase(stale_subtree)
     with pytest.raises(ValueError, match="cannot copy from an erased"):
         logical_subtree_knob(destination, destination.begin(), stale_subtree)
+
+
+# ***************************************************************************
+# contin_knob (S14 Task 2)
+
+
+def test_contin_knob_captures_spec_from_the_targets_current_value():
+    tr = combo_tree(1.5)
+    kb = contin_knob(tr, tr.begin(), step_size=0.25, expansion=1.5, depth=3)
+    assert kb.spec() == contin_spec(mean=1.5, step_size=0.25, expansion=1.5, depth=3)
+    # Always True -- see the class's own docstring: a contin knob has no
+    # "absent" setting the way a discrete knob does.
+    assert kb.in_exemplar() is True
+    assert kb.toStr() == "[1.5]"
+
+
+def test_contin_knob_rejects_a_non_contin_or_erased_target():
+    tr = str_to_combo_tree("plus($1 0)")
+    non_contin = tr.begin().first_child  # $1, not a contin_t
+    with pytest.raises(TypeError, match="must hold a contin_t"):
+        contin_knob(tr, non_contin, step_size=1.0, expansion=2.0, depth=5)
+
+    leaf = combo_tree(3.0)
+    stale = leaf.begin()
+    leaf.erase(stale)
+    with pytest.raises(ValueError, match="erased or invalid"):
+        contin_knob(tr, stale, step_size=1.0, expansion=2.0, depth=5)
+
+
+def test_contin_knob_turn_mutates_the_tree_in_place_and_toStr_follows():
+    tr = combo_tree(0.0)
+    kb = contin_knob(tr, tr.begin(), step_size=1.0, expansion=2.0, depth=5)
+    kb.turn(2.75)
+    assert tr.begin().data == 2.75
+    assert kb.toStr() == "[2.75]"
+    # spec() is frozen at construction -- turning does not change it.
+    assert kb.spec() == contin_spec(mean=0.0, step_size=1.0, expansion=2.0, depth=5)
+
+
+def test_contin_knob_clear_exemplar_is_a_documented_no_op():
+    tr = combo_tree(4.0)
+    kb = contin_knob(tr, tr.begin(), step_size=1.0, expansion=2.0, depth=5)
+    kb.clear_exemplar()
+    assert tr.begin().data == 4.0
+    assert kb.in_exemplar() is True
+
+
+def test_contin_knob_append_to_matches_logical_subtree_knobs_own_two_shapes():
+    tr = combo_tree(4.0)
+    kb = contin_knob(tr, tr.begin(), step_size=1.0, expansion=2.0, depth=5)
+
+    empty_candidate = combo_tree()
+    root = kb.append_to(empty_candidate, None, 9.0)
+    assert root is empty_candidate.begin()
+    assert empty_candidate.begin().data == 9.0
+
+    nonempty_candidate = str_to_combo_tree("plus(0)")
+    parent = nonempty_candidate.begin()
+    appended = kb.append_to(nonempty_candidate, parent, -3.5)
+    assert appended.data == -3.5
+    assert appended.parent is parent
+
+    with pytest.raises(ValueError, match="requires a destination parent"):
+        kb.append_to(nonempty_candidate, None, 1.0)

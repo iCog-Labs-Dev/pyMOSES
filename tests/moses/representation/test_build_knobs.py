@@ -439,3 +439,131 @@ def test_builder_rejects_bad_collaborators_before_mutation():
     with pytest.raises(ValueError, match="fresh, empty"):
         build_knobs(exemplar, signature, finalized, lambda _tr: None)
     assert _render(exemplar) == before
+
+
+# ***************************************************************************
+# contin-output path (S14 Task 2)
+
+
+def test_contin_linear_contin_defaults_match_classics_own_constructors():
+    """C++: moses/moses/representation/build_knobs.h:56 build_knobs,
+    moses/moses/representation/representation.h:62 representation
+
+    `bool linear_regression = true` on BOTH classic constructors -- the real
+    `moses` CLI's own `--linear-regression` default (`false`,
+    problem-params.cc:292) is a separate, later layer's decision this
+    module does not make. Mutation: flipping either default to `False`
+    turns this test red without touching a single call site.
+    """
+    assert inspect.signature(build_knobs).parameters["linear_contin"].default is True
+    assert inspect.signature(representation).parameters["linear_contin"].default is True
+
+
+def test_contin_builder_rejects_mistyped_linear_contin():
+    with pytest.raises(TypeError, match="linear_contin must be a bool"):
+        build_knobs(
+            str_to_combo_tree("$1"),
+            gen_signature(type_node.contin_type, 1),
+            knob_mapper(),
+            lambda _tr: None,
+            linear_contin=1,
+        )
+
+
+@pytest.mark.parametrize(
+    ("source", "itypes", "message"),
+    [
+        # A predicate is rejected everywhere in a contin exemplar, whether
+        # at the exemplar's own root or nested under `impulse`.
+        ("0<($1)", (type_node.contin_type,), "unsupported.*predicate"),
+        ("impulse(0<($1))", (type_node.contin_type,), "unsupported.*predicate"),
+        # Out-of-range argument for the declared arity.
+        ("$2", (type_node.contin_type,), "outside signature arity"),
+        # An input type that is neither contin nor Boolean.
+        ("$1", (type_node.enum_type,), "only supports Boolean or contin"),
+    ],
+)
+def test_contin_builder_rejects_unsupported_shapes_without_mutation(source, itypes, message):
+    exemplar = str_to_combo_tree(source)
+    before = _render(exemplar)
+
+    with pytest.raises((ValueError, NotImplementedError), match=message):
+        build_knobs(
+            exemplar,
+            gen_signature(list(itypes), type_node.contin_type),
+            knob_mapper(),
+            lambda _tr: None,
+        )
+
+    assert _render(exemplar) == before
+
+
+def test_contin_builder_rejects_non_childless_argument_literal():
+    exemplar = combo_tree(argument(1))
+    exemplar.append_child(exemplar.begin(), argument(1))
+    before = _render(exemplar)
+
+    with pytest.raises(ValueError, match="must be childless"):
+        build_knobs(
+            exemplar,
+            gen_signature(type_node.contin_type, 1),
+            knob_mapper(),
+            lambda _tr: None,
+        )
+
+    assert _render(exemplar) == before
+
+
+def test_contin_builder_rejects_non_childless_contin_constant():
+    exemplar = combo_tree(1.0)
+    exemplar.append_child(exemplar.begin(), argument(1))
+    before = _render(exemplar)
+
+    with pytest.raises(ValueError, match="must be childless"):
+        build_knobs(
+            exemplar,
+            gen_signature(type_node.contin_type, 1),
+            knob_mapper(),
+            lambda _tr: None,
+        )
+
+    assert _render(exemplar) == before
+
+
+def test_contin_canonize_div_must_have_exactly_two_children():
+    """C++: moses/moses/representation/build_knobs.cc:717
+    `OC_ASSERT((it.number_of_children() == 2), ...)` -- a malformed `div`
+    with the wrong arity passes this module's own upfront validation (which
+    only checks childless-ness of LEAVES, not a compound operator's own
+    child count -- matching classic, which relies entirely on this
+    assertion instead) and is only caught here, during canonicalization.
+    Mutation: deleting the ValueError below (or widening it to `!= 3`)
+    leaves this test red -- proven live, see the S14 Task 2 report.
+    """
+    malformed_div = str_to_combo_tree("div($1 $2 $3)")
+    with pytest.raises(ValueError, match="exactly 2 children"):
+        build_knobs(
+            malformed_div,
+            gen_signature(type_node.contin_type, 3),
+            knob_mapper(),
+            lambda _tr: None,
+        )
+
+
+def test_contin_builder_accepts_boolean_and_contin_inputs_together():
+    """A contin-output exemplar mixing Boolean- and contin-typed inputs
+    builds without error -- `append_linear_combination`'s two live
+    dispatch branches (build_knobs.cc:948-965) both fire for the SAME
+    exemplar. See test_contin_representation.py's oracle for the exact,
+    classic-verified knob count/order/spec this produces.
+    """
+    mapper = knob_mapper()
+    build_knobs(
+        str_to_combo_tree("plus($1 impulse($2))"),
+        gen_signature([type_node.contin_type, type_node.boolean_type], type_node.contin_type),
+        mapper,
+        lambda _tr: None,
+        linear_contin=True,
+    )
+    assert len(mapper.disc) == 0
+    assert len(mapper.contin) > 0
