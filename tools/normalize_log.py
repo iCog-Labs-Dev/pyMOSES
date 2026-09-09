@@ -49,6 +49,10 @@ That folding is why the counts this tool reports differ from `wc -l`: classic's
 * **`Stats:` column 3** -- `((int) stats.elapsed_secs)` (local_moses.cc:161).
   Zero on classic's sub-second runs and not zero on the port's.
 
+Every one of those except `ram_usage` is INTEGRAL in classic, and is blanked
+only when the value really is an integer -- see `_blank_integer_column` for
+the mutation that proved the unconditional version too permissive.
+
 Nothing else is touched. In particular scores, complexities, tree shapes,
 instance bit patterns, evaluation counts and deme sizes all pass through
 verbatim -- those are the things a divergence would show up in.
@@ -82,6 +86,26 @@ _STATS_RE = re.compile(r"^Stats: (?P<body>(?!#).*)$")
 
 VOLATILE = "<VOL>"
 
+_INTEGER_RE = re.compile(r"^\d+$")
+
+
+def _blank_integer_column(cols: list[str], i: int) -> None:
+    """Replace `cols[i]` with the placeholder, but ONLY if it is an integer.
+
+    Every volatile column this tool hides except one is integral in classic:
+    `usec` is `unsigned` and `Stats:`' elapsed column is an explicit
+    `((int) stats.elapsed_secs)` (local_moses.cc:161). Blanking those
+    unconditionally would also hide a port that stopped truncating and wrote
+    `0.0032165` where classic writes `0` -- measured: a mutation removing
+    that `int()` killed zero tests until this guard existed. Leaving a
+    non-integer in place makes the comparison fail on it instead.
+
+    `ram_usage` (a `double` in MiB) is the exception and is blanked by the
+    caller without this check.
+    """
+    if i < len(cols) and _INTEGER_RE.match(cols[i]):
+        cols[i] = VOLATILE
+
 
 def _normalize_token(tok: str) -> str:
     """Reduce one whitespace-delimited token to its path- and name-invariant form."""
@@ -113,17 +137,18 @@ def normalize_line(level: str, msg: str) -> str:
         # current_number_of_evals, has_improved, best_score, delta,
         # best_raw_score, delta_raw, complexity. Indices 4, 6 and 9 (0-based)
         # are the two `usec` readings and `ram_usage`.
-        for i in (4, 6, 9):
-            if i < len(cols):
-                cols[i] = VOLATILE
+        for i in (4, 6):
+            _blank_integer_column(cols, i)
+        if 9 < len(cols):
+            # ram_usage is a double, so it has no integral form to check.
+            cols[9] = VOLATILE
         msg = hill.group("prefix") + "\t".join(cols)
 
     stats = _STATS_RE.match(msg)
     if stats:
         cols = stats.group("body").split("\t")
         # local_moses.cc:158-161: n_expansions, n_evals, (int) elapsed_secs, ...
-        if len(cols) > 2:
-            cols[2] = VOLATILE
+        _blank_integer_column(cols, 2)
         msg = "Stats: " + "\t".join(cols)
 
     # Split on spaces only, so the tab-separated column rows above survive.
@@ -137,9 +162,25 @@ def parse_records(text: str) -> list[tuple[str, str]]:
     A physical line without a `[timestamp] [LEVEL] ` prefix continues the
     record above it. A file that begins with such a line -- which should not
     happen, but would silently drop content if ignored -- raises.
+
+    A record's trailing blank line is CONTENT, not padding. `Logger::log`
+    appends exactly one newline to whatever it was given, so a message that
+    already ends in `\\n` -- the MPI warning at problem-params.cc:2186 is the
+    one in the default corpus -- produces a genuine blank physical line, and
+    classic's log really does contain it. Only the file's own final newline
+    is dropped, once, at the end. An earlier version of this function
+    stripped every trailing blank from every record; a mutation that deleted
+    the MPI warning's own `\\n` then killed ZERO tests, which is how the hole
+    was found.
     """
+    lines = text.split("\n")
+    # The file's terminating newline yields one trailing empty element that
+    # belongs to no record's content.
+    if lines and lines[-1] == "":
+        lines.pop()
+
     records: list[tuple[str, list[str]]] = []
-    for line in text.split("\n"):
+    for line in lines:
         m = _RECORD_RE.match(line)
         if m:
             records.append((m.group("level"), [m.group("msg")]))
@@ -147,14 +188,7 @@ def parse_records(text: str) -> list[tuple[str, str]]:
             records[-1][1].append(line)
         elif line:
             raise ValueError(f"log begins with a continuation line: {line!r}")
-    # `Logger::log` ends every record with a newline, so the last physical
-    # line of the file is always empty and belongs to no record's content.
-    out = []
-    for level, parts in records:
-        while parts and parts[-1] == "":
-            parts.pop()
-        out.append((level, "\n".join(parts)))
-    return out
+    return [(level, "\n".join(parts)) for level, parts in records]
 
 
 def normalize_log(text: str) -> list[str]:

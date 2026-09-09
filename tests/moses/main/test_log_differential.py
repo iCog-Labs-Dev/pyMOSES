@@ -101,7 +101,7 @@ ALLOW_LIST: list[tuple[str, str]] = [
         (BUILD_KNOBS, 'DEBUG\tAdded knobs to tree: and(null_vertex($1) null_vertex($2) null_vertex(or($1 $2)) null_vertex(or(!$1 $2)))'),  # noqa: E501
         (BUILD_KNOBS, 'DEBUG\tGetting out of add_logical_knbos'),
         (BUILD_KNOBS, 'DEBUG\tSubtree: or(and(null_vertex($1) null_vertex($2) null_vertex(or(!$1 $2)) null_vertex(or($1 $2)) or(null_vertex($1) null_vertex($2) null_vertex(and($1 $2)) null_vertex(and(!$1 $2)))) null_vertex($1) null_vertex($2) null_vertex(and(!$1 $2)) null_vertex(and($1 $2)) and(null_vertex($1) null_vertex($2) null_vertex(or($1 $2)) null_vertex(or(!$1 $2))))'),  # noqa: E501
-        (MOSES_MAIN_H, 'INFO\tBest candidate:\\n-3 and($1 $2)  [score=-3, penalized score=-3.57142853736877441, complexity=2, complexity penalty=0.571428596973419189, uniformity penalty=0] demeID: 1'),  # noqa: E501
+        (MOSES_MAIN_H, 'INFO\tBest candidate:\\n-3 and($1 $2)  [score=-3, penalized score=-3.57142853736877441, complexity=2, complexity penalty=0.571428596973419189, uniformity penalty=0] demeID: 1\\n'),  # noqa: E501
 ]
 
 

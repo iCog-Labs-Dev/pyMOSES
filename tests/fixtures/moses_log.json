@@ -9,7 +9,7 @@
     "records": [
       "INFO\t<PROG> version \"3\".\"7\".\"0\"",
       "INFO\thostname: <HOST>",
-      "WARN\tWARNING: This version of MOSES does NOT have MPI support!",
+      "WARN\tWARNING: This version of MOSES does NOT have MPI support!\\n",
       "INFO\tCommand line: <PROG> -i moses_dataset.csv -m300 -W1 -l DEBUG -f <LOG>",
       "INFO\tRead data file moses_dataset.csv",
       "DEBUG\tInfered type tree: ->(boolean boolean boolean)",
@@ -178,7 +178,7 @@
       "INFO\t-3 and($1 $2)",
       "INFO\tStats: 1\t33\t<VOL>\t9\t-3\t2\t0\t2\t0",
       "DEBUG\tMOSES ends. Best score has reached maximum score, -3 >= -3.5",
-      "INFO\tBest candidate:\\n-3 and($1 $2)  [score=-3, penalized score=-3.57142853736877441, complexity=2, complexity penalty=0.571428596973419189, uniformity penalty=0] demeID: 1",
+      "INFO\tBest candidate:\\n-3 and($1 $2)  [score=-3, penalized score=-3.57142853736877441, complexity=2, complexity penalty=0.571428596973419189, uniformity penalty=0] demeID: 1\\n",
       "INFO\tCache composite scores hits=21 misses=13"
     ]
   }
