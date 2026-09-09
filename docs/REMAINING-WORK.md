@@ -44,6 +44,28 @@ Written so the next execution resumes from measurement rather than re-deriving
 it. `bash tools/ci.sh` is **green (exit 0, 5242 passed, 5 skipped)** at this
 point, and the working tree is clean.
 
+### THE COMPLETION PLAN — started 2026-09-10
+
+Everything below is measured, not estimated. Six workstreams, partitioned so
+no two touch the same files. A/B/C/D dispatched in parallel; E/F follow because
+they contend for `table_problems.py`.
+
+| # | Workstream | Closes | Owns |
+|---|---|---|---|
+| A | `-aun` univariate divergence | the LAST behavioural divergence | `moses/eda/**`, `util/selection.py`, `util/digraph.py`, `optimization/univariate.py` |
+| B | `TTable`/timestamps + `CTable::balance` | `--balance`, `--nsamples`, `--timestamp-feature`, `--time-bscore`, `--time-dispersion-pressure` | `comboreduct/table/**`, `scoring/time_dispersion.py` |
+| C | Boosting + demeID | `--boost`, `--output-deme-id` | `metapopulation/**`, `moses/types.py`, `scoring/behave_cscore.py`, `precision_bscore.py`, `select_bscore.py`, `moses_main.py`, `main/demo_problems.py` |
+| D | Type-inference engine | 41 of `type_tree.cc`'s 73 defs, `type_tree_def.cc` | `comboreduct/type_checker/**` |
+| E | Feature selection end to end | `--enable-fs`, `prune_xmplr`, `fs-main.cc`, `eval-features.{h,cc}` | `feature_selection/**`, `deme/deme_expander.py` |
+| F | `discretize_contin_bscore` | `--discretize-threshold` | `scoring/bscores.py` |
+
+**Done means:** zero flags where both binaries succeed and disagree; zero flags
+classic accepts that the port refuses, except where the refusal is itself
+faithful; no file with zero Python outside EXCLUDED; and `tools/ci.sh` green.
+
+**Not code, and not mine to settle:** the action-domain question (§5). Four
+coverage rows hinge on it.
+
 ### The differential baseline — run this FIRST after any change
 
 Every one of these is byte-identical to `$CLASSIC/build/moses/moses/main/moses`
