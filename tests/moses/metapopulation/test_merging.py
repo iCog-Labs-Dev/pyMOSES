@@ -108,6 +108,7 @@ from pymetta.moses.representation.instance import instance
 from pymetta.moses.representation.scored_instance import scored_instance
 from pymetta.moses.scoring.behave_cscore import behave_cscore
 from pymetta.moses.scoring.bscores import ctruth_table_bscore
+from pymetta.moses.scoring.scoring_base import bscore_base
 from pymetta.util.rng import randGen
 
 _XOR_DATA = "tests/fixtures/table_data/trainingBooleanXor.dat"
@@ -153,6 +154,27 @@ def _build_dex(cscorer: behave_cscore, seed: int) -> deme_expander:
     dex.create_demes(exemplar, 0)
     dex.optimize_demes(200, 86400)
     return dex
+
+
+class _FixedBscore(bscore_base):
+    """Not itself a ported C++ symbol -- a controllable per-tree bscore
+    table (same shape as test_metapopulation.py's own `_ProbeBscore` and
+    test_domination.py's own `_FixedBscore`), used ONLY by the
+    `discard_dominated` end-to-end test below: that test needs specific,
+    hand-picked bscore VECTORS to make a domination relationship exact,
+    which `_build_cscorer`'s real `ctruth_table_bscore` over the XOR
+    dataset does not give direct control over.
+    """
+
+    def __init__(self, scores: dict[str, list[float]]) -> None:
+        super().__init__()
+        self._scores = scores
+
+    def __call__(self, tr):
+        return list(self._scores.get(combo_tree_to_str(tr).strip(), []))
+
+    def best_possible_bscore(self):
+        return [0.0]
 
 
 def _pool_trees(mp: metapopulation) -> list[tuple[str, float, int, float]]:
@@ -742,14 +764,22 @@ def test_merge_candidates_inserts_independent_copies():
     assert stored.get_score() == 3.0
 
 
-def test_merge_candidates_discard_dominated_raises():
-    """Pins the discard_dominated gate directly on merge_candidates (as
-    opposed to merge_demes' own union-gated raise, tested separately
-    below)."""
+def test_merge_candidates_discard_dominated_calls_merge_nondominated():
+    """P2 metapopulation task: `discard_dominated` is now real
+    (`domination.py`) -- this used to be `test_merge_candidates_
+    discard_dominated_raises`, pinning a `NotImplementedError`. Reaches
+    `merge_nondominated` with an EMPTY candidate set (mirrors the gate's
+    own former test shape): must not raise, and an empty merge must leave
+    the pool untouched. `merge_nondominated`'s own domination LOGIC (a
+    candidate set that actually dominates existing pool members) is
+    covered directly, against metapopulationUTest.cxxtest's own oracle,
+    by tests/moses/metapopulation/test_domination.py -- this test isolates
+    only "does merge_candidates's gate reach it without raising"."""
     mp = _mp()
+    before = mp.size()
     mp._params.discard_dominated = True
-    with pytest.raises(NotImplementedError):
-        mp.merge_candidates(scored_combo_tree_set())
+    mp.merge_candidates(scored_combo_tree_set())
+    assert mp.size() == before
 
 
 # ---------------------------------------------------------------------------
@@ -993,11 +1023,61 @@ def test_merge_demes_do_boosting_gate_raises():
         mp.merge_demes([], [])
 
 
-def test_merge_demes_discard_dominated_gate_raises():
+def test_merge_demes_discard_dominated_no_longer_raises_on_empty_demes():
+    """P2 metapopulation task: `discard_dominated` is now real
+    (`domination.py`) -- this used to be `test_merge_demes_discard_
+    dominated_gate_raises`, pinning a `NotImplementedError`. With an EMPTY
+    `all_demes`/`reps`, `candidates` ends up empty regardless of
+    `discard_dominated`, so this now reaches the exact same
+    `candidates.empty(): return False` exit
+    `test_merge_demes_default_gates_off_returns_false_on_no_candidates`
+    already pins for the all-defaults case -- `discard_dominated` alone no
+    longer changes that outcome. The real recompute+remove_dominated LOGIC
+    (non-empty candidates that actually get filtered) is covered by
+    test_domination.py and
+    test_merge_candidates_discard_dominated_calls_merge_nondominated
+    above."""
     mp = _mp()
     mp._params.discard_dominated = True
-    with pytest.raises(NotImplementedError):
-        mp.merge_demes([], [])
+    assert mp.merge_demes([], []) is False
+
+
+def test_merge_demes_discard_dominated_recompute_and_remove_dominated_end_to_end():
+    """Exercises `merge_demes`'s OWN new code (the recompute block + its
+    second `remove_dominated` call, merging.cc:298-328) end to end, not
+    just `merge_nondominated` in isolation (test_domination.py) or
+    `merge_candidates`'s own gate (the test above): one breadth-first deme
+    with THREE candidates, "$2" (dominates "$3"), "$3" (dominated by "$2",
+    must be trimmed by merge_demes's own `remove_dominated` call before
+    ever reaching the cross-metapopulation check) and "$4" (incomparable
+    with everything). The pre-existing pool member "$1" is dominated by
+    "$2" and must be evicted by the SUBSEQUENT `merge_nondominated` call
+    (`merge_candidates`, reached from `merge_demes`)."""
+    scores = {
+        "$1": [0.0, 0.0],
+        "$2": [2.0, 2.0],  # dominates $1 and $3
+        "$3": [1.0, 1.0],  # dominated by $2 -- trimmed within merge_demes itself
+        "$4": [-1.0, 5.0],  # incomparable with everything
+    }
+    cscorer = behave_cscore(_FixedBscore(scores))
+    mp = metapopulation(str_to_combo_tree("$1"), cscorer, metapop_parameters())
+    mp._params.discard_dominated = True
+
+    deme = _Deme(
+        scored_instance(instance(), composite_score(score, 0))
+        for score in (3.0, 2.0, 1.0)  # $2, $3, $4 -- already descending
+    )
+    deme.n_evals = len(deme)
+    trees = [str_to_combo_tree(s) for s in ("$2", "$3", "$4")]
+    rep = _FakeRepByIdentity(
+        {id(entry.first): tree for entry, tree in zip(deme, trees, strict=True)}
+    )
+
+    done = mp.merge_demes([[deme]], [rep])
+
+    assert done is False  # merge_callback is None -- merge_demes's own default return
+    trees_in_pool = {combo_tree_to_str(sct.get_tree()).strip() for sct in mp.get_trees()}
+    assert trees_in_pool == {"$2", "$4"}  # $1 evicted, $3 trimmed, $2/$4 survive
 
 
 def test_merge_demes_keep_bscore_gate_raises():

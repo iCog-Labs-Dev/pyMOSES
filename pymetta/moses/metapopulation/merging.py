@@ -14,14 +14,29 @@ other bound method.
 `recompute_scores_over_whole_dataset`/`ss_filter` are declared in
 metapopulation.h but DEFINED in subsample.cc -- a file outside this whole
 S10 slice (deme_expander.{h,cc}, deme_params.h, metapopulation.{h,cc},
-merging.cc, metapop_params.{h,cc}), the same way `remove_dominated`/
-`get_nondominated_disjoint` live in domination.cc, also outside the slice.
-`merge_demes` (this task's own scope) calls both unconditionally, so they
-are ported here too, AS GATES: the disabled arm (`n_subsample_demes <= 1`,
-the default) reproduces the real no-op/all-true behaviour exactly (that
-part of subsample.cc's own source is trivial and fully visible even though
-the file itself is out of scope); the enabled arm raises, since the real
-work lives in a file this task does not own.
+merging.cc, metapop_params.{h,cc}). `merge_demes` (this task's own scope)
+calls both unconditionally, so they are ported here too, AS GATES: the
+disabled arm (`n_subsample_demes <= 1`, the default) reproduces the real
+no-op/all-true behaviour exactly (that part of subsample.cc's own source
+is trivial and fully visible even though the file itself is out of
+scope); the enabled arm raises, since the real work lives in a file this
+task does not own (`subsample.cc` -- P2's own remaining-work list).
+
+## P2 metapopulation task: `discard_dominated` is now real
+
+`remove_dominated`/`merge_nondominated` (`domination.cc`, ported whole by
+this task's sibling module `domination.py`) were, until this task, outside
+every file the S10/S11 slices touched -- the two call sites below
+(`merge_candidates`'s domination arm, `merge_demes`'s second
+`discard_dominated` block) raised `NotImplementedError`. Both now call the
+real methods; see each function's own docstring for exactly what changed
+and `domination.py`'s own module docstring for the ported algorithm
+itself. `merging.py` imports `domination` for its `setattr` side effect
+(same shape as this module importing nothing further of its own --
+`__init__.py` -> `merging` -> `domination` keeps `pymetta.moses.
+metapopulation`'s "import the package, get the complete method set"
+guarantee, `test_package_binding.py`'s own contract, transitive through
+one more hop).
 
 ## S11 Task 1 addition: `log_best_candidates`
 
@@ -110,19 +125,25 @@ own docstring.
 
 ## Gates ported (all default OFF; see metapop_params.py's own table)
 
-* `_params.discard_dominated` -- `merge_candidates`'s domination arm
-  (merging.cc:168-175) and `merge_demes`'s OWN second, structurally
-  redundant `if (_params.discard_dominated)` block (merging.cc:298-328)
-  both raise; the latter is UNREACHABLE in this port once the union gate
-  below has already raised for the same flag (see `merge_demes`'s own
-  docstring) and is therefore not written out as literal dead code.
+* `_params.discard_dominated` -- now REAL (P2 metapopulation task,
+  `domination.py`): `merge_candidates`'s domination arm (merging.cc:
+  168-175) calls `merge_nondominated`; `merge_demes`'s own second
+  `if (_params.discard_dominated)` block (merging.cc:298-328) calls
+  `remove_dominated`. Both were previously `NotImplementedError` gates
+  (`domination.cc` was outside every file the S10/S11 slices touched);
+  `domination.py` ports that whole file, so both arms are ported here
+  too. The default-OFF path (`discard_dominated=False`) is unchanged
+  byte-for-byte: neither arm's code is even reached.
 * `diversity_enabled() or _params.do_boosting or _params.discard_dominated
   or _params.keep_bscore` -- `merge_demes`'s behavioural-score recompute
-  block (merging.cc:264-296) raises as a whole; real C++ needs this block
-  only to feed diversity/boosting/domination/`keep_bscore`, none of which
-  this port drives (see the block's own citation below for why porting the
-  block itself was judged out of scope even though it does not depend on
-  any OTHER unported file).
+  block (merging.cc:264-296) is now DECOMPOSED rather than raising as one
+  unit: `diversity_enabled() or do_boosting or keep_bscore` still raises
+  (diversity.cc/ensemble boosting/the keep_bscore path are not ported by
+  this task), but `discard_dominated` alone now runs the real recompute
+  (`merge_demes`'s own docstring explains why splitting the single C++
+  `if` into two independent Python ones has no observable effect on the
+  three still-unported flags, individually or combined with
+  `discard_dominated`).
 * `_params.do_boosting` -- `merge_demes`'s `_ensemble.add_candidates(...)`
   call (merging.cc:344) is reached, not separately guarded: `ensemble.
   add_candidates` (ensemble.py, S10 Task 1) always raises `NotImplementedError`
@@ -182,6 +203,7 @@ import copy
 import math
 from typing import TYPE_CHECKING
 
+from pymetta.moses.metapopulation import domination as _domination  # noqa: F401
 from pymetta.moses.metapopulation.metapopulation import _copy_sct, metapopulation
 from pymetta.moses.moses.optimization.hill_climbing import _greater, _partial_sort
 from pymetta.moses.moses.types import (
@@ -347,31 +369,29 @@ def merge_candidates(self: metapopulation, candidates: scored_combo_tree_set) ->
     convention; metapopulation.py's own "no threading" note).
 
     The DEFAULT arm (`not _params.discard_dominated`, merging.cc:164-167)
-    is functionally identical to metapopulation.py's own `init()`, which
-    inlines this SAME arm's body because `init()` (Task 2's scope) needed
-    something to populate `_scored_trees` before this method existed --
-    that inlining is left exactly as committed (`metapopulation.py` is
-    out of this task's file ownership) rather than refactored to call
-    this method, so the same handful of lines now exist in two places.
-    Real C++ has exactly one copy of this logic; `init()`
-    (metapopulation.cc:71) calls THIS method. The duplication here is a
-    consequence of this task's own file-ownership split, not a C++
-    behaviour being reproduced.
+    used to be duplicated in metapopulation.py's own `init()` (which
+    inlined this same arm's body because, at S10 Task 2's time, this
+    method did not exist yet). Now that this method IS real, `init()` was
+    updated (P2 metapopulation task) to call it directly -- see `init`'s
+    own docstring in metapopulation.py -- matching real C++, where
+    `metapopulation::init` (metapopulation.cc:71) calls THIS method too,
+    rather than leaving classic's one-copy shape duplicated in the port.
 
     `_scored_trees.insert(new scored_combo_tree(cnd))` heap-allocates an
     independent COPY of `cnd` before inserting -- ported via `_copy_sct`
     (Task 2's helper, imported and reused, not reimplemented; see module
     docstring).
+
+    The domination arm (`discard_dominated=True`, merging.cc:168-175) now
+    calls `merge_nondominated` (`domination.py`, P2 metapopulation task) --
+    previously `NotImplementedError` (`domination.cc` was outside every
+    file the S10/S11 slices touched).
     """
-    if self._params.discard_dominated:
-        raise NotImplementedError(
-            "metapopulation::merge_candidates's domination arm "
-            "(merging.cc:168-175, merge_nondominated, domination.cc) is "
-            "not ported; leave metapop_parameters.discard_dominated at its "
-            "default, False"
-        )
-    for cnd in candidates:
-        self._scored_trees.insert(_copy_sct(cnd))
+    if not self._params.discard_dominated:
+        for cnd in candidates:
+            self._scored_trees.insert(_copy_sct(cnd))
+    else:
+        self.merge_nondominated(candidates, self._params.jobs)
 
 
 def merge_demes(
@@ -394,27 +414,59 @@ def merge_demes(
     `_params.discard_dominated`, `_params.do_boosting`, `diversity_enabled()`,
     `_filter_params.n_subsample_demes` are all gates that default OFF --
     see module docstring's own Gates section for the full table and each
-    one's exact citation. The behavioural-score recompute block
-    (merging.cc:258-296) is ported as a SINGLE raise on the union of all
-    four conditions (merging.cc:264-265's own `if`), not as the real
-    bscore-recompute-and-rebuild machinery: every one of its four gating
-    flags is independently out of this port's scope (do_boosting/
-    discard_dominated/diversity route into machinery this whole project
-    does not implement; `keep_bscore` alone has no OTHER unported
-    dependency, but the brief this task was given names this exact block
-    and its exact condition for a faithful gate-and-raise, so it is
-    treated the same as the other three rather than singled out for a
-    partial port).
+    one's exact citation.
+
+    The behavioural-score recompute block (merging.cc:258-296) gates on
+    `diversity_enabled() or do_boosting or discard_dominated or
+    keep_bscore` as ONE `if` in C++ (merging.cc:264-265). This port
+    DECOMPOSES that single condition into two Python `if`s: the first
+    (`diversity_enabled() or do_boosting or keep_bscore`) still raises --
+    those three routes into machinery this whole project does not
+    implement (diversity.cc, ensemble boosting, and `keep_bscore` alone
+    has no other unported dependency but was never asked for by anything
+    real). The second, entered only once the first has NOT raised, is
+    `if discard_dominated: <run the real recompute>` -- domination's own
+    P2 task. This has no observable effect on the three still-raising
+    flags: whether `discard_dominated` is also `True` alongside them
+    changes only WHETHER the (side-effect-free, purely local) recompute
+    happens to run before the raise fires, never WHETHER it raises, since
+    real C++ would reach do_boosting's/diversity's own SEPARATE unported
+    surfaces (`_ensemble.add_candidates`, `set_diversity`) later in this
+    same function regardless of whether the recompute ran first.
+
+    "Behavioral scores are needed only if domination-based merging is
+    asked for ... Note that the instances were previously bscored; the
+    bscores were thrown away way back when, to save on RAM... so we have
+    to do it again here" (merging.cc:256-260's own comment) -- `candidates`
+    (from `get_new_candidates`) carry whatever bscore `deme_to_trees`/
+    `scored_combo_tree.__init__` defaulted them to (`[]`, types.py), NOT
+    real ones; the recompute below rebuilds each one via `_cscorer.
+    get_bscore(cand.get_tree())`. C++ runs this via `OMP_ALGO::for_each`
+    (merging.cc:277, `PARALLEL_SCORE` branch) -- ported as a plain
+    sequential loop, the same "no threading anywhere in this port, no
+    behavioural difference for a pure per-element computation feeding an
+    unordered set" reasoning `deme_to_trees`'s own docstring already gives
+    for its OMP-parallel `select_candidates` lambda. `scored_combo_tree
+    sct(cand.get_tree(), cand.get_demeID(), cand.get_composite_score(),
+    bs)` (merging.cc:279-280) drops the `demeID_t` argument -- not a new
+    narrowing, the same established `scored_combo_tree` carries no deme id
+    divergence `deme_to_trees`'s own docstring cites -- and copies
+    `cand.get_composite_score()` explicitly via `copy.copy` (C++'s own
+    constructor copy-initializes `_cscore` by value, same shape
+    `deme_to_trees`'s `copy.copy(inst_csc)` already reproduces).
 
     Real C++ ALSO has a second, independent `if (_params.discard_dominated)`
-    (merging.cc:298-328, guarding `remove_dominated`) further down. In
-    this port that block is UNREACHABLE: the union gate above already
-    raises whenever `discard_dominated` is True, since it is one of the
-    OR'd conditions, and control can never fall through it to reach a
-    second check of the same flag. Not written out as a second, literally
-    dead `if NotImplementedError` -- would be inert code with no way to
-    ever execute, which is worse than the alternative of simply noting
-    the correspondence here.
+    (merging.cc:298-328) further down, calling `remove_dominated` to trim
+    `candidates` against THEMSELVES before the final cross-metapopulation
+    merge ("what we do here is to trim down the deme some more, so that
+    the final merge can go faster", merging.cc:294-296's own comment) --
+    a DIFFERENT domination check from `merge_candidates`'s own
+    `merge_nondominated` call (which checks `candidates` against the
+    whole existing `_scored_trees` pool, not against each other). Now
+    ported for real (`domination.py`, P2 metapopulation task) -- this
+    block used to be unreachable dead code in this port (the union gate
+    above raised for the same flag first); it is reachable now that the
+    gate above no longer raises for `discard_dominated` alone.
     """
     self.sort_demes(all_demes)
     self.keep_top_unique_candidates(all_demes, reps)
@@ -434,19 +486,29 @@ def merge_demes(
 
     candidates = self.get_new_candidates(pot_candidates)
 
-    if (
-        self.diversity_enabled()
-        or self._params.do_boosting
-        or self._params.discard_dominated
-        or self._params.keep_bscore
-    ):
+    if self.diversity_enabled() or self._params.do_boosting or self._params.keep_bscore:
         raise NotImplementedError(
             "metapopulation::merge_demes's behavioural-score recompute "
-            "block (merging.cc:258-296), gated on diversity_enabled() or "
-            "do_boosting or discard_dominated or keep_bscore, is not "
-            "ported; leave all four at their defaults (diversity disabled, "
-            "do_boosting=False, discard_dominated=False, keep_bscore=False)"
+            "block (merging.cc:258-296), gated (along with "
+            "discard_dominated, which IS ported -- domination.py) on "
+            "diversity_enabled() or do_boosting or keep_bscore, is not "
+            "ported for those three; leave diversity disabled (pressure "
+            "== 0.0, the default), do_boosting=False and keep_bscore=False"
         )
+
+    if self._params.discard_dominated:
+        new_pot = scored_combo_tree_set()
+        for cand in candidates:
+            bs = list(self._cscorer.get_bscore(cand.get_tree()))
+            sct = scored_combo_tree(cand.get_tree(), copy.copy(cand.get_composite_score()), bs)
+            new_pot.insert(sct)
+        candidates = new_pot
+
+        # "trim down the deme some more, so that the final merge can go
+        # faster" (merging.cc:294-296) -- candidates-against-themselves,
+        # NOT the cross-metapopulation check `merge_candidates` (below,
+        # via `merge_nondominated`) performs.
+        self.remove_dominated(candidates, self._params.jobs)
 
     if candidates.empty():
         return False

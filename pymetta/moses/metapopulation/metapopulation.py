@@ -30,14 +30,22 @@ itself out of this task's scope (see the S10 plan's own per-task split):
   no diversity-specific state of its own).
 * `remove_dominated`/`get_nondominated_disjoint`/`get_nondominated_rec`/
   `merge_nondominated`/`dominates`/`to_set`/`split` -- domination.cc, which
-  is not in ANY file this whole S10 slice touches (deme_expander.{h,cc},
+  was not in ANY file the S10 slice touched (deme_expander.{h,cc},
   deme_params.h, metapopulation.{h,cc}, merging.cc, metapop_params.{h,cc}
-  -- the S10 plan's own file list). `metapopulationUTest.cxxtest` (the
-  slice's registered cxxtest oracle) tests exactly these two domination
-  methods and nothing else -- see this module's own test file for why that
-  makes the packaged oracle inapplicable to Task 2's actual scope, and
+  -- the S10 plan's own file list) at S10 Task 2's time.
+  `metapopulationUTest.cxxtest` (the slice's registered cxxtest oracle)
+  tested exactly these two domination methods and nothing else -- see this
+  module's own test file for why that made the packaged oracle
+  inapplicable to Task 2's own scope, and
   `tools/cpp_probe/metapop_core_probe.cc` for the probe written to cover
-  it instead.
+  Task 2's own surface instead.
+
+  UPDATED (P2 metapopulation task): `domination.py` (sibling module) now
+  ports this whole file, and `metapopulationUTest.cxxtest`'s two tests are
+  its real oracle -- see that module's own docstring. This class's own
+  gates that used to raise on `discard_dominated` (`init`, below, and
+  `merging.py`'s `merge_candidates`/`merge_demes`) now call the real
+  methods.
 * `merge_candidates`/`merge_demes`/`sort_demes`/`keep_top_unique_candidates`/
   `trim_down_deme`/`deme_to_trees`/`get_new_candidates`/subsampling
   (`ss_*`, `recompute_scores_over_whole_dataset`) -- merging.cc's own
@@ -80,10 +88,12 @@ module docstring for the same table):
   "The ensemble from Task 1 already raises if driven -- so the boosting
   arm should reach it rather than being stubbed out separately."
 * `discard_dominated` (`metapop_parameters.discard_dominated`, default
-  `False`, `metapop_params.h:211`) gates the ONE inlined fragment of
-  `merge_candidates` this file carries (inside `init`, see its own
-  docstring) -- raises `NotImplementedError` on the domination arm, since
-  `domination.cc` is outside this whole slice's scope.
+  `False`, `metapop_params.h:211`) used to gate an inlined fragment of
+  `merge_candidates` this file carried directly (inside `init`) with a
+  raise on the domination arm. UPDATED (P2 metapopulation task): `init`
+  now calls `self.merge_candidates(candidates)` -- a real method, as of
+  `merging.py`'s own P2 update -- instead of inlining it; see `init`'s own
+  docstring.
 * `diversity_enabled()` (`metapop_parameters.diversity.enabled()`, off by
   default -- `pressure == 0.0`) is ported as the trivial one-line
   accessor it is; nothing in this file's own scope branches on it (the
@@ -407,23 +417,23 @@ class metapopulation:
         (metapopulation.cc:63) copy-constructs -- ported via `list(...)`.
 
         C++ then calls `merge_candidates(candidates)` (metapopulation.cc:71).
-        `merge_candidates` itself (merging.cc) is a LATER task's scope --
-        "Not this task: merge_candidates / merge_demes ... Leave clean
-        seams for them" -- so it is not defined as a method on this class.
-        What follows instead is exactly `merge_candidates`'s DEFAULT
-        (`not _params.discard_dominated`) arm's body inlined
-        (merging.cc:145-149, "insert all candidates in the
-        metapopulation": `for (cnd : candidates) _scored_trees.insert(new
-        scored_combo_tree(cnd));`) -- just far enough that `init` (this
-        task's own scope) actually populates `_scored_trees` (this task's
-        own scope, named explicitly in the brief). The domination arm
-        (`discard_dominated=True`, merging.cc:150-155's `else`, calling
-        `merge_nondominated`) is NOT ported -- `domination.cc` is outside
-        every file this whole S10 slice touches -- so it raises instead,
-        per this port's "port the gate, raise inside it" convention for
-        every other P2 subsystem this slice's own plan names. A later
-        task adding the real `merge_candidates`/`merge_demes` methods may
-        replace this loop with a call to them.
+        `merge_candidates` (merging.cc) was a LATER task's scope at S10
+        Task 2's time -- "Not this task: merge_candidates / merge_demes
+        ... Leave clean seams for them" -- so this method used to inline
+        `merge_candidates`'s DEFAULT arm's body directly (merging.cc:
+        145-149) and raise `NotImplementedError` on its domination arm.
+
+        UPDATED (P2 metapopulation task, now that `merge_candidates` is a
+        real method -- `merging.py`): calls `self.merge_candidates(
+        candidates)` directly, exactly matching real C++'s one-copy shape
+        instead of the port's own former duplicate. This is not a new
+        behaviour -- `merge_candidates`'s own default arm is byte-for-byte
+        the loop this method used to inline, and its domination arm is
+        reached only when `_params.discard_dominated` is `True`, exactly
+        the same condition this method used to raise under -- so this
+        replaces a raise with the SAME operation done for real
+        (`merge_nondominated`, `domination.py`), and the default-OFF path
+        (`discard_dominated=False`, unchanged) is unaffected.
         """
         candidates = scored_combo_tree_set()
         for base in exemplars:
@@ -432,16 +442,7 @@ class metapopulation:
             candidates.insert(scored_combo_tree(base, csc, bs))
 
         self.update_best_candidates(candidates)
-
-        if self._params.discard_dominated:
-            raise NotImplementedError(
-                "metapopulation's merge_candidates domination arm "
-                "(merging.cc's discard_dominated branch, merge_nondominated, "
-                "domination.cc) is not ported; construct with "
-                "metapop_parameters(discard_dominated=False) (the default)"
-            )
-        for cnd in candidates:
-            self._scored_trees.insert(_copy_sct(cnd))
+        self.merge_candidates(candidates)
 
     def get_ensemble(self) -> ensemble:
         """C++: moses/moses/metapopulation/metapopulation.h:140 metapopulation::get_ensemble

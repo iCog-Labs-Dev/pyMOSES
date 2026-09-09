@@ -494,15 +494,26 @@ def test_discard_dominated_default_false_constructs_and_populates_pool():
     assert mp.size() == 2
 
 
-def test_discard_dominated_true_makes_init_raise():
-    """Pins the discard_dominated gate: flipping it must make init()'s
-    (and therefore the constructor's) merge step raise, instead of
-    silently taking the insert-all default path.
+def test_discard_dominated_true_no_longer_makes_init_raise():
+    """P2 metapopulation task: `discard_dominated` is now real
+    (`domination.py`) -- this used to be `test_discard_dominated_true_
+    makes_init_raise`, pinning a `NotImplementedError` on `init`'s merge
+    step. `init` now calls `self.merge_candidates(candidates)` (see its
+    own docstring), which for a single-exemplar constructor and an
+    initially-EMPTY `_scored_trees` reaches `merge_nondominated` with an
+    empty existing pool -- the base case in `get_nondominated_disjoint_
+    rec` (`not bcv2`) returns the single candidate unfiltered, so this is
+    observably identical to the non-discard_dominated path for this exact
+    (single-exemplar, empty-pool) shape. A candidate set that actually
+    exercises real filtering (an existing pool member dominated by an
+    incoming candidate) is covered by test_domination.py and
+    test_merging.py's own `discard_dominated` tests.
     """
     pa = metapop_parameters()
     pa.discard_dominated = True
-    with pytest.raises(NotImplementedError):
-        metapopulation(T1, _cscorer(), pa)
+    mp = metapopulation(T1, _cscorer(), pa)  # must not raise
+    assert mp.size() == 1
+    assert combo_tree_to_str(mp.best_tree()).strip() == "$1"
 
 
 # ============================================================ trivial accessors
