@@ -63,6 +63,7 @@ on every method:
   the real class change.
 """
 
+import math
 from collections import Counter
 from collections.abc import Iterable, Sequence
 
@@ -75,8 +76,14 @@ from pymetta.comboreduct.combo.vertex import (
     vertex,
 )
 from pymetta.comboreduct.interpreter.eval import arity as _tree_arity
-from pymetta.comboreduct.interpreter.interpreter import boolean_interpreter
-from pymetta.comboreduct.type_checker.type_signature import TypeSignature, type_node
+from pymetta.comboreduct.interpreter.interpreter import boolean_interpreter, interpreter_visitor
+from pymetta.comboreduct.type_checker.type_signature import (
+    TypeSignature,
+    boolean_arity,
+    contin_arity,
+    type_node,
+)
+from pymetta.util.rng import randGen
 
 # Compatibility re-export for existing table/scoring callers.  New code should
 # import TypeSignature from type_checker.type_signature.
@@ -128,6 +135,35 @@ def get_indices(labels: Sequence[str], header: Sequence[str]) -> list[int]:
 
 _DEFAULT_INPUT_LABEL = "i"
 
+# `COEF_SAMPLE_COUNT` -- table.h:52, "involved in the formula that counts
+# the number of trials needed for a given arity".
+_COEF_SAMPLE_COUNT = 20.0
+
+
+def _pow2(x: int) -> int:
+    """C++: opencog/util/numeric.h:272 pow2
+
+    `inline unsigned int pow2(unsigned int x) { return pow2<unsigned int>(x); }`,
+    i.e. `1u << x`. Only ever called here on a `boolean_arity`, which is a
+    non-negative count.
+    """
+    return 1 << x
+
+
+def _sample_count(contin_arity_: int) -> int:
+    """C++: moses/comboreduct/table/table.h:849 ITable::sample_count
+
+    "this function take an arity in input and returns in output the number
+    of samples that would be appropriate to check the semantics of its
+    associated tree" (table.h:842-845's own comment).
+    `COEF_SAMPLE_COUNT*log(contin_arity + M_E)` -- a `double` expression
+    returned as `unsigned`, so it TRUNCATES toward zero: carity 1 gives 26,
+    not 26.265233750364456.
+    """
+    if contin_arity_ == 0:
+        return 1
+    return int(_COEF_SAMPLE_COUNT * math.log(contin_arity_ + math.e))
+
 
 class ITable(list):
     """C++: moses/comboreduct/table/table.h:738 ITable
@@ -140,23 +176,165 @@ class ITable(list):
 
     def __init__(
         self,
-        types: Sequence[type_node] = (),
-        labels: Sequence[str] = (),
+        types: Sequence[type_node] | TypeSignature = (),
+        labels: Sequence[str] | int = (),
+        min_contin: float = -1.0,
+        max_contin: float = 1.0,
     ) -> None:
         """C++: moses/comboreduct/table/table.cc:77 ITable
+        and moses/comboreduct/table/table.cc:93 ITable(const type_tree&, int,
+        contin_t, contin_t)
 
-        Covers the `ITable(const type_seq&, const string_seq&)` overload
-        (table.cc:77-78): construct an (initially empty) table with known
-        column types/labels, rows added afterwards via `push_back`. The
-        default-constructed `ITable()` (table.cc:75) and the
+        Two C++ constructors merged into one Python `__init__`, dispatched
+        on the FIRST argument's type (the same convention `OTable.__init__`
+        and `Table.__init__` already use in this file):
+
+        * `Sequence[type_node]` -> `ITable(const type_seq&, const
+          string_seq&)` (table.cc:77-78): an initially empty table with
+          known column types/labels, rows added afterwards via
+          `push_back`.
+        * `TypeSignature` -> `ITable(const type_tree& tt, int nsamples,
+          contin_t min_contin, contin_t max_contin)` (table.cc:93-127),
+          the RANDOM-SAMPLING constructor, in which case `labels` carries
+          `nsamples` ("generate an input table according to the signature
+          tt ... if negative then the sample size is automatically
+          determined", table.h:749-757's own doc comment). Neither
+          `types` nor `labels` is set by that C++ constructor, so the
+          lazily-defaulted `get_types()`/`get_labels()` (all
+          `unknown_type`, `i1..iN`) are what a randomly-sampled table
+          reports -- matched here by leaving both empty.
+
+        The default-constructed `ITable()` (table.cc:75) and the
         rows-plus-labels overload (table.cc:80-81, `ITable(const super&
-        mat, const string_seq& il)`) are not separately ported -- no
-        caller in this port's scope needs to hand rows to the
-        constructor rather than to `push_back` afterwards.
+        mat, const string_seq& il)`) are still not separately ported -- no
+        caller in this port's scope needs to hand rows to the constructor
+        rather than to `push_back` afterwards.
+
+        ## The random constructor draws from the RNG, and the order matters
+
+        This is the port's first RNG-CONSUMING table constructor, so the
+        draw ORDER and COUNT are part of its bit-identical-RNG claim, not
+        an implementation detail. Per row, in column order, it draws
+        `randGen().randint(2)` for a `boolean_type` column and
+        `(max_contin - min_contin) * randGen().randdouble() + min_contin`
+        for a `contin_type` column -- and nothing at all for
+        `unknown_type` (a `vertex()`, i.e. a default-constructed
+        `boost::variant`, whose first alternative is `builtin`, hence
+        `id::null_vertex`). An `unknown_type` column is reachable: an
+        argument index a `-y` combo program never mentions really does
+        land there (classic's own `infer_type_tree` gives `or($1 !$3)`
+        the signature `->(boolean unknown boolean boolean)`).
+
+        Verified element for element, not set-wise, against a compiled
+        probe linking the real `ITable` and the real cogutil
+        `MT19937RandGen` (`tests/comboreduct/table/test_table.py`'s
+        `_ITABLE_RANDOM_*` oracles record the exact probe invocations and
+        their `%.17g` output).
+
+        `enum_type` columns (`enum_t::get_random_enum()`, table.cc:115)
+        are NOT ported -- the enum domain is excluded port-wide (this
+        module's own docstring) and `enum_t` has no `get_random_enum`
+        here. Any other `type_node` hits classic's own `OC_ASSERT(false,
+        "Not implemented yet")` (table.cc:118), ported as
+        `NotImplementedError`.
         """
         super().__init__()
-        self._types: list[type_node] = list(types)
-        self._labels: list[str] = list(labels)
+        self._types: list[type_node] = []
+        self._labels: list[str] = []
+        if isinstance(types, TypeSignature):
+            self._sample(types, -1 if labels == () else int(labels), min_contin, max_contin)
+            return
+        self._types = list(types)
+        self._labels = list(labels)  # type: ignore[arg-type]
+
+    def _sample(
+        self, tt: TypeSignature, nsamples: int, min_contin: float, max_contin: float
+    ) -> None:
+        """C++: moses/comboreduct/table/table.cc:93 ITable
+
+        The body of the random-sampling constructor, split out only so
+        `__init__` above stays a dispatcher; see that docstring for the
+        contract. Cites the same C++ definition line, which is where this
+        code actually comes from.
+
+        `nsamples < 0` -> `std::max(pow2(barity), sample_count(carity))`
+        (table.cc:96-97). Both operands are `unsigned int`
+        (`pow2(unsigned)` is `1u << x`, numeric.h:266-272;
+        `sample_count` returns `unsigned`, table.h:849), and
+        `sample_count` is `COEF_SAMPLE_COUNT*log(contin_arity + M_E)` with
+        `COEF_SAMPLE_COUNT == 20.0` (table.h:52), truncated to `unsigned`
+        on return -- so carity 1 gives `int(20.0 * log(1 + e))` == 26, not
+        26.265. UNREACHABLE from either demo problem: `polynomial_problem
+        ::run` passes `pms.nsamples > 0 ? pms.nsamples :
+        pms.default_nsamples` and `combo_problem::run` forces
+        `pms.nsamples = pms.default_nsamples` when it is `<= 0`, and
+        `default_nsamples` is a `const unsigned int` 20 -- so every real
+        caller passes a positive count. Ported and directly unit-tested
+        against the probe anyway, because `Table(const combo_tree&, int
+        nsamples=-1, ...)` (table.h:936) would reach it.
+
+        `comp_tt` (table.cc:100) selects ENUMERATED booleans
+        (`i & (1 << bidx++)`, low bit first, `bidx` restarting at 0 each
+        row) over random ones whenever `nsamples == (int)pow2(barity)`.
+        Reachable and OBSERVABLE: `-Hcp -y'+(6 *(6 impulse($1)))'` has
+        `barity == 1`, and `--nsamples 2` flips it on -- measured in
+        classic, which scores `-5` with it and `-51` without. For a
+        signature with NO boolean columns (every `-Hsr` run, whose
+        signature is `->(contin contin)`) `comp_tt` can still be TRUE --
+        `pow2(0)` is 1, so `--nsamples 1` sets it -- but it is then inert,
+        because the flag is only ever read inside the `boolean_type`
+        branch. Measured, not assumed: `moses -Hsr -k2 -m200 -W1
+        --nsamples 1` runs to completion in classic.
+        """
+        barity = boolean_arity(tt)
+        carity = contin_arity(tt)
+
+        if nsamples < 0:
+            nsamples = max(_pow2(barity), _sample_count(carity))
+
+        # in that case the boolean inputs are not picked randomly but
+        # instead are enumerated
+        comp_tt = nsamples == _pow2(barity)
+
+        rng = randGen()
+        for i in range(nsamples):
+            bidx = 0  # counter used to enumerate all booleans
+            vs: list[vertex] = []
+            for t in tt.itypes:
+                if t == type_node.boolean_type:
+                    if comp_tt:
+                        b = bool(i & (1 << bidx))
+                        bidx += 1
+                    else:
+                        b = bool(rng.randint_n(2))
+                    vs.append(bool_to_vertex(b))
+                elif t == type_node.contin_type:
+                    vs.append((max_contin - min_contin) * rng.randdouble() + min_contin)
+                elif t == type_node.enum_type:
+                    raise NotImplementedError(
+                        "ITable(type_tree, ...): enum_type columns need "
+                        "enum_t::get_random_enum() (table.cc:115); the enum domain "
+                        "is excluded port-wide"
+                    )
+                elif t == type_node.unknown_type:
+                    # `vs.push_back(vertex()); // push default vertex`
+                    # (table.cc:116-117). `vertex` is `boost::variant<
+                    # contin_t, enum_t, builtin, ...>` (vertex.h:128-141)
+                    # and a default-constructed variant holds its FIRST
+                    # alternative -- so this is a CONTIN 0.0, not
+                    # `id::null_vertex`. Measured against the probe, which
+                    # reports `is_contin(v)` true for that cell; guessing
+                    # `builtin.null_vertex` (the natural reading of
+                    # "default vertex") gave a table that differed from
+                    # classic in exactly this column.
+                    vs.append(0.0)
+                else:
+                    raise NotImplementedError(
+                        f"ITable(type_tree, ...): column type {t!r} -- "
+                        'OC_ASSERT(false, "Not implemented yet") (table.cc:118)'
+                    )
+            # input vector
+            self.push_back(vs)
 
     def push_back(self, row: Sequence[vertex]) -> None:
         """C++: moses/comboreduct/table/table.h:738 ITable
@@ -366,37 +544,94 @@ class OTable(list):
     """C++: moses/comboreduct/table/table.h:866 OTable
 
     `public vertex_seq` (i.e. `public std::vector<vertex>`), narrowed to
-    `list[vertex]` -- a single output column. Only the constructors this
-    port's callers actually need are ported: label-only/values-and-label
-    (table.cc:309-312). The combo_tree-evaluating constructors
-    (table.cc:319, table.cc:350 -- "construct the OTable by evaluating
-    the combo tree for each row") are out of this task's scope (that is
-    Task 6's `behave_cscore`/scoring path, not table loading).
+    `list[vertex]` -- a single output column. Three of the five C++
+    constructors are ported: label-only, values-and-label
+    (table.cc:309-312) and the ITable-evaluating one (table.cc:319).
+    `OTable(const combo_tree&, const CTable&, ...)` (table.cc:350) has no
+    caller in this port and is not ported.
     """
 
     def __init__(
-        self, values: Iterable[vertex] = (), label: str = _DEFAULT_OUTPUT_LABEL
+        self,
+        values: Iterable[vertex] | combo_tree = (),
+        label: str | ITable = _DEFAULT_OUTPUT_LABEL,
+        ol: str = _DEFAULT_OUTPUT_LABEL,
     ) -> None:
-        """C++: moses/comboreduct/table/table.cc:309 OTable
-        and moses/comboreduct/table/table.cc:312 OTable(const super&, const string&)
+        """C++: moses/comboreduct/table/table.cc:309 OTable,
+        moses/comboreduct/table/table.cc:312 OTable(const super&, const string&)
+        and moses/comboreduct/table/table.cc:319 OTable(const combo_tree&,
+        const ITable&, const string&)
 
-        One constructor covers both C++ overloads (merged the same way
-        `ITable.__init__` covers its own two overloads): the label-only
-        overload (table.cc:309-310, `type = id::unknown_type`) and the
-        values-plus-label overload (table.cc:312-318), which infers the
-        column type from the FIRST value:
-        `type = get_type_node(get_type_tree((*this)[0]))`. `values` being
-        empty is exactly what distinguishes the two -- `(*this)[0]` is C++
-        UB on an empty vector, which the real overload set avoids simply
-        by that overload never being called with no values; the `len(self)
-        > 0` guard here is the runtime equivalent, needed only because one
-        Python constructor stands in for both.
+        One constructor covers three C++ overloads, dispatched on the
+        FIRST argument's type (the same convention `ITable.__init__` and
+        `Table.__init__` use):
+
+        * a `combo_tree` -> `OTable(const combo_tree& tr, const ITable&
+          itable, const string& ol)` (table.cc:319-347): "Construct the
+          OTable by evaluating the combo tree @tr for each row in the
+          input ITable" (table.h:876-877's own comment). `label` then
+          carries the `ITable`, and `ol` the output label.
+        * anything else -> the label-only overload (table.cc:309-310,
+          `type = id::unknown_type`) and the values-plus-label overload
+          (table.cc:312-318), which infers the column type from the FIRST
+          value: `type = get_type_node(get_type_tree((*this)[0]))`.
+          `values` being empty is exactly what distinguishes those two --
+          `(*this)[0]` is C++ UB on an empty vector, which the real
+          overload set avoids simply by that overload never being called
+          with no values; the `len(self) > 0` guard here is the runtime
+          equivalent, needed only because one Python constructor stands
+          in for both.
+
+        The `combo_tree` overload's `is_ann_type(*tr.begin())` arm
+        (table.cc:323-338 -- `tree_transform().decodify_tree`,
+        `net.feedforward_depth()`, `net.propagate()`) is not ported, and
+        it is unreachable BY CONSTRUCTION rather than merely omitted:
+        `is_ann_type` is `boost::get<ann_type>(&v)` (vertex.cc:143-146),
+        i.e. "does this variant currently hold its `ann_type`
+        alternative", and this port's `vertex` union has no such
+        alternative at all (`vertex.py`'s own module docstring:
+        `builtin | argument | contin_t | str`). There is therefore no
+        value that could make the test true, and no predicate to write --
+        which is why the code below has no branch where C++ has one. The
+        entry point that would build such a tree, `-H ann-cp`
+        (`demo_problems.py`'s `ann_combo_problem`), raises before reaching
+        here.
+
+        `OC_ASSERT(not tr.empty())` (table.cc:322) is ported as the
+        `IndexError` `tr.begin()` already raises on an empty tree, not as
+        a separate check.
         """
+        if isinstance(values, combo_tree):
+            if not isinstance(label, ITable):
+                raise TypeError("OTable(combo_tree, itable, ol): second argument must be an ITable")
+            self._from_tree(values, label, ol)
+            return
         super().__init__(values)
         self._label = label
         self._type: type_node = (
             _vertex_type_node(self[0]) if len(self) > 0 else type_node.unknown_type
         )
+
+    def _from_tree(self, tr: combo_tree, itable: ITable, ol: str) -> None:
+        """C++: moses/comboreduct/table/table.cc:319 OTable
+
+        The body of the ITable-evaluating constructor, split out only so
+        `__init__` above stays a dispatcher; see that docstring for the
+        contract and for what the ANN arm does instead of being ported.
+
+        Note the trailing `type = get_type_node(get_type_tree((*this)[0]))`
+        (table.cc:346): unlike the TEMPLATED `OTable(const Func&, const
+        ITable&, ...)` overload (table.h:886-893), which never assigns
+        `type` at all and so leaves it indeterminate, this one really does
+        set it from the first evaluated row.
+        """
+        super().__init__()
+        self._label = ol
+        tr.begin()  # OC_ASSERT(not tr.empty()) -- raises IndexError if it is
+        iv = interpreter_visitor(tr)
+        for row in itable:
+            self.push_back(iv(list(row)))
+        self._type = _vertex_type_node(self[0])
 
     def push_back(self, v: vertex) -> None:
         """C++: moses/comboreduct/table/table.h:866 OTable
