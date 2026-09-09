@@ -72,7 +72,11 @@ from collections.abc import Iterable, Sequence
 
 from pymetta.comboreduct.combo.vertex import builtin, enum_t, vertex
 from pymetta.comboreduct.table.table import ITable, OTable, Table, get_indices, type_node
-from pymetta.comboreduct.type_checker.type_signature import gen_signature, ostream_type_signature
+from pymetta.comboreduct.type_checker.type_signature import (
+    gen_signature,
+    ostream_type_node,
+    ostream_type_signature,
+)
 from pymetta.util.logger import logger
 
 # ---------------------------------------------------------------------------
@@ -595,6 +599,7 @@ def _load_sparse_itable(lines: Sequence[str]) -> ITable:
         fixy = _tokenize_sparse_row(data_lines[0])
         while _SPARSE_DELIM not in fixy[fixed_arity]:
             fixed_arity += 1
+    logger().info(f"Sparse file fixed column count={fixed_arity}")
 
     feats: set[str] = set()
     feat_type = type_node.unknown_type
@@ -615,6 +620,14 @@ def _load_sparse_itable(lines: Sequence[str]) -> ITable:
             key, val = kv
             feats.add(key)
             feat_type = infer_type_from_token2(feat_type, val)
+
+    # C++: table_io.cc:591-593. `lines.size()` there is the SAME `lines`
+    # this port calls `data_lines`: the C++ function strips the header off
+    # its own `lines` vector before this point (table_io.cc:544-552), so the
+    # count excludes it in both.
+    logger().info(f"Sparse file unique features count={len(feats)}")
+    logger().info("Sparse file feature type=" + ostream_type_node(feat_type))
+    logger().info(f"Sparse file row count={len(data_lines)}")
 
     index: dict[str, int] = {}
     cnt = fixed_arity

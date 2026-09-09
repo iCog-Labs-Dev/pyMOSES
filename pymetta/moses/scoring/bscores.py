@@ -97,8 +97,12 @@ from pymetta.moses.moses.types import (
     score_t,
     very_best_score,
 )
-from pymetta.moses.scoring.scoring_base import bscore_base
-from pymetta.util.logger import logger
+from pymetta.moses.scoring.scoring_base import (
+    _cpp_reciprocal,
+    bscore_base,
+    log_candidate_bscore,
+)
+from pymetta.util.logger import logger, ostream_double
 
 
 class ctruth_table_bscore(bscore_base):
@@ -191,6 +195,7 @@ class ctruth_table_bscore(bscore_base):
             # for fidelity to bscores.cc:289-292.
             bs = [a - b for a, b in zip(bs, self._best_possible_score, strict=True)]
 
+        log_candidate_bscore(tr, bs)  # C++: bscores.cc:294
         return bs
 
     def set_best_possible_bscore(self) -> None:
@@ -477,6 +482,7 @@ class contin_bscore(bscore_base):
             tar = get_contin(target_v)
             res = get_contin(iv(list(row)))
             bs.append(-self._err_func(res, tar))
+        log_candidate_bscore(tr, bs)  # C++: bscores.cc:158
         return bs
 
     def best_possible_bscore(self) -> behavioral_score:
@@ -536,8 +542,7 @@ class contin_bscore(bscore_base):
         `bscore_base.set_complexity_coef`'s own docstring already
         documents for its sibling overload).
 
-        NOT ported: the `logger().info()` diagnostic line
-        (bscores.cc:187-189) -- no logging surface exists in this port.
+        The `logger().info()` line at bscores.cc:187-189 is emitted below.
         """
         if len(args) == 2:
             alphabet_size, stdev = args
@@ -545,6 +550,14 @@ class contin_bscore(bscore_base):
             self._complexity_coef = 0.0
             if stdev > 0.0:
                 self._complexity_coef = _contin_complexity_coef(alphabet_size, stdev)
+            # C++: bscores.cc:187-189. "alphabest" is classic's own typo,
+            # and the ratio is the RECIPROCAL of the stored coefficient --
+            # `inf` when the coefficient stayed 0.0.
+            logger().info(
+                f"contin_bscore noise = {ostream_double(stdev)}"
+                f" alphabest size = {alphabet_size}"
+                f" complexity ratio = {ostream_double(_cpp_reciprocal(self._complexity_coef))}"
+            )
         else:
             super().set_complexity_coef(*args)
 
@@ -867,7 +880,11 @@ class cluster_bscore(bscore_base):
         # exception. Hence `_c_div` rather than a bare `1.0 / final`.
         final = _c_div(score_t(1.0), final)
 
-        return [final]
+        bs: behavioral_score = [final]
+        # C++: bscores.cc:1059-1067's `#if 0` debug dump is dead code and is
+        # not ported; bscores.cc:1068's `log_candidate_bscore` is live.
+        log_candidate_bscore(tr, bs)
+        return bs
 
     def best_possible_bscore(self) -> behavioral_score:
         """C++: moses/moses/scoring/bscores.cc:1074 cluster_bscore::best_possible_bscore
