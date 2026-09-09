@@ -200,6 +200,90 @@ def test_moses_exec_output_file_matches_stdout_oracle(dataset_csv, tmp_path):
 
 
 # ---------------------------------------------------------------------------
+# P2 metapopulation un-gates (CLI-gate-reconciliation task): --discard-
+# dominated and --diversity-pressure are REAL now (domination.cc/
+# diversity.cc, `f1c439f`/`0c1beda`) and no longer raise from
+# problem_params.parse_options. `tests/fixtures/table_data/dataset.csv`
+# (comment lines, no header, 2-column boolean input) is the task's own
+# named oracle dataset for both -- NOT `_DATASET_CSV` above -- because it
+# is small enough that `--discard-dominated`'s pruning and
+# `--diversity-pressure`'s tie-break reordering are both directly visible
+# in a 10-line default `it` run. Every `_EXPECTED_*` string below was
+# captured the same way this module's own docstring requires: actually
+# running `$CLASSIC/build/moses/moses/main/moses` (bounded: `( ulimit -v
+# 2097152; timeout 60 <cmd> )`) with exactly the flags named.
+# ---------------------------------------------------------------------------
+
+_COMMENTED_DATASET_PATH = "tests/fixtures/table_data/dataset.csv"
+
+
+def test_moses_exec_reproduces_classic_discard_dominated_oracle():
+    """Captured: ( ulimit -v 2097152; timeout 60
+    $CLASSIC/build/moses/moses/main/moses
+    -i tests/fixtures/table_data/dataset.csv -m1000 --discard-dominated=1
+    -W1 ) -- domination pruning collapses the usual 10-candidate default
+    `it` result down to 2. Before this task, this raised `NotImplementedError`
+    at parse time; the un-gate is proven by an exact byte-for-byte match to
+    classic's own binary, not merely by "no exception raised".
+    """
+    rc, out = _run(
+        ["moses", f"-i{_COMMENTED_DATASET_PATH}", "-m1000", "--discard-dominated=1", "-W1"]
+    )
+    assert rc == 0
+    assert out == ("-1 $i2 \n-1 and($i1 $i2) \n")
+
+
+def test_moses_exec_reproduces_classic_diversity_pressure_oracle():
+    """Captured: ( ulimit -v 2097152; timeout 60
+    $CLASSIC/build/moses/moses/main/moses
+    -i tests/fixtures/table_data/dataset.csv -m1000 --diversity-pressure=0.1
+    -W1 ) -- diversity's tie-break reorders two equal-score/equal-complexity
+    candidates (`and($i1 !$i2)`/`and(!$i1 !$i2)`) relative to the
+    diversity-off default. Before this task, this raised `NotImplementedError`
+    at parse time.
+    """
+    rc, out = _run(
+        ["moses", f"-i{_COMMENTED_DATASET_PATH}", "-m1000", "--diversity-pressure=0.1", "-W1"]
+    )
+    assert rc == 0
+    assert out == (
+        "-1 $i2 \n"
+        "-1 and($i1 $i2) \n"
+        "-2 $i1 \n"
+        "-2 and(!$i1 $i2) \n"
+        "-2 or(!$i1 $i2) \n"
+        "-2 or($i1 $i2) \n"
+        "-3 true \n"
+        "-3 !$i1 \n"
+        "-3 and($i1 !$i2) \n"
+        "-3 and(!$i1 !$i2) \n"
+    )
+
+
+def test_moses_exec_discard_dominated_and_diversity_pressure_defaults_still_match_default_oracle():
+    """The exit criterion's other half for both un-gated flags: leaving
+    both at their (shared, off) default on the SAME dataset must still
+    give the ordinary un-pruned, un-reordered 10-line default result
+    (captured the same way: `-i tests/fixtures/table_data/dataset.csv
+    -m1000 -W1`, no --discard-dominated/--diversity-pressure at all).
+    """
+    rc, out = _run(["moses", f"-i{_COMMENTED_DATASET_PATH}", "-m1000", "-W1"])
+    assert rc == 0
+    assert out == (
+        "-1 $i2 \n"
+        "-1 and($i1 $i2) \n"
+        "-2 $i1 \n"
+        "-2 and(!$i1 $i2) \n"
+        "-2 or(!$i1 $i2) \n"
+        "-2 or($i1 $i2) \n"
+        "-3 true \n"
+        "-3 !$i1 \n"
+        "-3 and(!$i1 !$i2) \n"
+        "-3 and($i1 !$i2) \n"
+    )
+
+
+# ---------------------------------------------------------------------------
 # A second, independent oracle that does NOT need table_problems.py: the
 # `-Hcp` demo problem (already-committed, S13 P2 track). Exercises the
 # SAME moses_exec.py dispatch/printer wiring through a different problem

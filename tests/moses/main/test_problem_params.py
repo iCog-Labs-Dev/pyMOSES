@@ -416,6 +416,14 @@ def test_hc_allow_resize_deme_is_a_deprecated_alias_for_the_same_dest():
         (["--diversity-autoscale", "1"], "meta_params.diversity.autoscale", True),
         (["--fs-target-size", "5"], "fs_params.target_size", 5),
         (["--ss-n-subsample-demes", "1"], "filter_params.n_subsample_demes", 1),
+        # P2 metapopulation task (0c1beda/f1c439f): these two are REAL now,
+        # not gated -- see test_unsupported_option_raises's own comment.
+        (["--discard-dominated", "1"], "meta_params.discard_dominated", True),
+        (
+            ["--diversity-pressure", "0.1"],
+            "meta_params.diversity.pressure",
+            pytest.approx(0.1),
+        ),
     ],
 )
 def test_supported_non_default_option_applies_and_does_not_raise(argv, path, expected):
@@ -435,8 +443,14 @@ def test_supported_non_default_option_applies_and_does_not_raise(argv, path, exp
         ["--opt-algo", "nosuchalgo"],
         ["--enable-fs", "1"],
         ["--boost", "1"],
-        ["--discard-dominated", "1"],
-        ["--diversity-pressure", "0.1"],
+        # NOTE: --discard-dominated and --diversity-pressure are DELIBERATELY
+        # ABSENT from this list -- the P2 metapopulation task (0c1beda/
+        # f1c439f) ported domination.cc/diversity.cc for real, and this
+        # file's own gate for both was removed to match. See
+        # test_supported_non_default_option_applies_and_does_not_raise's own
+        # two rows for both, and test_moses_exec.py's CLI-level oracle tests
+        # (byte-for-byte against classic's own binary) for the end-to-end
+        # proof.
         ["--ss-n-subsample-demes", "2"],
         ["--ss-n-subsample-fitnesses", "2"],
         ["--discretize-threshold", "1.0"],
@@ -453,6 +467,41 @@ def test_supported_non_default_option_applies_and_does_not_raise(argv, path, exp
 )
 def test_unsupported_option_raises(argv):
     with pytest.raises(NotImplementedError):
+        _parse(*argv)
+
+
+@pytest.mark.parametrize(
+    "argv,must_contain",
+    [
+        (["--enable-fs", "1"], "table_problems.py's _regression never constructs"),
+        (["--boost", "1"], "AdaBoost/experts engine IS ported"),
+        (["--ss-n-subsample-demes", "2"], "subsample.cc port"),
+        (
+            ["--contin-depth", "6"],
+            "contin_canonize/build_contin ARE ported",
+        ),
+        (
+            ["--it-abs-err", "1"],
+            "contin_bscore.abs_error/squared_error selection IS ported and tested",
+        ),
+        (
+            ["--time-dispersion-pressure", "0.1"],
+            "get_time_dispersion_penalty's math IS ported and tested",
+        ),
+    ],
+)
+def test_still_gated_option_message_names_what_is_actually_ported(argv, must_contain):
+    """[CLI-gate-reconciliation task] This project's own most-repeated
+    defect is a message claiming "not ported" about code that IS ported.
+    Six of the nine Phase-2 gates this task reconciled stay gated (the
+    underlying subsystem is genuinely unreachable end to end through this
+    port's CLI), but their OLD messages claimed blanket non-porting that
+    is no longer true -- each of these substrings is the corrected
+    message's own honest acknowledgement of what has, in fact, landed.
+    Pins the corrected text so a future edit cannot silently regress it
+    back to a blanket "is P2, not ported" claim.
+    """
+    with pytest.raises(NotImplementedError, match=must_contain):
         _parse(*argv)
 
 

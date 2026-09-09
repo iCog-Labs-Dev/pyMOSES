@@ -116,13 +116,17 @@ Two-phase `parse_options`:
    USE the unported diversity code.
 
 A field belonging to an unported subsystem is gated ONLY when the C++
-source shows it is the subsystem's actual master switch (`diversity_
-pressure > 0`, `filter_params.n_subsample_demes|n_subsample_fitnesses > 1`
--- both straight from the header's own "if 0 or 1 remains disactivated"/
-"Ignored is 0 r 1" comments, `enable_feature_selection`, `boosting`,
-`discard_dominated`, `opt_algo != "hc"`, `time_bscore`, `time_dispersion_
-pressure`, `use_well_enough`, `discretize_thresholds` non-empty,
-`contin_depth != 5`, `it_abs_err`, and non-local `--jobs`/`-j host:N`).
+source shows it is the subsystem's actual master switch
+(`filter_params.n_subsample_demes|n_subsample_fitnesses > 1` -- straight
+from the header's own "if 0 or 1 remains disactivated"/"Ignored is 0 r 1"
+comments, `enable_feature_selection`, `boosting`, `opt_algo != "hc"`,
+`time_bscore`, `time_dispersion_pressure`, `use_well_enough`,
+`discretize_thresholds` non-empty, `contin_depth != 5`, `it_abs_err`, and
+non-local `--jobs`/`-j host:N`). `diversity_pressure > 0` and
+`discard_dominated` are NO LONGER on this list -- the P2 metapopulation
+task ported `diversity.cc`/`domination.cc` for real (`0c1beda`/`f1c439f`)
+and this file's own gate section below un-gates both, each proven end to
+end against classic's own binary (see that section's own comments).
 Sub-options that are PROVABLY inert while their master switch stays at
 its default are never independently gated: `--diversity-autoscale`/
 `-exponent`/`-normalize`/`-dst`/`-p-norm`/`-dst2dp` (dead unless `pressure
@@ -837,40 +841,192 @@ class problem_params:
                 "(distributed_moses.cc is a different, out-of-scope mechanism); "
                 "use local job counts only."
             )
+        # DIVERGENCE(C++ moses/moses/deme/feature_selector.cc, moses/moses/
+        # main/table-problems.cc:328-334 REGRESSION macro): `feature_
+        # selector.py` itself and `deme_expander.py`'s CONSUMPTION of a
+        # real `fstor` are both genuinely ported now (`f4ca02c`). What
+        # blocks this flag end to end is the CONSTRUCTION site: classic's
+        # `REGRESSION` macro builds `new feature_selector(TABLE,
+        # festor_params)` and assigns it to `pms.deme_params.fstor`
+        # whenever `enable_feature_selection and fs_params.target_size >
+        # 0` (both true at classic's own defaults: `--fs-target-size`
+        # defaults to 20). `table_problems.py`'s own port of that macro
+        # (`_regression`, outside this task's owned scope) still only
+        # raises `NotImplementedError` at that exact spot instead of
+        # constructing the selector -- measured directly: with this gate
+        # removed, `moses_exec(["moses", "-i", D, "-m1000",
+        # "--enable-fs=1", "-W1"])` raises from `table_problem_base.
+        # _regression` ("feature_selector is not ported anywhere in this
+        # project"), a claim that is ALSO false today and is reported as
+        # a follow-up for whoever owns `table_problems.py` next. Kept
+        # gated here because removing this check alone would not make
+        # `--enable-fs` reach working behaviour -- it would just move an
+        # (inaccurate) raise one file deeper.
         if self.enable_feature_selection:
             raise NotImplementedError(
-                "--enable-fs: feature selection (deme/feature_selector.{h,cc}) is P2, not ported."
+                "--enable-fs: feature_selector.py and deme_expander.py's "
+                "consumption of it ARE ported (f4ca02c), but table_problems.py's "
+                "_regression never constructs the real feature_selector and "
+                "assigns it to deme_params.fstor (table-problems.cc:330-334's "
+                "REGRESSION-macro construction site is unwired) -- outside this "
+                "task's owned scope; leave --enable-fs unset."
             )
+        # DIVERGENCE(C++ moses/moses/scoring/scoring_base.h/.cc
+        # bscore_base::call_ensemble): `ensemble.py` (the AdaBoost/experts
+        # engine itself) is fully ported (`370146c`) and `merging.py`
+        # calls `_ensemble.add_candidates` unconditionally on the
+        # `do_boosting=True` path -- but every concrete scorer this port
+        # has (`ctruth_table_bscore`, `logical_bscore`, `precision_bscore`)
+        # still inherits `bscore_base.call_ensemble`'s own raising base
+        # body rather than overriding it for real, exactly matching
+        # classic's OWN base-class shape (`OC_ASSERT(false, "Ensemble
+        # scoring not implemented for bscorer %s", ...)`,
+        # `scoring_base.cc:74-75`) -- just with no concrete override
+        # anywhere in this port yet (`ensemble.py`'s own module docstring,
+        # "Two REAL prerequisite gaps found"). Measured directly: with
+        # this gate removed, `-Hit --boost=1` raises "Ensemble scoring not
+        # implemented for bscorer ctruth_table_bscore"; `-Hpa --boost=1`
+        # raises a similarly-worded `bool_problem_base` gate citing the
+        # same missing `use_weighted_scores`/`reset_weights` override on
+        # `logical_bscore`. Kept gated here for the same reason as
+        # `--enable-fs` above: removing this check would not make
+        # `--boost` reach working behaviour, only move the raise deeper.
         if self.boosting:
-            raise NotImplementedError("--boost: ensembles/boosting (merging.cc) is P2, not ported.")
-        if self.discard_dominated:
-            raise NotImplementedError("--discard-dominated: domination.cc is P2, not ported.")
-        if self.meta_params.diversity.enabled():
             raise NotImplementedError(
-                "--diversity-pressure > 0: diversity.cc is P2, not ported."
+                "--boost: ensemble.py's AdaBoost/experts engine IS ported "
+                "(370146c), but no concrete scorer in this port "
+                "(ctruth_table_bscore/logical_bscore/precision_bscore) "
+                "overrides bscore_base.call_ensemble, so every real problem's "
+                "boosting path still raises deep inside the run; leave --boost "
+                "unset."
             )
+        # `discard_dominated` is REAL now (P2 metapopulation task,
+        # `f1c439f` ports domination.cc; merging.py's merge_candidates/
+        # merge_demes both call the real get_nondominated_disjoint/
+        # remove_dominated path unconditionally). Proven end to end
+        # against classic's own binary: `-i tests/fixtures/table_data/
+        # dataset.csv -m1000 --discard-dominated=1 -W1` gives the
+        # byte-for-byte identical 2-line result in both languages (see
+        # `test_moses_exec.py`'s own oracle test for this flag).
+        #
+        # `diversity_pressure > 0` is REAL now too (P2 metapopulation
+        # task, `0c1beda` ports diversity.cc; merging.py's merge_demes
+        # calls the real gather_diversity_stats/set_diversity path
+        # unconditionally whenever `diversity_enabled()`). Proven the same
+        # way: `-i tests/fixtures/table_data/dataset.csv -m1000
+        # --diversity-pressure=0.1 -W1` gives the byte-for-byte identical
+        # 10-line result in both languages (`test_moses_exec.py`'s own
+        # oracle test for this flag).
+        #
+        # Neither is gated here any more -- see the module docstring's own
+        # "gated ONLY when" paragraph, updated alongside this change.
+        # DIVERGENCE(C++ moses/moses/deme/deme_expander.cc, moses/moses/
+        # scoring/ss_bscore.{h,cc}): `subsample.py` -- merging.py's own
+        # `ss_filter`/`ss_score_dev_filter`/tanimoto-stats family -- IS
+        # ported (`283b9e7`). What is NOT ported is EITHER of `ss-*`'s two
+        # actual master switches' real consumers: `deme_expander.py`'s own
+        # separate branch that would split one exemplar into
+        # `n_subsample_demes` disjoint-row "ss-demes" still raises
+        # unconditionally when `n_subsample_demes > 1` (outside this
+        # task's owned scope); and the SS-fitness scorer itself
+        # (`moses/moses/scoring/ss_bscore.{h,cc}`) has no `ss_bscore.py`
+        # port at all yet in this working tree (owned by a concurrently
+        # running task per this task's own brief -- `pymetta/moses/scoring/
+        # ss_bscore.py` did not exist when this was measured), so
+        # `n_subsample_fitnesses > 1` cannot be wired regardless. Measured
+        # directly: with this gate removed, `--ss-n-subsample-demes=2`
+        # raises from `deme_expander.py` ("subsample-deme filtering ... is
+        # P2, not ported"); `--ss-n-subsample-fitnesses=2` raises from
+        # `moses_main.py`'s `metapop_moses_results` citing the same missing
+        # `ss_bscore.py`. Both are real, current gaps -- not stale claims
+        # -- reported as follow-ups for whoever owns those two files next.
         if self.ss_n_subsample_demes > 1 or self.ss_n_subsample_fitnesses > 1:
-            raise NotImplementedError("subsample.cc (ss-* options) is P2, not ported.")
+            raise NotImplementedError(
+                "ss-* options: merging.py's own subsample.cc port (ss_filter "
+                "and friends) IS wired (283b9e7), but deme_expander.py's "
+                "n_subsample_demes-splitting branch and the ss_bscore.py "
+                "SS-fitness scorer are not -- leave both ss-n-subsample-demes "
+                "and ss-n-subsample-fitnesses at their default (0/1)."
+            )
+        # `discretize_contin_bscore` genuinely does not exist anywhere in
+        # this port yet (confirmed: no such class in bscores.py, only a
+        # module-docstring mention) -- this gate's original message is
+        # still accurate, reworded only for consistency with its
+        # neighbours above.
         if self.discretize_thresholds:
             raise NotImplementedError(
-                "--discretize-threshold: discretize_contin_bscore is contin/mixed "
-                "(S14), not ported."
+                "--discretize-threshold: discretize_contin_bscore does not "
+                "exist anywhere in this port (contin/mixed, S14); leave "
+                "--discretize-threshold unset."
             )
+        # DIVERGENCE(C++ moses/moses/representation/build_knobs.cc:710,758
+        # contin_canonize/build_contin): contin knob building itself IS
+        # ported now (`build_knobs.py`'s own `contin_canonize`/
+        # `build_contin`) -- but `contin_depth`'s VALUE is never threaded
+        # anywhere: `problem_params.py` stores `self.contin_depth` and
+        # never assigns it onto `deme_parameters` or any knob-building
+        # call, so even a real caller of `build_contin` today gets
+        # whatever depth that function hardcodes, never this flag's value.
+        # Also moot in practice: `contin_depth`'s only two CLI-reachable
+        # consumers in classic (`it_table_problem`'s contin-type branch,
+        # `polynomial_problem`/`-H sr`) both still raise unconditionally
+        # before any knob building happens (see the `contin_reduct`
+        # DIVERGENCE above) -- so wiring the value would not make this
+        # flag observable through the CLI regardless.
         if self.contin_depth != 5:
             raise NotImplementedError(
-                "--contin-depth: contin representation building is S14, not ported."
+                "--contin-depth: contin_canonize/build_contin ARE ported "
+                "(build_knobs.py), but contin_depth's value is never wired "
+                "from problem_params into deme_parameters or build_knobs "
+                "anywhere in this port, and its only CLI-reachable consumers "
+                "(it_table_problem's contin branch, -H sr) are separately "
+                "gated regardless; leave --contin-depth at its default (5)."
             )
+        # DIVERGENCE(C++ moses/moses/scoring/bscores.h:183-186
+        # contin_bscore::err_function_type): the abs_error/squared_error
+        # selector itself IS fully ported and tested (`bscores.py`,
+        # `07027b0`) -- what blocks this flag is that its only two
+        # CLI-reachable consumers, `it_table_problem`'s contin-type branch
+        # (table_problems.py) and `polynomial_problem`/`-H sr`
+        # (demo_problems.py), both raise `NotImplementedError`
+        # UNCONDITIONALLY before ever reading `pms.it_abs_err` (same two
+        # files named in the `contin_reduct` DIVERGENCE above, outside
+        # this task's owned scope).
         if self.it_abs_err:
             raise NotImplementedError(
-                "--it-abs-err: contin_bscore::abs_error is contin/mixed (S14), not ported."
+                "--it-abs-err: contin_bscore.abs_error/squared_error selection "
+                "IS ported and tested (bscores.py), but its only two "
+                "CLI-reachable consumers (it_table_problem's contin branch, "
+                "-H sr) both raise unconditionally before reading this flag; "
+                "leave --it-abs-err unset."
             )
         if self.time_bscore:
             raise NotImplementedError(
                 "--time-bscore: the time-spread bscore variant is not ported."
             )
+        # DIVERGENCE(C++ moses/moses/scoring/time_dispersion.cc:76
+        # get_time_dispersion_penalty): the penalty MATH itself is fully
+        # ported and independently tested (`time_dispersion.py`) -- what is
+        # NOT ported, and per that module's own docstring CANNOT be ported
+        # without a whole-project architecture change, is a real
+        # per-observation timestamp: this port's `CTable` carries no
+        # timestamp field at all (a permanent, already-decided scope
+        # boundary, `table.py`'s own module docstring), so
+        # `precision_bscore.do_score` -- the one real caller wired to this
+        # flag (`table_problems.py:630-631` passes `pms.time_dispersion_
+        # pressure`/`exponent` into it) -- raises `NotImplementedError`
+        # itself whenever `dispersion_pressure > 0.0`, citing exactly this.
+        # "the temporal dispersion penalty is not ported" (the prior
+        # message) was therefore imprecise about WHICH part is missing.
         if self.time_dispersion_pressure != 0.0:
             raise NotImplementedError(
-                "--time-dispersion-pressure > 0: the temporal dispersion penalty is not ported."
+                "--time-dispersion-pressure > 0: get_time_dispersion_penalty's "
+                "math IS ported and tested (time_dispersion.py), but its real "
+                "caller (precision_bscore.do_score) needs a per-observation "
+                "timestamp this port's CTable can never supply (a permanent, "
+                "whole-project scope boundary, not a TODO -- see "
+                "time_dispersion.py's own module docstring); leave "
+                "--time-dispersion-pressure unset."
             )
         if self.use_well_enough:
             raise NotImplementedError(
