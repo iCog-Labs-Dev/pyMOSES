@@ -38,6 +38,79 @@ tests, and had **no row at all**.
 files have no Python whatsoever, and they are the whole of `PLANNED: P2`:
 `fs-main.cc`, `eval-features.{cc,h}`, `type_tree_def.cc`.
 
+## State handoff — end of the 2026-09-09 session
+
+Written so the next execution resumes from measurement rather than re-deriving
+it. `bash tools/ci.sh` is **green (exit 0, 5242 passed, 5 skipped)** at this
+point, and the working tree is clean.
+
+### The differential baseline — run this FIRST after any change
+
+Every one of these is byte-identical to `$CLASSIC/build/moses/moses/main/moses`
+as of this session. They are the regression net; a change that breaks one is
+wrong until proven otherwise.
+
+| Invocation | Notes |
+|---|---|
+| `-i<dataset.csv> -m1000 -W1` and without `-W1` | the `-H it` baseline |
+| `-Hpa -k3`, `-Hdj -k3`, `-Hmux -k2`, `-Hmaj -k3` | demo problems |
+| `-Hcp -y "and($1 $2)"`, `-Hcp -y "*(2 $1)"` | combo problem, bool + contin |
+| `-Hsr -k1..k4` at seeds 1/2/5/9 | needs `ITable`'s RNG-drawing ctor |
+| `-Hcluster` on boolean, contin-sample and `trainingRegression.dat` | |
+| `-i<contin_regression_sample.csv> -u y` at `-m` 20→500 | contin regression |
+| `-i$CLASSIC/trainingRegression.dat -u y -m120` | 8000 rows |
+| `-ahc`, `-asa`, `-aun`, `-aps` | all four optimizers, boolean and contin |
+| `--linear-regression=1`, `--contin-depth=3/8`, `--it-abs-err=1` | contin flags |
+| `--discard-dominated=1`, `--diversity-pressure=0.1`, `--well-enough=1` | |
+| `--ignore-operator=div --ignore-operator=sin`, `--complexity-ratio=1.5` | |
+
+A 90-flag sweep found **zero** flags where both binaries succeed and disagree.
+
+**Measure against a clean checkout when other agents are running.** A dirty
+worktree produced 23 false "port fails" in one sweep, all of them a concurrent
+agent's half-finished edit:
+
+    rm -rf /tmp/clean && mkdir -p /tmp/clean && git archive HEAD | tar -x -C /tmp/clean
+
+### In flight when this session ended
+
+Three agents were dispatched and had not reported:
+
+1. **Logging surface** — cogutil `Logger`, `-l/-f/-F` wiring, and the log call
+   sites in ported functions. Classic writes 193 lines under `-l DEBUG`; the
+   port writes nothing, which is a silently-ignored flag and the reason seven
+   units are PARTIAL. It was told to report back the one `problem_params.py`
+   change it needs someone else to apply.
+2. **Mixed predicate knob building** — §1 below, the largest functional gap.
+3. **`--ps-max-particles` threading, `-H pre_conj`'s stale gate, and a
+   `--time-bscore-granularity` report that did not reproduce.**
+
+If none of their commits are present, none of that work survived; re-dispatch.
+
+### Known-but-unfixed, carried forward
+
+- `--ps-max-particles` is parsed, stored and then discarded (`moses_main.py`'s
+  `ps` arm builds fresh `ps_parameters()`). Violates the S13 rule directly.
+- The `action` half of the port's stated scope is contradicted by the code in
+  four places (§5) — an open product decision, not a bug.
+- `fs-main.cc` and `eval-features.{cc,h}` are genuinely unported and left
+  PLANNED rather than EXCLUDED, because the exclusion boilerplate used for
+  `comboreduct/main/*` is factually false for them (§3).
+- Coverage rows for `table-problems.*`, `demo-problems.*`, `bscores.*` and
+  `table.*` moved when `-H cluster`/`-H sr` landed and have **not** been
+  re-audited. Treat them as stale.
+
+### Method notes worth keeping
+
+- **Bisect a scalar budget.** The `linear_contin` bug was localised in three
+  runs by bisecting `-m` between an agreeing and a disagreeing run, then
+  dumping the field_set on both sides. Much cheaper than diffing final answers.
+- **Mutation batches need isolated bytecode.** A same-size file restored within
+  one second let CPython reuse a stale `.pyc` and report 0 kills where the true
+  answer was 21 (CARRY-FORWARD §5.8). Use `PYTHONDONTWRITEBYTECODE=1`.
+- **A zero-kill mutation is ambiguous** — no coverage, or no real trap. Always
+  determine which; both occurred this session.
+
 ## Order of work, and the reasoning
 
 ### 1. Close the mixed predicate path in knob building — the largest functional gap
