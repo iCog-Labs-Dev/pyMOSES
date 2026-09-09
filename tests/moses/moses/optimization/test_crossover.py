@@ -108,6 +108,7 @@ from pymetta.moses.representation.scored_instance import scored_instance
 from pymetta.moses.scoring.behave_cscore import behave_cscore
 from pymetta.moses.scoring.bscores import ctruth_table_bscore
 from pymetta.util.rng import randGen
+from tools.check_fixture_manifests import SUPPORTED_SCHEMA_VERSIONS
 
 _REPO_ROOT = Path(__file__).resolve().parents[4]
 _FIXTURE_PATH = _REPO_ROOT / "tests" / "fixtures" / "crossover.json"
@@ -274,7 +275,13 @@ def test_fixture_manifest_matches_current_probe_source():
     provides for its own fixture: editing `crossover_probe.cc` without
     re-running `tools/capture_crossover.py` fails here.
     """
-    assert _MANIFEST["schema_version"] == 1
+    # Against the SUPPORTED set, not a hardcoded 1: these four fixture
+    # tests each pinned `== 1`, so bumping the manifest schema (to add
+    # the `toolchain` field) broke a test in an unrelated file for every
+    # fixture that had been re-captured. The check that matters here is
+    # the probe sha256 below; the version only needs to be one this repo
+    # knows how to validate.
+    assert _MANIFEST["schema_version"] in SUPPORTED_SCHEMA_VERSIONS
     assert _MANIFEST["probe_source"] == "tools/cpp_probe/crossover_probe.cc"
     assert _MANIFEST["capture_script"] == "tools/capture_crossover.py"
     probe = _REPO_ROOT / "tools" / "cpp_probe" / "crossover_probe.cc"

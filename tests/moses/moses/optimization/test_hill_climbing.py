@@ -54,6 +54,7 @@ from pymetta.moses.representation.instance_scorer import distance_based_scorer
 from pymetta.moses.representation.instance_set import instance_set
 from pymetta.moses.representation.scored_instance import scored_instance
 from pymetta.util.rng import randGen
+from tools.check_fixture_manifests import SUPPORTED_SCHEMA_VERSIONS
 
 _FIXTURE_PATH = Path(__file__).resolve().parents[3] / "fixtures" / "hillclimbing.json"
 _GOLDEN = json.loads(_FIXTURE_PATH.read_text())
@@ -97,7 +98,13 @@ def test_fixture_manifest_records_what_produced_it(golden):
     non-empty.
     """
     manifest = golden["_manifest"]
-    assert manifest["schema_version"] == 1
+    # Against the SUPPORTED set, not a hardcoded 1: these four fixture
+    # tests each pinned `== 1`, so bumping the manifest schema (to add
+    # the `toolchain` field) broke a test in an unrelated file for every
+    # fixture that had been re-captured. The check that matters here is
+    # the probe sha256 below; the version only needs to be one this repo
+    # knows how to validate.
+    assert manifest["schema_version"] in SUPPORTED_SCHEMA_VERSIONS
     assert manifest["probe_source"] == "tools/cpp_probe/hillclimbing_probe.cc"
     assert manifest["capture_script"] == "tools/capture_hillclimbing.py"
     assert len(manifest["probe_source_sha256"]) == 64  # hex sha256
@@ -388,8 +395,16 @@ def _plateau_fs() -> field_set:
     return field_set(disc_spec(2), 3)
 
 
-def _run_plateau(*, widen=False, step=False, terminate_if_gte=0.0, max_time=86400,
-                  max_evals=100_000, value=-100.0, seed=1):
+def _run_plateau(
+    *,
+    widen=False,
+    step=False,
+    terminate_if_gte=0.0,
+    max_time=86400,
+    max_evals=100_000,
+    value=-100.0,
+    seed=1,
+):
     fs = _plateau_fs()
     randGen().seed(seed)
     deme = instance_set(fs)

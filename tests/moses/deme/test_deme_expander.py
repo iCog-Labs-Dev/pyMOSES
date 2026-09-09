@@ -47,11 +47,10 @@ from pymetta.moses.moses.optimization.optimization import optim_parameters
 from pymetta.moses.scoring.behave_cscore import behave_cscore
 from pymetta.moses.scoring.bscores import ctruth_table_bscore
 from pymetta.util.rng import randGen
+from tools.check_fixture_manifests import SUPPORTED_SCHEMA_VERSIONS
 
 _FIXTURE_PATH = Path(__file__).resolve().parents[2] / "fixtures" / "deme_expander.json"
-_PROBE_PATH = (
-    Path(__file__).resolve().parents[3] / "tools" / "cpp_probe" / "deme_expander_probe.cc"
-)
+_PROBE_PATH = Path(__file__).resolve().parents[3] / "tools" / "cpp_probe" / "deme_expander_probe.cc"
 _TABLE_DATA_DIR = Path(__file__).resolve().parents[2] / "fixtures" / "table_data"
 _GOLDEN = json.loads(_FIXTURE_PATH.read_text())
 
@@ -96,7 +95,13 @@ def test_fixture_is_non_vacuous():
 
 def test_fixture_manifest_records_what_produced_it(golden):
     manifest = golden["_manifest"]
-    assert manifest["schema_version"] == 1
+    # Against the SUPPORTED set, not a hardcoded 1: these four fixture
+    # tests each pinned `== 1`, so bumping the manifest schema (to add
+    # the `toolchain` field) broke a test in an unrelated file for every
+    # fixture that had been re-captured. The check that matters here is
+    # the probe sha256 below; the version only needs to be one this repo
+    # knows how to validate.
+    assert manifest["schema_version"] in SUPPORTED_SCHEMA_VERSIONS
     assert manifest["probe_source"] == "tools/cpp_probe/deme_expander_probe.cc"
     assert manifest["capture_script"] == "tools/capture_deme_expander.py"
     assert len(manifest["probe_source_sha256"]) == 64  # hex sha256
@@ -375,9 +380,7 @@ def test_create_representations_raises_when_fstor_prune_xmplr_is_true():
     params = deme_parameters()
     params.perm_ratio = -1.0
     dex, ctable = _boolean_dex_and_ctable(params)
-    dex._params.fstor = feature_selector(
-        ctable, feature_selector_parameters(prune_xmplr=True)
-    )
+    dex._params.fstor = feature_selector(ctable, feature_selector_parameters(prune_xmplr=True))
     with pytest.raises(NotImplementedError):
         dex.create_representations(str_to_combo_tree("$1"))
 

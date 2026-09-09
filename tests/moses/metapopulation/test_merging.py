@@ -110,6 +110,7 @@ from pymetta.moses.scoring.behave_cscore import behave_cscore
 from pymetta.moses.scoring.bscores import ctruth_table_bscore
 from pymetta.moses.scoring.scoring_base import bscore_base
 from pymetta.util.rng import randGen
+from tools.check_fixture_manifests import SUPPORTED_SCHEMA_VERSIONS
 
 _XOR_DATA = "tests/fixtures/table_data/trainingBooleanXor.dat"
 _PROBE_PATH = "tools/cpp_probe/merging_probe.cc"
@@ -534,7 +535,13 @@ def test_sort_demes_fixture_manifest_matches_current_probe_source():
     provides for its own fixture: editing `sort_demes_probe.cc` without
     re-running `tools/capture_sort_demes.py` fails here.
     """
-    assert _SORT_DEMES_MANIFEST["schema_version"] == 1
+    # Against the SUPPORTED set, not a hardcoded 1: these four fixture
+    # tests each pinned `== 1`, so bumping the manifest schema (to add
+    # the `toolchain` field) broke a test in an unrelated file for every
+    # fixture that had been re-captured. The check that matters here is
+    # the probe sha256 below; the version only needs to be one this repo
+    # knows how to validate.
+    assert _SORT_DEMES_MANIFEST["schema_version"] in SUPPORTED_SCHEMA_VERSIONS
     assert _SORT_DEMES_MANIFEST["probe_source"] == "tools/cpp_probe/sort_demes_probe.cc"
     assert _SORT_DEMES_MANIFEST["capture_script"] == "tools/capture_sort_demes.py"
     probe = _REPO_ROOT / "tools" / "cpp_probe" / "sort_demes_probe.cc"
@@ -867,7 +874,7 @@ def test_keep_top_unique_candidates_top_cnd_one_keeps_only_the_first():
 
 
 def test_keep_top_unique_candidates_n_evals_below_deme_size_caps_top_cnd():
-    """"It can happen that the true number of evals is less than the deme
+    """ "It can happen that the true number of evals is less than the deme
     size" (merging.cc's own comment) -- `n_evals` below `len(deme)` must
     cap `top_cnd`, truncating the excess even with no duplicates at all.
     """
@@ -1439,7 +1446,16 @@ def test_resize_metapop_phase2_evicts_down_to_the_computed_cap():
     comfortably above the phase-1 cutoff, so ONLY phase 2 runs.
     """
     mp = _mp()
-    _grow_pool(mp, [(0.0, 0, ) for _ in range(219)])  # + seed == 220, all tied
+    _grow_pool(
+        mp,
+        [
+            (
+                0.0,
+                0,
+            )
+            for _ in range(219)
+        ],
+    )  # + seed == 220, all tied
     # Use a distinct, nonzero complexity so this scenario is not
     # accidentally penalty-blind (S9/S10's own recurring failure mode --
     # see the task brief's own Testing bar).
