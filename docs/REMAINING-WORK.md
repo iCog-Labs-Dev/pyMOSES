@@ -209,16 +209,21 @@ both scorers — the old row claimed only `simple` worked. **Remaining:**
 - **No oracle is possible for `hc`**: classic's `feature-selection --algo hc`
   dumps core unconditionally (re-confirmed live 2026-09-09, exit 139).
 
-**3e. The other optimizers + `eda/` — LANDED, with two measured divergences.**
-All four optimizers are constructed for real and selectable. Measured through
-the CLI (5 seeds × 2 budgets on `trainingBooleanXor.dat`, plus
-`trainingBoolean.dat`): **`-ahc` 10/10 byte-identical, `-asa` 10/10, `-aun` 6/10,
-`-aps` 4/10** (0/6 on `trainingBoolean.dat`). **Remaining:**
-- **`-aps` port defect, root cause isolated and proven by patch.**
-  `particle-swarm.cc:326-327`'s increment list omits `disc_best_it`, so classic
-  always dereferences `disc_parts.best_personal[0]`; `particle_swarm.py:474`
-  passes `[i]`. Freezing that index takes XOR 4/10 → 10/10 and
-  `trainingBoolean` 0/6 → 6/6.
+**3e. The other optimizers + `eda/` — `-aps` CLOSED, `-aun` STILL OPEN.**
+All four are constructed for real and selectable. Re-measured 2026-09-10,
+5 seeds × 2 budgets × 2 datasets (`trainingBooleanXor.dat`,
+`trainingBoolean.dat`): **`-ahc`, `-asa`, `-aps` byte-identical; `-aun` 10/20.**
+
+**`-aun`'s failures have a sharp shape: every `-m1500` run differs and every
+`-m500` run matches.** That threshold matters more than the ratio — an earlier
+check of mine at `-m800`/`-m400` came back 36/36 across all four optimizers and
+I briefly took `-aun` for fixed. It was a corpus that did not reach the
+divergence. Any future check of `-aun` must include a budget above ~1000.
+
+- **`-aps` CLOSED (`ce25a4e`).** `particle-swarm.cc:325-326`'s increment list
+  omits `disc_best_it`, so classic always dereferences
+  `disc_parts.best_personal[0]` while the port passed `[i]`. Freezing the index
+  took it to 36/36 in the broad sweep and 20/20 here.
 - **`-aun`: two causes, both in `eda/`.** (i) `digraph.h:96`'s bare
   `std::random_shuffle` over unseeded `std::rand()` — reimplementing glibc's
   TYPE_3 `rand()` raises `-aun` to 9/10; (ii) `roulette_select` is instantiated
@@ -226,7 +231,8 @@ the CLI (5 seeds × 2 budgets on `trainingBooleanXor.dat`, plus
   `selection.py` does not — 10–14 disagreements per 4,768 leaf calls.
 - `rtr_replacement` (`replacement.h:68-89`) unported but unreachable
   (its only reference is a commented-out line).
-- `print_stats_header` (`optimization.cc:140-186`) unported, one live call site.
+- ~~`print_stats_header` (`optimization.cc:140-186`) unported~~ — PORTED with
+  the logging surface.
 
 **3f. The remainder — RESOLVED, mostly by exclusion.**
 - `similarity.{cc,h}` — **PORTED** (51 tests), was stale as PLANNED.
