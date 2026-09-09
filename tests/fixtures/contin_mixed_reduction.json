@@ -1,0 +1,942 @@
+{
+  "contin_effort_2": [
+    {
+      "input": "+(0.0 $1 0.0)",
+      "mode": "contin",
+      "effort": 2,
+      "ok": true,
+      "reduced": "$1",
+      "size_before": 4,
+      "size_after": 1
+    },
+    {
+      "input": "*(1.0 $1 2.0)",
+      "mode": "contin",
+      "effort": 2,
+      "ok": true,
+      "reduced": "*(2 $1)",
+      "size_before": 4,
+      "size_after": 3
+    },
+    {
+      "input": "+(*($1 $2) *($1 3.0))",
+      "mode": "contin",
+      "effort": 2,
+      "ok": true,
+      "reduced": "*(+(3 $2) $1)",
+      "size_before": 7,
+      "size_after": 5
+    },
+    {
+      "input": "/(*($1 $2) *($1 3.0))",
+      "mode": "contin",
+      "effort": 2,
+      "ok": true,
+      "reduced": "*(0.333333 $2)",
+      "size_before": 7,
+      "size_after": 3
+    },
+    {
+      "input": "/(*($1 $1 $2) *($1 $1))",
+      "mode": "contin",
+      "effort": 2,
+      "ok": true,
+      "reduced": "$2",
+      "size_before": 8,
+      "size_after": 1
+    },
+    {
+      "input": "+(/($1 3.0) /($2 3.0))",
+      "mode": "contin",
+      "effort": 2,
+      "ok": true,
+      "reduced": "*(0.333333 +($1 $2))",
+      "size_before": 7,
+      "size_after": 5
+    },
+    {
+      "input": "/(/($1 $2) 3.0)",
+      "mode": "contin",
+      "effort": 2,
+      "ok": true,
+      "reduced": "/(*(0.333333 $1) $2)",
+      "size_before": 5,
+      "size_after": 5
+    },
+    {
+      "input": "/($1 /($2 3.0))",
+      "mode": "contin",
+      "effort": 2,
+      "ok": true,
+      "reduced": "/(*(3 $1) $2)",
+      "size_before": 5,
+      "size_after": 5
+    },
+    {
+      "input": "*($1 /($2 3.0))",
+      "mode": "contin",
+      "effort": 2,
+      "ok": true,
+      "reduced": "*(0.333333 $1 $2)",
+      "size_before": 5,
+      "size_after": 4
+    },
+    {
+      "input": "+(log($1) log($2))",
+      "mode": "contin",
+      "effort": 2,
+      "ok": true,
+      "reduced": "log(*($1 $2))",
+      "size_before": 5,
+      "size_after": 4
+    },
+    {
+      "input": "+(log($1) *(-1.0 log($2)))",
+      "mode": "contin",
+      "effort": 2,
+      "ok": true,
+      "reduced": "log(/($1 $2))",
+      "size_before": 7,
+      "size_after": 4
+    },
+    {
+      "input": "log(/(2.0 $1))",
+      "mode": "contin",
+      "effort": 2,
+      "ok": true,
+      "reduced": "*(-1 log(*(0.5 $1)))",
+      "size_before": 4,
+      "size_after": 6
+    },
+    {
+      "input": "log(exp($1))",
+      "mode": "contin",
+      "effort": 2,
+      "ok": true,
+      "reduced": "$1",
+      "size_before": 3,
+      "size_after": 1
+    },
+    {
+      "input": "log(*(exp($1) $2))",
+      "mode": "contin",
+      "effort": 2,
+      "ok": true,
+      "reduced": "+(log($2) $1)",
+      "size_before": 5,
+      "size_after": 4
+    },
+    {
+      "input": "*(exp($1) exp($2))",
+      "mode": "contin",
+      "effort": 2,
+      "ok": true,
+      "reduced": "exp(+($1 $2))",
+      "size_before": 5,
+      "size_after": 4
+    },
+    {
+      "input": "/($1 exp($2))",
+      "mode": "contin",
+      "effort": 2,
+      "ok": true,
+      "reduced": "*(exp(*(-1 $2)) $1)",
+      "size_before": 4,
+      "size_after": 6
+    },
+    {
+      "input": "exp(log($1))",
+      "mode": "contin",
+      "effort": 2,
+      "ok": true,
+      "reduced": "$1",
+      "size_before": 3,
+      "size_after": 1
+    },
+    {
+      "input": "exp(+(log($1) $2))",
+      "mode": "contin",
+      "effort": 2,
+      "ok": true,
+      "reduced": "*(exp($2) $1)",
+      "size_before": 5,
+      "size_after": 4
+    },
+    {
+      "input": "sin(+($1 4.0))",
+      "mode": "contin",
+      "effort": 2,
+      "ok": true,
+      "reduced": "sin(+(-2.28319 $1))",
+      "size_before": 4,
+      "size_after": 4
+    },
+    {
+      "input": "sin(4.0)",
+      "mode": "contin",
+      "effort": 2,
+      "ok": true,
+      "reduced": "-0.756802",
+      "size_before": 2,
+      "size_after": 1
+    },
+    {
+      "input": "+(1.0 2.0 3.0)",
+      "mode": "contin",
+      "effort": 2,
+      "ok": true,
+      "reduced": "6",
+      "size_before": 4,
+      "size_after": 1
+    },
+    {
+      "input": "+($1 $2)",
+      "mode": "contin",
+      "effort": 2,
+      "ok": true,
+      "reduced": "+($1 $2)",
+      "size_before": 3,
+      "size_after": 3
+    },
+    {
+      "input": "*($1 $2)",
+      "mode": "contin",
+      "effort": 2,
+      "ok": true,
+      "reduced": "*($1 $2)",
+      "size_before": 3,
+      "size_after": 3
+    },
+    {
+      "input": "$1",
+      "mode": "contin",
+      "effort": 2,
+      "ok": true,
+      "reduced": "$1",
+      "size_before": 1,
+      "size_after": 1
+    },
+    {
+      "input": "0.0",
+      "mode": "contin",
+      "effort": 2,
+      "ok": true,
+      "reduced": "0",
+      "size_before": 1,
+      "size_after": 1
+    },
+    {
+      "input": "1.0",
+      "mode": "contin",
+      "effort": 2,
+      "ok": true,
+      "reduced": "1",
+      "size_before": 1,
+      "size_after": 1
+    },
+    {
+      "input": "0<(+($1 2.0))",
+      "mode": "contin",
+      "effort": 2,
+      "ok": true,
+      "reduced": "0<(+(2 $1))",
+      "size_before": 4,
+      "size_after": 4
+    },
+    {
+      "input": "0<(exp($1))",
+      "mode": "contin",
+      "effort": 2,
+      "ok": true,
+      "reduced": "0<(exp($1))",
+      "size_before": 3,
+      "size_after": 3
+    },
+    {
+      "input": "0<($1)",
+      "mode": "contin",
+      "effort": 2,
+      "ok": true,
+      "reduced": "0<($1)",
+      "size_before": 2,
+      "size_after": 2
+    },
+    {
+      "input": "0<(*(-1.0 $1))",
+      "mode": "contin",
+      "effort": 2,
+      "ok": true,
+      "reduced": "0<(*(-1 $1))",
+      "size_before": 4,
+      "size_after": 4
+    },
+    {
+      "input": "0<(sin($1))",
+      "mode": "contin",
+      "effort": 2,
+      "ok": true,
+      "reduced": "0<(sin($1))",
+      "size_before": 3,
+      "size_after": 3
+    },
+    {
+      "input": "0<(/($1 $2))",
+      "mode": "contin",
+      "effort": 2,
+      "ok": true,
+      "reduced": "0<(/($1 $2))",
+      "size_before": 4,
+      "size_after": 4
+    },
+    {
+      "input": "0<(*($1 $1))",
+      "mode": "contin",
+      "effort": 2,
+      "ok": true,
+      "reduced": "0<(*($1 $1))",
+      "size_before": 4,
+      "size_after": 4
+    },
+    {
+      "input": "0<(*(-1.0 $1 $1))",
+      "mode": "contin",
+      "effort": 2,
+      "ok": true,
+      "reduced": "0<(*(-1 $1 $1))",
+      "size_before": 5,
+      "size_after": 5
+    },
+    {
+      "input": "0<(+(impulse(and($1 $2)) 3.0))",
+      "mode": "contin",
+      "effort": 2,
+      "ok": true,
+      "reduced": "0<(+(3 impulse(and($1 $2))))",
+      "size_before": 7,
+      "size_after": 7
+    },
+    {
+      "input": "0<(impulse($1))",
+      "mode": "contin",
+      "effort": 2,
+      "ok": true,
+      "reduced": "0<(impulse($1))",
+      "size_before": 3,
+      "size_after": 3
+    },
+    {
+      "input": "*(impulse($1) impulse($2))",
+      "mode": "contin",
+      "effort": 2,
+      "ok": true,
+      "reduced": "*(impulse($1) impulse($2))",
+      "size_before": 5,
+      "size_after": 5
+    },
+    {
+      "input": "*(impulse($1) $2)",
+      "mode": "contin",
+      "effort": 2,
+      "ok": true,
+      "reduced": "*(impulse($1) $2)",
+      "size_before": 4,
+      "size_after": 4
+    },
+    {
+      "input": "+(impulse($1) impulse($2))",
+      "mode": "contin",
+      "effort": 2,
+      "ok": true,
+      "reduced": "+(impulse($1) impulse($2))",
+      "size_before": 5,
+      "size_after": 5
+    },
+    {
+      "input": "contin_if($1 1.0 0.0)",
+      "mode": "contin",
+      "effort": 2,
+      "ok": true,
+      "reduced": "contin_if($1 1 0)",
+      "size_before": 4,
+      "size_after": 4
+    },
+    {
+      "input": "contin_if($1 0.0 1.0)",
+      "mode": "contin",
+      "effort": 2,
+      "ok": true,
+      "reduced": "contin_if($1 0 1)",
+      "size_before": 4,
+      "size_after": 4
+    },
+    {
+      "input": "contin_if(true $1 $2)",
+      "mode": "contin",
+      "effort": 2,
+      "ok": true,
+      "reduced": "$1",
+      "size_before": 4,
+      "size_after": 1
+    },
+    {
+      "input": "contin_if(false $1 $2)",
+      "mode": "contin",
+      "effort": 2,
+      "ok": true,
+      "reduced": "$2",
+      "size_before": 4,
+      "size_after": 1
+    },
+    {
+      "input": "contin_if($1 contin_if($1 $2 $3) $4)",
+      "mode": "contin",
+      "effort": 2,
+      "ok": true,
+      "reduced": "contin_if($1 contin_if($1 $2 $3) $4)",
+      "size_before": 7,
+      "size_after": 7
+    },
+    {
+      "input": "contin_if($1 $2 contin_if($1 $3 $4))",
+      "mode": "contin",
+      "effort": 2,
+      "ok": true,
+      "reduced": "contin_if($1 $2 contin_if($1 $3 $4))",
+      "size_before": 7,
+      "size_after": 7
+    },
+    {
+      "input": "/(contin_if($1 $2 3.0) contin_if($1 $4 3.0))",
+      "mode": "contin",
+      "effort": 2,
+      "ok": true,
+      "reduced": "/(contin_if($1 $2 3) contin_if($1 $4 3))",
+      "size_before": 9,
+      "size_after": 9
+    },
+    {
+      "input": "+(contin_if($1 $2 $3) contin_if($1 $4 $5))",
+      "mode": "contin",
+      "effort": 2,
+      "ok": true,
+      "reduced": "+(contin_if($1 $2 $3) contin_if($1 $4 $5))",
+      "size_before": 9,
+      "size_after": 9
+    },
+    {
+      "input": "contin_if($1 /($2 $3) /($2 $4))",
+      "mode": "contin",
+      "effort": 2,
+      "ok": true,
+      "reduced": "contin_if($1 /($2 $3) /($2 $4))",
+      "size_before": 8,
+      "size_after": 8
+    },
+    {
+      "input": "and(0<($1) 0<($2))",
+      "mode": "contin",
+      "effort": 2,
+      "ok": true,
+      "reduced": "and(0<($1) 0<($2))",
+      "size_before": 5,
+      "size_after": 5
+    },
+    {
+      "input": "or(0<($1) 0<($2))",
+      "mode": "contin",
+      "effort": 2,
+      "ok": true,
+      "reduced": "or(0<($1) 0<($2))",
+      "size_before": 5,
+      "size_after": 5
+    },
+    {
+      "input": "and(0<(+($1 1.0)) 0<(+($1 2.0)))",
+      "mode": "contin",
+      "effort": 2,
+      "ok": true,
+      "reduced": "and(0<(+(1 $1)) 0<(+(2 $1)))",
+      "size_before": 9,
+      "size_after": 9
+    },
+    {
+      "input": "or(0<(+($1 1.0)) 0<(+($1 2.0)))",
+      "mode": "contin",
+      "effort": 2,
+      "ok": true,
+      "reduced": "or(0<(+(1 $1)) 0<(+(2 $1)))",
+      "size_before": 9,
+      "size_after": 9
+    },
+    {
+      "input": "cond($1 0<($2) $3 0<($4) $5)",
+      "mode": "contin",
+      "effort": 2,
+      "ok": true,
+      "reduced": "cond($1 0<($2) $3 0<($4) $5)",
+      "size_before": 8,
+      "size_after": 8
+    }
+  ],
+  "mixed": [
+    {
+      "input": "+(0.0 $1 0.0)",
+      "mode": "mixed",
+      "ok": true,
+      "reduced": "+(0 $1)",
+      "size_before": 4,
+      "size_after": 3
+    },
+    {
+      "input": "*(1.0 $1 2.0)",
+      "mode": "mixed",
+      "ok": true,
+      "reduced": "*(2 $1)",
+      "size_before": 4,
+      "size_after": 3
+    },
+    {
+      "input": "+(*($1 $2) *($1 3.0))",
+      "mode": "mixed",
+      "ok": true,
+      "reduced": "+(*(3 $1) *($1 $2))",
+      "size_before": 7,
+      "size_after": 7
+    },
+    {
+      "input": "/(*($1 $2) *($1 3.0))",
+      "mode": "mixed",
+      "ok": true,
+      "reduced": "/(*($1 $2) *(3 $1))",
+      "size_before": 7,
+      "size_after": 7
+    },
+    {
+      "input": "/(*($1 $1 $2) *($1 $1))",
+      "mode": "mixed",
+      "ok": true,
+      "reduced": "/(*($1 $1 $2) *($1 $1))",
+      "size_before": 8,
+      "size_after": 8
+    },
+    {
+      "input": "+(/($1 3.0) /($2 3.0))",
+      "mode": "mixed",
+      "ok": true,
+      "reduced": "+(/($1 3) /($2 3))",
+      "size_before": 7,
+      "size_after": 7
+    },
+    {
+      "input": "/(/($1 $2) 3.0)",
+      "mode": "mixed",
+      "ok": true,
+      "reduced": "/(/($1 $2) 3)",
+      "size_before": 5,
+      "size_after": 5
+    },
+    {
+      "input": "/($1 /($2 3.0))",
+      "mode": "mixed",
+      "ok": true,
+      "reduced": "/($1 /($2 3))",
+      "size_before": 5,
+      "size_after": 5
+    },
+    {
+      "input": "*($1 /($2 3.0))",
+      "mode": "mixed",
+      "ok": true,
+      "reduced": "*(/($2 3) $1)",
+      "size_before": 5,
+      "size_after": 5
+    },
+    {
+      "input": "+(log($1) log($2))",
+      "mode": "mixed",
+      "ok": true,
+      "reduced": "+(log($1) log($2))",
+      "size_before": 5,
+      "size_after": 5
+    },
+    {
+      "input": "+(log($1) *(-1.0 log($2)))",
+      "mode": "mixed",
+      "ok": true,
+      "reduced": "+(*(-1 log($2)) log($1))",
+      "size_before": 7,
+      "size_after": 7
+    },
+    {
+      "input": "log(/(2.0 $1))",
+      "mode": "mixed",
+      "ok": true,
+      "reduced": "log(/(2 $1))",
+      "size_before": 4,
+      "size_after": 4
+    },
+    {
+      "input": "log(exp($1))",
+      "mode": "mixed",
+      "ok": true,
+      "reduced": "log(exp($1))",
+      "size_before": 3,
+      "size_after": 3
+    },
+    {
+      "input": "log(*(exp($1) $2))",
+      "mode": "mixed",
+      "ok": true,
+      "reduced": "log(*(exp($1) $2))",
+      "size_before": 5,
+      "size_after": 5
+    },
+    {
+      "input": "*(exp($1) exp($2))",
+      "mode": "mixed",
+      "ok": true,
+      "reduced": "*(exp($1) exp($2))",
+      "size_before": 5,
+      "size_after": 5
+    },
+    {
+      "input": "/($1 exp($2))",
+      "mode": "mixed",
+      "ok": true,
+      "reduced": "/($1 exp($2))",
+      "size_before": 4,
+      "size_after": 4
+    },
+    {
+      "input": "exp(log($1))",
+      "mode": "mixed",
+      "ok": true,
+      "reduced": "exp(log($1))",
+      "size_before": 3,
+      "size_after": 3
+    },
+    {
+      "input": "exp(+(log($1) $2))",
+      "mode": "mixed",
+      "ok": true,
+      "reduced": "exp(+(log($1) $2))",
+      "size_before": 5,
+      "size_after": 5
+    },
+    {
+      "input": "sin(+($1 4.0))",
+      "mode": "mixed",
+      "ok": true,
+      "reduced": "sin(+(4 $1))",
+      "size_before": 4,
+      "size_after": 4
+    },
+    {
+      "input": "sin(4.0)",
+      "mode": "mixed",
+      "ok": true,
+      "reduced": "-0.756802",
+      "size_before": 2,
+      "size_after": 1
+    },
+    {
+      "input": "+(1.0 2.0 3.0)",
+      "mode": "mixed",
+      "ok": true,
+      "reduced": "6",
+      "size_before": 4,
+      "size_after": 1
+    },
+    {
+      "input": "+($1 $2)",
+      "mode": "mixed",
+      "ok": true,
+      "reduced": "+($1 $2)",
+      "size_before": 3,
+      "size_after": 3
+    },
+    {
+      "input": "*($1 $2)",
+      "mode": "mixed",
+      "ok": true,
+      "reduced": "*($1 $2)",
+      "size_before": 3,
+      "size_after": 3
+    },
+    {
+      "input": "$1",
+      "mode": "mixed",
+      "ok": true,
+      "reduced": "$1",
+      "size_before": 1,
+      "size_after": 1
+    },
+    {
+      "input": "0.0",
+      "mode": "mixed",
+      "ok": true,
+      "reduced": "0",
+      "size_before": 1,
+      "size_after": 1
+    },
+    {
+      "input": "1.0",
+      "mode": "mixed",
+      "ok": true,
+      "reduced": "1",
+      "size_before": 1,
+      "size_after": 1
+    },
+    {
+      "input": "0<(+($1 2.0))",
+      "mode": "mixed",
+      "ok": true,
+      "reduced": "0<(+(2 $1))",
+      "size_before": 4,
+      "size_after": 4
+    },
+    {
+      "input": "0<(exp($1))",
+      "mode": "mixed",
+      "ok": true,
+      "reduced": "true",
+      "size_before": 3,
+      "size_after": 1
+    },
+    {
+      "input": "0<($1)",
+      "mode": "mixed",
+      "ok": true,
+      "reduced": "0<($1)",
+      "size_before": 2,
+      "size_after": 2
+    },
+    {
+      "input": "0<(*(-1.0 $1))",
+      "mode": "mixed",
+      "ok": true,
+      "reduced": "0<(*(-1 $1))",
+      "size_before": 4,
+      "size_after": 4
+    },
+    {
+      "input": "0<(sin($1))",
+      "mode": "mixed",
+      "ok": true,
+      "reduced": "0<(sin($1))",
+      "size_before": 3,
+      "size_after": 3
+    },
+    {
+      "input": "0<(/($1 $2))",
+      "mode": "mixed",
+      "ok": true,
+      "reduced": "0<(/($1 $2))",
+      "size_before": 4,
+      "size_after": 4
+    },
+    {
+      "input": "0<(*($1 $1))",
+      "mode": "mixed",
+      "ok": true,
+      "reduced": "0<(*($1 $1))",
+      "size_before": 4,
+      "size_after": 4
+    },
+    {
+      "input": "0<(*(-1.0 $1 $1))",
+      "mode": "mixed",
+      "ok": true,
+      "reduced": "false",
+      "size_before": 5,
+      "size_after": 1
+    },
+    {
+      "input": "0<(+(impulse(and($1 $2)) 3.0))",
+      "mode": "mixed",
+      "ok": true,
+      "reduced": "0<(+(3 impulse(and($1 $2))))",
+      "size_before": 7,
+      "size_after": 7
+    },
+    {
+      "input": "0<(impulse($1))",
+      "mode": "mixed",
+      "ok": true,
+      "reduced": "$1",
+      "size_before": 3,
+      "size_after": 1
+    },
+    {
+      "input": "*(impulse($1) impulse($2))",
+      "mode": "mixed",
+      "ok": true,
+      "reduced": "impulse(and($1 $2))",
+      "size_before": 5,
+      "size_after": 4
+    },
+    {
+      "input": "*(impulse($1) $2)",
+      "mode": "mixed",
+      "ok": true,
+      "reduced": "*(impulse($1) $2)",
+      "size_before": 4,
+      "size_after": 4
+    },
+    {
+      "input": "+(impulse($1) impulse($2))",
+      "mode": "mixed",
+      "ok": true,
+      "reduced": "+(impulse($1) impulse($2))",
+      "size_before": 5,
+      "size_after": 5
+    },
+    {
+      "input": "contin_if($1 1.0 0.0)",
+      "mode": "mixed",
+      "ok": true,
+      "reduced": "impulse($1)",
+      "size_before": 4,
+      "size_after": 2
+    },
+    {
+      "input": "contin_if($1 0.0 1.0)",
+      "mode": "mixed",
+      "ok": true,
+      "reduced": "impulse(not($1))",
+      "size_before": 4,
+      "size_after": 3
+    },
+    {
+      "input": "contin_if(true $1 $2)",
+      "mode": "mixed",
+      "ok": true,
+      "reduced": "$1",
+      "size_before": 4,
+      "size_after": 1
+    },
+    {
+      "input": "contin_if(false $1 $2)",
+      "mode": "mixed",
+      "ok": true,
+      "reduced": "$2",
+      "size_before": 4,
+      "size_after": 1
+    },
+    {
+      "input": "contin_if($1 contin_if($1 $2 $3) $4)",
+      "mode": "mixed",
+      "ok": true,
+      "reduced": "contin_if($1 $2 $4)",
+      "size_before": 7,
+      "size_after": 4
+    },
+    {
+      "input": "contin_if($1 $2 contin_if($1 $3 $4))",
+      "mode": "mixed",
+      "ok": true,
+      "reduced": "contin_if($1 $2 $4)",
+      "size_before": 7,
+      "size_after": 4
+    },
+    {
+      "input": "/(contin_if($1 $2 3.0) contin_if($1 $4 3.0))",
+      "mode": "mixed",
+      "ok": true,
+      "reduced": "contin_if($1 /($2 $4) 1)",
+      "size_before": 9,
+      "size_after": 6
+    },
+    {
+      "input": "+(contin_if($1 $2 $3) contin_if($1 $4 $5))",
+      "mode": "mixed",
+      "ok": true,
+      "reduced": "contin_if($1 +($2 $4) +($3 $5))",
+      "size_before": 9,
+      "size_after": 8
+    },
+    {
+      "input": "contin_if($1 /($2 $3) /($2 $4))",
+      "mode": "mixed",
+      "ok": true,
+      "reduced": "/($2 contin_if($1 $3 $4))",
+      "size_before": 8,
+      "size_after": 6
+    },
+    {
+      "input": "and(0<($1) 0<($2))",
+      "mode": "mixed",
+      "ok": true,
+      "reduced": "and(0<($1) 0<($2))",
+      "size_before": 5,
+      "size_after": 5
+    },
+    {
+      "input": "or(0<($1) 0<($2))",
+      "mode": "mixed",
+      "ok": true,
+      "reduced": "or(0<($1) 0<($2))",
+      "size_before": 5,
+      "size_after": 5
+    },
+    {
+      "input": "and(0<(+($1 1.0)) 0<(+($1 2.0)))",
+      "mode": "mixed",
+      "ok": true,
+      "reduced": "and(0<(+($1 1)))",
+      "size_before": 9,
+      "size_after": 5
+    },
+    {
+      "input": "or(0<(+($1 1.0)) 0<(+($1 2.0)))",
+      "mode": "mixed",
+      "ok": true,
+      "reduced": "or(0<(+($1 2)))",
+      "size_before": 9,
+      "size_after": 5
+    },
+    {
+      "input": "cond($1 0<($2) $3 0<($4) $5)",
+      "mode": "mixed",
+      "ok": true,
+      "reduced": "cond($1 0<($2) $3 0<($4) $5)",
+      "size_before": 8,
+      "size_after": 8
+    }
+  ],
+  "mixed_with_assumptions": [
+    {
+      "label": "trivial_self_implication",
+      "main_tree": "0<($1)",
+      "assumptions": [
+        "0<($1)"
+      ],
+      "reduced": "true"
+    },
+    {
+      "label": "assumption_x_gt_1_leaves_x_gt_0_term_reduced",
+      "main_tree": "0<(+($1 -1.0))",
+      "assumptions": [
+        "0<($1)"
+      ],
+      "reduced": "0<(+(-1 $1))"
+    },
+    {
+      "label": "gt_zero_sum_from_two_positive_assumptions",
+      "main_tree": "0<(+($1 $2))",
+      "assumptions": [
+        "0<($1)",
+        "0<($2)"
+      ],
+      "reduced": "true"
+    },
+    {
+      "label": "negated_assumption_forces_false",
+      "main_tree": "0<($1)",
+      "assumptions": [
+        "not(0<($1))"
+      ],
+      "reduced": "false"
+    }
+  ]
+}

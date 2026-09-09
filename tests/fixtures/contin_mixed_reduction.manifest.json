@@ -1,0 +1,19 @@
+{
+  "capture_script": "tools/capture_contin_mixed_reduction.py",
+  "capture_script_sha256": "06b8e63cd8185717d55e0799ff467b68e2104f792d0b7edf570c8744af9ed357",
+  "classic_dir": "/home/yab/Documents/Projects/iCog/HyperonRelated/MOSES/OpenCog/Moses",
+  "cli_tool": null,
+  "generated_at_utc": "2026-09-09T07:42:30+00:00",
+  "inputs": {
+    "assumption_case_count": 4,
+    "corpus_size": 53,
+    "description": "53 hand-picked contin/mixed combo trees in tools/cpp_probe/contin_mixed_corpus.txt, reduced at contin effort 2 and in mixed mode with classic's own real default (empty) ignore_ops, plus 4 assumption-bearing cases from tools/cpp_probe/mixed_assumption_probe.cc (assumptions are not expressible in combo-tree text syntax, so that probe is separate); no external dataset or seed",
+    "second_probe_source": "tools/cpp_probe/mixed_assumption_probe.cc"
+  },
+  "prefix_dir": "/home/yab/opt/moses-legacy",
+  "probe_kind": "cpp_probe",
+  "probe_source": "tools/cpp_probe/contin_mixed_reduct_probe.cc",
+  "probe_source_sha256": "8f435fc1fde528576c3f8cc7af471b71f04516ccc61abee2560214189aec68f0",
+  "repo_commit": "cc031c9f1e9cdcee57bf4ba633e3f829565d62bd",
+  "schema_version": 1
+}
