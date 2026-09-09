@@ -21,7 +21,7 @@ similarity_probe.cc`, which links the REAL exported symbols from
 
 ## A genuine, measured bug in classic's own `tree_similarity`, ported verbatim
 
-`tree_similarity(av, bv)`'s first loop is, verbatim (similarity.cc:180-197):
+`tree_similarity(av, bv)`'s first loop is, verbatim (similarity.cc:203-221):
 
     size_t dist = 0;
     tree_branch_vector diff = bv;
@@ -141,7 +141,7 @@ def _double_to_uint64(d: float) -> int:
 
 
 def _first_loop_distance(av: tree_branch_vector, bv: tree_branch_vector) -> tuple[int, dict]:
-    """C++: moses/comboreduct/combo/similarity.cc:180-190 (the `for (auto
+    """C++: moses/comboreduct/combo/similarity.cc:203-221 (the `for (auto
     pr : av)` loop, up to but not including the `for (auto p : diff)`
     tail -- see `tree_similarity` below for the whole function).
 
@@ -173,7 +173,7 @@ def _first_loop_distance(av: tree_branch_vector, bv: tree_branch_vector) -> tupl
 
 
 def tree_flatten(tree_or_str: combo_tree | str) -> tree_branch_vector:
-    """C++: moses/comboreduct/combo/similarity.cc:141 tree_flatten (combo_tree
+    """C++: moses/comboreduct/combo/similarity.cc:180 tree_flatten (combo_tree
     overload) and :156 tree_flatten (std::string overload) -- merged into
     one function here (matching this port's existing overload-merging
     convention, e.g. `occam_randomize_contin` in eda/initialization.py),
@@ -192,13 +192,13 @@ def tree_flatten(tree_or_str: combo_tree | str) -> tree_branch_vector:
 
 
 def _tree_flatten_rec(ctr: tree_branch_vector, t: combo_tree, node) -> None:
-    """C++: moses/comboreduct/combo/similarity.cc:117 tree_flatten_rec (`static`,
+    """C++: moses/comboreduct/combo/similarity.cc:122 tree_flatten_rec (`static`,
     file-local in C++; not exported here either -- not in `__all__`).
 
     See this module's docstring and similarity.cc's own ~90-line algorithm
     comment for the "convert to a right-leaning binary tree, count 2-child
     branch shapes" idea; this is a direct transliteration of the four
-    cases (0, 1, 2, >2 children) similarity.cc:117-165 handles, using
+    cases (0, 1, 2, >2 children) similarity.cc:122-177 handles, using
     `_vertex_to_str` (iostream_combo.py) for each individual vertex's own
     token text -- matching `ss << *root` etc., which prints ONLY the
     node's own label, never a subtree, exactly as `_vertex_to_str`
@@ -206,7 +206,7 @@ def _tree_flatten_rec(ctr: tree_branch_vector, t: combo_tree, node) -> None:
     with no labels, `output_format.combo`).
 
     `t.number_of_children(first) != 0` (guarding each recursive call, e.g.
-    similarity.cc:129) is reproduced as `len(children) != 0` on the
+    similarity.cc:140) is reproduced as `len(children) != 0` on the
     children list already fetched for that node below, rather than a
     second `t.number_of_children` call -- behaviourally identical, one
     fewer tree traversal.
@@ -228,7 +228,7 @@ def _tree_flatten_rec(ctr: tree_branch_vector, t: combo_tree, node) -> None:
             _tree_flatten_rec(ctr, t, first)
         return
 
-    # numch >= 2: distribute associatively -- see similarity.cc:139-150's
+    # numch >= 2: distribute associatively -- see similarity.cc:145-162's
     # own comment (f *does not* have to actually be associative; this is
     # purely an accounting trick, never evaluated as combo).
     i = 0
@@ -254,7 +254,7 @@ def _tree_flatten_rec(ctr: tree_branch_vector, t: combo_tree, node) -> None:
 def tree_similarity(
     a: combo_tree | str | tree_branch_vector, b: combo_tree | str | tree_branch_vector
 ) -> int:
-    """C++: moses/comboreduct/combo/similarity.cc:167 tree_similarity
+    """C++: moses/comboreduct/combo/similarity.cc:203 tree_similarity
     (tree_branch_vector overload), :199 (combo_tree overload), :206
     (std::string overload) -- all THREE merged into one function here
     (see `tree_flatten`'s own docstring for this port's overload-merging
@@ -263,12 +263,12 @@ def tree_similarity(
     `combo_tree`) is flattened directly.
 
     "compute the manhattan distance between trees. The manhattan distance
-    is the same as the lp_1 distance." (similarity.cc:169-172's own
+    is the same as the lp_1 distance." (similarity.cc:198-201's own
     comment) -- see this module's own docstring for why that description
     is only accurate when `bv`'s counts never exceed `av`'s for a shared
     branch; ARGUMENT ORDER MATTERS here, unlike a true distance metric.
 
-    Second loop (similarity.cc:192-196, "add anything in bv that was not
+    Second loop (similarity.cc:222-226, "add anything in bv that was not
     in av"): plain, un-wrapped `unsigned` accumulation -- `p.second` is a
     map value (`unsigned`), never a `double`, so no float round-trip
     applies here; only `dist = (dist + diff[key]) % 2**64` for symmetry
@@ -297,7 +297,7 @@ def toString(tbv: tree_branch_vector) -> str:
     """C++: moses/comboreduct/combo/similarity.h:44 toString
 
     `std::stringstream ss; ss << tbv; return ss.str();` where `operator<<`
-    (similarity.cc:222-230) iterates `tbv` (a `std::map`, hence SORTED key
+    (similarity.cc:245-252) iterates `tbv` (a `std::map`, hence SORTED key
     order) writing `"key : count"` pairs joined by `", "`.
 
     # DIVERGENCE(C++ moses/comboreduct/combo/similarity.h:44-49): classic
