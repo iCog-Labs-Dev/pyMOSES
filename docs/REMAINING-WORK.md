@@ -369,7 +369,14 @@ statement of the kind CARRY-FORWARD §6 names as this project's worst defect:
 - **Error types are inconsistent** — `OC_ASSERT(false)` maps to six Python
   types; "column not found" is `IndexError` in `table.py` and `ValueError` in
   `table_io.py`. Needs one C++-grounded mapping decision, then a wide sweep.
-- **Corpus gaps** — no argument above `$3`, no arity ≥ 4.
+- ~~**Corpus gaps** — no argument above `$3`, no arity ≥ 4.~~ **CLOSED
+  2026-09-09** by `tests/moses/main/test_higher_arity_oracles.py`: ten CLI
+  oracles at arity 4/5/6, boolean and contin, captured from classic's own
+  binary and byte-identical. Their expected outputs reference `$x4` 97
+  times, `$x5` 41 and `$x6` 5, so the coverage is real rather than
+  nominal, and the boolean targets genuinely depend on the high-numbered
+  arguments (5-input majority; a 6-input mix reading `$1`, `$2`, `$4`,
+  `$6`) so a port mishandling them could not match by accident.
 - **`tree.json` has no shape guard**, and `test_tree.py`'s 33 oracle tests do
   not use `parametrize`, so `empty_parameter_set_mark` does not cover them.
 
