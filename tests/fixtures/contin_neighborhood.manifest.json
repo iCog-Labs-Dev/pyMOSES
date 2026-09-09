@@ -1,0 +1,16 @@
+{
+  "capture_script": "tools/capture_contin_neighborhood.py",
+  "capture_script_sha256": "12815153421c981e7d7ded6288baa1ed0a693eb78479596ff7a3c97586ee4234",
+  "classic_dir": "/home/yab/Documents/Projects/iCog/HyperonRelated/MOSES/OpenCog/Moses",
+  "cli_tool": null,
+  "generated_at_utc": "2026-09-09T06:48:40+00:00",
+  "inputs": {
+    "description": "fixed flip_LR/twiddle_contin_bit/generate_contin_neighbor/sample_from_neighborhood(contin) test cases hardcoded in contin_neighborhood_probe.cc; no external dataset, seeds fixed per case for RNG-drawing sections"
+  },
+  "prefix_dir": "/home/yab/opt/moses-legacy",
+  "probe_kind": "cpp_probe",
+  "probe_source": "tools/cpp_probe/contin_neighborhood_probe.cc",
+  "probe_source_sha256": "44ea5736600ad17b143cff5a639e608ce1aea072ca853be47cd9303ceb78e5b6",
+  "repo_commit": "ec83b2b90fbab9e0aa4de9cccba32964f53f0fb3",
+  "schema_version": 1
+}

@@ -32,11 +32,14 @@ from pymetta.moses.moses.neighborhood_sampling import (
     _randomize,
     count_neighborhood_size,
     count_neighborhood_size_from_index,
+    flip_LR,
     generate_all_in_neighborhood,
+    generate_contin_neighbor,
     generate_initial_sample,
     safe_binomial_coefficient,
     sample_from_neighborhood,
     sample_new_instances,
+    twiddle_contin_bit,
     vary_n_knobs,
 )
 from pymetta.moses.moses.types import worst_composite_score
@@ -50,6 +53,9 @@ _GOLDEN = json.loads(_FIXTURE_PATH.read_text())
 
 _HC_FIXTURE_PATH = Path(__file__).resolve().parents[2] / "fixtures" / "hillclimbing.json"
 _HC_GOLDEN = json.loads(_HC_FIXTURE_PATH.read_text())
+
+_CONTIN_FIXTURE_PATH = Path(__file__).resolve().parents[2] / "fixtures" / "contin_neighborhood.json"
+_CONTIN_GOLDEN = json.loads(_CONTIN_FIXTURE_PATH.read_text())
 
 
 @pytest.fixture(scope="module")
@@ -313,12 +319,311 @@ def test_vary_n_knobs_raises_on_contin_field():
         vary_n_knobs(fs, instance(fs.packed_width()), 1, 0, [], 10)
 
 
-def test_sample_from_neighborhood_raises_on_contin_field():
+def test_sample_from_neighborhood_contin_field_no_longer_raises():
+    """S14 Task 3: `sample_from_neighborhood`'s "modify contin" branch now
+    delegates to `generate_contin_neighbor` instead of raising -- see the
+    oracle tests below (`test_sample_from_neighborhood_contin_matches_cpp`)
+    for the element-for-element comparison against classic. This is a
+    direct, non-oracle smoke check that it runs to completion, and that a
+    small distance-1 sample (which can land on either the disc knob or the
+    contin knob but never both) sometimes actually reaches the contin
+    field -- i.e. this is not accidentally still a no-op for it.
+    """
     fs = _fs_with_contin()
     center = instance(fs.packed_width())
+    fs.set_raw(center, 3, 2)
     randGen().seed(0)
-    with pytest.raises(NotImplementedError):
-        sample_from_neighborhood(fs, fs.dim_size(), 5, [], 5, center)
+    out: list[instance] = []
+    sample_from_neighborhood(fs, 1, 20, out, 20, center)
+    assert len(out) == 20
+    contin_before = tuple(fs.get_raw(center, i) for i in range(3))
+    touched_contin = any(
+        tuple(fs.get_raw(inst, i) for i in range(3)) != contin_before for inst in out
+    )
+    assert touched_contin, "20 distance-1 draws never once landed on the contin knob"
+
+
+# ---------------------------------------------------- S14 Task 3: contin sampling
+#
+# Oracle fixture: tests/fixtures/contin_neighborhood.json, produced by
+# tools/cpp_probe/contin_neighborhood_probe.cc (see tools/capture_contin_
+# neighborhood.py) against the real classic library -- covering flip_LR,
+# twiddle_contin_bit, generate_contin_neighbor directly, plus
+# sample_from_neighborhood's own contin branch end to end. The latter is
+# this task's actual exit criterion ("for a fixed seed, contin
+# neighbourhoods match C++ element for element").
+
+
+def _contin_only_fs(depth: int) -> field_set:
+    return field_set(contin_spec(0.0, 1.0, 2.0, depth), 1)
+
+
+@pytest.mark.oracle
+@pytest.mark.parametrize(
+    "case",
+    _CONTIN_GOLDEN["flip_LR"],
+    ids=lambda c: f"raw{c['raw_idx']}_before{c['before']}",
+)
+def test_flip_LR_matches_cpp(case):
+    fs = _contin_only_fs(3)
+    inst = instance(fs.packed_width())
+    fs.set_raw(inst, case["raw_idx"], case["before"])
+    flip_LR(fs, inst, case["raw_idx"])
+    assert fs.get_raw(inst, case["raw_idx"]) == case["after"]
+
+
+@pytest.mark.oracle
+@pytest.mark.parametrize(
+    "case",
+    _CONTIN_GOLDEN["twiddle_contin_bit"],
+    ids=lambda c: (
+        f"cur{c['cur']}_nextinvalid{c['next_invalid']}_next{c['next_val']}_seed{c['seed']}"
+    ),
+)
+def test_twiddle_contin_bit_matches_cpp(case):
+    """Also checks a `randbool()` drawn immediately AFTER the call, so a
+    case that should draw NOTHING (the plain-flip branch) is distinguished
+    from one that draws exactly one `randbool()` -- a value-only comparison
+    of ``after`` cannot tell those apart when the flip and the Stop-branch
+    happen to choose the same resulting raw value.
+    """
+    fs = _contin_only_fs(6)
+    inst = instance(fs.packed_width())
+    fs.set_raw(inst, 0, case["cur"])
+    if not case["next_invalid"]:
+        fs.set_raw(inst, 1, case["next_val"])
+
+    randGen().seed(case["seed"])
+    next_idx = fs.raw_size() if case["next_invalid"] else 1
+    twiddle_contin_bit(fs, inst, 0, next_idx)
+
+    assert fs.get_raw(inst, 0) == case["after"]
+    assert randGen().randbool() == case["post_randbool"]
+
+
+def _contin_fixture_fs(depths: list[int], trailing_disc: bool) -> field_set:
+    specs: list = [contin_spec(0.0, 1.0, 2.0, d) for d in depths]
+    if trailing_disc:
+        specs.append(disc_spec(3))
+    return field_set(specs)
+
+
+@pytest.mark.oracle
+@pytest.mark.parametrize(
+    "case",
+    _CONTIN_GOLDEN["generate_contin_neighbor"],
+    ids=lambda c: f"{c['label']}_dist{c['dist']}_seed{c['seed']}",
+)
+def test_generate_contin_neighbor_matches_cpp(case):
+    fs = _contin_fixture_fs(case["depths"], case["trailing_disc"])
+    inst = instance(fs.packed_width())
+    for i, v in enumerate(case["raw"]):
+        fs.set_raw(inst, i, v)
+    if case["trailing_disc"]:
+        fs.set_raw(inst, len(case["raw"]), 2)
+
+    randGen().seed(case["seed"])
+    generate_contin_neighbor(fs, inst, case["idx"], case["dist"])
+
+    got = [fs.get_raw(inst, i) for i in range(fs.raw_size())]
+    assert got == case["result"]
+
+
+def _sfn_contin_fs() -> field_set:
+    return field_set(
+        [
+            contin_spec(0.0, 1.0, 2.0, 5),
+            contin_spec(0.0, 1.0, 2.0, 3),
+            disc_spec(3),
+            disc_spec(4),
+            disc_spec(2),
+            disc_spec(2),
+        ]
+    )
+
+
+@pytest.mark.oracle
+@pytest.mark.parametrize(
+    "case",
+    _CONTIN_GOLDEN["sample_from_neighborhood_contin"],
+    ids=lambda c: f"seed{c['seed']}_d{c['dist']}",
+)
+def test_sample_from_neighborhood_contin_matches_cpp(case):
+    """The task's own exit criterion: element-for-element agreement with
+    classic for `sample_from_neighborhood` over a field_set that includes
+    contin fields, at a fixed seed.
+    """
+    fs = _sfn_contin_fs()
+    center = instance(fs.packed_width())
+    for idx, value in enumerate(case["center_raw"]):
+        fs.set_raw(center, idx, value)
+
+    randGen().seed(case["seed"])
+    out: list[instance] = []
+    sample_from_neighborhood(
+        fs, case["dist"], case["sample_size"], out, case["sample_size"], center
+    )
+
+    got = [_raw_tuple(fs, inst) for inst in out]
+    expected = [tuple(row) for row in case["instances"]]
+    assert got == expected
+
+
+def test_generate_contin_neighbor_zero_distance_is_noop():
+    """neighborhood_sampling.cc:64-65's early return: `dist == 0` leaves
+    `inst` completely unchanged and draws nothing from the RNG.
+
+    MUTATION: deleting the `if dist == 0: return` guard falls through into
+    `OC_ASSERT(dist <= depth)` -- still true for dist=0 -- and then into
+    `lazy_random_selector(uppest_low, lowest_low, rng)()`, which DOES draw
+    from the RNG and can mutate `inst` (uppest_low/lowest_low still bracket
+    a valid, nonempty range at dist=0: `lowest_low=length`,
+    `uppest_low=min(length+1,depth+1)=length+1`, a 1-wide range -- so it
+    does not even raise, it silently draws and, depending on that draw,
+    can `twiddle_contin_bit` a real pseudo-bit). Verified directly:
+    commenting out the guard changes `randGen().randbool()` drawn
+    immediately after the call from a value identical across both seeds
+    below to one that depends on the seed, and can flip `inst`'s raw
+    values -- confirmed by hand, reverted after confirming red/green.
+    """
+    fs = _contin_only_fs(4)
+    inst = instance(fs.packed_width())
+    fs.set_raw(inst, 0, 1)
+    fs.set_raw(inst, 1, 2)
+    fs.set_raw(inst, 2, 1)
+    fs.set_raw(inst, 3, 0)
+    before = [fs.get_raw(inst, i) for i in range(fs.raw_size())]
+
+    for seed in (0, 1, 999):
+        randGen().seed(seed)
+        generate_contin_neighbor(fs, inst, 0, 0)
+        assert [fs.get_raw(inst, i) for i in range(fs.raw_size())] == before
+        # No RNG draw either: the very next randbool() must depend only on
+        # the seed, not on any hidden draw generate_contin_neighbor made.
+        randGen().seed(seed)
+        expected_next = randGen().randbool()
+        randGen().seed(seed)
+        generate_contin_neighbor(fs, inst, 0, 0)
+        assert randGen().randbool() == expected_next
+
+
+def test_generate_contin_neighbor_rejects_dist_over_depth():
+    """DIVERGENCE(C++ moses/moses/moses/neighborhood_sampling.cc:67):
+    `OC_ASSERT(dist <= depth)` becomes `ValueError`. `match=` pins this to
+    the explicit guard's own message, not merely "some ValueError
+    somewhere": for dist > depth, `uppest_low <= lowest_low` always holds
+    too (`depth + 1 - dist <= 0 <= lowest_low`), so `lazy_random_selector`'s
+    own "cannot select from an empty list" ValueError would ALSO fire if
+    this guard were deleted -- a bare `pytest.raises(ValueError)` would
+    pass vacuously either way. Measured directly: removing the explicit
+    guard here still raises, but with lazy_selector's message instead of
+    this function's own.
+    """
+    fs = _contin_only_fs(3)
+    inst = instance(fs.packed_width())
+    with pytest.raises(ValueError, match="must not exceed depth"):
+        generate_contin_neighbor(fs, inst, 0, 4)
+
+
+def test_twiddle_contin_bit_short_circuits_before_reading_invalid_next():
+    """Pins the `or` short-circuit documented in twiddle_contin_bit's own
+    docstring: when `next_idx` is the `fs.raw_size()` "invalid" sentinel
+    AND `idx + 1 != next_idx` (the ordinary case -- more fields exist past
+    this contin one), `fs.get_raw(inst, next_idx)` must NEVER be evaluated,
+    since it is genuinely out of range.
+
+    MUTATION: replacing the `or` short-circuit with an unconditional read
+    (e.g. `if fs.get_raw(inst, next_idx) == contin_spec.Stop or idx + 1 !=
+    next_idx:`, which evaluates the read FIRST) makes this raise
+    `IndexError` instead of completing -- confirmed by hand, reverted
+    after confirming red/green.
+    """
+    fs = field_set([contin_spec(0.0, 1.0, 2.0, 3), disc_spec(3)])
+    inst = instance(fs.packed_width())
+    fs.set_raw(inst, 2, contin_spec.Left)  # a non-Stop pseudo-bit at the top
+    randGen().seed(0)
+    # idx=2 is this contin field's LAST raw position; idx+1=3 is a REAL
+    # disc-field position, not fs.raw_size()=4 -- so passing the sentinel
+    # (raw_size()) as next_idx must take the "invalid" branch via the `or`
+    # short-circuit, never reading raw index 4 (which does not exist).
+    twiddle_contin_bit(fs, inst, 2, fs.raw_size())
+    assert fs.get_raw(inst, 2) in (contin_spec.Stop, contin_spec.Left, contin_spec.Right)
+
+
+def test_twiddle_contin_bit_raises_when_sentinel_collides_with_idx_plus_one():
+    """DO NOT FIX (see twiddle_contin_bit's own docstring): when a contin
+    field IS the very last thing in the whole raw layout, `idx + 1` at its
+    last position genuinely EQUALS `fs.raw_size()` -- the same value used
+    as the "invalid" sentinel -- so the `or` short-circuit does not save
+    us and `fs.get_raw(inst, next_idx)` is evaluated with an
+    out-of-range index. C++'s `field_set::get_raw` has no bounds check at
+    all here (`_fields[idx]`, a bare `std::vector::operator[]`) so this is
+    genuine, non-reproducible undefined behaviour there (measured: it did
+    not crash the probe, but the resulting value is not a meaningful
+    oracle target -- see contin_neighborhood_probe.cc's own comment on why
+    every `generate_contin_neighbor` oracle case appends a trailing disc
+    field specifically to avoid this). This port's `fs.get_raw`'s explicit
+    bounds check turns the same situation into a deterministic
+    `IndexError` instead -- a real, disclosed divergence in KIND of
+    failure (loud and safe vs. silent UB), not a value this test can pin
+    against classic.
+    """
+    fs = _contin_only_fs(3)  # contin is the ENTIRE raw layout: raw_size() == 3
+    inst = instance(fs.packed_width())
+    fs.set_raw(inst, 2, contin_spec.Left)
+    with pytest.raises(IndexError):
+        twiddle_contin_bit(fs, inst, 2, fs.raw_size())
+
+
+def test_sample_from_neighborhood_contin_branch_hardcodes_distance_one():
+    """DO NOT FIX (see the inline comment at the "modify contin" branch in
+    sample_from_neighborhood): C++ hardcodes `1` at
+    neighborhood_sampling.h:178's `generate_contin_neighbor(fs, new_inst,
+    itc, 1)` call, ignoring `sample_from_neighborhood`'s own `dist`
+    parameter entirely -- confirmed by the oracle fixture itself already
+    (`test_sample_from_neighborhood_contin_matches_cpp` includes seed=
+    12345/dist=4 cases that only match because the port ALSO hardcodes 1).
+    This is a direct, isolated proof of the same point: a single contin
+    hit changes exactly one raw pseudo-bit position, never more, no matter
+    what the OUTER `dist` argument is -- verified by hand (this session)
+    that threading `dist` through instead diverges seed=12345/dist=4 from
+    the golden fixture, then reverted to restore the match.
+    """
+    fs = _sfn_contin_fs()
+    center = instance(fs.packed_width())
+    center_raw = [1, 2, 1, 0, 0, 2, 1, 0, 1, 2, 0]
+    for idx, value in enumerate(center_raw):
+        fs.set_raw(center, idx, value)
+
+    # Raw ranges: contin #1 depth 5 -> [0, 5); contin #2 depth 3 -> [5, 8).
+    contin1_range = range(0, 5)
+    contin2_range = range(5, 8)
+
+    randGen().seed(12345)
+    out: list[instance] = []
+    sample_from_neighborhood(fs, 4, 30, out, 30, center)
+
+    saw_contin1_hit = saw_contin2_hit = False
+    for inst in out:
+        diffs1 = [i for i in contin1_range if fs.get_raw(inst, i) != fs.get_raw(center, i)]
+        diffs2 = [i for i in contin2_range if fs.get_raw(inst, i) != fs.get_raw(center, i)]
+        # If `dist` (4) were threaded through instead of the hardcoded 1:
+        # contin #2 has depth 3 < 4, so generate_contin_neighbor would
+        # immediately raise ValueError ("dist must not exceed depth") the
+        # moment a sample lands on it -- this loop would never reach this
+        # assertion at all for such a sample. Contin #1 has depth 5 >= 4,
+        # so it would NOT raise, but would touch up to 4 raw positions in
+        # one hit instead of exactly 1 -- caught below.
+        assert len(diffs1) <= 1, f"contin #1 changed {len(diffs1)} positions in one hit: {diffs1}"
+        assert len(diffs2) <= 1, f"contin #2 changed {len(diffs2)} positions in one hit: {diffs2}"
+        saw_contin1_hit = saw_contin1_hit or bool(diffs1)
+        saw_contin2_hit = saw_contin2_hit or bool(diffs2)
+
+    # Sanity: this seed/sample_size combination must actually exercise
+    # BOTH contin fields at least once, or the assertions above would be
+    # vacuously true.
+    assert saw_contin1_hit
+    assert saw_contin2_hit
 
 
 def test_randomize_raises_on_contin_field():

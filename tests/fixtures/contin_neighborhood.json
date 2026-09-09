@@ -1,0 +1,83 @@
+{
+  "flip_LR": [
+    {"raw_idx": 0, "before": 0, "after": 1},
+    {"raw_idx": 0, "before": 1, "after": 2},
+    {"raw_idx": 0, "before": 2, "after": 1},
+    {"raw_idx": 1, "before": 0, "after": 1},
+    {"raw_idx": 1, "before": 1, "after": 2},
+    {"raw_idx": 1, "before": 2, "after": 1},
+    {"raw_idx": 2, "before": 0, "after": 1},
+    {"raw_idx": 2, "before": 1, "after": 2},
+    {"raw_idx": 2, "before": 2, "after": 1}
+  ],
+  "twiddle_contin_bit": [
+    {"cur": 0, "next_invalid": false, "next_val": 0, "seed": 0, "after": 1, "post_randbool": false},
+    {"cur": 0, "next_invalid": false, "next_val": 0, "seed": 1, "after": 1, "post_randbool": false},
+    {"cur": 0, "next_invalid": false, "next_val": 0, "seed": 2, "after": 1, "post_randbool": false},
+    {"cur": 0, "next_invalid": false, "next_val": 0, "seed": 3, "after": 2, "post_randbool": true},
+    {"cur": 0, "next_invalid": true, "next_val": 0, "seed": 0, "after": 1, "post_randbool": false},
+    {"cur": 0, "next_invalid": true, "next_val": 0, "seed": 1, "after": 1, "post_randbool": false},
+    {"cur": 1, "next_invalid": true, "next_val": 0, "seed": 0, "after": 0, "post_randbool": false},
+    {"cur": 1, "next_invalid": true, "next_val": 0, "seed": 1, "after": 0, "post_randbool": false},
+    {"cur": 1, "next_invalid": true, "next_val": 0, "seed": 2, "after": 0, "post_randbool": false},
+    {"cur": 1, "next_invalid": true, "next_val": 0, "seed": 3, "after": 2, "post_randbool": true},
+    {"cur": 2, "next_invalid": true, "next_val": 0, "seed": 0, "after": 0, "post_randbool": false},
+    {"cur": 2, "next_invalid": true, "next_val": 0, "seed": 1, "after": 0, "post_randbool": false},
+    {"cur": 1, "next_invalid": false, "next_val": 0, "seed": 0, "after": 0, "post_randbool": false},
+    {"cur": 1, "next_invalid": false, "next_val": 0, "seed": 1, "after": 0, "post_randbool": false},
+    {"cur": 1, "next_invalid": false, "next_val": 0, "seed": 2, "after": 0, "post_randbool": false},
+    {"cur": 1, "next_invalid": false, "next_val": 0, "seed": 3, "after": 2, "post_randbool": true},
+    {"cur": 2, "next_invalid": false, "next_val": 0, "seed": 0, "after": 0, "post_randbool": false},
+    {"cur": 2, "next_invalid": false, "next_val": 0, "seed": 1, "after": 0, "post_randbool": false},
+    {"cur": 1, "next_invalid": false, "next_val": 1, "seed": 0, "after": 2, "post_randbool": true},
+    {"cur": 1, "next_invalid": false, "next_val": 2, "seed": 0, "after": 2, "post_randbool": true},
+    {"cur": 2, "next_invalid": false, "next_val": 1, "seed": 5, "after": 1, "post_randbool": false},
+    {"cur": 2, "next_invalid": false, "next_val": 2, "seed": 7, "after": 1, "post_randbool": false}
+  ],
+  "generate_contin_neighbor": [
+    {"label": "single_depth3_allstop", "depths": [3], "trailing_disc": true, "idx": 0, "dist": 1, "seed": 0, "raw": [0,0,0], "trailing_disc_val": 2, "result": [2,0,0,2]}
+,
+    {"label": "single_depth3_allstop", "depths": [3], "trailing_disc": true, "idx": 0, "dist": 1, "seed": 1, "raw": [0,0,0], "trailing_disc_val": 2, "result": [2,0,0,2]}
+,
+    {"label": "single_depth3_LRS", "depths": [3], "trailing_disc": true, "idx": 0, "dist": 1, "seed": 0, "raw": [1,2,0], "trailing_disc_val": 2, "result": [1,1,0,2]}
+,
+    {"label": "single_depth3_LRS", "depths": [3], "trailing_disc": true, "idx": 0, "dist": 1, "seed": 7, "raw": [1,2,0], "trailing_disc_val": 2, "result": [1,0,0,2]}
+,
+    {"label": "single_depth3_full_LRL_dist2", "depths": [3], "trailing_disc": true, "idx": 0, "dist": 2, "seed": 0, "raw": [1,2,1], "trailing_disc_val": 2, "result": [2,1,1,2]}
+,
+    {"label": "single_depth3_full_LRL_dist3", "depths": [3], "trailing_disc": true, "idx": 0, "dist": 3, "seed": 0, "raw": [1,2,1], "trailing_disc_val": 2, "result": [2,1,2,2]}
+,
+    {"label": "single_depth6_LRLSSS_dist1", "depths": [6], "trailing_disc": true, "idx": 0, "dist": 1, "seed": 3, "raw": [1,2,1,0,0,0], "trailing_disc_val": 2, "result": [1,1,1,0,0,0,2]}
+,
+    {"label": "single_depth6_LRLSSS_dist2", "depths": [6], "trailing_disc": true, "idx": 0, "dist": 2, "seed": 3, "raw": [1,2,1,0,0,0], "trailing_disc_val": 2, "result": [1,0,0,0,0,0,2]}
+,
+    {"label": "single_depth6_LRLSSS_dist3", "depths": [6], "trailing_disc": true, "idx": 0, "dist": 3, "seed": 3, "raw": [1,2,1,0,0,0], "trailing_disc_val": 2, "result": [1,1,2,1,0,0,2]}
+,
+    {"label": "single_depth6_LRLRLR_dist2", "depths": [6], "trailing_disc": true, "idx": 0, "dist": 2, "seed": 42, "raw": [1,2,1,2,1,2], "trailing_disc_val": 2, "result": [1,1,2,2,1,2,2]}
+,
+    {"label": "single_depth8_allstop_dist4", "depths": [8], "trailing_disc": true, "idx": 0, "dist": 4, "seed": 12345, "raw": [0,0,0,0,0,0,0,0], "trailing_disc_val": 2, "result": [1,1,1,1,0,0,0,0,2]}
+,
+    {"label": "contin_then_disc_full_dist1", "depths": [4], "trailing_disc": true, "idx": 0, "dist": 1, "seed": 0, "raw": [1,2,1,2], "trailing_disc_val": 2, "result": [1,2,2,2,2]}
+,
+    {"label": "contin_then_disc_full_dist2", "depths": [4], "trailing_disc": true, "idx": 0, "dist": 2, "seed": 0, "raw": [1,2,1,2], "trailing_disc_val": 2, "result": [1,1,2,2,2]}
+,
+    {"label": "contin_then_disc_full_dist4", "depths": [4], "trailing_disc": true, "idx": 0, "dist": 4, "seed": 9, "raw": [1,2,1,2], "trailing_disc_val": 2, "result": [2,1,2,0,2]}
+,
+    {"label": "two_contin_second_idx", "depths": [3,4], "trailing_disc": true, "idx": 1, "dist": 2, "seed": 1, "raw": [1,2,0,1,2,1,0], "trailing_disc_val": 2, "result": [1,2,0,1,1,2,0,2]}
+  ],
+  "sample_from_neighborhood_contin": [
+    {"seed": 0, "dist": 1, "sample_size": 15, "center_raw": [1,2,1,0,0,2,1,0,1,2,0,0], "instances": [[1,2,1,1,0,2,1,0,1,2,0,0],[1,2,1,0,0,2,1,0,1,2,1,0],[1,2,1,0,0,2,1,0,1,0,0,0],[1,2,1,0,0,2,1,0,1,0,0,0],[1,2,1,0,0,2,1,0,1,2,1,0],[1,2,1,0,0,2,1,0,1,2,0,1],[1,2,1,0,0,2,1,0,2,2,0,0],[1,2,1,0,0,2,1,0,1,2,1,0],[1,2,1,0,0,2,1,0,1,2,0,1],[1,2,1,0,0,2,0,0,1,2,0,0],[1,2,1,0,0,2,1,0,1,2,1,0],[1,2,1,0,0,2,1,0,1,2,0,1],[1,2,1,2,0,2,1,0,1,2,0,0],[1,2,1,0,0,2,0,0,1,2,0,0],[1,2,1,0,0,2,1,0,0,2,0,0]]}
+,
+    {"seed": 0, "dist": 2, "sample_size": 20, "center_raw": [1,2,1,0,0,2,1,0,1,2,0,0], "instances": [[1,2,1,1,0,2,1,0,1,2,1,0],[1,2,1,0,0,2,1,0,1,0,1,0],[1,2,1,0,0,2,1,0,1,1,0,1],[1,2,1,0,0,2,1,0,2,2,1,0],[1,2,1,0,0,2,0,0,1,2,0,1],[1,2,1,0,0,2,1,0,1,2,1,1],[1,2,1,2,0,2,0,0,1,2,0,0],[1,2,1,0,0,2,1,0,0,2,1,0],[2,2,1,0,0,2,1,0,1,2,1,0],[1,2,1,0,0,1,1,0,1,2,1,0],[1,2,1,0,0,2,1,2,1,1,0,0],[1,2,1,0,0,2,1,0,2,2,0,1],[1,2,1,0,0,2,1,0,0,1,0,0],[1,2,1,0,0,2,1,0,1,0,0,1],[1,2,1,0,0,2,1,0,3,1,0,0],[1,2,1,0,0,2,2,0,1,2,1,0],[1,2,1,0,0,2,2,0,1,0,0,0],[1,2,1,0,0,2,1,0,1,0,0,1],[1,1,1,0,0,2,1,0,2,2,0,0],[1,2,1,0,0,2,1,0,3,2,1,0]]}
+,
+    {"seed": 1, "dist": 3, "sample_size": 25, "center_raw": [1,2,1,0,0,2,1,0,1,2,0,0], "instances": [[1,2,1,1,0,1,1,0,1,2,1,0],[2,2,1,0,0,2,1,2,1,2,1,0],[1,2,1,0,0,2,1,0,3,2,1,1],[1,2,1,0,0,2,1,0,0,1,0,1],[1,1,1,0,0,2,1,0,2,2,1,0],[1,2,1,0,0,2,0,0,1,2,1,1],[1,2,1,2,0,2,1,0,1,2,1,1],[1,2,1,1,0,1,1,0,3,2,0,0],[1,2,1,0,0,2,0,0,3,1,0,0],[2,2,1,0,0,2,1,0,1,2,1,1],[1,1,1,0,0,2,0,0,1,2,1,0],[1,2,1,0,0,1,1,0,1,2,1,1],[2,2,1,0,0,2,1,1,1,2,1,0],[1,2,1,0,0,2,2,0,0,2,1,0],[1,2,1,0,0,2,0,0,2,2,1,0],[2,2,1,0,0,2,1,0,1,0,1,0],[2,2,1,0,0,1,1,0,1,0,0,0],[1,2,1,0,0,2,1,0,1,0,1,1],[1,2,1,0,0,2,1,0,2,1,1,0],[1,2,1,0,0,2,1,1,1,2,1,1],[1,2,1,0,0,2,1,0,1,0,1,1],[1,2,1,0,0,2,1,0,1,1,1,1],[1,1,1,0,0,2,0,0,0,2,0,0],[2,2,1,0,0,2,1,1,0,2,0,0],[1,2,2,0,0,2,1,0,1,2,1,1]]}
+,
+    {"seed": 42, "dist": 2, "sample_size": 30, "center_raw": [1,2,1,0,0,2,1,0,1,2,0,0], "instances": [[1,2,1,0,0,2,1,0,3,0,0,0],[1,2,1,0,0,2,1,0,2,0,0,0],[1,2,1,0,0,2,1,2,1,2,1,0],[1,2,1,0,0,2,1,0,1,0,0,1],[1,2,1,0,0,2,1,0,3,0,0,0],[2,2,1,0,0,1,1,0,1,2,0,0],[1,2,1,0,0,2,1,1,2,2,0,0],[1,2,1,0,0,2,1,0,1,0,1,0],[1,2,1,0,0,2,1,0,1,1,1,0],[1,2,1,0,0,2,0,0,3,2,0,0],[1,2,1,0,0,2,1,0,1,0,1,0],[1,2,1,0,0,2,1,0,1,2,1,1],[1,2,1,0,0,2,1,2,1,2,0,1],[1,2,2,0,0,2,1,0,1,2,1,0],[1,2,1,0,0,2,2,0,1,0,0,0],[1,1,1,0,0,2,1,0,1,2,1,0],[1,2,1,0,0,2,1,0,1,1,0,1],[1,2,1,0,0,2,1,0,0,2,1,0],[1,2,1,0,0,2,1,0,0,2,0,1],[1,2,1,0,0,2,1,0,2,2,1,0],[1,2,1,0,0,2,1,0,0,2,1,0],[1,2,1,0,0,2,1,0,2,0,0,0],[1,2,1,0,0,1,1,0,1,1,0,0],[1,2,1,0,0,2,0,0,1,2,0,1],[1,2,1,0,0,1,1,0,1,2,1,0],[1,2,0,0,0,2,1,0,1,0,0,0],[1,2,1,0,0,2,1,0,0,1,0,0],[1,2,1,1,0,2,1,0,1,2,1,0],[1,2,2,0,0,1,1,0,1,2,0,0],[1,2,1,0,0,2,1,0,1,0,1,0]]}
+,
+    {"seed": 12345, "dist": 4, "sample_size": 30, "center_raw": [1,2,1,0,0,2,1,0,1,2,0,0], "instances": [[2,2,1,0,0,2,1,0,1,1,1,1],[2,2,1,0,0,2,0,0,1,2,1,1],[1,2,1,0,0,1,1,0,3,2,1,1],[1,2,1,0,0,2,1,0,3,1,1,1],[1,2,1,0,0,2,2,0,0,2,1,1],[1,2,1,0,0,2,1,1,2,2,1,1],[1,2,1,2,0,2,1,0,1,0,1,1],[1,2,2,0,0,2,1,0,1,0,1,1],[1,1,1,0,0,1,1,0,1,2,1,1],[1,2,2,0,0,2,1,2,2,2,1,0],[1,2,1,0,0,2,2,0,3,1,1,0],[1,2,1,0,0,2,1,0,0,1,1,1],[1,1,1,0,0,2,1,0,2,2,1,1],[1,2,1,2,0,1,1,0,1,2,1,1],[2,2,1,0,0,2,1,2,1,2,1,1],[1,1,1,0,0,2,1,0,1,0,1,1],[1,2,0,0,0,2,1,0,2,1,1,0],[2,2,1,0,0,2,1,0,1,1,1,1],[1,2,1,0,0,2,2,0,1,1,1,1],[2,2,1,0,0,2,1,0,3,2,1,1],[1,2,2,0,0,1,1,0,3,2,1,0],[1,2,1,0,0,2,1,1,0,1,1,0],[1,2,1,0,0,2,1,0,3,0,1,1],[1,2,1,0,0,1,1,0,1,1,1,1],[1,2,1,0,0,2,1,1,1,1,1,1],[1,2,1,0,0,1,1,0,2,2,1,1],[2,2,1,0,0,2,1,0,3,2,1,1],[1,2,1,2,0,2,0,0,1,2,1,1],[1,1,1,0,0,2,1,0,2,2,1,1],[1,2,1,1,0,1,1,0,1,1,1,0]]}
+,
+    {"seed": 7, "dist": 1, "sample_size": 10, "center_raw": [1,2,1,0,0,2,1,0,1,2,0,0], "instances": [[1,2,1,0,0,2,1,0,1,2,0,1],[1,2,1,0,0,2,1,0,0,2,0,0],[1,2,1,0,0,2,1,0,1,2,0,1],[1,2,1,0,0,2,1,0,1,0,0,0],[1,2,1,0,0,2,1,1,1,2,0,0],[1,2,1,0,0,2,1,0,3,2,0,0],[1,2,1,0,0,2,1,0,1,1,0,0],[1,2,1,2,0,2,1,0,1,2,0,0],[1,2,1,0,0,2,1,0,1,1,0,0],[1,2,1,0,0,2,1,0,1,2,0,1]]}
+,
+    {"seed": 4294967295, "dist": 1, "sample_size": 20, "center_raw": [1,2,1,0,0,2,1,0,1,2,0,0], "instances": [[1,2,1,0,0,2,1,0,1,2,0,1],[1,2,1,0,0,2,1,0,1,1,0,0],[1,2,1,0,0,2,1,0,1,2,0,1],[1,2,1,0,0,2,1,0,1,2,1,0],[1,2,1,0,0,2,1,0,3,2,0,0],[1,2,1,0,0,2,1,0,1,1,0,0],[1,2,1,0,0,2,1,0,0,2,0,0],[1,2,1,0,0,2,1,0,1,0,0,0],[1,2,1,0,0,2,2,0,1,2,0,0],[1,2,1,0,0,2,1,0,1,2,0,1],[1,2,1,0,0,2,1,0,3,2,0,0],[1,2,1,0,0,2,2,0,1,2,0,0],[1,2,1,0,0,2,1,0,1,2,0,1],[2,2,1,0,0,2,1,0,1,2,0,0],[1,2,1,0,0,2,1,0,0,2,0,0],[1,2,0,0,0,2,1,0,1,2,0,0],[1,2,1,0,0,2,1,0,1,1,0,0],[1,2,1,0,0,2,1,0,1,1,0,0],[1,2,1,0,0,2,1,0,2,2,0,0],[1,2,1,0,0,2,1,0,1,1,0,0]]}
+  ]
+}

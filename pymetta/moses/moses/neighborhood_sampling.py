@@ -9,19 +9,48 @@ that process-wide singleton directly, exactly as their C++ signatures do
 reseeds it first with ``randGen().seed(s)``, matching how the C++ oracle
 probe (`tools/cpp_probe/neighborhood_probe.cc`) does it.
 
-Continuous fields are out of scope for this port (`flip_LR`,
-`twiddle_contin_bit`, `generate_contin_neighbor` at neighborhood_sampling.cc:32,
-38, 55 are DEFERRED -- not ported at all, no placeholder dispatch for them).
-Every function below that has a continuous-field branch in C++
-(`count_neighborhood_size_from_index`, `vary_n_knobs`,
-`sample_from_neighborhood`) raises ``NotImplementedError`` if it actually
-reaches a continuous raw index, rather than silently skipping or
-mishandling it -- this never fires for a Boolean/discrete-only field_set
-(every field_set exercised by this port's tests), since the guard only
-triggers when ``fs`` genuinely has continuous fields. Term fields need no
-equivalent guard: they do not exist anywhere in this port (see
-field_set.py's own term exclusion), so the C++ "terms" branch -- always an
-empty index range here -- is omitted outright rather than guarded.
+S14 Task 3 ports the three continuous SAMPLING helpers -- `flip_LR`,
+`twiddle_contin_bit`, `generate_contin_neighbor` (neighborhood_sampling.cc:
+32, 38, 55) -- and wires the last of them into `sample_from_neighborhood`'s
+own "modify contin" branch (neighborhood_sampling.h:172-178), which
+previously raised ``NotImplementedError`` there. This is NOT full
+continuous-field support for the rest of this module: `count_neighborhood_
+size_from_index`, `vary_n_knobs` (hence `generate_all_in_neighborhood`) and
+`_randomize`'s `occam_randomize_contin` call are a DIFFERENT feature
+(exhaustive contin-neighborhood enumeration / uniform contin
+randomization, not among this task's three named functions) and still
+raise ``NotImplementedError`` on a continuous field_set exactly as before.
+Term fields need no equivalent guard anywhere in this module: they do not
+exist in this port (see field_set.py's own term exclusion), so the C++
+"terms" branch -- always an empty index range here -- is omitted outright
+rather than guarded.
+
+`flip_LR`/`twiddle_contin_bit` take ``(fs, inst, idx)``/``(fs, inst, idx,
+next_idx)`` in place of C++'s `field_set::disc_iterator` parameter(s) --
+the same raw-index substitution `vary_n_knobs`/`sample_from_neighborhood`
+already use for every OTHER disc_iterator/bit_iterator dereference in this
+file (via `fs.get_raw`/`fs.set_raw`), applied here for the first time to a
+FUNCTION PARAMETER rather than a local loop variable. `generate_contin_
+neighbor` takes ``(fs, inst, idx, dist)`` where ``idx`` is C++'s
+`it.idx()` -- the CONTIN SPEC index (`fs.contin()`'s own indexing, as
+`fs.contin_to_raw_idx`/`fs.contin_length` already take) -- NOT a raw
+index; `flip_LR`/`twiddle_contin_bit`'s own ``idx``/``next_idx``, by
+contrast, ARE raw indices (`fs.get_raw`/`fs.set_raw`'s own indexing).
+This mirrors the real type distinction in C++ between
+`field_set::contin_iterator::idx()` (spec-indexed) and
+`field_set::disc_iterator` (raw-indexed).
+
+`twiddle_contin_bit`/`generate_contin_neighbor` both take an optional
+trailing ``rng`` parameter defaulting to ``None`` (resolved to
+``randGen()`` when omitted), reproducing C++'s own
+``RandGen& rng = randGen()`` default argument (neighborhood_sampling.h:
+87, 116) -- UNLIKE `generate_initial_sample`/`sample_from_neighborhood`
+above, which have NO rng parameter in C++ at all and so always call
+``randGen()`` directly (see this docstring's own paragraph on that). Since
+``randGen()`` is a process-wide singleton, resolving the default at each
+call site (Python) is behaviourally identical to C++ re-resolving its own
+default argument at each call site: both always land on the SAME live
+object.
 
 `sample_new_instances` (both overloads, neighborhood_sampling.cc:214, 261)
 IS ported (S9 Task 2), now that `instance_set` (S9 Task 0) exists --
@@ -56,12 +85,12 @@ from __future__ import annotations
 
 import math
 
-from pymetta.moses.representation.field_set import field_set
+from pymetta.moses.representation.field_set import contin_spec, field_set
 from pymetta.moses.representation.instance import instance
 from pymetta.moses.representation.instance_set import instance_set
 from pymetta.moses.representation.scored_instance import scored_instance
 from pymetta.util.lazy_random_selector import lazy_random_selector
-from pymetta.util.rng import randGen
+from pymetta.util.rng import MT19937RandGen, randGen
 
 # DIVERGENCE(C++ moses/moses/moses/neighborhood_sampling.h:491,514,520):
 # std::numeric_limits<size_t>::max() (three default-argument occurrences;
@@ -383,6 +412,147 @@ def generate_initial_sample(fs: field_set, n: int, out: list[instance], end: int
         _emit(out, end, inst)
 
 
+def flip_LR(fs: field_set, inst: instance, idx: int) -> None:
+    """C++: moses/moses/moses/neighborhood_sampling.cc:32 flip_LR
+
+    Flips a single contin "pseudo-bit" between `contin_spec.Left` and
+    `contin_spec.Right`. ``idx`` is a RAW field index (`fs.get_raw`/
+    `fs.set_raw`'s own indexing) -- see the module docstring's own
+    paragraph on this substitution for C++'s `field_set::disc_iterator`
+    parameter.
+    """
+    is_left = fs.get_raw(inst, idx) == contin_spec.Left
+    fs.set_raw(inst, idx, contin_spec.Right if is_left else contin_spec.Left)
+
+
+def twiddle_contin_bit(
+    fs: field_set,
+    inst: instance,
+    idx: int,
+    next_idx: int,
+    rng: MT19937RandGen | None = None,
+) -> None:
+    """C++: moses/moses/moses/neighborhood_sampling.cc:38 twiddle_contin_bit
+
+    "Twiddle one contin bit only, according to the following rules: 1. If
+    it is Stop then select Left or Right. 2. Otherwise if the next one is
+    Stop (or invalid) then select Stop or flip. 3. Otherwise just flip."
+    (neighborhood_sampling.h:79-85's own doc comment, reproduced
+    verbatim.) ``idx``/``next_idx`` are RAW field indices, like `flip_LR`
+    above; ``next_idx`` is "invalid" exactly when it is not literally
+    ``idx + 1`` -- the caller (`generate_contin_neighbor` below) passes
+    `fs.raw_size()` there for that case, mirroring C++'s own
+    `fs.end_raw(inst)` sentinel.
+
+    Draws exactly one `rng.randbool()` in the `Stop` branch and in the
+    "next is Stop or invalid" branch; draws NOTHING in the plain-flip
+    branch (`flip_LR` itself draws nothing). Draw order/count here is
+    part of the bit-identity claim this task exists to establish -- see
+    the module docstring's RNG paragraph on why an omitted ``rng`` still
+    resolves to the live process-wide singleton.
+
+    The `or` in C++'s `itr + 1 != next_itr // next_itr is invalid or
+    *next_itr == field_set::contin_spec::Stop` short-circuits exactly like
+    Python's own `or` below: when ``idx + 1 != next_idx`` is already
+    True, `fs.get_raw(inst, next_idx)` is never evaluated -- load-bearing
+    when ``next_idx`` is the `fs.raw_size()` sentinel, which
+    `fs.get_raw` would otherwise reject as out of range. DO NOT FIX: if
+    ``idx + 1`` genuinely EQUALS `fs.raw_size()` (this contin field is the
+    very last thing in the whole raw layout, no disc/bit fields follow
+    it, and this is its final pseudo-bit), the short-circuit does not
+    save us and `fs.get_raw(inst, next_idx)` raises `IndexError` -- the
+    same edge C++ leaves as an invalid `*fs.end_raw(inst)` dereference
+    (undefined behaviour there), a real but strictly-safer failure mode
+    here, not a "fix".
+    """
+    if rng is None:
+        rng = randGen()
+    if fs.get_raw(inst, idx) == contin_spec.Stop:
+        fs.set_raw(inst, idx, contin_spec.Left if rng.randbool() else contin_spec.Right)
+    elif idx + 1 != next_idx or fs.get_raw(inst, next_idx) == contin_spec.Stop:
+        if rng.randbool():
+            fs.set_raw(inst, idx, contin_spec.Stop)
+        else:
+            flip_LR(fs, inst, idx)
+    else:
+        flip_LR(fs, inst, idx)
+
+
+def generate_contin_neighbor(
+    fs: field_set,
+    inst: instance,
+    idx: int,
+    dist: int,
+    rng: MT19937RandGen | None = None,
+) -> None:
+    """C++: moses/moses/moses/neighborhood_sampling.cc:55 generate_contin_neighbor
+
+    Modifies ``inst`` in place so its contin field at spec index ``idx``
+    (``fs.contin()``'s own indexing -- C++'s `it.idx()`, NOT a raw index;
+    see the module docstring) has one of its "significant pseudo-bits"
+    changed, choosing among the (up to) ``2 * dist`` neighbouring
+    encodings uniformly via `lazy_random_selector` -- see
+    neighborhood_sampling.h:90-104's own doc comment for the worked
+    [L R S S] example this reproduces.
+
+    Computes `begin`/`depth`/`length`/`lowest_low`/`uppest_low` BEFORE
+    the ``dist == 0`` early return, exactly matching C++'s comma-separated
+    declaration order (neighborhood_sampling.cc:58-65) -- those reads can
+    themselves raise (an invalid ``idx``) regardless of ``dist``, matching
+    C++'s own UB-on-invalid-iterator behaviour for the same case.
+
+    `lowest_low`/`uppest_low` are computed via SIGNED arithmetic
+    (`max(length - dist, 0)`, matching C++'s explicit `(int)length -
+    (int)dist` casts at neighborhood_sampling.cc:61) specifically to
+    avoid the `size_t`-wrap this project's fidelity discipline calls out
+    (`length - dist` alone, in unsigned arithmetic, would wrap to a huge
+    positive value whenever ``dist > length``) -- Python's arbitrary-
+    precision `int` never wraps, so this is a direct, faithful
+    transliteration rather than a guard this port had to add.
+
+    DIVERGENCE(C++ moses/moses/moses/neighborhood_sampling.cc:67):
+    `OC_ASSERT(dist <= depth)` becomes `ValueError`, matching this
+    module's own convention (`sample_from_neighborhood`/
+    `generate_all_in_neighborhood` above).
+
+    Draws exactly one value from `lazy_random_selector` (one
+    `rng.randint_n` draw internally -- see that class's own docstring),
+    then makes ``dist`` calls to `twiddle_contin_bit` above, each of
+    which draws zero or one `rng.randbool()` depending on the pseudo-bit
+    it lands on -- draw order matters and is verified element-for-element
+    against classic (see this module's own test file).
+    """
+    if rng is None:
+        rng = randGen()
+
+    begin = fs.contin_to_raw_idx(idx)
+    depth = fs.contin()[idx].depth
+    length = fs.contin_length(inst, idx)
+    lowest_low = max(length - dist, 0)
+    uppest_low = min(length + 1, depth + 1 - dist)
+
+    if dist == 0:
+        return
+
+    if not dist <= depth:
+        raise ValueError(f"generate_contin_neighbor: dist ({dist}) must not exceed depth ({depth})")
+
+    # Randomly choose the interval to modify, the intervals can be
+    # [length - dist, length) to [length, length + dist), as long as
+    # it is within [0, depth).
+    low = lazy_random_selector(uppest_low, lowest_low, rng)()
+    up = low + dist
+
+    # Twiddle all pseudo bits in the selected interval.
+    itr = begin + up - 1
+    next_itr = fs.raw_size() if up == depth else itr + 1
+    low_itr = begin + low
+    while next_itr != low_itr:
+        twiddle_contin_bit(fs, inst, itr, next_itr, rng)
+        next_itr = itr
+        itr -= 1
+
+
 def sample_from_neighborhood(
     fs: field_set,
     dist: int,
@@ -395,7 +565,9 @@ def sample_from_neighborhood(
 
     Sample (with replacement) `sample_size` instances from the neighborhood
     at distance `dist` from `center_inst`. See the module docstring for the
-    output-iterator convention and the continuous-field guard.
+    output-iterator convention. The "modify contin" branch below delegates
+    to `generate_contin_neighbor` (S14 Task 3) -- see that function's own
+    docstring, and the module docstring's RNG paragraph, for what it draws.
 
     Sharp edge, load-bearing for the bit-identity claim: the selector index
     `r` is numbered bit-range-first, then disc-range-second
@@ -447,10 +619,19 @@ def sample_from_neighborhood(
                 i += 1
             elif r >= (fs.n_bits() + fs.n_disc_fields()):
                 # modify contin
-                raise NotImplementedError(
-                    "sample_from_neighborhood: continuous fields are deferred "
-                    "(see generate_contin_neighbor)"
-                )
+                #
+                # DO NOT FIX: `dist` (this function's own parameter) is
+                # NOT threaded through here -- C++ hardcodes `1` at this
+                # exact call (neighborhood_sampling.h:178,
+                # "@todo: now the distance is 1, choose the distance of
+                # contin possibly different than 1"), so every contin
+                # pseudo-bit change this function makes is distance-1
+                # regardless of the OUTER `dist` this loop is trying to
+                # reach overall -- ``i`` still only advances by 1 per
+                # such change, exactly as it does for a bit/disc change.
+                contin_idx = r - fs.n_bits() - fs.n_disc_fields()
+                generate_contin_neighbor(fs, new_inst, contin_idx, 1, rng)
+                i += 1
 
         _emit(out, end, new_inst)
 
