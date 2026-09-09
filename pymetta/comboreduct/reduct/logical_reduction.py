@@ -43,12 +43,17 @@ reduction.cc:115-116`'s own comment: "Arghh .. XXX should use reduct_
 effort==3 for the complexe rule"): `p_medium`'s inner `simplify_
 predicates` is always constructed with `reduct_effort = 2`, EVEN when
 `p_medium` is being reused (verbatim, via `sequential`'s cloning
-constructor) to build `p_complexe` (effort 3). Inert for every tree in
-this project's actual reachable scope -- `simplify_predicates`'s own
-early-return guard means `reduct_effort` is only ever consulted past a
-`greater_than_zero` predicate, which never appears in a pure boolean
-tree (see `logical_rules.py`'s own module docstring) -- but a real,
-disclosed upstream fact, not silently "fixed" to `effort` here.
+constructor) to build `p_complexe` (effort 3). `reduct_effort` is only
+ever consulted past a `greater_than_zero` predicate, which never appears
+in a pure boolean tree -- so this stays inert on the Boolean-only path.
+It is NOT inert in general, and an earlier version of this paragraph
+claiming it was "inert for every tree in this project's actual reachable
+scope" is now false: the mixed-predicate slice made that tail live, so
+`simplify_predicates` hands this hardcoded 2 to `contin_reduce` on every
+predicate it meets, at effort 3 as much as at effort 2. Ported
+faithfully, not silently "fixed" to `effort` here; measured against
+classic at BOTH efforts in `tests/fixtures/mixed_predicate.json`'s own
+`logical_reduce` rows, which agree row for row.
 """
 
 from __future__ import annotations

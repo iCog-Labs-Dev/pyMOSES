@@ -50,22 +50,19 @@ below with a dedicated regression test each:
    source tree too -- see
    `test_push_back_negated_arguments_does_not_mutate_the_source`.
 
-SCOPING (UPDATED by Task 5 -- see below for what changed): one rule class
-this file declares still cannot be fully ported, because its own C++ body
-calls into a subsystem that is genuinely, permanently out of this
-project's scope; the OTHER was fully unblocked once Task 5 landed its own
-two dependencies:
+SCOPING (UPDATED by the mixed-predicate slice): every rule class this
+file declares is now fully ported. Two of them were once partial:
 
-* `simplify_predicates` -- its early-return guard (is this even a
-  predicate? is its argument already a bare argument?) is fully ported
-  and is this rule's real, exercised behaviour for every tree in this
-  file's own boolean-only test corpus. Only the TAIL --
-  `contin_reduce`/`mixed_reduce` -- is stubbed with `NotImplementedError`
-  (a `# DIVERGENCE` marks the exact line): both are PLANNED: S14 per
-  docs/MODULE-COVERAGE.md, permanently out of this project's current
-  scope, not merely "not yet written". Mirrors meta_rules.py's own
-  (now-resolved) `_get_output_type_tree` precedent for a genuinely-blocked
-  tail.
+* `simplify_predicates` -- was stubbed with a `NotImplementedError` past
+  its early-return guard, on the claim that `contin_reduce`/`mixed_reduce`
+  were "permanently out of this project's current scope". That claim was
+  FALSE by the time it was written and is corrected here: both targets
+  exist (`contin_reduction.py`, `mixed_reduction.py`), this rule is the
+  FIRST element of `logical_reduction`'s `p_medium`, and the tail is
+  reached by every effort-2/3 reduction of a tree containing a
+  `greater_than_zero`. The tail is ported; the only real obstacle was a
+  module-level import cycle (`mixed_reduction` imports this module), which
+  a function-local import in `apply` resolves.
 * `reduce_remove_subtree_equal_tt` -- FULLY PORTED as of Task 5, which
   landed both forward references this rule needed: `complete_truth_table`
   (`comboreduct/table/table.py`) and `clean_reduce` (`comboreduct/reduct/
@@ -534,49 +531,62 @@ class simplify_predicates(rule):
         """
         super().__init__(name)
         self.reduct_effort = reduct_effort
-        # SWEPT (S14 Task 0, CARRY-FORWARD.md section 2.5): `ignore_ops` is a
-        # `set[vertex]` (logical_reduction.py's own constructor parameter),
-        # stored here but not queried anywhere in this codebase today --
-        # `apply` below always raises NotImplementedError before reaching
-        # the C++ `contin_reduce`/`mixed_reduce` tail (logical_rules.cc:71-77)
-        # that would test membership in it. That tail, and this field's first
-        # real `in`/`not in` use, do not exist in this port yet -- they are
-        # `contin_rules.py`/`mixed_rules.py`, PLANNED: S14 Task 4, not this
-        # task. Flagged forward rather than left silent: whoever implements
-        # that membership test MUST use a type-safe check (e.g. `any(vertex_
-        # equal(v, op) for op in ignore_ops)`, mirroring `build_knobs.py`'s
-        # own `_ignore_ops` guard), never bare `v in ignore_ops` -- a `set`
-        # hashes/compares its elements with bare `==`/`hash()`, exactly the
-        # `contin_t`/`builtin` collision `vertex_equal` exists to prevent.
+        # `ignore_ops` is a `set[vertex]` (logical_reduction.py's own
+        # constructor parameter). It is NOT queried here: it is handed
+        # straight to `contin_reduce` in `apply` below, exactly as
+        # logical_rules.cc:76 hands it to C++'s own `contin_reduce`, and
+        # every membership test on it happens inside
+        # `contin_reduction.py`, through `reduct.ignores` -- which is the
+        # type-safe `any(vertex_equal(v, op) for v in ignore_ops)` scan
+        # this comment used to demand of whoever wrote the tail, never a
+        # bare `v in ignore_ops` (a `set` hashes/compares with bare
+        # `==`/`hash()`, exactly the `contin_t`/`builtin` collision
+        # `vertex_equal` exists to prevent).
         self.ignore_ops = ignore_ops
 
     def apply(self, tr: combo_tree, it: tree_node) -> None:
         """C++: moses/comboreduct/reduct/logical_rules.cc:65 simplify_predicates::operator()
 
-        # DIVERGENCE(C++ moses/comboreduct/reduct/logical_rules.cc:77): raises past this point.
-        # The guard above (is_predicate / logical_not-stripping / is_argument) is a full, faithful
-        # port and IS this rule's entire real behaviour for every tree in this file's own
-        # boolean-only test corpus (no `greater_than_zero` node ever appears there, so this always
-        # returns on the very first line). Only the TAIL -- `contin_reduce`/`mixed_reduce`,
-        # PLANNED: S14 (contin/mixed reduction, out of this project's current scope per
-        # docs/MODULE-COVERAGE.md) -- is not implemented. UPDATED (Task 5): meta_rules.py's own
-        # analogous `_get_output_type_tree` stub this docstring used to compare against has since
-        # been resolved for real (a scoped type_checker slice) -- this tail remains blocked because
-        # S14 itself, not a missing type_checker dependency, is out of scope.
+        The whole rule, guard and tail. Reachable for real: this rule is
+        the FIRST element of `logical_reduction`'s own `p_medium`, so
+        every effort-2/3 logical reduction of a tree containing a
+        `greater_than_zero` runs the `contin_reduce`/`mixed_reduce` tail
+        below -- which is precisely what a contin-input/Boolean-output
+        problem produces once `build_knobs`' own predicate path decorates
+        an exemplar.
+
+        `it` stays valid across `contin_reduce`: that call is rooted at
+        `cit`, the predicate's own contin argument, and can only rewrite
+        `it`'s subtree (its rules `insert_above`/`erase` strictly at or
+        below `cit`), never `it` itself -- so `mixed_reduce(tr, it)`
+        receives the same predicate node C++ hands it.
         """
+        # Deferred import, NOT a style choice: `mixed_reduction` imports
+        # THIS module at module scope (for `reduce_and_assumptions`), so a
+        # module-level import of it here is a hard circular-import error.
+        # `contin_reduction` is imported the same way only for symmetry
+        # with its sibling -- it has no cycle of its own today.
+        from pymetta.comboreduct.reduct.contin_reduction import contin_reduce
+        from pymetta.comboreduct.reduct.mixed_reduction import mixed_reduce
+
         if not is_predicate(it):
             return
         if vertex_equal(it.data, builtin.logical_not):
             it = it.first_child
+
+        # `it` now points to the predicate, with any leading logical not
+        # stripped off. `it.first_child` points to the contin-valued
+        # expression.
         cit = it.first_child
         if is_argument(cit.data):
             return
-        raise NotImplementedError(
-            "simplify_predicates: contin_reduce/mixed_reduce need "
-            "comboreduct/reduct/contin_rules.py + mixed_rules.py, "
-            "PLANNED: S14 per docs/MODULE-COVERAGE.md -- unreachable from "
-            "this project's boolean-only reduction scope today."
-        )
+
+        contin_reduce(tr, cit, reduct_effort=self.reduct_effort, ignore_ops=self.ignore_ops)
+
+        # After the above step, we can still have some pathological
+        # expressions, such as "0<(1)" which can be reduced to true,
+        # or "0<(/(1 $1))",  which can be reduced to "0<($1)" .. so do these.
+        mixed_reduce(tr, it)
 
 
 class remove_dangling_junctors(rule):

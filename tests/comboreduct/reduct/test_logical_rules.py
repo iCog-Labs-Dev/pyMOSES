@@ -856,9 +856,22 @@ def test_simplify_predicates_returns_early_for_a_bare_argument_operand():
     assert _apply(simplify_predicates(3, set()), "0<($1)") == "0<($1)"
 
 
-def test_simplify_predicates_raises_for_a_real_non_argument_predicate():
-    with pytest.raises(NotImplementedError):
-        _apply(simplify_predicates(3, set()), "0<(+($1 $2))")
+def test_simplify_predicates_runs_its_contin_mixed_tail_for_a_real_predicate():
+    """This test used to assert ``pytest.raises(NotImplementedError)``: the
+    ``contin_reduce``/``mixed_reduce`` tail (logical_rules.cc:76-81) was
+    stubbed. It is ported now, so the tail runs for real.
+
+    Three shapes, all measured against classic
+    (``tools/cpp_probe/mixed_predicate_probe.cc``, fixture
+    ``tests/fixtures/mixed_predicate.json``): a predicate whose contin
+    argument is already reduced comes back unchanged; one that is not is
+    rewritten by ``contin_reduce`` (``0<(*(2 $1))`` -> ``0<($1)``); and a
+    constant predicate is folded away by ``mixed_reduce`` (``0<(1)`` ->
+    ``true``).
+    """
+    assert _apply(simplify_predicates(2, set()), "0<(+($1 $2))") == "0<(+($1 $2))"
+    assert _apply(simplify_predicates(2, set()), "0<(*(2 $1))") == "0<($1)"
+    assert _apply(simplify_predicates(2, set()), "0<(1)") == "true"
 
 
 def test_reduce_remove_subtree_equal_tt_is_a_noop_when_a_predicate_is_present():
