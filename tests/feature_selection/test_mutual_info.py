@@ -25,6 +25,7 @@ from pymetta.comboreduct.table.table import CTable
 from pymetta.comboreduct.table.table_io import loadTable
 from pymetta.comboreduct.type_checker.type_signature import TypeSignature, type_node
 from pymetta.feature_selection.scorers.mutual_info import (
+    MICScorer,
     MICScorerCTable,
     MutualInformation,
     mutual_information,
@@ -147,3 +148,33 @@ def test_mic_scorer_ctable_confidence_formula_at_a_non_saturating_confi(boolean_
     expected_confidence = n / (n + math.exp(-0.1 * 1))
     mi = mutual_information(boolean_ctable, {2})
     assert scorer({2}) == pytest.approx(mi * expected_confidence, rel=1e-12)
+
+
+def test_micscorer_gives_the_same_score_for_a_generator_as_for_a_list():
+    """`MICScorer.__call__` used `fs` twice -- once for the mutual
+    information and once for `len(list(fs))` in the confidence factor.
+
+    C++'s `FeatureSet` is a `std::set`, so classic can iterate it as often
+    as it likes; this signature accepts any `Iterable`. Given a generator,
+    the second pass saw an exhausted iterator, so the confidence factor
+    was computed as if the feature set were EMPTY and the score came out
+    silently wrong rather than raising.
+
+    This is not reachable through `select_feature_sets` (no algorithm in
+    `algo/` passes a generator, and none uses this class at all -- it is
+    `eval-features`' scorer). It is pinned anyway because the failure is
+    silent, and because the sibling `MICScorerCTable` already materialised
+    its argument first, so the two classes disagreed on the same input.
+    """
+    table = loadTable(str(_TABLE_DATA_DIR / "trainingBoolean.dat"), "y")
+    scorer = MICScorer(table.itable, table.otable, confi=100.0)
+
+    features = [0, 2]
+    from_list = scorer(features)
+    from_generator = scorer(i for i in features)
+
+    assert from_generator == from_list
+    # And the value is not the degenerate empty-set one, which is what the
+    # bug produced -- otherwise this test would pass on a scorer that
+    # ignored its argument entirely.
+    assert from_list != scorer([])
