@@ -614,6 +614,36 @@ those files *now*, including another agent's edits. Before writing the message,
 read the actual staged diff — `git show --stat` and the hunks — rather than
 describing what you intended to change.
 
+### 5.6 I have now named a non-covering oracle three times
+
+Three separate slices were planned around a test that could not verify what the
+plan claimed. Each time the mistake had the same shape, and each time an
+implementer caught it rather than the plan:
+
+1. **`metapopulationUTest` for S10.** I built it, ran it, saw 2 tests pass, and
+   wrote "use it". Its only two tests exercise `domination.cc` — P2, outside the
+   slice.
+2. **Nine `MOSESUTest` cases for S11.** I checked each used the default
+   hill-climbing optimizer. Seven go through `demo-problems.cc`, unported at the
+   time, so only two were reachable.
+3. **`test_reduct` for S14 Task 4.** S7 used it heavily for logical reduction, so
+   I named it the contin/mixed oracle. `test_reduct.cc:29` calls **only**
+   `logical_reduce`, and its second argument is that function's own effort level,
+   not a domain selector — it cannot drive contin or mixed at all. The
+   implementer verified this live and built two replacement probes.
+
+The common error is not carelessness about whether the test exists — I checked
+that every time. It is **assuming a test covers a new purpose because it covered
+an adjacent one**. `metapopulationUTest` is named for the file I wanted;
+`MOSESUTest` had the right optimizer; `test_reduct` was the right tool for the
+previous domain.
+
+**Rule.** Before naming a test as an oracle, read its source and confirm it
+actually calls the function under test, with the configuration under test.
+"It is the obvious oracle" and "it worked last slice" are both how this
+happened. Where no such test exists — which is common — say so in the plan and
+budget for a probe, rather than leaving an exit criterion that cannot be met.
+
 ## 6. Process notes that paid for themselves
 
 - **Prove a guard fires.** Requiring "revert it and show the test fail" caught a

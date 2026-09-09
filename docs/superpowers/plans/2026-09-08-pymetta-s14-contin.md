@@ -99,15 +99,22 @@ Now the nine files: `contin_rules.{h,cc}` (1,216), `mixed_rules.{h,cc}` (2,059),
 `full_reduction.cc`. `mixed_rules.cc` (1,765) and `contin_rules.cc` (1,025) are
 69% of it.
 
-**Oracle:** `test_reduct` at contin and mixed effort levels — the same binary
-S7 used, which is already built.
+**Oracle — CORRECTED 2026-09-09: `test_reduct` CANNOT drive contin or mixed.**
+`test_reduct.cc:29` calls only `logical_reduce`, and its second argument is
+that function's own effort level, not a domain selector. I named it here
+because S7 used it for logical reduction; that does not transfer. Two
+purpose-built probes were written instead, and reached 129/129 byte-identical
+agreement at classic's own empty `ignore_ops`.
 
 **`move_ontop` is now fully cleared** — all 11 `contin_rules.cc` call sites were
 traced (2026-09-08) and none can hit the self-cycle, because every target is a
 freshly appended last child whose `next_sibling` is null. Keep the DO NOT FIX
 marker; the bug is real, merely unreachable from these callers.
 
-**Exit:** `test_reduct` agrees at contin and mixed levels across the corpus.
+**Exit:** the purpose-built contin/mixed probes agree with classic across the
+corpus, at classic's own empty `ignore_ops`. **Achieved: 129/129 byte-identical**
+(contin_reduce effort 2: 53/53; mixed_reduce: 53/53; mixed_reduce+assumptions:
+4/4; full_reduce: 19/19).
 
 ## Task 5: Review and closeout
 
