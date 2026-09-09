@@ -6,15 +6,25 @@ from __future__ import annotations
 import copy
 from collections.abc import Callable, Collection
 
-from pymetta.comboreduct.combo.iostream_combo import combo_tree_to_str
+from pymetta.comboreduct.combo.iostream_combo import combo_tree_to_str, tree_to_stream_str
 from pymetta.comboreduct.combo.vertex import builtin, combo_tree, is_contin, vertex, vertex_equal
 from pymetta.comboreduct.reduct.clean_reduction import clean_reduce
 from pymetta.comboreduct.type_checker.type_signature import TypeSignature
+from pymetta.moses.moses.complexity import tree_complexity
 from pymetta.moses.representation.build_knobs import build_knobs
 from pymetta.moses.representation.field_set import field_set
 from pymetta.moses.representation.instance import contin_t, instance
 from pymetta.moses.representation.knob_mapper import knob_mapper
+from pymetta.util.logger import logger
 from pymetta.util.tree import tree_node
+
+# C++ `sizeof` values for representation.cc:202's `size_t is = sizeof(instance)
+# + sizeof(packed_t) * _fields.packed_width();`, measured on this toolchain
+# 2026-09-09 by the same probe that produced `field_set.py`'s constants:
+# instance=24, packed_t=8. Cross-checked against classic's own log, which
+# reports "One instance, in bytes: 32" for a one-word field_set (24 + 8*1).
+_SIZEOF_INSTANCE = 24
+_SIZEOF_PACKED_T = 8
 
 
 def _vertex_text(value: object) -> str:
@@ -26,6 +36,7 @@ def _vertex_text(value: object) -> str:
     privacy.
     """
     return combo_tree_to_str(combo_tree(copy.copy(value))).rstrip()
+
 
 Simplifier = Callable[[combo_tree], None]
 
@@ -118,6 +129,33 @@ class representation(knob_mapper):
         self._simplify_candidate = simplify_candidate
         self._simplify_knob_building = simplify_knob_building
 
+        # C++: representation.cc:110-121. All three records precede
+        # `build_knobs`, which is why classic logs "Start knob building"
+        # BEFORE the exemplar it is about to decorate.
+        logger().info(
+            f"Start knob building, rep size={self._exemplar.size()}"
+            f" complexity={tree_complexity(self._exemplar)}"
+        )
+        if logger().is_debug_enabled():
+            logger().debug(
+                "Building representation from exemplar: " + tree_to_stream_str(self._exemplar)
+            )
+
+        if logger().is_debug_enabled():
+            # C++: representation.cc:117-120 builds ONE stringstream from two
+            # `ostream_prototype` calls, so this is a single record with both
+            # halves in it. The second is on `exemplar_`, the caller's
+            # ORIGINAL tree -- not `_exemplar`, which is the copy about to be
+            # decorated -- so at this point the two read identically and
+            # diverge by the time the "Created prototype:" record repeats the
+            # pair further down.
+            logger().debug(
+                "Before Created prototype: "
+                + self.ostream_prototype()
+                + " Creating From: "
+                + self.ostream_prototype(exemplar.begin())
+            )
+
         # Task 3 already runs clean_reduce before invoking this callback.
         build_knobs(
             self._exemplar,
@@ -131,6 +169,13 @@ class representation(knob_mapper):
             expansion=_expansion,
             depth=_depth,
         )
+
+        logger().info(
+            f"After knob building, rep size={self._exemplar.size()}"
+            f" complexity={tree_complexity(self._exemplar)}"
+        )
+        if logger().is_fine_enabled():
+            logger().fine("Rep, after knob building: " + tree_to_stream_str(self._exemplar))
 
         # C++: representation.cc:161-166 (`std::multiset<field_set::spec>
         # tmp; for disc_v: tmp.insert(v.first); for contin_v:
@@ -146,16 +191,43 @@ class representation(knob_mapper):
         self._fields = field_set(
             [entry.spec for entry in self.disc] + [entry.spec for entry in self.contin]
         )
+        # C++: representation.cc:172. `tmp.size()` is the multiset's size,
+        # i.e. disc knobs plus contin knobs, before either index map is built.
+        logger().info(f"Total number of field specs: {len(self.disc) + len(self.contin)}")
+
         disc_start = self._fields.begin_disc_raw_idx()
         self._it_disc_idx = {
-            entry.knob.get_loc(): disc_start + offset
-            for offset, entry in enumerate(self.disc)
+            entry.knob.get_loc(): disc_start + offset for offset, entry in enumerate(self.disc)
         }
         contin_start = self._fields.begin_contin_raw_idx()
         self._it_contin_idx = {
-            entry.knob.get_loc(): contin_start + offset
-            for offset, entry in enumerate(self.contin)
+            entry.knob.get_loc(): contin_start + offset for offset, entry in enumerate(self.contin)
         }
+
+        # C++: representation.cc:200-203. Note representation.cc:189's
+        # "Number of disc knobs mapped" twin is COMMENTED OUT upstream, so
+        # only the contin count is reported -- reproduced as classic has it.
+        logger().info(f"Number of contin knobs mapped: {len(self.contin)}")
+        logger().info(f"Field set, in bytes: {self._fields.byte_size()}")
+        # C++: `size_t is = sizeof(instance) + sizeof(packed_t) *
+        # _fields.packed_width();` -- two more C++ `sizeof` constants, both
+        # measured alongside `field_set.py`'s own (instance=24, packed_t=8),
+        # and cross-checked against classic's "One instance, in bytes: 32"
+        # for a one-word field_set.
+        one_instance_bytes = _SIZEOF_INSTANCE + _SIZEOF_PACKED_T * self._fields.packed_width()
+        logger().info(f"One instance, in bytes: {one_instance_bytes}")
+
+        if logger().is_debug_enabled():
+            # C++: representation.cc:205-210 -- the same two-call pair as the
+            # "Before Created prototype:" record above, now that the knobs
+            # exist, so the first half shows the decorated prototype and the
+            # second the untouched original.
+            logger().debug(
+                "Created prototype: "
+                + self.ostream_prototype()
+                + " Created From: "
+                + self.ostream_prototype(exemplar.begin())
+            )
 
     def fields(self) -> field_set:
         """C++: moses/moses/representation/representation.h:118 representation::fields"""
@@ -169,7 +241,7 @@ class representation(knob_mapper):
         """
         return combo_tree(self._exemplar.begin())
 
-    def ostream_prototype(self) -> str:
+    def ostream_prototype(self, it: tree_node | None = None) -> str:
         """C++: moses/moses/representation/representation.h:182 representation::ostream_prototype
 
         "Like above but on the _exemplar." Renders the FULL decorated
@@ -178,8 +250,16 @@ class representation(knob_mapper):
         classic's own `-l DEBUG` log line emits. An oracle test can compare
         this single string directly against a real classic run's log line,
         or against a C++ probe calling the same ``rep.ostream_prototype``.
+
+        `it` merges C++'s OTHER overload, `ostream_prototype(out, it)`
+        (representation.h:142), which walks an arbitrary iterator instead of
+        `_exemplar.begin()` -- the same overload-merging convention used
+        elsewhere in this port. The constructor's log records need it: they
+        print the caller's original `exemplar_` alongside `_exemplar`, and
+        an iterator into the original resolves no knobs (the knob maps key
+        on `_exemplar`'s own nodes), so it renders as a plain tree.
         """
-        root = self._exemplar.begin()
+        root = self._exemplar.begin() if it is None else it
         if root is None:
             return ""
         return self._ostream_prototype_at(root)
@@ -189,11 +269,20 @@ class representation(knob_mapper):
 
         Breadcrumb kept on one line for `tools/check_alignment.py`'s parser.
         """
+        # C++'s `disc`/`contin` multimaps are EMPTY until `build_knobs` fills
+        # them, and `ostream_prototype` is called once before it runs (the
+        # "Before Created prototype:" record, representation.cc:117-120): the
+        # lookups there simply miss. This port's `knob_mapper` refuses a
+        # lookup before `finalize()` instead (knob_mapper.py's own DIVERGENCE
+        # note), so "not finalized yet" is treated as "no knob here", which
+        # is what an empty multimap gives classic.
+        mapped = self._finalized
+
         if is_contin(it.data):
-            knob = self.find_contin_knob(it)
+            knob = self.find_contin_knob(it) if mapped else None
             text = _vertex_text(it.data) if knob is None else knob.toStr()
         else:
-            knob = self.find_disc_knob(it)
+            knob = self.find_disc_knob(it) if mapped else None
             # DIVERGENCE(C++ moses/moses/representation/representation.h:
             # 151-158): classic special-cases `action_subtree_knob` here
             # (returns early rather than recursing into its own already-
@@ -216,9 +305,7 @@ class representation(knob_mapper):
             text += "(" + " ".join(parts) + ")"
         return text
 
-    def get_clean_exemplar(
-        self, reduce: bool, knob_building: bool = False
-    ) -> combo_tree:
+    def get_clean_exemplar(self, reduce: bool, knob_building: bool = False) -> combo_tree:
         """C++: moses/moses/representation/representation.cc:251 representation::get_clean_exemplar
 
         Breadcrumb kept on one line for `tools/check_alignment.py`'s parser.
@@ -227,19 +314,13 @@ class representation(knob_mapper):
         self.clean_combo_tree(result, reduce, knob_building)
         return result
 
-    def clean_combo_tree(
-        self, tr: combo_tree, reduce: bool, knob_building: bool = False
-    ) -> None:
+    def clean_combo_tree(self, tr: combo_tree, reduce: bool, knob_building: bool = False) -> None:
         """C++: moses/moses/representation/representation.cc:259 representation::clean_combo_tree"""
         if not isinstance(tr, combo_tree):
             raise TypeError("clean_combo_tree requires a combo_tree")
         clean_reduce(tr)
         if reduce:
-            reducer = (
-                self._simplify_knob_building
-                if knob_building
-                else self._simplify_candidate
-            )
+            reducer = self._simplify_knob_building if knob_building else self._simplify_candidate
             reducer(tr)
 
     def get_candidate(self, inst: instance, reduce: bool) -> combo_tree:
@@ -258,9 +339,7 @@ class representation(knob_mapper):
             raise TypeError("get_candidate requires an instance")
         expected = self._fields.packed_width()
         if len(inst) != expected:
-            raise ValueError(
-                f"instance has {len(inst)} words; field set requires {expected}"
-            )
+            raise ValueError(f"instance has {len(inst)} words; field set requires {expected}")
 
         candidate = combo_tree()
         root = self._exemplar.begin()

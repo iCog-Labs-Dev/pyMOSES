@@ -25,6 +25,29 @@ from pymetta.moses.representation.instance import (
     disc_t,
     instance,
 )
+from pymetta.util.logger import ostream_double
+
+# C++ `sizeof` values, measured on this toolchain 2026-09-09 with a probe that
+# includes `field_set.h` and prints `sizeof(field_set)`, `sizeof(field_set::
+# field)`, `sizeof(field_set::term_spec)`, `sizeof(field_set::contin_spec)`,
+# `sizeof(field_set::disc_spec)` and `sizeof(size_t)`:
+#
+#     field_set=224 field=24 term_spec=24 contin_spec=32 disc_spec=4 size_t=8
+#
+# They exist only to reproduce `byte_size` below, whose only consumer is a log
+# record. Cross-checked end to end: classic's own log reports "Field set, in
+# bytes: 672" for the 16-knob dataset.csv representation, and
+# 224 + 16*24 + 16*4 = 672 exactly.
+#
+# These are properties of the C++ ABI, not of MOSES, so they can drift with a
+# compiler or a struct-layout change upstream. What would catch that is the
+# differential log test, which compares this number against classic directly.
+_SIZEOF_FIELD_SET = 224
+_SIZEOF_FIELD = 24
+_SIZEOF_TERM_SPEC = 24
+_SIZEOF_CONTIN_SPEC = 32
+_SIZEOF_DISC_SPEC = 4
+_SIZEOF_SIZE_T = 8
 
 multiplicity_t = int
 width_t = int
@@ -298,9 +321,7 @@ class field_set:
     # does not relax any existing const-ness, it just returns a value
     # instead of an iterator pair.
     def fields(self) -> tuple[field, ...]:
-        """C++: moses/moses/representation/field_set.h:521 begin_fields
-
-        """
+        """C++: moses/moses/representation/field_set.h:521 begin_fields"""
         return tuple(self._fields)
 
     def packed_width(self) -> size_t:
@@ -314,6 +335,84 @@ class field_set:
     def raw_size(self) -> size_t:
         """C++: moses/moses/representation/field_set.h:365 raw_size"""
         return len(self._fields)
+
+    def byte_size(self) -> size_t:
+        """C++: moses/moses/representation/field_set.h:370 byte_size
+
+        "How many bytes are we burning ip?" (classic's own comment, typo
+        included). Reports the C++ MEMORY footprint of the field_set:
+
+            sizeof(field_set)
+            + _fields.size()              * sizeof(field)
+            + _term.size()                * sizeof(term_spec)
+            + _contin.size()              * sizeof(contin_spec)
+            + _disc.size()                * sizeof(disc_spec)
+            + _contin_raw_offsets.size()  * sizeof(size_t)
+
+        A Python object has no corresponding layout, so the five `sizeof`
+        constants are the MEASURED x86-64 values -- see `_SIZEOF_*` above
+        for the probe and its output. Its only consumer is the
+        `logger().info() << "Field set, in bytes: "` record at
+        representation.cc:201; reproducing that record is the whole reason
+        this method exists here.
+
+        `_term` is always empty in this port (`term_spec` is out of scope,
+        this module's docstring), and and `_contin_raw_offsets` is the same
+        list here as there -- both terms are kept so the formula stays
+        readable against the C++ rather than silently pruned.
+        """
+        sz = _SIZEOF_FIELD_SET
+        sz += len(self._fields) * _SIZEOF_FIELD
+        sz += 0 * _SIZEOF_TERM_SPEC
+        sz += len(self._contin) * _SIZEOF_CONTIN_SPEC
+        sz += len(self._disc) * _SIZEOF_DISC_SPEC
+        sz += len(self._contin_raw_offsets) * _SIZEOF_SIZE_T
+        return sz
+
+    def to_string(self, inst: instance) -> str:
+        """C++: moses/moses/representation/field_set.cc:128 field_set::to_string
+
+        The `[ 0 0 0 ...]` rendering of an instance that classic's DEBUG log
+        uses for every "Instance:", "Init Inst:" and "Search started from:"
+        record. Four `ostream_container` calls between one `[` and one `]`,
+        each with `empty_lr=false` so its left delimiter is omitted when its
+        own group is empty:
+
+            term:   delimiter "#", left "#"
+            contin: delimiter "|", left "|"
+            disc:   delimiter " ", left " "
+            bit:    delimiter "",  left ""
+
+        So sixteen disc fields and nothing else give `[ 0 0 ... 0]` -- the
+        leading space is the disc group's LEFT delimiter, not padding.
+        `_term` is always empty here (out of scope), contributing nothing.
+        """
+        parts = ["["]
+        contins = [self.get_contin(inst, i) for i in range(len(self._contin))]
+        if contins:
+            parts.append("|" + "|".join(ostream_double(c) for c in contins))
+        discs = [
+            self.get_raw(inst, i) for i in range(self.begin_disc_raw_idx(), self.end_disc_raw_idx())
+        ]
+        if discs:
+            parts.append(" " + " ".join(str(d) for d in discs))
+        bits = [
+            self.get_raw(inst, i) for i in range(self.begin_bit_raw_idx(), self.end_bit_raw_idx())
+        ]
+        if bits:
+            parts.append("".join(str(int(bool(b))) for b in bits))
+        parts.append("]")
+        return "".join(parts)
+
+    def to_string_raw(self, inst: instance) -> str:
+        """C++: moses/moses/representation/field_set.cc:140 field_set::to_string_raw
+
+        `ostream_container(ss, begin_raw(inst), end_raw(inst), "", "[", "]")`
+        -- every raw field, no separator at all, bracketed. `empty_lr`
+        defaults to TRUE here (unlike `to_string` above), so an empty
+        field_set still prints `[]`.
+        """
+        return "[" + "".join(str(v) for v in self.iter_raw(inst)) + "]"
 
     def dim_size(self) -> size_t:
         """C++: moses/moses/representation/field_set.h:383 dim_size"""
@@ -412,8 +511,7 @@ class field_set:
         offset = 0
         for descriptor, value in zip(self._fields, raw, strict=True):
             result[major] = (
-                result[major]
-                | ((int(value) << (offset % bits_per_packed_t)) & _PACKED_MASK)
+                result[major] | ((int(value) << (offset % bits_per_packed_t)) & _PACKED_MASK)
             ) & _PACKED_MASK
             offset += descriptor.width
             if offset == bits_per_packed_t:
@@ -430,8 +528,7 @@ class field_set:
         self._validate_instance_width(inst1)
         self._validate_instance_width(inst2)
         return sum(
-            lhs != rhs
-            for lhs, rhs in zip(self.iter_raw(inst1), self.iter_raw(inst2), strict=True)
+            lhs != rhs for lhs, rhs in zip(self.iter_raw(inst1), self.iter_raw(inst2), strict=True)
         )
 
     def merge_instance(self, target: instance, base: instance, reference: instance) -> None:
@@ -470,36 +567,28 @@ class field_set:
     # DIVERGENCE(C++ moses/moses/representation/field_set.h:1273): read-only
     # generator facade replaces the proxy iterator pair.
     def iter_raw(self, inst: instance) -> Iterator[disc_t]:
-        """C++: moses/moses/representation/field_set.h:1273 begin_raw
-
-        """
+        """C++: moses/moses/representation/field_set.h:1273 begin_raw"""
         for idx in range(self.raw_size()):
             yield self.get_raw(inst, idx)
 
     # DIVERGENCE(C++ moses/moses/representation/field_set.h:1217): read-only
     # generator facade replaces the proxy iterator pair.
     def iter_disc(self, inst: instance) -> Iterator[disc_t]:
-        """C++: moses/moses/representation/field_set.h:1217 begin_disc
-
-        """
+        """C++: moses/moses/representation/field_set.h:1217 begin_disc"""
         for idx in range(self.begin_disc_raw_idx(), self.end_disc_raw_idx()):
             yield self.get_raw(inst, idx)
 
     # DIVERGENCE(C++ moses/moses/representation/field_set.h:1189): read-only
     # generator facade replaces the proxy iterator pair.
     def iter_bit(self, inst: instance) -> Iterator[bool]:
-        """C++: moses/moses/representation/field_set.h:1189 begin_bit
-
-        """
+        """C++: moses/moses/representation/field_set.h:1189 begin_bit"""
         for idx in range(self.begin_bit_raw_idx(), self.end_bit_raw_idx()):
             yield bool(self.get_raw(inst, idx))
 
     # DIVERGENCE(C++ moses/moses/representation/field_set.h:1237): read-only
     # generator facade replaces the proxy iterator pair.
     def iter_contin(self, inst: instance) -> Iterator[contin_t]:
-        """C++: moses/moses/representation/field_set.h:1237 begin_contin
-
-        """
+        """C++: moses/moses/representation/field_set.h:1237 begin_contin"""
         for idx in range(len(self._contin)):
             yield self.get_contin(inst, idx)
 

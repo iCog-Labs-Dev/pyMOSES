@@ -57,11 +57,13 @@ verbatim -- those are the things a divergence would show up in.
 from __future__ import annotations
 
 import argparse
+import difflib
 import re
 import sys
+from collections.abc import Sequence
 from pathlib import Path
 
-__all__ = ["normalize_line", "normalize_log", "parse_records"]
+__all__ = ["apply_allow_list", "normalize_line", "normalize_log", "parse_records"]
 
 # `[2026-09-09 18:24:03:734] [INFO] ` -- note the COLON before the
 # milliseconds (Logger.cc:512-513's `"[%s:%03ld] "`), not a dot.
@@ -160,12 +162,53 @@ def normalize_log(text: str) -> list[str]:
     return [normalize_line(lvl, msg).replace("\n", "\\n") for lvl, msg in parse_records(text)]
 
 
-def _compare(a: Path, b: Path) -> int:
-    """Print a first-divergence report for two logs; return 0 when they agree."""
+def apply_allow_list(records: list[str], allowed: Sequence[str]) -> tuple[list[str], list[str]]:
+    """Remove the allow-listed records from `records`, in order.
+
+    `allowed` is a list of normalised record strings that classic emits and
+    the port legitimately does not -- one entry per OCCURRENCE, not per
+    distinct text, so a record classic emits twice needs two entries. The
+    entries are consumed in the order they are matched, and an entry that
+    never matches is returned in the second element of the pair. A stale
+    allow-list is therefore visible rather than silently inert: the list can
+    only shrink as more call sites land, never quietly cover new gaps.
+    """
+    remaining = list(allowed)
+    kept = []
+    for rec in records:
+        if rec in remaining:
+            remaining.remove(rec)
+            continue
+        kept.append(rec)
+    return kept, remaining
+
+
+def _compare(a: Path, b: Path, allow: Path | None, full: bool) -> int:
+    """Print a divergence report for two logs; return 0 when they agree."""
     la = normalize_log(a.read_text(errors="replace"))
     lb = normalize_log(b.read_text(errors="replace"))
     print(f"{a}: {len(la)} records")
     print(f"{b}: {len(lb)} records")
+
+    unmatched_allow: list[str] = []
+    if allow is not None:
+        entries = [ln for ln in allow.read_text().split("\n") if ln and not ln.startswith("#")]
+        la, unmatched_allow = apply_allow_list(la, entries)
+        print(
+            f"{a}: {len(la)} records after removing {len(entries) - len(unmatched_allow)} allowed"
+        )
+        for entry in unmatched_allow:
+            print(f"  STALE allow-list entry (never matched): {entry}")
+
+    if la == lb:
+        print(f"\nidentical: {len(la)} records")
+        return 0 if not unmatched_allow else 1
+
+    if full:
+        for line in difflib.unified_diff(la, lb, fromfile=str(a), tofile=str(b), lineterm="", n=1):
+            print(line)
+        return 1
+
     matched = 0
     for i in range(min(len(la), len(lb))):
         if la[i] != lb[i]:
@@ -175,9 +218,6 @@ def _compare(a: Path, b: Path) -> int:
             break
         matched += 1
     else:
-        if len(la) == len(lb):
-            print(f"\nidentical: {matched} records")
-            return 0
         print(f"\ncommon prefix of {matched} records; lengths differ")
         longer, name = (la, a) if len(la) > len(lb) else (lb, b)
         for extra in longer[matched : matched + 20]:
@@ -192,6 +232,8 @@ def main(argv: list[str]) -> int:
     ap.add_argument("logs", nargs="*", type=Path)
     ap.add_argument("--compare", action="store_true", help="diff two logs instead of printing one")
     ap.add_argument("--rules", action="store_true", help="print the normalisation rules and exit")
+    ap.add_argument("--allow", type=Path, help="file of records to drop from the FIRST log")
+    ap.add_argument("--full", action="store_true", help="print a unified diff, not just the first")
     ns = ap.parse_args(argv)
 
     if ns.rules:
@@ -200,7 +242,7 @@ def main(argv: list[str]) -> int:
     if ns.compare:
         if len(ns.logs) != 2:
             ap.error("--compare takes exactly two logs")
-        return _compare(*ns.logs)
+        return _compare(*ns.logs, allow=ns.allow, full=ns.full)
     if len(ns.logs) != 1:
         ap.error("give exactly one log, or --compare with two")
     for line in normalize_log(ns.logs[0].read_text(errors="replace")):
