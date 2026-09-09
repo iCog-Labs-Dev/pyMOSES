@@ -154,7 +154,14 @@ class feature_selection_parameters:
 
 
 def fs_scorer(ctable: CTable, fs_params: feature_selection_parameters):
-    """C++: moses/feature-selection/main/feature-selection.h:160 fs_scorer<FeatureSet>
+    """C++: moses/feature-selection/main/feature-selection.h:160 fs_scorer
+
+    The C++ symbol is the class template `fs_scorer<FeatureSet>`
+    (declared `template<typename FeatureSet> struct fs_scorer` at
+    feature-selection.h:159-160). The breadcrumb names the bare class, per
+    docs/CARRY-FORWARD.md 4.5's rule for symbols `check_alignment.py`
+    cannot parse -- carrying the `<FeatureSet>` in the breadcrumb left it
+    unmatchable and kept `tools/ci.sh` red.
 
     "A wrapper, simply so that optimizer gets the iscorer_base base
     class" -- no, that is ``iscorer_cache`` (feature-selection.h:143-156,

@@ -557,10 +557,16 @@ class OTable(list):
         label: str | ITable = _DEFAULT_OUTPUT_LABEL,
         ol: str = _DEFAULT_OUTPUT_LABEL,
     ) -> None:
-        """C++: moses/comboreduct/table/table.cc:309 OTable,
-        moses/comboreduct/table/table.cc:312 OTable(const super&, const string&)
-        and moses/comboreduct/table/table.cc:319 OTable(const combo_tree&,
-        const ITable&, const string&)
+        """C++: moses/comboreduct/table/table.cc:309 OTable
+
+        Also covers `OTable(const super&, const string&)` (table.cc:312)
+        and `OTable(const combo_tree&, const ITable&, const string&)`
+        (table.cc:319) -- the breadcrumb cites the first overload's
+        definition line, and the other two are named here in the body,
+        per this project's convention for symbols the matcher cannot
+        parse (docs/CARRY-FORWARD.md 4.5). The trailing comma this line
+        used to carry made the symbol `OTable,`, which check_alignment.py
+        could not match.
 
         One constructor covers three C++ overloads, dispatched on the
         FIRST argument's type (the same convention `ITable.__init__` and
