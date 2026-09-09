@@ -1088,8 +1088,11 @@ class problem_params:
         # DIVERGENCE(C++ moses/moses/metapopulation/merging.cc:258-296): classic's
         # own -t/--output-bscore (keep_bscore, :717 below) succeeds and prints an
         # extra " behavioral score: [...]" per result line, rc 0 (measured
-        # directly: $CLASSIC/build/moses/moses/main/moses -i tests/moses/dataset.csv
-        # -m1000 -t1 -> 9 lines, exit 0). This port's own gate for keep_bscore
+        # directly: $CLASSIC/build/moses/moses/main/moses -i
+        # tests/fixtures/table_data/dataset.csv -m1000 -t1 -> 10 lines, exit 0 --
+        # corrected from an earlier version of this marker that cited a path,
+        # tests/moses/dataset.csv, which exists under $CLASSIC but not in this
+        # port's own repo, and an unmeasured "9 lines"). This port's own gate for keep_bscore
         # (metapopulation.merge_demes, merging.py, mirroring this exact block) already
         # raises NotImplementedError -- but only after -m evaluations have already
         # run, several stack frames into a live run (local_moses -> expand_deme ->
@@ -1106,7 +1109,10 @@ class problem_params:
         # DIVERGENCE(C++ moses/moses/moses/types.cc:175): classic's own
         # --output-deme-id succeeds and prints an extra " demeID: N" per result
         # line, rc 0 (measured directly: $CLASSIC/build/moses/moses/main/moses -i
-        # tests/moses/dataset.csv -m1000 --output-deme-id=1 -> 9 lines, exit 0).
+        # tests/fixtures/table_data/dataset.csv -m1000 --output-deme-id=1 ->
+        # 10 lines, exit 0 -- corrected from an earlier version of this marker
+        # that cited tests/moses/dataset.csv, a path under $CLASSIC but not in
+        # this port's own repo, and an unmeasured "9 lines").
         # This port's own gate (ostream_scored_combo_tree's output_demeID branch,
         # types.py, mirroring scored_combo_tree.get_demeID() -- which this port's
         # scored_combo_tree does not carry, deme bookkeeping being out of scope for
