@@ -139,6 +139,10 @@ from __future__ import annotations
 import time
 from typing import TYPE_CHECKING
 
+from pymetta.comboreduct.combo.iostream_combo import tree_to_stream_str
+from pymetta.moses.moses.optimization.optimization import optim_stats, print_stats_header
+from pymetta.util.logger import logger, ostream_double
+
 if TYPE_CHECKING:
     from pymetta.moses.deme.deme_expander import deme_expander
     from pymetta.moses.metapopulation.metapopulation import metapopulation
@@ -214,16 +218,34 @@ def expand_deme(
         exemplar = mp.select_exemplar()
 
         if exemplar == mp.end():
+            # C++: local_moses.cc:62-66. One WARN record, four source lines
+            # of concatenated string literal, no newlines between them.
+            logger().warn(
+                "WARNING: All exemplars in the metapopulation have "
+                "been visited, but it was impossible to build a "
+                "representation for any of them.  Perhaps the reduct "
+                "effort for knob building is too high."
+            )
             return True
 
         if dex.create_demes(exemplar.get_tree(), stats.n_expansions):
             break
+
+        # C++: local_moses.cc:74-75 -- reached only when create_demes fails,
+        # i.e. on the retry path, so it follows the `break` above.
+        logger().warn("Exemplar: " + tree_to_stream_str(exemplar.get_tree()))
+        logger().warn("failed to expand! Let's try another.")
 
     dex.optimize_demes(max_evals, max_time)
     stats.n_evals += dex.total_evals()
     stats.n_expansions += 1
 
     done = mp.merge_demes(dex._demes, dex._reps)
+
+    if logger().is_info_enabled():
+        logger().info(f"Expansion {stats.n_expansions} done")
+        logger().info(f"Total number of evaluations so far: {stats.n_evals}")
+        mp.log_best_candidates()
 
     dex.free_demes()
 
@@ -273,6 +295,20 @@ def local_moses(
     loop body (local_moses.cc:153-200) is a dropped print block (module
     docstring).
     """
+    logger().info(
+        "MOSES starts, max_evals=%d max_gens=%d max_time=%d",
+        pa.max_evals,
+        pa.max_gens,
+        pa.max_time,
+    )
+
+    # C++: local_moses.cc:116-118. `dynamic_cast<optim_stats*>(&dex._optimize)`
+    # never fails in practice -- every optimizer derives from `optim_stats`
+    # through `optimizer_base` -- so `os` is the optimizer itself here, and
+    # the legend's `if (os)` block always prints.
+    os_ = dex._optimize if isinstance(dex._optimize, optim_stats) else None
+    print_stats_header(os_, mp.diversity_enabled())
+
     start = time.monotonic()
     stats.elapsed_secs = 0.0
 
@@ -309,3 +345,75 @@ def local_moses(
         elapsed = stop - start
         start = stop
         stats.elapsed_secs += elapsed
+
+        # C++: local_moses.cc:155-189. One record; `((int) stats.elapsed_secs)`
+        # truncates toward zero, and every numeric field is streamed bare, so
+        # `best.get_score()` gets an ostream's default six digits.
+        if logger().is_info_enabled():
+            best = mp.best_composite_score()
+            row = [
+                "Stats: " + str(stats.n_expansions),
+                str(stats.n_evals),
+                str(int(stats.elapsed_secs)),
+                str(mp.size()),
+                ostream_double(best.get_score()),
+                str(best.get_complexity()),
+            ]
+            if os_:
+                row += [
+                    str(os_.field_set_size),
+                    str(os_.nsteps),
+                    str(int(os_.over_budget)),
+                ]
+            if mp.diversity_enabled():
+                for n in (-1, pa.max_cnd_output):
+                    ds = mp.gather_diversity_stats(n)
+                    row += [
+                        str(ds.count),
+                        ostream_double(ds.mean),
+                        ostream_double(ds.std),
+                        ostream_double(ds.min),
+                        ostream_double(ds.max),
+                    ]
+            logger().info("\t".join(row))
+
+        # C++: local_moses.cc:194-200. A COMPOUND guard -- debug AND diversity
+        # -- not a debug guard around a diversity test.
+        if logger().is_debug_enabled() and mp.diversity_enabled():
+            # DIVERGENCE(moses/moses/moses/local_moses.cc:196): the record
+            # streams `mp.ostream_metapop(ss, pa.max_cnd_output)`, and
+            # `ostream_metapop` (metapopulation.cc:236) is not ported
+            # (metapopulation.py's own note: logging-only, every call site is
+            # inside a `logger()` block). Dropped rather than half-emitted.
+            pass
+
+    # C++: local_moses.cc:203-220. One record, assembled from a "MOSES ends. "
+    # prefix and exactly ONE of five mutually-exclusive reasons -- an
+    # `if/else if` chain re-evaluating the same four termination lambdas the
+    # loop used, in that order, so the FIRST satisfied condition wins even
+    # when several are. `mp.best_score()` and `stats.elapsed_secs` are
+    # streamed bare, i.e. at an ostream's default six digits.
+    ss = "MOSES ends. "
+    if not not_max_evals():
+        ss += (
+            "Number of evaluations has reached maximum number of evaluations, "
+            f"{stats.n_evals} >= {pa.max_evals}"
+        )
+    elif not not_max_gens():
+        ss += (
+            "Number of expansions has reached its maximum, "
+            f"{stats.n_expansions} == {pa.max_gens}"
+        )
+    elif not not_max_score():
+        ss += (
+            "Best score has reached maximum score, "
+            f"{ostream_double(mp.best_score())} >= {ostream_double(pa.max_score)}"
+        )
+    elif not not_max_time():
+        ss += (
+            "Run-time has exceeded it's limit, "
+            f"{ostream_double(stats.elapsed_secs)} >= {pa.max_time}"
+        )
+    elif premature_termination:
+        ss += "A premature termination has occured (sorry I can't tell you more)"
+    logger().debug(ss)

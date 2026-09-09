@@ -6,11 +6,6 @@
 
 NOT ported:
 
-* `print_stats_header` (optimization.h:168, optimization.cc:140-186) --
-  pure logging: builds and emits a legend string through `logger()`, with
-  no other observable effect. This port has no logging surface (see
-  `instance_scorer.py`'s `distance_based_scorer.__call__` docstring, and
-  `scoring_base.py`'s module docstring, for the same omission elsewhere).
 * `optim_stats`'s `#ifdef GATHER_STATS` fields (`scores`, `counts`,
   `hiscore`, `hicount`, `num_improved`, `count_improved`) -- dead code by
   construction: the header's own `#define GATHER_STATS 1` that would
@@ -30,6 +25,7 @@ from pymetta.moses.moses.types import demeID_t, score_t
 from pymetta.moses.representation.field_set import field_set
 from pymetta.moses.representation.instance_set import instance_set as deme_t
 from pymetta.moses.representation.scored_instance import scored_instance as deme_inst_t
+from pymetta.util.logger import logger
 
 # C++: moses/moses/optimization/optimization.h:170-171 deme_t / deme_inst_t
 #
@@ -245,3 +241,78 @@ class optimizer_base(optim_stats):
         (optimization.h:179-182).
         """
         raise NotImplementedError
+
+
+def print_stats_header(os: optim_stats | None, diversity: bool) -> None:
+    """C++: moses/moses/optimization/optimization.cc:140 print_stats_header
+
+    Emits the `Stats: #` legend that explains the tab-separated per-generation
+    `Stats:` rows `local_moses` writes -- one INFO record containing every
+    legend line, joined by newlines, not one record per line. Its only caller
+    is local_moses.cc:118 (the two mpi_moses.cc call sites are dead code, see
+    CLAUDE.md).
+
+    Both optional blocks track a real condition rather than being folded in:
+    `os` is `dynamic_cast<optim_stats*>(&dex._optimize)` at the call site and
+    is never null in practice (every optimizer derives from `optim_stats` via
+    `optimizer_base`), while `diversity` is `mp.diversity_enabled()`, which is
+    off by default.
+
+    The trailing header row has NO trailing newline -- `Logger::log` supplies
+    the record's own -- so the record ends at `over_budget`.
+    """
+    if not logger().is_info_enabled():
+        return
+
+    ss = [
+        "Stats: # \n",
+        "Stats: # Stats are tab-separated, ready for graphing.\n",
+        "Stats: # You can also use the script parse_log.py to extract a CSV file"
+        " given a moses log file.\n",
+        "Stats: # Column explanation:\n",
+        "Stats: # \n",
+        "Stats: # gen is the generation number.\n",
+        "Stats: # num_evals is the number of scoring function evaluations so far.\n",
+        "Stats: # elapsed is the wall-clock time, in seconds, since start.\n",
+        "Stats: # metapop_size is the size of the metapopulation.\n",
+        "Stats: # best_score is the highest raw score seen, of all exemplars.\n",
+        "Stats: # complexity is in bits, of the highest-composite score exemplar.\n",
+    ]
+    if os:
+        ss += [
+            "Stats: # field_set_size is the ESTIMATED number of bits in all the knobs.\n",
+            "Stats: # optim_steps is the number of steps the optimizer took.\n",
+            "Stats: # over_budget is bool, T if search exceeded scoring func eval budget.\n",
+        ]
+    if diversity:
+        ss += [
+            "Stats: # n_pairs is the number of pairs of candidates used to compute"
+            " the diversity stats.\n",
+            "Stats: # mean_dst is the average bscore distance between 2 candidates.\n",
+            "Stats: # std_dst is the standard deviation of the average bscore distance"
+            " between 2 candidates.\n",
+            "Stats: # min_dst is the minimum bscore distance between 2 candidates.\n",
+            "Stats: # max_dst is the maximum bscore distance between 2 candidates.\n",
+            "Stats: # best_n_pairs is the number of pairs of candidates used to compute"
+            " the diversity stats amongst the best candidates to be output.\n",
+            "Stats: # best_mean_dst is the average bscore distance between 2 candidates"
+            " amongst the best candidates to be output.\n",
+            "Stats: # best_std_dst is the standard deviation of the average bscore"
+            " distance between 2 candidates amongst the best candidates to be output.\n",
+            "Stats: # best_min_dst is the minimum bscore distance between 2 candidates"
+            " amongst the best candidates to be output.\n",
+            "Stats: # best_max_dst is the maximum bscore distance between 2 candidates"
+            " amongst the best candidates to be output.\n",
+        ]
+    ss += [
+        "Stats: # \n",
+        "Stats: # gen\tnum_evals\telapsed\tmetapop_size\tbest_score\tcomplexity",
+    ]
+    if os:
+        ss.append("\tfield_set_size\toptim_steps\tover_budget")
+    if diversity:
+        ss.append("\tn_pairs\tmean_dst\tstd_dst\tmin_dst\tmax_dst")
+        ss.append(
+            "\tbest_n_pairs\tbest_mean_dst\tbest_std_dst\tbest_min_dst\tbest_max_dst"
+        )
+    logger().info("".join(ss))
