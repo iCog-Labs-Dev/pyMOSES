@@ -1617,23 +1617,49 @@ def test_log_best_candidates_non_boosting_reaches_best_composite_score_only():
     assert cscore_calls == [True]
 
 
-def test_log_best_candidates_boosting_reaches_get_ensemble_only():
+def test_log_best_candidates_boosting_reaches_get_ensemble_and_the_score():
+    """The boosting arm reads BOTH `get_ensemble()` and
+    `best_composite_score()`.
+
+    merging.cc:665-666 is one record: `"Ensemble has " <<
+    _ensemble.get_ensemble().size() << " members, and a score of " <<
+    best_composite_score();`. This test used to assert
+    `best_composite_score()` was NOT reached, which was true only while the
+    record itself was dropped -- the port called `get_ensemble()` alone, for
+    its raise-reachability side effect. Now that the record is emitted, both
+    accessors run, exactly as in classic.
+    """
     mp = _mp()
     assert not mp.best_candidates().empty()
     mp._params.do_boosting = True
 
     ensemble_calls = []
+    cscore_calls = []
     original_get_ensemble = mp._ensemble.get_ensemble
+    original_cscore = mp.best_composite_score
 
     def ensemble_spy():
         ensemble_calls.append(True)
         return original_get_ensemble()
 
-    def cscore_boom():
-        raise AssertionError("must not reach the non-boosting arm when do_boosting is True")
+    def cscore_spy():
+        cscore_calls.append(True)
+        return original_cscore()
 
     mp._ensemble.get_ensemble = ensemble_spy
-    mp.best_composite_score = cscore_boom
+    mp.best_composite_score = cscore_spy
 
-    mp.log_best_candidates()
-    assert ensemble_calls == [True]
+    # `best_composite_score()` under boosting reaches `behave_cscore`'s
+    # ensemble overload, which is not ported (scoring_base.py) -- so the
+    # record cannot be produced and the raise propagates. That is the point:
+    # a caller who sets `do_boosting=True` still hits the unported surface
+    # through THIS method, rather than getting a log line that pretends
+    # boosting works. `get_ensemble()` is evaluated first, so it still runs.
+    with pytest.raises(NotImplementedError):
+        mp.log_best_candidates()
+    # `get_ensemble()` is reached more than once: the record calls it, and
+    # `best_composite_score()` re-enters it on its own boosting path. The
+    # count is an implementation detail of that method, so only "reached"
+    # is asserted here.
+    assert ensemble_calls
+    assert cscore_calls == [True]

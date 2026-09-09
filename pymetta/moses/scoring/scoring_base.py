@@ -85,6 +85,26 @@ from pymetta.moses.moses.types import (
 from pymetta.util.logger import logger, ostream_double
 
 
+def _cpp_reciprocal(x: float) -> float:
+    """C++: moses/moses/scoring/scoring_base.cc:50 set_complexity_coef
+
+    Not a C++ symbol: `1.0/_complexity_coef` in IEEE-754 `double`. Both
+    `set_complexity_coef` overloads stream exactly that, and both leave
+    `_complexity_coef` at `0.0` whenever their singularity guard rejects the
+    argument -- so classic really does divide by zero here, and really does
+    log `inf`. Python raises `ZeroDivisionError` for the same expression, so
+    the IEEE result is produced explicitly.
+
+    The sign is preserved because C++'s is: `-0.0` gives `-inf`. A
+    `_complexity_coef` of `-0.0` is not reachable through either overload
+    (both assign the literal `0.0`), but reproducing the sign costs nothing
+    and guessing it wrong later would cost a puzzle.
+    """
+    if x == 0.0:
+        return math.copysign(math.inf, x)
+    return 1.0 / x
+
+
 def discrete_complexity_coef(alphabet_size: int, p: float) -> score_t:
     """C++: moses/moses/scoring/scoring_base.cc:39 discrete_complexity_coef
 
@@ -364,9 +384,8 @@ class bscore_base(ABC):
             # C++: scoring_base.cc:69. A bare `<<` on a fresh stream, so the
             # double is rendered at an ostream's DEFAULT precision of 6, not
             # at `io_score_precision`.
-            logger().info(
-                f"BScore complexity ratio = {ostream_double(1.0 / self._complexity_coef)}"
-            )
+            ratio = ostream_double(_cpp_reciprocal(self._complexity_coef))
+            logger().info(f"BScore complexity ratio = {ratio}")
         elif len(args) == 2:
             alphabet_size, p = args
             p = _to_score_t(p)
@@ -380,7 +399,7 @@ class bscore_base(ABC):
             logger().info(
                 f"BScore noise = {ostream_double(p)}"
                 f" alphabest size = {alphabet_size}"
-                f" complexity ratio = {ostream_double(1.0 / self._complexity_coef)}"
+                f" complexity ratio = {ostream_double(_cpp_reciprocal(self._complexity_coef))}"
             )
         else:
             raise TypeError(

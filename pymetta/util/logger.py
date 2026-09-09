@@ -22,7 +22,7 @@ split, the lazy file open (Logger.cc:284-297), and the per-filename
 `LogWriter` sharing (Logger.cc:405-421) that makes two `Logger` objects on
 the same path append to one open handle.
 
-# DIVERGENCE(opencog/util/Logger.cc:196 Logger::LogWriter::writing_loop):
+# DIVERGENCE(C++ opencog/util/Logger.cc:196 Logger::LogWriter::writing_loop):
 # classic hands each formatted record to a `concurrent_queue<std::string*>`
 # drained by one dedicated writer thread, and `flush()` busy-waits on that
 # queue. This port writes synchronously inside `log()`. The observable
@@ -32,7 +32,7 @@ the same path append to one open handle.
 # depend on scheduling, which is exactly what the differential oracle
 # compares.
 
-# DIVERGENCE(opencog/util/Logger.cc:74 prt_backtrace): classic is built
+# DIVERGENCE(C++ opencog/util/Logger.cc:74 prt_backtrace): classic is built
 # with `-DHAVE_GNU_BACKTRACE` (CogUtil's CMakeLists.txt:128), so every
 # record at or below `backTraceLevel` (default ERROR) gets a symbolized C
 # stack appended. Python has no equivalent -- a Python traceback names
@@ -41,7 +41,7 @@ the same path append to one open handle.
 # Nothing in the differential corpus emits at ERROR, so this is invisible
 # to the oracle; it is recorded because it would not be if one did.
 
-# DIVERGENCE(opencog/util/Logger.h:215 Logger::Base): the `logger().debug()
+# DIVERGENCE(C++ opencog/util/Logger.h:215 Logger::Base): the `logger().debug()
 # << x << y` streaming form relies on a temporary's destructor firing at the
 # end of the full expression to emit the accumulated line. Python has no
 # such guarantee, so this port exposes only the string / printf-style form,

@@ -459,7 +459,7 @@ def merge_candidates(self: metapopulation, candidates: scored_combo_tree_set) ->
     """
     if logger().is_debug_enabled():
         logger().debug("Going to merge %u candidates with the metapopulation", len(candidates))
-        # DIVERGENCE(moses/moses/metapopulation/merging.cc:150): the nested
+        # DIVERGENCE(C++ moses/moses/metapopulation/merging.cc:150): the nested
         # `is_fine_enabled()` block streams every candidate through
         # `operator<<(ostream&, const scored_combo_tree&)`, whose default
         # `output_demeID` arm needs `scored_combo_tree::get_demeID()` --
@@ -816,7 +816,7 @@ def resize_metapop(self: metapopulation) -> None:
         # C++: merging.cc:442-453.
         logger().debug("Removed %u candidates from the metapopulation", old_size - self.size())
         logger().debug("Metapopulation size is %u", self.size())
-        # DIVERGENCE(moses/moses/metapopulation/merging.cc:447): the nested
+        # DIVERGENCE(C++ moses/moses/metapopulation/merging.cc:447): the nested
         # FINE block dumps the whole metapopulation through
         # `ostream_metapop` (metapopulation.cc:236), which is not ported
         # (logging-only; every call site in classic sits inside a `logger()`
@@ -1337,7 +1337,7 @@ def log_best_candidates(self: metapopulation) -> None:
         )
         if logger().is_debug_enabled():
             logger().debug("The ensemble is \n")
-            # DIVERGENCE(moses/moses/metapopulation/merging.cc:670): the
+            # DIVERGENCE(C++ moses/moses/metapopulation/merging.cc:670): the
             # per-member loop streams `cand.get_weight()`, which this port's
             # `scored_combo_tree` does not have (types.py's class docstring
             # puts the boosting weight out of scope). Unreachable in any

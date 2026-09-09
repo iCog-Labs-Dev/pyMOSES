@@ -916,7 +916,7 @@ class metapopulation:
         `exemplar is None` is this port's `end()`, so it selects the
         "No exemplar found" arm.
 
-        # DIVERGENCE(moses/moses/metapopulation/metapopulation.cc:93): the
+        # DIVERGENCE(C++ moses/moses/metapopulation/metapopulation.cc:93): the
         # "Selected the Nth exemplar, from deme D, for the Nth time(s)"
         # record is NOT emitted. It streams `xmplr.get_demeID()`, and this
         # port's `scored_combo_tree` carries no `demeID_t` at all -- the

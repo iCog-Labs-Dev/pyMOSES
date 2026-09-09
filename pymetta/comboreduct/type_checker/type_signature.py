@@ -268,7 +268,7 @@ def ostream_type_signature(signature: TypeSignature) -> str:
     as `->` -- whose children are the input types followed by the output
     type, so a zero-input signature is `->(boolean)`, not `->()`.
 
-    # DIVERGENCE(opencog/util/tree.h:3396): this port has no compound
+    # DIVERGENCE(C++ opencog/util/tree.h:3396): this port has no compound
     # `tree<type_node>`; `TypeSignature` stores `(itypes, otype)` flat (see
     # this module's own DIVERGENCE marker above `TypeSignature`). The arrow
     # form is therefore reconstructed here rather than produced by a generic

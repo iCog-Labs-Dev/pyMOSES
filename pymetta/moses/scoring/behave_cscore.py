@@ -154,7 +154,7 @@ class behave_cscore:
         `behave_cscore` is a local of `it_table_problem::run` and dies after
         `metapop_printer` has already printed the best candidate.
 
-        # DIVERGENCE(opencog/util/lru_cache.h:60): C++ destroys the scorer
+        # DIVERGENCE(C++ opencog/util/lru_cache.h:60): C++ destroys the scorer
         # deterministically at scope exit. CPython's refcounting gives the
         # same timing for the same local, but only while nothing else holds a
         # reference and no cycle is involved -- so this record's POSITION is
@@ -164,12 +164,22 @@ class behave_cscore:
         # an unbounded dict), so the counts agree only when nothing would have
         # been evicted.
         """
-        logger().info(
-            "Cache %s hits=%u misses=%u",
-            self._cache_name,
-            self._cache_hits,
-            self._cache_misses,
-        )
+        try:
+            logger().info(
+                "Cache %s hits=%u misses=%u",
+                self._cache_name,
+                self._cache_hits,
+                self._cache_misses,
+            )
+        except Exception:  # pragma: no cover - interpreter shutdown only
+            # A `__del__` that runs during interpreter finalization can find
+            # the log file already closed, or `logger` itself already torn
+            # down. C++ has no equivalent hazard: its `LogWriter` outlives
+            # every scorer by construction. Swallowing here rather than in
+            # `Logger` keeps the exception visible everywhere else -- a
+            # failed write from ordinary code must still be loud -- while
+            # keeping shutdown from printing "Exception ignored in __del__".
+            pass
 
     def get_bscore(self, tr: combo_tree) -> list[score_t]:
         """C++: moses/moses/scoring/behave_cscore.cc:41 behave_cscore::get_bscore"""

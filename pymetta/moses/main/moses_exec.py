@@ -188,7 +188,7 @@ def _setup_logging(pms: problem_params, explicit: dict[str, object]) -> None:
       `Logger::log` adds, so classic's log has a BLANK LINE after it. That
       blank line is real output, not a formatting artifact.
 
-    # DIVERGENCE(moses/moses/main/problem-params.cc:2069): this block's C++
+    # DIVERGENCE(C++ moses/moses/main/problem-params.cc:2069): this block's C++
     # home is the middle of `problem_params::parse_options`, i.e.
     # `problem_params.py`, which this task does not own. It is called from
     # `moses_exec` instead, immediately after `parse_options` returns.
@@ -199,13 +199,13 @@ def _setup_logging(pms: problem_params, explicit: dict[str, object]) -> None:
     # (grep-verified over table-problems.cc). Moving it to its C++ home is a
     # one-line insert; see this task's report.
 
-    # DIVERGENCE(moses/moses/main/problem-params.cc:2097): C++ prints to
+    # DIVERGENCE(C++ moses/moses/main/problem-params.cc:2097): C++ prints to
     # cerr and `exit(1)` on an unparseable `-l`. `problem_params.parse_options`
     # already raises `ValueError` for exactly that case and runs FIRST, so the
     # `else` arm here is unreachable from the CLI; it is written as a plain
     # return rather than duplicating either behaviour.
 
-    # DIVERGENCE(moses/moses/main/problem-params.cc:2103): classic installs a
+    # DIVERGENCE(C++ moses/moses/main/problem-params.cc:2103): classic installs a
     # SIGHUP handler that logs "Caught SIGHUP" and dumps the stack. Not
     # ported -- `backtrace()` is a no-op in this port (logger.py's own
     # DIVERGENCE), so the handler would log a bare line and nothing else.

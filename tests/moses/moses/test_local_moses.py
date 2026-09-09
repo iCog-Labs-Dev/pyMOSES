@@ -46,7 +46,7 @@ itself has no equivalent seam for).
 from __future__ import annotations
 
 import pymetta.moses.moses.local_moses as lm
-from pymetta.comboreduct.combo.iostream_combo import combo_tree_to_str
+from pymetta.comboreduct.combo.iostream_combo import combo_tree_to_str, str_to_combo_tree
 from pymetta.comboreduct.table.table_io import loadTable
 from pymetta.comboreduct.type_checker.type_signature import gen_signature, type_node
 from pymetta.moses.deme.deme_expander import deme_expander
@@ -59,7 +59,8 @@ from pymetta.moses.metapopulation.metapopulation import metapopulation
 from pymetta.moses.moses.local_moses import expand_deme, local_moses
 from pymetta.moses.moses.moses_params import moses_parameters, moses_statistics
 from pymetta.moses.moses.optimization.hill_climbing import hc_parameters, hill_climbing
-from pymetta.moses.moses.optimization.optimization import optim_parameters
+from pymetta.moses.moses.optimization.optimization import optim_parameters, optim_stats
+from pymetta.moses.moses.types import composite_score
 from pymetta.moses.scoring.behave_cscore import behave_cscore
 from pymetta.moses.scoring.bscores import ctruth_table_bscore
 from pymetta.util.rng import randGen
@@ -253,8 +254,12 @@ class _FakeExemplar:
     `scored_combo_tree`, only ever against `None`).
     """
 
-    def __init__(self, tree: str = "tree") -> None:
-        self.tree = tree
+    def __init__(self, tree: str = "$1") -> None:
+        # A REAL combo_tree, not a string: `expand_deme`'s retry path logs
+        # `logger().warn() << "Exemplar: " << exemplar->get_tree()`
+        # (local_moses.cc:74), which needs a tree to render. The assertions
+        # below compare against this same object, so identity does the work.
+        self.tree = str_to_combo_tree(tree)
 
     def get_tree(self):
         return self.tree
@@ -267,6 +272,7 @@ class _FakeMp:
         self._merge_result = merge_result
         self.select_exemplar_calls = 0
         self.merge_calls: list[tuple] = []
+        self.log_best_candidates_calls = 0
 
     def empty(self) -> bool:
         return self._empty
@@ -281,6 +287,13 @@ class _FakeMp:
     def merge_demes(self, demes, reps) -> bool:
         self.merge_calls.append((demes, reps))
         return self._merge_result
+
+    def log_best_candidates(self) -> None:
+        """Called by `expand_deme`'s `is_info_enabled()` block, as in C++
+        (local_moses.cc:87). A fresh `Logger()` defaults to INFO, so that
+        block really does run in these unit tests.
+        """
+        self.log_best_candidates_calls += 1
 
 
 class _FakeDex:
@@ -337,7 +350,7 @@ def test_expand_deme_retries_until_create_demes_succeeds():
     """`while (1)` (local_moses.cc:57) -- a `create_demes` failure must
     retry with a FRESH `select_exemplar()` call, not give up.
     """
-    exemplar = _FakeExemplar("t1")
+    exemplar = _FakeExemplar()
     mp = _FakeMp(empty=False, exemplar=exemplar, merge_result=False)
     dex = _FakeDex(create_demes_results=(False, False, True), total_evals=3)
     stats = moses_statistics()
@@ -345,12 +358,12 @@ def test_expand_deme_retries_until_create_demes_succeeds():
     result = expand_deme(mp, dex, 100, 100, stats)
 
     assert mp.select_exemplar_calls == 3
-    assert dex.create_demes_calls == [("t1", 0), ("t1", 0), ("t1", 0)]
+    assert dex.create_demes_calls == [(exemplar.tree, 0), (exemplar.tree, 0), (exemplar.tree, 0)]
     assert result is False  # done=False (merge_result), mp.empty()=False
 
 
 def test_expand_deme_normal_path_updates_stats_and_frees_demes():
-    exemplar = _FakeExemplar("t1")
+    exemplar = _FakeExemplar()
     mp = _FakeMp(empty=False, exemplar=exemplar, merge_result=False)
     dex = _FakeDex(create_demes_results=(True,), total_evals=42)
     stats = moses_statistics()
@@ -368,7 +381,7 @@ def test_expand_deme_normal_path_updates_stats_and_frees_demes():
 
 
 def test_expand_deme_return_is_done_or_mp_empty_true_via_done():
-    exemplar = _FakeExemplar("t1")
+    exemplar = _FakeExemplar()
     mp = _FakeMp(empty=False, exemplar=exemplar, merge_result=True)
     dex = _FakeDex(create_demes_results=(True,))
     stats = moses_statistics()
@@ -381,7 +394,7 @@ def test_expand_deme_return_is_done_or_mp_empty_true_via_mp_empty():
     a fake whose `empty()` reports `True` unconditionally exercises the
     `or mp.empty()` half even with `done=False`.
     """
-    exemplar = _FakeExemplar("t1")
+    exemplar = _FakeExemplar()
     mp = _FakeMp(empty=True, exemplar=exemplar, merge_result=False)
     # NOTE: `mp.empty()` is checked at entry too (returns True there) --
     # use a two-stage fake so entry sees non-empty but the FINAL check
@@ -405,11 +418,42 @@ def test_expand_deme_return_is_done_or_mp_empty_true_via_mp_empty():
 
 
 class _PredicateMp:
+    """Just enough metapopulation for `local_moses`' own loop.
+
+    Beyond `best_score()` (the `not_max_score` predicate) this now needs the
+    three accessors the per-generation `Stats:` record reads --
+    `best_composite_score()`, `size()` and `diversity_enabled()` --
+    because a fresh `Logger()` defaults to INFO and that record's
+    `is_info_enabled()` guard is therefore satisfied, exactly as in C++
+    (local_moses.cc:155-189).
+    """
+
     def __init__(self, best_score: float = -1.0) -> None:
         self._best_score = best_score
 
     def best_score(self) -> float:
         return self._best_score
+
+    def best_composite_score(self) -> composite_score:
+        return composite_score(self._best_score, 0)
+
+    def size(self) -> int:
+        return 1
+
+    def diversity_enabled(self) -> bool:
+        return False
+
+
+class _StubDex:
+    """`local_moses` reads `dex._optimize` to find the `optim_stats` whose
+    presence decides the three optional `Stats:` columns
+    (local_moses.cc:116, `dynamic_cast<optim_stats*>(&dex._optimize)`).
+    These tests monkeypatch `expand_deme` away, so nothing else on `dex` is
+    ever touched.
+    """
+
+    def __init__(self) -> None:
+        self._optimize = optim_stats()
 
 
 def test_not_max_evals_blocks_the_loop(monkeypatch):
@@ -421,7 +465,7 @@ def test_not_max_evals_blocks_the_loop(monkeypatch):
     stats = moses_statistics()
     stats.n_evals = 5  # already AT the budget -- `5 < 5` is False
 
-    local_moses(mp, object(), pa, stats)
+    local_moses(mp, _StubDex(), pa, stats)
     assert calls == []
 
 
@@ -434,7 +478,7 @@ def test_not_max_gens_blocks_the_loop(monkeypatch):
     stats = moses_statistics()
     stats.n_expansions = 3  # `3 != 3` is False
 
-    local_moses(mp, object(), pa, stats)
+    local_moses(mp, _StubDex(), pa, stats)
     assert calls == []
 
 
@@ -446,7 +490,7 @@ def test_not_max_score_blocks_the_loop(monkeypatch):
     pa = moses_parameters(max_evals=10000, max_gens=-1, max_score=100.0)
     stats = moses_statistics()
 
-    local_moses(mp, object(), pa, stats)  # `100.0 < 100.0` is False
+    local_moses(mp, _StubDex(), pa, stats)  # `100.0 < 100.0` is False
     assert calls == []
 
 
@@ -465,7 +509,7 @@ def test_not_max_time_blocks_the_loop(monkeypatch):
     pa.max_time = 0
 
     stats = moses_statistics()
-    local_moses(mp, object(), pa, stats)
+    local_moses(mp, _StubDex(), pa, stats)
     assert calls == []
 
 
@@ -486,7 +530,7 @@ def test_premature_termination_stops_after_exactly_one_call(monkeypatch):
     pa = moses_parameters(max_evals=10000, max_gens=-1, max_score=1000.0)
     stats = moses_statistics()
 
-    local_moses(mp, object(), pa, stats)
+    local_moses(mp, _StubDex(), pa, stats)
     assert calls == [1]
 
 
@@ -508,7 +552,7 @@ def test_not_premature_termination_keeps_looping_until_another_predicate_stops(m
     pa = moses_parameters(max_evals=4, max_gens=-1, max_score=1000.0)
     stats = moses_statistics()
 
-    local_moses(mp, object(), pa, stats)
+    local_moses(mp, _StubDex(), pa, stats)
     assert calls == [1, 1, 1, 1]
     assert stats.n_evals == 4
 
@@ -538,7 +582,7 @@ def test_not_max_gens_uses_bang_equal_not_less_than(monkeypatch):
     pa = moses_parameters(max_evals=3, max_gens=3, max_score=1000.0)
     stats = moses_statistics()
 
-    local_moses(mp, object(), pa, stats)
+    local_moses(mp, _StubDex(), pa, stats)
 
     # Verbatim `!=`: stops only once `not_max_evals()` does (n_evals hits
     # 3), by which point n_expansions has overshot max_gens to 6.
@@ -579,7 +623,7 @@ def test_local_moses_resets_elapsed_secs_unconditionally_before_the_loop(monkeyp
     stats = moses_statistics()
     stats.elapsed_secs = 999999.0  # pre-loaded, WAY past pa.max_time
 
-    local_moses(mp, object(), pa, stats)
+    local_moses(mp, _StubDex(), pa, stats)
 
     assert calls == [1]
 
@@ -613,7 +657,7 @@ def test_local_moses_carries_start_forward_each_iteration_not_quadratic(monkeypa
     pa = moses_parameters(max_evals=3, max_gens=-1, max_score=1000.0)
     stats = moses_statistics()
 
-    local_moses(mp, object(), pa, stats)
+    local_moses(mp, _StubDex(), pa, stats)
 
     assert calls == [1, 1, 1]
     assert stats.elapsed_secs == 30.0
@@ -646,7 +690,7 @@ def test_local_moses_truncates_max_time_argument_toward_zero(monkeypatch):
     pa.max_time = 100
     stats = moses_statistics()
 
-    local_moses(mp, object(), pa, stats)
+    local_moses(mp, _StubDex(), pa, stats)
 
     assert calls == [100, 89]
     assert all(type(c) is int for c in calls)

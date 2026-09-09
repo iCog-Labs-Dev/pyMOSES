@@ -380,7 +380,7 @@ def local_moses(
         # C++: local_moses.cc:194-200. A COMPOUND guard -- debug AND diversity
         # -- not a debug guard around a diversity test.
         if logger().is_debug_enabled() and mp.diversity_enabled():
-            # DIVERGENCE(moses/moses/moses/local_moses.cc:196): the record
+            # DIVERGENCE(C++ moses/moses/moses/local_moses.cc:196): the record
             # streams `mp.ostream_metapop(ss, pa.max_cnd_output)`, and
             # `ostream_metapop` (metapopulation.cc:236) is not ported
             # (metapopulation.py's own note: logging-only, every call site is
