@@ -24,6 +24,7 @@ from pymetta.moses.representation.field_set import field_set
 from pymetta.moses.representation.instance import instance
 from pymetta.moses.representation.representation import representation
 from pymetta.moses.scoring.behave_cscore import behave_cscore
+from pymetta.util.logger import logger, ostream_double
 
 
 class iscorer_base(ABC):
@@ -80,12 +81,18 @@ class distance_based_scorer(iscorer_base):
         `score_t` assignment, not because a difference has been found or
         is expected here.
         """
-        # DIVERGENCE(C++ moses/moses/representation/instance_scorer.h:55-60):
-        # classic logs the evaluated instance and score at FINE level
-        # through `logger()`. This port has no logging surface (see
-        # `scoring_base.py`'s module docstring for the same omission) --
-        # dropped, not a behavioural gap.
         sc = _to_score_t(-self.fs.hamming_distance(self.target_inst, inst))
+        # C++: instance_scorer.h:56-60. The record ends with `std::endl`
+        # ON TOP of the newline `Logger::log` appends, so it carries a
+        # trailing blank line, and the `"\n"` before "Score = " makes it a
+        # three-physical-line record.
+        if logger().is_fine_enabled():
+            logger().fine(
+                "distance_based_scorer - Evaluate instance: "
+                + self.fs.to_string(inst)
+                + "\n"
+                + f"Score = {ostream_double(sc)}\n"
+            )
         return composite_score(sc, 0, 0, 0)
 
 
@@ -135,6 +142,12 @@ class complexity_based_scorer(iscorer_base):
         # `SystemExit`/`GeneratorExit` (which do not subclass `Exception`)
         # propagate rather than treating a process-level control signal as
         # "this instance could not be evaluated".
+        # C++: instance_scorer.h:76-79.
+        if logger().is_fine_enabled():
+            logger().fine(
+                "complexity_based_scorer - Evaluate instance: "
+                + self._rep.fields().to_string(inst)
+            )
         try:
             tr: combo_tree = self._rep.get_candidate(inst, self._reduce)
             return self._cscorer.get_cscore(tr)

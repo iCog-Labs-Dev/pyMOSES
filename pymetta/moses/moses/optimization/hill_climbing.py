@@ -479,6 +479,19 @@ class hill_climbing(optimizer_base):
         nn_estimate = int(information_theoretic_bits(fields))
 
         if nn_estimate < distance:
+            # C++: hill-climbing.cc:494-500. One record, six source lines of
+            # concatenated string literal; `%u` on both `size_t` operands is
+            # classic's own format/type mismatch and prints the same digits.
+            logger().warn(
+                "hill_climbing::estimate_neighborhood : "
+                "the distance %u is greater than the "
+                "theoretic bit field size %u. This could be a bug "
+                "(but not necessarily due to corner cases "
+                "and the fact that it's an approximation of the actual "
+                "field size)",
+                distance,
+                nn_estimate,
+            )
             # DO NOT FIX: this reassigns the LOCAL `distance`, not
             # `self`/caller state -- C++ takes `distance` by value
             # (hill-climbing.cc:486-487), so this warning-then-clamp is
@@ -970,10 +983,12 @@ class hill_climbing(optimizer_base):
         (`del deme[first:last+1]`) rather than C++'s iterator dance, since
         Python has no direct iterator-pair `erase`.
 
-        NOT ported: `ndeleted` (hill-climbing.cc:742,766,773) -- counted
-        purely to feed the dropped `logger().debug() << "Trimmed " <<
-        ndeleted << ...` line; no other reader.
+        `ndeleted` (hill-climbing.cc:742,766,773) exists in C++ ONLY to
+        feed the `"Trimmed N low scoring instances."` record at cc:773, and
+        was dropped here while that record was. It is tracked again now that
+        the record is emitted; it still feeds no decision.
         """
+        ndeleted = 0
         while True:
             first = None
             last = None
@@ -991,11 +1006,13 @@ class hill_climbing(optimizer_base):
             if contig == 0:
                 break
 
+            ndeleted += contig
             del deme[first : last + 1]
 
             if len(deme) < _MIN_TO_KEEP:
                 break
 
+        logger().debug(f"Trimmed {ndeleted} low scoring instances.")
         return len(deme)
 
     def resize_deme(self, deme: deme_t, best_score: score_t) -> bool:
@@ -1016,6 +1033,9 @@ class hill_climbing(optimizer_base):
 
         ram_pressure = _ACCEPTABLE_RAM_FRACTION * self._total_RAM_bytes < usage
         if bad_score_cnt > _DONT_BOTHER_SIZE or ram_pressure:
+            # C++: hill-climbing.cc:804-805, logged BEFORE the trim, so the
+            # deme size it reports is the pre-trim one.
+            logger().debug(f"Will trim {bad_score_cnt} low scoring instances out of {len(deme)}")
             self.resize_by_score(deme, cutoff)
             did_resize = True
 

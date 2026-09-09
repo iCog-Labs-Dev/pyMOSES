@@ -73,12 +73,14 @@ import math
 from abc import ABC, abstractmethod
 from collections import Counter
 
+from pymetta.comboreduct.combo.iostream_combo import tree_to_stream_str
 from pymetta.comboreduct.combo.vertex import combo_tree
 from pymetta.comboreduct.table.table import CTable
 from pymetta.moses.moses.complexity import complexity_t, tree_complexity
 from pymetta.moses.moses.types import (
     _to_score_t,
     behavioral_score,
+    ostream_behavioral_score,
     score_t,
     scored_combo_tree_set,
 )
@@ -408,6 +410,28 @@ class bscore_base(ABC):
             )
 
 
+def log_candidate_bscore(tr: combo_tree, bs: behavioral_score) -> None:
+    """C++: moses/moses/scoring/scoring_base.h:339 log_candidate_bscore
+
+    The shared "here is the tree and the behavioural score it just got"
+    record, called at the tail of sixteen `operator()` bodies across
+    bscores.cc, precision_bscore.cc and discriminating_bscore.cc. One
+    record, two physical lines: the `"\n"` is inside the message, so
+    `Logger::log`'s own newline terminates the second line.
+
+    The `is_fine_enabled()` guard is C++'s own and is what keeps the tree
+    from being rendered on every single candidate at lower levels -- the
+    one place in this port where a guard is worth more than the record.
+    """
+    if logger().is_fine_enabled():
+        logger().fine(
+            "Evaluate candidate: "
+            + tree_to_stream_str(tr)
+            + "\n"
+            + f"\tBScore size={len(bs)} bscore: {ostream_behavioral_score(bs)}"
+        )
+
+
 def _copy_ctable(ctable: CTable) -> CTable:
     """Not a ported symbol -- stands in for C++'s implicit copy constructor
     (`CTable _wrk_ctable(_orig_ctable);`/`_all_rows_wrk_ctable(_wrk_ctable)`,
@@ -431,7 +455,8 @@ def _copy_ctable(ctable: CTable) -> CTable:
 def _ieee_div(numerator: float, denominator: float) -> float:
     """Not a ported symbol -- emulates C/C++ IEEE-754 floating-point
     division, which NEVER raises: division by zero yields signed
-    infinity (`nan` for `0/0`), unlike Python's `float.__truediv__`,
+    infinity (a NEGATIVE `nan` for `0/0` on x86-64 -- see the comment
+    on that branch), unlike Python's `float.__truediv__`,
     which raises `ZeroDivisionError` even for two `float` operands
     (`1.0 / 0.0` in plain Python -- confirmed, not merely `1.0 // 0` or
     an int divisor). Needed wherever a ported formula divides by a
@@ -449,7 +474,14 @@ def _ieee_div(numerator: float, denominator: float) -> float:
         return math.inf
     if numerator < 0:
         return -math.inf
-    return math.nan
+    # 0/0 is the invalid operation, and x86-64's default result is the
+    # "QNaN floating-point indefinite", whose SIGN BIT IS SET -- so C++
+    # prints it as `-nan`, not `nan`. Measured with a compiled probe
+    # 2026-09-09: `std::signbit(0.0f/0.0f)` is 1, and `std::cout` writes
+    # `-nan`. Python's `math.nan` is positive, so the sign is applied
+    # explicitly; `discriminating_bscore`'s own `-Hprerec` log line was
+    # what exposed the difference.
+    return -math.nan
 
 
 def _to_usize(x: float) -> int:

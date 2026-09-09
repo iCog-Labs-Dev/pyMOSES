@@ -1,9 +1,9 @@
 {
   "capture_script": "tools/capture_moses_log.py",
-  "capture_script_sha256": "870e9ff80e1e507b66fb27d87b84d7f140d2c5c91a061e8d33e52de1d292c942",
+  "capture_script_sha256": "5e361661ba974c4ca60f04bcb8c0fd86b98694f2782b84bb13cae24e38a117bd",
   "classic_dir": "/home/yab/Documents/Projects/iCog/HyperonRelated/MOSES/OpenCog/Moses",
   "cli_tool": "build/moses/moses/main/moses",
-  "generated_at_utc": "2026-09-09T20:07:25+00:00",
+  "generated_at_utc": "2026-09-09T20:41:05+00:00",
   "inputs": {
     "configs": {
       "it_dataset_m300": [
@@ -11,6 +11,15 @@
         "{DATASET}",
         "-m300",
         "-W1"
+      ],
+      "prerec_dataset_m300": [
+        "-Hprerec",
+        "-i",
+        "{DATASET}",
+        "-m300",
+        "-W1",
+        "-q0.5",
+        "-w1.0"
       ]
     },
     "cwd": "$PYMETTA_CLASSIC_DIR",
@@ -20,7 +29,7 @@
   "probe_kind": "classic_cli",
   "probe_source": null,
   "probe_source_sha256": null,
-  "repo_commit": "b8f2ff102a10020410db6b3235fbdaab41133945",
+  "repo_commit": "57be361806b160b250fdec0b0ab08822ab43b9f8",
   "schema_version": 2,
   "toolchain": {
     "boost_lib_version": "1_92",

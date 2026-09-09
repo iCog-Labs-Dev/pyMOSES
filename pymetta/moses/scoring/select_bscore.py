@@ -83,10 +83,12 @@ from pymetta.moses.moses.types import (
     _to_score_t,
     behavioral_score,
     epsilon_score,
+    ostream_behavioral_score,
     score_t,
     very_worst_score,
 )
 from pymetta.moses.scoring.scoring_base import _ieee_div, bscore_ctable_base
+from pymetta.util.logger import logger, ostream_double
 
 
 class select_bscore(bscore_ctable_base):
@@ -188,6 +190,13 @@ class select_bscore(bscore_ctable_base):
                     ranked_out[val] = weight
                 total_weight = _to_score_t(total_weight + weight)
 
+        # C++: select_bscore.cc:107-109. "wieght" is classic's own typo.
+        logger().info(
+            f"select_bscore: lower_percentile = {ostream_double(lower_percentile)}"
+            f" upper percentile = {ostream_double(upper_percentile)}"
+            f" total wieght = {ostream_double(total_weight)}"
+        )
+
         # "Now, carve out the selected range." (select_bscore.cc:115's
         # own comment.) `upper_percentile`/`lower_percentile` are C++
         # `double` locals throughout (`*= total_weight` promotes the
@@ -220,6 +229,12 @@ class select_bscore(bscore_ctable_base):
             raise AssertionError(
                 f"Selection scorer, invalid bounds: {self._lower_bound} and {self._upper_bound}"
             )
+
+        # C++: select_bscore.cc:145-146.
+        logger().info(
+            f"select_bscore: lower_bound = {ostream_double(self._lower_bound)}"
+            f" upper bound = {ostream_double(self._upper_bound)}"
+        )
 
         self._best_possible_score = []
         self.set_best_possible_bscore()
@@ -283,6 +298,11 @@ class select_bscore(bscore_ctable_base):
             split = _to_score_t(abs(n_inside - n_outside))
             self._best_possible_score.append(_to_score_t(-0.5 * abs(total - split)))
 
+        # C++: select_bscore.cc:276-277.
+        logger().info(
+            "select_bscore: Best possible: " + ostream_behavioral_score(self._best_possible_score)
+        )
+
     def worst_possible_bscore(self) -> behavioral_score:
         """C++: moses/moses/scoring/select_bscore.cc:280 select_bscore::worst_possible_bscore
 
@@ -341,6 +361,10 @@ class select_bscore(bscore_ctable_base):
         self._effective_length = znorm
         znorm = _ieee_div(znorm, self._size)
         self._weights = [znorm] * self._size
+
+        # C++: select_bscore.cc:331. `znorm` is a `double` here, not a
+        # `score_t`, but it is streamed bare either way -- six digits.
+        logger().info(f"select_bscore::reset_weights() norm={ostream_double(znorm)}")
 
     def update_weights(self, rew: list[float]) -> None:
         """C++: moses/moses/scoring/select_bscore.cc:334 select_bscore::update_weights

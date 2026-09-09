@@ -26,6 +26,7 @@ from typing import Protocol
 from pymetta.moses.representation.field_set import field_set
 from pymetta.moses.representation.instance_set import instance_set
 from pymetta.moses.representation.scored_instance import scored_instance
+from pymetta.util.logger import logger
 
 __all__ = ["optimize"]
 
@@ -59,6 +60,9 @@ def optimize(
     current`); `current.fields()` supplies both `StructureLearningPolicy::
     model_type` construction arguments below.
     """
+    logger().debug("Probabilistic Learning Optimization")
+
+    logger().debug("Evaluate the initial population (%u individuals)", len(current))
     for entry in current:
         entry.second = score(entry.first)
 
@@ -70,6 +74,7 @@ def optimize(
         write_log(current, fields, generation)
 
         # Select n_select promising instances to enroll in tournament.
+        logger().debug("Select %d promising instances for model building", n_select)
         promising: list[scored_instance] = []
         select(current, promising, n_select)
 
@@ -77,11 +82,15 @@ def optimize(
         # first the "structure" of the dependencies between variables
         # (a no-op for univariate()), then the probability distribution
         # over the selected population within that structure.
+        logger().debug("Build probabilistic model")
         model = model_type(fields, promising)
         learn_structure(fields, promising, model)
         learn_probs(fields, promising, model)
 
         # Create new instances from the model and score them.
+        logger().debug(
+            "Sample and evaluate %d new candidates according to the model", n_generate
+        )
         new_instances = instance_set(n_generate, fields)
         for i in range(len(new_instances)):
             new_instances[i] = scored_instance(model())
@@ -89,6 +98,7 @@ def optimize(
             entry.second = score(entry.first)
 
         # Fold the new instances into the current population.
+        logger().debug("Replace the new candidates")
         replace(new_instances, current)
 
         generation += 1

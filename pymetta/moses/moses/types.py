@@ -156,9 +156,16 @@ def _format_score_t(x: float) -> str:
     a float32 round-trip (-3.5714285373687744 -> "-3.57142853736877441",
     matching `MOSESUTest`'s own captured stdout for `test_it`'s penalized
     score), scientific notation at both magnitude extremes (1e20, 1e-20),
-    and nan/+-inf (all three print identically -- "nan"/"inf"/"-inf" -- in
+    and +nan/+-inf (all three print identically -- "nan"/"inf"/"-inf" -- in
     both languages on this toolchain). See task-3-report.md for the full
     probe transcript.
+
+    CORRECTED 2026-09-09: that probe used a POSITIVE NaN, and the claim
+    "nan ... print identically" is false for the negative one. libstdc++
+    honours NaN's sign bit and writes `-nan`; Python's `format` writes
+    `nan` for either sign. `0.0f/0.0f` yields a negative NaN on x86-64, so
+    the case is ordinary rather than exotic -- classic's own `-Hprerec` log
+    writes `Score: -nan`. Handled explicitly below.
 
     `x` is expected to already be narrowed to its exact float32 value via
     `_to_score_t` (this module) at the point it was last computed/stored;
@@ -166,6 +173,8 @@ def _format_score_t(x: float) -> str:
     never narrows the `float` it is handed (narrowing, if any, already
     happened at the last `score_t` assignment).
     """
+    if x != x:  # NaN
+        return "-nan" if math.copysign(1.0, x) < 0.0 else "nan"
     return format(x, f".{io_score_precision}g")
 
 

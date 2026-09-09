@@ -53,6 +53,7 @@ the same path append to one open handle.
 
 from __future__ import annotations
 
+import math
 import os
 import sys
 import threading
@@ -523,7 +524,17 @@ def ostream_double(x: float) -> str:
     bare into a log line therefore prints at SIX digits even though the
     same value inside a printed `composite_score` prints at eighteen --
     both appear in classic's log, two lines apart.
+
+    A NEGATIVE NaN prints as `-nan`, not `nan`. libstdc++ and glibc both
+    honour NaN's sign bit -- measured on this toolchain 2026-09-09:
+    `std::cout << -std::nan("")` writes `-nan` at default precision and at
+    18 -- while Python's `format` writes plain `nan` for either sign.
+    `0.0f/0.0f` yields a NEGATIVE NaN on x86-64, so this is the ordinary
+    case: classic's own `-Hprerec` log writes `Score: -nan` for a candidate
+    that selects no rows.
     """
+    if x != x:  # NaN
+        return "-nan" if math.copysign(1.0, x) < 0.0 else "nan"
     return format(x, ".6g")
 
 

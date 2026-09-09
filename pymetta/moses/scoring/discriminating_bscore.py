@@ -69,7 +69,9 @@ from pymetta.moses.scoring.scoring_base import (
     _to_usize,
     bscore_ctable_base,
     discrete_complexity_coef,
+    log_candidate_bscore,
 )
+from pymetta.util.logger import logger, ostream_double
 
 
 class discriminator:
@@ -143,6 +145,11 @@ class discriminator:
         for counter in ctable.values():
             self._true_total = _to_score_t(self._true_total + self.sum_true(counter))
             self._false_total = _to_score_t(self._false_total + self.sum_false(counter))
+        # C++: discriminating_bscore.cc:102-103.
+        logger().info(
+            f"Discriminator: num_true={ostream_double(self._true_total)}"
+            f" num_false={ostream_double(self._false_total)}"
+        )
 
     @staticmethod
     def _sum_true_boolean(counter) -> score_t:
@@ -223,6 +230,30 @@ class discriminator:
                 ctr.true_negative_sum = _to_score_t(ctr.true_negative_sum + neg)
                 ctr.false_negative_sum = _to_score_t(ctr.false_negative_sum + pos)
                 ctr.negative_count = _to_score_t(ctr.negative_count + totalc)
+
+        # C++: discriminating_bscore.cc:146-161 -- ONE guard, three printf
+        # records, all `%f`.
+        if logger().is_fine_enabled():
+            logger().fine(
+                "counter: tp = %f  fp = %f  tp+fp = %f pos = %f",
+                ctr.true_positive_sum,
+                ctr.false_positive_sum,
+                ctr.true_positive_sum + ctr.false_positive_sum,
+                ctr.positive_count,
+            )
+            logger().fine(
+                "counter: fn = %f  tn = %f  fn+tn = %f neg=%f",
+                ctr.false_negative_sum,
+                ctr.true_negative_sum,
+                ctr.false_negative_sum + ctr.true_negative_sum,
+                ctr.negative_count,
+            )
+            logger().fine(
+                "counter: tp+fn = %f  fp+tn = %f  total = %f",
+                ctr.true_positive_sum + ctr.false_negative_sum,
+                ctr.false_positive_sum + ctr.true_negative_sum,
+                ctr.positive_count + ctr.negative_count,
+            )
         return ctr
 
     def counts(self, tr: combo_tree) -> list[discriminator.d_counts]:
@@ -299,6 +330,14 @@ class discriminating_bscore(bscore_ctable_base, discriminator):
         self._full_bscore = True
         self._size = 2
 
+        # C++: discriminating_bscore.cc:216-219, before the hardness check.
+        logger().info(
+            "Discriminating scorer, hardness = %f, min_threshold = %f, max_threshold = %f",
+            self._hardness,
+            self._min_threshold,
+            self._max_threshold,
+        )
+
         if not (0.0 <= self._hardness):
             raise AssertionError("Hardness must be non-negative")
         if 0.0 < self._hardness:
@@ -322,6 +361,13 @@ class discriminating_bscore(bscore_ctable_base, discriminator):
                         val = get_contin(v)
                         self._max_output = max(self._max_output, val)
                         self._min_output = min(self._min_output, val)
+
+        # C++: discriminating_bscore.cc:251-252.
+        logger().info(
+            "Discriminating scorer, min_output = %f, max_output = %f",
+            self._min_output,
+            self._max_output,
+        )
 
     def best_possible_bscore(self) -> behavioral_score:
         """C++: moses/moses/scoring/discriminating_bscore.cc:262 best_possible_bscore
@@ -353,6 +399,11 @@ class discriminating_bscore(bscore_ctable_base, discriminator):
             # -- same truncation as discriminator.count/counts above.
             total = _to_usize(sum(counter.values()))
             vary = self.get_variable(pos, neg, total)
+            # C++: discriminating_bscore.cc:286-287.
+            logger().fine(
+                f"Disc: total={total} pos={ostream_double(pos)}"
+                f" neg={ostream_double(neg)} vary={ostream_double(vary)}"
+            )
             max_vary.append((vary, pos, neg, total))
         max_vary.sort(key=lambda t: t[0])
 
@@ -362,6 +413,13 @@ class discriminating_bscore(bscore_ctable_base, discriminator):
         best_sc: score_t = very_worst_score
         best_vary: score_t = 0.0
         best_fixation_penalty: score_t = 0.0
+        # `best_fixed` (discriminating_bscore.cc:305) exists in C++ only to
+        # feed the fourth INFO record below; tracked again now that the
+        # record is emitted. It feeds no decision.
+        best_fixed: score_t = 0.0
+
+        # C++: discriminating_bscore.cc:308.
+        logger().fine("Disc: min_thresh=" + ostream_double(self._min_threshold))
 
         for _vary, pos, neg, total in reversed(max_vary):
             acc_pos = _to_score_t(acc_pos + pos)
@@ -376,10 +434,26 @@ class discriminating_bscore(bscore_ctable_base, discriminator):
             if sc > best_sc:
                 best_sc = sc
                 best_vary = vary
+                best_fixed = fixed
                 best_fixation_penalty = fixation_penalty
+
+            # C++: discriminating_bscore.cc:329-330, AFTER the update block
+            # and before the halt test.
+            logger().fine(
+                f"Disc: vary={ostream_double(vary)} fixed={ostream_double(fixed)}"
+                f" score={ostream_double(sc)}"
+            )
 
             if self._min_threshold <= fixed:
                 break
+
+        # C++: discriminating_bscore.cc:337-340, four separate records.
+        logger().info("Discriminating scorer, best score = %f", best_sc)
+        logger().info("Discriminating scorer, variable component of best score = %f", best_vary)
+        logger().info("Discriminating scorer, fixed component of best score = %f", best_fixed)
+        logger().info(
+            "Discriminating scorer, fixation penalty of best score = %f", best_fixation_penalty
+        )
 
         return [best_vary, best_fixation_penalty]
 
@@ -459,6 +533,15 @@ class discriminating_bscore(bscore_ctable_base, discriminator):
             self._complexity_coef = 0.0
             if ratio > 0:
                 self._complexity_coef = _to_score_t(_ieee_div(1.0, self._ctable_usize * ratio))
+            # C++: discriminating_bscore.cc:402-403 -- TWO records, and the
+            # second uses `1.0f/`, a float32 reciprocal, where the noise
+            # overload at :384 uses `1.0/` in double. Both are streamed at
+            # an ostream's six digits, so the difference is invisible here;
+            # it is reproduced anyway because guessing it wrong later would
+            # cost a puzzle.
+            logger().info(f"Discriminating scorer, table size = {self._ctable_usize}")
+            ratio_str = ostream_double(_to_score_t(_ieee_div(1.0, self._complexity_coef)))
+            logger().info(f"Discriminating scorer, complexity ratio = {ratio_str}")
         elif len(args) == 2:
             alphabet_size, p = args
             p = _to_score_t(p)
@@ -467,6 +550,13 @@ class discriminating_bscore(bscore_ctable_base, discriminator):
                 self._complexity_coef = _to_score_t(
                     _ieee_div(discrete_complexity_coef(alphabet_size, p), self._ctable_usize)
                 )
+            # C++: discriminating_bscore.cc:382-384. "alphabest" is classic's
+            # own typo, kept in every scorer that copies this line.
+            logger().info(
+                f"Discriminating scorer, noise = {ostream_double(p)}"
+                f" alphabest size = {alphabet_size}"
+                f" complexity ratio = {ostream_double(_ieee_div(1.0, self._complexity_coef))}"
+            )
         else:
             raise TypeError(
                 "set_complexity_coef expects either (ratio) or "
@@ -520,6 +610,16 @@ class recall_bscore(discriminating_bscore):
         bs: behavioral_score = [recall]
         precision_penalty = self.get_threshold_penalty(precision)
         bs.append(precision_penalty)
+        # C++: discriminating_bscore.cc:438-441. "recall_bcore" is classic's
+        # own typo, and the penalty uses `%e`, not `%f`.
+        if logger().is_fine_enabled():
+            logger().fine(
+                "recall_bcore: precision = %f  recall=%f  precision penalty=%e",
+                precision,
+                recall,
+                precision_penalty,
+            )
+        log_candidate_bscore(tr, bs)
         return bs
 
     def get_fixed(self, pos: score_t, neg: score_t, cnt: float) -> score_t:
@@ -570,7 +670,19 @@ class prerec_bscore(discriminating_bscore):
             bs.append(_to_score_t((ctr.true_positive_sum - ctr.false_positive_sum) / 2))
             pos_total += ctr.positive_count
 
-        bs = [_to_score_t(x / pos_total) for x in bs]
+        # `boost::transform(bs, bs.begin(), arg1 / pos_total)`
+        # (discriminating_bscore.cc:513) is IEEE division, so `pos_total ==
+        # 0.0` gives NaN for every element, not an error. Python's `/`
+        # raises ZeroDivisionError instead, which `complexity_based_scorer`
+        # then catches and turns into `worst_composite_score` -- a REAL,
+        # measurable divergence, found by comparing classic's own
+        # `-l DEBUG` log against this port's on `-Hprerec`: classic logs
+        # `Score: -nan` for `and(!$1 !$2)` where the port logged
+        # `Score: -3.40282e+38`, and the two runs then kept different
+        # numbers of candidates (25 vs 23). `_ieee_div` restores C++'s
+        # result. `pos_total` is zero whenever no ctable row is positive,
+        # which a candidate that selects nothing produces routinely.
+        bs = [_to_score_t(_ieee_div(x, pos_total)) for x in bs]
         bs.append(0.5)
 
         precision = 0.0
@@ -586,6 +698,15 @@ class prerec_bscore(discriminating_bscore):
 
         recall_penalty = self.get_threshold_penalty(recall)
         bs.append(recall_penalty)
+        # C++: discriminating_bscore.cc:554-557.
+        if logger().is_fine_enabled():
+            logger().fine(
+                "prerec_bscore: precision = %f  recall = %f  recall penalty = %f",
+                precision,
+                recall,
+                recall_penalty,
+            )
+        log_candidate_bscore(tr, bs)
         return bs
 
     def get_variable(self, pos: score_t, neg: score_t, cnt: float) -> score_t:
@@ -627,6 +748,10 @@ class bep_bscore(discriminating_bscore):
         bep_diff = _to_score_t(abs(precision - recall))
         bep_penalty = self.get_threshold_penalty(bep_diff)
         bs.append(bep_penalty)
+        # C++: discriminating_bscore.cc:609-610.
+        if logger().is_fine_enabled():
+            logger().fine("bep = %f  diff=%f  bep penalty=%e", bep, bep_diff, bep_penalty)
+        log_candidate_bscore(tr, bs)
         return bs
 
     def get_variable(self, pos: score_t, neg: score_t, cnt: int) -> score_t:
@@ -709,7 +834,14 @@ class f_one_bscore(discriminating_bscore):
         numer = _to_score_t(_to_score_t(2 * precision) * recall)
         denom = _to_score_t(precision + recall)
         f_one = _to_score_t(numer / denom)
-        return [f_one]
+        bs: behavioral_score = [f_one]
+        # C++: discriminating_bscore.cc:669-670.
+        if logger().is_fine_enabled():
+            logger().fine(
+                "f_one_bscore: precision = %f recall = %f f_one=%f", precision, recall, f_one
+            )
+        log_candidate_bscore(tr, bs)
+        return bs
 
     def get_fixed(self, pos: score_t, neg: score_t, cnt: float) -> score_t:
         """C++: moses/moses/scoring/discriminating_bscore.cc:679 f_one_bscore::get_fixed

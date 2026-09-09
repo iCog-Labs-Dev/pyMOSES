@@ -53,7 +53,7 @@ from pymetta.comboreduct.table.table import CTable
 from pymetta.moses.moses.complexity import complexity_t
 from pymetta.moses.moses.types import _to_score_t, composite_score, score_t
 from pymetta.moses.scoring.scoring_base import bscore_base
-from pymetta.util.logger import logger
+from pymetta.util.logger import logger, ostream_double
 from pymetta.util.tree import tree_node
 
 
@@ -294,5 +294,14 @@ class behave_cscore:
 
         cpxy: complexity_t = self._bscorer.get_complexity(tr)
         cpxy_coef: score_t = self._bscorer.get_complexity_coef()
+
+        # C++: behave_cscore.cc:91-95. `res`/`cpxy`/`cpxy_coef` are streamed
+        # bare, so six significant digits each; `cpxy` is an `unsigned`.
+        if logger().is_fine_enabled():
+            logger().fine(
+                f"behave_cscore: {ostream_double(res)}"
+                f" complexity: {cpxy}"
+                f" cpxy_coeff: {ostream_double(cpxy_coef)}"
+            )
 
         return composite_score(res, cpxy, _to_score_t(cpxy * cpxy_coef), 0.0)

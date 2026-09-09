@@ -78,8 +78,25 @@ def resolve_argv(argv: list[str], repo_root: Path) -> list[str]:
     return [dataset_path(repo_root) if a == DATASET_PLACEHOLDER else a for a in argv]
 
 
+# `prerec` is the second configuration, and it earns its place: it exercises
+# `discriminating_bscore` and the `-q`/`-w` threshold path, and comparing it
+# against classic is what exposed a real numeric divergence -- classic logged
+# `Score: -nan` where the port logged `Score: -3.40282e+38`, because
+# `prerec_bscore`'s `bs / pos_total` used Python's `/` (which raises on 0/0)
+# instead of IEEE division. The `-q0.5 -w1.0` thresholds are required: the
+# defaults leave `min_threshold` at 0.0, and classic ABORTS on that
+# (discriminating_bscore.cc:224).
 CONFIGS = {
     "it_dataset_m300": ["-i", DATASET_PLACEHOLDER, "-m300", "-W1"],
+    "prerec_dataset_m300": [
+        "-Hprerec",
+        "-i",
+        DATASET_PLACEHOLDER,
+        "-m300",
+        "-W1",
+        "-q0.5",
+        "-w1.0",
+    ],
 }
 
 
