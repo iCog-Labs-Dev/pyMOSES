@@ -1,0 +1,16 @@
+{
+  "capture_script": "tools/capture_ss_bscore.py",
+  "capture_script_sha256": "d91b2fd9b32b42c0db42c433b1f8caadbb8f405fc2114a5c4031b3811b8289b7",
+  "classic_dir": "/home/yab/Documents/Projects/iCog/HyperonRelated/MOSES/OpenCog/Moses",
+  "cli_tool": null,
+  "generated_at_utc": "2026-09-09T09:09:56+00:00",
+  "inputs": {
+    "description": "fixed sample sequences, shuffle/partition configs and seeds hardcoded in ss_bscore_probe.cc; no external dataset"
+  },
+  "prefix_dir": "/home/yab/opt/moses-legacy",
+  "probe_kind": "cpp_probe",
+  "probe_source": "tools/cpp_probe/ss_bscore_probe.cc",
+  "probe_source_sha256": "38dba23d1861d67c16c6ec77635bfcb55438c779472fa1973ad41f9922b94ea8",
+  "repo_commit": "ea77e4c88d83e788acece678bf32f40e7f8c9b12",
+  "schema_version": 1
+}
