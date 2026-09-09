@@ -5,12 +5,16 @@ from pymetta.comboreduct.combo.vertex import (
     builtin,
     combo_tree,
     enum_t,
+    get_builtin,
     get_contin,
     is_argument,
+    is_boolean,
     is_builtin,
     is_contin,
+    is_definite_object,
     negate_vertex,
     vertex,
+    vertex_to_bool,
 )
 
 
@@ -137,3 +141,72 @@ def test_get_contin_rejects_non_contin_vertex():
         get_contin(argument(1))
     with pytest.raises(TypeError):
         get_contin("sad")
+
+
+# ---------------------------------------------------------------------------
+# S14 Task 1 additions: get_builtin, is_definite_object, is_boolean,
+# vertex_to_bool -- needed by interpreter.py's mixed_interpreter and (for
+# is_boolean/vertex_to_bool) table.py's table_fmt_vertex_to_str.
+# ---------------------------------------------------------------------------
+
+
+def test_get_builtin_returns_the_held_builtin():
+    assert get_builtin(builtin.logical_true) is builtin.logical_true
+    assert get_builtin(builtin.plus) is builtin.plus
+
+
+def test_get_builtin_rejects_non_builtin_vertex():
+    with pytest.raises(TypeError):
+        get_builtin(2.5)
+    with pytest.raises(TypeError):
+        get_builtin(argument(1))
+    with pytest.raises(TypeError):
+        get_builtin("sad")
+
+
+def test_is_definite_object_accepts_bare_str_but_not_enum_t():
+    # A bare `str` in this port's vertex union stands for `definite_object`
+    # (see vertex.py's module docstring); `enum_t` is a genuinely different
+    # C++ variant alternative even though it subclasses `str` here.
+    assert is_definite_object("some_object") is True
+    assert is_definite_object(enum_t("some_enum")) is False
+
+
+def test_is_definite_object_rejects_non_str_vertex():
+    assert is_definite_object(builtin.logical_true) is False
+    assert is_definite_object(argument(1)) is False
+    assert is_definite_object(2.5) is False
+
+
+def test_is_boolean_true_only_for_the_two_logical_constants():
+    assert is_boolean(builtin.logical_true) is True
+    assert is_boolean(builtin.logical_false) is True
+    assert is_boolean(builtin.plus) is False
+    assert is_boolean(argument(1)) is False
+    # Critical-2-shaped trap: a contin_t whose value equals a logical
+    # constant's ordinal (1.0 == builtin.logical_true) must NOT be treated
+    # as boolean -- is_boolean goes through vertex_equal, not bare `==`.
+    assert is_boolean(1.0) is False
+    assert is_boolean(2.0) is False
+
+
+def test_vertex_to_bool_matches_logical_true_and_false():
+    assert vertex_to_bool(builtin.logical_true) is True
+    assert vertex_to_bool(builtin.logical_false) is False
+
+
+def test_vertex_to_bool_rejects_non_boolean_vertex():
+    with pytest.raises(AssertionError):
+        vertex_to_bool(builtin.plus)
+    with pytest.raises(AssertionError):
+        vertex_to_bool(argument(1))
+
+
+def test_vertex_to_bool_rejects_colliding_contin_not_just_wrong_type():
+    # The same Critical-2-shaped trap as test_is_boolean above, at the
+    # sibling function: 1.0/2.0 must not be silently accepted as
+    # logical_true/logical_false merely because their ordinals coincide.
+    with pytest.raises(AssertionError):
+        vertex_to_bool(1.0)
+    with pytest.raises(AssertionError):
+        vertex_to_bool(2.0)

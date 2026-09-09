@@ -175,6 +175,40 @@ def get_contin(v: vertex) -> contin_t:
     return v
 
 
+def get_builtin(v: vertex) -> builtin:
+    """C++: moses/comboreduct/combo/vertex.cc:103 get_builtin
+
+    `boost::get<builtin>(v)` -- throws `boost::bad_get` (ported as
+    `TypeError`, matching `get_contin`'s own convention) if `v` does not
+    hold a `builtin`. Added for S14 Task 1's `mixed_interpreter` (interpreter.py),
+    whose `boolean_eval` override is `get_builtin(mixed_eval(it))`
+    (interpreter.cc:258) -- unlike `negate_vertex` (this module), which
+    already folds "extract the builtin, then act on it" into one step,
+    `get_builtin` on its own is genuinely needed here because the caller
+    wants the extracted `builtin` itself, not a derived value.
+    """
+    if not is_builtin(v):
+        raise TypeError(f"vertex {v!r} does not hold a builtin")
+    return v
+
+
+def is_definite_object(v: vertex) -> bool:
+    """C++: moses/comboreduct/combo/vertex.cc:195 is_definite_object
+
+    `boost::get<definite_object>(&v)` -- in C++, `definite_object` and
+    `enum_t` are genuinely different `boost::variant` alternatives, so
+    this can never be `True` for an `enum_t`. This port's narrowed vertex
+    union collapses both onto plain `str` (`enum_t` a subclass of it --
+    see this module's own docstring), so the `enum_t` exclusion has to be
+    explicit here: `isinstance(v, str) and not isinstance(v, enum_t)`.
+    Added for S14 Task 1's `mixed_interpreter::mixed_eval`
+    (interpreter.cc:375), whose "string constant" fallback branch
+    (`is_definite_object(v)`) returns the definite_object vertex
+    unevaluated.
+    """
+    return isinstance(v, str) and not isinstance(v, enum_t)
+
+
 def is_contin_expr(v: vertex) -> bool:
     """C++: moses/comboreduct/combo/vertex.h:764 is_contin_expr
 
@@ -297,6 +331,43 @@ def builtin_to_bool(b: builtin) -> bool:
     if b != builtin.logical_true and b != builtin.logical_false:
         raise AssertionError("builtin should be 'id::logical_true' or 'id::logical_false'.")
     return b == builtin.logical_true
+
+
+def is_boolean(v: vertex) -> bool:
+    """C++: moses/comboreduct/combo/vertex.h:732 is_boolean
+
+    `template<typename T> bool is_boolean(const T& v) { return (v ==
+    id::logical_true || v == id::logical_false); }` -- a bare `==` in
+    C++, safe there because `boost::variant`/a concrete `builtin` can
+    never spuriously compare equal to a different-typed value the way
+    `contin_t`/`IntEnum` can here (CLAUDE.md's "type before value" trap).
+    Ported via `vertex_equal` rather than bare `==` for exactly that
+    reason -- added for S14 Task 1's `table_fmt_vertex_to_str`
+    (table.py, table.cc:63/table.cc:72), which needs to tell a genuine
+    boolean output column apart from a contin one that merely happens to
+    hold an integral value.
+    """
+    return vertex_equal(v, builtin.logical_true) or vertex_equal(v, builtin.logical_false)
+
+
+def vertex_to_bool(v: vertex) -> bool:
+    """C++: moses/comboreduct/combo/vertex.h:701 vertex_to_bool
+
+    The `vertex`-typed sibling of `builtin_to_bool` above: same OC_ASSERT
+    shape (`v == id::logical_true || v == id::logical_false`), but `v` is
+    NOT already known to hold a `builtin` here -- it is a full `vertex`,
+    so the comparison goes through `vertex_equal` (type-safe) rather than
+    bare `==`, unlike `builtin_to_bool`'s own justified use of a direct
+    `builtin`-to-`builtin` comparison. Added for S14 Task 1's
+    `table_fmt_vertex_to_str` (table.py, table.cc:63/:72), used there
+    exactly as C++ uses it: `ss << vertex_to_bool(v)` prints a genuine
+    boolean output column as "0"/"1", the "Boolean values are output in
+    binary form" convention `ostreamTable`'s own doc comment names
+    (table_io.h:192-193).
+    """
+    if not is_boolean(v):
+        raise AssertionError("vertex should be 'id::logical_true' or 'id::logical_false'.")
+    return vertex_equal(v, builtin.logical_true)
 
 
 def vertex_equal(a: vertex, b: vertex) -> bool:
