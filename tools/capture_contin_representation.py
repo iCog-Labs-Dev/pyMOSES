@@ -50,6 +50,7 @@ _EXPECTED_NAMES = tuple(
         "mixed-sum",
         "div-two-args",
         "times-arg-and-constant",
+        "times-constant-and-arg",
         "bare-childless-plus",
     )
     for mode in ("linear", "nonlinear")
@@ -64,7 +65,10 @@ _EXPECTED_CONTIN_COUNTS = (
     19, 26,  # impulse-of-boolean-arg
     28, 50,  # mixed-sum
     28, 50,  # div-two-args
-    19, 26,  # times-arg-and-constant
+    19, 26,  # times-arg-and-constant (constant already last -- swap(x, x))
+    19, 26,  # times-constant-and-arg (constant first -- a REAL swap; found
+             # missing by mutation-testing tree::swap to a no-op, which left
+             # every OTHER case in this fixture unchanged -- see the report)
     26, 26,  # bare-childless-plus (linear/nonlinear coincide -- see report)
 )
 
@@ -195,11 +199,12 @@ def capture_fixture() -> None:
             prefix_dir=PREFIX,
             inputs={
                 "description": (
-                    "8 fixed small contin-output exemplar shapes (bare "
+                    "9 fixed small contin-output exemplar shapes (bare "
                     "argument, sum, sin, impulse-of-boolean, mixed contin/"
-                    "boolean inputs, div, times-with-constant, bare "
-                    "childless plus), each run at both linear_contin=true "
-                    "and linear_contin=false; no RNG or external dataset"
+                    "boolean inputs, div, times-with-constant-last, "
+                    "times-with-constant-first, bare childless plus), each "
+                    "run at both linear_contin=true and linear_contin=false; "
+                    "no RNG or external dataset"
                 )
             },
         ),

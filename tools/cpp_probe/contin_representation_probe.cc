@@ -114,6 +114,13 @@ int main()
         {"mixed-sum", "plus($1 impulse($2))", {id::contin_type, id::boolean_type}},
         {"div-two-args", "div($1 $2)", {id::contin_type, id::contin_type}},
         {"times-arg-and-constant", "times($1 0.5)", {id::contin_type}},
+        // Constant appears BEFORE the value, unlike the case above --
+        // exercises canonize_times' genuine tree::swap (build_knobs.cc:803)
+        // rather than the swap(x, x) no-op the case above happens to reach
+        // (0.5 there is already `it`'s last child, so no positions actually
+        // move). Found by mutation testing: a no-op `swap` left every OTHER
+        // case in this fixture unchanged. See the S14 Task 2 report.
+        {"times-constant-and-arg", "times(0.5 $1)", {id::contin_type}},
         {"bare-childless-plus", "plus", {id::contin_type, id::contin_type}},
     };
 

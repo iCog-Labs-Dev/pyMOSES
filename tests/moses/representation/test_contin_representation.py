@@ -8,7 +8,7 @@ which drives the REAL classic ``representation`` C++ class (never a
 reimplementation) at its own real module-static defaults (``stepsize=1.0,
 expansion=2.0, depth=5``, ``representation.cc:59-61``).
 
-Half of the fixture's 16 cases (the ``-nonlinear`` ones) run classic at
+Half of the fixture's 18 cases (the ``-nonlinear`` ones) run classic at
 ``linear_contin=False`` -- the real ``moses`` CLI's own default
 (``--linear-regression``, problem-params.cc:292), NOT merely this
 constructor's own literal default (``True``, matching representation.h:62
@@ -99,7 +99,7 @@ def test_contin_representation_fixture_schema_is_bounded_and_non_vacuous(golden)
     # point is to measure at classic's REAL defaults, never a probe-chosen
     # substitute for them.
     assert (golden["stepsize"], golden["expansion"], golden["depth"]) == (1.0, 2.0, 5)
-    assert len(golden["cases"]) == 16
+    assert len(golden["cases"]) == 18
     assert all(set(case) == _CASE_KEYS for case in golden["cases"])
     assert all(
         set(knob) == _KNOB_KEYS for case in golden["cases"] for knob in case["contin_knobs"]
@@ -110,8 +110,8 @@ def test_contin_representation_fixture_schema_is_bounded_and_non_vacuous(golden)
     assert all(case["disc_knob_count"] == 0 for case in golden["cases"])
     assert all(len(case["contin_knobs"]) > 0 for case in golden["cases"])
     # Half the corpus is the real CLI default -- see this module's docstring.
-    assert sum(not case["linear_contin"] for case in golden["cases"]) == 8
-    assert sum(case["linear_contin"] for case in golden["cases"]) == 8
+    assert sum(not case["linear_contin"] for case in golden["cases"]) == 9
+    assert sum(case["linear_contin"] for case in golden["cases"]) == 9
     # The corpus discriminates linear from non-linear knob building: at
     # least one case has strictly more knobs when non-linear (proving
     # `rec_canonize`'s `!_linear_contin` branch is actually exercised, not
@@ -124,7 +124,7 @@ def test_contin_representation_fixture_schema_is_bounded_and_non_vacuous(golden)
 
 
 @pytest.mark.oracle
-@pytest.mark.parametrize("case_idx", range(16))
+@pytest.mark.parametrize("case_idx", range(18))
 def test_all_contin_exemplars_match_classic_exemplar_prototype_and_knob_specs(
     golden, case_idx
 ):
@@ -165,7 +165,7 @@ def test_linear_contin_false_is_classicss_real_cli_default_not_just_a_probe_conf
     half of the corpus this is from the raw JSON.
     """
     nonlinear_cases = [case for case in golden["cases"] if not case["linear_contin"]]
-    assert len(nonlinear_cases) == 8
+    assert len(nonlinear_cases) == 9
     for case in nonlinear_cases:
         rep = _make_rep(case)
         assert combo_tree_to_str(rep.exemplar()) == case["decorated_exemplar"]
