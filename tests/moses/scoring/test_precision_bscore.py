@@ -337,6 +337,37 @@ def test_precision_conj_bscore_call_counts_and_conjunctions():
     assert bs[1] == pytest.approx(-0.5)
 
 
+def test_precision_conj_bscore_precision_term_is_fractional_not_degenerate():
+    """[Important 2, branch review] The precision term (`bs[0]`) is
+    computed by exactly ONE existing case in this module,
+    `test_precision_conj_bscore_zero_activation_gives_perfect_precision`
+    (`bs[0] == 1.0` for `logical_false`, zero activation -- the "no hits
+    means perfect precision" branch). `test_precision_conj_bscore_call_
+    counts_and_conjunctions` above never asserts `bs[0]` at all, and on
+    `precision.csv`, `and($1 $2)` -- the tree it happens to use -- has
+    ZERO activation too (no row has both `v1` and `v2` set), so `bs[0]`
+    there is ALSO the degenerate `1.0`. Every `bs[0]` this module observes
+    is therefore exactly `1.0`, and a mutant that forces `bs[0] = 0.123456`
+    whenever the real value is not `1.0` passes the whole suite.
+
+    Derived independently from `precision.csv`'s 10 rows (compressed:
+    `(v1,v2)=(0,0)` -> target counts `{0:2, 1:2}`; `(1,0)` -> `{0:3}`;
+    `(0,1)` -> `{1:3}`): `and(!$1 !$2)` (true only on `(v1,v2)=(0,0)`) has
+    active = 4, target-true count = 2, precision = 2/4 = 0.5 -- a genuine
+    fraction, not 0.0 or 1.0, that the degenerate-precision mutant cannot
+    reproduce by construction. Cross-checked directly against a live
+    `precision_conj_bscore` call, not hand-derived alone: `$1` (true only
+    on `(1,0)`, target-true count 0 of 3) independently gives `bs[0] ==
+    0.0`, and `$2` (true only on `(0,1)`, target-true count 3 of 3) gives
+    `bs[0] == 1.0` -- consistent with the reviewer's own derivation.
+    """
+    table = loadTable(str(_PRECISION_CSV), "target")
+    ct = table.compressed()
+    bsc = precision_conj_bscore(ct, hardness=1.0)
+    bs = bsc(str_to_combo_tree("and(!$1 !$2)"))
+    assert bs[0] == pytest.approx(0.5)
+
+
 def test_precision_conj_bscore_counts_nested_and_siblings_not_just_the_head():
     """`conj_n` counts the head AND each immediate `and` child.
 
