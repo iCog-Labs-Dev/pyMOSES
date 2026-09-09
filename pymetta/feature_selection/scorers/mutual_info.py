@@ -24,6 +24,16 @@ reach. The continuous-inputs-not-all-discrete branch and the single-contin-
 feature KLD branch (table.h:1242-1278, needs ``discretize_contin_feature``/
 ``KLD``, neither ported) both raise ``NotImplementedError`` -- see
 ``mutual_information``'s own docstring.
+
+Also ports the ITable/OTable variant of the same function
+(``mutual_information_it_ot``, C++ ``mutualInformation(ITable, OTable,
+FeatureSet)``, table.h:1074 -- boolean output only, C++'s own scope
+restriction, not this port's) and ``scorers/mutual_info.h`` itself:
+``MutualInformation`` (bare MI, the ``"simple"`` algorithm's scorer),
+``MICScorer`` (the ITable/OTable-based confidence-weighted scorer,
+``eval-features``'s own), and ``MICScorerCTable`` (the CTable-based one,
+now built on the shared ``fs_scorer_base``,
+``pymetta.feature_selection.scorers.fs_scorer_base``).
 """
 
 from __future__ import annotations
@@ -31,8 +41,9 @@ from __future__ import annotations
 import math
 from collections.abc import Iterable
 
-from pymetta.comboreduct.table.table import CTable
+from pymetta.comboreduct.table.table import CTable, ITable, OTable
 from pymetta.comboreduct.type_checker.type_signature import type_node
+from pymetta.feature_selection.scorers.fs_scorer_base import fs_scorer_base
 
 # C++: opencog/util/numeric.h:48 PROB_EPSILON
 _PROB_EPSILON = 1e-127
@@ -138,6 +149,65 @@ def mutual_information(ctable: CTable, fs: Iterable[int]) -> float:
     return _entropy(ip) + _entropy(yprob) - _entropy(iop)
 
 
+def _ot_entropy(ot: OTable) -> float:
+    """C++: moses/comboreduct/table/table.cc:916 OTEntropy
+
+    Entropy of the output column alone -- ``Counter<vertex, count_t>``
+    over every row of ``ot``, converted to probabilities, then
+    ``entropy()``. Only the two callers below (``mutual_information_it_ot``)
+    ever need this; not a public API of this module.
+    """
+    counts: dict[object, int] = {}
+    for value in ot:
+        counts[value] = counts.get(value, 0) + 1
+    total = len(ot)
+    return _entropy(c / total for c in counts.values())
+
+
+def mutual_information_it_ot(it: ITable, ot: OTable, fs: Iterable[int]) -> float:
+    """C++: moses/comboreduct/table/table.h:1074 mutualInformation(ITable, OTable, FeatureSet)
+
+    ``MI(Y;X1,...,Xn) = H(X1,...,Xn) + H(Y) - H(X1,...,Xn,Y)`` computed
+    directly off an (uncompressed) ``ITable``/``OTable`` pair rather than a
+    ``CTable`` -- the variant ``eval-features``'s ``MICScorer`` uses
+    (``pymetta.feature_selection.main.eval_features``), not the ``CTable``
+    variant ``mutual_information`` (above) that every other caller in this
+    package uses. ``@note currently, only works for boolean output columns``
+    (table.h:1065) -- C++'s own ``OC_ASSERT(id::boolean_type == otype, ...)``
+    (table.h:1077-1078), reproduced here as a raise; the enum/contin
+    "cut-n-paste from CTable code" the header's own comment (table.h:1066)
+    invites was never done in classic itself, so there is nothing further
+    to port for those output types.
+
+    ``fs`` is iterated in ASCENDING column-index order regardless of the
+    order given, same as ``mutual_information``'s own docstring explains
+    for ``seq_filtered``.
+    """
+    if ot.get_type() is not type_node.boolean_type:
+        raise AssertionError("Only boolean types supported")
+
+    fs_sorted = sorted(set(fs))
+    ic: dict[tuple, float] = {}
+    ioc: dict[tuple, float] = {}
+    total = 0.0
+
+    for row, y_value in zip(it, ot, strict=True):
+        vec = tuple(row[i] for i in fs_sorted)
+        ic[vec] = ic.get(vec, 0.0) + 1.0
+        key = (*vec, y_value)
+        ioc[key] = ioc.get(key, 0.0) + 1.0
+        total += 1.0
+
+    if total == 0.0:
+        # DO NOT FIX -- see mutual_information's own note: C++ divides by
+        # `total = it.size()` unconditionally too.
+        return float("nan")
+
+    ip = [c / total for c in ic.values()]
+    iop = [c / total for c in ioc.values()]
+    return _entropy(ip) + _ot_entropy(ot) - _entropy(iop)
+
+
 def mutual_information_between_sets(
     ctable: CTable, fs_l: Iterable[int], fs_r: Iterable[int]
 ) -> float:
@@ -211,45 +281,59 @@ class MutualInformation:
         return mutual_information(self._ctable, features)
 
 
-class MICScorerCTable:
-    """C++: moses/feature-selection/scorers/mutual_info.h:104 MICScorerCTable
+class MICScorer:
+    """C++: moses/feature-selection/scorers/mutual_info.h:82 MICScorer
+
+    Feature-set scorer combining mutual information and confidence, taking
+    an ``ITable``/``OTable`` pair directly (rather than a ``CTable`` --
+    that is ``MICScorerCTable`` below). ``confidence = N / (N +
+    exp(-confi*|fs|))`` with ``N = len(it)`` -- computed inline, NOT via
+    ``fs_scorer_base.confidence`` (mutual_info.h:97's own comment shows
+    this class predates that shared base and never adopted it; ported
+    verbatim, not refactored onto the base class).
+
+    This is ``eval-features``'s scorer (``pymetta.feature_selection.main.
+    eval_features``'s ``FSScorer``), not ``select_feature_sets``'s -- no
+    algorithm in ``algo/`` uses it.
+    """
+
+    def __init__(self, it: ITable, ot: OTable, confi: float = 100.0) -> None:
+        self._it = it
+        self._ot = ot
+        self._confi = confi
+
+    def __call__(self, fs: Iterable[int]) -> float:
+        mi = mutual_information_it_ot(self._it, self._ot, fs)
+        confidence = len(self._it) / (len(self._it) + math.exp(-self._confi * len(list(fs))))
+        return mi * confidence
+
+
+class MICScorerCTable(fs_scorer_base):
+    """C++: moses/feature-selection/scorers/mutual_info.h:108 MICScorerCTable
 
     ``MI(fs) * confidence``, ``confidence = N / (N + exp(-confi*|fs|))``
     (the class's own comment calls this a heuristic of uncertain
     justification -- ported verbatim, not re-derived). ``N`` is the
-    ctable's ``uncompressed_size()`` (``fs_scorer_base::confidence``,
-    scorers/fs_scorer_base.h -- not itself ported as a separate class
-    since this is its only real use site in this port's scope).
+    ctable's ``uncompressed_size()``, via the shared
+    ``fs_scorer_base.confidence`` (``pymetta.feature_selection.scorers.
+    fs_scorer_base`` -- ``MICScorerCTable : public fs_scorer_base
+    <FeatureSet>`` in C++ too, unlike the plain ``MICScorer`` above).
 
     NOT the scorer the ``"simple"`` algorithm uses (that is bare
     ``MutualInformation`` above, per ``simple.cc``'s own
     ``typedef MutualInformation<feature_set> FeatureScorer``) -- this
-    class is what ``fs_scorer<FeatureSet>`` (feature-selection.h) would
-    wire up for ``scorer="mi"`` on the ``"inc"``/``"smd"``/``"hc"``
-    algorithms, none of which are ported (``main/feature_selection.py``'s
-    own gate). Ported anyway, since it is tiny and useful as a direct
-    oracle-comparable scorer independent of which algorithm calls it.
+    class is what ``fs_scorer<FeatureSet>`` (``main/feature_selection.py``'s
+    ``_fs_scorer``) wires up for ``scorer="mi"`` on the ``"inc"``/``"smd"``/
+    ``"hc"`` algorithms.
     """
 
     def __init__(self, ctable: CTable, confi: float = 100.0) -> None:
-        self._ctable = ctable
-        self._confi = confi
-        # DIVERGENCE(C++ moses/feature-selection/scorers/fs_scorer_base.h:37):
-        # `unsigned _usize` truncates `_ctable.uncompressed_size()` (a
-        # `double`, since `count_t` is `double`) toward zero at the
-        # assignment. DO NOT FIX: `int(...)` reproduces that truncation
-        # (never negative in practice -- a sum of non-negative counts).
-        self._n = int(ctable.uncompressed_size())
-
-    def _confidence(self, fs_size: int) -> float:
-        """C++: moses/feature-selection/scorers/fs_scorer_base.h confidence
-
-        ``N / (N + exp(-confi * fs_size))``.
-        """
-        return self._n / (self._n + math.exp(-self._confi * fs_size))
+        """C++: moses/feature-selection/scorers/mutual_info.h:113 MICScorerCTable"""
+        super().__init__(ctable, confi)
 
     def __call__(self, features: Iterable[int]) -> float:
+        """C++: moses/feature-selection/scorers/mutual_info.h:121 operator()"""
         fs = list(features)
         mi = mutual_information(self._ctable, fs)
-        confidence = self._confidence(len(fs))
+        confidence = self.confidence(len(fs))
         return mi * confidence
