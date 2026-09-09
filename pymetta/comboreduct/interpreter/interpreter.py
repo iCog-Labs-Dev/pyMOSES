@@ -160,6 +160,34 @@ class boolean_interpreter:
         match v:
             case argument():
                 idx = v.idx
+                # DIVERGENCE(C++ moses/comboreduct/interpreter/interpreter.cc:54):
+                # DO NOT "FIX" BY MATCHING CLASSIC. C++ indexes a
+                # `std::vector` with a bare `operator[]` and no bounds
+                # check, so an argument beyond the table's arity is
+                # UNDEFINED BEHAVIOUR there -- it reads past the end.
+                #
+                # Measured on a 2-input boolean table with
+                # `-e 'and($1 $99)'`: classic prints `0 and($1 $99)` and
+                # exits 0 -- a PERFECT score for a tree it cannot evaluate
+                # -- and the same command with `-W1` segfaults (rc 139)
+                # instead, deterministically, five runs each way. A port
+                # cannot faithfully reproduce undefined behaviour, and
+                # reproducing the "perfect score" would be worse than
+                # failing: it would silently rank an ill-formed exemplar
+                # first.
+                #
+                # Python's list indexing raises `IndexError` here already;
+                # this makes the failure say what actually happened, since
+                # a bare `IndexError: list index out of range` from inside
+                # a recursive evaluator gives the user nothing to act on.
+                n = len(self.boolean_inputs)
+                if not -n <= idx <= n or idx == 0:
+                    raise IndexError(
+                        f"boolean_eval: argument ${idx} is out of range for a "
+                        f"{n}-input row. C++ has no bounds check here "
+                        "(interpreter.cc:54) and reads out of bounds instead; "
+                        "see this line's DIVERGENCE note."
+                    )
                 if idx > 0:
                     return self.boolean_inputs[idx - 1]
                 return negate_vertex(self.boolean_inputs[-idx - 1])
@@ -203,9 +231,7 @@ class boolean_interpreter:
                         # builtin. Silence here surfaces much later as a
                         # wrong score, so this raises rather than
                         # returning a placeholder.
-                        raise ValueError(
-                            f"boolean_interpreter does not handle builtin {v.name!r}"
-                        )
+                        raise ValueError(f"boolean_interpreter does not handle builtin {v.name!r}")
 
             case _:
                 # C++: interpreter.cc:95-101 -- the vertex is not even a
@@ -444,9 +470,7 @@ class contin_interpreter:
                         # docs/CARRY-FORWARD.md Sec 5) -- ported as
                         # `ValueError` for consistency with this file's
                         # own `boolean_interpreter.boolean_eval`.
-                        raise ValueError(
-                            f"contin_interpreter does not handle builtin {v.name!r}"
-                        )
+                        raise ValueError(f"contin_interpreter does not handle builtin {v.name!r}")
 
             case _ if is_contin(v):
                 # C++: interpreter.cc:208-212 -- a bare contin_t leaf.
@@ -671,9 +695,7 @@ class mixed_interpreter(boolean_interpreter, contin_interpreter):
 
                     case _:
                         # C++: interpreter.cc:361-367
-                        raise ValueError(
-                            f"mixed_interpreter does not handle builtin {v.name!r}"
-                        )
+                        raise ValueError(f"mixed_interpreter does not handle builtin {v.name!r}")
 
             case float():
                 # C++: interpreter.cc:371-373 -- `else if (is_contin(v))`.
@@ -808,7 +830,7 @@ class interpreter_visitor:
         if all(isinstance(x, combo_tree) for x in inputs):
             raise NotImplementedError(
                 "interpreter_visitor: the vector<combo_tree> overload "
-                "(table.h:344-350) is OC_ASSERT(false, \"Not implemented\") "
+                '(table.h:344-350) is OC_ASSERT(false, "Not implemented") '
                 "in classic itself, not merely out of scope for this port"
             )
         if all(isinstance(x, str) and not isinstance(x, builtin) for x in inputs):
@@ -817,7 +839,7 @@ class interpreter_visitor:
             # this check alone separates a genuine string_seq from
             # anything the branches below would otherwise claim.
             raise NotImplementedError(
-                'interpreter_visitor: the string_seq overload (table.h:341-343) '
+                "interpreter_visitor: the string_seq overload (table.h:341-343) "
                 'is OC_ASSERT(false, "Not implemented") in classic itself, not '
                 "merely out of scope for this port"
             )

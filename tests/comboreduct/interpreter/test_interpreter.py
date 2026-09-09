@@ -924,3 +924,45 @@ def test_loadtable_itable_rows_feed_interpreter_visitor_matching_eval_table(fixt
         assert _format_like_table_fmt_vertex_to_str(result) == case["expected"]
         checked += 1
     assert checked == len(_EVAL_CONTIN_CASES)
+
+
+# ---------------------------------------------------------------------------
+# Out-of-range argument index -- C++ has undefined behaviour here.
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize("idx", [3, 99, -3, -99])
+def test_boolean_eval_rejects_an_out_of_range_argument(idx):
+    """`interpreter.cc:54` indexes a `std::vector` with a bare
+    `operator[]` and no bounds check, so an argument beyond the table's
+    arity reads past the end -- undefined behaviour.
+
+    Measured on a 2-input boolean table with `-e 'and($1 $99)'`: classic
+    prints `0 and($1 $99)` and exits 0 (a PERFECT score for a tree it
+    cannot evaluate), while the same command with `-W1` segfaults, both
+    deterministically over five runs. A port cannot faithfully reproduce
+    undefined behaviour, and reproducing the perfect score would be worse
+    than failing -- it would silently rank an ill-formed exemplar first.
+
+    So the port raises, and this pins the message: a bare `IndexError:
+    list index out of range` from inside a recursive evaluator tells the
+    user nothing.
+    """
+    inputs = [builtin.logical_true, builtin.logical_false]
+    tree = str_to_combo_tree(f"${idx}" if idx > 0 else f"!${-idx}")
+    with pytest.raises(IndexError, match=r"out of range for a 2-input row"):
+        boolean_interpreter(inputs)(tree)
+
+
+@pytest.mark.parametrize("idx", [1, 2, -1, -2])
+def test_boolean_eval_accepts_every_in_range_argument(idx):
+    """The other half: the guard must not fire on any valid index, in
+    either sign. Without this, a guard that rejected everything would
+    satisfy the test above.
+    """
+    inputs = [builtin.logical_true, builtin.logical_false]
+    tree = str_to_combo_tree(f"${idx}" if idx > 0 else f"!${-idx}")
+    assert boolean_interpreter(inputs)(tree) in (
+        builtin.logical_true,
+        builtin.logical_false,
+    )

@@ -177,6 +177,28 @@ These cost real time to find. They are properties of the C++ side, not of the po
   `hasattr(ctable, "get_timestamps")`. The three timestamp members are
   therefore ABSENT rather than stubbed, so that gate keeps working.
 
+- **An argument index beyond the table's arity is undefined behaviour.**
+  `interpreter.cc:54` is `return idx > 0? boolean_inputs[idx - 1] :
+  negate_builtin(boolean_inputs[-idx - 1]);` — a bare `std::vector`
+  `operator[]` with no bounds check.
+
+  **Measured** on a 2-input boolean table, deterministic over five runs each:
+
+      moses -i<2-input>.csv -u y -m100 -e 'and($1 $99)'
+        -> exit 0, prints "0 and($1 $99)"   <- a PERFECT score
+      ... the same command plus -W1
+        -> SIGSEGV (rc 139)
+
+  Score 0 is the best possible score on a Boolean table, so classic ranks an
+  exemplar it cannot evaluate *first*. The `-W1` asymmetry is the label
+  lookup indexing its own vector with 99.
+
+  **DO NOT reproduce this.** A port cannot faithfully reproduce undefined
+  behaviour, and reproducing the perfect score would be strictly worse than
+  failing. `interpreter.py` raises `IndexError` with a message naming the
+  index, the arity and this note; the guard is mutation-checked in both
+  directions (removing it fails 4 tests, making it always fire fails 189).
+
 - **`eval-table`'s positional `$N` arguments are broken.** They always resolve to
   a zero column regardless of the `-L/--labels` flag, contrary to its help text.
   On XOR data, `-c 'and($1 $2)'` returns `0,0,0,0`; `-c 'and($x1 $x2)'` returns
