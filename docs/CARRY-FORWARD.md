@@ -138,6 +138,45 @@ something does.
 
 These cost real time to find. They are properties of the C++ side, not of the port.
 
+- **`TimedValue::operator<` is not a strict weak ordering — `std::map` UB.**
+  `table.h:482` reads `return (value < r.value) || (timestamp < r.timestamp);`
+  which is not lexicographic: it is missing the `value == r.value &&` guard on
+  the second term. `TimedValue` is the key type of
+  `Counter<TimedValue, count_t>` (`table.h:496`), and `Counter` is
+  `std::map<T, CT, CMP>` (cogutil `Counter.h:52`), so this operator IS the
+  comparator for every CTable cell built with a timestamp column
+  (`table.cc:548`, the `else` arm taken when `ttable` is non-empty).
+
+  **Measured** (`tools/cpp_probe/timed_value_ordering_probe.cc`, 2026-09-09),
+  for `a = (1.0, 2020-01-05)` and `b = (2.0, 2020-01-03)` — two values differing
+  in both fields in opposite directions:
+
+      a<b = 1
+      b<a = 1
+      a==b = 0
+
+  Both comparisons true and the values unequal violates asymmetry, which
+  `std::map` requires; the standard makes the result undefined, not merely odd.
+  Reachable from the CLI via `--timestamp-feature` on any data where the output
+  column and the timestamp are not co-monotonic.
+
+  **DO NOT FIX.** It is also *why* the port is not simply missing `TTable`: see
+  §3's companion note below on `CTable`'s key type.
+
+- **`CTable`'s key includes the timestamp, so the port's `CTable` is a
+  different shape — deliberately.** Classic keys each cell on
+  `TimedValue(output, timestamp)` (`table.cc:548`); this port has no `TTable`
+  and keys on the bare vertex. Two rows agreeing on inputs and output but
+  differing in date are therefore **two** entries in classic and **one** here.
+
+  Scoring-neutral in practice — `TimedCounter::get(const vertex&)`
+  (`table.h:497-500`) sums across timestamps — which is exactly what makes it
+  dangerous to "fix" casually: a vacuous `get_timestamps()` returning an empty
+  set would be *numerically correct* for every table this port can build, and
+  still wrong, because `ss_bscore.__init__` gates on
+  `hasattr(ctable, "get_timestamps")`. The three timestamp members are
+  therefore ABSENT rather than stubbed, so that gate keeps working.
+
 - **`eval-table`'s positional `$N` arguments are broken.** They always resolve to
   a zero column regardless of the `-L/--labels` flag, contrary to its help text.
   On XOR data, `-c 'and($1 $2)'` returns `0,0,0,0`; `-c 'and($x1 $x2)'` returns
