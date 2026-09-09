@@ -1,0 +1,31 @@
+{
+  "capture_script": "tools/capture_moses_log.py",
+  "capture_script_sha256": "870e9ff80e1e507b66fb27d87b84d7f140d2c5c91a061e8d33e52de1d292c942",
+  "classic_dir": "/home/yab/Documents/Projects/iCog/HyperonRelated/MOSES/OpenCog/Moses",
+  "cli_tool": "build/moses/moses/main/moses",
+  "generated_at_utc": "2026-09-09T19:56:42+00:00",
+  "inputs": {
+    "configs": {
+      "it_dataset_m300": [
+        "-i",
+        "{DATASET}",
+        "-m300",
+        "-W1"
+      ]
+    },
+    "cwd": "$PYMETTA_CLASSIC_DIR",
+    "description": "classic's own -l DEBUG log for each configuration, reduced to normalised LEVEL<TAB>MESSAGE records by tools/normalize_log.py (timestamp dropped; hostname, paths, log file name, argv[0], the two DemesHill microsecond columns, its RAM column and Stats' elapsed-seconds column replaced by placeholders)"
+  },
+  "prefix_dir": null,
+  "probe_kind": "classic_cli",
+  "probe_source": null,
+  "probe_source_sha256": null,
+  "repo_commit": "8b2e1de9542f5e88bb244fe96709cded0001378d",
+  "schema_version": 2,
+  "toolchain": {
+    "boost_lib_version": "1_92",
+    "cxx": "g++ (GCC) 16.2.1 20260810",
+    "glibcxx_max_symbol": "GLIBCXX_3.4.36",
+    "libstdcxx_soname": "libstdc++.so.6.0.36"
+  }
+}

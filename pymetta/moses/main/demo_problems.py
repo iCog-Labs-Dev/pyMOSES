@@ -207,6 +207,7 @@ from pymetta.comboreduct.table.table import ITable, OTable, complete_truth_table
 from pymetta.comboreduct.type_checker.type_signature import (
     TypeSignature,
     gen_signature,
+    ostream_type_node,
     type_node,
     type_tree_arity,
 )
@@ -217,6 +218,7 @@ from pymetta.moses.moses.types import _to_score_t, behavioral_score, score_t
 from pymetta.moses.scoring.behave_cscore import behave_cscore
 from pymetta.moses.scoring.bscores import contin_bscore
 from pymetta.moses.scoring.scoring_base import bscore_base
+from pymetta.util.logger import logger
 
 __all__ = [
     "combo_problem",
@@ -277,6 +279,19 @@ def _set_noise_or_ratio(
 # ---------------------------------------------------------------------------
 
 
+def _log_alphabet_size(alphabet_size: int, output_type: type_node) -> int:
+    """C++: moses/moses/main/problem.cc:138 alphabet_size
+
+    Not a C++ symbol; the shared tail of `_alphabet_size` below, which
+    returns early from each arm where C++ falls through to a single
+    `logger().info() << "Alphabet size = " << as << " output = " <<
+    output_type;`. Own copy of `table_problems.py`'s identical helper, for
+    the reason that file's own `_alphabet_size` docstring gives.
+    """
+    logger().info(f"Alphabet size = {alphabet_size} output = {ostream_type_node(output_type)}")
+    return alphabet_size
+
+
 def _alphabet_size(sig: TypeSignature, ignore_ops: Sequence[object]) -> int:
     """C++: moses/moses/main/problem.cc:138 alphabet_size
 
@@ -309,13 +324,17 @@ def _alphabet_size(sig: TypeSignature, ignore_ops: Sequence[object]) -> int:
     """
     arity = type_tree_arity(sig)
     output_type = sig.otype
+    # C++ assigns each branch to a single `as` and falls through to ONE
+    # `logger().info()` at problem.cc:198-200 before its single `return`;
+    # `_log_alphabet_size` is that shared tail. See `table_problems.py`'s
+    # own copy of this function, which does the same.
     if output_type == type_node.boolean_type:
         # 3 operators: and, or, not
-        return 3 + arity
+        return _log_alphabet_size(3 + arity, output_type)
     if output_type == type_node.contin_type:
-        return 8 + arity - len(ignore_ops)
+        return _log_alphabet_size(8 + arity - len(ignore_ops), output_type)
     if output_type == type_node.ann_type:
-        return 2 + arity * arity
+        return _log_alphabet_size(2 + arity * arity, output_type)
     if output_type == type_node.enum_type:
         raise NotImplementedError(
             "alphabet_size: enum_type needs enum_t.size()/contains_type, not "
@@ -640,12 +659,15 @@ class bool_problem_base(problem_base):
         `metapop_moses_results`/`metapop_moses_results_b` already
         established: callers supply whatever callable they need.
 
-        `logger().warn("Feature selection is not supported...")`
-        (demo-problems.cc:100) is dropped, not ported -- no logging
-        surface exists anywhere in this port (`scoring_base.py`'s own
-        docstring notes the same omission for a `logger().info()` call).
+        `logger().warn("Feature selection is not supported for the demo
+        problems")` (demo-problems.cc:99-100) is ported below: note it
+        precedes the exemplar default, and that classic only WARNS -- it
+        does not refuse the flag.
         """
         pms = ob
+        if pms.enable_feature_selection:
+            logger().warn("Feature selection is not supported for the demo problems")
+
         if not pms.exemplars:
             pms.exemplars = [_type_to_exemplar(type_node.boolean_type)]
 
@@ -673,6 +695,7 @@ class bool_problem_base(problem_base):
             cscore,
             pms.opt_params,
             pms.hc_params,
+            pms.ps_params,
             pms.deme_params,
             pms.filter_params,
             pms.meta_params,
@@ -844,6 +867,7 @@ class polynomial_problem(problem_base):
             cscore,
             pms.opt_params,
             pms.hc_params,
+            pms.ps_params,
             pms.deme_params,
             pms.filter_params,
             pms.meta_params,
@@ -1158,6 +1182,7 @@ class combo_problem(combo_problem_base):
                 cscore,
                 pms.opt_params,
                 pms.hc_params,
+                pms.ps_params,
                 pms.deme_params,
                 pms.filter_params,
                 pms.meta_params,
@@ -1217,6 +1242,7 @@ class combo_problem(combo_problem_base):
                 cscore,
                 pms.opt_params,
                 pms.hc_params,
+                pms.ps_params,
                 pms.deme_params,
                 pms.filter_params,
                 pms.meta_params,

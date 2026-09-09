@@ -772,6 +772,11 @@ def resize_metapop(self: metapopulation) -> None:
     if self.size() <= self._min_pool_size:
         return
 
+    old_size = self.size()
+    logger().debug(
+        "Resize the metapopulation (current size=%u), removing worst candidates", old_size
+    )
+
     ordered = list(self._scored_trees)  # sct_score_greater order, best first
 
     top_score = ordered[0].get_penalized_score()
@@ -806,6 +811,17 @@ def resize_metapop(self: metapopulation) -> None:
         self._scored_trees.erase(victim)
         del ordered[which]
         popsz -= 1
+
+    if logger().is_debug_enabled():
+        # C++: merging.cc:442-453.
+        logger().debug("Removed %u candidates from the metapopulation", old_size - self.size())
+        logger().debug("Metapopulation size is %u", self.size())
+        # DIVERGENCE(moses/moses/metapopulation/merging.cc:447): the nested
+        # FINE block dumps the whole metapopulation through
+        # `ostream_metapop` (metapopulation.cc:236), which is not ported
+        # (logging-only; every call site in classic sits inside a `logger()`
+        # block). The guard's own condition is reproduced above; its body is
+        # dropped rather than half-emitted.
 
     # `_cached_dst.erase_ptr_seq(ptr_seq)` (merging.cc:440): NOT ported,
     # not even as a no-op stub. `_cached_dst`'s field type, `cached_dst`
