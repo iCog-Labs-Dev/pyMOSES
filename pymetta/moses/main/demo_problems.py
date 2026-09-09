@@ -53,72 +53,116 @@ ported ANYWHERE in this project as of this task (grepped, not assumed):
   42). Grepped: no Python port exists. `_type_to_exemplar` below ports
   only the two branches this file's in-scope problems can ever reach
   (`boolean_type`, `contin_type`) -- see its own docstring.
-* `even_parity`/`disjunction`/`multiplex`/`majority` (moses/example-progs/
+* `even_parity`/`disjunction`/`multiplex`/`majority`/
+  `simple_symbolic_regression` (examples/example-progs/
   scoring_iterators.h) -- plain iterator-based functors with no Python
-  port anywhere. Reimplemented below as ordinary functions/callables over
-  a plain `list[bool]`, since that is all `logical_bscore`'s functional
-  constructor ever feeds them (see `_iterator_function_truth_table`).
+  port anywhere. The first four are reimplemented below as ordinary
+  functions/callables over a plain `list[bool]`, since that is all
+  `logical_bscore`'s functional constructor ever feeds them (see
+  `_iterator_function_truth_table`); the fifth over a
+  `Sequence[vertex]`, since that is what `contin_bscore`'s own functional
+  constructor feeds it. All five live HERE rather than in some
+  `examples/`-shaped package of their own because `demo-problems.cc` is
+  the ONLY file in the entire classic tree that includes
+  `scoring_iterators.h` -- measured, not assumed: `grep -rn
+  scoring_iterators $CLASSIC --include='*.cc' --include='*.h'
+  --include='*.txt'` returns exactly two hits, the header itself and
+  `moses/moses/main/demo-problems.cc:32`. Not one of the sixteen programs
+  in `examples/example-progs/` uses it. A header whose sole consumer is
+  this file belongs with this file.
 
-## `sr` and `ann-cp`: registered, but as raising stubs
+## `sr` and `cp`'s contin arm: LIVE since 2026-09-09; `ann-cp` still a stub
 
-Per this task's own brief: `sr` (`polynomial_problem`, demo-problems.cc:
-233-285) builds an `ITable`/`OTable` and a `contin_bscore` over a
-`contin_type` signature -- S14 (continuous) territory this port has not
-built (`problem_params.contin_reduct` is still `None`, per
-`problem_params.py:799`). `ann-cp` (`ann_combo_problem`, demo-problems.cc:
-451-496) needs the same contin/ITable/OTable/`contin_bscore` machinery
-PLUS the stale ANN combo-vocabulary path CLAUDE.md's own "Known sharp
-edges" section already flags as legacy. Both are registered here (so a
-`-H sr` / `-H ann-cp` lookup succeeds, matching classic's own successful
-`find_problem`) with the SAME name()/description() strings as their real
-C++ classes, and a `run()` that raises `NotImplementedError` immediately
--- the same "port the gate, raise inside it" discipline `problem.py`'s own
-`_unported_table_problem` already established for the nine unreachable
-`table-problems.cc` problems.
+This section previously said `sr` and `cp`'s `contin_type` arm both
+raised because "`ITable`/`OTable`/`contin_bscore` are S14 territory this
+port has not built (`problem_params.contin_reduct` is still `None`)".
+**Every clause of that was false by the time it was read**: `contin_bscore`
+is `pymetta/moses/scoring/bscores.py`'s `contin_bscore`, `ITable`/`OTable`
+are `pymetta/comboreduct/table/table.py`'s, and
+`problem_params.contin_reduct` is a real `contin_reduction` object. Both
+problems are now ported for real and reproduce classic byte for byte; see
+`tests/moses/main/test_moses_exec.py`'s `-Hsr`/`-Hcp` oracle block for
+the captured commands.
 
-## `cp`'s own contin branch: also a raising stub, for the same reason
+What `sr` genuinely still needed, and where it came from:
 
-`combo_problem` (`cp`) is genuinely in scope -- but only for a
-BOOLEAN-output combo program. Its `contin_type` branch (demo-problems.cc:
-401-442) needs exactly the same un-ported `ITable`/`OTable`/`contin_bscore`
-trio `sr` does, so it raises too. Both `MOSESUTest` cases this task can
-actually reach (`test_cp_simple`: `"and($1 $2)"`, `test_cp`:
-`"or(and($2 !$3) $1 !$4 $5)"`) are boolean-output programs, so this
-narrowing costs nothing against this task's own oracle list; `test_cp_contin`
-(`"+(6 *(6 $1))"`) is already named S14 in `docs/CARRY-FORWARD.md`'s own
-`MOSESUTest` classification and stays blocked for that reason, not a new
-one this file introduces.
+* `simple_symbolic_regression` (scoring_iterators.h:110) -- see the
+  bullet above for why all five `scoring_iterators.h` functors live here.
+* `ITable(const type_tree&, int nsamples, contin_t, contin_t)`
+  (table.cc:93), the random-sampling constructor. Added to `table.py` (it
+  belongs with the class, not here) and, being an RNG CONSUMER, verified
+  draw for draw against a compiled probe rather than set-wise -- see
+  `ITable.__init__`'s own docstring there.
+* `pms.deme_params.linear_contin = False` (demo-problems.cc:257-259,
+  "sr is fundamentally a kind of non-linear regression! over-ride any
+  flag settings regarding this"). Load-bearing: with the override
+  dropped, `-Hsr -k3 -m1000` finds a different program.
+  `test_polynomial_problem_run_overrides_linear_contin` pins it.
+
+`ann-cp` (`ann_combo_problem`, demo-problems.cc:451-496) still raises: on
+top of the contin machinery that now exists, it needs the stale ANN
+combo-vocabulary path CLAUDE.md's own "Known sharp edges" section flags as
+legacy. It stays registered (so a `-H ann-cp` lookup succeeds, matching
+classic's own successful `find_problem`) with the SAME
+name()/description() strings as its real C++ class and a `run()` that
+raises `NotImplementedError` immediately -- the same "port the gate,
+raise inside it" discipline `problem.py`'s own `_unported_table_problem`
+established for the nine unreachable `table-problems.cc` problems. The
+SAME gap is why `OTable.__init__`'s combo-tree branch (table.py) does not
+port `OTable::OTable(const combo_tree&, const ITable&)`'s own
+`is_ann_type(*tr.begin())` arm (table.cc:323-338).
 
 ## The missing general type-inference engine, and the narrow substitute
 
 `combo_problem`/`combo_problem_base` need `infer_type_tree` (a whole-tree
 type-unification pass, type_tree.cc, ~1468 lines) to determine a parsed
-`-y` combo program's output type, arity, and well-formedness
-(demo-problems.cc:310-344, 376-380). `pymetta/comboreduct/type_checker/
-type_tree.py`'s own module docstring is explicit that this general engine
-is NOT ported and is out of scope: only `get_output_type_tree`, a
-SINGLE-VERTEX lookup, exists. `_infer_output_type_and_arity` below is a
-narrow, disclosed substitute sufficient for exactly what `combo_problem`
-consults -- the ROOT vertex's output type (via the one function that IS
-ported) and the highest argument index anywhere in the tree (a plain
-tree walk, needing no type unification at all since combo arguments are
-untyped placeholders whose OWN type is never inspected by anything this
-file does). This is NOT a full is_well_formed/infer_type_tree port:
+`-y` combo program's output type, INPUT types, arity, and
+well-formedness (demo-problems.cc:310-344, 373-380).
+`pymetta/comboreduct/type_checker/type_tree.py`'s own module docstring is
+explicit that this general engine is NOT ported and is out of scope: only
+`get_output_type_tree`, a SINGLE-VERTEX lookup, exists.
+`_infer_signature` below is a narrow, disclosed substitute sufficient for
+exactly what `combo_problem` consults:
 
-* It cannot detect a genuine cross-argument type mismatch (e.g. an
-  argument used once in boolean position and once in contin position) --
-  classic's real type checker would catch that and report "not well
-  formed"; this substitute has no such check at all and would happily
-  return whatever the root vertex's own type is. No demo problem in this
-  task's scope constructs such a program (both reachable `cp` fixtures
-  are single-typed boolean expressions), so this is a disclosed, inert
-  gap, not a silently "fixed" one.
-* It can never produce `type_tree_arity`'s `-1` (ill-formed) sentinel the
-  way real `infer_type_tree` can -- there is no failure mode in this
-  substitute that yields it. `_check_combo_args` below therefore relies
-  entirely on the OTHER half of demo-problems.cc:337's OR condition (no
-  literal `$` in the raw `-y` string) to catch the "forgot to escape the
-  $'s in the shell" case; see that function's own docstring.
+* the ROOT vertex's output type, via the one function that IS ported;
+* the highest argument index anywhere in the tree, which for a combo
+  program IS `type_tree_arity`'s "how many input slots" count;
+* each argument's INPUT type, taken from the type its PARENT vertex
+  expects of its children (`_BUILTIN_INPUT_TYPE` below). Classic gets the
+  same answer by unification; for the fixed-input-type builtins this port
+  can parse there is nothing to unify, since every child of `and`/`or`/
+  `not`/`impulse` is boolean and every child of `plus`/`times`/`div`/
+  `exp`/`log`/`sin`/`greater_than_zero` is contin.
+
+Measured against classic's real `infer_type_tree` (a compiled probe over
+nine programs), this substitute agrees on all four of the facts above for
+every program it accepts, INCLUDING the two non-obvious ones:
+
+* an argument index that never appears gets `unknown_type`, not the
+  surrounding type -- `or($1 !$3)` really is `->(boolean unknown boolean
+  boolean)` in classic, so its `boolean_arity` is 2 while its
+  `type_tree_arity` is 3;
+* a genuine cross-argument type mismatch is reported as ill-formed --
+  `+(impulse($1) $1)` really is `->(ill_formed ill_formed)`, `wf=0`.
+
+Two disclosed differences remain, neither reachable by anything this file
+runs:
+
+* On a mismatch classic marks BOTH the input slot and the OUTPUT
+  `ill_formed`; this substitute marks only the input slot, because its
+  output type comes from the root vertex alone and no unification can
+  reach back to it. `is_well_formed` asks only "does any `ill_formed`
+  appear anywhere" (type_tree.cc:1210-1218), so the OBSERVABLE outcome --
+  `check_args` rejecting the program -- is identical.
+* Position-dependent builtins (`cond`, `contin_if`) and the container/
+  higher-order family (`list`/`car`/`cdr`/`cons`/`foldr`/`foldl`/
+  `apply`/`lambda`) have no `_BUILTIN_INPUT_TYPE` entry at all, and an
+  argument under one raises `NotImplementedError` rather than guessing.
+  `type_tree_arity`'s `-1` (ill-formed-arity) sentinel is likewise still
+  unreachable, so `check_args` still relies entirely on the OTHER half of
+  demo-problems.cc:337's OR condition (no literal `$` in the raw `-y`
+  string) to catch the "forgot to escape the $'s in the shell" case; see
+  that method's own docstring.
 
 ## `demo_params`: registered per-problem, not through `problem_params`
 
@@ -148,9 +192,18 @@ from abc import abstractmethod
 from collections.abc import Callable, Sequence
 
 from pymetta.comboreduct.combo.argument import argument
+from pymetta.comboreduct.combo.common_def import contin_t
 from pymetta.comboreduct.combo.iostream_combo import combo_tree_to_str, str_to_combo_tree
-from pymetta.comboreduct.combo.vertex import builtin, combo_tree, is_argument
-from pymetta.comboreduct.table.table import complete_truth_table
+from pymetta.comboreduct.combo.vertex import (
+    builtin,
+    combo_tree,
+    get_contin,
+    is_argument,
+    is_builtin,
+    is_contin,
+    vertex,
+)
+from pymetta.comboreduct.table.table import ITable, OTable, complete_truth_table
 from pymetta.comboreduct.type_checker.type_signature import (
     TypeSignature,
     gen_signature,
@@ -162,6 +215,7 @@ from pymetta.moses.main.problem import problem_base, problem_manager
 from pymetta.moses.moses.moses_main import metapop_moses_results
 from pymetta.moses.moses.types import _to_score_t, behavioral_score, score_t
 from pymetta.moses.scoring.behave_cscore import behave_cscore
+from pymetta.moses.scoring.bscores import contin_bscore
 from pymetta.moses.scoring.scoring_base import bscore_base
 
 __all__ = [
@@ -172,7 +226,9 @@ __all__ = [
     "majority_problem",
     "mux_problem",
     "pa_problem",
+    "polynomial_problem",
     "register_demo_problems",
+    "simple_symbolic_regression",
 ]
 
 
@@ -236,11 +292,12 @@ def _alphabet_size(sig: TypeSignature, ignore_ops: Sequence[object]) -> int:
     `get_signature_output`), so this is a direct equivalent, not an
     approximation.
 
-    Only the branches this file's in-scope problems can reach
-    (`boolean_type`, always; `contin_type`/`ann_type`, ported for
-    fidelity though nothing in this file's reachable scope calls them
-    today -- `cp`'s own `contin_type` branch raises before ever
-    constructing a signature to pass here) are real implementations.
+    Only the branches this file's in-scope problems can reach are real
+    implementations: `boolean_type` (every `bool_problem_base` subclass,
+    and `cp` on a boolean-output program) and `contin_type` (`sr`, and
+    `cp` on a contin-output program -- both live since 2026-09-09).
+    `ann_type` is ported for fidelity, though only the unported `ann-cp`
+    could reach it.
     `enum_type` (problem.cc:157-171) would need `enum_t.size()` plus the
     `contains_type` scan this port has no call site for anywhere else
     either; raised explicitly rather than guessed at. Every other
@@ -277,10 +334,10 @@ def _type_to_exemplar(output_type: type_node) -> combo_tree:
     """C++: moses/moses/representation/representation.cc:75 type_to_exemplar
 
     Only the two branches this file's problems can ever request:
-    `boolean_type` (every `bool_problem_base` subclass, always) and
-    `contin_type` (`combo_problem`'s own contin branch would request it,
-    though that branch raises before this default would ever run for
-    `cp` today -- `sr`/`ann-cp` also raise before reaching it). `enum_type`
+    `boolean_type` (every `bool_problem_base` subclass, always, plus
+    `cp` on a boolean-output program) and `contin_type`
+    (`polynomial_problem.run`'s own default exemplar, and `cp` on a
+    contin-output program). `enum_type`
     (`combo_tree(cond); append_child(..., enum_t::get_random_enum())`)
     and the `ill_formed_type`/default `OC_ASSERT(false, ...)` branches
     are not reachable by anything in this file and are not ported.
@@ -372,6 +429,84 @@ class majority:
 
     def __call__(self, bits: Sequence[bool]) -> bool:
         return sum(1 for b in bits if b) > self.arity // 2
+
+
+_UNSIGNED_MAX = 0xFFFFFFFF
+
+
+def _dorepeat_count(n: int) -> int:
+    """C++: opencog/util/dorepeat.h:41 dorepeat
+
+    `#define dorepeat(N) for (unsigned int <uniq>=N; <uniq>>0;--<uniq>)`
+    -- the loop counter is `unsigned int`, so a NEGATIVE `N` does not
+    mean "zero iterations" (Python's `range(-1)`), it means `N` converted
+    modulo 2**32. Extracted as a named function purely so the conversion
+    is testable without actually running the loop: the only interesting
+    input, `-1`, would run 4294967295 iterations.
+
+    Reachable from this module through `-k`: classic declares
+    `demo_params::problem_size` as `unsigned int` (demo-problems.cc:44),
+    hands it to `simple_symbolic_regression(int o)` (scoring_iterators.h:
+    112) -- which converts it BACK to `int` -- and then `dorepeat(order)`
+    converts it to `unsigned int` a third time, so the iteration count is
+    always exactly the `unsigned int` bit pattern `-k` produced.
+    Confirmed live, not inferred: `( ulimit -v 2097152; timeout 20
+    $CLASSIC/build/moses/moses/main/moses -Hsr -k-1 -m200 -W1 )` produces
+    no output and exits 124 (timeout) -- classic really does try to run
+    the loop 4294967295 times per table row. This port reproduces the
+    hang rather than "fixing" it into 0 iterations.
+    """
+    return n & _UNSIGNED_MAX
+
+
+class simple_symbolic_regression:
+    """C++: examples/example-progs/scoring_iterators.h:110 simple_symbolic_regression
+
+    "simple function : f(x)_o = sum_{i={1,o}} x^i" (scoring_iterators.h:
+    104-108's own comment: `f(x)_3 = x+x^2+x^3`, `f(x)_0 = 0`), computed
+    by Horner's rule: `contin_t res = 0; dorepeat(order) res = (res + 1) *
+    get_contin(*from); return res;`.
+
+    Two properties of that body are easy to lose and are deliberate here:
+
+    * it reads ONLY `*from`, the FIRST input of the row, and never
+      advances the iterator -- `to` is unused entirely. `-Hsr` always
+      builds an arity-1 signature (demo-problems.cc:261,
+      `gen_signature(id::contin_type, 1)`) so no other input exists, but
+      the functor would ignore them if one did;
+    * `order` is the `-k`/`--problem-size` value, and `dorepeat` counts in
+      `unsigned int` -- see `_dorepeat_count` above.
+
+    Takes a `Sequence[vertex]` (one table row) rather than C++'s
+    `(It from, It to)` iterator pair, matching the four Boolean functors
+    above and `contin_bscore`'s own functional constructor, which is the
+    only caller: `contin_bscore(const Scoring& score, const ITable& r,
+    eft)` (bscores.h:203) forwards to `OTable(const Func& f, const
+    ITable& it, ...)` (table.h:886), whose body is
+    `push_back(f(vs.get_seq<vertex>().begin(), vs.get_seq<vertex>().end()))`
+    -- i.e. exactly the row, as vertices.
+    """
+
+    def __init__(self, o: int = 4) -> None:
+        """C++: examples/example-progs/scoring_iterators.h:112 simple_symbolic_regression
+
+        `simple_symbolic_regression(int o = 4) : order(o) { }` -- the `4`
+        default is never used by `polynomial_problem::run`, which always
+        passes `_dparms.problem_size`; kept because it is part of the C++
+        declaration.
+        """
+        self.order = o
+
+    def __call__(self, inputs: Sequence[vertex]) -> contin_t:
+        """C++: examples/example-progs/scoring_iterators.h:115 simple_symbolic_regression
+
+        Cites the `operator()` definition line (the project's convention
+        for a symbol the breadcrumb matcher cannot name).
+        """
+        res: contin_t = 0.0
+        for _ in range(_dorepeat_count(self.order)):
+            res = (res + 1) * get_contin(inputs[0])
+        return res
 
 
 def _iterator_function_truth_table(
@@ -631,19 +766,12 @@ class mux_problem(bool_problem_base):
 
 
 # ---------------------------------------------------------------------------
-# sr -- demo-problems.cc:224-285. Raising stub; see module docstring.
+# sr -- demo-problems.cc:224-285.
 # ---------------------------------------------------------------------------
 
 
 class polynomial_problem(problem_base):
-    """C++: moses/moses/main/demo-problems.cc:233 polynomial_problem
-
-    Registered (so `-H sr` resolves via `find_problem`, matching real
-    C++) but `run()` raises immediately -- see module docstring's own
-    "`sr` and `ann-cp`" section for why: `contin_bscore`/`ITable`/`OTable`
-    are S14, not built here (`problem_params.contin_reduct` is still
-    `None`).
-    """
+    """C++: moses/moses/main/demo-problems.cc:233 polynomial_problem"""
 
     def __init__(self, dp: demo_params) -> None:
         self._dparms = dp
@@ -655,13 +783,72 @@ class polynomial_problem(problem_base):
         return "Simple regression of f_n(x) = sum_{k={1,n}} x^k"
 
     def run(self, ob: object) -> None:
-        del ob
-        raise NotImplementedError(
-            "polynomial_problem ('sr', demo-problems.cc:233): contin regression "
-            "needs ITable/OTable/contin_bscore, all S14 territory this port has "
-            "not built (problem_params.contin_reduct is still None) -- -H sr is "
-            "unsupported; docs/CARRY-FORWARD.md's own MOSESUTest classification "
-            "already lists test_sr_3 as S14"
+        """C++: moses/moses/main/demo-problems.cc:246 polynomial_problem::run
+
+        Statement order is C++'s exactly, and that is load-bearing in two
+        places:
+
+        * the `ITable` construction is the ONLY RNG consumer in this
+          method, so anything reordered around it would shift the draw
+          stream that the whole rest of the run depends on;
+        * classic's `OC_ASSERT(not pms.meta_params.do_boosting, ...)`
+          comes AFTER the scorer is built (demo-problems.cc:272), not
+          before, so a `--boost` run still draws its table first. Kept
+          in that position rather than hoisted to the top of the method
+          where it would read more naturally.
+
+        `pms.deme_params.linear_contin = False` (demo-problems.cc:259) is
+        an unconditional override of whatever `--linear-regression` set --
+        "sr is fundamentally a kind of non-linear regression! over-ride
+        any flag settings regarding this" (demo-problems.cc:257-258's own
+        comment). See the module docstring for why this one assignment
+        gets its own test.
+
+        `logger().warn("Feature selection is not supported for the
+        polynomial problem")` (demo-problems.cc:250-251) is dropped, not
+        ported -- see `bool_problem_base.run`'s docstring for the same,
+        already-established omission.
+        """
+        pms = ob
+
+        # If no exemplar has been provided in the options, use the
+        # default contin_type exemplar (+)
+        if not pms.exemplars:
+            pms.exemplars = [_type_to_exemplar(type_node.contin_type)]
+
+        # sr is fundamentally a kind of non-linear regression!
+        # over-ride any flag settings regarding this.
+        pms.deme_params.linear_contin = False
+
+        sig = gen_signature(type_node.contin_type, 1)
+
+        it = ITable(sig, pms.nsamples if pms.nsamples > 0 else pms.default_nsamples)
+
+        as_ = _alphabet_size(sig, pms.ignore_ops)
+
+        eft = (
+            contin_bscore.abs_error if pms.it_abs_err else contin_bscore.squared_error
+        )
+        bscore = contin_bscore(simple_symbolic_regression(self._dparms.problem_size), it, eft)
+
+        if getattr(pms.meta_params, "do_boosting", False):
+            raise NotImplementedError("Boosting not supported for this problem!")
+
+        _set_noise_or_ratio(bscore, as_, pms.noise, pms.complexity_ratio)
+        cscore = behave_cscore(bscore)
+        metapop_moses_results(
+            pms.exemplars,
+            sig,
+            pms.contin_reduct,
+            pms.contin_reduct,
+            cscore,
+            pms.opt_params,
+            pms.hc_params,
+            pms.deme_params,
+            pms.filter_params,
+            pms.meta_params,
+            pms.moses_params,
+            pms.printer,
         )
 
 
@@ -693,45 +880,154 @@ def _infer_output_type_and_arity(tr: combo_tree) -> tuple[type_node, int]:
     return output_type, arity
 
 
+# The type every child of a given builtin must have. Stands in for C++'s
+# `get_input_type_tree(const vertex&, arity_t)` (type_tree.cc), which reads
+# it out of the `builtins_properties` singleton that PARSES arrow-type
+# strings like `"->(arg_list(boolean) boolean)"` (`descriptions.cc`) --
+# machinery `type_tree.py`'s own module docstring rules out of scope, and
+# which this file needs only for the fixed-input-type builtins.
+#
+# Deliberately PARTIAL, and every omission is a raise rather than a guess:
+# `cond` and `contin_if` take position-dependent types, and the container/
+# higher-order family (`list`/`car`/`cdr`/`cons`/`foldr`/`foldl`/`apply`/
+# `lambda`) is parametric. `equ` is omitted for the same reason -- it has
+# no fixed child type either. `rand`/`logical_true`/`logical_false` are
+# nullary, so they can never be an argument's parent at all.
+_BUILTIN_INPUT_TYPE: dict[builtin, type_node] = {
+    builtin.logical_and: type_node.boolean_type,
+    builtin.logical_or: type_node.boolean_type,
+    builtin.logical_not: type_node.boolean_type,
+    builtin.impulse: type_node.boolean_type,
+    builtin.plus: type_node.contin_type,
+    builtin.times: type_node.contin_type,
+    builtin.div: type_node.contin_type,
+    builtin.exp: type_node.contin_type,
+    builtin.log: type_node.contin_type,
+    builtin.sin: type_node.contin_type,
+    builtin.greater_than_zero: type_node.contin_type,
+}
+
+
+def _infer_signature(tr: combo_tree) -> TypeSignature:
+    """Not a single C++ function -- the narrow substitute for
+    `infer_type_tree` (type_tree.cc:1416) this module's own docstring
+    explains (see its "missing general type-inference engine" section for
+    what it agrees with classic on, measured, and the two disclosed
+    differences).
+
+    Input types come from `_BUILTIN_INPUT_TYPE[parent]` for each
+    `argument` node's parent. An index that appears nowhere keeps
+    `unknown_type`, which is what classic's real unifier leaves there too
+    (`or($1 !$3)` -> `->(boolean unknown boolean boolean)`); an index used
+    at two different types becomes `ill_formed_type`, which is how
+    classic reports the same mismatch (`+(impulse($1) $1)` ->
+    `->(ill_formed ill_formed)`).
+    """
+    output_type, arity = _infer_output_type_and_arity(tr)
+    itypes: list[type_node] = [type_node.unknown_type] * arity
+    for node in tr:
+        v = node.data
+        if not is_argument(v):
+            continue
+        assert isinstance(v, argument)
+        parent = node.parent
+        if parent is None or not is_builtin(parent.data):
+            # A bare `$n` at the root has no enclosing expression to pin
+            # its type down; classic leaves it `unknown` too (`$1` ->
+            # `->(unknown unknown)`), so this is not an error.
+            continue
+        if parent.data not in _BUILTIN_INPUT_TYPE:
+            raise NotImplementedError(
+                f"_infer_signature: no input-type entry for builtin "
+                f"{parent.data!r} (parent of {v!r}); this port has no general "
+                "type-unification engine and does not guess -- see the module "
+                "docstring's 'missing general type-inference engine' section"
+            )
+        want = _BUILTIN_INPUT_TYPE[parent.data]
+        slot = abs(v.idx) - 1
+        if itypes[slot] == type_node.unknown_type:
+            itypes[slot] = want
+        elif itypes[slot] != want:
+            itypes[slot] = type_node.ill_formed_type
+    return TypeSignature(itypes, output_type)
+
+
+def _is_well_formed(sig: TypeSignature) -> bool:
+    """C++: moses/comboreduct/type_checker/type_tree.cc:1210 is_well_formed
+
+    "if (tt.empty()) return false; else for (it : tt) if (*it ==
+    id::ill_formed_type) return false; return true;" -- over a
+    `TypeSignature`, whose only nodes are its input types plus its output
+    type. The `tt.empty()` half has no analogue: a `TypeSignature` always
+    has an `otype`, and `str_to_combo_tree` never returns an empty tree
+    (classic's own `combo_problem::run` would `OC_ASSERT` on one inside
+    `OTable`'s constructor long before this).
+    """
+    return type_node.ill_formed_type not in sig.itypes and sig.otype != type_node.ill_formed_type
+
+
+def _largest_const_in_tree(tr: combo_tree) -> contin_t:
+    """C++: moses/moses/main/demo-problems.cc:347 largest_const_in_tree
+
+    "Get largest contin constant in a combo tree" (demo-problems.cc:346's
+    own comment). Note `contin_t rc = 0.0;` and `if (rc < val) rc = val;`
+    -- an all-negative tree (or one with no contin constants at all)
+    yields `0.0`, NOT the largest negative value and not a "no constants"
+    sentinel. `combo_problem::run` divides its sampling range on that
+    result, so a `-y` program whose only constants are negative samples
+    `[-0.0, 0.0]` -- degenerate, and faithful.
+    """
+    rc: contin_t = 0.0
+    for node in tr:
+        v = node.data
+        if is_contin(v):
+            val = get_contin(v)
+            if rc < val:
+                rc = val
+    return rc
+
+
 class combo_problem_base(problem_base):
     """C++: moses/moses/main/demo-problems.cc:301 combo_problem_base"""
 
     def __init__(self, dp: demo_params) -> None:
         self._dparms = dp
 
-    def check_args(self) -> tuple[combo_tree, type_node, int]:
+    def check_args(self) -> tuple[combo_tree, TypeSignature]:
         """C++: moses/moses/main/demo-problems.cc:310 combo_problem_base::check_args
 
-        Returns `(tr, output_type, arity)` instead of C++'s `void` --
-        `combo_problem::run` (demo-problems.cc:371-380) re-parses
-        `_dparms.combo_str` and re-infers its type tree independently
-        right after calling this in C++; since both computations are pure
-        functions of the same `combo_str`, this port does the work once
-        and returns it, a non-observable internal restructuring (same
-        class of change `representation::get_candidate`'s own docstring
-        already accepts elsewhere in this project).
+        Returns `(tr, tt)` instead of C++'s `void` -- `combo_problem::run`
+        (demo-problems.cc:373-376) re-parses `_dparms.combo_str` and
+        re-infers its type tree independently right after calling this in
+        C++; since both computations are pure functions of the same
+        `combo_str`, this port does the work once and returns it, a
+        non-observable internal restructuring (same class of change
+        `representation::get_candidate`'s own docstring already accepts
+        elsewhere in this project). Callers take `output_type` from
+        `tt.otype` and `arity` from `type_tree_arity(tt)`, exactly as
+        `combo_problem::run` does (demo-problems.cc:375-376).
 
         `logger().warn("Feature selection is not supported...")`
         (demo-problems.cc:312-313) is dropped -- see `bool_problem_base.
         run`'s own docstring for the same, already-established omission.
 
-        The "is_well_formed" check (demo-problems.cc:324-328) has no
-        general engine to call (module docstring) -- approximated here as
-        "the root vertex's output type could be determined at all"
-        (`get_output_type_tree` raises `AssertionError` for a vertex kind
-        it does not handle); see module docstring for exactly what this
-        does and does not catch. In practice this `except` clause is
-        CURRENTLY UNREACHABLE by any string `str_to_combo_tree` can
-        actually parse: that parser's grammar only ever produces
-        `builtin`/`argument`/`contin_t` vertices (`iostream_combo.py`'s
-        own module docstring), and every `builtin` member it can produce
-        has a `_BUILTIN_OUTPUT_TYPE` entry except the internal
-        `builtin_count` sentinel, which no token string maps to (checked
-        directly: `builtin_count` is the only member missing from that
-        table). Kept for structural fidelity (a real is_well_formed
-        engine, or a widened grammar, could make it reachable) and
-        covered by `test_demo_problems.py` via a direct monkeypatch of
-        `_infer_output_type_and_arity`, not a real `combo_str`.
+        The "is_well_formed" check (demo-problems.cc:324-328) now has a
+        real, if narrow, engine to call: `_is_well_formed(_infer_signature
+        (tr))`. It genuinely fires for a cross-argument type mismatch
+        (`-y '+(impulse($1) $1)'`, which classic also rejects -- measured
+        against a compiled `infer_type_tree` probe, `->(ill_formed
+        ill_formed)`, `wf=0`). The `except AssertionError` arm around it
+        catches the OTHER, structural failure -- `get_output_type_tree`
+        raising for a vertex kind it does not handle -- and remains
+        UNREACHABLE by any string `str_to_combo_tree` can actually parse:
+        that parser's grammar only ever produces `builtin`/`argument`/
+        `contin_t` vertices (`iostream_combo.py`'s own module docstring),
+        and every `builtin` member it can produce has a
+        `_BUILTIN_OUTPUT_TYPE` entry except the internal `builtin_count`
+        sentinel, which no token string maps to. Kept for structural
+        fidelity and covered by `test_demo_problems.py` via a direct
+        monkeypatch of `_infer_output_type_and_arity`, not a real
+        `combo_str`.
 
         A genuinely UNPARSEABLE `combo_str` (mismatched parens, e.g.)
         fails earlier still: `str_to_combo_tree` itself raises `ValueError`
@@ -747,27 +1043,30 @@ class combo_problem_base(problem_base):
 
         tr = str_to_combo_tree(combo_str)
         try:
-            output_type, arity = _infer_output_type_and_arity(tr)
+            tt = _infer_signature(tr)
         except AssertionError as exc:
             raise ValueError(
                 f"The combo tree {combo_tree_to_str(tr)} is not well formed."
             ) from exc
+        if not _is_well_formed(tt):
+            raise ValueError(f"The combo tree {combo_tree_to_str(tr)} is not well formed.")
 
         # DIVERGENCE(C++ moses/moses/main/demo-problems.cc:337): classic's
         # OR condition is `-1 == arity || NULL == strchr(combo_str, '$')`.
         # This port's `_infer_output_type_and_arity` can never produce
         # `-1` (module docstring's own "missing general type-inference
         # engine" section explains why), so only the second half is ever
-        # reachable here -- still sufficient for both in-scope oracle
-        # fixtures ("and($1 $2)", "or(and($2 !$3) $1 !$4 $5)"), which both
-        # contain '$' and have a real positive arity either way.
+        # reachable here -- still sufficient for every in-scope oracle
+        # fixture ("and($1 $2)", "or(and($2 !$3) $1 !$4 $5)",
+        # "+(6 *(6 $1))"), which all contain '$' and have a real positive
+        # arity either way.
         if "$" not in combo_str:
             raise ValueError(
                 f"Error: the combo program {combo_tree_to_str(tr)} appears not "
                 "to contain any arguments. Did you forget to escape the $'s in "
                 "the shell command line?"
             )
-        return tr, output_type, arity
+        return tr, tt
 
 
 class combo_problem(combo_problem_base):
@@ -782,13 +1081,30 @@ class combo_problem(combo_problem_base):
     def run(self, ob: object) -> None:
         """C++: moses/moses/main/demo-problems.cc:371 combo_problem::run
 
-        Only the `boolean_type` branch (demo-problems.cc:390-400) is
-        implemented; the `contin_type` branch (demo-problems.cc:401-442)
-        raises -- see module docstring's own "`cp`'s own contin branch"
-        section.
+        Both branches are implemented: `boolean_type`
+        (demo-problems.cc:390-400) and `contin_type`
+        (demo-problems.cc:401-442).
+
+        The contin branch's `min`/`max_rand_input` block
+        (demo-problems.cc:403-421) is classic's own self-described "stupid
+        hack" and is ported verbatim, wart included -- see the inline
+        comments and the `# DIVERGENCE` marker on the `ITable` call for
+        the ARGUMENT-ORDER swap that is genuinely there in C++.
+
+        The contin branch feeds `tt`'s real INPUT types (not
+        `gen_signature(otype, arity)`) to everything downstream, because
+        `ITable`'s random-sampling constructor dispatches per column on
+        exactly those (table.cc:104-118): `+(6 *(6 impulse($1)))` is
+        `->(boolean contin)` in classic, and sampling it as a contin
+        column instead would silently produce a different table. The
+        boolean branch keeps `gen_signature(boolean_type, arity)` -- see
+        its own `# DIVERGENCE` marker for the one measured case where
+        that is not the same thing.
         """
         pms = ob
-        tr, output_type, arity = self.check_args()
+        tr, tt = self.check_args()
+        output_type = tt.otype
+        arity = type_tree_arity(tt)
 
         if getattr(pms.meta_params, "do_boosting", False):
             raise NotImplementedError("Boosting not supported for this problem!")
@@ -797,6 +1113,40 @@ class combo_problem(combo_problem_base):
             pms.exemplars = [_type_to_exemplar(output_type)]
 
         if output_type == type_node.boolean_type:
+            # DIVERGENCE(C++ moses/moses/main/demo-problems.cc:396): classic
+            # passes `tt` -- `infer_type_tree`'s real signature -- while this
+            # branch passes an all-boolean one of the same arity. The two
+            # differ only when an argument index is never mentioned:
+            # `or($1 !$3)` really is `->(boolean unknown boolean boolean)`
+            # in classic (measured against a compiled `infer_type_tree`
+            # probe), so `boolean_arity` is 2 there and 3 here.
+            # `boolean_arity(_signature)` is read in exactly ONE place in
+            # classic, `build_knobs.cc:95`'s `if (5 * boolean_arity >
+            # type_tree_arity) _skip_disc_probe = false`, so the difference
+            # is observable only when `5 * real_barity <= arity`. It is NOT
+            # observable for `or($1 !$3)` (10 > 3 and 15 > 3 take the same
+            # branch), and `-Hcp -yor($1 !$3) -m1000 -W1` reproduces classic
+            # byte for byte.
+            #
+            # It IS observable, measured: `-Hcp -y'or($1 !$11)' -m2000 -W1`
+            # (barity 2, arity 11, so `10 > 11` is false and classic leaves
+            # disc_probe ON) prints 9 lines in classic and 2 here. Both find
+            # `0 or($1 !$11)`; the metapopulation tail differs. Note also
+            # that the neighbouring `or($1 !$10)` -- the smallest program
+            # that reaches that branch -- SEGFAULTS in classic (rc 139,
+            # reproduced under `ulimit -v 2097152`), while `!$9` and `!$11`
+            # both run clean. Upstream crash; recorded, not chased.
+            #
+            # Kept rather than fixed because the faithful signature is
+            # currently REJECTED downstream: `build_knobs.py`'s
+            # `_validate_boolean_exemplar` raises "non-Boolean inputs
+            # require their corresponding domain builder slice" for any
+            # non-boolean itype, `unknown_type` included, so passing `tt`
+            # here turns a working `-Hcp` run into a NotImplementedError.
+            # That validator is outside this task's ownership. The contin
+            # branch below has no such problem (`_validate_contin_exemplar`
+            # accepts an `unknown` slot -- `-Hcp -y'+($1 *($3 $3))'`
+            # matches classic).
             sig = gen_signature(type_node.boolean_type, arity)
             bscore = logical_bscore(tr, arity)
             cscore = behave_cscore(bscore)
@@ -815,14 +1165,63 @@ class combo_problem(combo_problem_base):
                 pms.printer,
             )
         elif output_type == type_node.contin_type:
-            raise NotImplementedError(
-                "combo_problem ('cp'): a contin-output combo program needs "
-                "ITable/OTable/contin_bscore, all S14 territory this port has "
-                "not built (problem_params.contin_reduct is still None) -- "
-                "-H cp -y '<contin program>' is unsupported; boolean-output "
-                "combo programs (e.g. 'and($1 $2)') are fully supported. "
-                "docs/CARRY-FORWARD.md's own MOSESUTest classification already "
-                "lists test_cp_contin as S14"
+            # Naive users of the combo regression mode will fail
+            # to understand that the input program must be sampled
+            # in order for the fitness function to be evaluated.
+            # The default sample range 0<x<1 is probably too small
+            # for any fancy-pants input program, so try to make
+            # a reasonable guess.  Yes, this is a stupid hack, but
+            # it does avoid the problem of naive users saying
+            # "aww moses sucks" when they fail to invoke it correctly.
+            if pms.min_rand_input == 0.0 and pms.max_rand_input == 1.0:
+                pms.max_rand_input = 2.0 * _largest_const_in_tree(tr)
+                pms.min_rand_input = -pms.max_rand_input
+                if pms.nsamples <= 0 and pms.default_nsamples < 2 * arity * pms.max_rand_input:
+                    # `pms.nsamples` is an `int` member and the right-hand
+                    # side is a `contin_t`: C++ truncates toward zero on
+                    # assignment, which is `int()`, not `round()`.
+                    pms.nsamples = int(2 * arity * pms.max_rand_input)
+
+            if pms.nsamples <= 0:
+                pms.nsamples = pms.default_nsamples
+
+            # logger().info() << "Will sample combo program ..." is dropped,
+            # like every other logger() call in this port.
+
+            # DIVERGENCE(C++ moses/moses/main/demo-problems.cc:429): classic
+            # writes `ITable it(tt, pms.nsamples, pms.max_rand_input,
+            # pms.min_rand_input);` and the constructor's parameters are
+            # `(..., contin_t min_contin, contin_t max_contin)`
+            # (table.h:761-762) -- so MAX is passed as MIN and vice versa.
+            # Every drawn value is therefore `(min_rand - max_rand) * r +
+            # max_rand`, i.e. the intended range traversed BACKWARDS. This
+            # is invisible whenever the range is symmetric (which the
+            # "stupid hack" above makes it), and observable the moment it
+            # is not: `-q0 -w10` samples `10 - 10r`, not `10r`. Reproduced
+            # verbatim, argument for argument, rather than "fixed" -- and
+            # pinned by an asymmetric-range oracle in
+            # tests/moses/main/test_moses_exec.py.
+            it = ITable(tt, pms.nsamples, pms.max_rand_input, pms.min_rand_input)
+            ot = OTable(tr, it)
+
+            as_ = _alphabet_size(tt, pms.ignore_ops)
+
+            bscore = contin_bscore(ot, it)
+            _set_noise_or_ratio(bscore, as_, pms.noise, pms.complexity_ratio)
+            cscore = behave_cscore(bscore)
+            metapop_moses_results(
+                pms.exemplars,
+                tt,
+                pms.contin_reduct,
+                pms.contin_reduct,
+                cscore,
+                pms.opt_params,
+                pms.hc_params,
+                pms.deme_params,
+                pms.filter_params,
+                pms.meta_params,
+                pms.moses_params,
+                pms.printer,
             )
         else:
             raise ValueError(f"combo_problem: type {output_type!r} not supported.")
@@ -831,8 +1230,8 @@ class combo_problem(combo_problem_base):
 class ann_combo_problem(combo_problem_base):
     """C++: moses/moses/main/demo-problems.cc:451 ann_combo_problem
 
-    Raising stub -- see module docstring's own "`sr` and `ann-cp`"
-    section. Does not call `check_args()` first (unlike classic, which
+    Raising stub -- see module docstring's own "`sr` and `cp`'s contin
+    arm" section. Does not call `check_args()` first (unlike classic, which
     validates the combo string before doing ANN-specific work): ANN
     regression is unsupported regardless of whether `-y`'s argument would
     otherwise validate, so validating it first would only mask the real
@@ -850,10 +1249,12 @@ class ann_combo_problem(combo_problem_base):
     def run(self, ob: object) -> None:
         del ob
         raise NotImplementedError(
-            "ann_combo_problem ('ann-cp', demo-problems.cc:451): needs "
-            "ITable/OTable/contin_bscore (S14, not built here) plus the ANN "
+            "ann_combo_problem ('ann-cp', demo-problems.cc:451): needs the ANN "
             "combo-vocabulary path CLAUDE.md's own 'Known sharp edges' section "
-            "already flags as stale/legacy -- -H ann-cp is unsupported"
+            "already flags as stale/legacy (tree_transform().decodify_tree, "
+            "ann::feedforward_depth, ann::propagate) -- -H ann-cp is "
+            "unsupported. The contin/ITable/OTable/contin_bscore half of what "
+            "this problem needs DOES now exist; the ANN half does not"
         )
 
 

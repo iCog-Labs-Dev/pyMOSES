@@ -211,6 +211,7 @@ from pymetta.moses.moses.optimization.univariate import univariate_optimization
 from pymetta.moses.moses.types import (
     _format_score_t,
     _to_score_t,
+    io_score_precision,
     ostream_scored_combo_tree,
     score_t,
     very_best_score,
@@ -400,7 +401,11 @@ class metapop_printer:
                     )
                 for sct in tree_set:
                     parts.append(f"      + {_format_score_t(sct.get_weight())} * ")
-                    parts.append(combo_tree_to_str(sct.get_tree(), self._labels(), self.fmt))
+                    parts.append(
+                        combo_tree_to_str(
+                            sct.get_tree(), self._labels(), self.fmt, io_score_precision
+                        )
+                    )
                     parts.append("\\\n")
                 # "return (0.0 < val)" -- NOT "sum": `val` is never defined
                 # anywhere in this generated program. A real bug in
@@ -420,7 +425,9 @@ class metapop_printer:
                 # threads both through). Reproduced faithfully, not
                 # "fixed" to match the other branch.
                 parts.append(f"{_format_score_t(ensm.flat_score())} ")
-                parts.append(combo_tree_to_str(ensm.get_weighted_tree()))
+                parts.append(
+                    combo_tree_to_str(ensm.get_weighted_tree(), precision=io_score_precision)
+                )
                 parts.append("\n")
         else:
             if self.output_only_best:
@@ -455,7 +462,11 @@ class metapop_printer:
                     parts.append("def impulse(a): return 1.0 if a else 0.0\n")
                     parts.append("def moses_eval(i):\n")
                     parts.append("    return ")
-                    parts.append(combo_tree_to_str(sct.get_tree(), self._labels(), self.fmt))
+                    parts.append(
+                        combo_tree_to_str(
+                            sct.get_tree(), self._labels(), self.fmt, io_score_precision
+                        )
+                    )
                     parts.append("\n")
                 else:
                     parts.append(

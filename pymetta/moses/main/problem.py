@@ -76,25 +76,37 @@ zero matches. So no concrete problem class in classic ever does anything
 observable when destroyed, and this port's reliance on GC instead of an
 explicit delete loop has no behavioural difference from C++.
 
-## Stubs for the nine unreachable `table-problems.cc` problems
+## Stubs for the three unreachable `table-problems.cc` problems
 
 `register_table_problems` (table-problems.cc:562-580) registers eleven
-problems; per this slice's own scoping, only `it_table_problem` is reachable
-(needs no unported bscore) -- and it is deliberately NOT registered here:
-that is S13 Task 2's job (`table_problems.py`), and this file leaves it a
-clean seam by simply not naming "it" anywhere below. The other ten need
-subsystems this port has not built (precision/discriminating/select
-bscores for `pre`/`pre-conj`/`prerec`/`recall`/`bep`/`f_one`/`select`/
-`cluster`; the ANN domain for `ann-it`; interesting-predicates scoring for
-`ip` -- all P2 or excluded per `docs/MODULE-COVERAGE.md`) and are registered
-here as `_unported_table_problem` stubs: same `name()`/`description()`
-strings as their real C++ classes (table-problems.h), so a registry lookup
-and its reported description agree with classic; `run()` raises
-`NotImplementedError` instead of silently doing nothing or dispatching
-elsewhere. This is the same "port the gate, raise inside it" discipline
-`ensemble.py`, `merging.py` and `deme_expander.py` use for their own P2
-subsystems -- so `-H recall` (once wired through S13 Task 3's
-`moses_exec.py`) fails loudly rather than acting as a no-op.
+problems. This file registers none of the ones that are ported for real:
+that is `table_problems.py`'s job, and this file leaves it a clean seam by
+simply not naming them anywhere below. What is left here are
+`_unported_table_problem` stubs for the ones that still need something
+this port has not built: same `name()`/`description()` strings as their
+real C++ classes (table-problems.h), so a registry lookup and its reported
+description agree with classic; `run()` raises `NotImplementedError`
+instead of silently doing nothing or dispatching elsewhere. This is the
+same "port the gate, raise inside it" discipline `ensemble.py`,
+`merging.py` and `deme_expander.py` use for their own P2 subsystems -- so
+an unported `-H` fails loudly rather than acting as a no-op.
+
+That leaves exactly three: `ip`, `ann-it` and `pre-conj`.
+`table_problems.py` registers its eight real problems FIRST and
+`problem_manager.register_problem` is `dict.setdefault`, so the ordering
+would tolerate extra stubs here -- but a stub for a problem that runs has
+nothing true to say, so the seven that had become dead were removed rather
+than left behind. Each surviving stub carries its OWN reason string; see
+`_unported_table_problem.run` for why a single shared reason was wrong.
+
+CORRECTED (this whole paragraph): it used to say only `it_table_problem`
+was reachable and that "the other ten need subsystems this port has not
+built (precision/discriminating/select bscores for `pre`/`pre-conj`/
+`prerec`/`recall`/`bep`/`f_one`/`select`/`cluster`; ...)". Every clause of
+that is now false. `precision_bscore`/`discriminating_bscore`/
+`select_bscore`/`precision_conj_bscore` are all ported; `cluster`'s
+scorer was never any of those -- it is `cluster_bscore` (bscores.h:613), a
+one-dimensional k-means, and it is ported too.
 """
 
 from __future__ import annotations
@@ -205,19 +217,28 @@ class problem_manager:
 
 
 class _unported_table_problem(problem_base):
-    """Not one specific C++ class -- a stand-in `problem_base` for any ONE
-    of the nine `table-problems.cc` problems this port has not reached
-    (module docstring's "Stubs" section lists all nine, with the real
-    class each stands in for). `name()`/`description()` are fixed at
-    construction to match the real C++ class's strings; `run()` always
-    raises, regardless of what `ob` is, since there is no real work this
-    stub could correctly do.
+    """Not one specific C++ class -- a stand-in `problem_base` for a
+    `table-problems.cc` problem this port has not wired.
+    `name()`/`description()` are fixed at construction to match the real
+    C++ class's strings; `reason` states what is missing for THAT problem
+    specifically; `run()` always raises, regardless of what `ob` is, since
+    there is no real work this stub could correctly do.
+
+    CORRECTED: `run()` used to raise one shared message claiming every
+    stubbed problem's scoring was "a precision/discriminating/select
+    bscore, the ANN domain, or interesting-predicates scoring", "P2 or
+    excluded in this port". That was false for most of the list, and
+    flatly wrong for `cluster`, whose scorer is neither -- it is
+    `cluster_bscore` (bscores.h:613), one-dimensional k-means, and it is
+    now ported (bscores.py) and wired (table_problems.py). `reason` was
+    added so no stub can inherit another's excuse again.
     """
 
-    def __init__(self, name: str, description: str, cpp_class: str) -> None:
+    def __init__(self, name: str, description: str, cpp_class: str, reason: str) -> None:
         self._name = name
         self._description = description
         self._cpp_class = cpp_class
+        self._reason = reason
 
     def name(self) -> str:
         return self._name
@@ -228,67 +249,98 @@ class _unported_table_problem(problem_base):
     def run(self, ob: object) -> None:
         del ob
         raise NotImplementedError(
-            f"problem {self._name!r} ({self._cpp_class}) is not ported: its "
-            "scoring (a precision/discriminating/select bscore, the ANN "
-            "domain, or interesting-predicates scoring) is P2 or excluded "
-            "in this port; -H " + self._name + " is unsupported"
+            f"problem {self._name!r} ({self._cpp_class}) is not ported: "
+            f"{self._reason}; -H {self._name} is unsupported"
         )
 
 
 def _unported_table_problems() -> list[problem_base]:
     """Not a C++ function -- builds one freshly-constructed
-    `_unported_table_problem` per unreachable `table-problems.cc` problem,
-    mirroring the `new ip_problem(...)`-per-registration shape
-    `register_table_problems` (table-problems.cc:562-580) uses, minus the
-    one reachable problem (`it`, deliberately absent -- module docstring).
-    `(name, description, C++ class)` triples are copied verbatim from
-    table-problems.h's `name()`/`description()` overrides.
+    `_unported_table_problem` per `table-problems.cc` problem this port
+    still cannot run, mirroring the `new ip_problem(...)`-per-registration
+    shape `register_table_problems` (table-problems.cc:562-580) uses.
+    `(name, description, C++ class, reason)` tuples: the first three are
+    copied verbatim from table-problems.h's `name()`/`description()`
+    overrides, the fourth is measured, per-problem, against classic's own
+    binary (see each entry's own comment).
+
+    CORRECTED: this returned TEN stubs -- every problem except `it` --
+    until `table_problems.py` grew to wire eight of the eleven for real.
+    Seven of those ten were already dead (`register_problem` is
+    `dict.setdefault` and `table_problems.py` registers first), so they
+    were unreachable stubs asserting a falsehood about a scorer that was
+    in fact ported. They are dropped rather than corrected: a stub for a
+    ported problem has nothing true to say.
     """
     return [
         _unported_table_problem(*args)
         for args in (
-            ("ip", "Find interesting patterns", "table-problems.h:86 ip_problem"),
+            (
+                "ip",
+                "Find interesting patterns",
+                "table-problems.h:86 ip_problem",
+                # `interesting_predicate_bscore` (bscores.h:553) is one
+                # of the bscores.h classes bscores.py does not port (see
+                # that module's own docstring for the full list). Note
+                # classic does not get that far on an
+                # ordinary table either: it OC_ASSERTs first, at
+                # table-problems.cc:236, unless the output column is
+                # contin and every input column is boolean. Measured:
+                # `-Hip -i$CLASSIC/tests/moses/dataset.csv` aborts with
+                # "The input table doesn't have the right data types. The
+                # output should be contin and the inputs should be
+                # boolean (table-problems.cc:236)".
+                "it needs interesting_predicate_bscore (bscores.h:553), which "
+                "bscores.py does not port",
+            ),
             (
                 "ann-it",
                 "ANN-based regression on input table",
                 "table-problems.h:101 ann_table_problem",
+                # The ANN vocabulary (`moses/comboreduct/ant_combo_vocabulary`,
+                # `ann_type`, `tree_transform::decodify_tree`) is excluded
+                # project-wide. Classic itself is broken here on an
+                # ordinary table: measured, `-Hann-it
+                # -i$CLASSIC/tests/moses/dataset.csv` aborts with
+                # `boost::bad_get` before printing anything.
+                "it needs the ANN vocabulary (ann_type, tree_transform::decodify_tree), "
+                "excluded project-wide -- and classic itself aborts with boost::bad_get "
+                "on an ordinary table",
             ),
-            ("pre", "Precision-Activation scoring", "table-problems.h:116 pre_table_problem"),
             (
                 "pre-conj",
                 "Precision-Conjunction-Maximization",
                 "table-problems.h:129 pre_conj_table_problem",
-            ),
-            (
-                "prerec",
-                "Precision Maximization (holding recall constant)",
-                "table-problems.h:142 prerec_table_problem",
-            ),
-            (
-                "recall",
-                "Recall Maximization (holding precision constant)",
-                "table-problems.h:155 recall_table_problem",
-            ),
-            ("bep", "Maximize Break-even Point", "table-problems.h:168 bep_table_problem"),
-            ("f_one", "Maximize F_1 score", "table-problems.h:181 f_one_table_problem"),
-            ("select", "Select range of rows", "table-problems.h:207 select_table_problem"),
-            (
-                "cluster",
-                "Discover clustering function",
-                "table-problems.h:220 cluster_table_problem",
+                # The ONLY stub here whose scorer is ported:
+                # `precision_conj_bscore` (precision_bscore.py) is
+                # complete and unit-tested. What is missing is four lines
+                # of wiring in table_problems.py -- classic's
+                # `pre_conj_table_problem::run` is `common_setup`,
+                # `common_type_setup(boolean_type)`, an
+                # `OC_ASSERT(not do_boosting)` and one `REGRESSION`
+                # (table-problems.cc:410-423). Classic RUNS this problem
+                # fine; measured, `-Hpre-conj
+                # -i$CLASSIC/tests/moses/dataset.csv -m200 -W1` prints a
+                # normal candidate list. (`-Hpre_conj`, with an
+                # underscore, is a different thing entirely: no such name
+                # is registered, so classic prints `problem type
+                # "pre_conj" is currently unsupported.` and returns 1.)
+                "its scorer precision_conj_bscore IS ported (precision_bscore.py); "
+                "what is missing is only a pre_conj_table_problem in "
+                "table_problems.py (table-problems.cc:410)",
             ),
         )
     ]
 
 
 def _register_unported_table_problems(pmr: problem_manager) -> None:
-    """Not a C++ function -- the ten-stub half of what
+    """Not a C++ function -- the stub half of what
     `register_table_problems` (table-problems.cc:562-580) would do in a
-    complete port; see module docstring's "Stubs" section. S13 Task 2
-    (`table_problems.py`) owns registering the eleventh, real, problem
-    (`it`) and may supersede this function entirely once every problem it
-    covers is ported for real -- nothing outside this module and its own
-    tests calls it today.
+    complete port; see the module docstring. `table_problems.py` owns
+    registering the eight real problems and calls this afterwards for the
+    remaining three; it will supersede this function entirely once
+    `ip`/`ann-it`/`pre-conj` are ported for real. Nothing outside
+    `table_problems.py` and this module's own tests calls it.
     """
     for prob in _unported_table_problems():
         pmr.register_problem(prob)

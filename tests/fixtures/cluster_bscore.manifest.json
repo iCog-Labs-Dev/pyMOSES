@@ -1,0 +1,52 @@
+{
+  "capture_script": "tools/capture_cluster_bscore.py",
+  "capture_script_sha256": "ac773ebb680aef29ff48167f2fcb2890a5a78e6dff8fadf1ab5bf1991c320af5",
+  "classic_dir": "/home/yab/Documents/Projects/iCog/HyperonRelated/MOSES/OpenCog/Moses",
+  "cli_tool": null,
+  "generated_at_utc": "2026-09-09T12:52:20+00:00",
+  "inputs": {
+    "description": "hand-built single-column ITables (hardcoded in cluster_bscore_probe.cc, dumped alongside each score so the test does not re-derive them) plus two real tables",
+    "synthetic_modes": [
+      "synthetic",
+      "overflow",
+      "nan",
+      "too_small"
+    ],
+    "tables": {
+      "contin_regression_sample": {
+        "path": "tests/fixtures/table_data/contin_regression_sample.csv",
+        "target": "y",
+        "trees": [
+          "$1",
+          "+($1 $2)",
+          "*($1 $2)",
+          "+(*(-1 log($2)) $1)",
+          "log($2)",
+          "0"
+        ]
+      },
+      "training_regression": {
+        "path": "$CLASSIC/trainingRegression.dat",
+        "target": "y",
+        "trees": [
+          "$1",
+          "+($1 $2)",
+          "*($1 $2)",
+          "log($2)"
+        ]
+      }
+    }
+  },
+  "prefix_dir": "/home/yab/opt/moses-legacy",
+  "probe_kind": "cpp_probe",
+  "probe_source": "tools/cpp_probe/cluster_bscore_probe.cc",
+  "probe_source_sha256": "0e62819f16faec3b7dc69f0725db2f45f52ce10da06b6e51148c420d410d996d",
+  "repo_commit": "964107717fde0657babe58ef2fc52c7cd8400a82",
+  "schema_version": 2,
+  "toolchain": {
+    "boost_lib_version": "1_92",
+    "cxx": "g++ (GCC) 16.2.1 20260810",
+    "glibcxx_max_symbol": "GLIBCXX_3.4.36",
+    "libstdcxx_soname": "libstdc++.so.6.0.36"
+  }
+}

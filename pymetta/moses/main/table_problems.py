@@ -1,41 +1,52 @@
 """C++: moses/moses/main/table-problems.{h,cc}
 
 Ports the shared table-loading machinery (`table_problem_params`,
-`table_problem_base::common_setup`/`common_type_setup`) plus **seven** of
+`table_problem_base::common_setup`/`common_type_setup`) plus **eight** of
 the eleven problems `register_table_problems` (table-problems.cc:562-580)
-registers: `it` (this task's own reachable target), and `pre`, `prerec`,
-`recall`, `bep`, `f_one`, `select` -- six more that turned out to be
-straightforward to wire given the P2 scorer track's own `precision_bscore`/
-`discriminating_bscore`/`select_bscore`/`time_dispersion` (commits
-`e998da6`, `9e918d7`, `4a2a67f`, `3fc6e61`) landed already fully ported.
-The remaining four -- `ip`, `ann-it`, `pre-conj`, `cluster` -- stay exactly
-the raising stubs `pymetta/moses/main/problem.py`'s own
-`_unported_table_problem` already provides: `ip`/`ann-it` are excluded
-domains (interesting-predicates scoring, the ANN vocabulary) per this
-task's own brief; `pre-conj`/`cluster` were not named in that brief's
-"if straightforward" list and need `precision_conj_bscore`/`cluster_bscore`
-wiring this task did not attempt.
+registers: `it` (this file's original reachable target), and `pre`,
+`prerec`, `recall`, `bep`, `f_one`, `select` -- six more that turned out
+to be straightforward to wire given the P2 scorer track's own
+`precision_bscore`/`discriminating_bscore`/`select_bscore`/
+`time_dispersion` (commits `e998da6`, `9e918d7`, `4a2a67f`, `3fc6e61`)
+landed already fully ported -- plus `cluster`, wired later once
+`cluster_bscore` was ported (bscores.py).
 
-## Composing on top of `problem.py` without editing it
+The remaining three -- `ip`, `ann-it`, `pre-conj` -- stay the raising
+stubs `pymetta/moses/main/problem.py`'s own `_unported_table_problem`
+provides. Each stub now states its OWN reason (see that function): `ip`
+needs `interesting_predicate_bscore`, which is not ported; `ann-it` needs
+the ANN vocabulary, excluded project-wide; `pre-conj` needs only wiring --
+its scorer `precision_conj_bscore` IS ported (precision_bscore.py) -- and
+was simply never in any task's scope.
 
-`problem.py`'s own module docstring left `"it"` deliberately unregistered
-("this file leaves it a clean seam by simply not naming 'it' anywhere
-below") and built `_unported_table_problem`/`_unported_table_problems`/
-`_register_unported_table_problems` as stand-ins for THIS task, explicitly
-saying the last "may supersede this function entirely once every problem
-it covers is ported for real". This file does exactly that, without
-editing `problem.py`: `register_table_problems` below registers the seven
-real problems first, then calls the existing `_register_unported_table_problems`
-for the rest. `problem_manager.register_problem` uses `dict.setdefault`
-(problem.py) -- first registration under a name wins, silently dropping
-any later one under the same name -- so the six real registrations above
-silently absorb the stub attempts `_register_unported_table_problems` would
-otherwise make for `pre`/`prerec`/`recall`/`bep`/`f_one`/`select`, and only
-`ip`/`ann-it`/`pre-conj`/`cluster`'s stub registrations actually take
-effect. This mirrors the same "extend a sibling module's seam without
-touching it" discipline `demo_problems.py` used for `problem.py`'s
-`alphabet_size` gap (its own module docstring, "Small dependencies this
-task also had to supply, and why they live here").
+This paragraph said "**seven** ... The remaining four -- `ip`, `ann-it`,
+`pre-conj`, `cluster` ... `pre-conj`/`cluster` ... need
+`precision_conj_bscore`/`cluster_bscore`" until `cluster_table_problem`
+landed below. Both halves of that were also wrong about `pre-conj` even
+then: `precision_conj_bscore` had already been ported.
+
+## Composing on top of `problem.py`
+
+`problem.py` built `_unported_table_problem`/`_unported_table_problems`/
+`_register_unported_table_problems` as stand-ins, explicitly saying the
+last "may supersede this function entirely once every problem it covers is
+ported for real". `register_table_problems` below registers the eight real
+problems first, then calls `_register_unported_table_problems` for the
+rest.
+
+`problem_manager.register_problem` uses `dict.setdefault` (problem.py) --
+first registration under a name wins, silently dropping any later one
+under the same name -- so the ordering makes the composition safe
+regardless of what `problem.py` still stubs. This section used to lean on
+that AND to claim the composition was done "without editing `problem.py`":
+the first half still holds, the second no longer does. `problem.py` was
+edited when `cluster_table_problem` landed, to drop the seven stubs this
+file's real registrations had already shadowed -- a shadowed stub is
+invisible, so a wrong reason string inside it can never be seen to be
+wrong, which is exactly how the shared "precision/discriminating/select
+bscore" message survived long after it stopped being true of any of them.
+The three stubs `problem.py` still carries (`ip`, `ann-it`, `pre-conj`)
+are the three this file genuinely does not wire.
 
 ## `table_problem_params`: the CLI surface `problem_params.py` deliberately
 ## does not carry
@@ -80,13 +91,21 @@ never acted on. DO NOT FIX: ported exactly this way (`self._tables[0]`/
 
 ## `_alphabet_size`'s contin branch, and its two-stage integer wrap
 
-Six of this file's seven wired problems (`pre`, `prerec`, `recall`,
+Six of this file's eight wired problems (`pre`, `prerec`, `recall`,
 `bep`, `f_one`, `select`) force `common_type_setup(pms, boolean_type)`,
 so `_alphabet_size`'s boolean branch (`3 + arity`) is the only one they
-reach. `it_table_problem` is the exception: it calls `common_type_setup`
+reach. Two are exceptions: `it_table_problem` calls `common_type_setup`
 with no forced type, and since 2026-09-09 its contin arm no longer
-raises, so **`8 + arity - len(ignore_ops)` is now live** on any
-`-H it` run against a contin-output table.
+raises; `cluster_table_problem` forces `contin_type` outright
+(table-problems.cc:555), so it reaches the contin branch even against a
+boolean-output TABLE -- the forced type is what `_type_to_exemplar`
+builds the default exemplar from, and `self.output_type` is read back off
+that exemplar, so only an explicit `-y` exemplar with a different output
+type can put it anywhere else. So **`8 + arity - len(ignore_ops)` is now
+live** on any `-H it` run against a contin-output table, and on any
+`-H cluster` run without such a `-y`. Verified directly: classic's own
+`-Hcluster` on the boolean `dataset.csv` prints the contin candidate `0`,
+not a boolean one.
 
 That subtraction wraps twice in C++, and the port reproduces both stages
 literally:
@@ -182,7 +201,7 @@ from pymetta.moses.main.problem import (
 from pymetta.moses.main.problem_params import problem_params
 from pymetta.moses.moses.moses_main import metapop_moses_results
 from pymetta.moses.scoring.behave_cscore import behave_cscore
-from pymetta.moses.scoring.bscores import contin_bscore, ctruth_table_bscore
+from pymetta.moses.scoring.bscores import cluster_bscore, contin_bscore, ctruth_table_bscore
 from pymetta.moses.scoring.discriminating_bscore import (
     bep_bscore,
     f_one_bscore,
@@ -195,6 +214,7 @@ from pymetta.moses.scoring.time_dispersion import TemporalGranularity
 
 __all__ = [
     "bep_table_problem",
+    "cluster_table_problem",
     "f_one_table_problem",
     "it_table_problem",
     "parse_table_args",
@@ -529,10 +549,15 @@ class table_problem_base(problem_base):
 
         Shared by every `*_table_problem::run()` that uses the
         `REGRESSION` macro verbatim in classic and is wired for real
-        here: `it` (boolean branch), `prerec`, `recall`, `bep`, `f_one`,
-        `select`. NOT used by `pre_table_problem` (hand-inlined in
-        classic too, see this module's own docstring) nor by
-        `pre_conj`/`cluster` (not wired here at all).
+        here: `it` (both the boolean and the contin branch), `prerec`,
+        `recall`, `bep`, `f_one`, `select` and `cluster`. NOT used by
+        `pre_table_problem` (hand-inlined in classic too, see this
+        module's own docstring) nor by `pre_conj` (not wired here).
+
+        The macro's FIRST argument (`table`/`ctable`) has no counterpart
+        parameter here: classic uses it only to construct a
+        `feature_selector` (table-problems.cc:333), which the gate just
+        below refuses to build.
         """
         # C++: table-problems.cc:330-334. `feature_selector`
         # (moses/deme/feature_selector.h) is not ported anywhere in this
@@ -872,6 +897,57 @@ class select_table_problem(table_problem_base):
 
 
 # ---------------------------------------------------------------------------
+# cluster_table_problem -- table-problems.h:220 / table-problems.cc:551.
+# ---------------------------------------------------------------------------
+
+
+class cluster_table_problem(table_problem_base):
+    """C++: moses/moses/main/table-problems.h:220 cluster_table_problem
+
+    "Perform clusterering" (table-problems.h:219's own comment, typo
+    included). The one table problem whose scorer looks at the INPUT
+    table only: `cluster_bscore` (bscores.py) takes `table.itable` and
+    never sees `table.otable`, so `-u <target>` still decides which
+    column is EXCLUDED from the inputs, but the values in it are never
+    compared against anything.
+    """
+
+    def name(self) -> str:
+        return "cluster"
+
+    def description(self) -> str:
+        return "Discover clustering function"
+
+    def run(self, ob: object) -> None:
+        """C++: moses/moses/main/table-problems.cc:551 cluster_table_problem::run
+
+        Four lines in classic, and all four are here: `common_setup`,
+        `common_type_setup(pms, id::contin_type)` -- note contin, NOT the
+        boolean every other non-`it` table problem forces -- and
+        `REGRESSION(table, cluster_bscore, (table.itable))`, which is
+        `_regression` (this module).
+
+        `REGRESSION`'s first macro argument is used ONLY to build a
+        `feature_selector` (table-problems.cc:330-334), which this port
+        gates on rather than building; so `table` vs `ctable` there makes
+        no difference to any run this port can perform, and `_regression`
+        takes no such argument. The `(table.itable)` in the third
+        argument is the real one -- the scorer's own constructor
+        argument.
+
+        `self.output_type` is `contin_type` after `common_type_setup`
+        (barring an explicit `-y` exemplar with a different output type),
+        so `_regression` takes its `pms.contin_reduct` branch, exactly as
+        `it_table_problem`'s contin arm does.
+        """
+        pms = ob
+        self.common_setup(pms)
+        self.common_type_setup(pms, type_node.contin_type)
+
+        self._regression(pms, cluster_bscore(self.table.itable))
+
+
+# ---------------------------------------------------------------------------
 # register_table_problems -- table-problems.cc:562-581.
 # ---------------------------------------------------------------------------
 
@@ -886,12 +962,14 @@ def register_table_problems(pmr: problem_manager) -> table_problem_params:
     equivalent, same convention `demo_problems.py`'s `register_demo_problems`
     already established for its own shared `demo_params`).
 
-    Registers the seven problems this task wired for real, then defers to
-    `problem.py`'s own `_register_unported_table_problems` for the
-    remaining four (`ip`, `ann-it`, `pre-conj`, `cluster`) -- see this
-    module's own docstring, "Composing on top of `problem.py` without
-    editing it", for why calling it AFTER the seven real registrations is
-    safe (`register_problem`'s `dict.setdefault` semantics).
+    Registers the EIGHT problems this port has wired for real, then
+    defers to `problem.py`'s own `_register_unported_table_problems` for
+    the remaining three (`ip`, `ann-it`, `pre-conj`) -- see this module's
+    own docstring, "Composing on top of `problem.py` without editing it",
+    for why calling it AFTER the real registrations is safe
+    (`register_problem`'s `dict.setdefault` semantics). It said "seven ...
+    remaining four (..., `cluster`)" until `cluster_table_problem` landed
+    below.
     """
     tpp = table_problem_params()
     pmr.register_problem(it_table_problem(tpp))
@@ -901,6 +979,7 @@ def register_table_problems(pmr: problem_manager) -> table_problem_params:
     pmr.register_problem(bep_table_problem(tpp))
     pmr.register_problem(f_one_table_problem(tpp))
     pmr.register_problem(select_table_problem(tpp))
+    pmr.register_problem(cluster_table_problem(tpp))
     _register_unported_table_problems(pmr)
     return tpp
 

@@ -47,11 +47,15 @@ inferred from `docs/CARRY-FORWARD.md`'s summary that classic's own
   classic's own `-r1` tree exactly (measured; too slow at ~9.8k evals to
   run on every commit).
 
-`sr` (`test_sr_3`) and `test_cp_contin` are S14 (contin) territory,
-already named as such in `docs/CARRY-FORWARD.md`'s own `MOSESUTest`
-classification, and stay blocked for that pre-existing reason --
-`polynomial_problem`/`combo_problem`'s contin branch raise
-`NotImplementedError` immediately, tested below, not attempted as oracles.
+`sr` and `cp`'s contin arm were BOTH unblocked on 2026-09-09 (the reason
+this docstring used to give -- "S14 contin territory, `contin_bscore`/
+`ITable`/`OTable` not built, `problem_params.contin_reduct` is still
+`None`" -- was false in every clause by the time it was read). The live,
+byte-for-byte oracles for both live in `test_moses_exec.py`'s own
+`-H sr`/`-H cp` block, since they are CLI-level runs; what stays here is
+the unit-level wiring, including the two things those oracles cannot
+isolate: `simple_symbolic_regression` itself, and
+`polynomial_problem.run`'s `deme_params.linear_contin = False` override.
 """
 
 from __future__ import annotations
@@ -59,10 +63,15 @@ from __future__ import annotations
 import pytest
 
 from pymetta.comboreduct.combo.argument import argument
-from pymetta.comboreduct.combo.iostream_combo import combo_tree_to_str
+from pymetta.comboreduct.combo.iostream_combo import combo_tree_to_str, str_to_combo_tree
 from pymetta.comboreduct.combo.vertex import builtin, combo_tree
+from pymetta.comboreduct.reduct.contin_reduction import contin_reduction
 from pymetta.comboreduct.reduct.logical_reduction import logical_reduction
-from pymetta.comboreduct.type_checker.type_signature import TypeSignature, type_node
+from pymetta.comboreduct.type_checker.type_signature import (
+    TypeSignature,
+    type_node,
+    type_tree_arity,
+)
 from pymetta.moses.deme.deme_params import deme_parameters
 from pymetta.moses.main import demo_problems
 from pymetta.moses.main.demo_problems import (
@@ -78,6 +87,7 @@ from pymetta.moses.main.demo_problems import (
     pa_problem,
     polynomial_problem,
     register_demo_problems,
+    simple_symbolic_regression,
 )
 from pymetta.moses.main.problem import problem_manager
 from pymetta.moses.metapopulation.metapop_params import (
@@ -135,6 +145,17 @@ class _FakeParams:
         self.noise = -1.0
         self.complexity_ratio = 3.5
         self.printer = lambda mp, dex, stats: None
+        # -- contin-problem fields (`sr`, and `cp`'s contin arm). Values are
+        # classic's own CLI defaults: problem-params.cc:150
+        # (`default_nsamples(20)`), :227 (`nsamples`, -1), :1147/:1158
+        # (`min_rand_input` 0.0 / `max_rand_input` 1.0), and
+        # `--it-abs-err`'s own `false`.
+        self.nsamples = -1
+        self.default_nsamples = 20
+        self.min_rand_input = 0.0
+        self.max_rand_input = 1.0
+        self.it_abs_err = False
+        self.contin_reduct = contin_reduction(2, ())
 
 
 # ---------------------------------------------------------------------------
@@ -565,32 +586,94 @@ def test_check_args_not_well_formed_branch(monkeypatch):
         base.check_args()
 
 
-def test_check_args_returns_type_and_arity_for_boolean_program():
+def test_check_args_returns_signature_for_boolean_program():
     dp = demo_params(combo_str="and($1 $2)")
     base = combo_problem(dp)
-    tr, output_type, arity = base.check_args()
-    assert output_type == type_node.boolean_type
-    assert arity == 2
+    tr, tt = base.check_args()
+    assert tt == TypeSignature(
+        (type_node.boolean_type, type_node.boolean_type), type_node.boolean_type
+    )
     assert combo_tree_to_str(tr).strip() == "and($1 $2)"
 
 
-def test_check_args_returns_type_and_arity_for_contin_program():
+def test_check_args_returns_signature_for_contin_program():
     dp = demo_params(combo_str="+(6 *(6 $1))")
     base = combo_problem(dp)
-    _tr, output_type, arity = base.check_args()
-    assert output_type == type_node.contin_type
-    assert arity == 1
+    _tr, tt = base.check_args()
+    assert tt == TypeSignature((type_node.contin_type,), type_node.contin_type)
 
 
 def test_check_args_arity_is_max_argument_index_not_count():
     """`argument.idx` can skip -- "or($1 !$3)" has TWO arguments but arity
     3 (matching `type_tree_arity`'s "how many input slots" meaning, not
-    "how many `$n` tokens appear").
+    "how many `$n` tokens appear"), and the unmentioned slot is
+    `unknown_type`, exactly as classic's own `infer_type_tree` reports:
+    measured against a compiled probe, `or($1 !$3)` is
+    `->(boolean unknown boolean boolean)`.
     """
     dp = demo_params(combo_str="or($1 !$3)")
     base = combo_problem(dp)
-    _tr, _output_type, arity = base.check_args()
-    assert arity == 3
+    _tr, tt = base.check_args()
+    assert type_tree_arity(tt) == 3
+    assert tt == TypeSignature(
+        (type_node.boolean_type, type_node.unknown_type, type_node.boolean_type),
+        type_node.boolean_type,
+    )
+
+
+def test_check_args_rejects_a_cross_argument_type_mismatch():
+    """`+(impulse($1) $1)` uses `$1` in boolean and contin position at
+    once. Classic's own `infer_type_tree` returns `->(ill_formed
+    ill_formed)` with `is_well_formed` false (measured against the probe),
+    and the binary prints
+    "The combo tree +(impulse($1) $1) is not well formed." and exits -1.
+
+    Mutation-proven: deleting the `if not _is_well_formed(tt)` guard makes
+    this test fail (see this task's report for the kill count) -- the
+    monkeypatch-driven `test_check_args_not_well_formed_branch` below
+    covers a DIFFERENT arm (`get_output_type_tree` raising) and does not
+    substitute for it.
+    """
+    dp = demo_params(combo_str="+(impulse($1) $1)")
+    base = combo_problem(dp)
+    with pytest.raises(ValueError, match="is not well formed"):
+        base.check_args()
+
+
+def test_infer_signature_leaves_a_root_argument_untyped():
+    """A bare `$1` has no enclosing expression to pin its type down, and
+    classic agrees: `infer_type_tree("$1")` is `->(unknown unknown)`,
+    `wf=1` (measured). Not an error -- `combo_problem.run`'s final `else`
+    is what rejects it, and only because `unknown_type` is neither
+    boolean nor contin.
+    """
+    tt = demo_problems._infer_signature(str_to_combo_tree("$1"))
+    assert tt == TypeSignature((type_node.unknown_type,), type_node.unknown_type)
+
+
+def test_infer_signature_raises_for_a_position_dependent_builtin():
+    """`cond`'s children alternate predicate/branch types, so it has no
+    `_BUILTIN_INPUT_TYPE` entry and an argument under it raises rather
+    than being guessed at -- see the module docstring's own
+    "missing general type-inference engine" section.
+    """
+    tr = str_to_combo_tree("cond($1 1 2)")
+    with pytest.raises(NotImplementedError, match="no input-type entry"):
+        demo_problems._infer_signature(tr)
+
+
+def test_is_well_formed_matches_classic_on_both_answers():
+    """C++: moses/comboreduct/type_checker/type_tree.cc:1210 is_well_formed
+
+    "for (it : tt) if (*it == id::ill_formed_type) return false" -- an
+    `ill_formed` anywhere, input slot or output, is enough.
+    """
+    good = TypeSignature((type_node.boolean_type,), type_node.boolean_type)
+    bad_input = TypeSignature((type_node.ill_formed_type,), type_node.contin_type)
+    bad_output = TypeSignature((type_node.contin_type,), type_node.ill_formed_type)
+    assert demo_problems._is_well_formed(good)
+    assert not demo_problems._is_well_formed(bad_input)
+    assert not demo_problems._is_well_formed(bad_output)
 
 
 # ---------------------------------------------------------------------------
@@ -617,18 +700,91 @@ def test_combo_problem_run_boolean_wiring(monkeypatch):
     assert combo_tree_to_str(captured["exemplars"][0]).strip() == "and"
 
 
-def test_combo_problem_run_contin_raises_not_implemented(monkeypatch):
-    monkeypatch.setattr(
-        demo_problems,
-        "metapop_moses_results",
-        lambda *a: pytest.fail("must not reach metapop_moses_results"),
-    )
+def test_combo_problem_run_contin_wiring(monkeypatch):
+    """The contin arm's "stupid hack" (demo-problems.cc:403-421), unit
+    level. With `-y '+(6 *(6 $1))'` and both range flags at their CLI
+    defaults (0.0/1.0) it must set `max_rand_input = 2 * 6 = 12`,
+    `min_rand_input = -12`, and -- because `default_nsamples` (20) is
+    less than `2 * arity * max_rand_input` (24) -- `nsamples = 24`, the
+    TRUNCATION of a `contin_t` into an `int` member.
+    """
+    captured = {}
+
+    def fake_metapop_moses_results(exemplars, sig, si_ca, si_kb, cscore, *rest):
+        captured["sig"] = sig
+        captured["cscore"] = cscore
+        captured["reduct"] = (si_ca, si_kb)
+
+    monkeypatch.setattr(demo_problems, "metapop_moses_results", fake_metapop_moses_results)
     dp = demo_params(combo_str="+(6 *(6 $1))")
     prob = combo_problem(dp)
     pms = _FakeParams()
 
-    with pytest.raises(NotImplementedError, match="S14"):
-        prob.run(pms)
+    prob.run(pms)
+
+    assert pms.max_rand_input == 12.0
+    assert pms.min_rand_input == -12.0
+    assert pms.nsamples == 24
+    assert captured["sig"] == TypeSignature((type_node.contin_type,), type_node.contin_type)
+    # classic passes `*pms.contin_reduct` for BOTH reduct arguments
+    # (demo-problems.cc:437-438), not bool_reduct/bool_reduct_rep.
+    assert captured["reduct"] == (pms.contin_reduct, pms.contin_reduct)
+    assert combo_tree_to_str(pms.exemplars[0]).strip() == "+"
+
+
+def test_combo_problem_run_contin_leaves_an_explicit_range_alone(monkeypatch):
+    """The hack fires ONLY when both range flags are still at their
+    defaults (`0.0 == min && 1.0 == max`). `-q0 -w10` must survive
+    untouched, and `nsamples` must fall through to `default_nsamples`
+    rather than to the `2 * arity * max_rand_input` formula.
+
+    Mutation-proven: dropping the `and pms.max_rand_input == 1.0`
+    conjunct makes this test fail (see this task's report).
+    """
+    monkeypatch.setattr(demo_problems, "metapop_moses_results", lambda *a: None)
+    dp = demo_params(combo_str="*(2 $1)")
+    prob = combo_problem(dp)
+    pms = _FakeParams()
+    pms.min_rand_input = 0.0
+    pms.max_rand_input = 10.0
+
+    prob.run(pms)
+
+    assert pms.min_rand_input == 0.0
+    assert pms.max_rand_input == 10.0
+    assert pms.nsamples == 20
+
+
+def test_combo_problem_run_contin_sampling_range_is_swapped(monkeypatch):
+    """DIVERGENCE-pinning test for demo-problems.cc:429. The constructor
+    is `ITable(tt, nsamples, min_contin, max_contin)` and classic calls it
+    with `(tt, nsamples, max_rand_input, min_rand_input)`, so with
+    `-q0 -w10` the sampled column is `10 - 10r`, i.e. it DECREASES as the
+    RNG draw increases, and never exceeds `max_rand_input`.
+
+    Checked against the RNG directly rather than against a golden list:
+    seed 1's first `randdouble()` is 0.417021998534217 (pinned in
+    tests/util/test_rng.py), so the first sampled input must be
+    `10 - 10 * 0.417021998534217`. Passing the two bounds the "sensible"
+    way round would give `10 * 0.417021998534217` instead.
+    """
+    captured = {}
+
+    def fake_metapop_moses_results(exemplars, sig, si_ca, si_kb, cscore, *rest):
+        captured["cscore"] = cscore
+
+    monkeypatch.setattr(demo_problems, "metapop_moses_results", fake_metapop_moses_results)
+    dp = demo_params(combo_str="*(2 $1)")
+    prob = combo_problem(dp)
+    pms = _FakeParams()
+    pms.min_rand_input = 0.0
+    pms.max_rand_input = 10.0
+    randGen().seed(1)
+
+    prob.run(pms)
+
+    first_row = captured["cscore"]._bscorer._cti[0]
+    assert first_row[0] == 10.0 - 10.0 * 0.417021998534217
 
 
 def test_combo_problem_run_raises_for_boosting():
@@ -679,16 +835,215 @@ def test_ann_combo_problem_raises_without_validating_combo_str():
 
 
 # ---------------------------------------------------------------------------
-# sr -- registered, raises.
+# simple_symbolic_regression / _dorepeat_count / _largest_const_in_tree
 # ---------------------------------------------------------------------------
 
 
-def test_polynomial_problem_run_raises_not_implemented():
+@pytest.mark.parametrize(
+    ("order", "x", "expected"),
+    [
+        (0, 3.0, 0.0),  # f(x)_0 = 0
+        (1, 3.0, 3.0),  # f(x)_1 = x
+        (2, 3.0, 12.0),  # f(x)_2 = x + x^2
+        (3, 3.0, 39.0),  # f(x)_3 = x + x^2 + x^3
+        (4, 2.0, 30.0),  # the constructor's own default order
+        (3, -1.0, -1.0),  # -1 + 1 - 1
+        (3, 0.0, 0.0),
+    ],
+)
+def test_simple_symbolic_regression_is_the_polynomial_it_claims(order, x, expected):
+    """C++: examples/example-progs/scoring_iterators.h:110
+
+    "f(x)_o = sum_{i={1,o}} x^i" (scoring_iterators.h:104-108's own
+    comment). The Horner form `res = (res + 1) * x`, run `order` times,
+    must equal that sum -- checked against the sum, not against itself.
+    """
+    assert simple_symbolic_regression(order)([x]) == expected
+    assert expected == sum(x**i for i in range(1, order + 1))
+
+
+def test_simple_symbolic_regression_reads_only_the_first_input():
+    """`res = (res + 1) * get_contin(*from)` never advances `from`, and
+    never touches `to`. Extra columns must be ignored entirely -- which
+    is why an arity-1 signature and a wider one give the same answer.
+    """
+    func = simple_symbolic_regression(3)
+    assert func([2.0]) == func([2.0, 99.0, -7.0])
+
+
+def test_simple_symbolic_regression_default_order_is_four():
+    """`simple_symbolic_regression(int o = 4)` -- scoring_iterators.h:112.
+    Never used by `polynomial_problem::run` (which always passes
+    `problem_size`), but it is part of the C++ declaration.
+    """
+    assert simple_symbolic_regression().order == 4
+
+
+def test_dorepeat_counts_in_unsigned_int():
+    """C++: opencog/util/dorepeat.h:41
+
+    `for (unsigned int i = N; i > 0; --i)`. A negative `N` is NOT zero
+    iterations (Python's `range(-1)`) but `N mod 2**32`. Extracted from
+    the loop so it can be tested at all: `simple_symbolic_regression(-1)`
+    would actually run 4294967295 times per row -- which is exactly what
+    classic does, measured (`moses -Hsr -k-1 -m200 -W1` under
+    `timeout 20` produces no output and exits 124).
+
+    Mutation-proven: replacing `n & 0xFFFFFFFF` with a plain `n` makes
+    this test fail (see this task's report).
+    """
+    assert demo_problems._dorepeat_count(0) == 0
+    assert demo_problems._dorepeat_count(5) == 5
+    assert demo_problems._dorepeat_count(-1) == 0xFFFFFFFF
+    assert demo_problems._dorepeat_count(-2) == 0xFFFFFFFE
+
+
+@pytest.mark.parametrize(
+    ("combo_str", "expected"),
+    [
+        ("+(6 *(6 $1))", 6.0),
+        ("+(3 *(2 $1) *(4 $2))", 4.0),
+        ("*($1 $1)", 0.0),  # no contin constants at all -> 0.0, not a sentinel
+        ("+(-3 *(-9 $1))", 0.0),  # all negative -> still 0.0, NOT -3
+        ("+(0.5 $1)", 0.5),
+    ],
+)
+def test_largest_const_in_tree(combo_str, expected):
+    """C++: moses/moses/main/demo-problems.cc:347 largest_const_in_tree
+
+    `contin_t rc = 0.0; if (rc < val) rc = val;` -- the 0.0 seed means an
+    all-negative tree answers 0.0. That is not a rounding detail: it is
+    what makes `-y'+(-3 *(-9 $1))'` sample the degenerate range
+    `[-0.0, 0.0]` in classic.
+    """
+    assert demo_problems._largest_const_in_tree(str_to_combo_tree(combo_str)) == expected
+
+
+# ---------------------------------------------------------------------------
+# sr
+# ---------------------------------------------------------------------------
+
+
+def test_polynomial_problem_identity():
     dp = demo_params(problem_size=3)
     prob = polynomial_problem(dp)
     assert prob.name() == "sr"
-    with pytest.raises(NotImplementedError, match="S14"):
-        prob.run(_FakeParams())
+    assert prob.description() == "Simple regression of f_n(x) = sum_{k={1,n}} x^k"
+
+
+def test_polynomial_problem_run_wiring(monkeypatch):
+    captured = {}
+
+    def fake_metapop_moses_results(exemplars, sig, si_ca, si_kb, cscore, *rest):
+        captured["sig"] = sig
+        captured["reduct"] = (si_ca, si_kb)
+        captured["cscore"] = cscore
+
+    monkeypatch.setattr(demo_problems, "metapop_moses_results", fake_metapop_moses_results)
+    dp = demo_params(problem_size=3)
+    prob = polynomial_problem(dp)
+    pms = _FakeParams()
+
+    prob.run(pms)
+
+    # gen_signature(id::contin_type, 1) -- demo-problems.cc:261.
+    assert captured["sig"] == TypeSignature((type_node.contin_type,), type_node.contin_type)
+    # *pms.contin_reduct for BOTH arguments -- demo-problems.cc:436-437.
+    assert captured["reduct"] == (pms.contin_reduct, pms.contin_reduct)
+    # the default contin exemplar, `+` -- demo-problems.cc:255.
+    assert combo_tree_to_str(pms.exemplars[0]).strip() == "+"
+    # nsamples <= 0 falls through to default_nsamples (20), so the table
+    # has 20 rows -- demo-problems.cc:263.
+    assert len(captured["cscore"]._bscorer._cti) == 20
+
+
+def test_polynomial_problem_run_overrides_linear_contin(monkeypatch):
+    """demo-problems.cc:257-259: "sr is fundamentally a kind of non-linear
+    regression! over-ride any flag settings regarding this."
+    `problem_params.parse_options` has already set
+    `deme_params.linear_contin = linear_regression`, so a
+    `--linear-regression=1` run arrives here with it True; `run` must put
+    it back to False before knob building sees it.
+
+    Mutation-proven: deleting the assignment makes this test fail, and so
+    does `test_moses_exec_sr_overrides_linear_contin` end to end (see this
+    task's report for both kill counts).
+    """
+    monkeypatch.setattr(demo_problems, "metapop_moses_results", lambda *a: None)
+    dp = demo_params(problem_size=3)
+    prob = polynomial_problem(dp)
+    pms = _FakeParams()
+    pms.deme_params.linear_contin = True
+
+    prob.run(pms)
+
+    assert pms.deme_params.linear_contin is False
+
+
+def test_polynomial_problem_run_respects_explicit_nsamples(monkeypatch):
+    captured = {}
+    monkeypatch.setattr(
+        demo_problems,
+        "metapop_moses_results",
+        lambda exemplars, sig, a, b, cscore, *rest: captured.update(cscore=cscore),
+    )
+    dp = demo_params(problem_size=3)
+    prob = polynomial_problem(dp)
+    pms = _FakeParams()
+    pms.nsamples = 7
+
+    prob.run(pms)
+
+    assert len(captured["cscore"]._bscorer._cti) == 7
+
+
+def test_polynomial_problem_run_raises_for_boosting(monkeypatch):
+    """`OC_ASSERT(not pms.meta_params.do_boosting, "Boosting not supported
+    for this problem!")` -- demo-problems.cc:272. Note it sits AFTER the
+    scorer is built in C++, so the ITable is already drawn by then; the
+    port keeps that order, which this test does not depend on but the
+    RNG stream does.
+    """
+    monkeypatch.setattr(
+        demo_problems,
+        "metapop_moses_results",
+        lambda *a: pytest.fail("must not reach metapop_moses_results"),
+    )
+    dp = demo_params(problem_size=3)
+    prob = polynomial_problem(dp)
+    pms = _FakeParams()
+    pms.meta_params.do_boosting = True
+
+    with pytest.raises(NotImplementedError, match="Boosting not supported"):
+        prob.run(pms)
+
+
+def test_polynomial_problem_run_selects_abs_error_from_it_abs_err(monkeypatch):
+    """`contin_bscore::err_function_type eft = pms.it_abs_err ?
+    abs_error : squared_error` -- demo-problems.cc:267-269. Checked
+    behaviourally (the two error functions disagree on any non-unit
+    difference) rather than by reading a private attribute.
+    """
+    captured = {}
+    monkeypatch.setattr(
+        demo_problems,
+        "metapop_moses_results",
+        lambda exemplars, sig, a, b, cscore, *rest: captured.update(cscore=cscore),
+    )
+    dp = demo_params(problem_size=3)
+    prob = polynomial_problem(dp)
+
+    pms = _FakeParams()
+    prob.run(pms)
+    squared = captured["cscore"]._bscorer._err_func(0.0, 3.0)
+
+    pms = _FakeParams()
+    pms.it_abs_err = True
+    prob.run(pms)
+    absolute = captured["cscore"]._bscorer._err_func(0.0, 3.0)
+
+    assert squared == 9.0
+    assert absolute == 3.0
 
 
 # ---------------------------------------------------------------------------

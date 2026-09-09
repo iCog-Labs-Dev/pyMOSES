@@ -37,6 +37,7 @@ from pymetta.moses.main import table_problems as tp
 from pymetta.moses.main.problem import _unported_table_problem, problem_manager
 from pymetta.moses.main.table_problems import (
     bep_table_problem,
+    cluster_table_problem,
     f_one_table_problem,
     it_table_problem,
     parse_table_args,
@@ -1071,8 +1072,9 @@ _REAL_NAMES_AND_CLASSES = {
     "bep": bep_table_problem,
     "f_one": f_one_table_problem,
     "select": select_table_problem,
+    "cluster": cluster_table_problem,
 }
-_STUB_NAMES = ("ip", "ann-it", "pre-conj", "cluster")
+_STUB_NAMES = ("ip", "ann-it", "pre-conj")
 
 
 def test_register_table_problems_registers_all_eleven_names():
@@ -1082,7 +1084,7 @@ def test_register_table_problems_registers_all_eleven_names():
         assert pmr.find_problem(name) is not None, name
 
 
-def test_register_table_problems_wires_the_seven_real_classes():
+def test_register_table_problems_wires_the_eight_real_classes():
     pmr = problem_manager()
     tpp = register_table_problems(pmr)
     for name, cls in _REAL_NAMES_AND_CLASSES.items():
@@ -1091,7 +1093,7 @@ def test_register_table_problems_wires_the_seven_real_classes():
         assert prob._tpp is tpp, name
 
 
-def test_register_table_problems_leaves_four_stubs_raising():
+def test_register_table_problems_leaves_three_stubs_raising():
     pmr = problem_manager()
     register_table_problems(pmr)
     for name in _STUB_NAMES:

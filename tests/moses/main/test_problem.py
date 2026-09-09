@@ -187,23 +187,23 @@ def test_register_same_object_twice_under_same_name_is_a_harmless_noop():
 
 
 # ---------------------------------------------------------------------------
-# The nine unreachable table-problems.cc stubs
+# The three unreachable table-problems.cc stubs
 # ---------------------------------------------------------------------------
 
 # (name, description) copied verbatim from table-problems.h's own
 # name()/description() overrides -- see problem.py's
 # `_unported_table_problems` docstring for the exact citations.
+# CORRECTED: this held all TEN non-`it` problems until `table_problems.py`
+# wired eight of the eleven for real. Seven of those ten stubs were dead
+# by then (`register_problem` is `dict.setdefault` and `table_problems.py`
+# registers first) AND asserted something false about scorers that were in
+# fact ported, so `problem.py` dropped them. `cluster` was the last to go:
+# its scorer is `cluster_bscore` (bscores.py), not any of the
+# precision/discriminating/select family the old shared message named.
 _EXPECTED_STUBS = {
     "ip": "Find interesting patterns",
     "ann-it": "ANN-based regression on input table",
-    "pre": "Precision-Activation scoring",
     "pre-conj": "Precision-Conjunction-Maximization",
-    "prerec": "Precision Maximization (holding recall constant)",
-    "recall": "Recall Maximization (holding precision constant)",
-    "bep": "Maximize Break-even Point",
-    "f_one": "Maximize F_1 score",
-    "select": "Select range of rows",
-    "cluster": "Discover clustering function",
 }
 
 
@@ -211,7 +211,7 @@ def test_unported_table_problems_is_non_vacuous():
     """CARRY-FORWARD.md Sec 5/6: an empty corpus a parametrize walks over
     passes silently. Pin the count directly, independent of `parametrize`.
     """
-    assert len(_unported_table_problems()) == 10 == len(_EXPECTED_STUBS)
+    assert len(_unported_table_problems()) == 3 == len(_EXPECTED_STUBS)
 
 
 def test_unported_table_problems_names_and_descriptions_match_classic():
@@ -221,21 +221,47 @@ def test_unported_table_problems_names_and_descriptions_match_classic():
         assert prob.description() == _EXPECTED_STUBS[prob.name()]
 
 
-def test_unported_table_problems_excludes_it():
-    """The clean seam S13 Task 2 fills in: `it_table_problem` is the one
-    reachable problem and is deliberately never named here.
+@pytest.mark.parametrize(
+    "name", ["it", "pre", "prerec", "recall", "bep", "f_one", "select", "cluster"]
+)
+def test_unported_table_problems_excludes_every_wired_problem(name):
+    """The clean seam `table_problems.py` fills in: a problem wired for
+    real there must not also appear here. `cluster` is the newest member
+    of that list; the rest were already wired when this file still
+    stubbed them.
     """
-    assert "it" not in {p.name() for p in _unported_table_problems()}
+    assert name not in {p.name() for p in _unported_table_problems()}
+
+
+def test_unported_table_problem_reasons_are_distinct_and_specific():
+    """MUTATION PROVEN, and the reason `reason` exists at all: the stubs
+    used to share ONE message claiming every stubbed problem's scoring was
+    "a precision/discriminating/select bscore, the ANN domain, or
+    interesting-predicates scoring". That was false for `cluster`
+    (`cluster_bscore`, a one-dimensional k-means -- neither of those) and
+    for `pre-conj` (whose `precision_conj_bscore` IS ported). Collapsing
+    the three reasons back to one identical string makes this fail.
+    """
+    reasons = [p._reason for p in _unported_table_problems()]
+    assert len(set(reasons)) == len(reasons)
+    by_name = {p.name(): p._reason for p in _unported_table_problems()}
+    assert "interesting_predicate_bscore" in by_name["ip"]
+    assert "ANN" in by_name["ann-it"]
+    # The one whose scorer IS ported must say so rather than claim a
+    # missing bscore.
+    assert "precision_conj_bscore IS ported" in by_name["pre-conj"]
+    for reason in reasons:
+        assert "precision/discriminating/select" not in reason
 
 
 @pytest.mark.parametrize("name", sorted(_EXPECTED_STUBS))
 def test_unported_table_problem_run_raises_not_implemented(name):
     """MUTATION PROVEN: replacing `_unported_table_problem.run`'s body
     with `pass` (a stub that silently does nothing, exactly the failure
-    mode this task's brief calls out: "-H recall must fail loudly rather
-    than ... acting as a no-op") makes every one of these ten parametrized
+    mode this task's brief calls out: an unported `-H` must fail loudly
+    rather than acting as a no-op) makes every one of these parametrized
     cases fail (no exception raised); restoring the `raise
-    NotImplementedError(...)` makes all ten pass again. See
+    NotImplementedError(...)` makes them all pass again. See
     task-0-report.md.
     """
     prob = next(p for p in _unported_table_problems() if p.name() == name)
@@ -245,14 +271,14 @@ def test_unported_table_problem_run_raises_not_implemented(name):
 
 
 def test_unported_table_problem_run_raises_regardless_of_argument():
-    prob = _unported_table_problem("x", "y", "table-problems.h:1 x_problem")
+    prob = _unported_table_problem("x", "y", "table-problems.h:1 x_problem", "a reason")
     with pytest.raises(NotImplementedError):
         prob.run(None)
     with pytest.raises(NotImplementedError):
         prob.run(object())
 
 
-def test_register_unported_table_problems_registers_all_ten_and_none_run():
+def test_register_unported_table_problems_registers_all_three_and_none_run():
     pmr = problem_manager()
     _register_unported_table_problems(pmr)
     for name, description in _EXPECTED_STUBS.items():
@@ -275,4 +301,4 @@ def test_register_unported_table_problems_is_idempotent_shape():
     pmr_b = problem_manager()
     _register_unported_table_problems(pmr_a)
     _register_unported_table_problems(pmr_b)
-    assert pmr_a.find_problem("pre") is not pmr_b.find_problem("pre")
+    assert pmr_a.find_problem("ip") is not pmr_b.find_problem("ip")

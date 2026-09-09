@@ -3,13 +3,22 @@
 `ctruth_table_bscore` -- boolean classification scorer over a compressed
 truth table. Ports exactly `bscores.h:360-383` (the class declaration) and
 its out-of-line members at `bscores.cc:276-424`, per task-6-brief.md's
-Reference line. Every other `*_bscore` class in bscores.h (`logical_bscore`,
-`discretize_contin_bscore`, `enum_table_bscore`/`enum_filter_bscore`/
-`enum_graded_bscore`, and the precision/multi-objective scorers in the
-neighboring `precision_bscore.h`) is out of scope -- boolean scoring via
-`ctruth_table_bscore` was the entire ported surface for that task (see the
-plan's "Known gap, deliberate" note and that task's own Context section on
-`CTable.get_output_type()`).
+Reference line. Boolean scoring via `ctruth_table_bscore` was the entire
+ported surface for that task (see the plan's "Known gap, deliberate" note
+and that task's own Context section on `CTable.get_output_type()`); two
+more classes have since been added to this module by later tasks
+(`contin_bscore`, `cluster_bscore` -- both described below).
+
+Still NOT ported from bscores.h, as of this module's latest revision:
+`logical_bscore` (bscores.h:52), `discretize_contin_bscore` (bscores.h:91
+-- the `-H it --discretize-threshold` arm, which `table_problems.py`
+raises on), the enum family `enum_table_bscore`/`enum_filter_bscore`/
+`enum_graded_bscore`/`enum_effective_bscore` (bscores.h:409,446,490,516)
+and `interesting_predicate_bscore` (bscores.h:553, the `-H ip` problem's
+scorer). The precision/multi-objective
+scorers are not in this file at all: they live in the neighbouring
+`precision_bscore.py`/`discriminating_bscore.py`/`select_bscore.py`, and
+ARE ported there.
 
 Regarding the sign/weighting convention this scorer relies on:
 `ctruth_table_bscore::operator()`'s doc comment at the top of bscores.h
@@ -58,6 +67,20 @@ is the only classic caller, and `pymetta/moses/main/` is out of scope for
 this task) -- ported for fidelity to the full declared class, and
 covered by a direct (non-demo-problem) unit test, not claimed as
 exercising any wired problem.
+
+`cluster_bscore` (S13 `-H cluster`) -- the scorer behind
+`cluster_table_problem` (table-problems.cc:551), ported from
+`bscores.h:613-621` (the class declaration) and its out-of-line members at
+`bscores.cc:932`, `:937`, `:1074`, `:1079`. A one-dimensional k-means
+(Lloyd's algorithm) over the single column the candidate tree produces
+from the input table, scoring a tree by how tightly that column clusters.
+It carries three upstream defects that classic's own printed scores depend
+on, all marked DO NOT FIX on the class -- see its docstrings. It also
+needs `OTable(tr, itable)` (table.cc:319), a constructor this port's
+`OTable` does not have; the non-ANN half of that constructor's body is
+written out inline in `__call__`, exactly as `contin_bscore.__call__`
+already writes out its own per-row `interpreter_visitor` loop, so
+`table.py` needs no change.
 """
 
 import math
@@ -513,3 +536,351 @@ class contin_bscore(bscore_base):
                 self._complexity_coef = _contin_complexity_coef(alphabet_size, stdev)
         else:
             super().set_complexity_coef(*args)
+
+
+def _c_div(x: score_t, y: score_t) -> score_t:
+    """Not a ported symbol -- IEEE-754 division with C's semantics.
+
+    Python raises `ZeroDivisionError` where C++ yields `+/-inf` (finite
+    numerator) or `nan` (`0/0`). `cluster_bscore.__call__` below performs
+    three divisions that C++ lets run to an IEEE result; this reproduces
+    that rather than letting an exception escape. Same reconstruct-by-hand
+    shape `interpreter.py`'s own `div` case already uses
+    (interpreter.cc:157-167), minus its `OverflowException` throw, which
+    belongs to the interpreter and not to arithmetic.
+    """
+    try:
+        return _to_score_t(x / y)
+    except ZeroDivisionError:
+        if x == 0.0 or math.isnan(x):
+            return math.nan
+        return math.copysign(math.inf, x) * math.copysign(1.0, y)
+
+
+class cluster_bscore(bscore_base):
+    """C++: moses/moses/scoring/bscores.h:613 cluster_bscore
+
+    "Cluster scoring. Experimental attempt at using moses for cluster
+    discovery. When this scorer is presented with a combo tree, it
+    attempts to see if the tree, when applied to the input table,
+    naturally clusters scores into disparate groups. Since the combo
+    tree, applied to the input table, results in a 1-d array of values,
+    the clustering is judged by using the one-dimensional k-means
+    clustering algo.
+
+    This is considered experimental because it doesn't yet work very
+    well, is likely to be redisigned, and finally, doesn't even output
+    all the data that is required to use the resulting formula (the
+    edges, with are printed by hand, below).
+
+    XXX this should probably be removed! TODO FIXME"
+    (bscores.cc:916-930's own comment, reproduced verbatim, typos and
+    all.) The "printed by hand, below" it refers to is an `#if 0` block
+    inside `operator()` (bscores.cc:1059-1067) -- dead in every real
+    build, and not ported.
+
+    DO NOT FIX -- three upstream defects in `operator()` below are
+    reproduced deliberately, because classic's own printed scores depend
+    on them (see `__call__`'s docstring for each):
+
+    1. a value that crosses a cluster edge is dropped from BOTH clusters;
+    2. the LAST cluster's variance never reaches `final`;
+    3. `centers` seeds from the first three table rows in table order,
+       not from any spread heuristic.
+    """
+
+    def __init__(self, itable: ITable) -> None:
+        """C++: moses/moses/scoring/bscores.cc:932 cluster_bscore::cluster_bscore
+
+        `: _itable(itable)` -- `ITable _itable;` (bscores.h:626) is a
+        by-VALUE member, so the member-initializer list copy-constructs
+        it. `.copy()` here for the same reason `contin_bscore.__init__`
+        copies its own `cti`/`target` (see that constructor's docstring):
+        a bare assignment would alias the caller's mutable list where C++
+        copies a value type.
+
+        `bscore_base`'s `_size` stays 0: C++'s constructor never sets it
+        either, and nothing in this class reads it -- `operator()` sizes
+        everything off `oned.size()`, computed per call.
+        """
+        super().__init__()
+        self._itable = itable.copy()
+
+    def __call__(self, tr: combo_tree) -> behavioral_score:
+        """C++: moses/moses/scoring/bscores.cc:937 cluster_bscore::operator()
+
+        One-dimensional k-means (Lloyd's algorithm) over the column that
+        `tr` produces from `self._itable`; the single returned bscore
+        element is the RECIPROCAL of the binwidth-normalised RMS cluster
+        width, so that "the narrower the peaks, the higher the score"
+        (bscores.cc:1053-1054's own comment).
+
+        ## `nclusters` is a hard-coded 3, and that removes every wrap
+
+        `size_t nclusters = 3;` (bscores.cc:942) is a local literal, not
+        a parameter. Every `size_t` subtraction in the function is
+        therefore checked and none can wrap: `nclusters-1` is 2;
+        `numvals-1` (`vals[numvals-1]`, bscores.cc:1051) is safe because
+        `OC_ASSERT(nclusters < oned.size())` (bscores.cc:944) already
+        guarantees `numvals >= 4`; and `edge_idx` is only ever indexed
+        below `nclusters-1`, under an `OC_ASSERT` of exactly that
+        (bscores.cc:996). No mask is needed anywhere here -- see this
+        docstring's own assertion notes below for why that last
+        `OC_ASSERT` cannot fire.
+
+        ## DO NOT FIX 1: a boundary-crossing value is dropped entirely
+
+        C++: bscores.cc:989-1000. When `sc > edges[i]` the `else` branch
+        advances `i` and moves straight on to the next `j` -- it never
+        re-tests `sc` against the NEW `edges[i]`, so that one value is
+        counted into NEITHER cluster. Every cluster boundary therefore
+        loses exactly one sample from `cnt`/`sum`. Reproduced as written:
+        classic's printed scores are computed from these truncated sums.
+
+        ## DO NOT FIX 2: the last cluster never contributes to `final`
+
+        C++: bscores.cc:1026-1046. The RMS loop accumulates `cnt`/`sum`/
+        `squ` and folds them into `final` only in its `else` branch, i.e.
+        only when a boundary is crossed. There is no flush after the
+        loop ends, so the final cluster's variance is computed and then
+        discarded. With `nclusters == 3`, `final` is the sum of exactly
+        TWO cluster variances, never three. Reproduced as written.
+
+        ## DO NOT FIX 3: the initial centroids are the first three rows
+
+        C++: bscores.cc:946-952. `centers[i] = get_contin(oned[i])` for
+        `i` in 0..2 -- the first three rows of the table in table order,
+        sorted. Not a spread heuristic, not k-means++; whatever the input
+        file happens to list first. Reproduced as written, because it
+        decides which fixed point Lloyd's converges to.
+
+        ## `std::sort` (bscores.cc:953, :968): tie order is NOT observable
+
+        Both sorts are over `vector<score_t>` -- bare float values, not
+        records with a payload -- so this port uses `list.sort()`, NOT
+        `merging.py`'s `_sort` introsort transliteration (see
+        docs/CARRY-FORWARD.md 5b.1, which requires that decision to be
+        made deliberately rather than by default). The reasoning, in
+        three parts:
+
+        1. `std::sort` and `list.sort` both produce the unique
+           non-decreasing arrangement of the same multiset. Two
+           `<`-equal floats that are bit-identical are indistinguishable
+           once placed, so no permutation among them is observable.
+        2. The one pair that compares equal while remaining
+           distinguishable is `+0.0`/`-0.0`. Neither is observable here:
+           `sc <= edges[i]`, `cnt[i] += 1.0` and `squ += sc*sc` treat
+           them identically, and `sum[i] += sc` starts from `+0.0`, for
+           which `+0.0 + -0.0` and `+0.0 + +0.0` are both `+0.0`. The
+           only site where the sign could survive is `binwidth =
+           vals[numvals-1] - vals[0]` (bscores.cc:1051), and reaching it
+           with a signed zero at BOTH ends requires every value to be
+           zero -- which returns `-inf` from the `cnt[i] < 3.5` guard
+           (bscores.cc:1008) long before `binwidth` is computed. With a
+           zero at only one end the subtraction gives the same result
+           for either sign.
+        3. NaN makes `std::sort` undefined behaviour in C++ (it breaks
+           the strict weak ordering), so no permutation is "the"
+           faithful one. That case is moot: a NaN (or an infinity)
+           ANYWHERE in `vals` makes the sweep at bscores.cc:982-986
+           return `[-INFINITY]` when it reaches that element, and the
+           sweep visits every element, so the returned value does not
+           depend on where the sort put it. `centers` draws its three
+           values from the same column, so the same argument covers it.
+           This port's `list.sort()` orders NaN by position rather than
+           value; the guard makes that unobservable.
+
+        ## Termination
+
+        The `while (changed)` loop (bscores.cc:973) has no iteration cap
+        in classic and none is added here. Its state is the partition
+        recorded in `edge_idx`, and the next partition is a deterministic
+        function of it, so the loop terminates iff that map reaches a
+        fixed point rather than a longer cycle. Textbook Lloyd's
+        guarantees this via a monotonically decreasing objective, but
+        DO NOT FIX 1 above drops a sample per boundary each pass, so that
+        argument does not carry over unmodified and a cycle of length > 1
+        cannot be ruled out on paper. Classic would spin forever on such
+        an input; so does this port. Adding a cap classic does not have
+        would change the printed score on every input that needs one more
+        pass than the cap allows.
+
+        ## Not ported
+
+        The ANN branch of `OTable(tr, itable)` (table.cc:322-338, taken
+        only when `is_ann_type(*tr.begin())`) -- the ANN domain is
+        excluded project-wide, and `cluster_table_problem` forces
+        `contin_type` (table-problems.cc:555), so no ANN tree reaches
+        here. The non-ANN branch (table.cc:339-343) is the
+        `interpreter_visitor`-per-row loop written out below, identical
+        in shape to `contin_bscore.__call__`'s own.
+
+        `log_candidate_bscore(tr, bs)` (bscores.cc:1068) is a logging
+        call -- no logging surface exists in this port.
+        """
+        # C++: bscores.cc:940 `OTable oned(tr, _itable);` -- table.cc:319.
+        iv = interpreter_visitor(tr)
+        oned = OTable([iv(list(row)) for row in self._itable])
+
+        nclusters = 3
+
+        # C++: bscores.cc:944 OC_ASSERT(nclusters < oned.size()).
+        if not nclusters < len(oned):
+            raise AssertionError(
+                f"cluster_bscore: nclusters ({nclusters}) < oned.size() ({len(oned)})"
+            )
+
+        # Initial guess for the centroids. C++: bscores.cc:946-953.
+        # `centers` is `vector<score_t>` (float) while `get_contin`
+        # returns `contin_t` (double): the assignment narrows.
+        centers = [_to_score_t(get_contin(oned[i])) for i in range(nclusters)]
+        centers.sort()
+
+        # C++: bscores.cc:955-960. `centers[i] + centers[i+1]` is
+        # float+float (rounded to float); `0.5 *` then promotes to double
+        # and the assignment back into `edges` narrows again -- two
+        # roundings, reproduced by the nested `_to_score_t`.
+        edges = [score_t(0.0)] * nclusters
+        for i in range(nclusters - 1):
+            edges[i] = _to_score_t(0.5 * _to_score_t(centers[i] + centers[i + 1]))
+        edges[nclusters - 1] = math.inf
+
+        # sort the values. This makes assignment easier.
+        # C++: bscores.cc:962-969.
+        numvals = len(oned)
+        vals = [_to_score_t(get_contin(oned[j])) for j in range(numvals)]
+        vals.sort()
+
+        # One-dimensional k-means algorithm (LLoyd's algorithm)
+        # C++: bscores.cc:970-1017.
+        edge_idx = [0] * (nclusters - 1)
+        changed = True
+        while changed:
+            cnt = [score_t(0.0)] * nclusters
+            sum_ = [score_t(0.0)] * nclusters
+            changed = False
+            i = 0
+            for j in range(numvals):
+                sc = vals[j]
+
+                if math.isinf(sc) or math.isnan(sc):
+                    return [-math.inf]
+
+                if sc <= edges[i]:
+                    # `cnt[i] += 1.0` / `sum[i] += sc`: the accumulators
+                    # are `score_t` (float), so EVERY step rounds to
+                    # float32 -- accumulating in Python's native double
+                    # here would drift from classic on any table long
+                    # enough for the sum to lose low bits.
+                    cnt[i] = _to_score_t(cnt[i] + 1.0)
+                    sum_[i] = _to_score_t(sum_[i] + sc)
+                else:
+                    # C++: bscores.cc:996 OC_ASSERT(i<nclusters-1). It
+                    # cannot fire: `edges[nclusters-1]` is set to
+                    # `INFINITY` at bscores.cc:960 and is never
+                    # reassigned (the update loop at bscores.cc:1016 runs
+                    # only to `nclusters-1`), so once `i == nclusters-1`
+                    # every non-NaN `sc <= inf` takes the other branch --
+                    # and NaN has already returned above. Ported anyway,
+                    # for fidelity to a real `OC_ASSERT`.
+                    if not i < nclusters - 1:
+                        raise AssertionError(
+                            f"cluster_bscore: i ({i}) < nclusters-1 ({nclusters - 1})"
+                        )
+                    if j != edge_idx[i]:
+                        changed = True
+                    edge_idx[i] = j
+                    i += 1
+
+            # Compute cluster centers. C++: bscores.cc:1003-1015.
+            for i in range(nclusters):
+                # A cluster must have at least two points in it,
+                # as otherwise the RMS would be zero.  Heck, lets make it three.
+                if cnt[i] < 3.5:
+                    return [-math.inf]
+                sum_[i] = _to_score_t(sum_[i] / cnt[i])
+            for i in range(nclusters - 1):
+                edges[i] = _to_score_t(0.5 * _to_score_t(sum_[i] + sum_[i + 1]))
+
+        # Compute the RMS width of each cluster. C++: bscores.cc:1020-1046.
+        final = score_t(0.0)
+        cnt_s = score_t(0.0)
+        sum_s = score_t(0.0)
+        squ = score_t(0.0)
+        i = 0
+        for j in range(numvals):
+            sc = vals[j]
+            if sc <= edges[i]:
+                cnt_s = _to_score_t(cnt_s + 1.0)
+                sum_s = _to_score_t(sum_s + sc)
+                # `squ += sc*sc`: `sc*sc` rounds to float first, then the
+                # accumulation rounds again.
+                squ = _to_score_t(squ + _to_score_t(sc * sc))
+            else:
+                sum_s = _to_score_t(sum_s / cnt_s)
+                squ = _to_score_t(squ / cnt_s)
+
+                final = _to_score_t(final + _to_score_t(squ - _to_score_t(sum_s * sum_s)))
+                i += 1
+                cnt_s = score_t(0.0)
+                sum_s = score_t(0.0)
+                squ = score_t(0.0)
+
+        # normalize by bind-width. C++: bscores.cc:1048-1055 (comment typo
+        # "bind-width" for bin-width is classic's own).
+        #
+        # `sqrt(final)`: `final` can be NEGATIVE here -- it is a sum of
+        # `squ - sum*sum` terms, i.e. float32 variances, each of which
+        # rounds below zero when a cluster's values are near-identical.
+        # C's `sqrt` returns NaN for that; Python's `math.sqrt` raises
+        # `ValueError`, so the NaN is reconstructed by hand, the same way
+        # interpreter.py reconstructs `log`'s (interpreter.cc:177).
+        # Double-rounding is not an issue for `sqrt`: binary64 carries 53
+        # bits, more than the 2*24+2 needed for a binary32 square root to
+        # round identically through binary64.
+        final = math.nan if final < 0.0 else _to_score_t(math.sqrt(final))
+        # score_t binwidth = edges[nclusters-2] - edges[0];
+        binwidth = _to_score_t(vals[numvals - 1] - vals[0])
+        # `binwidth` cannot be zero: it is zero only when `vals[0] ==
+        # vals[numvals-1]`, i.e. every value is equal, which returns
+        # `-inf` from the `cnt[i] < 3.5` guard above. `_c_div` covers it
+        # regardless, so an IEEE result reaches the caller instead of a
+        # `ZeroDivisionError` if that reasoning is ever wrong.
+        final = _c_div(final, binwidth)
+        # The narrower the peaks, the higher the score.
+        # This way of doing it works better with the complexity penalty
+        #
+        # `final` here IS reachably zero -- a partition whose first two
+        # clusters each hold a single repeated value gives `squ ==
+        # sum*sum` exactly -- and C++ then yields `+inf`, not an
+        # exception. Hence `_c_div` rather than a bare `1.0 / final`.
+        final = _c_div(score_t(1.0), final)
+
+        return [final]
+
+    def best_possible_bscore(self) -> behavioral_score:
+        """C++: moses/moses/scoring/bscores.cc:1074 cluster_bscore::best_possible_bscore
+
+        "Return the best possible bscore. Used as one of the termination
+        conditions (when the best bscore is reached)." (bscores.h:619-620's
+        own comment.) `behavioral_score(1, very_best_score)` -- a
+        one-element vector holding `very_best_score` (types.h:71, this
+        port's `very_best_score` in types.py, bit-exactly C's `FLT_MAX`).
+
+        Note this is UNREACHABLE as a termination condition in practice:
+        `operator()` returns a reciprocal of an RMS width, which is finite
+        and nowhere near `FLT_MAX` for any real table.
+        """
+        return [very_best_score]
+
+    def min_improv(self) -> score_t:
+        """C++: moses/moses/scoring/bscores.cc:1079 cluster_bscore::min_improv
+
+        A flat `0.1` -- far coarser than `contin_bscore`'s `-1.0e-4`,
+        because this scorer's own score is a reciprocal RMS on the order
+        of 1..100 rather than a summed error. Narrowed via `_to_score_t`
+        since `min_improv`'s C++ return type is `score_t`; `0.1` is not
+        exactly representable in binary32, so the narrowing is not a
+        no-op.
+        """
+        return _to_score_t(0.1)

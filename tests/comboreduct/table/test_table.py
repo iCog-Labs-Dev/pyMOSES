@@ -578,3 +578,253 @@ def test_table_init_copies_itable_and_otable_not_aliases_them():
     assert list(table.otable) == [T]
     assert table.itable is not it
     assert table.otable is not ot
+
+
+# ---------------------------------------------------------------------------
+# ITable's random-sampling constructor (table.cc:93) and OTable's
+# combo-tree constructor (table.cc:319). Not in tableUTest.cxxtest -- classic
+# has no unit test for either; these are oracle tests against a compiled
+# probe.
+#
+# The probe links the REAL `ITable` and the REAL cogutil `MT19937RandGen`:
+#
+#   g++ -O2 -std=c++17 -I $CLASSIC -I $PREFIX/include -o itable_rand_probe \
+#       itable_rand_probe.cc -L $PREFIX/lib -L $PREFIX/lib/opencog \
+#       -Wl,-rpath,$PREFIX/lib -Wl,-rpath,$PREFIX/lib/opencog \
+#       -lmoses -lcomboreduct -lcogutil
+#
+# It seeds `randGen()`, builds one `ITable` and prints every cell at
+# `%.17g`; the `sig <seed> <nsamples> <min> <max> <spec>` mode builds a
+# `lambda(<spec>) -> contin` signature from a string of `b`/`c`/`u`
+# characters. Every literal below is that output, verbatim. 16
+# configurations were diffed in total (this file keeps the six that
+# discriminate); all 16 were identical element for element.
+#
+# Draw ORDER and COUNT are the point: per row, in column order, a boolean
+# column consumes one `randGen().randint(2)` and a contin column one
+# `randGen().randdouble()`, while an `unknown` column consumes NOTHING.
+# ---------------------------------------------------------------------------
+
+_T = builtin.logical_true
+_F = builtin.logical_false
+
+
+def _sig(spec, otype=type_node.contin_type):
+    from pymetta.comboreduct.type_checker.type_signature import TypeSignature
+
+    m = {
+        "b": type_node.boolean_type,
+        "c": type_node.contin_type,
+        "u": type_node.unknown_type,
+        "e": type_node.enum_type,
+        "x": type_node.list_type,
+    }
+    return TypeSignature([m[ch] for ch in spec], otype)
+
+
+def _seeded(seed):
+    from pymetta.util.rng import randGen
+
+    g = randGen()
+    g.seed(seed)
+    return g
+
+
+def test_itable_random_ctor_matches_classic_for_the_sr_signature():
+    """`itable_rand_probe sr 1 8` -- exactly what `polynomial_problem::run`
+    builds (`gen_signature(id::contin_type, 1)` and the constructor's own
+    `min_contin=-1.0`/`max_contin=1.0` defaults, demo-problems.cc:261-263),
+    at classic's default seed.
+    """
+    _seeded(1)
+    it = ITable(_sig("c"), 8)
+    assert [row[0] for row in it] == [
+        -0.16595600293156598,
+        0.99436961673069035,
+        0.44064897891149135,
+        0.86511472283515967,
+        -0.99977123783896005,
+        -0.74375110439577863,
+        -0.39533486436012544,
+        0.99808103125497727,
+    ]
+
+
+def test_itable_random_ctor_interleaves_boolean_and_contin_draws():
+    """`itable_rand_probe sig 1 6 -1 1 bcbc`. The discriminating property
+    is the INTERLEAVING: within a row the four columns draw
+    randint/randdouble/randint/randdouble in that order, so the contin
+    values are NOT the first six of the pure-contin stream above. (They
+    are its 2nd, 4th, 6th, 8th, ... -- visible by comparing row 0 here
+    with rows 1 and 3 of the previous test.)
+    """
+    _seeded(1)
+    it = ITable(_sig("bcbc"), 6)
+    assert list(it[0]) == [_F, 0.99436961673069035, _F, 0.86511472283515967]
+    assert list(it[1]) == [_T, -0.74375110439577863, _T, 0.99808103125497727]
+    assert list(it[5]) == [_T, -0.37345297387183019, _T, 0.049096325656654338]
+
+
+def test_itable_random_ctor_enumerates_booleans_when_nsamples_is_pow2_barity():
+    """`itable_rand_probe sig 3 8 -1 1 bbb`: `comp_tt` (table.cc:100) is
+    true because `8 == pow2(3)`, so the three boolean columns are the
+    binary counter `i & (1 << bidx++)` -- LOW bit in column 0 -- and NO
+    RNG draw happens at all. Seed 3 is used and is irrelevant: the same
+    table comes out under any seed, which is the whole point.
+
+    Mutation-proven: replacing `1 << bidx` with `1 << (barity - 1 - bidx)`
+    (the other plausible bit order) makes this test fail (see this task's
+    report).
+    """
+    _seeded(3)
+    it = ITable(_sig("bbb"), 8)
+    assert [list(r) for r in it] == [
+        [_F, _F, _F],
+        [_T, _F, _F],
+        [_F, _T, _F],
+        [_T, _T, _F],
+        [_F, _F, _T],
+        [_T, _F, _T],
+        [_F, _T, _T],
+        [_T, _T, _T],
+    ]
+    # ...and it really did not touch the RNG.
+    from pymetta.util.rng import randGen
+
+    g = randGen()
+    fresh = ITable(_sig("c"), 1)[0][0]
+    g.seed(3)
+    assert fresh == (2.0 * g.randdouble() - 1.0)
+
+
+def test_itable_random_ctor_honours_a_reversed_contin_range():
+    """`itable_rand_probe sig 8 4 10 0 c`: `min_contin=10`,
+    `max_contin=0`, which is the argument order `combo_problem::run`
+    actually produces (demo-problems.cc:429 passes max as min). The
+    formula `(max - min) * r + min` then yields `10 - 10r`, DECREASING in
+    the draw. Values here are classic's, so they pin the direction.
+    """
+    _seeded(8)
+    it = ITable(_sig("c"), 4, 10.0, 0.0)
+    assert [row[0] for row in it] == [
+        1.2657059638913974,
+        9.8888556193301582,
+        0.31459334779404813,
+        7.6056042843511342,
+    ]
+
+
+def test_itable_random_ctor_auto_nsamples():
+    """`itable_rand_probe sig 11 -1 -1 1 bbc`: `nsamples < 0` ->
+    `std::max(pow2(barity), sample_count(carity))` = `max(4, 26)` = 26.
+    26, not 26.265233750364456: `sample_count` returns `unsigned`, so
+    `20.0 * log(1 + e)` truncates.
+
+    UNREACHABLE from either demo problem (both force a positive
+    `nsamples` first -- see `ITable._sample`'s own docstring), so this is
+    the only coverage it has.
+    """
+    _seeded(11)
+    it = ITable(_sig("bbc"), -1)
+    assert len(it) == 26
+    assert list(it[0]) == [_F, _T, -0.96104951947020589]
+    assert list(it[25]) == [_F, _F, -0.14569563305603705]
+
+    # carity 0 -> sample_count is 1, so pow2(barity) wins.
+    _seeded(13)
+    assert len(ITable(_sig("bbbbb"), -1)) == 32
+
+
+def test_itable_random_ctor_unknown_column_is_a_contin_zero():
+    """`itable_rand_probe sig 4 3 -1 1 uu`: `vs.push_back(vertex())` for
+    an `unknown_type` column. `vertex` is `boost::variant<contin_t,
+    enum_t, builtin, ...>` (vertex.h:128), so a default-constructed one
+    holds its FIRST alternative -- a CONTIN 0.0, which the probe reports
+    as `c:0`, NOT `id::null_vertex`.
+
+    Mutation-proven: `builtin.null_vertex` (the natural reading of
+    "push default vertex") makes this test fail. It was the port's first
+    guess, and the probe caught it (see this task's report).
+    """
+    _seeded(4)
+    it = ITable(_sig("uu"), 3)
+    assert [list(r) for r in it] == [[0.0, 0.0]] * 3
+    assert all(isinstance(v, float) and not isinstance(v, builtin) for v in it[0])
+
+    # ...and it consumed no draws either.
+    from pymetta.util.rng import randGen
+
+    g = randGen()
+    g.seed(4)
+    before = g.randdouble()
+    g.seed(4)
+    ITable(_sig("uu"), 3)
+    assert g.randdouble() == before
+
+
+def test_itable_random_ctor_leaves_types_and_labels_at_their_lazy_defaults():
+    """The C++ constructor sets neither `types` nor `labels` (table.cc:
+    93-127), so `get_types()`/`get_labels()` fall through to their lazy
+    defaults -- all `unknown_type`, and `i1..iN`.
+    """
+    _seeded(1)
+    it = ITable(_sig("bc"), 3)
+    assert it.get_types() == [type_node.unknown_type, type_node.unknown_type]
+    assert it.get_labels() == ["i1", "i2"]
+
+
+def test_itable_random_ctor_rejects_an_enum_column():
+    """`enum_t::get_random_enum()` (table.cc:115) has no port -- the enum
+    domain is excluded package-wide.
+    """
+    with pytest.raises(NotImplementedError, match="enum_type"):
+        ITable(_sig("e"), 1)
+
+
+def test_itable_random_ctor_rejects_any_other_column_type():
+    """classic's own `OC_ASSERT(false, "Not implemented yet")`
+    (table.cc:118) for every `type_node` outside boolean/contin/enum/
+    unknown.
+    """
+    with pytest.raises(NotImplementedError, match="Not implemented yet"):
+        ITable(_sig("x"), 1)
+
+
+def test_otable_from_combo_tree_evaluates_every_row():
+    """C++: moses/comboreduct/table/table.cc:319 OTable
+
+    Same configuration `combo_problem::run` produces for
+    `-y'+(6 *(6 $1))'` at classic's own defaults: `max_rand_input = 2 *
+    largest_const = 12`, `min_rand_input = -12`, and the swapped
+    constructor arguments. Both the inputs and the outputs are the
+    probe's `cp 1 "+(6 *(6 $1))" 5 -12 12` output.
+    """
+    from pymetta.comboreduct.combo.iostream_combo import str_to_combo_tree
+
+    _seeded(1)
+    it = ITable(_sig("c"), 5, 12.0, -12.0)
+    ot = OTable(str_to_combo_tree("+(6 *(6 $1))"), it)
+    assert [row[0] for row in it] == [
+        1.9914720351787913,
+        -11.932435400768284,
+        -5.2877877469378944,
+        -10.381376674021915,
+        11.997254854067521,
+    ]
+    assert list(ot) == [
+        17.948832211072748,
+        -65.594612404609705,
+        -25.726726481627367,
+        -56.288260044131491,
+        77.983529124405123,
+    ]
+    # `type = get_type_node(get_type_tree((*this)[0]))` -- table.cc:346.
+    assert ot.get_type() == type_node.contin_type
+    assert ot.get_label() == "output"
+
+
+def test_otable_from_combo_tree_rejects_a_non_itable_second_argument():
+    from pymetta.comboreduct.combo.iostream_combo import str_to_combo_tree
+
+    with pytest.raises(TypeError, match="must be an ITable"):
+        OTable(str_to_combo_tree("+(6 $1)"), "not an itable")

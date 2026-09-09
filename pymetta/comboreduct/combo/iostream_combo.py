@@ -337,8 +337,21 @@ def _token_to_vertex(token: str):
     )
 
 
+# C++ streams default to `defaultfloat` with precision 6, which is what a
+# bare `std::cout << some_double` uses. That default is NOT universal: any
+# caller that has done `out << std::setprecision(n)` changes it for
+# everything subsequently written to that stream, INCLUDING contin
+# constants nested inside a combo tree. `metapop_printer` is exactly such a
+# caller (moses_main.h:110, `setprecision(io_score_precision)` = 18), so
+# printing a candidate goes through `_contin_to_str` at precision 18, not 6.
+DEFAULT_OSTREAM_PRECISION = 6
+
+
 def _vertex_to_str(
-    v, labels: Sequence[str] = (), fmt: output_format = output_format.combo
+    v,
+    labels: Sequence[str] = (),
+    fmt: output_format = output_format.combo,
+    precision: int = DEFAULT_OSTREAM_PRECISION,
 ) -> str:
     """C++: moses/comboreduct/combo/iostream_combo.cc:428 ostream_vertex
 
@@ -359,7 +372,7 @@ def _vertex_to_str(
         case builtin():
             return _builtin_to_str(v, fmt)
         case float():
-            return _contin_to_str(v)
+            return _contin_to_str(v, precision)
         case _:
             raise TypeError(f"don't know how to print vertex {v!r} (combo format)")
 
@@ -459,19 +472,29 @@ def _builtin_to_str(b: builtin, fmt: output_format = output_format.combo) -> str
     return f"Format {_output_format_to_int(fmt)} unknown"
 
 
-def _contin_to_str(c: contin_t) -> str:
+def _contin_to_str(c: contin_t, precision: int = DEFAULT_OSTREAM_PRECISION) -> str:
     """C++: moses/comboreduct/combo/iostream_combo.cc:428 ostream_vertex
 
     The fallback at the end of ostream_vertex, `out << get<contin_t>(v)`
     (iostream_combo.cc:463-464) -- reached once none of the earlier
     `get<T>(&v)` checks match, which for this port's narrowed vertex means
-    "not an argument and not a builtin." Prints a bare double
-    through the default C++ stream formatting: `defaultfloat`, precision 6
-    -- equivalent to C's "%.6g", which Python's ".6g" format spec matches
-    byte-for-byte (verified against combo-fmt-converter over 3.14, 3.0,
-    0.0001, 0.00001, 1234567, 1e10, 1e-100, -0.0, ... -- see task-3-report.md).
+    "not an argument and not a builtin." Prints a bare double through the
+    enclosing stream's float formatting: `defaultfloat` at whatever
+    precision that stream currently carries, equivalent to C's "%.<p>g",
+    which Python's ".{p}g" format spec matches byte-for-byte (verified
+    against combo-fmt-converter at the default precision 6 over 3.14, 3.0,
+    0.0001, 0.00001, 1234567, 1e10, 1e-100, -0.0, ...).
+
+    `precision` used to be hardcoded at 6. That is right for a
+    default-configured stream such as `combo-fmt-converter`'s, and wrong
+    for `metapop_printer`'s, which sets 18. Measured divergence before the
+    fix: `moses -Hsr -k3 -m600 -W1 -r9` printed
+    `*(0.543044125185779492 $1)` in classic and `*(0.543044 $1)` here --
+    same tree, same score, truncated constant. It surfaced only at that
+    seed because every other run in the sweep produced constants like
+    `0.5`/`2`/`-1`, which render identically at both precisions.
     """
-    return format(c, ".6g")
+    return format(c, f".{precision}g")
 
 
 def _combo_it_to_str(
@@ -479,6 +502,7 @@ def _combo_it_to_str(
     node,
     labels: Sequence[str] = (),
     fmt: output_format = output_format.combo,
+    precision: int = DEFAULT_OSTREAM_PRECISION,
 ) -> str:
     """C++: moses/comboreduct/combo/iostream_combo.h:69 ostream_combo_it
 
@@ -505,12 +529,12 @@ def _combo_it_to_str(
     something else.
     """
     if fmt == output_format.combo:
-        s = _vertex_to_str(node.data, labels, fmt)
+        s = _vertex_to_str(node.data, labels, fmt, precision)
         children = list(t.children(node))
         if children:
             s += (
                 "("
-                + " ".join(_combo_it_to_str(t, child, labels, fmt) for child in children)
+                + " ".join(_combo_it_to_str(t, child, labels, fmt, precision) for child in children)
                 + ")"
             )
         return s
@@ -520,12 +544,16 @@ def _combo_it_to_str(
         children = list(t.children(node))
         if is_infix:
             s = ""
-            sep = " " + _vertex_to_str(v, labels, fmt) + " "
+            sep = " " + _vertex_to_str(v, labels, fmt, precision) + " "
         else:
-            s = _vertex_to_str(v, labels, fmt)
+            s = _vertex_to_str(v, labels, fmt, precision)
             sep = ", "
         if children:
-            s += "(" + sep.join(_combo_it_to_str(t, c, labels, fmt) for c in children) + ")"
+            s += (
+                "("
+                + sep.join(_combo_it_to_str(t, c, labels, fmt, precision) for c in children)
+                + ")"
+            )
         return s
     if fmt == output_format.scheme:
         raise NotImplementedError(
@@ -540,6 +568,7 @@ def combo_tree_to_str(
     t: combo_tree,
     labels: Sequence[str] = (),
     fmt: output_format = output_format.combo,
+    precision: int = DEFAULT_OSTREAM_PRECISION,
 ) -> str:
     """C++: moses/comboreduct/combo/iostream_combo.cc:472 ostream_combo_tree
 
@@ -557,7 +586,7 @@ def combo_tree_to_str(
     root = t.begin()
     if root is None:
         return ""
-    return _combo_it_to_str(t, root, labels, fmt) + " "
+    return _combo_it_to_str(t, root, labels, fmt, precision) + " "
 
 
 # ---------------------------------------------------------------------------

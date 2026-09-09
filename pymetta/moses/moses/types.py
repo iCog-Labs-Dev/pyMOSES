@@ -847,7 +847,14 @@ def ostream_scored_combo_tree(
     parts: list[str] = []
     if output_score:
         parts.append(f"{_format_score_t(sct.get_score())} ")
-    parts.append(combo_tree_to_str(sct.get_tree(), labels, fmt))
+    # `io_score_precision`, not `combo_tree_to_str`'s default 6. C++ writes
+    # the tree into the SAME stream `metapop_printer` already set to
+    # `setprecision(io_score_precision)` (moses_main.h:110), and that
+    # setting is sticky for everything written afterwards -- including
+    # contin constants nested inside the tree. Measured before the fix:
+    # `moses -Hsr -k3 -m600 -W1 -r9` printed `*(0.543044125185779492 $1)`
+    # in classic and `*(0.543044 $1)` here.
+    parts.append(combo_tree_to_str(sct.get_tree(), labels, fmt, io_score_precision))
     if output_cscore:
         parts.append(f" {sct.get_composite_score()}")
     if output_demeID:

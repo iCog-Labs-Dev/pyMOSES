@@ -360,14 +360,16 @@ def test_moses_exec_unknown_problem_returns_1_and_writes_stderr(capsys):
     assert captured.err == 'problem type "bogus-problem-name" is currently unsupported.\n'
 
 
-def test_moses_exec_unregistered_stub_problem_raises():
-    """`-H cluster` names one of the four problems `table_problems.py`
-    leaves as `problem.py`'s own raising `_unported_table_problem` stub
-    (`cluster_bscore` wiring was not attempted -- table_problems.py's own
-    module docstring).
+@pytest.mark.parametrize("name", ["ip", "ann-it", "pre-conj"])
+def test_moses_exec_unregistered_stub_problem_raises(name):
+    """The three problems `table_problems.py` still leaves as
+    `problem.py`'s own raising `_unported_table_problem` stub. This test
+    was `-H cluster` alone until `cluster_table_problem` was wired for
+    real (table_problems.py); `-H cluster` now RUNS, and its oracle is
+    `test_moses_exec_reproduces_classic_cluster_*` below.
     """
-    with pytest.raises(NotImplementedError, match="cluster"):
-        moses_exec(["moses", "-Hcluster"])
+    with pytest.raises(NotImplementedError, match=name):
+        moses_exec(["moses", f"-H{name}"])
 
 
 def test_moses_exec_version_flag_exits_zero():
@@ -543,3 +545,411 @@ def test_moses_exec_reproduces_classic_contin_depth_oracle():
     )
     assert rc == 0
     assert out == _EXPECTED_CONTIN_DEPTH3
+
+
+# ---------------------------------------------------------------------------
+# -H sr (polynomial regression) and -H cp's contin arm, end to end.
+#
+# Both raised `NotImplementedError` until 2026-09-09, on a stated reason
+# ("ITable/OTable/contin_bscore are S14 territory this port has not built,
+# problem_params.contin_reduct is still None") that was false in every
+# clause by the time it was read. These are the proof that they now
+# reproduce classic.
+#
+# Every `_EXPECTED_*` below was captured by ACTUALLY RUNNING
+#   ( ulimit -v 2097152; ulimit -c 0; timeout 300
+#     $CLASSIC/build/moses/moses/main/moses <the flags in the test> )
+# and is quoted here byte for byte, trailing spaces included. The full
+# sweep behind them was wider than what runs here: 11 `-Hsr` and 14 `-Hcp`
+# configurations all matched, varying -k, -m, -r, --nsamples,
+# --linear-regression, --it-abs-err, -q/-w, -n, and the shape of -y.
+# The subset kept here is the discriminating one -- see each test.
+#
+# Not kept as a test, deliberately: `-Hsr -k-1`. Classic HANGS on it
+# (`timeout 20` -> rc 124), because `demo_params::problem_size` is
+# `unsigned int` and `dorepeat` counts in `unsigned int`, so `-k-1` asks
+# for 4294967295 iterations per table row. This port reproduces that
+# rather than "fixing" it to zero iterations; `_dorepeat_count` in
+# demo_problems.py is the extracted, testable half of it (see
+# test_demo_problems.py), because a test that actually ran the loop would
+# hang here too.
+# ---------------------------------------------------------------------------
+
+_EXPECTED_SR_K3 = (
+    "-1.38283169269561768 *(+(2 $1) $1) \n"
+    "-1.88396143913269043 *(+(2 *(0.75 $1)) $1) \n"
+    "-2.50166654586791992 *(+(2 *(1.5 $1)) $1) \n"
+    "-3.09212255477905273 *(+(2 *(0.5 $1)) $1) \n"
+    "-3.78743267059326172 *(+(2 *(+(1.5 *(-1 $1)) $1)) $1) \n"
+    "-4.80392360687255859 *(+(1 *(1.5 $1)) $1) \n"
+    "-5.56489133834838867 *(+(1 *(0.75 $1)) $1) \n"
+    "-7.62953901290893555 *(2 $1) \n"
+    "-8.13655757904052734 *(1.5 $1) \n"
+    "-8.31055450439453125 +(1 *(2 $1)) \n"
+)
+
+_EXPECTED_SR_K1 = (
+    "0 $1 \n"
+    "-8.09113025665283203 0 \n"
+    "-26.7926368713378906 -1 \n"
+    "-29.3896236419677734 1 \n"
+    "-32.3645210266113281 *(-1 $1) \n"
+)
+
+_EXPECTED_SR_K0 = "0 0 \n"
+
+_EXPECTED_SR_K3_R5 = (
+    "-1.01685106754302979 *(1.5 +(1 $1) $1) \n"
+    "-1.22611773014068604 *(+(1.5 *(0.75 $1)) $1) \n"
+    "-1.69187688827514648 *(+(1.5 *(+(0.75 $1) $1)) $1) \n"
+    "-2.06575965881347656 *(+(1.5 *(1.75 $1)) $1) \n"
+    "-1.3310776948928833 *(+(1.5 *(+(0.75 *(-1 sin(*(-1 $1)))) $1)) $1) \n"
+    "-5.85272073745727539 *(2 $1) \n"
+    "-5.84626340866088867 *(+(2.5 *(0.75 $1)) $1) \n"
+    "-6.46937274932861328 *(1.5 $1) \n"
+    "-6.08637619018554688 *(2 +(1 $1) $1) \n"
+    "-7.32205295562744141 *(+(1.5 *(+(0.75 *(-1 $1)) $1)) $1) \n"
+)
+
+_EXPECTED_SR_K3_NS7 = (
+    "-0.736911177635192871 +(0.25 *(+(2 $1) $1)) \n"
+    "-0.54436802864074707 +(0.25 *(+(2 *(0.5 $1)) $1)) \n"
+    "-1.16134333610534668 +(0.5 *(2 $1)) \n"
+    "-1.39297652244567871 +(0.75 *(2 $1)) \n"
+    "-1.55767381191253662 +(0.5 *(1.5 $1)) \n"
+    "-1.80471014976501465 +(0.25 *(2 $1)) \n"
+    "-1.92749702930450439 +(0.5 *(+(2 $1) $1)) \n"
+    "-2.08467888832092285 +(0.5 *(+(1.5 $1) $1)) \n"
+    "-2.49960970878601074 +(1 *(2 $1)) \n"
+    "-2.59896564483642578 +(0.5 *(2.5 $1)) \n"
+)
+
+_EXPECTED_SR_K3_LINREG = (
+    "0 *(+(1 *(+(1 $1) $1)) $1) \n"
+    "-1.38283169269561768 *(+(2 $1) $1) \n"
+    "-1.38283169269561768 *(+(2 *(-1 $1) *(2 $1)) $1) \n"
+    "-2.50166654586791992 *(+(2 *(1.5 $1)) $1) \n"
+    "-7.62953901290893555 *(2 $1) \n"
+    "-8.13655757904052734 *(1.5 $1) \n"
+    "-8.31055450439453125 +(1 *(2 $1)) \n"
+    "-8.31055450439453125 +(-1 *(2 +(1 $1))) \n"
+    "-33.9310073852539062 0 \n"
+)
+
+_EXPECTED_SR_K2_ABSERR = (
+    "-8.09113025665283203 $1 \n"
+    "-8.44435310363769531 *(0.5 $1) \n"
+    "-10.7238254547119141 *(2 $1) \n"
+    "-11.6908273696899414 0 \n"
+    "-11.908869743347168 +(1 $1) \n"
+    "-15.1492815017700195 /($1 +(1 *(-1 sin($1)))) \n"
+    "-15.1492815017700195 /($1 +(1 sin(*(-1 $1)))) \n"
+    "-19.3443717956542969 1 \n"
+    "-21.93115234375 *(3 $1) \n"
+    "-22.8981533050537109 *(-1 $1) \n"
+)
+
+_EXPECTED_CP_CONTIN = "0 *(6 +(1 $1)) \n-45051.44921875 0 \n"
+
+_EXPECTED_CP_ASYM = (
+    "0 *(2 $1) \n"
+    "-548.24810791015625 +(1 $1) \n"
+    "-734.7406005859375 $1 \n"
+    "-734.7406005859375 *(3 $1) \n"
+    "-961.2330322265625 +(-1 $1) \n"
+    "-1653.1663818359375 *(0.5 $1) \n"
+    "-2545.9775390625 1 \n"
+    "-2594.98828125 /($1 +(1 $1)) \n"
+    "-2938.96240234375 0 \n"
+    "-3371.947265625 -1 \n"
+)
+
+_EXPECTED_CP_IMPULSE = "-51 +(7 *(3 impulse($1))) \n-1836 0 \n"
+_EXPECTED_CP_IMPULSE_NS2 = "-5 +(7 *(3 impulse($1))) \n-180 0 \n"
+_EXPECTED_CP_UNKNOWN_SLOT = "0 or($1 !$3) \n-2 true \n"
+
+
+def test_moses_exec_reproduces_classic_sr_oracle():
+    """`moses -Hsr -k3 -m1000 -W1` -- classic's own defaults for
+    everything this test does not name (`docs/CARRY-FORWARD.md` Sec 5.4).
+    """
+    rc, out = _run(["moses", "-Hsr", "-k3", "-m1000", "-W1"])
+    assert rc == 0
+    assert out == _EXPECTED_SR_K3
+
+
+def test_moses_exec_sr_problem_size_reaches_the_scorer():
+    """`-k` is `simple_symbolic_regression`'s `order`, so changing it must
+    change the TARGET function, not just the search budget. `-k1` (f(x)=x)
+    is solved exactly, `-k0` (f(x)=0, `dorepeat(0)` running zero times) is
+    solved by the constant `0`, and `-k3` above is solved by neither --
+    three different answers from one flag.
+    """
+    rc, out = _run(["moses", "-Hsr", "-k1", "-m1000", "-W1"])
+    assert rc == 0
+    assert out == _EXPECTED_SR_K1
+
+    rc, out = _run(["moses", "-Hsr", "-k0", "-m200", "-W1"])
+    assert rc == 0
+    assert out == _EXPECTED_SR_K0
+
+    assert _EXPECTED_SR_K1 != _EXPECTED_SR_K3
+    assert _EXPECTED_SR_K0 != _EXPECTED_SR_K3
+
+
+def test_moses_exec_sr_seed_reaches_the_itable_draws():
+    """`-r5` changes the sampled `ITable`, not only the optimizer's own
+    draws -- the whole reason `ITable`'s random constructor had to be
+    verified draw for draw. A different seed must give a different answer.
+    """
+    rc, out = _run(["moses", "-Hsr", "-k3", "-m1000", "-W1", "-r5"])
+    assert rc == 0
+    assert out == _EXPECTED_SR_K3_R5
+    assert out != _EXPECTED_SR_K3
+
+
+def test_moses_exec_sr_nsamples_reaches_the_itable_row_count():
+    """`--nsamples 7` overrides `default_nsamples` (20), so the table has
+    7 rows and 7 `randdouble()` draws instead of 20. It changes both the
+    scores and the RNG stream every later decision reads.
+    """
+    rc, out = _run(["moses", "-Hsr", "-k3", "-m1000", "-W1", "--nsamples", "7"])
+    assert rc == 0
+    assert out == _EXPECTED_SR_K3_NS7
+    assert out != _EXPECTED_SR_K3
+
+
+def test_moses_exec_sr_overrides_linear_contin():
+    """The load-bearing one. `--linear-regression=1` does TWO things in
+    classic: `deme_params.linear_contin = linear_regression`
+    (problem-params.cc:2264) and `ignore_ops.insert({div, exp, log, sin})`
+    (problem-params.cc:2146-2151). `polynomial_problem::run` then
+    UNDOES the first (`pms.deme_params.linear_contin = false`,
+    demo-problems.cc:259) and leaves the second, "sr is fundamentally a
+    kind of non-linear regression!".
+
+    So this output is what classic prints with the reduced operator set
+    but NON-linear contin knob building -- and its top entry,
+    `*(+(1 *(+(1 $1) $1)) $1)`, is a nested product of `$1` that linear
+    contin knob building cannot construct at all. Deleting that one
+    assignment from `polynomial_problem.run` makes this test fail (see
+    this task's report for the kill count).
+    """
+    rc, out = _run(["moses", "-Hsr", "-k3", "-m1000", "-W1", "--linear-regression=1"])
+    assert rc == 0
+    assert out == _EXPECTED_SR_K3_LINREG
+    assert out != _EXPECTED_SR_K3
+
+
+def test_moses_exec_sr_it_abs_err_reaches_contin_bscore():
+    """`--it-abs-err=1` selects `contin_bscore::abs_error` over
+    `squared_error`. Classic REQUIRES the `=1` (it is a
+    `po::value<bool>`): the bare `--it-abs-err` aborts with
+    "the required argument for option '--it-abs-err' is missing" and
+    dumps core, which is why the flag is written with its value here.
+    """
+    rc, out = _run(["moses", "-Hsr", "-k2", "-m200", "-W1", "--it-abs-err=1"])
+    assert rc == 0
+    assert out == _EXPECTED_SR_K2_ABSERR
+
+
+def test_moses_exec_reproduces_classic_cp_contin_oracle():
+    """`MOSESUTest.cxxtest:141`'s own `test_cp_contin` program and flags
+    (`-Hcp -y'+(6 *(6 $1))' -nexp`), which its comment calls "challenging
+    because if min, max_rand_input aren't set correctly, then the scoring
+    table will be on too small a range, and moses will fail to find a
+    solution" -- i.e. it is exactly a test of the `largest_const_in_tree`
+    hack. Classic finds `*(6 +(1 $1))`, one of the two answers
+    `test_cp_contin` accepts.
+    """
+    rc, out = _run(["moses", "-Hcp", "-y+(6 *(6 $1))", "-nexp", "-m1000", "-W1"])
+    assert rc == 0
+    assert out == _EXPECTED_CP_CONTIN
+
+
+def test_moses_exec_cp_contin_reproduces_the_swapped_sampling_range():
+    """The discriminating case for demo-problems.cc:429's argument-order
+    bug: classic passes `max_rand_input` as the constructor's
+    `min_contin` and `min_rand_input` as its `max_contin`, so a sampled
+    value is `(min_rand - max_rand) * r + max_rand`.
+
+    `-q0 -w10` is chosen precisely because it defeats the "stupid hack"
+    (which only fires when the range is still the 0..1 default) AND is
+    asymmetric, so the swap is observable: classic samples `10 - 10r`,
+    the un-swapped reading would sample `10r`. Passing the two arguments
+    the "sensible" way round makes this test fail (see this task's
+    report).
+    """
+    rc, out = _run(["moses", "-Hcp", "-y*(2 $1)", "-m200", "-W1", "-q0", "-w10"])
+    assert rc == 0
+    assert out == _EXPECTED_CP_ASYM
+
+
+def test_moses_exec_cp_contin_samples_boolean_columns_as_booleans():
+    """`+(6 *(6 impulse($1)))` is `->(boolean contin)` in classic (checked
+    against a compiled `infer_type_tree` probe), so `ITable`'s random
+    constructor must draw `randGen().randint(2)` for that column, not
+    `randdouble()`. Sampling it as contin gives a different table, a
+    different RNG stream, and a different answer.
+    """
+    rc, out = _run(["moses", "-Hcp", "-y+(6 *(6 impulse($1)))", "-m200", "-W1"])
+    assert rc == 0
+    assert out == _EXPECTED_CP_IMPULSE
+
+
+def test_moses_exec_cp_contin_enumerates_booleans_when_nsamples_is_pow2_barity():
+    """`comp_tt` (table.cc:100), the ONE CLI-reachable configuration that
+    turns it on: `barity == 1`, so `--nsamples 2 == pow2(1)` and the
+    single boolean column is ENUMERATED (`i & (1 << bidx++)`) instead of
+    drawn. Classic scores `-5` here against `-51` without the flag, so
+    the two branches are not merely different code paths -- they give
+    different answers.
+    """
+    argv = ["moses", "-Hcp", "-y+(6 *(6 impulse($1)))", "-m200", "-W1", "--nsamples", "2"]
+    rc, out = _run(argv)
+    assert rc == 0
+    assert out == _EXPECTED_CP_IMPULSE_NS2
+    assert out != _EXPECTED_CP_IMPULSE
+
+
+def test_moses_exec_cp_boolean_program_with_an_unmentioned_argument():
+    """`or($1 !$3)` has arity 3 but only mentions two arguments, so
+    classic's real signature is `->(boolean unknown boolean boolean)`.
+    Pinned because `combo_problem.run`'s boolean branch deliberately does
+    NOT pass that signature (see its own `# DIVERGENCE` marker): this is
+    the measurement that the substitution is invisible here.
+    """
+    rc, out = _run(["moses", "-Hcp", "-yor($1 !$3)", "-m1000", "-W1"])
+    assert rc == 0
+    assert out == _EXPECTED_CP_UNKNOWN_SLOT
+
+
+def test_moses_exec_cp_rejects_a_cross_argument_type_mismatch():
+    """`+(impulse($1) $1)` uses `$1` in boolean and contin position at
+    once. Classic's real `infer_type_tree` returns `->(ill_formed
+    ill_formed)`, `is_well_formed` is false, and it prints
+    "The combo tree +(impulse($1) $1) is not well formed." and exits -1
+    (rc 255, measured). This port raises `ValueError` with the same
+    message -- the established convention for a C++ path that ends in
+    `exit()` rather than returning (see `moses_exec`'s own module
+    docstring).
+
+    Note the double space: `combo_tree_to_str` emits a trailing space
+    after the tree, exactly as C++'s `operator<<(ostream&, combo_tree)`
+    does, so the rendered sentence is identical in both.
+    """
+    with pytest.raises(ValueError, match="is not well formed"):
+        moses_exec(["moses", "-Hcp", "-y+(impulse($1) $1)", "-m200", "-W1"])
+
+
+# ---------------------------------------------------------------------------
+# -H cluster end to end.
+#
+# `cluster_table_problem` (table-problems.cc:551) + `cluster_bscore`
+# (bscores.cc:937). Byte-for-byte against classic's own binary.
+#
+# The dataset choice is the point. `-Hcluster` on `dataset.csv` prints
+# exactly `-inf 0` -- classic's own answer, but a DEGENERATE one that a
+# completely broken port would also produce, so it cannot stand alone
+# (docs/CARRY-FORWARD.md Sec 5/6, the "-inf corpus" trap). The three
+# contin cases below print real, varied, finite scores and are the ones
+# that actually discriminate; the `dataset.csv` case is kept only to pin
+# that the degenerate path agrees too.
+#
+# Captured: ( ulimit -v 2097152; timeout 300
+#   $CLASSIC/build/moses/moses/main/moses <argv below> )
+# ---------------------------------------------------------------------------
+
+_EXPECTED_CLUSTER_M200 = (
+    "8.33174324035644531 +(*(-1 log($x2)) $x1) \n"
+    "-inf 0 \n"
+)
+
+_EXPECTED_CLUSTER_M1000 = (
+    "17.0593795776367188 +(*(0.5 log($x2)) $x1 $x2) \n"
+    "17.0593795776367188 +(*(2 +($x1 $x2)) log($x2)) \n"
+    "16.8451042175292969 +(*(0.5 +(log($x2) $x1)) $x2) \n"
+    "17.0605487823486328 +(-2 *(0.5 log($x2)) $x1 $x2) \n"
+    "17.0596122741699219 +(*(0.5 log(*(0.5 $x2))) $x1 $x2) \n"
+    "17.0594425201416016 +(1 *(0.5 log($x2)) $x1 $x2) \n"
+    "17.0594234466552734 +(*(0.5 log(*(2 $x2))) $x1 $x2) \n"
+    "17.0593795776367188 *(0.5 +(*(0.5 log($x2)) $x1 $x2)) \n"
+    "17.0593643188476562 +(*(0.5 log(*(3 $x2))) $x1 $x2) \n"
+    "17.0590305328369141 +(-1 *(0.5 log($x2)) $x1 $x2) \n"
+)
+
+_EXPECTED_CLUSTER_M400_SEED11 = (
+    "15.0173139572143555 +(log($x2) $x1 $x2) \n"
+    "15.0173730850219727 +(-1 log($x2) $x1 $x2) \n"
+    "15.0173158645629883 +(1 log($x2) $x1 $x2) \n"
+    "15.0173139572143555 *(0.5 +(log($x2) $x1 $x2)) \n"
+    "13.7316188812255859 +(*(0.5 $x1) log($x2)) \n"
+    "13.6357107162475586 +(*(0.5 log($x2)) $x1) \n"
+    "13.1387338638305664 +(log($x2) $x1) \n"
+    "14.2640914916992188 /(+(log($x2) $x1) +(1 *(-1 $x2))) \n"
+    "-inf 0 \n"
+)
+
+
+@pytest.mark.oracle
+def test_moses_exec_reproduces_classic_cluster_oracle_m200():
+    rc, out = _run(["moses", f"-i{_CONTIN_CSV_PATH}", "-u", "y", "-Hcluster", "-m200", "-W1"])
+    assert rc == 0
+    assert out == _EXPECTED_CLUSTER_M200
+
+
+@pytest.mark.oracle
+def test_moses_exec_reproduces_classic_cluster_oracle_m1000():
+    """Ten surviving candidates, all with distinct finite scores agreeing
+    to the last printed digit -- the case that would break first on any
+    `score_t` narrowing this port got wrong inside `cluster_bscore`.
+    """
+    rc, out = _run(["moses", f"-i{_CONTIN_CSV_PATH}", "-u", "y", "-Hcluster", "-m1000", "-W1"])
+    assert rc == 0
+    assert out == _EXPECTED_CLUSTER_M1000
+    assert out != _EXPECTED_CLUSTER_M200
+
+
+@pytest.mark.oracle
+def test_moses_exec_reproduces_classic_cluster_oracle_other_seed():
+    """A different `-r` reaches a different part of the search space (a
+    `/(...)` candidate appears, which neither run above produces), so
+    this is not the same measurement twice.
+    """
+    rc, out = _run(
+        ["moses", f"-i{_CONTIN_CSV_PATH}", "-u", "y", "-Hcluster", "-m400", "-r11", "-W1"]
+    )
+    assert rc == 0
+    assert out == _EXPECTED_CLUSTER_M400_SEED11
+
+
+@pytest.mark.oracle
+def test_moses_exec_reproduces_classic_cluster_degenerate_oracle(dataset_csv):
+    """The DEGENERATE case, kept deliberately and labelled as such: on a
+    boolean 0/1 table every candidate's output column collapses into too
+    few distinct values for three clusters of >= 3.5 members, so
+    `cnt[i] < 3.5` (bscores.cc:1008) returns `-inf` for everything. This
+    matching proves nothing on its own -- see this section's header
+    comment -- and the three tests above are the real evidence.
+    """
+    rc, out = _run(["moses", f"-i{dataset_csv}", "-Hcluster", "-m200", "-W1"])
+    assert rc == 0
+    assert out == "-inf 0 \n"
+
+
+def test_cluster_oracles_are_not_all_degenerate():
+    """Guards the guard: if someone later replaces the contin expectations
+    with all-`-inf` output, this fails rather than letting the section
+    silently become the trap it was written to avoid.
+    """
+    finite = [
+        line.split()[0]
+        for block in (
+            _EXPECTED_CLUSTER_M200,
+            _EXPECTED_CLUSTER_M1000,
+            _EXPECTED_CLUSTER_M400_SEED11,
+        )
+        for line in block.splitlines()
+        if line and line.split()[0] not in ("-inf", "inf", "nan")
+    ]
+    assert len(set(finite)) >= 10, finite
