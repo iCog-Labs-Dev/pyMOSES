@@ -104,19 +104,24 @@ trap, and it will reappear wherever a new caller appends a node's `.data`.
 Rule for S9+: appending `some_node.data` to another tree is always a bug unless
 it is wrapped in `copy.copy`.
 
-### 2.5 `logical_rules.py:1288` still compares vertices without `vertex_equal`
+### 2.5 CLOSED — `logical_rules.py`'s bare vertex comparison
 
-S8 closed two instances of this in `knobs.py` (a knob on contin `0.0` crashed;
-a knob on `logical_true` mis-bound to a contin `1.0` sibling) by giving
+**Fixed.** The call now reads `tr.equal_subtree(sib1, sib2, vertex_equal)`
+(`logical_rules.py:1318`). Kept here because the underlying hazard is
+permanent and this was its third instance.
+
+S8 closed two instances in `knobs.py` (a knob on contin `0.0` crashed; a knob
+on `logical_true` mis-bound to a contin `1.0` sibling) by giving
 `tree.equal_subtree` the optional `predicate` parameter C++ already has
-(`tree.h:1923` / `:1949`). `logical_rules.py:1288` has the same shape and was
-left untouched as out-of-scope for that slice.
+(`tree.h:1923` / `:1949`). `logical_rules.py` had the same shape and was left
+as out-of-scope for that slice.
 
-It is latent for the same reason the `knobs.py` pair was: reduct currently sees
-only Boolean trees. The continuous slice makes contin and builtin vertices
-co-occur, and `contin_t = float` with `builtin` an `IntEnum` means
-`1.0 == builtin.logical_true` is `True`. Fix it in the same change that enables
-contin reduction, not after.
+The hazard: `contin_t = float` and `builtin` is an `IntEnum`, so
+`1.0 == builtin.logical_true` is `True` in Python where C++'s variant
+alternatives never compare equal. It stayed latent only while reduct saw
+Boolean trees; contin reduction is live now, so any NEW bare `==` or
+predicate-less `equal_subtree` on a vertex is an active bug, not a latent one.
+Use `vertex_equal` / `equal_subtree_vertex_safe`.
 
 ### 2.3 The weighted-CTable arity landmine
 
@@ -311,12 +316,19 @@ short-circuit (`interpreter.cc:66-82`). The port matches the real behaviour.
 `$COGUTIL/opencog/util/numeric.h:56-60`). Ported as a verbatim comparator, not a
 sort key. `flat_normal_form` clause ordering depends on it.
 
-### 4.5 Breadcrumbs resolve against two roots
+### 4.5 Breadcrumbs resolve against three roots
 
-`moses/` paths against `$CLASSIC`, `opencog/` paths against `$COGUTIL`. Symbols
-the matcher cannot handle — operators, destructors, templated names, inherited
-members — cite the **enclosing class** at the member's line and name the real
-member in the docstring body.
+`moses/` paths against `$CLASSIC`, `opencog/` paths against `$COGUTIL`, and
+`boost/` paths against `/usr/include` (added 2026-09-09 for the one function
+this port transliterates out of boost — see §5.9). Symbols the matcher cannot
+handle — operators, destructors, templated names, inherited members — cite the
+**enclosing class** at the member's line and name the real member in the
+docstring body.
+
+The boost root is a **system** path, so unlike the other two nothing in this
+repo pins its version. A boost upgrade that rewrote `binomial.hpp` would move
+the cited line; what would actually catch a behaviour change is the fixture
+that pins the function's VALUES, not the breadcrumb.
 
 ---
 
@@ -656,6 +668,109 @@ actually calls the function under test, with the configuration under test.
 "It is the obvious oracle" and "it worked last slice" are both how this
 happened. Where no such test exists — which is common — say so in the plan and
 budget for a probe, rather than leaving an exit criterion that cannot be met.
+
+### 5.7 A dropped constructor argument, hidden by a default, hidden by a gate
+
+`deme_expander.create_representations` never passed `linear_contin` to
+`representation()`. C++ passes it explicitly (`deme_expander.cc:293`,
+`_params.linear_contin`, between `actions` and `perm_ratio`). The port simply
+omitted the argument, so the constructor default applied — and that default is
+`True` (faithfully copied from `representation.h:61`) while the **CLI**'s
+`--linear-regression` default is `False` (`problem-params.cc:292`). Every real
+run therefore got the opposite of what it asked for.
+
+Three things kept it invisible for weeks, and each is the generalisable part:
+
+1. **The omission looked like nothing.** A missing keyword argument is not a
+   wrong value on the screen; it is an absence, and absences do not show up in
+   a side-by-side read of a call site unless you are counting arguments against
+   the C++ signature.
+2. **The default was individually correct.** `representation.h:61` really does
+   say `true`. Reviewing the constructor in isolation finds no bug; the bug
+   only exists in the gap between two files' defaults.
+3. **The only consumer was gated.** `linear_contin` is read at exactly one
+   place in classic — `if (!_linear_contin)` at `build_knobs.cc:859`, inside
+   contin knob building — which raised in this port until 2026-09-09. A
+   parameter whose sole reader is unreachable cannot be caught by any test.
+
+Symptom once the gate came off: for exemplar `$2` on a two-input contin table
+the port built **27** contin knobs where classic builds **38**, so
+`rec_canonize`'s non-linear expansion never ran and no product-of-sums
+candidate was reachable at all. Found by bisecting `-m` between an agreeing and
+a disagreeing run and then dumping the field_set on both sides.
+
+**Rules.**
+- When porting a call, check that **every** C++ argument is actually passed.
+  Relying on a Python default to reproduce a C++ default is only safe when the
+  two defaults are the same object of truth; here they were two different
+  layers' defaults that happened to disagree.
+- **Un-gating a subsystem is not the end of the work — it is the start of it.**
+  Everything that fed the gated code was, until that moment, untestable. Budget
+  for a differential run immediately after removing a gate, not later.
+- Bisecting a scalar budget (`-m`) between "agrees" and "disagrees" localised
+  this in three runs. It is much cheaper than reading the diff of a final
+  answer, because the first divergent step is usually structural and the final
+  answer is not.
+
+### 5.8 Mutation testing lied to me once, via stale bytecode
+
+While mutation-testing the contin branches I ran a batch that mutated a file,
+ran the suite, restored the file with `cp`, and moved to the next mutation. One
+result came back self-inconsistent: a mutation to file A showed failures that
+could only come from a mutation to file B, already restored.
+
+Cause: the file-B mutation was a **pure line swap**, so the restored file had
+**identical size**, and `cp` put it back within the same wall-clock second.
+CPython's bytecode cache validates on `(mtime_seconds, size)`, so it reused the
+stale `.pyc` and ran the mutated code from a restored file.
+
+Re-running that mutation in isolation gave the true answer (21 of 48 rows
+killed, not 0).
+
+**Rules.** When a mutation result looks structurally impossible, suspect the
+harness before the code. For mutation batches, either `rm -rf **/__pycache__`
+between steps, or run each mutation in isolation, or use `PYTHONDONTWRITEBYTECODE=1`.
+A same-size edit restored inside one second is the specific hazard, and
+line-swap mutations — exactly the ones used to test ORDER, which is
+load-bearing for every RNG-drawing function here — are always same-size.
+
+### 5.9 Three numeric traps were covered by only one fixture section
+
+The contin count branch casts `boost::math::binomial_coefficient<double>` to
+`unsigned` (`neighborhood_sampling.cc:141,149`). Three separate traps live in
+that one expression: boost's own double arithmetic is **not** correctly rounded
+(its `ceil(result - 0.5f)` and factorial-table divisions are load-bearing); the
+`(unsigned)` cast of an out-of-int64-range double yields 0 on x86-64, not a
+truncated bit pattern; and `cni` accumulates in 32-bit unsigned.
+
+Measured mutation results:
+
+| mutation | count rows killed | binomial rows killed |
+|---|---:|---:|
+| exact `math.comb` instead of boost's arithmetic | **0** / 96 | 8 / 115 |
+| `_double_to_unsigned` without the int64-range check | **0** / 96 | 2 / 115 |
+| drop boost's `ceil(result - 0.5f)` | 7 / 96 | — |
+
+The first two kill **nothing** in the count corpus, because no reachable contin
+depth there produces a binomial big enough to tell the implementations apart.
+They are caught only by a separate fixture section that dumps boost's own return
+value as a hex float. Deleting that section as "redundant with the count tests"
+would silently uncover two traps while every test still passed.
+
+**Rule.** A fixture section that looks like a lower-level duplicate of another
+is often the only thing covering the extremes. Before removing one, mutate
+against the remaining sections and show the kill count is unchanged.
+
+Related, and worth stating because it is the mirror image: one candidate trap
+turned out **not** to be a trap. C++'s
+`for(; relative_raw_idx < length; --length, ++itr)` (`neighborhood_sampling.h:339`)
+decrements the bound rather than the index, which reads like a bug. Mutating it
+to decrement the index killed zero rows, and analysis agrees — both forms run
+exactly `length - relative_raw_idx` times over the same `itr` range. The port
+transliterates C++'s form, and the comment says it is equivalent rather than
+implying a live hazard. **A zero-kill mutation means one of two things — no
+coverage, or no trap — and the two demand opposite responses, so always
+determine which.**
 
 ## 6. Process notes that paid for themselves
 
