@@ -16,7 +16,7 @@ is UNSOLVABLE by the port at any budget while classic solves it in a single
 deme expansion. See ``.superpowers/sdd/2026-09-08-pymetta-s13-cli/
 parity-divergence-report.md``. Pair sampling is now ported.
 
-# DIVERGENCE(C++ moses/moses/representation/build_knobs.h:56): classic's own
+# DIVERGENCE(C++ moses/moses/representation/build_knobs.h:54): classic's own
 # `linear_regression`/`linear_contin` constructor parameter DEFAULTS to
 # `true`; this is that same, unchanged default -- copied here rather than
 # quietly narrowed to whatever a caller happens to always pass, because
@@ -137,7 +137,7 @@ class build_knobs:
         """C++: moses/moses/representation/build_knobs.cc:53 build_knobs::build_knobs
 
         ``linear_contin``/``step_size``/``expansion``/``depth`` default to
-        build_knobs.h:56's own literal constructor defaults (``true``,
+        build_knobs.h:54-56's own literal constructor defaults (``true``,
         ``1.0``, ``1.0``, ``4``) -- NOT to the DIFFERENT values
         (``stepsize=1.0, expansion=2.0, depth=5``) classic's real
         ``representation`` constructor actually passes in from its own

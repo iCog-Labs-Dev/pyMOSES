@@ -11,7 +11,7 @@ expansion=2.0, depth=5``, ``representation.cc:59-61``).
 Half of the fixture's 18 cases (the ``-nonlinear`` ones) run classic at
 ``linear_contin=False`` -- the real ``moses`` CLI's own default
 (``--linear-regression``, problem-params.cc:292), NOT merely this
-constructor's own literal default (``True``, matching representation.h:62
+constructor's own literal default (``True``, matching representation.h:61
 verbatim -- see CARRY-FORWARD.md Sec 5.4, "an oracle configured by the port
 cannot detect the port's configuration being wrong"). Every one of those
 cases is diffed against classic's OWN compiled binary output, not against a
@@ -173,7 +173,7 @@ def test_linear_contin_false_is_classicss_real_cli_default_not_just_a_probe_conf
 
 
 def test_representation_linear_contin_defaults_to_classics_own_constructor_default():
-    """DIVERGENCE(C++ moses/moses/representation/representation.h:62):
+    """DIVERGENCE(C++ moses/moses/representation/representation.h:61):
     pinned directly, not just described in a docstring -- classic's own
     constructor DEFAULT is `true` (not the CLI's `false`, which is a later
     layer's decision this module does not make). Mutation: flip the

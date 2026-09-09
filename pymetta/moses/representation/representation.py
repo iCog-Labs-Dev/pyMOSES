@@ -88,7 +88,7 @@ class representation(knob_mapper):
     ) -> None:
         """C++: moses/moses/representation/representation.cc:99 representation::representation
 
-        # DIVERGENCE(C++ moses/moses/representation/representation.h:62):
+        # DIVERGENCE(C++ moses/moses/representation/representation.h:61):
         # `linear_contin` defaults to `True`, matching classic's own
         # constructor default verbatim (`bool linear_contin = true`) --
         # NOT the real `moses` CLI's actual default of `False`

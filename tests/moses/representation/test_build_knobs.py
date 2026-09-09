@@ -446,8 +446,8 @@ def test_builder_rejects_bad_collaborators_before_mutation():
 
 
 def test_contin_linear_contin_defaults_match_classics_own_constructors():
-    """C++: moses/moses/representation/build_knobs.h:56 build_knobs,
-    moses/moses/representation/representation.h:62 representation
+    """C++: moses/moses/representation/build_knobs.h:54 build_knobs,
+    moses/moses/representation/representation.h:61 representation
 
     `bool linear_regression = true` on BOTH classic constructors -- the real
     `moses` CLI's own `--linear-regression` default (`false`,
