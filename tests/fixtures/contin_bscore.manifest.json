@@ -1,0 +1,18 @@
+{
+  "capture_script": "tools/capture_contin_bscore.py",
+  "capture_script_sha256": "9ce51fa4c2901503b5291711bd3ade90c5ea864ba36a544717330155eff7eb51",
+  "classic_dir": "/home/yab/Documents/Projects/iCog/HyperonRelated/MOSES/OpenCog/Moses",
+  "cli_tool": null,
+  "generated_at_utc": "2026-09-09T07:14:44+00:00",
+  "inputs": {
+    "contin_regression_sample_csv": "tests/fixtures/table_data/contin_regression_sample.csv",
+    "sample_rows": 20,
+    "sample_source": "first N data rows of $CLASSIC/trainingRegression.dat, no shuffling"
+  },
+  "prefix_dir": "/home/yab/opt/moses-legacy",
+  "probe_kind": "cpp_probe",
+  "probe_source": "tools/cpp_probe/contin_bscore_probe.cc",
+  "probe_source_sha256": "a35508f9fecd26bfe1fb8a8faff234065eea509edcbc76cef742a5a4de520284",
+  "repo_commit": "d43971123e56e131abe60cbc2d05d85c7aa9827a",
+  "schema_version": 1
+}
