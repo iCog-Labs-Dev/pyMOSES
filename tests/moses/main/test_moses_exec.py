@@ -36,6 +36,7 @@ from __future__ import annotations
 
 import io
 from contextlib import redirect_stdout
+from pathlib import Path
 
 import pytest
 
@@ -439,3 +440,106 @@ def test_moses_exec_output_bscore_and_deme_id_defaults_do_not_raise(dataset_csv)
         "-5 !$1 \n"
         "-5 !$2 \n"
     )
+
+
+# ---------------------------------------------------------------------------
+# Contin regression end to end.
+#
+# The whole contin path -- contin_bscore, contin_reduction, contin knob
+# building, contin neighbourhood counting/enumeration and contin sampling
+# -- was gated off behind four separate raises until 2026-09-09. These
+# three cases are the proof that it now reproduces classic byte for byte,
+# and they were chosen to discriminate rather than merely to pass:
+#
+#   * the default case is the one a plain `-H it` on a contin table takes;
+#   * `--linear-regression=1` produces a DIFFERENT (shorter) result in
+#     both implementations, which is what proves `linear_contin` is
+#     actually threaded through to knob building. `deme_expander` used to
+#     drop that argument on the floor, so the port silently ran with
+#     `representation`'s constructor default (True) while the CLI default
+#     is False -- a bug caught precisely because these two cases disagree
+#     with each other;
+#   * `--contin-depth=3` proves `set_depth` reaches `representation.py`'s
+#     module static; that call was missing entirely and the flag was
+#     gated instead.
+#
+# Captured: ( ulimit -v 2097152; timeout 300
+#   $CLASSIC/build/moses/moses/main/moses
+#   -i<contin_regression_sample.csv> -u y -m200 -W1 [flag] )
+# ---------------------------------------------------------------------------
+
+_CONTIN_CSV_PATH = (
+    Path(__file__).resolve().parents[2] / "fixtures" / "table_data" / "contin_regression_sample.csv"
+)
+
+_EXPECTED_CONTIN_M200 = (
+    "-0.122694917023181915 0 \n"
+    "-0.987496495246887207 $x2 \n"
+    "-1.9910207986831665 $x1 \n"
+    "-2.11170101165771484 *(-1 $x2) \n"
+    "-3.28426837921142578 *(-1 $x1) \n"
+    "-4.70610570907592773 *(2 $x2) \n"
+    "-15.9446239471435547 +(-1 $x2) \n"
+    "-18.8003253936767578 1 \n"
+    "-21.4450645446777344 -1 \n"
+    "-26.0303688049316406 +(1 $x2) \n"
+)
+
+_EXPECTED_CONTIN_LINEAR = (
+    "-0.122694917023181915 0 \n"
+    "-0.19836975634098053 *(0.5 $x2) \n"
+    "-0.987496495246887207 $x2 \n"
+    "-0.760471999645233154 *(-0.5 $x2) \n"
+    "-0.834387660026550293 *(0.5 +($x1 $x2)) \n"
+    "-0.987496495246887207 *(0.5 +($x2 $x2)) \n"
+    "-4.26824426651000977 *(0.5 +(-1 $x2)) \n"
+    "-18.3381175994873047 +(-1 *(0.5 $x2)) \n"
+)
+
+_EXPECTED_CONTIN_DEPTH3 = (
+    "-0.122694917023181915 0 \n"
+    "-0.987496495246887207 $x2 \n"
+    "-1.9910207986831665 $x1 \n"
+    "-2.11170101165771484 *(-1 $x2) \n"
+    "-3.28426837921142578 *(-1 $x1) \n"
+    "-4.70610570907592773 *(2 $x2) \n"
+    "-15.9446239471435547 +(-1 $x2) \n"
+    "-18.8003253936767578 1 \n"
+    "-21.4450645446777344 -1 \n"
+    "-26.0303688049316406 +(1 $x2) \n"
+)
+
+
+def test_moses_exec_reproduces_classic_contin_regression_oracle():
+    rc, out = _run(["moses", f"-i{_CONTIN_CSV_PATH}", "-u", "y", "-m200", "-W1"])
+    assert rc == 0
+    assert out == _EXPECTED_CONTIN_M200
+
+
+def test_moses_exec_reproduces_classic_contin_linear_regression_oracle():
+    """`--linear-regression=1` must give a DIFFERENT answer from the
+    default run above -- that difference is the whole evidence that the
+    flag reaches `build_knobs`'s `if (!_linear_contin)`.
+    """
+    rc, out = _run(
+        [
+            "moses",
+            f"-i{_CONTIN_CSV_PATH}",
+            "-u",
+            "y",
+            "-m200",
+            "-W1",
+            "--linear-regression=1",
+        ]
+    )
+    assert rc == 0
+    assert out == _EXPECTED_CONTIN_LINEAR
+    assert out != _EXPECTED_CONTIN_M200
+
+
+def test_moses_exec_reproduces_classic_contin_depth_oracle():
+    rc, out = _run(
+        ["moses", f"-i{_CONTIN_CSV_PATH}", "-u", "y", "-m200", "-W1", "--contin-depth=3"]
+    )
+    assert rc == 0
+    assert out == _EXPECTED_CONTIN_DEPTH3

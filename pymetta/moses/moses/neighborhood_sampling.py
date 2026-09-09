@@ -99,6 +99,114 @@ from pymetta.util.rng import MT19937RandGen, randGen
 # instance.py already measures and pins (bits_per_packed_t = 64).
 _SIZE_T_MAX = (1 << 64) - 1
 
+# C++ `unsigned` is 32 bits; `cni` (neighborhood_sampling.cc:133) and
+# `remRLs` (neighborhood_sampling.h:337) are both `unsigned` and both can
+# wrap, so the port masks rather than letting Python's arbitrary-precision
+# ints run away. See each use site for the reachable input that wraps it.
+_UINT32_MAX = (1 << 32) - 1
+
+# `unchecked_factorial<double>` covers 0..170 in boost; past that
+# `binomial_coefficient` switches to its beta-function branch. Boost's
+# table entries are the correctly-rounded doubles of i!, so
+# `float(math.factorial(i))` reproduces them -- verified as part of the
+# 115/115 agreement recorded on `_boost_binomial_coefficient_double`.
+_BOOST_MAX_FACTORIAL_DOUBLE = 170
+_FACTORIAL_DOUBLE = tuple(float(math.factorial(i)) for i in range(_BOOST_MAX_FACTORIAL_DOUBLE + 1))
+
+# `cvttsd2si`'s "integer indefinite" result, 0x8000000000000000, is what a
+# double outside int64's range converts to on x86-64; the low 32 bits of
+# that are zero. See `_double_to_unsigned`.
+_INT64_LIMIT = 9223372036854775808.0
+
+
+def _pow2(x: int) -> int:
+    """C++: opencog/util/numeric.h:266 pow2
+
+    `pow2<unsigned int>` -- `OC_ASSERT(8*sizeof(OutInt) - 0 > x)` then
+    `static_cast<unsigned>(1) << x`. The assert is NOT decoration: classic
+    aborts for `x >= 32`, and `count_neighborhood_size_from_index` reaches
+    it with a contin field whose `depth - length >= 32` (a depth-35 field
+    left all-Stop, at `dist >= 32`, is the smallest case). Reproduced as a
+    raise so the port fails where classic fails instead of returning a
+    number classic never produces.
+    """
+    # DIVERGENCE(C++ opencog/util/numeric.h:268): OC_ASSERT aborts the
+    # process; this raises, matching field_set.py's convention for
+    # OC_ASSERT on out-of-range shifts.
+    if not 32 > x:
+        raise ValueError("pow2: Amount to shift is out of range.")
+    return (1 << x) & _UINT32_MAX
+
+
+def _boost_binomial_coefficient_double(n: int, k: int) -> float:
+    """C++: boost/math/special_functions/binomial.hpp:23 binomial_coefficient
+
+    `boost::math::binomial_coefficient<double>(n, k)`, transliterated from
+    the installed boost header rather than approximated, because
+    `count_neighborhood_size_from_index` casts its result to `unsigned`
+    (neighborhood_sampling.cc:141,149) and a one-ULP difference survives
+    that cast as a difference of several counted instances.
+
+    The two details that a "compute the exact binomial" implementation
+    gets wrong, both measured: boost divides in DOUBLE
+    (`fact[n] /= fact[n-k] /= fact[k]`), which is not correctly rounded
+    for larger `n`; and it finishes with `ceil(result - 0.5f)`, a
+    round-to-nearest step. Emulating only the first, or neither, disagrees
+    with boost on 10-11 of a 121-row corpus. With both, agreement is exact:
+
+        115/115 rows byte-identical as doubles AND after the `(unsigned)`
+        cast, measured 2026-09-09 against
+        `tools/cpp_probe/contin_enumeration_probe.cc`'s "binomial_double"
+        section, which dumps boost's own return value as a hex float.
+
+    The remaining 6 rows of that corpus are the `n > 170` beta-function
+    branch; see the raise below.
+    """
+    if k > n:
+        # boost raises a domain_error; `safe_binomial_coefficient`'s own
+        # docstring records that classic never reaches it with k > n.
+        raise ValueError(f"binomial_coefficient: undefined for k > n (n={n}, k={k})")
+    if k == 0 or k == n:
+        return 1.0
+    if k == 1 or k == n - 1:
+        return float(n)
+    if n > _BOOST_MAX_FACTORIAL_DOUBLE:
+        # DIVERGENCE(C++ boost/math/special_functions/binomial.hpp:44-53):
+        # boost falls back to `beta()` here and returns a (garbage but
+        # defined) number. Reproducing boost's `beta` bit-for-bit is a
+        # substantial numeric port of its own, and this branch needs a
+        # contin field of depth > 170 -- i.e. `--contin-depth 171` or
+        # higher, a search space of 2**171 settings -- to be reached at
+        # all. Gated rather than approximated: a silently-close number
+        # here would be indistinguishable from a correct one.
+        raise NotImplementedError(
+            "binomial_coefficient: boost's beta-function branch (n > 170, "
+            f"got n={n}) is not ported; reachable only at --contin-depth "
+            "above 170 -- boost/math/special_functions/binomial.hpp:44-53"
+        )
+    result = _FACTORIAL_DOUBLE[n]
+    result /= _FACTORIAL_DOUBLE[n - k]
+    result /= _FACTORIAL_DOUBLE[k]
+    # `ceil(result - 0.5f)`: the float literal 0.5 is exact in double, so
+    # the promotion changes nothing.
+    return float(math.ceil(result - 0.5))
+
+
+def _double_to_unsigned(value: float) -> int:
+    """The C-style `(unsigned)` cast applied to
+    `boost::math::binomial_coefficient<double>` at
+    neighborhood_sampling.cc:141 and :149.
+
+    Formally undefined behaviour when the double does not fit; in practice
+    GCC on x86-64 emits a 64-bit `cvttsd2si` and keeps the low 32 bits, so
+    an out-of-range double becomes 0x8000000000000000 -> 0. Measured: the
+    probe's C(70,35) and C(80,40) rows both report 0, which a plain
+    truncate-and-mask would have turned into 796475392 and 2499805184.
+    """
+    if math.isnan(value) or value >= _INT64_LIMIT or value < -_INT64_LIMIT:
+        return 0
+    return int(value) & _UINT32_MAX
+
 
 def _emit(out: list[instance], end: int, value: instance) -> None:
     """Append ``value`` to ``out``, mirroring the ``OC_ASSERT(out != end);
@@ -166,10 +274,72 @@ def count_neighborhood_size_from_index(
     number_of_instances = 0
 
     if fs.begin_contin_raw_idx() <= starting_index < fs.end_contin_raw_idx():
-        raise NotImplementedError(
-            "count_neighborhood_size_from_index: continuous fields are deferred "
-            "(see generate_contin_neighbor)"
-        )
+        # C++: neighborhood_sampling.cc:117-160. `itc += contin_idx` then
+        # `fs.contin()[itc.idx()]`, and `contin_iterator::idx()` after
+        # advancing from `begin_contin` by `contin_idx` IS `contin_idx`, so
+        # the iterator round-trip collapses to a direct index here.
+        contin_idx = fs.raw_to_contin_idx(starting_index)
+        # DIVERGENCE(C++ moses/moses/moses/neighborhood_sampling.cc:122):
+        # OC_ASSERT becomes ValueError. This one is load-bearing rather
+        # than decorative -- it is what makes `starting_index + depth`
+        # below a correct "skip to the next contin field", and it holds
+        # only because every caller enters a contin field at its first raw
+        # index. `vary_n_knobs` (which takes an arbitrary starting_index)
+        # has no such assert and must not be assumed to share it.
+        if starting_index - fs.contin_to_raw_idx(contin_idx) != 0:
+            raise ValueError(
+                "count_neighborhood_size_from_index: starting_index must be the "
+                f"first raw index of contin field {contin_idx}"
+            )
+
+        # `int depth` / `int length` (cc:125-126), deliberately SIGNED:
+        # `i - length` and `depth - length` below are allowed to go
+        # negative, and `std::max(0, ...)`/`std::min(...)` are what bring
+        # them back. Python ints are signed, so this needs no mask -- but
+        # it does need the `max`/`min` to be applied in the same places.
+        depth = fs.contin()[contin_idx].depth
+        length = fs.contin_length(inst, contin_idx)
+
+        # Calculate number_of_instances for each possible distance i of the
+        # current contin.
+        for i in range(0, min(dist, depth) + 1):
+            # Number of instances for this contin, at distance i. `unsigned`
+            # (cc:133), and it genuinely wraps: a depth-35 field at length
+            # 35 makes `(unsigned)binomial_coefficient<double>(35, 17)`
+            # alone 242600354 rather than the exact 4537567650.
+            cni = 0
+
+            # Count combinations when Left or Right are switched and added
+            # after Stop, where j represents the number of Left or Right
+            # added after Stop.
+            for j in range(max(0, i - length), min(i, depth - length) + 1):
+                cni = (
+                    cni
+                    + _double_to_unsigned(_boost_binomial_coefficient_double(length, i - j))
+                    * _pow2(j)
+                ) & _UINT32_MAX
+
+            # Count combinations when Left or Right are switched and
+            # removed before Stop, where j represents the number of removed
+            # Left or Right before Stop.
+            if i <= length:
+                for j in range(1, min(i, length) + 1):
+                    cni = (
+                        cni
+                        + _double_to_unsigned(_boost_binomial_coefficient_double(length - j, i - j))
+                    ) & _UINT32_MAX
+
+            # Recursive call.
+            number_of_instances = (
+                number_of_instances
+                + cni
+                * count_neighborhood_size_from_index(
+                    fs, inst, dist - i, starting_index + depth, max_count
+                )
+            ) & _SIZE_T_MAX
+            # Stop prematurely if above max_count.
+            if number_of_instances > max_count:
+                return number_of_instances
 
     elif fs.begin_disc_raw_idx() <= starting_index < fs.end_disc_raw_idx():
         # Recursive call, moved for one position.
@@ -248,9 +418,71 @@ def vary_n_knobs(
     tmp_inst = instance(inst)  # `instance tmp_inst = inst;` -- a value copy.
 
     if fs.begin_contin_raw_idx() <= starting_index < fs.end_contin_raw_idx():
-        raise NotImplementedError(
-            "vary_n_knobs: continuous fields are deferred (see generate_contin_neighbor)"
-        )
+        # C++: neighborhood_sampling.h:289-349. Modify the contin knob at
+        # `starting_index`, then recurse on starting_index and dist.
+        contin_idx = fs.raw_to_contin_idx(starting_index)
+
+        # The 'depth' is the max possible size of this contin field, while
+        # length is the actual size, for this instance.
+        depth = fs.contin()[contin_idx].depth
+        length = fs.contin_length(tmp_inst, contin_idx)
+        relative_raw_idx = starting_index - fs.contin_to_raw_idx(contin_idx)
+
+        if fs.get_raw(tmp_inst, starting_index) == contin_spec.Stop:
+            # Assume that this is the first stop encountered for this
+            # contin field. Skip straight to the next contin field.
+            next_contin = starting_index + depth - relative_raw_idx
+            vary_n_knobs(fs, tmp_inst, dist, next_contin, out, end)
+
+            # Turn this stop pseudo-bit to Left, and Right, and recurse to
+            # next.
+            fs.set_raw(tmp_inst, starting_index, contin_spec.Left)
+            vary_n_knobs(fs, tmp_inst, dist - 1, starting_index + 1, out, end)
+            fs.set_raw(tmp_inst, starting_index, contin_spec.Right)
+            vary_n_knobs(fs, tmp_inst, dist - 1, starting_index + 1, out, end)
+        else:
+            # Recursive call, moved for one position.
+            vary_n_knobs(fs, tmp_inst, dist, starting_index + 1, out, end)
+            # Left<->Right
+            fs.set_raw(
+                tmp_inst,
+                starting_index,
+                contin_spec.switchLR(fs.get_raw(tmp_inst, starting_index)),
+            )
+            vary_n_knobs(fs, tmp_inst, dist - 1, starting_index + 1, out, end)
+
+            # Set all remaining 'pseudo-bits' in this contin field to Stop;
+            # remRLs is the number of remaining non-Stop pseudo-bits,
+            # including this one.
+            #
+            # `unsigned remRLs = length - relative_raw_idx` (h:337) with
+            # both operands `size_t`: when `relative_raw_idx > length` the
+            # size_t subtraction wraps near 2**64 and the assignment then
+            # truncates to 32 bits, so `remRLs` becomes ~0xFFFFFFFF and the
+            # `remRLs <= dist` test below is false. That is NOT unreachable
+            # -- `vary_n_knobs` takes an arbitrary `starting_index` and an
+            # arbitrary center instance through its own public signature,
+            # so a contin field holding a non-Stop pseudo-bit AFTER a Stop
+            # (e.g. [Left, Stop, Right]) entered past that Stop produces
+            # it. Reproduced with an explicit mask rather than clamped.
+            remRLs = (length - relative_raw_idx) & _UINT32_MAX
+            if remRLs <= dist:
+                # `for(; relative_raw_idx < length; --length, ++itr)` --
+                # note it decrements `length`, NOT `relative_raw_idx`.
+                # Transliterated as-is: the loop therefore runs exactly
+                # `length - relative_raw_idx` times, clearing this field's
+                # remaining non-Stop pseudo-bits from `starting_index`
+                # forward. `relative_raw_idx` keeps its original value
+                # afterwards, which the `next_contin` line below relies on.
+                itr = starting_index
+                remaining_length = length
+                while relative_raw_idx < remaining_length:
+                    fs.set_raw(tmp_inst, itr, contin_spec.Stop)
+                    remaining_length -= 1
+                    itr += 1
+                # Skip straight to the next contin field.
+                next_contin = starting_index + depth - relative_raw_idx
+                vary_n_knobs(fs, tmp_inst, dist - remRLs, next_contin, out, end)
 
     elif fs.begin_disc_raw_idx() <= starting_index < fs.end_disc_raw_idx():
         # For distance == 1, take the tail call and explicitly turn it into a
@@ -341,49 +573,40 @@ def generate_all_in_neighborhood(
     vary_n_knobs(fs, center_inst, dist, 0, out, end)
 
 
-def _uniform_randomize_disc(fs: field_set, inst: instance) -> None:
-    """C++: moses/moses/eda/initialization.cc:88 uniform_randomize_disc
-
-    Reached from `generate_initial_sample` via `randomize` (see
-    `_randomize` below) -- `moses/moses/eda/initialization.{h,cc}` itself is
-    not otherwise ported; only the Boolean/discrete subset this call chain
-    needs is.
-    """
-    rng = randGen()
-    for idx in range(fs.begin_disc_raw_idx(), fs.end_disc_raw_idx()):
-        multy = fs.disc_and_bit()[fs.raw_to_disc_idx(idx)].multy
-        fs.set_raw(inst, idx, rng.randint_n(multy))
-
-
-def _uniform_randomize_bit(fs: field_set, inst: instance) -> None:
-    """C++: moses/moses/eda/initialization.cc:80 uniform_randomize_bit"""
-    rng = randGen()
-    for idx in range(fs.begin_bit_raw_idx(), fs.end_bit_raw_idx()):
-        fs.set_raw(inst, idx, 1 if rng.randbool() else 0)
+# `_uniform_randomize_disc` and `_uniform_randomize_bit` used to live
+# here, as byte-identical copies of `eda/initialization.py`'s
+# `uniform_randomize_disc`/`uniform_randomize_bit`. They existed because
+# `eda/initialization.{h,cc}` was unported when `generate_initial_sample`
+# first needed them. It is ported now, `_randomize` below delegates to it,
+# and nothing outside this module referenced either copy -- so they are
+# gone rather than left as a second definition that could drift.
 
 
 def _randomize(fs: field_set, inst: instance) -> None:
     """C++: moses/moses/eda/initialization.cc:96 randomize
 
-    Only the Boolean/discrete tail of C++'s
-    ``occam_randomize_term; occam_randomize_contin; uniform_randomize_disc;
-    uniform_randomize_bit;`` sequence is ported. `occam_randomize_term` has
-    no equivalent here at all: term fields do not exist anywhere in this
-    port (field_set.py excludes them entirely), so that call's iteration
-    range is always empty and it draws nothing -- there is nothing to guard.
-    `occam_randomize_contin` is deferred along with the rest of the
-    continuous domain (see generate_contin_neighbor's DEFER marker): a
-    field_set with continuous fields raises here rather than silently
-    skipping their randomization, which would silently desync the RNG
-    stream from C++'s. Draw order for the disc-then-bit tail that remains
-    matches C++ exactly.
+    Delegates to `pymetta.moses.eda.initialization.randomize`, which is the
+    real port of this function, so the two cannot drift. This used to be a
+    partial copy that raised on any field_set with contin fields, because
+    `occam_randomize_contin` had not been ported; it has been since, and
+    the copy's disc-then-bit tail was the same code twice.
+
+    The import is function-local on purpose. `eda/initialization.py`
+    imports `generate_contin_neighbor` from THIS module at module scope,
+    mirroring C++'s own dependency direction (`initialization.cc:25`
+    includes `neighborhood_sampling.h`, not the reverse), so a module-scope
+    import here would close the cycle. Deferring it to call time is the
+    least-bad option available and costs one dict lookup per call.
+
+    `occam_randomize_term`'s call is omitted there rather than stubbed:
+    term fields do not exist anywhere in this port, so that call's
+    iteration range is always empty and it draws nothing. Draw ORDER
+    across the remaining three calls (contin, disc, bit) is the property
+    that matters, since every one of them draws from the shared RNG.
     """
-    if fs.n_contin_fields() > 0:
-        raise NotImplementedError(
-            "_randomize: continuous fields are deferred (see generate_contin_neighbor)"
-        )
-    _uniform_randomize_disc(fs, inst)
-    _uniform_randomize_bit(fs, inst)
+    from pymetta.moses.eda.initialization import randomize
+
+    randomize(fs, inst)
 
 
 def generate_initial_sample(fs: field_set, n: int, out: list[instance], end: int) -> None:

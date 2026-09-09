@@ -60,11 +60,25 @@ ALIGNMENT_DOC = REPO_ROOT / "docs" / "ALIGNMENT.md"
 # general-purpose tool. pymetta/ ports two upstream repos -- Moses proper
 # (breadcrumb paths starting `moses/`) and its CogUtil dependency (paths
 # starting `opencog/`) -- so a breadcrumb resolves under whichever root
-# actually contains its cited file. The two prefixes are disjoint, so there
-# is no ambiguity about which root a given breadcrumb belongs to.
+# actually contains its cited file. The prefixes are disjoint, so there is
+# no ambiguity about which root a given breadcrumb belongs to.
+#
+# The system boost include dir is a third root. It is here for exactly one
+# breadcrumb -- `neighborhood_sampling.py`'s
+# `_boost_binomial_coefficient_double`, which transliterates
+# `boost::math::binomial_coefficient` line by line because classic casts
+# its result to `unsigned` and a one-ULP difference survives that cast.
+# That breadcrumb is worth checking rather than exempting, since the whole
+# point of the transliteration is that it tracks a specific upstream
+# implementation. Note this root is a system path, so unlike the other two
+# it is not version-pinned by anything in this repo; a boost upgrade that
+# rewrote `binomial.hpp` would move the cited line, and the fixture that
+# pins the function's VALUES (tests/fixtures/contin_enumeration.json) is
+# the thing that would actually catch a behaviour change.
 CLASSIC_ROOTS = [
     Path("/home/yab/Documents/Projects/iCog/HyperonRelated/MOSES/OpenCog/Moses"),
     Path("/home/yab/Documents/Projects/iCog/HyperonRelated/MOSES/OpenCog/CogUtil"),
+    Path("/usr/include"),
 ]
 
 

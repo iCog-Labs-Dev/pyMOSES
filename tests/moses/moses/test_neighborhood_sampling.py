@@ -307,16 +307,31 @@ def _fs_with_contin() -> field_set:
     return field_set([contin_spec(0.0, 1.0, 2.0, 3), disc_spec(3)])
 
 
-def test_count_neighborhood_size_raises_on_contin_field():
-    fs = _fs_with_contin()
-    with pytest.raises(NotImplementedError):
-        count_neighborhood_size_from_index(fs, instance(fs.packed_width()), 1, 0)
+# These two used to assert that `count_neighborhood_size_from_index` and
+# `vary_n_knobs` RAISE on a contin field. Both branches are ported now
+# (2026-09-09); the oracle comparison lives in
+# tests/moses/moses/test_contin_enumeration.py, and what remains here is
+# the direct check that they run and produce something sane, which is what
+# these two tests were positioned to cover.
 
 
-def test_vary_n_knobs_raises_on_contin_field():
+def test_count_neighborhood_size_handles_a_contin_field():
     fs = _fs_with_contin()
-    with pytest.raises(NotImplementedError):
-        vary_n_knobs(fs, instance(fs.packed_width()), 1, 0, [], 10)
+    # depth-3 contin + a multiplicity-3 disc. At distance 1 from the
+    # all-Stop center: 2 settings for the contin's first pseudo-bit
+    # (Left/Right) plus 2 non-identity settings of the disc knob.
+    got = count_neighborhood_size_from_index(fs, instance(fs.packed_width()), 1, 0)
+    assert got == 4
+
+
+def test_vary_n_knobs_handles_a_contin_field():
+    fs = _fs_with_contin()
+    out: list[instance] = []
+    vary_n_knobs(fs, instance(fs.packed_width()), 1, 0, out, 100)
+    # Same four neighbours, now enumerated rather than counted -- and all
+    # distinct, which is what makes the count above a count of anything.
+    assert len(out) == 4
+    assert len({_raw_tuple(fs, i) for i in out}) == 4
 
 
 def test_sample_from_neighborhood_contin_field_no_longer_raises():
@@ -626,16 +641,49 @@ def test_sample_from_neighborhood_contin_branch_hardcodes_distance_one():
     assert saw_contin2_hit
 
 
-def test_randomize_raises_on_contin_field():
+def test_randomize_delegates_to_the_eda_port():
+    """`_randomize` used to raise on any contin field and is now a thin
+    forwarder to `eda.initialization.randomize`, which is the real port.
+
+    Asserted by delegation rather than by re-checking values: the values
+    have their own oracle test (test_contin_enumeration.py's
+    `randomize_order` section, which also pins the RNG draw ORDER). What
+    this test protects is that the forwarding still happens, so the two
+    cannot silently drift back into being separate implementations.
+    """
+    import pymetta.moses.eda.initialization as eda_init
+
     fs = _fs_with_contin()
-    with pytest.raises(NotImplementedError):
-        _randomize(fs, instance(fs.packed_width()))
+    seen = []
+
+    real = eda_init.randomize
+
+    def spy(fs_, inst_, rng_=None):
+        seen.append((fs_, inst_))
+        return real(fs_, inst_, rng_)
+
+    eda_init.randomize = spy
+    try:
+        inst = instance(fs.packed_width())
+        _randomize(fs, inst)
+    finally:
+        # Restore by DELETING the shadow rather than reassigning: an
+        # earlier test in this project "restored" a patched name by
+        # assignment and left a permanent shadow behind.
+        eda_init.randomize = real
+
+    assert len(seen) == 1
+    assert seen[0][0] is fs
 
 
-def test_generate_initial_sample_raises_on_contin_field():
+def test_generate_initial_sample_handles_a_contin_field():
     fs = _fs_with_contin()
-    with pytest.raises(NotImplementedError):
-        generate_initial_sample(fs, 1, [], 1)
+    randGen().seed(0)
+    out: list[instance] = []
+    generate_initial_sample(fs, 4, out, 4)
+    assert len(out) == 4
+    # Not all-zero: the contin field was actually randomized, not skipped.
+    assert any(_raw_tuple(fs, i) != (0,) * fs.raw_size() for i in out)
 
 
 def test_size_t_max_is_64_bit():
@@ -656,8 +704,9 @@ def _sni_center(fs: field_set, n_knobs: int) -> instance:
 @pytest.mark.parametrize(
     "case",
     _HC_GOLDEN["sample_new_instances"],
-    ids=lambda c: f"m{c['multiplicity']}_k{c['n_knobs']}_d{c['dist']}_seed{c['seed']}_"
-    f"total{c['give_total']}",
+    ids=lambda c: (
+        f"m{c['multiplicity']}_k{c['n_knobs']}_d{c['dist']}_seed{c['seed']}_total{c['give_total']}"
+    ),
 )
 def test_sample_new_instances_matches_cpp(case):
     fs = _uniform_fs(case["multiplicity"], case["n_knobs"])
@@ -691,8 +740,7 @@ def test_sample_new_instances_matches_cpp(case):
     assert len(deme) == case["deme_size"]
 
     got_new_slice = [
-        _raw_tuple(fs, deme[i].first)
-        for i in range(case["current_number_of_instances"], len(deme))
+        _raw_tuple(fs, deme[i].first) for i in range(case["current_number_of_instances"], len(deme))
     ]
     expected = [tuple(row) for row in case["new_slice"]]
     assert got_new_slice == expected

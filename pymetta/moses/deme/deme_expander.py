@@ -380,6 +380,25 @@ class deme_expander:
                 xmplr_seq[i],
                 self._type_sig,
                 ignore_ops=ignore_ops_seq[i],
+                # C++: deme_expander.cc:293 passes `_params.linear_contin`
+                # here, between `actions` and `perm_ratio`. This port used
+                # to omit the argument entirely, so `representation`'s own
+                # constructor default (`True`, matching representation.h:61)
+                # applied instead of the parameter -- and the CLI's
+                # `--linear-regression` default is `False`
+                # (problem-params.cc:292), so every real run silently got
+                # the opposite of what it asked for.
+                #
+                # It went unnoticed because `linear_contin` is read at
+                # exactly one place in classic, `if (!_linear_contin)` at
+                # build_knobs.cc:859, inside CONTIN knob building -- which
+                # was gated off in this port until 2026-09-09. The symptom,
+                # once the gate came off: for exemplar `$2` on a two-input
+                # contin table the port built 27 contin knobs where classic
+                # builds 38, because `rec_canonize`'s non-linear expansion
+                # never ran, and the search could not reach any
+                # product-of-sums candidate.
+                linear_contin=self._params.linear_contin,
                 perm_ratio=self._params.perm_ratio,
             )
             if rep.fields().empty():

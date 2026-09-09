@@ -1,0 +1,16 @@
+{
+  "capture_script": "tools/capture_contin_enumeration.py",
+  "capture_script_sha256": "46376a584fb1764ce2d640a30bcb4551b8e5687980e6de54480d78a902e9b4de",
+  "classic_dir": "/home/yab/Documents/Projects/iCog/HyperonRelated/MOSES/OpenCog/Moses",
+  "cli_tool": null,
+  "generated_at_utc": "2026-09-09T12:10:08+00:00",
+  "inputs": {
+    "description": "fixed count_neighborhood_size_from_index / vary_n_knobs / randomize / generate_initial_sample cases over field_sets WITH contin fields, plus a boost::math::binomial_coefficient<double> table dumped as hex floats; all hardcoded in contin_enumeration_probe.cc; no external dataset, seeds fixed per case for the RNG-drawing sections"
+  },
+  "prefix_dir": "/home/yab/opt/moses-legacy",
+  "probe_kind": "cpp_probe",
+  "probe_source": "tools/cpp_probe/contin_enumeration_probe.cc",
+  "probe_source_sha256": "2eb7717bdff1026fb173ce0ca73a81d7c97fcd3456979cc4a8cebafd8702fba9",
+  "repo_commit": "12d831721f7547fab99b5b42661708d608680bee",
+  "schema_version": 1
+}
