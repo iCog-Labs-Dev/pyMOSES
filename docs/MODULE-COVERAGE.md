@@ -26,6 +26,16 @@ $CLASSIC = `/home/yab/Documents/Projects/iCog/HyperonRelated/MOSES/OpenCog/Moses
 
 **Reading this table.** PORTED (30 files, 6,828 lines) and PARTIAL (96 files, 38,861 lines) together are the completed S0-S14 footprint plus most of the P2 tail: **126 of 246 files / 45,689 of 62,299 lines (73.3%) have Python behind them**, and 30 are complete with no named gap. The PARTIAL bucket holds most of the real code, so its per-row limitations -- not the headline percentage -- are the honest reading. EXCLUDED is 83 files / 11,048 lines (17.7%): legacy/dead code, C++-only tools, and the enum, ANN, list/fold, object, message and procedure-call domains outside the port's boolean/continuous/action scope. What remains is 37 files / 5,562 lines (8.9%) in the P2 tail -- chiefly the standalone feature-selection binary, `eda/`'s remaining machinery, `partial.cc`, `similarity.cc`, `ss_bscore.cc`, and `distributed_moses` (which shells out to `ssh`/`pgrep` and warrants a scope decision rather than an automatic port).
 
+> **Section intros below may lag the per-file rows. The ROWS are authoritative.**
+> These paragraphs were written when each slice was planned and describe the
+> intent at that time. The closeout commit `d170e49` reclassified 43 rows but
+> not this prose, so an intro may still say `PLANNED: S13`/`S14`/`P2` for a file
+> the row beside it marks PORTED or PARTIAL. `tools/coverage_totals.py --check`
+> validates the rows, not the prose, so it cannot catch a stale intro -- read the
+> row. Found by the S13/S14 branch review; recorded rather than silently
+> rewritten, because rewriting twelve paragraphs from memory is how false claims
+> get introduced.
+
 ## `moses/comboreduct/ant_combo_vocabulary`
 
 All 11 files EXCLUDED -- legacy OpenCog embodiment ant/pet vocabulary (spec S3 non-goal). `AntUTest` (tests/moses/CMakeLists.txt:113) is still active in classic, so this is a scoping decision, not dead code.
@@ -135,7 +145,7 @@ All 17 files EXCLUDED. Every one is a standalone C++ CLI tool; the spec's reposi
 
 ## `moses/comboreduct/reduct`
 
-The reduction rule engine. S7 completed `meta_rules.*` and `clean_reduction.cc`; the Boolean/reachable portions of `reduct.{cc,h}`, `general_rules.*`, `flat_normal_form.*`, `logical_rules.*`, and `logical_reduction.cc` are PARTIAL with the remaining generic, contin, and mixed gaps named below. `branch_rules.*`, `contin_rules.*`, `contin_reduction.cc`, `mixed_rules.*`, `mixed_reduction.cc`, and `full_reduction.cc` remain PLANNED: S14. `action_reduction.cc`/`action_rules.*`/`perception_reduction.cc`/`perception_rules.*` remain excluded legacy embodiment code; action-domain support may be designed separately without reviving that entire stack. ANN and list/fold reducers are EXCLUDED with their output domains.
+The reduction rule engine. S7 completed `meta_rules.*` and `clean_reduction.cc`; the Boolean/reachable portions of `reduct.{cc,h}`, `general_rules.*`, `flat_normal_form.*`, `logical_rules.*`, and `logical_reduction.cc` are PARTIAL with the remaining generic, contin, and mixed gaps named below. `branch_rules.*`, `contin_rules.*`, `contin_reduction.cc`, `mixed_rules.*`, `mixed_reduction.cc` and `full_reduction.cc` are now PORTED/PARTIAL (S14, commits `ec83b2b`..`538838a`), measured 129/129 byte-identical against purpose-built probes at classic's own empty `ignore_ops`, and independently fuzzed by the branch review over a further 1,005 random contin/mixed trees at efforts 0-3 with zero mismatches. `action_reduction.cc`/`action_rules.*`/`perception_reduction.cc`/`perception_rules.*` remain excluded legacy embodiment code; action-domain support may be designed separately without reviving that entire stack. ANN and list/fold reducers are EXCLUDED with their output domains.
 
 | File | Lines | Status | pyMeTTa path / Slice / Reason |
 |---|---:|---|---|
