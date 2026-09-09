@@ -97,18 +97,26 @@ below spells this out explicitly as `.first` instead
 own `get_candidate` call site -- a mechanical adaptation of an implicit
 C++ conversion, not a behavioural divergence.
 
-## `behave_cscore` has no `get_ctable()`/`get_ctable_usize()` -- reach
-## `._bscorer` directly, matching `ensemble.py`'s own established convention
+## `behave_cscore` HAS `get_ctable()`/`get_ctable_usize()` now -- the
+## `._bscorer` reach-around below is a leftover, not a convention
 
 `ss_average_agreement`/`ss_tanimoto_stats` (trees overload) call `_cscorer.
-get_ctable()`/`get_ctable_usize()` in C++ (`behave_cscore.h:98-106`, both
-thin one-line delegations to `_bscorer.get_ctable()`/`get_ctable_usize()`)
--- `behave_cscore.py` was never given these two delegating methods (out of
-whatever brief ported that file), so this port reaches `self._cscorer.
-_bscorer.get_ctable()`/`.get_ctable_usize()` directly instead, the SAME
-"a thin one-line delegation was not ported; call the underlying `_bscorer`
-attribute directly" convention `ensemble.py`'s own module docstring
-already establishes for `cs.get_bscorer()` -> `cs._bscorer`.
+get_ctable()`/`get_ctable_usize()` in C++ (`behave_cscore.h:98,104`, both
+thin one-line delegations to `_bscorer.get_ctable()`/`get_ctable_usize()`).
+When this module was written `behave_cscore.py` had neither, so the code
+below reaches `self._cscorer._bscorer.get_ctable()`/`.get_ctable_usize()`
+directly instead, following `ensemble.py`'s "a thin one-line delegation
+was not ported; call the underlying `_bscorer` attribute directly"
+convention for `cs.get_bscorer()` -> `cs._bscorer`.
+
+**Both methods are now ported** (`behave_cscore.py`, with their own
+docstrings and tests). The reach-around still WORKS -- it resolves to the
+identical object, since the new methods are exactly
+`return self._bscorer.get_ctable()`/`get_ctable_usize()` -- so nothing
+here is wrong, but the two call sites below should be re-spelled
+`self._cscorer.get_ctable()`/`.get_ctable_usize()` to match C++ literally.
+Not done in the same change that added them, because
+`pymetta/moses/metapopulation/` was outside that task's owned files.
 
 REQUIRED FOLLOW-UP (not fixed here -- `pymetta/moses/scoring/` is outside
 this task's owned scope): this port's `ctruth_table_bscore` (`bscores.py`)

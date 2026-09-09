@@ -29,7 +29,7 @@ from pymetta.comboreduct.table.table_io import loadTable
 from pymetta.moses.moses.types import _to_score_t
 from pymetta.moses.scoring.behave_cscore import _cache_key, behave_cscore
 from pymetta.moses.scoring.bscores import ctruth_table_bscore
-from pymetta.moses.scoring.scoring_base import bscore_base
+from pymetta.moses.scoring.scoring_base import bscore_base, bscore_ctable_base
 
 _FIXTURE_DIR = Path(__file__).resolve().parents[2] / "fixtures"
 _SCORE_CASES = json.loads((_FIXTURE_DIR / "score.json").read_text())
@@ -262,3 +262,122 @@ def test_get_cscore_cache_does_not_collide_across_vertex_types_end_to_end():
     # Repeat calls (now both cache hits) must stay correct and independent.
     assert behsc.get_cscore(tr_contin).get_score() == _to_score_t(999.0)
     assert behsc.get_cscore(tr_bool).get_score() == _to_score_t(1.0)
+
+
+# =======================================================================
+# get_ctable / get_ctable_usize (behave_cscore.h:98,104)
+# =======================================================================
+
+
+class _MinimalCTableBscore(bscore_ctable_base):
+    """Not a ported C++ symbol -- the smallest concrete
+    `bscore_ctable_base` that can be constructed, so these tests exercise
+    `behave_cscore`'s two delegations against the class where
+    `get_ctable`/`get_ctable_usize`'s REAL bodies live (scoring_base.cc:
+    318,323) rather than against a stub that could agree with a broken
+    delegation by accident.
+
+    `ctruth_table_bscore` (bscores.py) cannot be used for this: it extends
+    `bscore_base` DIRECTLY in this port, a disclosed divergence from
+    classic's `struct ctruth_table_bscore : public bscore_ctable_base`
+    (bscores.h:360) -- see
+    `test_get_ctable_against_non_ctable_bscorer_raises_attributeerror`
+    below, which pins exactly that.
+    """
+
+    def __call__(self, tr):
+        return [0.0] * len(self._wrk_ctable)
+
+    def best_possible_bscore(self):
+        return [0.0] * len(self._wrk_ctable)
+
+
+def _weighted_ctable():
+    """`weighted.csv`, compressed on its own `wgt` weighting column.
+
+    Chosen because it makes the three quantities a wrong delegation could
+    return mutually distinguishable: 7 uncompressed rows, 4 distinct input
+    rows after compression, and row weights summing to 9.86 -- so the
+    compressed length (4), the raw row count (7) and `get_ctable_usize()`
+    (9, the truncated weight sum) are three different numbers.
+    """
+    table = loadTable(str(_TABLE_DATA_DIR / "weighted.csv"), "r")
+    return table.compressed("wgt")
+
+
+def test_get_ctable_returns_the_original_table_by_identity():
+    """`behave_cscore::get_ctable` (behave_cscore.h:104) forwards to
+    `bscore_ctable_base::get_ctable` (scoring_base.cc:323), which returns
+    `_orig_ctable` -- NOT `_wrk_ctable`, the separate value-copy
+    `ignore_cols`/`ignore_rows` compress in place.
+
+    C++ returns `const CTable&`, and `_orig_ctable` is itself a reference
+    to the caller's table, so identity holds all the way through the
+    chain. Asserting identity (not equality) is what kills a mutant
+    returning `_wrk_ctable`: that copy compares EQUAL to the original on a
+    freshly-constructed bscorer, so `==` alone would pass against it.
+    """
+    ctable = _weighted_ctable()
+    bsc = _MinimalCTableBscore(ctable)
+    behsc = behave_cscore(bsc)
+
+    assert behsc.get_ctable() is ctable
+    assert behsc.get_ctable() is bsc.get_ctable()
+    # The working copy is a distinct object that nonetheless compares
+    # equal -- the reason the assertions above are `is`, not `==`.
+    assert bsc._wrk_ctable is not ctable
+    assert dict(bsc._wrk_ctable) == dict(ctable)
+    assert behsc.get_ctable() is not bsc._wrk_ctable
+
+
+def test_get_ctable_usize_is_the_truncated_uncompressed_weight():
+    """`behave_cscore::get_ctable_usize` (behave_cscore.h:98) forwards to
+    `bscore_ctable_base::get_ctable_usize` (scoring_base.cc:318), which
+    returns `_ctable_usize` -- `_orig_ctable.uncompressed_size()`
+    truncated, i.e. the summed row WEIGHTS, not any row count.
+
+    All three candidate wrong answers are excluded by name below.
+    """
+    ctable = _weighted_ctable()
+    bsc = _MinimalCTableBscore(ctable)
+    behsc = behave_cscore(bsc)
+
+    assert behsc.get_ctable_usize() == 9
+    assert behsc.get_ctable_usize() == bsc.get_ctable_usize()
+    assert isinstance(behsc.get_ctable_usize(), int)
+
+    # Distinct from every other size this table has, so a delegation to
+    # the wrong quantity cannot pass:
+    assert len(ctable) == 4  # compressed rows
+    assert ctable.uncompressed_size() == 9.86  # untruncated weight sum
+    assert behsc.get_ctable_usize() != len(ctable)
+
+
+def test_get_ctable_against_non_ctable_bscorer_raises_attributeerror():
+    """Pins the caveat both new docstrings state, so it cannot rot
+    silently.
+
+    C++'s `bscore_base` declares `get_ctable`/`get_ctable_usize` as
+    virtuals with `OC_ASSERT(false, "You must implement me in the derived
+    class")` bodies (scoring_base.h:185,191); this port's `bscore_base`
+    (scoring_base.py) declares neither. So against a bscorer that is not a
+    `bscore_ctable_base` -- `ctruth_table_bscore` being the one that
+    matters, since it extends `bscore_base` directly here where classic's
+    extends `bscore_ctable_base` (bscores.h:360) -- the port raises
+    `AttributeError` where classic raises `opencog::AssertionException`.
+    Both fail; the exception TYPE differs.
+
+    When bscores.py is eventually corrected to extend `bscore_ctable_base`
+    the way classic does, this test must be UPDATED (to assert the two
+    accessors now work) rather than deleted, and the two docstrings in
+    behave_cscore.py updated with it.
+    """
+    table = loadTable(str(_TABLE_DATA_DIR / "weighted.csv"), "r")
+    bsc = ctruth_table_bscore(table.compressed("wgt"))
+    assert not isinstance(bsc, bscore_ctable_base)
+    behsc = behave_cscore(bsc)
+
+    with pytest.raises(AttributeError):
+        behsc.get_ctable()
+    with pytest.raises(AttributeError):
+        behsc.get_ctable_usize()

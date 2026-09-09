@@ -27,15 +27,29 @@ NOT ported, all deliberately out of scope for this task:
   function's docstring for why it is NOT keyed on the tree's printed
   form) stands in for the real cache -- see `__init__`'s docstring.
 * `best_possible_score`/`worst_possible_score`/`min_improv`/`ignore_cols`/
-  `ignore_rows`/`ignore_rows_at_times`/`get_ctable_usize`/`get_ctable`/
-  `get_bscorer` -- thin one-line delegations to the underlying
-  `bscore_base`, not named in task-6-brief.md's interface line for this
-  class. Call `.get_bscorer()` (i.e. the `behave_cscore` instance's own
-  `_bscorer` attribute) directly instead; every one of these was a single
-  delegating call in C++ too.
+  `ignore_rows`/`ignore_rows_at_times`/`get_bscorer` -- thin one-line
+  delegations to the underlying `bscore_base`, not named in
+  task-6-brief.md's interface line for this class. Call `.get_bscorer()`
+  (i.e. the `behave_cscore` instance's own `_bscorer` attribute) directly
+  instead; every one of these was a single delegating call in C++ too.
+  (Two exceptions to the "thin delegation" description, both already
+  recorded at moses_main.py's own module-level DIVERGENCE marker:
+  `best_possible_score`/`worst_possible_score` are NOT one-line forwards
+  -- they are defined out-of-line at behave_cscore.cc:123-131 as
+  `boost::accumulate(_bscorer.best_possible_bscore(), 0.0)`, a SUM over a
+  vector-valued result.)
+
+`get_ctable_usize` (behave_cscore.h:98) and `get_ctable` (behave_cscore.h:
+104) were on that list until now and have come OFF it -- see their own
+docstrings below. They are ported because `subsample.py` (`ss_average_
+agreement`/`ss_tanimoto_stats`) and `deme_expander.cc:126` are real
+callers of them in C++, and reaching around a public accessor into a
+private attribute at every such call site is a worse divergence than the
+two-line forward classic actually writes.
 """
 
 from pymetta.comboreduct.combo.vertex import combo_tree
+from pymetta.comboreduct.table.table import CTable
 from pymetta.moses.moses.complexity import complexity_t
 from pymetta.moses.moses.types import _to_score_t, composite_score, score_t
 from pymetta.moses.scoring.scoring_base import bscore_base
@@ -122,6 +136,56 @@ class behave_cscore:
     def get_bscore(self, tr: combo_tree) -> list[score_t]:
         """C++: moses/moses/scoring/behave_cscore.cc:41 behave_cscore::get_bscore"""
         return self._bscorer(tr)
+
+    def get_ctable_usize(self) -> int:
+        """C++: moses/moses/scoring/behave_cscore.h:98 behave_cscore::get_ctable_usize
+
+        "Return the uncompressed size of the CTable" (behave_cscore.h:97's
+        own comment) --
+
+            return _bscorer.get_ctable_usize();
+
+        a bare forward, ported as one. The number it forwards is
+        `bscore_ctable_base._ctable_usize` (scoring_base.py), which is
+        `_orig_ctable.uncompressed_size()` TRUNCATED to an integer, not the
+        compressed `len(ctable)`: on a weighted table the two are not even
+        close (`weighted.csv` compresses 7 rows to 4 distinct input rows
+        whose weights sum to 9.86, so `get_ctable_usize()` is 9).
+
+        NOT a divergence of this method, but observable through it: this
+        port's `bscore_base` (scoring_base.py) defines no `get_ctable_usize`
+        at all, where C++'s does (scoring_base.h:185) with an
+        `OC_ASSERT(false, "You must implement me in the derived class")`
+        body. So against a bscorer that is not a `bscore_ctable_base` --
+        `ctruth_table_bscore` (bscores.py) is the one that matters, since
+        it extends `bscore_base` directly here where classic's extends
+        `bscore_ctable_base` (bscores.h:360) -- this raises `AttributeError`
+        where classic raises `opencog::AssertionException`. Both fail; the
+        exception type differs. The gap is scoring_base.py's/bscores.py's
+        to close, not this method's.
+        """
+        return self._bscorer.get_ctable_usize()
+
+    def get_ctable(self) -> CTable:
+        """C++: moses/moses/scoring/behave_cscore.h:104 behave_cscore::get_ctable
+
+        "Return the original CTable" (behave_cscore.h:103's own comment) --
+
+            return _bscorer.get_ctable();
+
+        ORIGINAL, emphatically not working: `bscore_ctable_base::get_ctable`
+        returns `_orig_ctable` (scoring_base.cc:323-326), the table the
+        bscorer was constructed with, while `_wrk_ctable` is the separate
+        value-copy that `ignore_cols`/`ignore_rows` compress in place. C++
+        returns `const CTable&` -- a reference, no copy -- and
+        `_orig_ctable` is itself a reference to the caller's own table, so
+        the object identity chain `caller's ctable is bscorer.get_ctable()
+        is cscorer.get_ctable()` holds in both languages.
+
+        Same `bscore_base`-has-no-such-method caveat as `get_ctable_usize`
+        above (C++'s virtual is at scoring_base.h:191).
+        """
+        return self._bscorer.get_ctable()
 
     def get_cscore(self, tr: combo_tree) -> composite_score:
         """C++: moses/moses/scoring/behave_cscore.cc:51 behave_cscore::get_cscore
