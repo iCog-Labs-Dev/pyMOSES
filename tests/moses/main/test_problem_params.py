@@ -432,9 +432,7 @@ def test_supported_non_default_option_applies_and_does_not_raise(argv, path, exp
 @pytest.mark.parametrize(
     "argv",
     [
-        ["--opt-algo", "sa"],
-        ["--opt-algo", "un"],
-        ["--opt-algo", "ps"],
+        ["--opt-algo", "nosuchalgo"],
         ["--enable-fs", "1"],
         ["--boost", "1"],
         ["--discard-dominated", "1"],

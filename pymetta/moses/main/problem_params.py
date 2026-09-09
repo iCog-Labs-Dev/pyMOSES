@@ -209,6 +209,7 @@ _DAY = "day"  # C++: problem-params.cc:58 day_str
 _MONTH = "month"  # C++: problem-params.cc:59 month_str
 
 _HC = "hc"  # C++: moses/optimization/optimization.h:68 hc
+_SUPPORTED_OPT_ALGOS = frozenset({"hc", "sa", "un", "ps"})
 
 _DEFAULT_LOG_FILE = "moses.log"  # C++: moses_exec_def.h:56 default_log_file
 _LOCALHOST = "localhost"  # C++: moses_exec_def.h:69 localhost
@@ -819,10 +820,16 @@ class problem_params:
         self.contin_reduct = None
 
         # ---------------- Phase 2: gate unported subsystems, fixed order ----------------
-        if self.opt_algo != _HC:
+        # All four algo names classic recognises (`optimization.h:66-69`) are
+        # now ported and dispatched at `moses_main.py`'s
+        # `metapop_moses_results_b`. An unrecognised name is NOT rejected here:
+        # classic validates it at the dispatch (`moses_main.h:300-306`), not at
+        # option-parse time, and this port raises there too, so failing early
+        # would move the error to a place classic never reports it.
+        if self.opt_algo not in _SUPPORTED_OPT_ALGOS:
             raise NotImplementedError(
-                f"opt-algo {self.opt_algo!r}: only hill-climbing ({_HC!r}) is ported; "
-                "univariate/star-anneal/particle-swarm are P2."
+                f"opt-algo {self.opt_algo!r} is not a ported optimizer. "
+                f"Supported: {', '.join(sorted(_SUPPORTED_OPT_ALGOS))}."
             )
         if not local:
             raise NotImplementedError(

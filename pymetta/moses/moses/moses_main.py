@@ -150,7 +150,16 @@ from pymetta.moses.metapopulation.metapop_params import (
 from pymetta.moses.metapopulation.metapopulation import metapopulation
 from pymetta.moses.moses.moses_params import moses_parameters, moses_statistics
 from pymetta.moses.moses.optimization.hill_climbing import hc_parameters, hill_climbing
-from pymetta.moses.moses.optimization.optimization import optim_parameters
+from pymetta.moses.moses.optimization.optimization import (
+    optim_parameters,
+    optimizer_base,
+)
+from pymetta.moses.moses.optimization.particle_swarm import (
+    particle_swarm,
+    ps_parameters,
+)
+from pymetta.moses.moses.optimization.star_anneal import simulated_annealing
+from pymetta.moses.moses.optimization.univariate import univariate_optimization
 from pymetta.moses.moses.types import (
     _format_score_t,
     _to_score_t,
@@ -494,10 +503,11 @@ def metapop_moses_results_b(
 
     "Create metapopulation, run moses, print results." (the template's
     own doc comment.) `ps_params` is dropped from this signature entirely
-    -- see the module docstring. Only the `opt_params.opt_algo == "hc"`
-    branch (moses_main.h:288-290) is ported; every other branch
-    (moses_main.h:291-307, `sa`/`un`/`ps`) raises instead of constructing
-    an optimizer this port does not have.
+    -- see the module docstring and the DIVERGENCE at the `ps` branch.
+    All four of classic's optimizer branches (moses_main.h:288-299) are now
+    ported: `hc`, `sa`, `un` and `ps`. The unrecognised-name branch
+    (:300-306) diverges deliberately -- C++ exits the process, this port
+    raises -- and carries its own marker.
 
     `optimizer` is not explicitly `delete`d at the end (moses_main.h:323)
     -- nothing to free in Python; ordinary garbage collection reclaims it
@@ -516,33 +526,37 @@ def metapop_moses_results_b(
     """
     stats = moses_statistics()
 
-    if opt_params.opt_algo != "hc":
-        raise NotImplementedError(
-            f"metapop_moses_results_b: optimizer {opt_params.opt_algo!r} "
-            "is P2 -- star-anneal/univariate/particle-swarm are not "
-            "ported. moses_main.h:37-39's own #includes for them are NOT "
-            "the only references: moses_main.h:292/295/298 construct all "
-            "three (`new simulated_annealing`/`new univariate_optimization`/"
-            "`new particle_swarm`) inside this very function's C++ "
-            "original, `metapop_moses_results_b` -- neither moses_main.cc "
-            "nor local_moses.cc dispatches to any of the three by name, "
-            "but the header this function is ported from does construct "
-            "them. For 'sa'/'un'/'ps' specifically, this matches one of "
-            "C++'s own recognized branches (moses_main.h:291-299) -- just "
-            "one this port does not implement. For any OTHER string, C++ "
-            "does something different again: it falls through to the "
-            "`else` (moses_main.h:300-306), prints 'Unknown optimization "
-            "algo ...' to stderr, and calls exit(1) -- a hard process "
-            "exit, not a raised/catchable error in either language. This "
-            "port raises NotImplementedError uniformly for every "
-            "non-'hc' value, recognized-but-unported or genuinely unknown "
-            "alike, which is itself a divergence from that exit(1) path, "
-            "not a port of it. Construct optim_parameters(opt_algo='hc') "
-            "(the default) so S9's hill_climbing is wired in directly, "
-            "per the plan's own 'Optimizer selection is dependency-"
-            "injected' note."
+    # C++: moses/moses/moses/moses_main.h:288-306 -- the optimizer dispatch.
+    # Classic recognises exactly four names, declared at optimization.h:66-69
+    # as `un`/`sa`/`hc`/`ps`, and constructs one of four types; anything else
+    # prints "Unknown optimization algo ..." to stderr and calls exit(1).
+    #
+    # DIVERGENCE(C++ moses/moses/moses/moses_main.h:300-306): for an
+    # UNRECOGNISED algo name C++ performs a hard `exit(1)` after writing to
+    # stderr -- not a throw, and not catchable in either language. This port
+    # raises ValueError instead, carrying classic's own message text. A
+    # process exit is not reproducible as library behaviour, and swallowing
+    # the name silently would be worse than either.
+    if opt_params.opt_algo == "hc":
+        optimizer: optimizer_base = hill_climbing(opt_params, hc_params)
+    elif opt_params.opt_algo == "sa":
+        optimizer = simulated_annealing(opt_params)
+    elif opt_params.opt_algo == "un":
+        optimizer = univariate_optimization(opt_params)
+    elif opt_params.opt_algo == "ps":
+        # DIVERGENCE(C++ moses/moses/moses/moses_main.h:298): C++ threads a
+        # caller-supplied `ps_params` through this signature; this port
+        # dropped that parameter (see the docstring below), so the defaults
+        # are used. Those defaults are ported verbatim from
+        # `particle-swarm.h`, so a default-configured run matches; a run
+        # that customised ps_params in C++ would not.
+        optimizer = particle_swarm(opt_params, ps_parameters())
+    else:
+        raise ValueError(
+            f"Unknown optimization algo {opt_params.opt_algo}. Supported "
+            "algorithms are un (for univariate), sa (for star-shaped "
+            "search), hc (for local search) and ps (for particle swarm)"
         )
-    optimizer = hill_climbing(opt_params, hc_params)
 
     simple_bases: list[combo_tree] = []
     for xmplr in bases:

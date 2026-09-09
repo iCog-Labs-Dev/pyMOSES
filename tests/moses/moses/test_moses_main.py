@@ -284,10 +284,49 @@ def test_autoscale_diversity_reads_autoscale_only_when_enabled():
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.parametrize("opt_algo", ["sa", "un", "ps", "bogus"])
-def test_metapop_moses_results_b_raises_for_non_hc_optimizer(opt_algo):
+@pytest.mark.parametrize("opt_algo", ["hc", "sa", "un", "ps"])
+def test_metapop_moses_results_b_accepts_every_algo_classic_recognises(opt_algo):
+    """All four of classic's optimizer branches are ported.
+
+    `moses_main.h:288-299` recognises exactly `hc`, `sa`, `un` and `ps`
+    (names declared at `optimization.h:66-69`) and constructs one of four
+    types. This test previously asserted that every non-`hc` value raised,
+    which was true only while star-anneal, univariate and particle-swarm
+    were unported.
+
+    Asserting construction rather than a full run: the point here is the
+    dispatch, and a real search for each algo is covered by their own
+    modules' tests.
+    """
     opt_params = optim_parameters(opt_algo=opt_algo)
-    with pytest.raises(NotImplementedError, match=opt_algo):
+    moses_main.metapop_moses_results_b(
+        [],
+        gen_signature(type_node.boolean_type, 1),
+        _rule(),
+        _rule(),
+        _tiny_cscorer(),
+        opt_params,
+        hc_parameters(),
+        _fresh_deme_parameters(),
+        subsample_deme_filter_parameters(),
+        metapop_parameters(),
+        moses_parameters(),
+        lambda mp, dex, stats: None,
+    )
+
+
+def test_metapop_moses_results_b_rejects_an_unrecognised_algo():
+    """An unknown name raises, carrying classic's own message text.
+
+    DIVERGENCE, and it is deliberate: C++ (`moses_main.h:300-306`) writes
+    "Unknown optimization algo ..." to stderr and calls `exit(1)` -- a hard
+    process exit, not a throw, and not catchable in either language. A
+    library cannot faithfully reproduce a process exit, so this port raises
+    `ValueError` with the same text. Silently accepting the name would be
+    worse than either.
+    """
+    opt_params = optim_parameters(opt_algo="bogus")
+    with pytest.raises(ValueError, match="Unknown optimization algo bogus"):
         moses_main.metapop_moses_results_b(
             [],
             gen_signature(type_node.boolean_type, 1),
