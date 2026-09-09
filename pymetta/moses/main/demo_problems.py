@@ -324,7 +324,7 @@ def even_parity(bits: Sequence[bool]) -> bool:
 
 
 def disjunction(bits: Sequence[bool]) -> bool:
-    """C++: examples/example-progs/scoring_iterators.h:56 disjunction
+    """C++: examples/example-progs/scoring_iterators.h:58 disjunction
 
     "disjunction(x1, ..., xn) = true iff there exists i such that xi is
     true" (scoring_iterators.h:55's own comment).
@@ -333,7 +333,7 @@ def disjunction(bits: Sequence[bool]) -> bool:
 
 
 class multiplex:
-    """C++: examples/example-progs/scoring_iterators.h:68 multiplex
+    """C++: examples/example-progs/scoring_iterators.h:73 multiplex
 
     "multiplex(a1, ..., an, d1, ..., dm) = 1 iff m = 2^n and di = 1 if i
     is the address of the string bit described by a1, ..., an."
@@ -356,7 +356,7 @@ class multiplex:
 
 
 class majority:
-    """C++: examples/example-progs/scoring_iterators.h:94 majority
+    """C++: examples/example-progs/scoring_iterators.h:92 majority
 
     "majority(x1, ..., xn) = 0 iff n/2 or more arguments are false"
     (scoring_iterators.h:93's own comment) -- ported as the literal

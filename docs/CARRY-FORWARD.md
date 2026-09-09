@@ -590,6 +590,30 @@ After the fix the port reproduces classic's exact `-r1` tree for `-Hmux -k2`,
 `-Hpa -k3` and `-Hmaj -k3` — three problems where it previously found a
 different one — and `-Hpa -k3` now scores 0.
 
+### 5.5 A false commit message of my own, and how it happened
+
+Commit `1760611` says it rewrote an invalid `"\|"` escape in `table.py` as a
+`grep -E` alternation. **It does not.** The diff adds 25 lines and removes
+none, the added text uses `grep -rn "push_back"` rather than any `grep -E`, and
+`ae4ea9f:table.py` never contained that escape at all. Found by the S13 review.
+
+What actually happened: the escape existed only in a *concurrent agent's
+uncommitted buffer*. I edited that buffer, and my commit — which commits the
+working-tree state of the named paths — captured their whole 25-line CTable
+note. Their rewrite of the same passage superseded my one-line fix, so the
+escape is genuinely gone (`python3 -W error::SyntaxWarning` is clean
+package-wide) but not for the reason the message gives.
+
+Nothing was lost, and the outcome is correct. The record is not. This is §6's
+own failure mode applied to a commit message rather than a docstring: a
+confident, checkable, false claim, which is worse than no claim because it
+stops the next reader looking.
+
+**Rule:** on a shared worktree, `git commit -- <paths>` captures whatever is in
+those files *now*, including another agent's edits. Before writing the message,
+read the actual staged diff — `git show --stat` and the hunks — rather than
+describing what you intended to change.
+
 ## 6. Process notes that paid for themselves
 
 - **Prove a guard fires.** Requiring "revert it and show the test fail" caught a
