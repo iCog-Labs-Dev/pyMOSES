@@ -82,25 +82,18 @@ agent's half-finished edit:
 
     rm -rf /tmp/clean && mkdir -p /tmp/clean && git archive HEAD | tar -x -C /tmp/clean
 
-### In flight when this session ended
+### Dispatched 2026-09-09/10, all three landed
 
-Three agents were dispatched and had not reported:
-
-1. **Logging surface** — cogutil `Logger`, `-l/-f/-F` wiring, and the log call
-   sites in ported functions. Classic writes 193 lines under `-l DEBUG`; the
-   port writes nothing, which is a silently-ignored flag and the reason seven
-   units are PARTIAL. It was told to report back the one `problem_params.py`
-   change it needs someone else to apply.
-2. **Mixed predicate knob building** — §1 below, the largest functional gap.
-3. **`--ps-max-particles` threading, `-H pre_conj`'s stale gate, and a
-   `--time-bscore-granularity` report that did not reproduce.**
-
-If none of their commits are present, none of that work survived; re-dispatch.
+1. **Logging surface** — landed; see §4.1, which this closed.
+2. **Mixed predicate knob building** — landed; see §1-2, which this closed.
+3. **`--ps-max-particles`, `-H pre_conj`, `--time-bscore-granularity`** —
+   landed. The first was silently dropped and is now threaded; the second was
+   a stale gate on an already-ported scorer and `-H pre-conj` is byte-identical
+   to classic; the third did not reproduce as reported and the behaviour was
+   pinned rather than "fixed".
 
 ### Known-but-unfixed, carried forward
 
-- `--ps-max-particles` is parsed, stored and then discarded (`moses_main.py`'s
-  `ps` arm builds fresh `ps_parameters()`). Violates the S13 rule directly.
 - The `action` half of the port's stated scope is contradicted by the code in
   four places (§5) — an open product decision, not a bug.
 - `fs-main.cc` and `eval-features.{cc,h}` are genuinely unported and left
@@ -125,38 +118,37 @@ If none of their commits are present, none of that work survived; re-dispatch.
 
 ## Order of work, and the reasoning
 
-### 1. Close the mixed predicate path in knob building — the largest functional gap
+### 1-2. CLOSED 2026-09-10 — the mixed predicate path and `simplify_predicates`
 
-`build_knobs.cc:640-663` (`build_logical`'s `is_predicate(cur)` branch, which
-calls `contin_canonize`/`build_contin`) plus the contin branches of
-`insert_typed_arg` and `sample_logical_perms` (`build_knobs.cc:386-393`,
-`425-430`). Everything else in contin knob building landed.
+Both landed together (`215577a`, `8b2e1de`), since item 1 shadowed item 2: the
+reduct gap was unreachable through the CLI until knob building opened.
 
-Measured 2026-09-09: a two-contin-column table with a boolean target gives
-classic `0 0<(+($x1 $x2))` at a perfect score, exit 0, and the port
-`NotImplementedError: non-Boolean inputs require their corresponding domain
-builder slice` (`build_knobs.py:275`). This is first because it is a whole
-problem class the port cannot attempt, and because it currently **shadows** item
-2 — you cannot reach the reduct gap through the CLI until this gate opens.
+- `build_logical`'s `is_predicate(cur)` branch (`build_knobs.cc:640-663`),
+  `logical_canonize`'s (`:160-172`), and the contin branches of
+  `insert_typed_arg` (`:386-393`) and `sample_logical_perms` (`:425-430`).
+- `simplify_predicates`' `contin_reduce`/`mixed_reduce` tail
+  (`logical_rules.cc:76-81`) — the last raise in the whole reduct package.
+  Its module-level import cycle is resolved with a function-local import.
 
-### 2. `simplify_predicates`' contin/mixed tail
+Measured: 75/75 byte-identical CLI runs (5 tables x 3 budgets x 5 seeds),
+8/8 across flag variations, 40/40 knob-building constructions compared on
+decorated exemplar, `ostream_prototype`, and every disc AND contin knob's
+spec, order and location, and 280/280 `logical_reduce` results over 137
+predicate trees at efforts 2 and 3. `-H select`, which a test previously
+asserted *raised*, now reproduces classic's seven lines.
 
-One `raise NotImplementedError` — the only one left in the entire reduct package
-— at `logical_rules.py:574`, guarding `logical_rules.cc:77 contin_reduce(...)`
-and `:82 mixed_reduce(...)`.
+The reproducer this section was written around — a two-contin-column table
+with a boolean target — matches, and independently so on a second such
+table (8/8 across seeds, budgets, `--linear-regression` and
+`--contin-depth`).
 
-**Both targets now exist** (`contin_reduction.py:167`, `mixed_reduction.py:175`)
-and were called directly and shown to work. The raise's own text ("unreachable
-from this project's boolean-only reduction scope") is false, and
-`simplify_predicates` is the FIRST element of `p_medium`, so efforts 2 and 3 both
-hit it. Reproduced: `logical_reduce` effort 3 on `and(0<(+($1 $2)) $3)`,
-`0<(+($1 $2))`, `or(0<(*($1 $2)) $3)`; `contin_reduce` effort 2 on
-`cond(0<(+($1 1)) 1 2)` and `+(impulse(0<(+($1 1))) 1)`. Classic succeeds on all
-five. The only obstacle is a module-level import cycle
-(`mixed_reduction.py:50` imports `logical_rules`); a function-local import
-resolves it.
+**Ten mutants survived and are recorded in the code as equivalent or
+unreachable rather than as coverage gaps** — including one that proves
+`build_logical`'s `logical_not` assertion arm is never entered at all,
+while its sibling check fails 24 tests when forced, so the arm is live and
+only that condition is unsatisfiable.
 
-### 3. The P2 tail — what actually remains of 3a–3f
+### 3. The P2 tail — what actually remains of 3a-3f
 
 Every item below was re-verified against the tree on 2026-09-09, not inferred
 from the plan.
@@ -255,13 +247,18 @@ the CLI (5 seeds × 2 budgets on `trainingBooleanXor.dat`, plus
 These surfaced repeatedly across the audit and are bigger than the rows that
 mention them.
 
-1. **There is no logging surface at all.** The port drops `logger()`
-   project-wide; classic writes a 189-line `moses.log` under `-l DEBUG` while
-   the port, which parses `-l`/`-f`/`-F`, writes no file. Seven rows reduce to
-   this one fact (`metapopulation.{cc,h}`, `merging.cc`, `local_moses.{cc,h}`,
-   `moses_main.{cc,h}`, `deme_expander.cc`, `optimization.{cc,h}`,
-   `eda/logging.h`). Decide once: implement it, or record it as a project-wide
-   EXCLUDED decision. Today it is neither.
+1. **CLOSED 2026-09-10 — the logging surface exists.** cogutil's `Logger` is
+   ported (`pymetta/util/logger.py`), `-l`/`-f`/`-F` are wired (`-F` is not a
+   filename: it is `determine_log_name`, which names the log after every
+   option the user actually TYPED), and the port has 196 `logger()` call
+   sites where it had zero. `tools/normalize_log.py --compare` is the oracle
+   and `tests/moses/main/test_log_differential.py` makes it permanent; it
+   asserts EQUALITY after normalising volatile fields, not that the port is a
+   subsequence. Measured on two configurations: 139/139 and 149/149 records
+   matched, **zero unexplained in either direction**, with a 34-entry
+   allow-list of records whose emitting function is not ported (enumerated in
+   the test). What remains is that allow-list shrinking, not a missing
+   surface.
 2. **The type-inference engine is unported** — 41 of `type_tree.cc`'s 73
    definitions, verified by exact-word grep returning zero definitions.
    `demo_problems.py:94-121` reaches it through a disclosed narrow substitute

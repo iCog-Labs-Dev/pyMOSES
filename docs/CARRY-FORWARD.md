@@ -177,6 +177,30 @@ These cost real time to find. They are properties of the C++ side, not of the po
   `hasattr(ctable, "get_timestamps")`. The three timestamp members are
   therefore ABSENT rather than stubbed, so that gate keeps working.
 
+- **`logical_reduce` does not terminate on a predicate over `log` of a
+  negative constant.** Found by the mixed-predicate slice; **independently
+  re-measured** with `tools/cpp_probe/logical_reduce_termination_probe.cc`
+  (effort 2, empty `ignore_ops`, `( ulimit -v 2097152; timeout 20 ... )`):
+
+      0<(+($1 $2))         -> rc 0    (reduces)
+      log(-1)              -> rc 0    (reduces)
+      0<(log(-1))          -> TIMED OUT
+      0<(+(log(-1) 1))     -> TIMED OUT
+      0<(log(*(-1 1)))     -> TIMED OUT
+
+  The same `log(-1)` **not** under a predicate reduces immediately, so it is
+  the predicate wrapper that makes it diverge, not `log(-1)` itself. The port
+  hangs identically. **DO NOT FIX** — reproduce it; the mixed-predicate
+  corpus generator excludes `log` for this reason.
+
+  Note the trap in measuring it: `test_reduct` and `logical-reductor` both
+  ABORT (rc 134) on any `0<` tree, because their `complete_truth_table`
+  equivalence check cannot handle a predicate — so neither can show this hang,
+  and a first probe that calls `logical_reduce(2, tr)` directly also aborts
+  ("logical reduction effort 2 and greater requires ignore_ops",
+  `logical_reduction.cc:150`). You must construct a `logical_reduction` with
+  an explicit `vertex_set` to see it.
+
 - **An argument index beyond the table's arity is undefined behaviour.**
   `interpreter.cc:54` is `return idx > 0? boolean_inputs[idx - 1] :
   negate_builtin(boolean_inputs[-idx - 1]);` — a bare `std::vector`
@@ -880,6 +904,24 @@ from a function's positional parameters once the string is re-evaluated.
   checked for whether it could have found anything: verify the command that
   actually ran, and verify the outputs being compared are non-empty. Comparing
   two empty files reports agreement.
+
+### 5.11 A process-wide singleton the port reads but classic never re-reads
+
+`contin_reduction`'s rule object is a module-level singleton here, and
+`problem-params.cc:2394` builds classic's unconditionally at option-parse time.
+Since the mixed-predicate slice, the Boolean path READS it too.
+
+Classic never notices: one process per `moses` run. This port's CLI can be
+driven repeatedly **inside one Python process**, and then the singleton carries
+`ignore_ops` from the previous run into the next. Measured: 8 varied CLI runs
+in one process diverge after an `--ignore-operator` case; the same 8 with the
+singleton reset between runs are 8/8 identical.
+
+**Rule.** Any in-process harness that drives `moses_exec` more than once must
+reset the reduction singletons between runs, or it is measuring the previous
+run as much as the current one. The differential sweeps in this project all
+use a fresh subprocess per run and are unaffected — which is precisely why
+this went unnoticed until someone built an in-process one.
 
 ## 6. Process notes that paid for themselves
 
