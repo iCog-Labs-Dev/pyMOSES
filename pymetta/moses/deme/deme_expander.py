@@ -68,25 +68,22 @@ exactly one deme, per ``create_demes`` call.
 
 ``fs_to_names`` (deme_expander.h:115, deme_expander.cc:48) IS ported now.
 It used to be listed here as deliberately dropped, on the grounds that
-every call site is inside a ``logger()`` call -- true of cc:76/:78 (both
-in ``log_selected_feature_sets``, still not ported) but not of cc:227,
-which is in the ``prune_xmplr`` arm of ``create_representations``, live
-as of this change. Its one behavioural content is ORDER: a C++
-``std::set<arity_t>`` iterates ASCENDING and a Python ``set`` does not,
-so it sorts.
+every call site is inside a ``logger()`` call. All three are live now:
+cc:227 in the ``prune_xmplr`` arm of ``create_representations``, and
+cc:76/:78 inside ``log_selected_feature_sets``. Its one behavioural
+content is ORDER -- a C++ ``std::set<arity_t>`` iterates ASCENDING and a
+Python ``set`` does not, so it sorts -- plus the bounds check its own
+docstring explains, which is where classic dies on ``--fs-seed=xmplr``.
 
-STILL NOT ported: ``log_selected_feature_sets`` (deme_expander.h:121,
-deme_expander.cc:57), which is purely logging (its only effect is feeding
-``logger().info()``/``ostream_container``; nothing observes a return
-value), matching the "no logging surface in this port" convention stated
-throughout this project. Also
-NOT ported: the ``#if THIS_IS_DISABLED_UNTIL_ABOVE_IS_FIXED`` block inside
-``optimize_demes`` (deme_expander.cc:460-474) -- dead code by construction
-in C++ itself (the guarding macro is never defined, matching CLAUDE.md's
-treatment of other never-taken ``#ifdef`` branches), and every
-``logger()``-only line (deme_expander.cc:276-283,413,425-430,449-455) --
-no logging surface in this port, see ``hill_climbing.py``'s module
-docstring for the same omission elsewhere.
+``log_selected_feature_sets`` (deme_expander.h:121, deme_expander.cc:57)
+was ALSO listed here as "purely logging". It is not, and it is ported:
+its second statement is a live ``OC_ASSERT`` that aborts classic for
+``--fs-demes > 1``. See that method's own docstring for the measurement.
+
+STILL NOT ported: the ``#if THIS_IS_DISABLED_UNTIL_ABOVE_IS_FIXED`` block
+inside ``optimize_demes`` (deme_expander.cc:460-474) -- dead code by
+construction in C++ itself (the guarding macro is never defined, matching
+CLAUDE.md's treatment of other never-taken ``#ifdef`` branches).
 
 **Injection seam** (deme_expander.h:44,83): ``deme_expander`` takes and
 stores ``optimizer_base& _optimize``; it does NOT construct an optimizer.
@@ -488,9 +485,9 @@ class deme_expander:
         state (nothing else observes the momentarily-pushed-then-popped
         entry in C++ either) -- not a behavioural difference, just a
         clearer expression of it in a language without ``pop_back``-as-
-        undo. The dropped ``logger().warn("The representation is empty,
-        ...")`` (cc:300-301) is the same no-logging-surface omission
-        documented elsewhere (see module docstring).
+        undo. ``logger().warn("The representation is empty,
+        ...")`` (cc:300-301) IS emitted -- see the ``_reps`` loop below;
+        this paragraph claimed it was dropped long after it had landed.
         """
         if self._params.perceptions is not None or self._params.actions is not None:
             raise NotImplementedError(

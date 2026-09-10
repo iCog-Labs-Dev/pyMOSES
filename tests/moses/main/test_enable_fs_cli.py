@@ -28,7 +28,9 @@ agree is this project's most-repeated defect. The pairs:
 
 Two `--enable-fs` command lines have NO oracle, because classic itself dies
 on them; both are pinned at the bottom of this file with the measurement.
-`--fs-algo=hc` is a third, already recorded in docs/CARRY-FORWARD.md.
+`--fs-algo=hc` is a third, already recorded in docs/CARRY-FORWARD.md and
+re-confirmed here through the `--enable-fs` path (not just the standalone
+`feature-selection` binary): pinned at the bottom too.
 """
 
 # ruff: noqa: E501 -- the expected strings are classic's stdout, captured
@@ -466,3 +468,47 @@ def test_fs_seed_xmplr_raises_where_classic_segvs():
                 ]
             )
         )
+
+
+def test_fs_algo_hc_runs_here_and_segvs_classic():
+    """RE-CONFIRMED 2026-09-10, and through a NEW path. CARRY-FORWARD.md 3
+    records `feature-selection --algo hc` core-dumping via the standalone
+    binary; the same crash is reachable from `moses --enable-fs=1
+    --fs-algo=hc`, measured 16/16 over
+    {bool_a5_maj, bool_a6_mix, bool_a4_par, classic's dataset.csv} x
+    {--fs-target-size 2, 3} x {-r1, -r5}: rc 139, zero bytes of stdout.
+
+    gdb, same command line as the other cases plus `--fs-algo=hc`:
+
+        #0 representation::get_candidate(...) (this=0x0)
+             representation.cc:319
+        #1 hill_climbing::operator() hill-climbing.cc:69
+        #2 optimize_deme_select_feature_sets<hill_climbing, ...>
+             algo/deme_optimize.h:52
+        ...
+        #6 feature_selector::operator() feature_selector.cc:328
+        #7 deme_expander::create_representations deme_expander.cc:187
+
+    `this=0x0` is `iscorer_base::get_rep()` returning null into an
+    unconditional debug-log line -- the exact deref that also core-dumps
+    classic's own `optimizationUTest`. This port drops that log line, so
+    its `hc` selector runs to completion. THERE IS NO ORACLE FOR `hc`:
+    what this test pins is that the port produces something and does not
+    crash, NOT that the something is right.
+    """
+    rc, out = _run(
+        _argv(
+            [
+                "-i@bool_a5_maj.csv",
+                "-uy",
+                "-m1000",
+                "-W1",
+                "--enable-fs=1",
+                "--fs-target-size=2",
+                "-r1",
+                "--fs-algo=hc",
+            ]
+        )
+    )
+    assert rc == 0
+    assert out.strip() != ""
