@@ -487,6 +487,12 @@ def test_hc_allow_resize_deme_is_a_deprecated_alias_for_the_same_dest():
         # asserted: the boolean itself, and (below) the six
         # `festor_params` fields `--fs-seed`/`--fs-focus` write.
         (["--enable-fs", "1"], "enable_feature_selection", True),
+        # Un-gated by `f155013`, once `logical_bscore` gained a real
+        # `call_ensemble` override. This row asserts only what every other
+        # row here asserts -- that the flag parses and reaches its
+        # destination; tests/moses/main/test_boost_cli.py is where the
+        # behaviour itself is proven.
+        (["--boost", "1"], "boosting", True),
         # Un-gated 2026-09-10 with the CTable's real timestamps and
         # `precision_bscore.do_score`'s two timestamp branches
         # (precision_bscore.cc:242-263). See
@@ -559,7 +565,15 @@ def test_contin_depth_reaches_representations_module_static():
         # own row, test_fs_seed_and_fs_focus_map_onto_festor_params
         # below, and tests/moses/main/test_enable_fs_cli.py for the
         # byte-for-byte oracle against classic's own binary.
-        ["--boost", "1"],
+        # NOTE: --boost is DELIBERATELY ABSENT -- `f155013` removed that
+        # gate once `logical_bscore` gained a real `call_ensemble` override,
+        # which is precisely the set of problems classic supports boosting
+        # on. See test_supported_non_default_option_applies_and_does_not_
+        # raise's own row, and tests/moses/main/test_boost_cli.py for the
+        # end-to-end proof. (Row removed here by the timestamp-flags task,
+        # which owns this file's last edit: `f155013` lifted the gate
+        # without updating these two rows, so both asserted something the
+        # source no longer does.)
         # NOTE: --discard-dominated and --diversity-pressure are DELIBERATELY
         # ABSENT from this list -- the P2 metapopulation task (0c1beda/
         # f1c439f) ported domination.cc/diversity.cc for real, and this
@@ -598,8 +612,9 @@ def test_unsupported_option_raises(argv):
 @pytest.mark.parametrize(
     "argv,must_contain",
     [
-        (["--boost", "1"], "AdaBoost/experts engine IS ported"),
         (["--ss-n-subsample-demes", "2"], "subsample.cc port"),
+        # --boost's row is gone: `f155013` removed that gate, so there is no
+        # message left to pin. See test_boost_cli.py instead.
         # --time-dispersion-pressure's row is gone: the gate itself is gone
         # (2026-09-10), so there is no message left to pin.
     ],
