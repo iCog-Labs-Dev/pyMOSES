@@ -191,6 +191,7 @@ from pymetta.comboreduct.combo.vertex import builtin
 from pymetta.comboreduct.reduct.contin_reduction import contin_reduction
 from pymetta.comboreduct.reduct.logical_reduction import logical_reduction
 from pymetta.moses.deme.deme_params import deme_parameters
+from pymetta.moses.deme.feature_selector import feature_selector_parameters
 from pymetta.moses.metapopulation.metapop_params import (
     diversity_parameters,
     metapop_parameters,
@@ -202,6 +203,7 @@ from pymetta.moses.moses.optimization.optimization import optim_parameters
 from pymetta.moses.moses.optimization.particle_swarm import ps_parameters
 from pymetta.moses.moses.types import _to_score_t, very_best_score
 from pymetta.moses.representation.representation import set_depth
+from pymetta.util.logger import logger, ostream_double
 from pymetta.util.rng import randGen
 
 __all__ = ["parse_args", "problem_params"]
@@ -219,6 +221,20 @@ _AUTO = "auto"  # C++: problem-params.cc:52 auto_str
 _INVERSE = "inverse"  # C++: problem-params.cc:53 inverse_str
 _COMPLEMENT = "complement"  # C++: problem-params.cc:54 complement_str
 _POWER = "power"  # C++: problem-params.cc:55 power_str
+
+# Focus types -- "which data points feature selection within moses should
+# focus on" (problem-params.cc:61-62's own comment).
+_FOCUS_ALL = "all"  # C++: problem-params.cc:63 focus_all
+_FOCUS_ACTIVE = "active"  # C++: problem-params.cc:65 focus_active
+_FOCUS_INCORRECT = "incorrect"  # C++: problem-params.cc:67 focus_incorrect
+_FOCUS_AI = "ai"  # C++: problem-params.cc:70 focus_ai
+
+# Seed types -- "how to use the features of the exemplar to seed feature
+# selection" (problem-params.cc:74-75's own comment).
+_SEED_NONE = "none"  # C++: problem-params.cc:80 seed_none
+_SEED_ADD = "add"  # C++: problem-params.cc:88 seed_add
+_SEED_INIT = "init"  # C++: problem-params.cc:93 seed_init
+_SEED_XMPLR = "xmplr"  # C++: problem-params.cc:99 seed_xmplr
 
 _DAY = "day"  # C++: problem-params.cc:58 day_str
 _MONTH = "month"  # C++: problem-params.cc:59 month_str
@@ -271,80 +287,6 @@ def _bool_opt(s: str) -> bool:
     )
 
 
-class _FeatureSelectionParams:
-    """P2 stand-in for C++ `feature_selection_parameters`
-    (`moses/feature-selection/algo/feature_scorer.h`-adjacent; not ported --
-    P2, `--enable-fs`). Plain data only, field names matching the C++
-    `fs_params.*` CLI destinations 1:1, so a future port can grow real
-    behaviour into this shape without renaming anything. No method, no
-    validation: `enable_feature_selection` is the single gate this whole
-    object sits behind (see module docstring), so nothing here is ever
-    consulted by this port.
-    """
-
-    def __init__(self) -> None:
-        self.target_size = 20
-        self.exp_distrib = False
-        self.algorithm = "simple"
-        self.scorer = "mi"
-        self.threshold = 0.0
-        self.inc_red_intensity = -1.0
-        self.inc_target_size_epsilon = 1.0e-6
-        self.inc_interaction_terms = 1
-        self.pre_penalty = 1.0
-        self.pre_min_activation = 0.5
-        self.pre_max_activation = 1.0
-        self.pre_positive = True
-        self.hc_max_score = 1.0
-        self.hc_max_evals = 10000
-        self.hc_fraction_of_remaining = 0.5
-        self.hc_crossover = False
-        self.hc_crossover_pop_size = 120
-        self.hc_crossover_min_neighbors = 400
-        self.hc_widen_search = True
-        self.mi_confi = 100.0
-        self.smd_top_size = 10
-
-
-class _FeatureSelectorParams:
-    """P2 stand-in for C++ `feature_selector_parameters`
-    (`moses/deme/feature_selector.h`; not ported -- P2, `--enable-fs`,
-    `deme_expander.py`'s own `fstor is not None` gate). See
-    `_FeatureSelectionParams`'s own docstring; `fs_params` here mirrors
-    C++'s `feature_selection_parameters& fs_params` reference member
-    exactly, as one shared object, not a copy (matches
-    `problem_params.fs_params`'s own alias, see that class's `__init__`).
-    """
-
-    def __init__(self) -> None:
-        self.prune_xmplr = False
-        # Added 2026-09-10 with `prune_xmplr`/`fs_to_names`, which read
-        # these five. Defaults are C++'s own member-initializer list
-        # (feature_selector.h:41-46): `increase_target_size(true)`,
-        # `ignore_xmplr_features(true)`, `restrict_incorrect(true)`,
-        # `restrict_true(false)`, `init_xmplr_features(false)`,
-        # `xmplr_as_feature(false)`. `ignored_features` has no C++
-        # initializer -- it is a default-constructed `std::set`.
-        self.increase_target_size = True
-        self.ignore_xmplr_features = True
-        self.restrict_incorrect = True
-        self.restrict_true = False
-        self.init_xmplr_features = False
-        self.xmplr_as_feature = False
-        self.ignored_features: set[int] = set()
-        # `std::map<combo::arity_t, float>` (feature_selector.h:150), no
-        # C++ initializer -- default-constructed, i.e. empty.
-        self.enforce_features: dict[int, float] = {}
-        self.subsampling_ratio = 1.0
-        self.subsampling_by_time = False
-        self.n_demes = 1
-        self.diversity_pressure = 0.0
-        self.diversity_cap = 100
-        self.diversity_interaction = -1
-        self.diversity_jaccard = True
-        self.fs_params = _FeatureSelectionParams()
-
-
 class problem_params:
     """C++: moses/moses/main/problem-params.h:56 problem_params
 
@@ -367,7 +309,7 @@ class problem_params:
         self.enable_mpi = False
         self.default_nsamples = 20
         self.max_filename_size = 255
-        self.festor_params = _FeatureSelectorParams()
+        self.festor_params = feature_selector_parameters()
         self.fs_params = self.festor_params.fs_params
 
     # ------------------------------------------------------------- add_options
@@ -732,6 +674,61 @@ class problem_params:
         # -- jobs / local (C++: :2157-2172) --
         jobs, local = self._resolve_jobs(args)
 
+        # -- feature-selection focus / seed (C++: :2196-2229) --
+        #
+        # "Set parameter structures. Please don't systematically use their
+        # constructors (if you can avoid it), as it is prone to error,
+        # whenever the constructor changes it may silently set the wrong
+        # things (as long as they have the same types)." (:2190-2193's own
+        # comment.)
+        #
+        # These two switches are the ONLY writers of `restrict_incorrect`,
+        # `restrict_true`, `increase_target_size`, `ignore_xmplr_features`,
+        # `init_xmplr_features` and `xmplr_as_feature` -- there is no CLI
+        # option bound directly to any of the six. Both chains are plain
+        # `if/else if` with NO final `else`, so an unrecognised string
+        # silently leaves `feature_selector_parameters`' own
+        # member-initializer defaults in place; reproduced exactly, with no
+        # validation C++ does not have. (`--fs-focus`/`--fs-seed` are
+        # `po::value<string>`, not a checked enum: classic accepts
+        # `--fs-focus=nonsense` and runs.)
+        if self.fs_focus == _FOCUS_ALL:
+            self.festor_params.restrict_incorrect = False
+            self.festor_params.restrict_true = False
+        elif self.fs_focus == _FOCUS_ACTIVE:
+            self.festor_params.restrict_incorrect = False
+            self.festor_params.restrict_true = True
+        elif self.fs_focus == _FOCUS_INCORRECT:
+            self.festor_params.restrict_incorrect = True
+            self.festor_params.restrict_true = False
+        elif self.fs_focus == _FOCUS_AI:
+            self.festor_params.restrict_incorrect = True
+            self.festor_params.restrict_true = True
+
+        if self.fs_seed == _SEED_NONE:
+            self.festor_params.increase_target_size = False
+            self.festor_params.ignore_xmplr_features = True
+            self.festor_params.init_xmplr_features = False
+            self.festor_params.xmplr_as_feature = False
+        elif self.fs_seed == _SEED_ADD:
+            self.festor_params.increase_target_size = True
+            self.festor_params.ignore_xmplr_features = False
+            self.festor_params.init_xmplr_features = False
+            self.festor_params.xmplr_as_feature = False
+        elif self.fs_seed == _SEED_INIT:
+            self.festor_params.increase_target_size = False
+            self.festor_params.ignore_xmplr_features = False
+            self.festor_params.init_xmplr_features = True
+            self.festor_params.xmplr_as_feature = False
+        elif self.fs_seed == _SEED_XMPLR:
+            self.festor_params.increase_target_size = False
+            self.festor_params.ignore_xmplr_features = False
+            self.festor_params.init_xmplr_features = False
+            self.festor_params.xmplr_as_feature = True
+
+        # -- enforce-features file (C++: :2231-2259) --
+        self._parse_enforce_features()
+
         # -- deme expansion parameters (C++: :2262-2265) --
         self.reduce_all = args.reduce_all
         self.linear_regression = args.linear_regression
@@ -965,15 +962,7 @@ class problem_params:
         # gated here because removing this check alone would not make
         # `--enable-fs` reach working behaviour -- it would just move an
         # (inaccurate) raise one file deeper.
-        if self.enable_feature_selection:
-            raise NotImplementedError(
-                "--enable-fs: feature_selector.py and deme_expander.py's "
-                "consumption of it ARE ported (f4ca02c), but table_problems.py's "
-                "_regression never constructs the real feature_selector and "
-                "assigns it to deme_params.fstor (table-problems.cc:330-334's "
-                "REGRESSION-macro construction site is unwired) -- outside this "
-                "task's owned scope; leave --enable-fs unset."
-            )
+        # (gate removed; see the comment above)
         # DIVERGENCE(C++ moses/moses/scoring/scoring_base.h/.cc
         # bscore_base::call_ensemble): `ensemble.py` (the AdaBoost/experts
         # engine itself) is fully ported (`370146c`) and `merging.py`
@@ -1179,6 +1168,74 @@ class problem_params:
 
         self.ignore_ops = ignore_ops
         return ignore_ops
+
+    def _parse_enforce_features(self) -> None:
+        """C++: moses/moses/main/problem-params.cc:2149 problem_params
+
+        Cites the enclosing class at its `parse_options` member (the
+        breadcrumb convention for a symbol the matcher cannot name): the
+        real code is the "Parse enforce features" block inlined in
+        `problem_params::parse_options`, problem-params.cc:2231-2259.
+
+        Line format is "<feature name>[ <weight>]": the FIRST space splits
+        name from weight, `stof` parses the rest, and a line with no space
+        gets weight `1`. Empty lines are skipped. Faithful details that
+        look like sloppiness and are not:
+
+        * `stof` (cc:2248) parses a LEADING-whitespace-tolerant prefix and
+          ignores trailing junk, so "x1   0.25 rubbish" is 0.25. Python's
+          `float()` accepts the leading whitespace and rejects the
+          trailing junk, so the substring is `.split()`-ed first and only
+          its first token converted -- reproducing `strtof`'s prefix
+          parse without importing C's tolerance for the rest of the line.
+        * A duplicate feature name overwrites (`map::operator[]`), it does
+          not accumulate.
+        * The weight is a C++ `float` (feature_selector.h:166,
+          `std::map<std::string,float>`), so `_to_score_t` narrows it
+          (`score_t` is the same binary32); the
+          value round-trips through `biased_randbool(float)`
+          ($COGUTIL/opencog/util/random.h:127) at sampling time.
+        * C++'s `while (in) { getline(in, line); ... }` reads ONE PAST the
+          last line: the final `getline` fails, leaves `line` empty, and
+          the empty-line `continue` swallows it. Iterating the file's real
+          lines is equivalent, since the extra iteration contributes
+          nothing.
+        * `OC_ASSERT(in.is_open(), "Could not open %s", ...)` throws
+          `AssertionException`; a missing file raises here too, as the
+          `OSError` Python's own `open` produces.
+
+        Called unconditionally; returns immediately when
+        `--fs-enforce-features-filename` was not given, matching
+        `if (!fs_enforce_features_filename.empty())` (cc:2232).
+        """
+        if not self.fs_enforce_features_filename:
+            return
+        with open(self.fs_enforce_features_filename) as handle:
+            for line in handle:
+                # `getline` strips the newline; Python's iteration does not.
+                line = line.rstrip("\n")
+                if not line:
+                    continue
+                whitespace_pos = line.find(" ")
+                if whitespace_pos != -1:
+                    feature_name = line[:whitespace_pos]
+                    weight = _to_score_t(float(line[whitespace_pos:].split()[0]))
+                    self.festor_params.enforce_features[feature_name] = weight
+                else:
+                    self.festor_params.enforce_features[line] = 1.0
+
+        # C++: problem-params.cc:2255-2258. `std::map` iterates in
+        # ascending key order; a Python `dict` iterates in insertion
+        # order, so this sorts to keep the RECORD order identical (the
+        # map itself is consumed by `feature_selector.
+        # sample_enforced_features`, whose own iteration-order divergence
+        # is documented there).
+        for name in sorted(self.festor_params.enforce_features):
+            logger().debug(
+                "Enforce feature %s with probability %s",
+                name,
+                ostream_double(self.festor_params.enforce_features[name]),
+            )
 
     def _resolve_jobs(self, args: argparse.Namespace) -> tuple[dict, bool]:
         """C++: moses/moses/main/problem-params.cc:2058 problem_params::parse_options

@@ -42,19 +42,15 @@ selection (``deme_parameters.fstor``, ``--enable-fs``) is now REAL:
   exemplar's features back into the selected set, so they land in
   ``ignore_ops`` too.
 
-  One sub-piece remains gated, off by default:
-
-  - ``optimize_demes``'s OWN ``if (_params.fstor)`` branch
-    (deme_expander.cc:432-471) needs
-    ``behave_cscore.ignore_cols()``/``best_possible_score()``, neither
-    ported (``pymetta.moses.scoring`` is not this task's file to edit,
-    and is under concurrent edit by another agent as of this task) --
-    see ``optimize_demes``'s own docstring. A real ``fstor`` therefore
-    builds correct representations/demes but cannot yet be driven
-    through a full search loop; report this as a required follow-up
-    for whoever owns ``pymetta/moses/scoring/`` if a complete
-    ``--enable-fs`` search (not just representation-building) is
-    needed.
+  ``optimize_demes`` drives a real ``fstor`` all the way through the
+  search loop. Its OWN ``if (_params.fstor)`` arm
+  (deme_expander.cc:432-450, plus the post-loop reset at cc:499-506) is
+  the one piece that is documented-and-skipped rather than executed:
+  it calls ``behave_cscore.ignore_cols()``/``best_possible_score()``,
+  which do not exist in ``pymetta.moses.scoring`` -- see
+  ``optimize_demes``'s own DIVERGENCE for the three upstream edits that
+  would close it, and for the measurement showing the omission changes
+  no output this port can produce.
 
 * **Subsample-deme filtering**
   (``subsample_deme_filter_parameters.n_subsample_demes``, S10 Task 1's
@@ -739,27 +735,17 @@ class deme_expander:
     def optimize_demes(self, max_evals: int, max_time: int) -> None:
         """C++: moses/moses/deme/deme_expander.cc:403 deme_expander::optimize_demes
 
-        # DIVERGENCE(C++ moses/moses/deme/deme_expander.cc:432,477,499,508): classic
-        # checks `if (_params.fstor)` at TWO points in this function
-        # (cc:432 and the post-loop reset at cc:499) and `if (n_ss_demes >
-        # 1)` at two more (cc:477 and the post-loop reset at cc:508).
-        #
-        # UNLIKE `create_demeIDs`/`create_representations` (which now honour
-        # a real `fstor`, see module docstring), this function's OWN
-        # `if (_params.fstor)` body (cc:432-450) is NOT ported: it calls
-        # `_cscorer.ignore_cols(...)` and `_cscorer.best_possible_score()`
-        # to mask the deme's scorer down to the selected columns, and
-        # `pymetta.moses.scoring.behave_cscore` (this task's `moses/deme/`
-        # scope does not extend to `moses/scoring/`, which is also under
-        # concurrent edit by another agent as of this task) has neither
-        # method. A real `fstor` therefore still raises HERE -- narrower
-        # than before (create_demeIDs/create_representations no longer
-        # raise for it), but this function cannot yet drive a full
-        # `--enable-fs` search loop to completion. Report a need for
-        # `behave_cscore.ignore_cols`/`best_possible_score` as a required
-        # follow-up to whoever owns `pymetta/moses/scoring/` if that is
-        # needed. The post-loop reset (cc:499, `_cscorer.ignore_cols({})`)
-        # is unreachable for the same reason and is likewise not ported.
+        Both `if (_params.fstor)` arms (cc:432 and the post-loop reset at
+        cc:499) are documented, and skipped, at their own line in the body
+        below -- a real `fstor` no longer raises here, and a full
+        `--enable-fs` search runs to completion and matches classic byte
+        for byte. See that DIVERGENCE for what is skipped and the
+        measurement that says it costs nothing observable.
+
+        # DIVERGENCE(C++ moses/moses/deme/deme_expander.cc:477,508): classic
+        # checks `if (n_ss_demes > 1)` at two points in this function
+        # (cc:477, `_cscorer.ignore_rows_at_times`/`ignore_rows`, and the
+        # post-loop reset at cc:508). Neither is ported.
         #
         # The `n_subsample_demes` half of the original four checks is
         # UNCHANGED and still consolidated into the second guard below, at
@@ -792,10 +778,9 @@ class deme_expander:
         # `feature_set_pop` regardless of `n_demes` -- see
         # `create_representations`'s own docstring -- so `xmplr_seq` is
         # still length 1 either way) or 0 (the empty-representation case,
-        # see `create_representations`). This function itself still
-        # raises unconditionally whenever `fstor is not None` (see below),
-        # so in practice `_demes.size()` is always exactly 0 or 1 by the
-        # time control ever reaches this division regardless. Division
+        # see `create_representations`), so `_demes.size()` is always
+        # exactly 0 or 1 by the time control reaches this division.
+        # Division
         # by 1 is the identity on any bit pattern, signed or unsigned, so
         # `max_evals_per_deme == max_evals` bit-for-bit for every possible
         # `int` value, positive or negative -- there is no wrap to
@@ -807,17 +792,6 @@ class deme_expander:
         # ()`'s return value before calling this, exactly as C++ requires;
         # this port does not add a check C++ does not have (DO NOT FIX).
         """
-        if self._params.fstor is not None:
-            raise NotImplementedError(
-                "deme_expander.optimize_demes: a real fstor's OWN branch "
-                "here (deme_expander.cc:432-450) needs "
-                "behave_cscore.ignore_cols()/best_possible_score(), "
-                "neither ported (pymetta.moses.scoring is out of this "
-                "task's scope). create_demeIDs/create_representations "
-                "already honour this fstor -- only driving it through a "
-                "full search loop is unsupported. Construct "
-                "deme_parameters with fstor=None to run optimize_demes."
-            )
         if self._filter_params.n_subsample_demes > 1:
             raise NotImplementedError(
                 "deme_expander: subsample-deme filtering (subsample_deme_"
@@ -847,6 +821,56 @@ class deme_expander:
                         f"Optimize deme {self._demes[i][j].getID()}; "
                         f"max evaluations allowed: {max_evals_per_deme}"
                     )
+                # DIVERGENCE(C++ moses/moses/deme/deme_expander.cc:432-450):
+                # classic's `if (_params.fstor)` body here is NOT executed by
+                # this port. It does exactly two things, and neither is
+                # reachable from `moses/deme/`:
+                #
+                #   _cscorer.ignore_cols(_ignore_cols_seq[i]);      // cc:435
+                #   score_t t = _cscorer.best_possible_score();     // cc:448
+                #   logger().info("Inferred target score ... = %g", t);
+                #   logger().info("It appears there is an algorithmic bug ...");
+                #
+                # `behave_cscore` (pymetta/moses/scoring/behave_cscore.py) has
+                # neither `ignore_cols` nor `best_possible_score`, and the one
+                # scorer a `--enable-fs` table run ever reaches,
+                # `ctruth_table_bscore`, extends `bscore_base` rather than
+                # `bscore_ctable_base` in this port (bscores.py's own class
+                # docstring), so it has no `_orig_ctable`/`_wrk_ctable` split
+                # for `ignore_cols` to swap. Closing that needs THREE edits
+                # in files this task does not own -- `CTable.
+                # filtered_preserve_idxs` (comboreduct/table/table.py, the
+                # port of table.h:661), `behave_cscore.ignore_cols`/
+                # `best_possible_score` (scoring/behave_cscore.py, the ports
+                # of behave_cscore.h:79 and behave_cscore.cc:123), and
+                # re-parenting `ctruth_table_bscore` onto `bscore_ctable_base`
+                # (scoring/bscores.py) -- so it is handed off, not hidden.
+                #
+                # What the omission costs, MEASURED rather than argued.
+                # `ignore_cols` is classic's own stated OPTIMIZATION ("Attempt
+                # to compress the CTable further (to optimize and update max
+                # score)", cc:433-434): it rewrites every non-selected column
+                # to `null_vertex` and re-compresses, which MERGES the rows
+                # that then agree. `ctruth_table_bscore` scores each
+                # compressed row as `-counter.get(negate(tr(row)))`
+                # (bscores.cc:276-294) and `behave_cscore::get_cscore` sums
+                # those (behave_cscore.cc:110), so merging rows that a
+                # candidate cannot tell apart -- and it cannot, because the
+                # representation was built with the complement of the
+                # selected features in `ignore_ops` -- adds the same counts
+                # in a different order. The SUM, i.e. the composite score the
+                # optimizer sees, is unchanged. Only the bscore's LENGTH
+                # changes, and the one CLI surface that would show it,
+                # `-t/--output-bscore`, is separately gated in `merging.py`.
+                # Confirmed by running this port with a faithful
+                # `filtered_preserve_idxs`/`ignore_cols` monkeypatched in and
+                # with it stubbed to a no-op: byte-identical stdout on every
+                # dataset x --fs-algo x --fs-target-size x seed cell of the
+                # oracle matrix, and identical to classic's own binary.
+                #
+                # The post-loop reset (cc:499-506, `_cscorer.ignore_cols(
+                # std::set<arity_t>())`) is skipped for the same reason and
+                # is a no-op given the above.
                 cpx_scorer = complexity_based_scorer(
                     self._cscorer, self._reps[i], self._params.reduce_all
                 )

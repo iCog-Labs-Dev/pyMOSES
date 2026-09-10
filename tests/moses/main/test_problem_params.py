@@ -481,6 +481,12 @@ def test_hc_allow_resize_deme_is_a_deprecated_alias_for_the_same_dest():
         # Un-gated 2026-09-10 with `discretize_contin_bscore`; the flag
         # now reaches its scorer through `it_table_problem.run`.
         (["--discretize-threshold", "1.0"], "discretize_thresholds", [1.0]),
+        # Un-gated 2026-09-10 with the fs-focus/fs-seed switch and the
+        # enforce-features file parse; `--enable-fs` now runs a full
+        # search. Both halves of what the flag actually turns on are
+        # asserted: the boolean itself, and (below) the six
+        # `festor_params` fields `--fs-seed`/`--fs-focus` write.
+        (["--enable-fs", "1"], "enable_feature_selection", True),
     ],
 )
 def test_supported_non_default_option_applies_and_does_not_raise(argv, path, expected):
@@ -533,7 +539,15 @@ def test_contin_depth_reaches_representations_module_static():
     "argv",
     [
         ["--opt-algo", "nosuchalgo"],
-        ["--enable-fs", "1"],
+        # NOTE: --enable-fs is DELIBERATELY ABSENT -- the on-the-fly
+        # feature-selection gate came down once problem-params.cc's
+        # fs-focus/fs-seed switch (:2196-2229) and the enforce-features
+        # file parse (:2231-2259) landed and `deme_expander.
+        # optimize_demes` stopped raising for a real `fstor`. See
+        # test_supported_non_default_option_applies_and_does_not_raise's
+        # own row, test_fs_seed_and_fs_focus_map_onto_festor_params
+        # below, and tests/moses/main/test_enable_fs_cli.py for the
+        # byte-for-byte oracle against classic's own binary.
         ["--boost", "1"],
         # NOTE: --discard-dominated and --diversity-pressure are DELIBERATELY
         # ABSENT from this list -- the P2 metapopulation task (0c1beda/
@@ -566,7 +580,6 @@ def test_unsupported_option_raises(argv):
 @pytest.mark.parametrize(
     "argv,must_contain",
     [
-        (["--enable-fs", "1"], "table_problems.py's _regression never constructs"),
         (["--boost", "1"], "AdaBoost/experts engine IS ported"),
         (["--ss-n-subsample-demes", "2"], "subsample.cc port"),
         (
@@ -804,3 +817,165 @@ def test_diversity_dst_enum_resolution_matches_p_norm_default():
     pp = _parse()
     assert pp.meta_params.diversity._dst_kind is diversity_parameters.dst_enum_t.p_norm
     assert pp.meta_params.diversity.dst2dp_type is diversity_parameters.dst2dp_enum_t.inverse
+
+
+# ---------------------------------------------------------------------------
+# --fs-focus / --fs-seed: the switch at problem-params.cc:2196-2229. These
+# two options are the ONLY writers of six `feature_selector_parameters`
+# fields; nothing is bound to any of the six directly. Until 2026-09-10 the
+# port parsed both strings and then never read them, so every run used the
+# STRUCT defaults (`increase_target_size=True, ignore_xmplr_features=True`)
+# instead of `--fs-seed`'s own default `add`
+# (`increase_target_size=True, ignore_xmplr_features=False`). That single
+# inverted bool made `feature_selector.preprocess_params` blank the
+# exemplar's own columns out of the feature-selection table on every
+# generation, and the whole search diverged from classic by the second
+# deme.
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    "seed,increase,ignore_xmplr,init_xmplr,as_feature",
+    [
+        # C++: problem-params.cc:2210-2214 / :2215-2219 / :2220-2224 / :2225-2229.
+        ("none", False, True, False, False),
+        ("add", True, False, False, False),
+        ("init", False, False, True, False),
+        ("xmplr", False, False, False, True),
+    ],
+)
+def test_fs_seed_sets_all_four_festor_flags(seed, increase, ignore_xmplr, init_xmplr, as_feature):
+    pp = _parse("--fs-seed", seed)
+    assert pp.festor_params.increase_target_size is increase
+    assert pp.festor_params.ignore_xmplr_features is ignore_xmplr
+    assert pp.festor_params.init_xmplr_features is init_xmplr
+    assert pp.festor_params.xmplr_as_feature is as_feature
+
+
+@pytest.mark.parametrize(
+    "focus,restrict_incorrect,restrict_true",
+    [
+        # C++: problem-params.cc:2196-2208.
+        ("all", False, False),
+        ("active", False, True),
+        ("incorrect", True, False),
+        ("ai", True, True),
+    ],
+)
+def test_fs_focus_sets_both_restrict_flags(focus, restrict_incorrect, restrict_true):
+    pp = _parse("--fs-focus", focus)
+    assert pp.festor_params.restrict_incorrect is restrict_incorrect
+    assert pp.festor_params.restrict_true is restrict_true
+
+
+def test_fs_seed_and_fs_focus_defaults_are_add_and_incorrect():
+    """The DEFAULT command line must land on `seed_add`/`focus_incorrect`
+    (problem-params.cc:1627 `->default_value(seed_add)` and :1614
+    `->default_value(focus_incorrect)`), NOT on the struct's own
+    member-initializer values. `ignore_xmplr_features` is the field where
+    the two disagree -- struct says `true` (feature_selector.h:42), the
+    default command line says `false` -- so it is the one that proves the
+    switch actually ran."""
+    pp = _parse()
+    assert pp.fs_seed == "add"
+    assert pp.fs_focus == "incorrect"
+    assert pp.festor_params.ignore_xmplr_features is False
+    assert pp.festor_params.increase_target_size is True
+    assert pp.festor_params.restrict_incorrect is True
+    assert pp.festor_params.restrict_true is False
+
+
+def test_unrecognised_fs_seed_and_fs_focus_leave_the_struct_defaults_alone():
+    """Both C++ chains are `if / else if` with NO trailing `else`
+    (problem-params.cc:2196-2229) and both options are a plain
+    `po::value<string>`, not a checked enum -- so classic ACCEPTS
+    `--fs-seed=nonsense` and silently keeps `feature_selector_parameters`'
+    own member-initializer values. Reproduced with no validation C++ does
+    not have: adding a `ValueError` here would make this port refuse a
+    command line classic runs."""
+    pp = _parse("--fs-seed", "nonsense", "--fs-focus", "alsononsense")
+    # feature_selector.h:41-46's own initializer list.
+    assert pp.festor_params.increase_target_size is True
+    assert pp.festor_params.ignore_xmplr_features is True
+    assert pp.festor_params.init_xmplr_features is False
+    assert pp.festor_params.xmplr_as_feature is False
+    assert pp.festor_params.restrict_incorrect is True
+    assert pp.festor_params.restrict_true is False
+
+
+# ---------------------------------------------------------------------------
+# --fs-enforce-features-filename (problem-params.cc:2231-2259)
+# ---------------------------------------------------------------------------
+
+
+def test_enforce_features_file_is_parsed_into_festor_params(tmp_path):
+    f = tmp_path / "enforce.txt"
+    f.write_text("x1 0.25\nx2\n\nx3 1\nx1 0.75\n")
+    pp = _parse("--fs-enforce-features-filename", str(f))
+    # `x1` appears twice: `map::operator[]` OVERWRITES, it does not sum
+    # (0.75, the last line, not 0.25 and not 1.0). A bare name gets 1.
+    # The blank line is skipped, not treated as a zero-weight feature.
+    assert pp.festor_params.enforce_features == {"x1": 0.75, "x2": 1.0, "x3": 1.0}
+
+
+def test_enforce_features_weight_is_narrowed_to_binary32():
+    """`std::map<std::string,float>` (feature_selector.h:166) -- a `float`,
+    not a `double`, and the value is consumed by
+    `biased_randbool(float b)` ($COGUTIL/opencog/util/random.h:127)."""
+    import tempfile
+
+    from pymetta.moses.moses.types import _to_score_t
+
+    with tempfile.NamedTemporaryFile("w", suffix=".txt", delete=False) as handle:
+        handle.write("x1 0.1\n")
+        name = handle.name
+    pp = _parse("--fs-enforce-features-filename", name)
+    assert pp.festor_params.enforce_features["x1"] == _to_score_t(0.1)
+    assert pp.festor_params.enforce_features["x1"] != 0.1
+
+
+def test_enforce_features_is_empty_without_the_flag():
+    assert _parse().festor_params.enforce_features == {}
+
+
+def test_enforce_features_missing_file_raises():
+    """C++ `OC_ASSERT(in.is_open(), "Could not open %s", ...)` throws
+    `AssertionException` ($COGUTIL/opencog/util/oc_assert.cc:46); this port
+    lets Python's own `open` raise `OSError`, which is the same
+    fail-loudly contract."""
+    with pytest.raises(OSError):
+        _parse("--fs-enforce-features-filename", "/nonexistent/enforce.txt")
+
+
+# ---------------------------------------------------------------------------
+# festor_params / fs_params are the REAL classes, not local stand-ins.
+# ---------------------------------------------------------------------------
+
+
+def test_festor_and_fs_params_are_the_real_ported_classes():
+    """`problem_params` used to build two private stand-in classes
+    (`_FeatureSelectorParams`/`_FeatureSelectionParams`) whose field lists
+    were a subset of the real ones. That subset was enough for `--fs-algo
+    simple/inc/random`, and NOT enough for `smd`, which reads
+    `fs_params.initial_features` (`stochastic_max_dependency.py`) --
+    measured: `--fs-algo smd --enable-fs=1` died with `AttributeError:
+    '_FeatureSelectionParams' object has no attribute 'initial_features'`
+    on every dataset. C++ has exactly one type for each
+    (`feature_selector_parameters`, `feature_selection_parameters`), so
+    the port now uses the ported ones."""
+    from pymetta.feature_selection.main.feature_selection_params import (
+        feature_selection_parameters,
+    )
+    from pymetta.moses.deme.feature_selector import feature_selector_parameters
+
+    pp = problem_params()
+    assert isinstance(pp.festor_params, feature_selector_parameters)
+    assert isinstance(pp.fs_params, feature_selection_parameters)
+    # The fields the stand-ins lacked, and their C++ struct defaults
+    # (feature-selection.h:49-69).
+    assert pp.fs_params.initial_features == []
+    assert pp.fs_params.force_features_str == []
+    assert pp.fs_params.ignore_features_str == []
+    assert pp.fs_params.jobs == 1
+    assert pp.fs_params.hc_cache_size == 1000
+    assert pp.fs_params.hc_fraction_of_nn == 2.0
