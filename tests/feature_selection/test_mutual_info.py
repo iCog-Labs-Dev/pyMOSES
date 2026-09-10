@@ -85,17 +85,26 @@ def test_mutual_information_is_order_independent_over_the_feature_set(boolean_ct
     assert a == b == c
 
 
-def test_mutual_information_raises_for_contin_output():
+def test_mutual_information_no_longer_gates_a_contin_output():
+    """Both continuous branches are ported now (see
+    tests/feature_selection/test_mutual_info_contin.py for the oracle
+    tests). A contin output over discrete inputs takes the DISCRETE
+    branch, after binning -- so on an empty ctable it reaches the same
+    `total == 0.0` NaN path a boolean-output empty ctable does, rather
+    than raising."""
     sig = TypeSignature([type_node.boolean_type], type_node.contin_type)
-    ctable = CTable("y", ["x1"], sig)  # empty: the type checks precede any row iteration
-    with pytest.raises(NotImplementedError):
-        mutual_information(ctable, {0})
+    ctable = CTable("y", ["x1"], sig)  # empty: no rows to bin or count
+    assert math.isnan(mutual_information(ctable, {0}))
 
 
-def test_mutual_information_raises_when_an_input_is_not_discrete():
+def test_mutual_information_raises_for_a_contin_input_with_a_boolean_output():
+    """Inputs not all discrete AND a non-contin output is C++'s own
+    `else`: `OC_ASSERT(0, "Type ... is not supported for mutual
+    information")` (table.h:1298-1301). An OC_ASSERT is live in release
+    builds, so it raises rather than returning."""
     sig = TypeSignature([type_node.contin_type], type_node.boolean_type)
     ctable = CTable("y", ["x1"], sig)
-    with pytest.raises(NotImplementedError):
+    with pytest.raises(AssertionError):
         mutual_information(ctable, {0})
 
 

@@ -1,0 +1,29 @@
+{
+  "capture_script": "tools/capture_mi_contin.py",
+  "capture_script_sha256": "d66d8b7c176d0762323634b58779756618d2b111b0c549315b0ac3b120949fb2",
+  "classic_dir": "/home/yab/Documents/Projects/iCog/HyperonRelated/MOSES/OpenCog/Moses",
+  "cli_tool": null,
+  "generated_at_utc": "2026-09-10T06:07:14+00:00",
+  "inputs": {
+    "csvs": [
+      "tests/fixtures/table_data/mi_contin_out_bins.csv",
+      "tests/fixtures/table_data/mi_contin_out_neg.csv",
+      "tests/fixtures/table_data/mi_contin_out_big.csv",
+      "tests/fixtures/table_data/mi_contin_in_ties.csv",
+      "tests/fixtures/table_data/contin_a4.csv"
+    ],
+    "description": "discretize_contin_feature/get_discrete_bin over five (min,max) pairs including both degenerate seeds (min stuck at 100000.0, max stuck at 0.0), a constant column, and max<min; KLD(p,q) over ten hand-built vector pairs (ties in p, ties in q, q wholly below/above p, unequal sizes, negatives, a scrambled restatement of an earlier case, a wide dynamic range); KLDS<contin_t> driven directly with hand-built q_counters, two of them carrying non-integral counts so boost::accumulate's `int` init truncates; mutualInformation() for every feature subset of three boolean-input/contin-output tables; mutualInformation() per single feature of two contin-input tables; the same after scaling every count_t off the integers (so `unsigned flt_count` truncates); and mutualInformationBtwSets() on all of them. No RNG is involved anywhere in this probe, so no seed is recorded."
+  },
+  "prefix_dir": "/home/yab/opt/moses-legacy",
+  "probe_kind": "cpp_probe",
+  "probe_source": "tools/cpp_probe/mi_contin_probe.cc",
+  "probe_source_sha256": "ffe75eb9a0f9ee6af28480b35fcaab187acb06de5334a708ea805d44489c2365",
+  "repo_commit": "bde9b43a172d3579b22e616577a85f93e68aeaea",
+  "schema_version": 2,
+  "toolchain": {
+    "boost_lib_version": "1_92",
+    "cxx": "g++ (GCC) 16.2.1 20260810",
+    "glibcxx_max_symbol": "GLIBCXX_3.4.36",
+    "libstdcxx_soname": "libstdc++.so.6.0.36"
+  }
+}
