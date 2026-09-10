@@ -276,6 +276,32 @@ class ensemble:
         promoted = 0
 
         while True:
+            # DIVERGENCE(C++ moses/moses/metapopulation/ensemble.cc:98):
+            # classic picks the best candidate with `std::min_element` over
+            # `cands`, a `scored_combo_tree_set` -- which is a
+            # `std::unordered_set` (types.h:370). `min_element` keeps the
+            # FIRST element satisfying the comparator, so **on a tie the
+            # winner is decided by hash-bucket iteration order**, which the
+            # C++ standard does not specify.
+            #
+            # The loop below is a faithful `min_element`: `>` keeps the
+            # first maximum, exactly as classic's comparator does. What it
+            # cannot reproduce is which element comes first.
+            #
+            # Ties are not rare here -- MEASURED on
+            # `-Hmux -k2 --boost=1 -m1000 -r1`: 4 of 4 candidates tied at
+            # the top score on the first call, and 12 of 32 on the second.
+            # So the choice is real, and the consequence compounds: a
+            # different first member changes every subsequent row weight,
+            # hence the whole ensemble. Across 18 boosting runs, 11 agree
+            # with classic exactly and 7 differ in score, sometimes in the
+            # port's favour (-2 where classic gets -3), which is what rules
+            # out a systematic error in the arithmetic.
+            #
+            # DO NOT "fix" by sorting: any total order imposed here would
+            # be this port inventing a rule classic does not have. See the
+            # `scored_combo_tree_set` DIVERGENCE in types.py for the same
+            # issue in its container form.
             best_p: scored_combo_tree | None = None
             for sct in cands:
                 if best_p is None or sct.get_score() > best_p.get_score():

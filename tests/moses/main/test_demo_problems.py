@@ -98,6 +98,11 @@ from pymetta.moses.moses.moses_params import moses_parameters
 from pymetta.moses.moses.optimization.hill_climbing import hc_parameters
 from pymetta.moses.moses.optimization.optimization import optim_parameters
 from pymetta.moses.moses.optimization.particle_swarm import ps_parameters
+from pymetta.moses.moses.types import (
+    composite_score,
+    demeID_t,
+    scored_combo_tree,
+)
 from pymetta.moses.scoring.bscores import ctruth_table_bscore
 from pymetta.moses.scoring.scoring_base import bscore_base
 from pymetta.util.rng import randGen
@@ -400,14 +405,85 @@ def test_logical_bscore_get_error():
     assert bsc.get_error([-1.0, 0.0, 0.0, 0.0]) == pytest.approx(0.25)
 
 
-def test_logical_bscore_call_ensemble_not_overridden_raises():
-    """`logical_bscore` does not override `call_ensemble` (boosting is out
-    of scope for this whole port cycle) -- falls back to
-    `bscore_base.call_ensemble`'s own unconditional raise.
+def test_logical_bscore_call_ensemble_scores_a_weighted_vote():
+    """`logical_bscore` DOES override `call_ensemble` (bscores.cc:85).
+
+    This test used to assert the opposite -- that the override was absent
+    and the base class's raise applied -- which was true while boosting
+    was out of scope. It is the single override that makes `--boost`
+    reachable, so asserting its absence would now hide the feature.
+
+    The check is behavioural: an ensemble of one tree that always predicts
+    true, against `even_parity` at arity 2 (whose truth table is
+    T,F,F,T), must score 0 on the rows it gets right and -1 on the others.
     """
     bsc = logical_bscore(even_parity, 2)
-    with pytest.raises(NotImplementedError, match="Ensemble scoring"):
-        bsc.call_ensemble(None)
+    always_true = scored_combo_tree(str_to_combo_tree("true"), demeID_t(), composite_score())
+    always_true.set_weight(1.0)
+
+    bs = bsc.call_ensemble([always_true])
+
+    assert len(bs) == 4
+    # even_parity(2) is true for 00 and 11, false for 01 and 10; a
+    # constant-true ensemble therefore gets exactly the true rows right.
+    assert bs == [0.0, -1.0, -1.0, 0.0], bs
+
+
+def test_logical_bscore_call_ensemble_predicts_false_on_an_exact_tie():
+    """`hypoth > 0.0` (bscores.cc:108), NOT `>= 0.0`: a vote that sums to
+    exactly zero predicts FALSE.
+
+    Reachable, and not only in theory -- two members with equal weights
+    voting opposite ways cancel to exactly 0.0 on every row, with no
+    floating-point slop involved. Against `even_parity` at arity 2
+    (T,F,F,T) an all-false prediction scores the two false rows right,
+    giving [-1, 0, 0, -1]; flipping the comparator to `>=` would predict
+    all-true and give exactly the opposite pattern.
+
+    Added because mutating `>` to `>=` killed no test: the boosting runs
+    never happen to land on an exact tie, so this is a real trap with no
+    natural coverage rather than an equivalent mutant.
+    """
+    bsc = logical_bscore(even_parity, 2)
+
+    def member(text, w):
+        sct = scored_combo_tree(str_to_combo_tree(text), demeID_t(), composite_score())
+        sct.set_weight(w)
+        return sct
+
+    bs = bsc.call_ensemble([member("true", 1.5), member("false", 1.5)])
+
+    # Negative zero compares equal to 0.0, which is what we want here --
+    # the sign of the zero is not the property under test.
+    assert [x == 0.0 for x in bs] == [False, True, True, False], bs
+    assert bs[0] == -1.0 and bs[3] == -1.0, bs
+
+
+def test_logical_bscore_call_ensemble_honours_the_weights():
+    """The weighted vote must actually use `get_weight()`.
+
+    Two members voting in opposite directions: whichever carries the
+    larger weight decides the prediction. If the weights were ignored (or
+    read back as the 1.0 default, the bug that the private `_sct_weights`
+    dict used to cause), the votes would cancel and every row would
+    predict false.
+    """
+    bsc = logical_bscore(even_parity, 2)
+
+    def member(text, w):
+        sct = scored_combo_tree(str_to_combo_tree(text), demeID_t(), composite_score())
+        sct.set_weight(w)
+        return sct
+
+    # `true` outvoted by `false`, and then the reverse.
+    false_wins = bsc.call_ensemble([member("true", 1.0), member("false", 3.0)])
+    true_wins = bsc.call_ensemble([member("true", 3.0), member("false", 1.0)])
+
+    assert false_wins != true_wins
+    # Constant-false gets the two false rows right; constant-true the two
+    # true rows. Opposite predictions, so opposite score patterns.
+    assert false_wins == [-1.0, 0.0, 0.0, -1.0], false_wins
+    assert true_wins == [0.0, -1.0, -1.0, 0.0], true_wins
 
 
 # ---------------------------------------------------------------------------
@@ -487,27 +563,60 @@ def test_bool_problem_base_run_does_not_override_existing_exemplar(monkeypatch):
     assert pms.exemplars == [custom]
 
 
-def test_bool_problem_base_run_raises_for_boosting(monkeypatch):
-    """`bool_problem_base::run` (demo-problems.cc:109) calls
-    `bscore.use_weighted_scores()` when boosting is requested -- not
-    implemented (see `run`'s own docstring); ported as an explicit raise.
+def test_bool_problem_base_run_calls_use_weighted_scores_for_boosting(monkeypatch):
+    """`bool_problem_base::run` calls `bscore.use_weighted_scores()` when
+    boosting is requested (demo-problems.cc:109).
 
-    Mutation-proven: deleting this guard makes this test fail with an
-    `AttributeError` instead of the expected `NotImplementedError` (see
-    this task's own report).
+    This test used to assert that `run` RAISED here instead -- true while
+    boosting was out of scope. The raise had actually REPLACED classic's
+    line, so restoring the call was part of un-gating `--boost`; without
+    it `_return_weighted_score` stays false, `reset_weights()` leaves
+    `_weights` empty, and the first `update_weights` from the AdaBoost
+    loop asserts "Unexpected use of weights in the bscorer!".
+
+    Asserted on the scorer that actually reaches `metapop_moses_results`,
+    not on a spy, so it cannot pass against a `run` that sets the flag on
+    some other object.
     """
-    monkeypatch.setattr(
-        demo_problems,
-        "metapop_moses_results",
-        lambda *args: pytest.fail("must not reach metapop_moses_results"),
-    )
+    seen = {}
+
+    def capture(*args):
+        # `metapop_moses_results(exemplars, sig, reduct, reduct_rep,
+        # cscore, ...)` -- the cscore is the 5th positional.
+        seen["cscore"] = args[4]
+
+    monkeypatch.setattr(demo_problems, "metapop_moses_results", capture)
     dp = demo_params(problem_size=2)
     prob = pa_problem(dp)
     pms = _FakeParams()
     pms.meta_params.do_boosting = True
 
-    with pytest.raises(NotImplementedError, match="boost"):
-        prob.run(pms)
+    prob.run(pms)
+
+    bscorer = seen["cscore"]._bscorer
+    assert bscorer._return_weighted_score is True
+    # `reset_weights()` must have run AFTER the flag was set, or the
+    # vector is still empty and boosting asserts on its first update.
+    assert len(bscorer._weights) == bscorer._size
+
+
+def test_bool_problem_base_run_leaves_weights_off_without_boosting(monkeypatch):
+    """The other half: the `if (do_boosting)` guard is a guard. Without
+    it, an ordinary run would silently score through the weighted path.
+    """
+    seen = {}
+
+    def capture(*args):
+        seen["cscore"] = args[4]
+
+    monkeypatch.setattr(demo_problems, "metapop_moses_results", capture)
+    dp = demo_params(problem_size=2)
+    prob = pa_problem(dp)
+    pms = _FakeParams()
+
+    prob.run(pms)
+
+    assert seen["cscore"]._bscorer._return_weighted_score is False
 
 
 def test_bool_problem_base_run_passes_pms_ps_params_in_C_PLUS_PLUS_position(monkeypatch):
