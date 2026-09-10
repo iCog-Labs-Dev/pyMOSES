@@ -76,6 +76,8 @@ from collections.abc import Sequence
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
 
+from pymetta.util.logger import logger
+
 if TYPE_CHECKING:
     from pymetta.comboreduct.table.table import CTable
 
@@ -238,11 +240,27 @@ def initial_features(
     existing callers of ``pymetta.feature_selection.main.feature_selection.
     initial_features`` are unaffected.
     """
+    # C++: feature-selection.cc:111 `vector<string> vif;` -- "valid initial
+    # features, used for logging" (its own comment).
+    vif: list[str] = []
     res: feature_set = feature_set()
     for name in fs_params.initial_features:
         try:
             idx = ilabels.index(name)
         except ValueError:
+            # C++: feature-selection.cc:122
+            logger().warn(
+                "No such a feature %s in file %s. It will be ignored as initial feature.",
+                name,
+                fs_params.input_file,
+            )
             continue
         res.add(idx)
+        vif.append(name)
+    # C++: feature-selection.cc:125-132. `ostream_container(ss, vif, ",")`
+    # uses a "," delimiter and no left/right brackets.
+    if not vif:
+        logger().info("The search will start with the empty feature set")
+    else:
+        logger().info("The search will start with the following feature set: " + ",".join(vif))
     return res

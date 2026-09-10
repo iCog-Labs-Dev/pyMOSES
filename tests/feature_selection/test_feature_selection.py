@@ -123,13 +123,29 @@ def test_select_feature_sets_hc_dispatch_reaches_deme_optimize(boolean_ctable):
         assert fs <= set(range(boolean_ctable.get_arity()))
 
 
-def test_select_feature_sets_raises_for_an_unknown_algorithm(boolean_ctable):
-    with pytest.raises(NotImplementedError, match="is unknown"):
+def test_select_feature_sets_exits_for_an_unknown_algorithm(boolean_ctable, capsys):
+    """C++: feature-selection.cc:169-174 -- `cerr << "Fatal Error: ..." ;
+    exit(1);`. Ported for real since 2026-09-10 (it used to raise
+    `NotImplementedError`), so the message is asserted VERBATIM against
+    what the live classic binary writes:
+
+        $ feature-selection -i trainingBoolean.dat -u y -l NONE -C2 -a bogus
+        Fatal Error: Algorithm 'bogus' is unknown, please consult the help
+        for the list of algorithms.
+        $ echo $?
+        1
+    """
+    with pytest.raises(SystemExit) as excinfo:
         select_feature_sets(boolean_ctable, feature_selection_parameters(algorithm="bogus"))
+    assert excinfo.value.code == 1
+    assert capsys.readouterr().err == (
+        "Fatal Error: Algorithm 'bogus' is unknown, please consult the help "
+        "for the list of algorithms.\n"
+    )
 
 
 def test_select_feature_sets_unknown_algorithm_message_is_not_confused_with_a_real_gate(
-    boolean_ctable,
+    boolean_ctable, capsys
 ):
     """Mutation-proven distinguishing test (mirrors this test module's
     former unported-algorithm test, now that all five algorithms are
@@ -137,9 +153,10 @@ def test_select_feature_sets_unknown_algorithm_message_is_not_confused_with_a_re
     five real dispatch branches (which all use exact ``==`` string
     comparison, not e.g. a prefix or case-insensitive match).
     """
-    with pytest.raises(NotImplementedError) as excinfo:
+    with pytest.raises(SystemExit) as excinfo:
         select_feature_sets(boolean_ctable, feature_selection_parameters(algorithm="Simple"))
-    assert "algorithm='Simple'" in str(excinfo.value)
+    assert excinfo.value.code == 1
+    assert "Algorithm 'Simple' is unknown" in capsys.readouterr().err
 
 
 def test_select_features_ctable_returns_the_top_entry(boolean_ctable):

@@ -20,28 +20,37 @@ classic's own "unknown algorithm" branch (feature-selection.cc:170-174,
 ``cerr`` + ``exit(1)``) is not a real return path here -- an unrecognized
 ``algorithm`` string raises ``NotImplementedError`` instead.
 
-NOT ported: ``fs-main.cc``'s ``main()`` (argument parsing via
-``boost::program_options``, log-level setup, ``randGen().seed(rand_seed)``)
--- no CLI in this port's scope (CLI wiring is ``problem_params.py``'s
-concern, another package). Also NOT ported: feature-selection.cc's own
-``feature_selection()`` top-level orchestration, ``write_results``,
-``log_selected_features``, and ``err_empty_features`` -- all four need
-either ``ostreamTable``/``saveTable`` (``moses/comboreduct/table/table_io.h``,
-CONFIRMED absent from this port's own ``pymetta.comboreduct.table.
-table_io`` -- a search for ``def ostreamTable`` or ``def saveTable`` over
-that package returns nothing; its own docstring says explicitly "out of scope")
-or a logging surface this project does not provide (matching the
-convention every other logger()-only routine in this project follows, see
-e.g. ``deme_expander.py``'s module docstring). A caller that wants the
-standalone binary's behaviour reproduced calls ``select_features``
-directly on a loaded ``Table``/``CTable`` and, if it wants the selected
-table's per-feature scores, ``score_individual_features`` -- exactly what
-this package's own tests do.
+Now FULLY ported, including the four functions this docstring used to
+list as blocked: ``feature_selection()`` (the top-level orchestration
+``fs-main.cc``'s ``main()`` calls), ``write_results``,
+``log_selected_features`` and ``err_empty_features``. Both blockers were
+re-checked rather than inherited:
+
+* ``ostreamTable``/``saveTable`` really ARE absent from this port's
+  ``pymetta.comboreduct.table.table_io`` (re-verified 2026-09-10: ``grep
+  -n 'def ostreamTable|def saveTable'`` over that package still returns
+  nothing). ``pymetta/comboreduct/**`` is off limits to this task, so
+  they are ported into ``pymetta.feature_selection.main.table_output``
+  instead, carrying a PLACEMENT-ONLY divergence marker -- the same call
+  ``scorers/mutual_info.py`` already made for ``mutualInformation``.
+* The "no logging surface this project provides" claim was STALE.
+  ``pymetta.util.logger`` is a real port of cogutil's ``Logger``
+  (``tools/normalize_log.py`` and ``tests/fixtures/moses_log.json``
+  exist to diff its output against classic's byte for byte), and
+  ``table.py`` / ``feature_selector.py`` / ``deme_expander.py`` all emit
+  ``logger().debug`` today. ``log_selected_features``'s two
+  ``logger().info`` records are therefore ported for real, not dropped.
+
+``fs-main.cc``'s own ``main()`` lives in
+``pymetta.feature_selection.main.fs_main``; ``eval-features.{h,cc}`` in
+``pymetta.feature_selection.main.eval_features``.
 """
 
 from __future__ import annotations
 
-from pymetta.comboreduct.table.table import CTable, Table
+import sys
+
+from pymetta.comboreduct.table.table import CTable, Table, get_indices
 from pymetta.feature_selection.algo.deme_optimize import moses_select_feature_sets
 from pymetta.feature_selection.algo.incremental import incremental_select_feature_sets
 from pymetta.feature_selection.algo.random import random_select_feature_sets
@@ -54,15 +63,45 @@ from pymetta.feature_selection.main.feature_selection_params import (
     fs_scorer,
     initial_features,
 )
+from pymetta.feature_selection.main.table_output import ostreamTable, saveTable
 from pymetta.moses.moses.optimization.hill_climbing import hc_parameters, hill_climbing
 from pymetta.moses.moses.optimization.optimization import optim_parameters
+from pymetta.util.logger import logger, ostream_double
 
 __all__ = [
+    "err_empty_features",
+    "feature_selection",
     "initial_features",
+    "log_selected_features",
     "score_individual_features",
     "select_feature_sets",
     "select_features",
+    "write_results",
 ]
+
+
+def err_empty_features(outfile: str) -> None:
+    """C++: moses/feature-selection/main/feature-selection.cc:51 err_empty_features
+
+    "If the dataset is degenerate, it can happen that feature selection
+    will fail to find any features. Rather than just crashing as a
+    result, write out an empty file, which at least allows downstream
+    processes to infer what happened" (the function's own comment,
+    cc:53-57).
+
+    Ends with ``exit(0)`` -- a SUCCESS exit taken from the middle of
+    ``feature_selection()``, not an error path. ``SystemExit(0)`` is the
+    direct Python analogue and is what ``problem_params.parse_options``
+    already uses for classic's ``--version`` ``exit(0)``; unlike a bare
+    ``return`` it also stops ``feature_selection()``'s caller, which is
+    exactly what ``exit(0)`` does.
+    """
+    logger().warn("No features have been selected.")
+    print("No features have been selected.", file=sys.stderr)
+    if outfile:
+        with open(outfile, "w") as out:
+            out.write("# No features have been selected.\n")
+    raise SystemExit(0)
 
 
 def score_individual_features(
@@ -134,10 +173,19 @@ def select_feature_sets(
         return random_select_feature_sets(ctable, fs_params)
     if fs_params.algorithm == "simple":
         return simple_select_feature_sets(ctable, fs_params)
-    raise NotImplementedError(
-        f"select_feature_sets: algorithm={fs_params.algorithm!r} is unknown "
-        "(feature-selection.cc:170's own cerr+exit(1) path)."
+    # C++: feature-selection.cc:169-174. Ported for real (stderr + exit 1)
+    # rather than as a `NotImplementedError`, which is what it used to be:
+    # this is a REACHABLE user-facing error path of the standalone binary,
+    # not a gate over an unported subsystem, and it is now compared
+    # byte-for-byte against classic's own stderr. Measured 2026-09-10,
+    # `feature-selection ... -a bogus`: classic writes exactly this line
+    # and exits 1.
+    print(
+        f"Fatal Error: Algorithm '{fs_params.algorithm}' is unknown, "
+        "please consult the help for the list of algorithms.",
+        file=sys.stderr,
     )
+    raise SystemExit(1)
 
 
 def select_features(
@@ -177,3 +225,93 @@ def select_features(
     if not fs_pop:
         raise AssertionError("select_features: There might a bug")  # OC_ASSERT(!fs_pop.empty())
     return fs_pop[0][1]
+
+
+def log_selected_features(
+    old_arity: int, ftable: Table, fs_params: feature_selection_parameters
+) -> None:
+    """C++: moses/feature-selection/main/feature-selection.cc:82 log_selected_features
+
+    Two ``logger().info`` records: the count, then one line per surviving
+    input column. The scores come from ``score_individual_features``
+    called on the ALREADY-FILTERED table, so index ``i`` of ``sco``
+    lines up with index ``i`` of ``ftable.itable.get_labels()`` -- these
+    are the filtered table's own column indices, not the original
+    table's.
+
+    ``logger().info() << ... << sco[i]`` streams a bare ``double``
+    through a freshly constructed ``std::stringstream``, i.e. at an
+    ``ostream``'s default precision of 6 -- ``ostream_double``
+    (``pymetta.util.logger``) is that formatting, and the reason this
+    line reads ``x3 0.548795`` and not ``x3 0.5487949...``.
+    """
+    # C++: cc:86-87. `%d` fed `arity_t` (an int) on both sides.
+    logger().info("%d out of %d features have been selected", ftable.get_arity(), old_arity)
+
+    labs = ftable.itable.get_labels()
+    sco = score_individual_features(ftable, fs_params)
+    for i in range(len(labs)):
+        logger().info("log_selected_features(): " + labs[i] + " " + ostream_double(sco[i]))
+
+
+def write_results(
+    selected_table: Table, fs_params: feature_selection_parameters
+) -> None:
+    """C++: moses/feature-selection/main/feature-selection.cc:98 write_results
+
+    ``Table table_wff = selected_table;`` is a full value copy that C++
+    then never mutates -- neither ``ostreamTable`` nor ``saveTable``
+    takes a non-const reference -- so the copy is dead and is not
+    reproduced. ``Table.__init__`` copies both members
+    (docs/CARRY-FORWARD.md 1.1), so making the copy would be correct
+    too, just wasted.
+
+    Empty ``output_file`` means stdout. ``sys.stdout.write`` (not
+    ``print``) because ``ostreamTable`` already ends every row with a
+    newline, the last one included.
+    """
+    if not fs_params.output_file:
+        sys.stdout.write(ostreamTable(selected_table))
+    else:
+        saveTable(fs_params.output_file, selected_table)
+
+
+def feature_selection(table: Table, fs_params: feature_selection_parameters) -> None:
+    """C++: moses/feature-selection/main/feature-selection.cc:199 feature_selection
+
+    The standalone binary's whole body after argument parsing and table
+    loading: select, add the forced features, then either bail out via
+    ``err_empty_features`` or filter/log/write.
+
+    ``selected_features`` is a ``std::set<arity_t>``, which iterates
+    ASCENDING; ``Table::filtered`` consumes that order directly
+    (``ITable::filtered`` keeps columns "in the ORDER GIVEN"). A Python
+    ``set`` iterates in hash order, so ``sorted()`` is the faithful
+    transliteration -- the same trap docs/CARRY-FORWARD.md records
+    against ``stochastic_max_dependency.py``. Measured: on
+    ``trainingBoolean.dat -u y -C2`` the selected set is ``{1, 2}``,
+    whose hash order happens to be ascending too, so this ONE case
+    cannot tell the two apart -- ``tests/feature_selection/
+    test_fs_main.py`` therefore also covers a case whose hash order is
+    NOT ascending.
+
+    ``get_indices(force_features_str, itable.get_labels())`` returns
+    indices into the INPUT columns only (``table.itable.get_labels()``,
+    not ``table.get_labels()``), so a ``--force-feature`` naming the
+    target column selects nothing -- classic's own behaviour, cc:207-208.
+    """
+    # C++: cc:203
+    selected_features = select_features(table, fs_params)
+
+    # C++: cc:205-210 -- "Add the enforced features"
+    if fs_params.force_features_str:
+        force_idxs = get_indices(fs_params.force_features_str, table.itable.get_labels())
+        selected_features.update(force_idxs)
+
+    # C++: cc:212-219
+    if not selected_features:
+        err_empty_features(fs_params.output_file)
+    else:
+        filt_table = table.filtered(sorted(selected_features))
+        log_selected_features(table.get_arity(), filt_table, fs_params)
+        write_results(filt_table, fs_params)
