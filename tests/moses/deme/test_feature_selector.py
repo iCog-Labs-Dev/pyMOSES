@@ -185,12 +185,37 @@ def test_build_fs_ctable_restrict_true_keeps_only_positive_predictions(boolean_c
     assert fs_ctable.uncompressed_size() == 4.0
 
 
-def test_build_fs_ctable_raises_for_non_boolean_output(boolean_ctable):
+def test_build_fs_ctable_accepts_a_non_boolean_output_type(boolean_ctable):
+    """This test used to assert `NotImplementedError`, and that was an
+    OVER-GATE. C++ reads `cto` (feature_selector.cc:125) and branches on it
+    in exactly one place -- inside `xmplr_as_feature`
+    (feature_selector.cc:190-196), whose third arm is its own
+    `OC_ASSERT(false, "Not implemented")`. Nothing else in
+    `build_fs_ctable` cares. Refusing every non-boolean output type here
+    made `-Hit` on a contin table and `-Hcluster` -- the
+    `REGRESSION(table, ...)` sites at table-problems.cc:519,522,557 --
+    reject command lines classic runs; both are pinned byte-for-byte in
+    tests/moses/main/test_enable_fs_cli.py now.
+    """
     sig = TypeSignature([type_node.boolean_type] * 3, type_node.contin_type)
     boolean_ctable.set_signature(sig)
     params = feature_selector_parameters()
     fs = feature_selector(boolean_ctable, params)
-    with pytest.raises(NotImplementedError):
+    fs_ctable = fs.build_fs_ctable(str_to_combo_tree("$1"))
+    assert fs_ctable.get_signature().otype is type_node.contin_type
+    assert len(fs_ctable) > 0
+
+
+def test_build_fs_ctable_raises_only_for_xmplr_as_feature_on_an_odd_output(boolean_ctable):
+    """The gate that IS C++'s: `OC_ASSERT(false, "Not implemented")` at
+    feature_selector.cc:196, reached only when `xmplr_as_feature` has to
+    push the exemplar's own prediction into the row and the output type is
+    neither boolean nor contin."""
+    sig = TypeSignature([type_node.boolean_type] * 3, type_node.enum_type)
+    boolean_ctable.set_signature(sig)
+    params = feature_selector_parameters(xmplr_as_feature=True)
+    fs = feature_selector(boolean_ctable, params)
+    with pytest.raises(NotImplementedError, match="Not implemented"):
         fs.build_fs_ctable(str_to_combo_tree("$1"))
 
 

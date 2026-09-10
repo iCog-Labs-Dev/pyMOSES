@@ -358,6 +358,12 @@ def test_create_representations_builds_a_real_representation_from_fstor():
     dex._params.fstor = festor
 
     randGen().seed(1)
+    # `create_demeIDs` first, exactly as `create_demes` calls the two
+    # (deme_expander.cc:383-385). `create_representations` reaches
+    # `log_selected_feature_sets`, whose `OC_ASSERT(sfps ==
+    # _demeIDs.size())` (cc:63) compares against those ids -- classic
+    # would trip it too on a bare `create_representations` call.
+    dex.create_demeIDs(0)
     created = dex.create_representations(str_to_combo_tree("$1"))
 
     assert created is True
@@ -391,12 +397,14 @@ def test_create_representations_no_longer_gates_fstor_prune_xmplr():
     assert dex.create_representations(str_to_combo_tree("$1")) is True
 
 
-def test_optimize_demes_raises_when_fstor_is_set_from_the_start():
-    """Narrower than the old blanket gate: create_demeIDs/
-    create_representations now SUCCEED with a real fstor (see the tests
-    above); only optimize_demes's own search-loop branch is still
-    unsupported (needs behave_cscore.ignore_cols/best_possible_score,
-    neither ported -- see optimize_demes's own docstring).
+def test_optimize_demes_runs_with_a_real_fstor():
+    """This test used to assert `NotImplementedError`. `optimize_demes`
+    drives a real `fstor` through the whole search loop now; only its own
+    `if (_params.fstor)` arm (deme_expander.cc:432-450) is
+    documented-and-skipped, and that arm calls nothing this function's
+    result depends on -- see its DIVERGENCE. Kept here, inverted, so the
+    removal is recorded at the site that used to pin it. The end-to-end
+    proof is tests/moses/main/test_enable_fs_cli.py's byte-for-byte oracle.
     """
     params = deme_parameters()
     params.perm_ratio = -1.0
@@ -405,8 +413,8 @@ def test_optimize_demes_raises_when_fstor_is_set_from_the_start():
 
     randGen().seed(1)
     assert dex.create_demes(str_to_combo_tree("$1"), 0) is True
-    with pytest.raises(NotImplementedError):
-        dex.optimize_demes(200, 86400)
+    dex.optimize_demes(200, 86400)
+    assert dex.total_evals() > 0
 
 
 # ---------------------------------------------------------------------------
@@ -475,12 +483,17 @@ def test_create_representations_does_not_raise_at_the_defaults():
     assert dex.create_representations(str_to_combo_tree("and()")) is True
 
 
-def test_optimize_demes_raises_when_fstor_is_set_after_create_demes():
+def test_optimize_demes_with_an_fstor_set_after_create_demes_is_not_special_cased():
     """The pathological direct-mutation scenario the module docstring's
     consolidation note names: `_params.fstor` set AFTER a successful
-    create_demes() call, before optimize_demes(). No real caller (C++ or
-    this port) does this, but the guard exists in optimize_demes() too --
-    this proves it independently of create_demes()'s own earlier gate.
+    create_demes() call, before optimize_demes(). This used to assert
+    `NotImplementedError`; the guard it pinned is gone, and C++ has no
+    guard here either -- the `if (_params.fstor)` at cc:432 is a plain
+    branch, so a non-null `fstor` that `create_representations` never saw
+    simply indexes `_ignore_cols_seq[i]`, which classic left EMPTY, and
+    reads off the end of a `std::vector` (UB). This port's skipped arm
+    never indexes it, so the run completes. Kept, inverted, to record that
+    the gate went and that nothing replaced it.
     """
     params = deme_parameters()
     params.perm_ratio = -1.0
@@ -489,8 +502,8 @@ def test_optimize_demes_raises_when_fstor_is_set_after_create_demes():
     dex.create_demes(str_to_combo_tree("and()"), 0)
 
     dex._params.fstor = "mutated-in-afterward"
-    with pytest.raises(NotImplementedError):
-        dex.optimize_demes(200, 86400)
+    dex.optimize_demes(200, 86400)
+    assert dex.total_evals() > 0
 
 
 def test_create_demes_raises_when_n_subsample_demes_greater_than_one():
@@ -635,3 +648,61 @@ def test_optimize_demes_raises_zerodivisionerror_when_no_demes_were_created():
 
     with pytest.raises(ZeroDivisionError):
         dex.optimize_demes(200, 86400)
+
+
+# ---------------------------------------------------------------------------
+# log_selected_feature_sets (deme_expander.cc:57) -- ported because it is NOT
+# logging-only: it carries a live OC_ASSERT that classic actually hits.
+# ---------------------------------------------------------------------------
+
+
+def test_log_selected_feature_sets_assert_fires_when_n_demes_exceeds_one():
+    """`OC_ASSERT(sfps == _demeIDs.size(), "The code is probably not robust
+    enough")` (deme_expander.cc:63). `create_demeIDs` builds
+    `fstor.params.n_demes` ids while every ported selection algorithm
+    returns exactly one feature set, so `--fs-demes=2` can never satisfy
+    it. Measured on classic 2026-09-10: exit 134,
+    `opencog::AssertionException`, for `--fs-algo=simple` and
+    `--fs-algo=random` alike. The end-to-end CLI form is pinned in
+    tests/moses/main/test_enable_fs_cli.py.
+    """
+    params = deme_parameters()
+    params.perm_ratio = -1.0
+    dex, ctable = _boolean_dex_and_ctable(params)
+    dex._params.fstor = feature_selector(ctable, feature_selector_parameters(n_demes=2))
+
+    randGen().seed(1)
+    with pytest.raises(RuntimeError, match="probably not robust enough"):
+        dex.create_demes(str_to_combo_tree("$1"), 0)
+
+
+def test_log_selected_feature_sets_does_not_fire_at_the_default_n_demes():
+    """The guard must not fire on the untouched default (`n_demes=1`) --
+    every byte-identical oracle run in test_enable_fs_cli.py goes straight
+    through it."""
+    params = deme_parameters()
+    params.perm_ratio = -1.0
+    dex, ctable = _boolean_dex_and_ctable(params)
+    dex._params.fstor = feature_selector(ctable, feature_selector_parameters())
+    randGen().seed(1)
+    assert dex.create_demes(str_to_combo_tree("$1"), 0) is True
+
+
+def test_fs_to_names_rejects_an_index_past_the_labels():
+    """C++'s `ilabels[i]` (deme_expander.cc:53) is an unchecked
+    `std::vector::operator[]`, and the out-of-range case is REACHABLE:
+    `--fs-seed=xmplr` appends a synthetic `__exemplar_feature__` column at
+    index `get_arity()` that `remove_useless_features`
+    (feature_selector.cc:295, zero call sites in the whole classic tree)
+    never removes. Classic SIGSEGVs there -- gdb-confirmed, see
+    test_enable_fs_cli.py. Undefined behaviour cannot be ported, so this
+    raises instead of answering.
+    """
+    params = deme_parameters()
+    params.perm_ratio = -1.0
+    dex = _dex_with(params)
+    assert dex.fs_to_names({0, 2}, ["a", "b", "c"]) == ["a", "c"]
+    with pytest.raises(IndexError, match="outside the 3 input column"):
+        dex.fs_to_names({0, 3}, ["a", "b", "c"])
+    with pytest.raises(IndexError, match="outside the 3 input column"):
+        dex.fs_to_names({-1}, ["a", "b", "c"])
