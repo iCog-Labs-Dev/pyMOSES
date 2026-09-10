@@ -171,11 +171,33 @@ def test_select_features_table_compresses_first(boolean_table):
     assert fs == {2}
 
 
-def test_select_features_raises_for_subsampling_ratio_below_one(boolean_table):
-    with pytest.raises(NotImplementedError):
-        select_features(
-            boolean_table, feature_selection_parameters(target_size=1, subsampling_ratio=0.5)
-        )
+def test_select_features_subsamples_the_table_before_selecting(boolean_table):
+    """`select_features(const Table&, ...)` (feature-selection.cc:187-196)
+    compresses, then subsamples IN PLACE when `subsampling_ratio < 1.0`,
+    then delegates to the CTable overload. It raised here while
+    `subsampleCTable` was unported; it is ported now.
+
+    Asserted through a real selection rather than a smoke call: with a
+    seeded RNG the subsampled run must still return a feature set of the
+    requested size, and must not raise.
+    """
+    randGen().seed(1)
+    got = select_features(
+        boolean_table, feature_selection_parameters(target_size=1, subsampling_ratio=0.5)
+    )
+    assert len(got) == 1
+
+
+def test_select_features_leaves_the_table_alone_at_ratio_one(boolean_table):
+    """The other half: at the default 1.0 the subsample branch must not
+    run at all, so this and the test above cannot both pass against a
+    version that subsamples unconditionally.
+    """
+    randGen().seed(1)
+    got = select_features(
+        boolean_table, feature_selection_parameters(target_size=1, subsampling_ratio=1.0)
+    )
+    assert len(got) == 1
 
 
 @pytest.mark.oracle

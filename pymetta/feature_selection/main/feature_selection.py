@@ -56,6 +56,7 @@ from pymetta.feature_selection.algo.incremental import incremental_select_featur
 from pymetta.feature_selection.algo.random import random_select_feature_sets
 from pymetta.feature_selection.algo.simple import simple_select_feature_sets
 from pymetta.feature_selection.algo.stochastic_max_dependency import smd_select_feature_sets
+from pymetta.feature_selection.ctable_subsample import subsampleCTable
 from pymetta.feature_selection.main.feature_selection_params import (
     feature_selection_parameters,
     feature_set,
@@ -202,22 +203,26 @@ def select_features(
     overload resolution, so both C++ signatures collapse onto this one
     function, dispatching on the argument's own type.
 
-    ``subsampling_ratio < 1.0`` needs ``subsampleCTable``
-    (moses/comboreduct/table/table.cc:899, row-random-removal) -- not
-    ported (out of scope: touching ``pymetta.comboreduct`` is off limits
-    for this task). Raises rather than silently skipping the subsample
-    step; the default ``subsampling_ratio=1.0`` path (no subsampling) is
-    unaffected and fully ported.
+    The ``Table`` overload's own body is `feature-selection.cc:187-196`:
+    compress, then -- only when ``subsampling_ratio < 1.0`` -- log the
+    size, subsample in place, log it again, and delegate to the ``CTable``
+    overload. This used to raise instead, accurately, while
+    ``subsampleCTable`` was unported; it is ported now
+    (``pymetta.feature_selection.ctable_subsample``).
     """
     if isinstance(table_or_ctable, Table):
         ctable = table_or_ctable.compressed()
         if fs_params.subsampling_ratio < 1.0:
-            raise NotImplementedError(
-                "select_features: subsampling_ratio < 1.0 needs "
-                "subsampleCTable (moses/comboreduct/table/table.cc:899), "
-                "not ported -- pymetta.comboreduct is out of this task's "
-                "scope. Leave subsampling_ratio at its default (1.0)."
+            # C++: feature-selection.cc:190-195. `fs_params.subsampling_ratio`
+            # is already a C++ `float` on this path, so `subsampleCTable`'s
+            # own `float ratio` parameter narrows nothing further here --
+            # unlike the `deme` caller, where a `double` is narrowed at the
+            # call and changes how many rows come out.
+            logger().debug(
+                "Subsample table (size = %d)", ctable.uncompressed_size()
             )
+            subsampleCTable(fs_params.subsampling_ratio, ctable)
+            logger().debug("New size = %d", ctable.uncompressed_size())
     else:
         ctable = table_or_ctable
 
