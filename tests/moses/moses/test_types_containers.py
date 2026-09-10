@@ -76,24 +76,24 @@ def _build_table() -> dict[str, scored_combo_tree]:
     nan = float("nan")
     return {
         "a-worse-score": scored_combo_tree(
-            _leaf(builtin.logical_and), composite_score(-10.0, 0)
+            _leaf(builtin.logical_and), cs=composite_score(-10.0, 0)
         ),
         "b-better-score": scored_combo_tree(
-            _leaf(builtin.logical_and), composite_score(-2.0, 0)
+            _leaf(builtin.logical_and), cs=composite_score(-2.0, 0)
         ),
         "c-tie-score-high-complexity": scored_combo_tree(
-            _leaf(builtin.logical_and), composite_score(-5.0, 10)
+            _leaf(builtin.logical_and), cs=composite_score(-5.0, 10)
         ),
         "d-tie-score-low-complexity": scored_combo_tree(
-            _leaf(builtin.logical_and), composite_score(-5.0, 3)
+            _leaf(builtin.logical_and), cs=composite_score(-5.0, 3)
         ),
         "e-tie-everything-bigger-tree": scored_combo_tree(
-            _and_with_arg1(), composite_score(-5.0, 3)
+            _and_with_arg1(), cs=composite_score(-5.0, 3)
         ),
-        "f-tie-everything-arg1": scored_combo_tree(_leaf(argument(1)), composite_score(-5.0, 3)),
-        "g-tie-everything-arg2": scored_combo_tree(_leaf(argument(2)), composite_score(-5.0, 3)),
-        "h-tie-everything-nan-leaf": scored_combo_tree(_leaf(nan), composite_score(-5.0, 3)),
-        "i-tie-everything-five-leaf": scored_combo_tree(_leaf(5.0), composite_score(-5.0, 3)),
+        "f-tie-everything-arg1": scored_combo_tree(_leaf(argument(1)), cs=composite_score(-5.0, 3)),
+        "g-tie-everything-arg2": scored_combo_tree(_leaf(argument(2)), cs=composite_score(-5.0, 3)),
+        "h-tie-everything-nan-leaf": scored_combo_tree(_leaf(nan), cs=composite_score(-5.0, 3)),
+        "i-tie-everything-five-leaf": scored_combo_tree(_leaf(5.0), cs=composite_score(-5.0, 3)),
     }
 
 
@@ -116,8 +116,8 @@ def test_scored_combo_tree_eq_is_structural_not_identity():
     IDENTITY comparison: this would have been `False` for two distinct
     tree objects even though they hold exactly the same combo program.
     """
-    a = scored_combo_tree(tree(builtin.logical_and), composite_score(-1.0, 3))
-    b = scored_combo_tree(tree(builtin.logical_and), composite_score(-1.0, 3))
+    a = scored_combo_tree(tree(builtin.logical_and), cs=composite_score(-1.0, 3))
+    b = scored_combo_tree(tree(builtin.logical_and), cs=composite_score(-1.0, 3))
     assert a.tree is not b.tree, "fixture must use two DISTINCT tree objects"
     assert a == b
 
@@ -132,8 +132,8 @@ def test_scored_combo_tree_eq_type_before_value_on_the_tree():
     leaf holding `logical_true`, even though `builtin.logical_true == 1`.
     """
     assert 1.0 == builtin.logical_true, "fixture must actually hit the trap"
-    a = scored_combo_tree(tree(1.0), composite_score(-1.0, 3))
-    b = scored_combo_tree(tree(builtin.logical_true), composite_score(-1.0, 3))
+    a = scored_combo_tree(tree(1.0), cs=composite_score(-1.0, 3))
+    b = scored_combo_tree(tree(builtin.logical_true), cs=composite_score(-1.0, 3))
     assert a != b
 
 
@@ -156,8 +156,8 @@ def test_scored_combo_tree_equal_ignores_score():
     `tr1.get_tree() == tr2.get_tree()` ALONE -- score/bscore are not
     consulted at all, unlike `scored_combo_tree.__eq__`.
     """
-    a = scored_combo_tree(tree(builtin.logical_and), composite_score(-1.0, 3))
-    b = scored_combo_tree(tree(builtin.logical_and), composite_score(-9.0, 7))
+    a = scored_combo_tree(tree(builtin.logical_and), cs=composite_score(-1.0, 3))
+    b = scored_combo_tree(tree(builtin.logical_and), cs=composite_score(-9.0, 7))
     assert a != b, "fixture must actually differ under scored_combo_tree.__eq__"
     assert scored_combo_tree_equal()(a, b) is True
 
@@ -170,17 +170,17 @@ def test_scored_combo_tree_hash_is_consistent_with_equal_over_a_multi_node_tree(
     node loop (`scored_combo_tree_hash.__call__`, types.cc:60-68's `for
     (combo::vertex vtx : tr)`) actually has more than one node to walk.
     """
-    a = scored_combo_tree(_and_with_arg1(), composite_score(-1.0, 3))
-    b = scored_combo_tree(_and_with_arg1(), composite_score(-9.0, 7))
+    a = scored_combo_tree(_and_with_arg1(), cs=composite_score(-1.0, 3))
+    b = scored_combo_tree(_and_with_arg1(), cs=composite_score(-9.0, 7))
     assert scored_combo_tree_equal()(a, b) is True
     assert scored_combo_tree_hash()(a) == scored_combo_tree_hash()(b)
 
 
 def test_scored_combo_tree_set_dedups_by_tree_ignoring_score():
     s = scored_combo_tree_set()
-    a = scored_combo_tree(tree(builtin.logical_and), composite_score(-1.0, 3))
-    b = scored_combo_tree(tree(builtin.logical_and), composite_score(-9.0, 7))
-    c = scored_combo_tree(tree(builtin.logical_or), composite_score(-1.0, 3))
+    a = scored_combo_tree(tree(builtin.logical_and), cs=composite_score(-1.0, 3))
+    b = scored_combo_tree(tree(builtin.logical_and), cs=composite_score(-9.0, 7))
+    c = scored_combo_tree(tree(builtin.logical_or), cs=composite_score(-1.0, 3))
     assert s.insert(a) is True
     assert s.insert(b) is False, "same tree, different score -- must be rejected as a duplicate"
     assert s.insert(c) is True
@@ -197,7 +197,7 @@ def test_scored_combo_tree_set_clear_empties_in_place():
     afterward.
     """
     s = scored_combo_tree_set()
-    a = scored_combo_tree(tree(builtin.logical_and), composite_score(-1.0, 3))
+    a = scored_combo_tree(tree(builtin.logical_and), cs=composite_score(-1.0, 3))
     s.insert(a)
     assert len(s) == 1
 
@@ -209,7 +209,7 @@ def test_scored_combo_tree_set_clear_empties_in_place():
     assert list(s) == []
     assert held is s and len(held) == 0  # the SAME object, not a new one
 
-    b = scored_combo_tree(tree(builtin.logical_or), composite_score(-1.0, 3))
+    b = scored_combo_tree(tree(builtin.logical_or), cs=composite_score(-1.0, 3))
     assert s.insert(b) is True  # still usable after clear()
     assert len(s) == 1
 
@@ -319,7 +319,7 @@ def test_tset_dedups_by_tree_shape_not_score(table):
     tset = scored_combo_tree_tset()
     a = table["a-worse-score"]  # and(), size 1
     same_shape_different_score = scored_combo_tree(
-        tree(builtin.logical_and), composite_score(-999.0, 0)
+        tree(builtin.logical_and), cs=composite_score(-999.0, 0)
     )
     assert tset.insert(a) is True
     assert tset.insert(same_shape_different_score) is False
@@ -388,9 +388,9 @@ def test_cpp_unordered_set_dedup_matches(fixture_dir):
     fixture = json.loads((fixture_dir / "containers_sct.json").read_text())
     uset = scored_combo_tree_set()
     results = [
-        uset.insert(scored_combo_tree(tree(builtin.logical_and), composite_score(-1.0, 3))),
-        uset.insert(scored_combo_tree(tree(builtin.logical_and), composite_score(-9.0, 7))),
-        uset.insert(scored_combo_tree(tree(builtin.logical_or), composite_score(-1.0, 3))),
+        uset.insert(scored_combo_tree(tree(builtin.logical_and), cs=composite_score(-1.0, 3))),
+        uset.insert(scored_combo_tree(tree(builtin.logical_and), cs=composite_score(-9.0, 7))),
+        uset.insert(scored_combo_tree(tree(builtin.logical_or), cs=composite_score(-1.0, 3))),
     ]
     assert results == fixture["unordered_set_insert_results"]
     assert len(uset) == fixture["unordered_set_size"]
@@ -404,7 +404,7 @@ def test_cpp_unordered_set_dedup_matches(fixture_dir):
 def _sct(combo_str: str, score: float = 0.0, complexity: int = 0) -> scored_combo_tree:
     from pymetta.comboreduct.combo.iostream_combo import str_to_combo_tree
 
-    return scored_combo_tree(str_to_combo_tree(combo_str), composite_score(score, complexity))
+    return scored_combo_tree(str_to_combo_tree(combo_str), cs=composite_score(score, complexity))
 
 
 def test_weight_defaults_to_one():
@@ -428,7 +428,11 @@ def test_weight_is_not_a_constructor_parameter():
     from pymetta.comboreduct.combo.iostream_combo import str_to_combo_tree
 
     with pytest.raises(TypeError):
-        scored_combo_tree(str_to_combo_tree("$1"), composite_score(), [], 2.0)
+        # FIVE positionals: the ctor now takes (tr, id, cs, bs), so a
+        # four-argument call BINDS -- it was the weight that used to
+        # overflow the signature, and after `id` was restored to its
+        # C++ position (types.h:263) it no longer does.
+        scored_combo_tree(str_to_combo_tree("$1"), demeID_t(), composite_score(), [], 2.0)
 
 
 def test_set_weight_round_trips_at_double_precision_not_score_t():
@@ -528,9 +532,7 @@ def test_fresh_construction_resets_the_weight_the_way_classic_does():
     original.set_weight(0.375)
 
     rebuilt = scored_combo_tree(
-        original.get_tree(),
-        original.get_composite_score(),
-        list(original.get_bscore()),
+        original.get_tree(), cs=original.get_composite_score(), bs=list(original.get_bscore())
     )
 
     assert rebuilt.get_weight() == 1.0

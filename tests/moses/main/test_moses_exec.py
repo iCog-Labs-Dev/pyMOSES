@@ -423,9 +423,34 @@ def test_moses_exec_output_bscore_raises_cleanly_before_any_evaluation(dataset_c
         moses_exec(["moses", f"-i{dataset_csv}", "-m1000", "-t1"])
 
 
-def test_moses_exec_output_deme_id_raises_cleanly_before_any_evaluation(dataset_csv):
-    with pytest.raises(NotImplementedError, match="demeID"):
-        moses_exec(["moses", f"-i{dataset_csv}", "-m1000", "--output-deme-id=1"])
+def test_moses_exec_output_deme_id_matches_classic(dataset_csv):
+    """`--output-deme-id` was gated until 2026-09-10 because
+    `scored_combo_tree` carried no `demeID_t`. It does now, and
+    `deme_to_trees` stamps each candidate with `deme.getID()`
+    (merging.cc:110), which is where the id ORIGINATES.
+
+    Captured: ( cd <scratch> && ulimit -v 2097152; timeout 300
+    $CLASSIC/build/moses/moses/main/moses -i<dataset.csv> -m1000
+    --output-deme-id=1 )
+
+    The expected output carries BOTH `demeID: 1` and `demeID: 0` -- the
+    initial exemplar comes from deme 0 -- so a port that stamped one
+    constant id everywhere could not match it. That is what makes this an
+    oracle rather than a smoke test.
+    """
+    rc, out = _run(["moses", f"-i{dataset_csv}", "-m1000", "--output-deme-id=1"])
+    assert rc == 0
+    assert out == (
+        "-3 and($1 $2)  demeID: 1\n"
+        "-4 $1  demeID: 1\n"
+        "-4 $2  demeID: 1\n"
+        "-4 and(!$1 !$2)  demeID: 1\n"
+        "-4 or(!$1 $2)  demeID: 1\n"
+        "-4 or($1 !$2)  demeID: 1\n"
+        "-5 true  demeID: 0\n"
+        "-5 !$1  demeID: 1\n"
+        "-5 !$2  demeID: 1\n"
+    )
 
 
 def test_moses_exec_output_bscore_and_deme_id_defaults_do_not_raise(dataset_csv):

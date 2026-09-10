@@ -556,7 +556,6 @@ def test_contin_depth_reaches_representations_module_static():
         ["--jobs", "2:otherhost"],
         ["-t", "1"],
         ["--output-bscore", "1"],
-        ["--output-deme-id", "1"],
     ],
 )
 def test_unsupported_option_raises(argv):
@@ -603,11 +602,12 @@ def test_output_bscore_raises_at_parse_time_naming_merge_demes():
         _parse("-t", "1")
 
 
-def test_output_deme_id_raises_at_parse_time_naming_demeid():
-    """[Important 1] Same proof as above for `--output-deme-id`, whose
-    blocking gap is `scored_combo_tree` carrying no `demeID_t`."""
-    with pytest.raises(NotImplementedError, match="demeID"):
-        _parse("--output-deme-id", "1")
+def test_output_deme_id_no_longer_raises_at_parse_time():
+    """`--output-deme-id` was gated here while `scored_combo_tree` carried
+    no `demeID_t`. It carries one now, so the flag parses and reaches a
+    real value -- see `test_moses_exec.py`'s byte-for-byte oracle."""
+    pp = _parse("--output-deme-id", "1")
+    assert pp.output_deme_id is True
 
 
 def test_default_command_line_never_raises():

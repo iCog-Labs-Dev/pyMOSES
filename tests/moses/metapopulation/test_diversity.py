@@ -52,7 +52,7 @@ class _FixedBscore(bscore_base):
 
 def _sct(label: str, score: float, bs: list[float], complexity_penalty: float = 0.0):
     return scored_combo_tree(
-        str_to_combo_tree(label), composite_score(score, 0, complexity_penalty), list(bs)
+        str_to_combo_tree(label), cs=composite_score(score, 0, complexity_penalty), bs=list(bs)
     )
 
 

@@ -204,6 +204,7 @@ def _to_score_t(x: float) -> score_t:
     except OverflowError:
         return math.inf if x > 0 else -math.inf
 
+
 # `complexity_t`/`least_complexity` (complexity.h:35,37) are imported
 # rather than redefined here -- complexity.py is where they actually
 # live; re-exported from this module too since C++ callers of
@@ -633,11 +634,12 @@ class scored_combo_tree:
     this one follows that established local convention.
     """
 
-    __slots__ = ("bscore", "cscore", "tree", "weight")
+    __slots__ = ("bscore", "cscore", "deme_id", "tree", "weight")
 
     def __init__(
         self,
         tr: object,
+        id: demeID_t | None = None,
         cs: composite_score | None = None,
         bs: behavioral_score | None = None,
     ) -> None:
@@ -646,8 +648,15 @@ class scored_combo_tree:
         `tr` is a `combo_tree` (comboreduct/combo/vertex.py); typed
         `object` here rather than imported, so this module -- itself
         imported by combo_tree's own consumers (bscores.py,
-        behave_cscore.py) -- carries no import-cycle risk. `demeID_t`
-        (types.h:263's `id` parameter) is dropped -- see class docstring.
+        behave_cscore.py) -- carries no import-cycle risk.
+
+        `id` is C++'s `demeID_t id = demeID_t()` (types.h:263), in its own
+        position -- SECOND, before `cs`/`bs`. It was dropped from this
+        signature while `scored_combo_tree` carried no deme field; adding
+        it back in C++'s position rather than appending it keeps every
+        positional call site meaning the same thing in both languages.
+        `None` maps to C++'s default-constructed `demeID_t()`, which is
+        what an unset deme id is there too.
 
         `weight` is NOT a constructor parameter in either language: the
         C++ member-initializer list ends `_weight(1.0)` (types.h:266), a
@@ -664,6 +673,7 @@ class scored_combo_tree:
         those readers and once too often for `scoring_base.cc:103`.
         """
         self.tree = tr
+        self.deme_id: demeID_t = id if id is not None else demeID_t()
         self.cscore = cs if cs is not None else composite_score()
         self.bscore: behavioral_score = bs if bs is not None else []
         self.weight: float = 1.0
@@ -671,6 +681,21 @@ class scored_combo_tree:
     def get_tree(self) -> object:
         """C++: moses/moses/moses/types.h:277 scored_combo_tree::get_tree"""
         return self.tree
+
+    def get_demeID(self) -> demeID_t:
+        """C++: moses/moses/moses/types.h:280 scored_combo_tree::get_demeID
+
+        C++ declares two overloads, const and non-const (types.h:280-281),
+        which collapse to one here -- `demeID_t` is immutable in this port,
+        so there is no mutable-access distinction to preserve.
+
+        Read by `metapop_printer`'s `--output-deme-id` arm
+        (moses_main.h:212), by `merging.cc:150`'s and
+        `metapopulation.cc:93`'s debug records, and by
+        `merging.cc:279-280`/`domination.cc:304`, which carry the id across
+        when they rebuild a `scored_combo_tree`.
+        """
+        return self.deme_id
 
     def get_bscore(self) -> behavioral_score:
         """C++: moses/moses/moses/types.h:283 scored_combo_tree::get_bscore"""
@@ -735,9 +760,9 @@ class scored_combo_tree:
         Non-identifier member per the project's convention (see
         `composite_score.__lt__` above): the real member is
         `scored_combo_tree::operator==` (types.cc:52-58). NARROWED versus
-        C++ by exactly one term: the real operator also compares
-        `get_demeID()` (types.cc:54), a field this port does not carry
-        (see class docstring).
+        NO LONGER narrowed: `get_demeID()` (types.cc:54) is compared too,
+        as of the change that added the field. All five terms of
+        `types.cc:53-57` are now present.
 
         `get_weight()` (types.cc:56) IS compared, as of the change that
         added the field. It was listed alongside `demeID_t` here while
@@ -767,6 +792,7 @@ class scored_combo_tree:
             return NotImplemented
         return (
             _combo_tree_structural_eq(self.tree, other.tree)
+            and self.deme_id == other.deme_id
             and self.bscore == other.bscore
             and self.weight == other.weight
             and self.cscore == other.cscore
@@ -834,19 +860,12 @@ def ostream_scored_combo_tree(
     a parameter) -- its whole `if` body is dead code in every real build;
     not ported at all, matching that it can never fire.
 
-    `output_demeID` raises `NotImplementedError` when `True`: this port's
-    `scored_combo_tree` carries no `demeID_t`/`get_demeID()` at all (see
-    that class's own module docstring -- deme bookkeeping is out of scope
-    for this whole port cycle, not merely deferred), so there is no value
-    to print. Classic's CLI default is `--output-deme-id=false`
-    (`problem-params.cc:1121`, `output_deme_id`), so a real `moses_exec.py`
-    run never engages this gate; only a caller passing `output_demeID=True`
-    explicitly (including this function's OWN default, matching
-    `types.h:408`'s `bool output_demeID = true` exactly, which is what
-    classic's bare `operator<<(ostream&, const scored_combo_tree&)`
-    (types.h:421-424) relies on) reaches it -- gate-then-raise for an
-    engaged-but-unported field, not a silent wrong answer, per this
-    slice's design rule.
+    `output_demeID` used to raise: `scored_combo_tree` carried no
+    `demeID_t`/`get_demeID()`. It does now, so the arm prints for real.
+    `demeID_t` subclasses `std::string` in C++ (types.h:190) and `str`
+    here, so `out << sct.get_demeID()` is a direct string append with no
+    formatting of its own -- and the port's `demeID_t.__new__` already
+    reproduces `types.cc:43-50`'s exact text.
 
     `labels`/`fmt` are new parameters with no direct C++ counterpart
     ordering issue: `ostream_combo_tree`'s own `labels`/`fmt` parameters
@@ -867,14 +886,7 @@ def ostream_scored_combo_tree(
     if output_cscore:
         parts.append(f" {sct.get_composite_score()}")
     if output_demeID:
-        raise NotImplementedError(
-            "ostream_scored_combo_tree: output_demeID=True needs "
-            "scored_combo_tree.get_demeID(), which this port's "
-            "scored_combo_tree does not carry -- deme bookkeeping is out "
-            "of scope for this whole port cycle (scored_combo_tree's own "
-            "module docstring). Classic's own CLI default "
-            "(--output-deme-id) is False; pass output_demeID=False."
-        )
+        parts.append(f" demeID: {sct.get_demeID()}")
     bscore = sct.get_bscore()
     if output_bscore and len(bscore) > 0:
         parts.append(" " + ostream_behavioral_score(bscore))

@@ -71,6 +71,7 @@ from pymetta.moses.moses.optimization.univariate import univariate_optimization
 from pymetta.moses.moses.types import (
     _to_score_t,
     composite_score,
+    demeID_t,
     score_t,
     scored_combo_tree,
     very_best_score,
@@ -200,7 +201,7 @@ def test_adjust_termination_criteria_honors_explicit_max_score():
 
 
 def test_adjust_termination_criteria_clamps_negative_min_improv_to_zero():
-    """"negative min_improv is interpreted as percentage of improvement,
+    """ "negative min_improv is interpreted as percentage of improvement,
     if so then don't subtract anything" (moses_main.cc:87-89) --
     `bscore_base.min_improv`'s own base-class default is 0.0
     (scoring_base.py), never negative, so this exercises the `max(...)`
@@ -838,7 +839,7 @@ class _FakeMetapop:
 def _sct(combo_str, score, complexity, complexity_penalty, uniformity_penalty=0.0, bscore=None):
     tr = str_to_combo_tree(combo_str)
     cs = composite_score(score, complexity, complexity_penalty, uniformity_penalty)
-    return scored_combo_tree(tr, cs, bscore if bscore is not None else [])
+    return scored_combo_tree(tr, cs=cs, bs=bscore if bscore is not None else [])
 
 
 def _printer(**overrides):
@@ -1007,10 +1008,25 @@ def test_metapop_printer_is_mpi_empty_metapop_produces_no_output(capsys):
     assert capsys.readouterr().out == ""
 
 
-def test_metapop_printer_output_demeID_raises_not_implemented():
-    mp = _FakeMetapop([_sct("and($1 $2)", -3.0, 2, 0.5714285714285714)])
-    with pytest.raises(NotImplementedError, match="get_demeID"):
-        _printer(output_demeID=True)(mp, None, moses_statistics())
+def test_metapop_printer_output_demeID_prints_the_deme_the_candidate_came_from(capsys):
+    """The arm raised while `scored_combo_tree` carried no `demeID_t`. It
+    carries one now, and `demeID_t` subclasses `str` (types.h:190 makes
+    C++'s a `std::string` subclass), so `out << sct.get_demeID()` is a
+    direct append.
+
+    Two candidates with DIFFERENT ids, so a printer that emitted one
+    constant -- or the default -- could not pass.
+    """
+    a = _sct("and($1 $2)", -3.0, 2, 0.5714285714285714)
+    b = _sct("$1", -4.0, 1, 0.2857142857142857)
+    a.deme_id = demeID_t(1)
+    b.deme_id = demeID_t(2, 3)
+    mp = _FakeMetapop([a, b])
+
+    _printer(output_demeID=True, output_cscore=False)(mp, None, moses_statistics())
+    out = capsys.readouterr().out
+
+    assert out == "-3 and($1 $2)  demeID: 1\n-4 $1  demeID: 2.3\n"
 
 
 def test_metapop_printer_python_format_ensemble_gates_on_the_boosting_weight():

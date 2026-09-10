@@ -131,7 +131,7 @@ class _BoostableBscore(bscore_base):
 
 
 def _sct(tree_str: str, score: float, bscore: list[float]) -> scored_combo_tree:
-    return scored_combo_tree(str_to_combo_tree(tree_str), composite_score(score, 0), bscore)
+    return scored_combo_tree(str_to_combo_tree(tree_str), cs=composite_score(score, 0), bs=bscore)
 
 
 @pytest.fixture

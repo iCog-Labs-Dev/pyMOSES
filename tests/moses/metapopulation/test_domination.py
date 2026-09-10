@@ -48,7 +48,7 @@ def test_dominates_strictly_greater_everywhere():
 
 
 def test_dominates_equal_everywhere_is_indeterminate():
-    """"there exists i such that x_i > y_i" (domination.cc:64) -- equal
+    """ "there exists i such that x_i > y_i" (domination.cc:64) -- equal
     everywhere fails that existence requirement in EITHER direction."""
     assert dominates([1.0, 2.0], [1.0, 2.0]) is None
 
@@ -71,7 +71,7 @@ def test_dominates_empty_vs_empty_is_indeterminate():
 
 
 def test_dominates_nonempty_dominates_empty():
-    """"everything dominates an empty vector" (domination.cc:73's own
+    """ "everything dominates an empty vector" (domination.cc:73's own
     comment) -- a NON-empty x against an empty y is True regardless of
     x's own contents (even all-zero/negative)."""
     assert dominates([-5.0, 0.0], []) is True
@@ -110,7 +110,7 @@ def _sct(label: str, cs: composite_score, bs: list[float]) -> scored_combo_tree:
     # distinct contin-constant dummy trees (1.0, 2.0, ...), giving each a
     # distinct, easily-labelled identity for the set-membership asserts
     # below.
-    return scored_combo_tree(str_to_combo_tree(label), cs, list(bs))
+    return scored_combo_tree(str_to_combo_tree(label), cs=cs, bs=list(bs))
 
 
 def test_remove_dominated_matches_cxxtest_oracle():

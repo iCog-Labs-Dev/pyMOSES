@@ -227,7 +227,7 @@ def distort_dp(self: metapopulation, dp: score_t) -> score_t:
     computation as closely as Python's own `**` (computed in double
     internally regardless) can.
     """
-    return _to_score_t(dp ** self._params.diversity.exponent)
+    return _to_score_t(dp**self._params.diversity.exponent)
 
 
 def aggregated_dps(self: metapopulation, ddp_sum: score_t, n: int) -> score_t:

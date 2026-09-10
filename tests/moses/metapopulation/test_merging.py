@@ -99,6 +99,7 @@ from pymetta.moses.moses.optimization.optimization import optim_parameters
 from pymetta.moses.moses.types import (
     _to_score_t,
     composite_score,
+    demeID_t,
     scored_combo_tree,
     scored_combo_tree_set,
     very_worst_score,
@@ -333,9 +334,21 @@ class _Deme(list):
     `deme[i].second`/`deme[i].first`/`deme.pop()`/`deme.n_evals`/slice
     assignment -- all satisfied here without building a real
     `instance_set` (and the `field_set` it would need) at all.
+
+    `getID()` was added when `deme_to_trees` started stamping each
+    candidate with `deme.getID()` (merging.cc:110). A `deme_t` is an
+    `instance_set`, which carries a `demeID_t`; that is the only member
+    beyond indexing these tests need.
     """
 
     n_evals = 0
+
+    def __init__(self, items=(), id=None):
+        super().__init__(items)
+        self._id = id if id is not None else demeID_t()
+
+    def getID(self) -> demeID_t:
+        return self._id
 
 
 def _plain_deme(scores: list[tuple[float, float]]) -> _Deme:
@@ -679,7 +692,7 @@ def test_deme_to_trees_skips_very_worst_and_non_finite_scores():
     good = real_deme[0]
     bad_worst = scored_instance(instance(real_deme[1].first), composite_score(very_worst_score, 1))
     bad_nan = scored_instance(instance(real_deme[2].first), composite_score(math.nan, 1))
-    deme = [good, bad_worst, bad_nan]
+    deme = _Deme([good, bad_worst, bad_nan])
 
     pot_candidates = scored_combo_tree_set()
     mp.deme_to_trees(deme, rep, pot_candidates)
@@ -704,7 +717,7 @@ def test_deme_to_trees_copies_the_composite_score_not_the_deme_entry():
     original_score = entry.second.get_score()
 
     pot_candidates = scored_combo_tree_set()
-    mp.deme_to_trees([entry], rep, pot_candidates)
+    mp.deme_to_trees(_Deme([entry]), rep, pot_candidates)
 
     entry.second.set_score(-12345.0)
 
@@ -721,12 +734,12 @@ def test_deme_to_trees_copies_the_composite_score_not_the_deme_entry():
 def test_get_new_candidates_keeps_only_trees_not_already_in_the_pool():
     mp = _mp()
     already = scored_combo_tree_set()
-    already.insert(scored_combo_tree(str_to_combo_tree("$1"), composite_score(2.0, 1)))
+    already.insert(scored_combo_tree(str_to_combo_tree("$1"), cs=composite_score(2.0, 1)))
     mp.merge_candidates(already)  # populate _scored_trees with "$1"
 
     candidates = scored_combo_tree_set()
-    candidates.insert(scored_combo_tree(str_to_combo_tree("$1"), composite_score(2.0, 1)))
-    candidates.insert(scored_combo_tree(str_to_combo_tree("$2"), composite_score(3.0, 1)))
+    candidates.insert(scored_combo_tree(str_to_combo_tree("$1"), cs=composite_score(2.0, 1)))
+    candidates.insert(scored_combo_tree(str_to_combo_tree("$2"), cs=composite_score(3.0, 1)))
 
     fresh = mp.get_new_candidates(candidates)
 
@@ -743,7 +756,7 @@ def test_get_new_candidates_copies_not_aliases():
     """
     mp = _mp()
     candidates = scored_combo_tree_set()
-    original = scored_combo_tree(str_to_combo_tree("$2"), composite_score(3.0, 1))
+    original = scored_combo_tree(str_to_combo_tree("$2"), cs=composite_score(3.0, 1))
     candidates.insert(original)
 
     fresh = mp.get_new_candidates(candidates)
@@ -761,7 +774,7 @@ def test_get_new_candidates_copies_not_aliases():
 def test_merge_candidates_inserts_independent_copies():
     mp = _mp()  # already seeds _scored_trees with "$1" -- merge_candidates adds a 2nd
     candidates = scored_combo_tree_set()
-    original = scored_combo_tree(str_to_combo_tree("$2"), composite_score(3.0, 1))
+    original = scored_combo_tree(str_to_combo_tree("$2"), cs=composite_score(3.0, 1))
     candidates.insert(original)
 
     mp.merge_candidates(candidates)
@@ -1334,7 +1347,7 @@ def _grow_pool(
         complexity_penalty = rest[0] if rest else 0.0
         tree = str_to_combo_tree(f"${i}")
         cs = composite_score(score, complexity, complexity_penalty)
-        candidates.insert(scored_combo_tree(tree, cs))
+        candidates.insert(scored_combo_tree(tree, cs=cs))
     mp.merge_candidates(candidates)
 
 

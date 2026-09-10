@@ -425,7 +425,14 @@ def deme_to_trees(
         # C++: merging.cc:107 `logger().debug() << tr;` -- a bare tree, with
         # no prefix of any kind, one record per selected instance.
         logger().debug(tree_to_stream_str(tr))
-        sct = scored_combo_tree(tr, copy.copy(inst_csc))
+        # C++: merging.cc:110 `scored_combo_tree sct(tr, deme.getID(),
+        # inst_csc);` -- the deme's id is where every candidate's demeID
+        # ORIGINATES; `merging.cc:279,290` and `domination.cc:304` only
+        # carry it onward. It was dropped while `scored_combo_tree` had no
+        # deme field, and without it `--output-deme-id` printed the
+        # default "0" for every candidate where classic prints the real
+        # deme (measured: classic "demeID: 1", port "demeID: 0").
+        sct = scored_combo_tree(tr, deme.getID(), copy.copy(inst_csc))
         pot_candidates.insert(sct)
 
 
@@ -620,7 +627,18 @@ def merge_demes(
         new_pot = scored_combo_tree_set()
         for cand in candidates:
             bs = list(self._cscorer.get_bscore(cand.get_tree()))
-            sct = scored_combo_tree(cand.get_tree(), copy.copy(cand.get_composite_score()), bs)
+            # C++: merging.cc:279-280 passes `cand.get_demeID()` as the
+            # second argument. It was dropped here while
+            # `scored_combo_tree` carried no deme field; now that it does,
+            # the id is carried across, so a candidate that survives this
+            # rebuild keeps the deme it came from instead of silently
+            # reverting to a default-constructed one.
+            sct = scored_combo_tree(
+                cand.get_tree(),
+                cand.get_demeID(),
+                copy.copy(cand.get_composite_score()),
+                bs,
+            )
             new_pot.insert(sct)
         candidates = new_pot
 

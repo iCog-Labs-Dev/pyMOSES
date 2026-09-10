@@ -198,8 +198,8 @@ def test_update_best_candidates_direct_matches_cpp_probe():
     mp = metapopulation(T4, _cscorer())
 
     more = scored_combo_tree_set()
-    more.insert(scored_combo_tree(T2, composite_score(5.0, 2)))
-    more.insert(scored_combo_tree(T3, composite_score(5.0, 3)))
+    more.insert(scored_combo_tree(T2, cs=composite_score(5.0, 2)))
+    more.insert(scored_combo_tree(T3, cs=composite_score(5.0, 3)))
     mp.update_best_candidates(more)
 
     csc = mp.best_composite_score()
@@ -216,8 +216,8 @@ def test_update_best_candidates_ties_at_same_complexity_are_all_kept():
     mp = metapopulation(T4, _cscorer())
 
     more = scored_combo_tree_set()
-    more.insert(scored_combo_tree(T2, composite_score(5.0, 2)))
-    more.insert(scored_combo_tree(T3, composite_score(5.0, 2)))
+    more.insert(scored_combo_tree(T2, cs=composite_score(5.0, 2)))
+    more.insert(scored_combo_tree(T3, cs=composite_score(5.0, 2)))
     mp.update_best_candidates(more)
 
     assert len(list(mp.best_candidates())) == 2
@@ -232,8 +232,8 @@ def test_update_best_candidates_is_order_independent():
     one-element set) rather than relying on scored_combo_tree_set's own
     unordered iteration.
     """
-    a = scored_combo_tree(T2, composite_score(5.0, 2))
-    b = scored_combo_tree(T3, composite_score(5.0, 3))
+    a = scored_combo_tree(T2, cs=composite_score(5.0, 2))
+    b = scored_combo_tree(T3, cs=composite_score(5.0, 3))
 
     mp_ab = metapopulation(T4, _cscorer())
     s1 = scored_combo_tree_set()
@@ -290,7 +290,7 @@ def test_update_best_candidates_reset_is_visible_through_a_held_reference():
     assert {combo_tree_to_str(sct.get_tree()).strip() for sct in held} == {"$1"}
 
     better = scored_combo_tree_set()
-    better.insert(scored_combo_tree(T2, composite_score(5.0, 2)))
+    better.insert(scored_combo_tree(T2, cs=composite_score(5.0, 2)))
     mp.update_best_candidates(better)
 
     assert held is mp.best_candidates()  # same object, not a fresh one
@@ -398,7 +398,7 @@ def test_update_best_candidates_copies_the_composite_score_not_the_caller_object
     mp = metapopulation(T4, _cscorer())
     original_csc = composite_score(5.0, 2)
     cand = scored_combo_tree_set()
-    cand.insert(scored_combo_tree(T2, original_csc))
+    cand.insert(scored_combo_tree(T2, cs=original_csc))
     mp.update_best_candidates(cand)
 
     original_csc.set_score(-1.0)
@@ -412,7 +412,7 @@ def test_update_best_candidates_copies_the_candidate_not_the_caller_object():
     after insertion must not affect what's stored in best_candidates.
     """
     mp = metapopulation(T4, _cscorer())
-    cand_tree = scored_combo_tree(T2, composite_score(5.0, 2))
+    cand_tree = scored_combo_tree(T2, cs=composite_score(5.0, 2))
     cand = scored_combo_tree_set()
     cand.insert(cand_tree)
     mp.update_best_candidates(cand)
@@ -755,7 +755,7 @@ def test_visited_exemplars_counter_keys_on_tree_structure_not_identity():
         _visited_exemplars_counter,
     )
 
-    sct_a = scored_combo_tree(T1, composite_score(9.0, 1))
+    sct_a = scored_combo_tree(T1, cs=composite_score(9.0, 1))
     sct_b = _copy_sct(sct_a)  # independent object, same tree, same score
     sct_b.get_composite_score().set_score(-1.0)  # scores now DIFFER too
 

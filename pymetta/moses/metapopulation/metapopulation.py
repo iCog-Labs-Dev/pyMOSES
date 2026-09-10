@@ -382,7 +382,10 @@ def _copy_sct(sct: scored_combo_tree) -> scored_combo_tree:
     this.
     """
     copied = scored_combo_tree(
-        sct.get_tree(), copy.copy(sct.get_composite_score()), list(sct.get_bscore())
+        sct.get_tree(),
+        sct.get_demeID(),
+        copy.copy(sct.get_composite_score()),
+        list(sct.get_bscore()),
     )
     # `scored_combo_tree`'s constructor always starts `_weight(1.0)`
     # (types.h:266) -- it takes no weight parameter in either language --
@@ -578,7 +581,7 @@ class metapopulation:
         for base in exemplars:
             csc = copy.copy(self._cscorer.get_cscore(base))
             bs = list(self._cscorer.get_bscore(base))
-            candidates.insert(scored_combo_tree(base, csc, bs))
+            candidates.insert(scored_combo_tree(base, cs=csc, bs=bs))
 
         self.update_best_candidates(candidates)
         self.merge_candidates(candidates)

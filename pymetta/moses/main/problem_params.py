@@ -1120,19 +1120,11 @@ class problem_params:
         # 10 lines, exit 0 -- corrected from an earlier version of this marker
         # that cited tests/moses/dataset.csv, a path under $CLASSIC but not in
         # this port's own repo, and an unmeasured "9 lines").
-        # This port's own gate (ostream_scored_combo_tree's output_demeID branch,
-        # types.py, mirroring scored_combo_tree.get_demeID() -- which this port's
-        # scored_combo_tree does not carry, deme bookkeeping being out of scope for
-        # this whole port cycle) already raises NotImplementedError -- but only
-        # deep inside metapop_printer.__call__, after -m evaluations have already
-        # run, as an unhandled traceback rather than a clean, immediate failure.
-        # Gated at option-parse time instead, matching every other Phase-2 gate.
-        if self.output_deme_id:
-            raise NotImplementedError(
-                "--output-deme-id: scored_combo_tree carries no demeID_t/"
-                "get_demeID() (deme bookkeeping is out of scope for this whole "
-                "port cycle); leave --output-deme-id unset."
-            )
+        # `--output-deme-id` was gated here until 2026-09-10, accurately:
+        # `scored_combo_tree` carried no `demeID_t`/`get_demeID()`. It does
+        # now (types.py), `ostream_scored_combo_tree`'s arm prints it, and
+        # the two rebuild sites (merging.cc:279-280, domination.cc:304)
+        # carry the id across, so the flag reaches a real value.
 
     # ------------------------------------------------------------ helpers
 
