@@ -87,8 +87,8 @@ def test_call_matches_classic_end_to_end(golden, boolean_ctable, case_idx):
 
     assert sorted(top[0][1]) == case["selected"]
     assert len(top) == case["n_feature_sets"]
-    assert params.fs_params.target_size == case["effective_target_size"]
-    assert sorted(params.ignored_features) == case["ignored_features"]
+    assert fs.params.fs_params.target_size == case["effective_target_size"]
+    assert sorted(fs.params.ignored_features) == case["ignored_features"]
 
 
 @pytest.mark.oracle
@@ -120,7 +120,12 @@ def test_preprocess_params_bumps_target_size_by_exemplar_arity(boolean_ctable):
     params.fs_params.target_size = 5
     fs = feature_selector(boolean_ctable, params)
     fs.preprocess_params(str_to_combo_tree("and($1 $2 $3)"))
-    assert params.fs_params.target_size == 8
+    # `fs.params`, not `params`: C++'s `feature_selector_parameters
+    # params;` (feature_selector.h:196) is a by-value member, so the
+    # constructor COPIES and `preprocess_params`' in-place mutations never
+    # reach the caller's object.
+    assert fs.params.fs_params.target_size == 8
+    assert params.fs_params.target_size == 5
 
 
 def test_preprocess_params_does_not_bump_when_increase_target_size_is_false(boolean_ctable):
@@ -128,19 +133,23 @@ def test_preprocess_params_does_not_bump_when_increase_target_size_is_false(bool
     params.fs_params.target_size = 5
     fs = feature_selector(boolean_ctable, params)
     fs.preprocess_params(str_to_combo_tree("and($1 $2 $3)"))
-    assert params.fs_params.target_size == 5
+    assert fs.params.fs_params.target_size == 5
 
 
 def test_preprocess_params_ignored_features_tracks_ignore_xmplr_features(boolean_ctable):
     xmplr = str_to_combo_tree("and($1 $2)")
 
-    params_on = feature_selector_parameters(ignore_xmplr_features=True)
-    feature_selector(boolean_ctable, params_on).preprocess_params(xmplr)
-    assert params_on.ignored_features == {0, 1}
+    fs_on = feature_selector(
+        boolean_ctable, feature_selector_parameters(ignore_xmplr_features=True)
+    )
+    fs_on.preprocess_params(xmplr)
+    assert fs_on.params.ignored_features == {0, 1}
 
-    params_off = feature_selector_parameters(ignore_xmplr_features=False)
-    feature_selector(boolean_ctable, params_off).preprocess_params(xmplr)
-    assert params_off.ignored_features == set()
+    fs_off = feature_selector(
+        boolean_ctable, feature_selector_parameters(ignore_xmplr_features=False)
+    )
+    fs_off.preprocess_params(xmplr)
+    assert fs_off.params.ignored_features == set()
 
 
 def test_preprocess_params_init_xmplr_features_seeds_fs_params_and_forces_bump(boolean_ctable):
@@ -152,9 +161,12 @@ def test_preprocess_params_init_xmplr_features_seeds_fs_params_and_forces_bump(b
     params.fs_params.target_size = 1
     fs = feature_selector(boolean_ctable, params)
     fs.preprocess_params(str_to_combo_tree("and($1 $3)"))
-    assert params.fs_params.initial_features == ["x1", "x3"]  # ascending arg-index order
-    assert params.increase_target_size is True
-    assert params.fs_params.target_size == 3  # 1 + 2, the bump DID happen
+    assert fs.params.fs_params.initial_features == ["x1", "x3"]  # ascending arg-index order
+    assert fs.params.increase_target_size is True
+    assert fs.params.fs_params.target_size == 3  # 1 + 2, the bump DID happen
+    # The caller's own object is untouched -- the constructor copied it.
+    assert params.fs_params.initial_features == []
+    assert params.increase_target_size is False
 
 
 def test_preprocess_params_xmplr_as_feature_appends_synthetic_feature_name(boolean_ctable):
@@ -162,8 +174,8 @@ def test_preprocess_params_xmplr_as_feature_appends_synthetic_feature_name(boole
     params.fs_params.target_size = 1
     fs = feature_selector(boolean_ctable, params)
     fs.preprocess_params(str_to_combo_tree("$1"))
-    assert params.fs_params.initial_features == ["__exemplar_feature__"]
-    assert params.fs_params.target_size == 3  # +1 exemplar's own arg, +1 synthetic feature
+    assert fs.params.fs_params.initial_features == ["__exemplar_feature__"]
+    assert fs.params.fs_params.target_size == 3  # +1 exemplar's own arg, +1 synthetic feature
 
 
 # ---------------------------------------------------------------------------
@@ -399,3 +411,33 @@ def test_timed_counter_mode_single_entry_is_that_entrys_key(boolean_ctable):
 
     counter = Counter({builtin.logical_true: 1.0})
     assert _timed_counter_mode(counter) == builtin.logical_true
+
+
+def test_constructor_copies_its_parameters(boolean_ctable):
+    """`feature_selector_parameters params;` (feature_selector.h:196) is a
+    BY-VALUE member, so `params(festor_params)` (feature_selector.cc:51,55)
+    copies -- including the by-value `feature_selection_parameters
+    fs_params` (h:55), `ignored_features` and `enforce_features`. This port
+    aliased the caller's object until 2026-09-10, which let
+    `preprocess_params`' four in-place mutations reach back into whatever
+    built it -- on the real CLI path, into `problem_params.festor_params`
+    and through its reference-alias `problem_params.fs_params` as well.
+    Inert only because `deme_expander.create_representations` deep-copies
+    again before calling (deme_expander.cc:182); the copy belongs at both,
+    as it is in C++.
+    """
+    params = feature_selector_parameters()
+    params.fs_params.target_size = 7
+    params.enforce_features["x1"] = 0.5
+    fs = feature_selector(boolean_ctable, params)
+
+    assert fs.params is not params
+    assert fs.params.fs_params is not params.fs_params
+    assert fs.params.enforce_features is not params.enforce_features
+    assert fs.params.fs_params.target_size == 7
+    assert fs.params.enforce_features == {"x1": 0.5}
+
+    fs.params.fs_params.target_size = 99
+    fs.params.ignored_features.add(3)
+    assert params.fs_params.target_size == 7
+    assert params.ignored_features == set()

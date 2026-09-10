@@ -4,18 +4,22 @@
 exemplar ``combo_tree``, restricts (and optionally re-shapes) the scoring
 ``CTable`` around that exemplar's own predictions, then runs
 ``pymetta.feature_selection.main.feature_selection.select_feature_sets``
-(only ``algorithm="simple"`` is ported there) to pick a feature subset "good
+(all five of ``simple``, ``inc``, ``smd``, ``random`` and ``hc`` are ported
+there) to pick a feature subset "good
 when combined with the exemplar" (the class's own C++ doc comment,
 feature_selector.h:180-181).
 
 Scope narrowing vs. the 233+477-line C++ original:
 
-* ``log_stats_top_feature_sets`` (feature_selector.cc:256-291) is
-  logging-only (accumulator stats fed straight to ``logger().info()``,
-  nothing else observes them) -- NOT ported, matching the "no logging
-  surface in this port" convention ``deme_expander.py``'s own module
-  docstring already states for every other logger()-only routine in this
-  project.
+* ``log_stats_top_feature_sets`` (feature_selector.cc:250-293) is ported
+  down to its early return: the "Number of demes selected" record, then
+  ``if (1 == top_fs.size()) return;``. Everything past that return is a
+  Boost accumulator over pairwise ``mi``/``jaccard_index``, fed straight
+  to two ``logger().info()`` calls and observed by nothing -- and it is
+  UNREACHABLE in any run that survives, because ``top_fs`` larger than one
+  needs ``--fs-demes > 1``, which trips
+  ``deme_expander::log_selected_feature_sets``' own ``OC_ASSERT``
+  (deme_expander.cc:63) a few statements later. See that method's port.
 * ``remove_useless_features`` (feature_selector.h:211,
   feature_selector.cc:295-309) is declared and defined but has ZERO call
   sites anywhere in classic (confirmed by grep across the whole ``moses/``
@@ -48,6 +52,7 @@ Scope narrowing vs. the 233+477-line C++ original:
 
 from __future__ import annotations
 
+import copy
 import math
 
 from pymetta.comboreduct.combo.vertex import builtin, combo_tree, is_argument, vertex
@@ -330,7 +335,23 @@ class feature_selector:
         overload's own member-initializer ``_ctable(table.compressed())``
         exactly) before being stored.
         """
-        self.params = festor_params if festor_params is not None else feature_selector_parameters()
+        # `feature_selector_parameters params;` (feature_selector.h:196) is
+        # a BY-VALUE member, so `params(festor_params)` COPIES -- including
+        # its own by-value `feature_selection_parameters fs_params`
+        # (h:55), `ignored_features` and `enforce_features`. Storing the
+        # caller's object instead would let `preprocess_params`' four
+        # in-place mutations (`fs_params.target_size +=`,
+        # `initial_features.extend`, `ignored_features = ...`) reach back
+        # into whatever built it -- for the real CLI path, straight into
+        # `problem_params.festor_params`, and through its reference-alias
+        # `problem_params.fs_params` too. `deme_expander.
+        # create_representations` deep-copies again before calling
+        # (deme_expander.cc:182's own "Copy, as any change in the
+        # parameters will not be remembered"), which is what kept this
+        # inert; the copy belongs at both, as it is in C++.
+        self.params = copy.deepcopy(
+            festor_params if festor_params is not None else feature_selector_parameters()
+        )
         self._ctable: CTable = (
             ctable_or_table.compressed() if isinstance(ctable_or_table, Table) else ctable_or_table
         )
@@ -697,7 +718,7 @@ class feature_selector:
         return mi / denominator
 
     def sample_enforced_features(self) -> feature_set:
-        """C++: moses/moses/deme/feature_selector.cc:445
+        """C++: moses/moses/deme/feature_selector.cc:455
         feature_selector::sample_enforced_features
 
         "Sample a set of features randomly choosen given enforce_features,
@@ -749,6 +770,30 @@ class feature_selector:
             sf_pop = sf_pop[: self.params.diversity_cap]
 
         top_sfs = self.select_top_feature_sets(sf_pop)
-        # log_stats_top_feature_sets(top_sfs): NOT ported (logging-only,
-        # see module docstring).
+        self.log_stats_top_feature_sets(top_sfs)  # C++: feature_selector.cc:338
         return top_sfs
+
+    def log_stats_top_feature_sets(self, top_fs: feature_set_pop) -> None:
+        """C++: moses/moses/deme/feature_selector.cc:250
+        feature_selector::log_stats_top_feature_sets
+
+        Ported as far as C++'s own early return (cc:255-256, "There aren't
+        any stats, if there's just one feature set! (which is the case
+        when diversity is turned off)").
+
+        # DIVERGENCE(C++ moses/moses/deme/feature_selector.cc:258-292):
+        # the Boost accumulator block past that return -- count/mean/
+        # variance/min/max over the pairwise `mi`/`jaccard_index` of the
+        # selected feature sets, streamed into two `logger().info()` calls
+        # (cc:280,287) -- is not ported. It is observed by nothing, and it
+        # is unreachable in any run that survives: `top_fs` bigger than
+        # one requires `--fs-demes > 1`, and the very next thing
+        # `create_representations` does is call
+        # `deme_expander.log_selected_feature_sets`, whose
+        # `OC_ASSERT(sfps == _demeIDs.size())` (deme_expander.cc:63)
+        # aborts classic for exactly that case (measured: exit 134). So
+        # the records it would emit only ever precede a crash.
+        """
+        logger().info(f"Number of demes selected: {len(top_fs)}")
+        if len(top_fs) == 1:
+            return

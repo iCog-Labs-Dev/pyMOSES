@@ -518,6 +518,12 @@ class deme_expander:
         # against classic's binary on a real contin table.
 
         ignore_ops_seq: list[set] = []
+        # C++: deme_expander.cc:178. Built only to be streamed by the
+        # "Using arguments: " record at cc:281-282, and only in the
+        # `fstor` branch -- so it stays EMPTY on the default path, which
+        # is exactly what makes `if (!considered_args_seq.empty())`
+        # (cc:280) the gate C++ wrote it as.
+        considered_args_seq: list[set] = []
         xmplr_seq: list[combo_tree] = []
 
         if self._params.fstor is not None:
@@ -525,9 +531,8 @@ class deme_expander:
             festor = type(self._params.fstor)(self._params.fstor._ctable, copied_params)
             pop_of_selected_feats = festor(exemplar)
             xmplr_features = get_argument_abs_idx_from_zero_set(exemplar)
-            # C++: deme_expander.cc:193. Only ever read by the two debug
-            # records below (cc:227 via `fs_to_names`, plus the two inside
-            # the unported `log_selected_feature_sets`).
+            # C++: deme_expander.cc:193. Read by cc:227's `fs_to_names`
+            # call and by both of `log_selected_feature_sets`' own.
             ilabels = festor._ctable.get_input_labels()
 
             if festor.params.n_demes > 1:
@@ -600,13 +605,17 @@ class deme_expander:
                 arity = festor._ctable.get_arity()
                 ignore_cols: set[int] = set()
                 ignore_ops: set = set()
+                considered_args: set = set()
                 for i in range(arity):
                     arg = argument(i + 1)
                     if i not in selected_feats:
                         ignore_cols.add(i)
                         ignore_ops.add(arg)
+                    else:
+                        considered_args.add(arg)  # C++: cc:259-261
                 self._ignore_cols_seq.append(ignore_cols)
                 ignore_ops_seq.append(ignore_ops)
+                considered_args_seq.append(considered_args)
                 sfi += 1  # C++: deme_expander.cc:266
         else:  # no dynamic feature selection
             ignore_ops_seq.append(self._params.ignore_ops)
@@ -614,15 +623,28 @@ class deme_expander:
 
         for i in range(len(xmplr_seq)):
             if logger().is_debug_enabled():
-                # C++: deme_expander.cc:276-283. ONE guard around two records;
-                # the second, "Using arguments: " (cc:281-282), streams
-                # `considered_args_seq[i]`, a vector classic builds solely to
-                # feed it (cc:251,265 are its only other mentions) and which
-                # this port does not have -- see this module's own note.
+                # C++: deme_expander.cc:276-283. ONE guard around two
+                # records; the second is gated again on
+                # `!considered_args_seq.empty()`, i.e. emitted only on the
+                # `fstor` path.
                 logger().debug(
                     f"Attempt to build rep from exemplar for deme "
                     f"{self._demeIDs[i]} : {tree_to_stream_str(xmplr_seq[i])}"
                 )
+                if considered_args_seq:
+                    # `ostream_container`'s default delimiter is a single
+                    # space (opencog/util/iostreamContainer.h:64), and a
+                    # `vertex_set` is a `std::set<vertex>`, so the order
+                    # is `argument`'s own -- by ABSOLUTE VALUE, `-1, 1,
+                    # -2, 2, ...` (CARRY-FORWARD.md 4.4). Every element
+                    # here is a POSITIVE `argument(idx + 1)`, so sorting
+                    # by index IS that order.
+                    logger().debug(
+                        "Using arguments: "
+                        + " ".join(
+                            str(a) for a in sorted(considered_args_seq[i], key=lambda a: a.idx)
+                        )
+                    )
             rep = representation(
                 self.simplify_candidate,
                 self.simplify_knob_building,
