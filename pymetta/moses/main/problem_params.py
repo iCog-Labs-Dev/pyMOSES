@@ -123,18 +123,19 @@ source shows it is the subsystem's actual master switch
 (`filter_params.n_subsample_demes|n_subsample_fitnesses > 1` -- straight
 from the header's own "if 0 or 1 remains disactivated"/"Ignored is 0 r 1"
 comments, `enable_feature_selection`, `boosting`, `opt_algo != "hc"`,
-`time_bscore`, `time_dispersion_pressure`, `discretize_thresholds`
-non-empty, and non-local `--jobs`/`-j host:N`).
-Five options have come OFF this list:
+`discretize_thresholds` non-empty, and non-local `--jobs`/`-j host:N`).
+Seven options have come OFF this list:
 `diversity_pressure > 0` and `discard_dominated` when the P2
 metapopulation task ported `diversity.cc`/`domination.cc` for real
 (`0c1beda`/`f1c439f`); `contin_depth != 5` and `it_abs_err` when
-`it_table_problem.run`'s contin branch was wired (2026-09-09); and
+`it_table_problem.run`'s contin branch was wired (2026-09-09);
 `use_well_enough`, which was never a divergence at all -- classic accepts
 it, ignores it off the enum path, and produces byte-identical output, so
-gating it made this port REFUSE a command line classic runs. Each
-un-gating is proven end to end against classic's own binary; see the gate
-section's own comments.
+gating it made this port REFUSE a command line classic runs; and
+`time_bscore`/`time_dispersion_pressure` when the CTable grew real
+timestamps and `precision_bscore.do_score`'s two timestamp branches were
+ported (2026-09-10). Each un-gating is proven end to end against
+classic's own binary; see the gate section's own comments.
 Sub-options that are PROVABLY inert while their master switch stays at
 its default are never independently gated: `--diversity-autoscale`/
 `-exponent`/`-normalize`/`-dst`/`-p-norm`/`-dst2dp` (dead unless `pressure
@@ -966,32 +967,15 @@ class problem_params:
         # DIVERGENCE(C++ moses/moses/scoring/scoring_base.h/.cc
         # bscore_base::call_ensemble): `ensemble.py` (the AdaBoost/experts
         # engine itself) is fully ported (`370146c`) and `merging.py`
-        # calls `_ensemble.add_candidates` unconditionally on the
-        # `do_boosting=True` path -- but every concrete scorer this port
-        # has (`ctruth_table_bscore`, `logical_bscore`, `precision_bscore`)
-        # still inherits `bscore_base.call_ensemble`'s own raising base
-        # body rather than overriding it for real, exactly matching
-        # classic's OWN base-class shape (`OC_ASSERT(false, "Ensemble
-        # scoring not implemented for bscorer %s", ...)`,
-        # `scoring_base.cc:74-75`) -- just with no concrete override
-        # anywhere in this port yet (`ensemble.py`'s own module docstring,
-        # "Two REAL prerequisite gaps found"). Measured directly: with
-        # this gate removed, `-Hit --boost=1` raises "Ensemble scoring not
-        # implemented for bscorer ctruth_table_bscore"; `-Hpa --boost=1`
-        # raises a similarly-worded `bool_problem_base` gate citing the
-        # same missing `use_weighted_scores`/`reset_weights` override on
-        # `logical_bscore`. Kept gated here for the same reason as
-        # `--enable-fs` above: removing this check would not make
-        # `--boost` reach working behaviour, only move the raise deeper.
-        if self.boosting:
-            raise NotImplementedError(
-                "--boost: ensemble.py's AdaBoost/experts engine IS ported "
-                "(370146c), but no concrete scorer in this port "
-                "(ctruth_table_bscore/logical_bscore/precision_bscore) "
-                "overrides bscore_base.call_ensemble, so every real problem's "
-                "boosting path still raises deep inside the run; leave --boost "
-                "unset."
-            )
+        # `--boost` is NOT gated. It was, on the grounds that no concrete
+        # scorer overrode `bscore_base.call_ensemble`; `logical_bscore`
+        # now does (demo_problems.py), which is precisely the set of
+        # problems classic supports boosting on. On a TABLE problem
+        # classic itself aborts inside `bscore_base::get_error` ("bscore
+        # error not implemented for bscorer ... ctruth_table_bscore",
+        # scoring_base.cc:115) -- measured, exit 134 -- and this port
+        # raises there for the same reason, so the behaviours agree
+        # without a gate here.
         # `discard_dominated` is REAL now (P2 metapopulation task,
         # `f1c439f` ports domination.cc; merging.py's merge_candidates/
         # merge_demes both call the real get_nondominated_disjoint/
@@ -1055,34 +1039,25 @@ class problem_params:
         # whose absence was the gate's other stated reason), and
         # `--it-abs-err` now reaches `contin_bscore`'s err-function
         # selector through `it_table_problem.run`.
-        if self.time_bscore:
-            raise NotImplementedError(
-                "--time-bscore: the time-spread bscore variant is not ported."
-            )
-        # DIVERGENCE(C++ moses/moses/scoring/time_dispersion.cc:76
-        # get_time_dispersion_penalty): the penalty MATH itself is fully
-        # ported and independently tested (`time_dispersion.py`) -- what is
-        # NOT ported, and per that module's own docstring CANNOT be ported
-        # without a whole-project architecture change, is a real
-        # per-observation timestamp: this port's `CTable` carries no
-        # timestamp field at all (a permanent, already-decided scope
-        # boundary, `table.py`'s own module docstring), so
-        # `precision_bscore.do_score` -- the one real caller wired to this
-        # flag (`table_problems.py:630-631` passes `pms.time_dispersion_
-        # pressure`/`exponent` into it) -- raises `NotImplementedError`
-        # itself whenever `dispersion_pressure > 0.0`, citing exactly this.
-        # "the temporal dispersion penalty is not ported" (the prior
-        # message) was therefore imprecise about WHICH part is missing.
-        if self.time_dispersion_pressure != 0.0:
-            raise NotImplementedError(
-                "--time-dispersion-pressure > 0: get_time_dispersion_penalty's "
-                "math IS ported and tested (time_dispersion.py), but its real "
-                "caller (precision_bscore.do_score) needs a per-observation "
-                "timestamp this port's CTable can never supply (a permanent, "
-                "whole-project scope boundary, not a TODO -- see "
-                "time_dispersion.py's own module docstring); leave "
-                "--time-dispersion-pressure unset."
-            )
+        # `--time-bscore` and `--time-dispersion-pressure` were BOTH gated
+        # here until 2026-09-10, on the grounds that this port's `CTable`
+        # carried no timestamp field at all and so `precision_bscore.
+        # do_score`'s two timestamp branches (precision_bscore.cc:242-263)
+        # could not be reached. That is no longer true: `TTable`/
+        # `TimedValue`/`TimedCounter`/`CTableTime` are ported (`table.py`),
+        # `loadTable` fills `Table.ttable` from `--timestamp-feature`,
+        # `Table.compressed` keys each observation on `TimedValue`,
+        # `scoring_base._copy_ctable` now copies each cell through its own
+        # `.copy()` instead of flattening it to a plain `Counter`, and both
+        # branches of `do_score` are ported. Both gates are gone.
+        #
+        # `--time-dispersion-pressure` reaches genuinely undefined
+        # behaviour in classic on most timestamped tables -- see
+        # `precision_bscore.do_score`'s own DIVERGENCE marker, which
+        # records the measured SIGSEGV and what this port prints instead.
+        # The flag is still accepted here, because refusing it would make
+        # the port reject an input classic accepts, which is the thing
+        # this whole check exists to avoid.
         # `--well-enough` is deliberately NOT gated. It was, until
         # 2026-09-09, and that was an over-gate: measured, classic accepts
         # `--well-enough=1` on a boolean table, exits 0, and prints output
