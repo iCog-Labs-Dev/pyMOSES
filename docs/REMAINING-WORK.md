@@ -307,9 +307,34 @@ mention them.
 
 ### 5. Decisions someone must make (not code)
 
-1. **Is the action domain in scope?** This document and `MODULE-COVERAGE.md`
-   both say the port's domains are "Boolean, continuous and action", but the
-   code has already taken the excluding reading everywhere:
+1. **Is the action domain in scope? — SETTLED 2026-09-10 BY MEASUREMENT: no,
+   and the code was right.** `moses` itself cannot run an action-domain
+   problem. `alphabet_size` (`problem.cc:184-196`) lists `action_result_type`
+   among the types that fall through to `log_output_error_exit`, and driving
+   classic's own binary confirms it:
+
+       moses -Hcp -y 'and_seq($1 action_success)' -m200 -W1
+       moses -Hcp -y 'action_boolean_if($1 action_success action_failure)' ...
+       moses -Hcp -y 'and_seq($1 $2)' ...
+         -> all three: AssertionException, rc 134,
+            'Error: type "action_result" not supported'
+
+   No `-H` problem can produce action output either: the table problems force
+   `boolean_type` or infer from a CSV, and a CSV cannot hold an action value.
+   The action domain in classic lives only in the embodiment code
+   (`ant_combo_vocabulary`, reached by `AntUTest`), which this project's own
+   CLAUDE.md already flags as legacy -- `ActionReductUTest` and
+   `PerceptionReductUTest` are commented out of the build.
+
+   So the four code sites below are FAITHFUL, and what needs correcting is the
+   PROSE in this document and `MODULE-COVERAGE.md` claiming action is a
+   supported domain. The port refuses these programs too, at a different point
+   (its combo parser, `ValueError`, rc 1, rather than type inference) -- worth
+   a marker if anyone cares, but the observable contract is the same: neither
+   binary runs an action program.
+
+   The original wording, for the record -- the code sites it lists are all
+   still there and are all now known to be correct:
    `deme_expander.py:311` raises for perceptions/actions,
    `general_rules.py:112-119` hard-codes `is_action_result` to `False`,
    `complexity.py:79` lists `action_result_type` among types never seen, and
