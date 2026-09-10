@@ -487,6 +487,17 @@ def test_hc_allow_resize_deme_is_a_deprecated_alias_for_the_same_dest():
         # asserted: the boolean itself, and (below) the six
         # `festor_params` fields `--fs-seed`/`--fs-focus` write.
         (["--enable-fs", "1"], "enable_feature_selection", True),
+        # Un-gated 2026-09-10 with the CTable's real timestamps and
+        # `precision_bscore.do_score`'s two timestamp branches
+        # (precision_bscore.cc:242-263). See
+        # tests/moses/main/test_time_bscore_cli.py for the byte-for-byte
+        # oracle against classic's own binary.
+        (["--time-bscore", "1"], "time_bscore", True),
+        (
+            ["--time-dispersion-pressure", "0.1"],
+            "time_dispersion_pressure",
+            pytest.approx(0.1),
+        ),
     ],
 )
 def test_supported_non_default_option_applies_and_does_not_raise(argv, path, expected):
@@ -565,8 +576,15 @@ def test_contin_depth_reaches_representations_module_static():
         # `it_table_problem.run`'s contin branch was wired (2026-09-09).
         # See test_supported_non_default_option_applies_and_does_not_raise's
         # own two rows for both.
-        ["--time-bscore", "1"],
-        ["--time-dispersion-pressure", "0.1"],
+        # NOTE: --time-bscore and --time-dispersion-pressure are
+        # DELIBERATELY ABSENT -- both were gated on the grounds that this
+        # port's CTable carried no per-observation timestamp, which stopped
+        # being true when TTable/TimedValue/TimedCounter/CTableTime landed
+        # and `precision_bscore.do_score`'s two timestamp branches were
+        # ported (2026-09-10). See
+        # test_supported_non_default_option_applies_and_does_not_raise's own
+        # two rows, and tests/moses/main/test_time_bscore_cli.py for the
+        # byte-for-byte oracle.
         ["--jobs", "2:otherhost"],
         ["-t", "1"],
         ["--output-bscore", "1"],
@@ -582,10 +600,8 @@ def test_unsupported_option_raises(argv):
     [
         (["--boost", "1"], "AdaBoost/experts engine IS ported"),
         (["--ss-n-subsample-demes", "2"], "subsample.cc port"),
-        (
-            ["--time-dispersion-pressure", "0.1"],
-            "get_time_dispersion_penalty's math IS ported and tested",
-        ),
+        # --time-dispersion-pressure's row is gone: the gate itself is gone
+        # (2026-09-10), so there is no message left to pin.
     ],
 )
 def test_still_gated_option_message_names_what_is_actually_ported(argv, must_contain):
