@@ -1,20 +1,27 @@
 {
   "capture_script": "tools/capture_scorers.py",
-  "capture_script_sha256": "d7d6bea090a96a0e02171ce4c0ea517515b4d122b83363f7e63ac53377ed3cbe",
+  "capture_script_sha256": "fde31dc148d2e0619008d43fd606f090ec8a2ed99203bd142f56377766f49fda",
   "classic_dir": "/home/yab/Documents/Projects/iCog/HyperonRelated/MOSES/OpenCog/Moses",
   "cli_tool": null,
-  "generated_at_utc": "2026-09-08T19:45:32+00:00",
+  "generated_at_utc": "2026-09-10T18:56:27+00:00",
   "inputs": {
     "n_discriminating_cases": 14,
+    "n_powf_cases": 26,
     "n_precision_cases": 5,
     "n_select_cases": 4,
-    "n_time_dispersion_cases": 8,
+    "n_time_dispersion_cases": 12,
     "select_regression_csv": "tests/fixtures/table_data/select_regression.csv"
   },
   "prefix_dir": "/home/yab/opt/moses-legacy",
   "probe_kind": "cpp_probe",
   "probe_source": "tools/cpp_probe/scorers_probe.cc",
-  "probe_source_sha256": "ef067557da46d7405cac6e78bb1d2764a8becd5063747a758f8848cd8688a3d2",
-  "repo_commit": "9e918d77d93ea9ba81b8172adeba88a3398161c8",
-  "schema_version": 1
+  "probe_source_sha256": "a8a6161c514b9ca19c7f0963755a1bc9b4dc347130ebf55efb78cfbec952186c",
+  "repo_commit": "53eb519d81f411c3c496603b84bc4717654bfbbb",
+  "schema_version": 2,
+  "toolchain": {
+    "boost_lib_version": "1_92",
+    "cxx": "g++ (GCC) 16.2.1 20260810",
+    "glibcxx_max_symbol": "GLIBCXX_3.4.36",
+    "libstdcxx_soname": "libstdc++.so.6.0.36"
+  }
 }

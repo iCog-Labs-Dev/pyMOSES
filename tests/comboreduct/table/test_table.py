@@ -137,10 +137,7 @@ def test_EnumTableLabels(tmp_path):
     expected = Table(ot, it)
     table = _load(
         tmp_path,
-        "happiness,price,temperature,truth\n"
-        "sad,1,1,0\n"
-        "bored,0.44,244.2,T\n"
-        "super-happy,9.5,4.2,F\n",
+        "happiness,price,temperature,truth\nsad,1,1,0\nbored,0.44,244.2,T\nsuper-happy,9.5,4.2,F\n",
     )
     assert table == expected
 
@@ -259,10 +256,7 @@ def test_ignore_col_complicated(tmp_path):
 
     table = _load(
         tmp_path,
-        "happiness,price,temperature,truth\n"
-        "sad,1,1,0\n"
-        "bored,0.44,244.2,T\n"
-        "super-happy,9.5,4.2,F\n",
+        "happiness,price,temperature,truth\nsad,1,1,0\nbored,0.44,244.2,T\nsuper-happy,9.5,4.2,F\n",
         "price",
         "",
         ("temperature",),
@@ -403,9 +397,10 @@ def test_ctable_has_the_timestamp_surface(tmp_path):
 
     # ... and the observation list underneath it, which is where the two
     # 2012 dates survive separately.
-    assert {
-        (tv.value, tv.timestamp): c for tv, c in ctable[(6.0,)].timed_items()
-    } == {(12.0, date(2012, 1, 11)): 1.0, (12.0, date(2012, 2, 18)): 1.0}
+    assert {(tv.value, tv.timestamp): c for tv, c in ctable[(6.0,)].timed_items()} == {
+        (12.0, date(2012, 1, 11)): 1.0,
+        (12.0, date(2012, 2, 18)): 1.0,
+    }
     assert ctable[(6.0,)].timed_len() == 2
     assert len(ctable[(6.0,)]) == 1  # one distinct VALUE, two observations
 
@@ -832,3 +827,75 @@ def test_otable_from_combo_tree_rejects_a_non_itable_second_argument():
 
     with pytest.raises(TypeError, match="must be an ITable"):
         OTable(str_to_combo_tree("+(6 $1)"), "not an itable")
+
+
+# ---------------------------------------------------------------------------
+# timed_items_of -- the (TimedValue, count) view precision_bscore reads
+# ---------------------------------------------------------------------------
+
+
+def test_timed_items_of_a_real_cell_yields_every_observation_with_its_date():
+    """`timed_items_of` stands in for C++'s
+    `for (const CTable::counter_t::value_type& tcv : orow)`
+    (precision_bscore.cc:243). Unlike `timed_keys_of` it carries the COUNT
+    too, which both of `do_score`'s timestamp branches need.
+
+    Iterating the cell itself would give the UNTIMED view (this port's
+    documented divergence, `TimedCounter`'s class docstring), collapsing the
+    two dated observations of the same vertex into one entry -- so a
+    faithful reading has to go through this function.
+    """
+    from pymetta.comboreduct.table.table import TimedCounter, timed_items_of
+
+    cell = TimedCounter()
+    cell.add(T, date(2012, 1, 3), 1.0)
+    cell.add(T, date(2012, 1, 11), 2.0)
+    cell.add(F, date(2012, 1, 3), 4.0)
+
+    items = list(timed_items_of(cell))
+    assert [(tv.value, tv.timestamp, c) for tv, c in items] == [
+        (T, date(2012, 1, 3), 1.0),
+        (T, date(2012, 1, 11), 2.0),
+        (F, date(2012, 1, 3), 4.0),
+    ]
+    # The untimed mapping view really does lose the split, which is why
+    # this function exists rather than plain iteration.
+    assert dict(cell) == {T: 3.0, F: 4.0}
+
+
+def test_timed_items_of_tolerates_a_plain_counter_cell():
+    """A hand-built test table can hold a plain `collections.Counter`.
+    Such a cell is semantically a `TimedCounter` all of whose observations
+    carry the not-a-date sentinel -- what `Table::compressed` builds for an
+    untimestamped table (table.cc:513) -- so it is presented as one rather
+    than raising `AttributeError`.
+    """
+    from pymetta.comboreduct.table.table import timed_items_of
+
+    items = list(timed_items_of(Counter({T: 2.0, F: 5.0})))
+    assert [(tv.value, tv.timestamp, c) for tv, c in items] == [
+        (T, None, 2.0),
+        (F, None, 5.0),
+    ]
+
+
+def test_ctable_cell_copy_keeps_every_observation():
+    """`TimedCounter.copy()` is C++'s `std::map` copy constructor -- the one
+    `CTable`'s own copy constructor invokes per cell, and the one
+    `scoring_base._copy_ctable` now uses. Rebuilding the cell from the
+    untimed view instead (`Counter(cell)`, which is what it used to do)
+    silently drops every timestamp.
+    """
+    from pymetta.comboreduct.table.table import TimedCounter
+
+    cell = TimedCounter()
+    cell.add(T, date(2012, 1, 3), 1.0)
+    cell.add(T, date(2012, 1, 11), 2.0)
+
+    clone = cell.copy()
+    assert clone is not cell
+    assert clone.timed_len() == 2
+    assert {tv.timestamp for tv in clone.timed_keys()} == {date(2012, 1, 3), date(2012, 1, 11)}
+    # ... whereas the flattening rebuild keeps only one, sentinel-dated
+    # observation, which is the regression this pins.
+    assert Counter(cell) == {T: 3.0}

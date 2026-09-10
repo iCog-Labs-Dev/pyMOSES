@@ -5,8 +5,8 @@ Ports `precision_bscore` (the `-H pre` problem's scorer) and
 registered name has a HYPHEN, table-problems.h:134; `-Hpre_conj` names
 nothing in classic's registry and is refused there and here alike).
 
-## Scope: the boolean, non-time, non-boosting path -- exactly what the
-## registered `-H pre` problem actually constructs
+## Scope: the boolean, non-boosting path -- exactly what the registered
+## `-H pre` problem actually constructs
 
 `table-problems.cc`'s `pre_table_problem::run()` calls `common_type_setup
 (pms, id::boolean_type)` UNCONDITIONALLY before constructing
@@ -17,17 +17,18 @@ boolean regression and contin regression..."), the constructor's own
 problem's forced boolean setup together mean the contin path the header
 describes is UNREACHABLE from the one place this class is actually wired
 up in classic. This port therefore targets exactly the boolean,
-non-`time_bscore`, non-boosting path -- the reachable one -- and raises
-clear, EARLY gates for everything else, rather than letting an
-unavailable dependency fail deep inside a loop:
+non-boosting path -- the reachable one -- and raises a clear, EARLY gate
+for the rest:
 
-* `time_bscore=True` or `dispersion_pressure > 0.0`: both require a REAL
-  per-observation timestamp (`time2res[tcv.first.timestamp]`/
+* `time_bscore=True` (`--time-bscore`) and `dispersion_pressure > 0.0`
+  (`--time-dispersion-pressure`) ARE ported: both read the
+  per-observation timestamp (`time2res[tcv.first.timestamp]` /
   `get_timestamp_class(tcv.first.timestamp)`, precision_bscore.cc:242-263)
-  that this port's CTable can never supply -- see time_dispersion.py's own
-  module docstring for the whole-project reason. `do_score` raises
-  `NotImplementedError` up front if either is set, rather than failing
-  with an `AttributeError` deep inside its own row loop.
+  that this port's `CTable` now carries -- see table.py's `TimedCounter`
+  and time_dispersion.py's module docstring. The dispersion branch builds
+  a `ctable_res` whose single cell is keyed by `TimedValue`, so it inherits
+  classic's `TimedValue::operator<` UB in full; see `do_score`'s own
+  DIVERGENCE marker for what a user observes.
 * Ensemble/boosting scoring (`operator()(const scored_combo_tree_set&)`,
   `exact_selection`, `bias_selection`, `get_error(const combo_tree&)`,
   `reset_weights`/`update_weights`): all boosting-only, out of scope for
@@ -41,6 +42,7 @@ unavailable dependency fail deep inside a loop:
 """
 
 import math
+from functools import cmp_to_key
 
 from pymetta.comboreduct.combo.vertex import (
     argument,
@@ -49,9 +51,16 @@ from pymetta.comboreduct.combo.vertex import (
     combo_tree,
     negate_vertex,
     vertex_equal,
+    vertex_to_bool,
 )
 from pymetta.comboreduct.interpreter.interpreter import interpreter_visitor
-from pymetta.comboreduct.table.table import CTable, type_node
+from pymetta.comboreduct.table.table import (
+    CTable,
+    TimedCounter,
+    timed_items_of,
+    timestamp_less,
+    type_node,
+)
 from pymetta.moses.moses.types import _to_score_t, behavioral_score, score_t, very_worst_score
 from pymetta.moses.scoring.scoring_base import _ieee_div, bscore_base, discrete_complexity_coef
 from pymetta.moses.scoring.time_dispersion import TemporalGranularity, bscore_ctable_time_dispersion
@@ -174,24 +183,86 @@ class precision_bscore(bscore_ctable_time_dispersion):
         `sao`/`active` are `score_t` ACCUMULATORS narrowed on every `+=`,
         same "real float32 member" pattern as `discriminator.count`'s own
         docstring.
-        """
-        if self.time_bscore:
-            raise NotImplementedError(
-                "precision_bscore.do_score: time_bscore=True requires a real "
-                "per-observation timestamp this port's CTable cannot supply -- "
-                "see time_dispersion.py's own module docstring"
-            )
-        if self._pressure > 0.0:
-            raise NotImplementedError(
-                "precision_bscore.do_score: dispersion_pressure > 0.0 requires "
-                "get_timestamp_class, which is unreachable in this port -- "
-                "see time_dispersion.py's own module docstring"
-            )
 
+        ## The two timestamp branches
+
+        `time_bscore` (precision_bscore.cc:242-248, :266-275) replaces the
+        per-ROW bscore with a per-TIMESTAMP one: `time2res` is a
+        `std::map<TTable::value_type, Counter<bool, count_t>>` keyed on the
+        raw observation date (NOT the granularity class -- the two branches
+        differ there, and only the dispersion branch calls
+        `get_timestamp_class`). Its key is a plain
+        `boost::gregorian::date`, whose `operator<` IS a total order, so
+        that map's iteration order is well defined and OBSERVABLE: it
+        decides the order of the emitted bscore components. Reproduced by
+        sorting on `timestamp_less` (table.py) on the way out.
+
+        Note `count_t count = selected ? tcv.second : 0.0;`
+        (precision_bscore.cc:246) still WRITES the zero, so an unselected
+        row's timestamp gets a bucket -- the bscore has one component per
+        distinct timestamp in the table, not per SELECTED timestamp. The
+        `+= 0.0` is load-bearing, not a no-op.
+
+        `_pressure > 0.0` (precision_bscore.cc:255-263, :340-345) builds a
+        one-cell `CTable` of results, keyed on `TimedValue(logical_true or
+        logical_false, get_timestamp_class(timestamp))`, and feeds
+        `ordered_by_time()` of it to `get_time_dispersion_penalty`
+        (time_dispersion.py). `CTable::key_type dummy_input;` is a
+        default-constructed `multi_type_seq` (`()` here), so EVERY row of
+        the real table accumulates into that single cell.
+
+        # DIVERGENCE(C++ moses/moses/scoring/precision_bscore.cc:261): that
+        # single cell is a `TimedCounter`, so `ctable_res` is a second live
+        # instance of classic's `TimedValue::operator<` UB -- see
+        # `TimedCounter`'s class docstring (table.py) for the measured
+        # behaviour of the comparator and this port's decision to compute
+        # the INTENDED result instead. Here the observed pool is exactly the
+        # one that probe measures: two vertices (`logical_true` for a
+        # selected row, `logical_false` for an unselected one) crossed with
+        # the table's timestamp classes. Because `selected` varies per
+        # candidate, whether the value order and the date order conflict
+        # varies per candidate too, so the corruption is not a property of
+        # the dataset alone.
+        #
+        # What a user observes, MEASURED 2026-09-10 with
+        # `-Hpre -q0.5 -w1.0 --timestamp-feature=when
+        # --time-dispersion-pressure=0.5 -m300 -W1 -r1`:
+        #   * tests/fixtures/table_data/timestamp_bool_clean.csv -- classic
+        #     SIGSEGVs (rc 139, core dumped, no diagnostic), at every one of
+        #     -m100/-m300/-m1000 crossed with -r1/-r7/-r42. gdb puts the
+        #     fault in `representation::get_candidate_rec`'s tree-node
+        #     allocation, NOT in any timestamp code: the corrupted
+        #     red-black tree damages the heap and an unrelated later
+        #     allocation is what dies. This port completes, printing a full
+        #     10-candidate listing headed
+        #     `0.884651064872741699 !$i1`.
+        #   * timestamp_bool_dup.csv -- classic completes, printing the one
+        #     line `0.632471561431884766 true`; this port prints a
+        #     10-candidate listing headed `0.981214404106140137 !$i2`,
+        #     differing for the SAME reason the UN-flagged run on that file
+        #     already differs (its CTable cell is corrupted before scoring
+        #     ever starts, so this is not a new divergence).
+        # Adding `--time-bscore-granularity=month` to either case collapses
+        # every date into one class, which removes the conflict and makes
+        # classic well defined again: both then print `nan true`
+        # (Hmax = log2(1) == 0, so the penalty divides by zero -- and see
+        # `_powf`, time_dispersion.py, for why that NaN prints POSITIVE).
+        #
+        # An UNtimestamped table is the other conflict-free family, and
+        # there this port is byte-identical to classic: measured over 7
+        # datasets x {-m300, -m1000} x {-r1, -r5} x 7 flag combinations,
+        # 168/168 identical (tests/moses/main/test_time_bscore_cli.py).
+        """
         bs: behavioral_score = []
         ac: behavioral_score = []
         active: score_t = 0.0
         sao: score_t = 0.0
+
+        # C++: precision_bscore.cc:225-226. `time2res` is only read when
+        # `time_bscore`, `ctable_res` only when `_pressure > 0.0`, but both
+        # are declared unconditionally there and cost nothing empty here.
+        time2res: dict = {}
+        ctable_res = CTable()
 
         for row, counter in self._wrk_ctable.items():
             sumo: score_t = 0.0
@@ -203,8 +274,44 @@ class precision_bscore(bscore_ctable_time_dispersion):
                 acto = _to_score_t(sum(counter.values()))
                 active = _to_score_t(active + acto)
 
-            bs.append(sumo)
-            ac.append(acto)
+            if self.time_bscore:
+                # C++: precision_bscore.cc:242-248
+                for tv, count in timed_items_of(counter):
+                    target = vertex_to_bool(tv.value)
+                    if not self.positive:
+                        target = not target
+                    count = count if selected else 0.0
+                    bucket = time2res.setdefault(tv.timestamp, {})
+                    bucket[target] = bucket.get(target, 0.0) + count
+            else:
+                bs.append(sumo)
+                ac.append(acto)
+
+            # C++: precision_bscore.cc:254-263, "Build CTable of results"
+            if self._pressure > 0.0:
+                dummy_input: tuple = ()
+                for tv, count in timed_items_of(counter):
+                    tclass = self.get_timestamp_class(tv.timestamp)
+                    result = builtin.logical_true if selected else builtin.logical_false
+                    cell = ctable_res.get(dummy_input)
+                    if cell is None:
+                        cell = TimedCounter()
+                        ctable_res[dummy_input] = cell
+                    cell.add(result, tclass, count)
+
+        # C++: precision_bscore.cc:266-275, "Fill un-normalized bscore
+        # spread over the temporal axis". `std::map` order, so ascending
+        # date with the not-a-date sentinel last (`timestamp_less`).
+        if self.time_bscore:
+            ordered = sorted(
+                time2res, key=cmp_to_key(lambda a, b: -1 if timestamp_less(a, b) else 1)
+            )
+            for timestamp in ordered:
+                counts = time2res[timestamp]
+                tp = counts.get(True, 0.0)
+                fp = counts.get(False, 0.0)
+                bs.append(_to_score_t(0.5 * (tp - fp)))
+                ac.append(_to_score_t(tp + fp))
 
         if self._return_weighted_score:
             # Unreachable in this port -- see module docstring.
@@ -224,6 +331,12 @@ class precision_bscore(bscore_ctable_time_dispersion):
             activation = _to_score_t(_ieee_div(active, self._ctable_weight))
             activation_penalty = self.get_activation_penalty(activation)
             bs.append(activation_penalty)
+
+            # C++: precision_bscore.cc:339-345, "Add time dispersion
+            # penalty" -- appended AFTER the activation penalty, and only
+            # on the non-boosting path.
+            if self._pressure > 0.0:
+                bs.append(self.get_time_dispersion_penalty(ctable_res.ordered_by_time()))
 
         return bs
 

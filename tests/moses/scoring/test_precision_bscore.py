@@ -9,13 +9,15 @@ Differential oracle against:
   tools/capture_scorers.py from tools/cpp_probe/scorers_probe.cc's
   `precision` mode).
 
-Plus direct unit/boundary/mutation-proof tests for the out-of-scope gates
-(time_bscore, dispersion_pressure>0.0, ensemble scoring) and the -inf/NaN
-handling in get_activation_penalty.
+Plus direct unit/boundary/mutation-proof tests for `do_score`'s two
+timestamp branches (`time_bscore` and `dispersion_pressure > 0.0`), the
+still-out-of-scope ensemble gate, and the -inf/NaN handling in
+get_activation_penalty.
 """
 
 import json
 import math
+from datetime import date
 from pathlib import Path
 
 import pytest
@@ -24,6 +26,7 @@ from pymetta.comboreduct.combo.iostream_combo import str_to_combo_tree
 from pymetta.comboreduct.table.table_io import loadTable
 from pymetta.moses.moses.types import _to_score_t, scored_combo_tree_set
 from pymetta.moses.scoring.precision_bscore import precision_bscore, precision_conj_bscore
+from pymetta.moses.scoring.time_dispersion import TemporalGranularity
 
 _FIXTURE_DIR = Path(__file__).resolve().parents[2] / "fixtures"
 _CASES = json.loads((_FIXTURE_DIR / "scorers.json").read_text())["precision"]
@@ -130,37 +133,240 @@ def test_precision_bscore_matches_cpp_probe(case_name):
 
 
 # ---------------------------------------------------------------------------
-# Out-of-scope gates: time_bscore / dispersion_pressure / ensemble scoring
+# The two timestamp branches of do_score (precision_bscore.cc:242-263)
 # ---------------------------------------------------------------------------
 
-
-def test_time_bscore_raises_early():
-    table = loadTable(str(_PRECISION_CSV), "target")
-    ct = table.compressed()
-    bsc = precision_bscore(ct, time_bscore=True)
-    tr = str_to_combo_tree("$1")
-    with pytest.raises(NotImplementedError, match="time_bscore"):
-        bsc(tr)
+_CLEAN_CSV = _TABLE_DATA_DIR / "timestamp_bool_clean.csv"
 
 
-def test_dispersion_pressure_raises_early():
-    table = loadTable(str(_PRECISION_CSV), "target")
-    ct = table.compressed()
-    bsc = precision_bscore(ct, dispersion_pressure=0.5)
-    tr = str_to_combo_tree("$1")
-    with pytest.raises(NotImplementedError, match="dispersion_pressure"):
-        bsc(tr)
+def _timed_ctable(name: str = "timestamp_bool_clean.csv"):
+    """A CTable with REAL per-observation timestamps.
 
-
-def test_dispersion_pressure_zero_does_not_raise():
-    """Boundary: `dispersion_pressure` EXACTLY `0.0` (the default) must
-    NOT trip the gate -- only a strictly positive value does.
+    `timestamp_bool_clean.csv` was built so that every compressed row's
+    observations are ordered consistently under classic's own
+    `TimedValue::operator<` (all `true` observations dated before all
+    `false` ones), which is what makes classic's `std::map` well defined on
+    it -- see `TimedCounter`'s class docstring (table.py). Rows agree on
+    inputs and output and differ only in date, which is exactly what makes
+    it discriminate.
     """
-    table = loadTable(str(_PRECISION_CSV), "target")
-    ct = table.compressed()
-    bsc = precision_bscore(ct, dispersion_pressure=0.0)
-    tr = str_to_combo_tree("$1")
-    bsc(tr)  # must not raise
+    table = loadTable(str(_TABLE_DATA_DIR / name), target_feature="y", timestamp_feature="when")
+    return table.compressed()
+
+
+def test_wrk_ctable_keeps_the_timestamps_the_loader_parsed():
+    """`bscore_ctable_base.__init__` copies the CTable through
+    `scoring_base._copy_ctable`, which used to rebuild each cell as a plain
+    `collections.Counter` -- flattening the `TimedValue` keys and losing
+    every timestamp. `do_score`'s two timestamp branches read `_wrk_ctable`,
+    not `_orig_ctable`, so that copy is on the critical path.
+
+    Mutation-checked: restoring `new[row] = Counter(counter)` in
+    `_copy_ctable` makes this test and both branch tests below fail.
+    """
+    ct = _timed_ctable()
+    bsc = precision_bscore(ct, dispersion_pressure=0.5)
+    assert ct.get_timestamps() == {date(2012, 1, 3), date(2012, 1, 11), date(2012, 1, 19)}
+    assert bsc._wrk_ctable.get_timestamps() == ct.get_timestamps()
+    # _Hmax is log2(3) only because the copy kept all three classes.
+    assert bsc._Hmax == _to_score_t(math.log2(3))
+
+
+def test_time_bscore_spreads_the_bscore_over_timestamps_in_date_order():
+    """`time_bscore` replaces the per-ROW components with one per DISTINCT
+    TIMESTAMP, in `std::map<date, ...>` order (ascending), then keeps the
+    trailing 0.5 and activation-penalty components
+    (precision_bscore.cc:266-275).
+
+    On `timestamp_bool_clean.csv` `or(!$i1 $i2)` selects rows (0,0), (0,1)
+    and (1,1) -- 7 of the 9 observations, so `active == 7`. Per date, the
+    (tp, fp) counts over SELECTED rows are 2012-01-03 -> (3, 0),
+    2012-01-11 -> (2, 0), 2012-01-19 -> (0, 2), so the raw components are
+    1.5, 1.0 and -1.0, each normalised by `iac == 1/7`.
+    """
+    ct = _timed_ctable()
+    plain = precision_bscore(ct)
+    timed = precision_bscore(ct, time_bscore=True)
+    tr = str_to_combo_tree("or(!$1 $2)")
+
+    bs_plain = plain(tr)
+    bs_timed = timed(tr)
+
+    # 4 compressed rows + 0.5 + activation penalty, vs 3 dates + the same 2.
+    assert len(bs_plain) == 6
+    assert len(bs_timed) == 5
+    iac = _to_score_t(1.0 / 7.0)
+    assert bs_timed[:3] == [
+        _to_score_t(_to_score_t(1.5) * iac),
+        _to_score_t(_to_score_t(1.0) * iac),
+        _to_score_t(_to_score_t(-1.0) * iac),
+    ]
+    assert bs_timed[3] == 0.5
+    assert bs_timed[4] == bs_plain[5]
+    # The two must not sum to different totals: the time-spread bscore is a
+    # regrouping of the same per-observation contributions.
+    assert sum(bs_plain) == pytest.approx(sum(bs_timed), abs=1e-6)
+
+
+def test_time_bscore_components_are_in_ascending_date_order_not_encounter_order():
+    """`time2res` is a `std::map<TTable::value_type, ...>`
+    (precision_bscore.cc:225), so its iteration -- and hence the order of
+    the emitted bscore components -- is ascending by DATE, not by the order
+    the rows happened to introduce each date.
+
+    `timestamp_bool_desc.csv` exists for exactly this: its first compressed
+    row lists 2012-03-09, then 2012-02-07, then 2012-01-05, so the
+    encounter order is the REVERSE of the date order. Every other
+    timestamped corpus here encounters dates ascending, which makes the two
+    orders coincide -- and a mutation that emitted encounter order survived
+    the whole suite until this test was added.
+
+    With `true` every row is selected (9 observations, `active == 9`):
+    2012-01-05 has 4 true and 0 false, 2012-02-07 has 2 and 0, 2012-03-09
+    has 0 and 3 -- so ascending gives 2.0, 1.0, -1.5 over `iac == 1/9`,
+    while encounter order would put -1.5 first.
+    """
+    ct = _timed_ctable("timestamp_bool_desc.csv")
+    encountered = []
+    for counter in ct.values():
+        for tv in counter.timed_keys():
+            if tv.timestamp not in encountered:
+                encountered.append(tv.timestamp)
+    assert encountered == [date(2012, 3, 9), date(2012, 2, 7), date(2012, 1, 5)], (
+        "corpus no longer discriminates: encounter order must NOT be date order"
+    )
+
+    bs = precision_bscore(ct, time_bscore=True)(str_to_combo_tree("true"))
+    iac = _to_score_t(1.0 / 9.0)
+    assert bs[:3] == [
+        _to_score_t(_to_score_t(2.0) * iac),
+        _to_score_t(_to_score_t(1.0) * iac),
+        _to_score_t(_to_score_t(-1.5) * iac),
+    ]
+
+
+def test_time_bscore_emits_a_component_for_an_unselected_row_s_timestamp():
+    """`count_t count = selected ? tcv.second : 0.0;`
+    (precision_bscore.cc:246) still WRITES the zero, so
+    `time2res[timestamp]` gets a bucket for a date that no selected row
+    touches. Dropping the `+= 0.0` would shorten the bscore.
+
+    `logical_false` selects nothing at all, so EVERY bucket comes from the
+    zero write -- there must still be one component per distinct date.
+    """
+    ct = _timed_ctable()
+    bsc = precision_bscore(ct, time_bscore=True)
+    bs = bsc(str_to_combo_tree("logical_false"))
+    # 3 dates + the 0.0 (inactive) component + the activation penalty.
+    assert len(bs) == 5
+    assert bs[:3] == [0.0, 0.0, 0.0]
+
+
+def test_time_bscore_negative_target_inverts_the_tp_fp_split():
+    """`if (!positive) target = !target;` (precision_bscore.cc:245).
+
+    With `positive=False` the per-date contribution is `0.5 * (fp - tp)` of
+    the positive reading, so every component flips sign. Nothing at the CLI
+    level distinguishes this on the committed corpora, so it is asserted
+    here directly.
+    """
+    ct = _timed_ctable()
+    tr = str_to_combo_tree("or(!$1 $2)")
+    pos = precision_bscore(ct, time_bscore=True, positive=True)(tr)
+    neg = precision_bscore(ct, time_bscore=True, positive=False)(tr)
+    # Same activity (7 selected observations), opposite tp/fp labelling.
+    iac = _to_score_t(1.0 / 7.0)
+    assert pos[:3] == [
+        _to_score_t(_to_score_t(1.5) * iac),
+        _to_score_t(_to_score_t(1.0) * iac),
+        _to_score_t(_to_score_t(-1.0) * iac),
+    ]
+    assert neg[:3] == [
+        _to_score_t(_to_score_t(-1.5) * iac),
+        _to_score_t(_to_score_t(-1.0) * iac),
+        _to_score_t(_to_score_t(1.0) * iac),
+    ]
+
+
+def test_dispersion_pressure_appends_one_extra_component_after_the_activation_penalty():
+    """`bs.push_back(dispersion_penalty)` (precision_bscore.cc:343) comes
+    AFTER `bs.push_back(activation_penalty)` (:327), inside the same
+    non-boosting block. Order matters: `behave_cscore` sums the vector, but
+    diversity and `best_possible_bscore` compare it positionally.
+    """
+    ct = _timed_ctable()
+    tr = str_to_combo_tree("or(!$1 $2)")
+    plain = precision_bscore(ct, dispersion_pressure=0.0)(tr)
+    disp = precision_bscore(ct, dispersion_pressure=0.5)(tr)
+    assert len(disp) == len(plain) + 1
+    assert disp[:-1] == plain
+    assert disp[-1] == pytest.approx(0.029095500707626343, abs=0.0)
+
+
+def test_dispersion_pressure_zero_appends_nothing():
+    """Boundary: `if (_pressure > 0.0)` is STRICT, so exactly `0.0` (the
+    default) leaves the bscore untouched -- it does not append a zero.
+    """
+    ct = _timed_ctable()
+    tr = str_to_combo_tree("or(!$1 $2)")
+    assert len(precision_bscore(ct, dispersion_pressure=0.0)(tr)) == 6
+
+
+def test_dispersion_pressure_month_granularity_collapses_to_one_class():
+    """`get_timestamp_class` at `month` maps every date in
+    `timestamp_bool_clean.csv` onto 2012-01-01, so `_Hmax` is `log2(1) ==
+    0`. Which degenerate answer follows depends on the candidate, and BOTH
+    are live from the CLI:
+
+    * `true` selects every row, so `ctable_res` holds only
+      `logical_true` and `H` is 0 too -- `0.0f / 0.0f`, a NaN. Classic
+      prints `nan`, not `-nan` (see `_powf`, time_dispersion.py), and that
+      is the whole stdout of a real `-Hpre --time-dispersion-pressure=0.5
+      --time-bscore-granularity=month` run on this file.
+    * `or(!$i1 $i2)` leaves row (1,0) unselected, so the bucket holds both
+      vertices, `H > 0`, and `H / 0.0f` is `+inf` -- penalty `-inf`.
+    """
+    ct = _timed_ctable()
+    bsc = precision_bscore(ct, dispersion_pressure=0.5, granularity=TemporalGranularity.month)
+    assert bsc._Hmax == 0.0
+
+    all_selected = bsc(str_to_combo_tree("true"))
+    assert math.isnan(all_selected[-1])
+    assert math.copysign(1.0, all_selected[-1]) > 0.0, "classic's is a POSITIVE nan"
+
+    partial = bsc(str_to_combo_tree("or(!$1 $2)"))
+    assert partial[-1] == -math.inf
+
+
+def test_month_granularity_over_several_months_keeps_several_classes():
+    """The other half of the case above: `timestamp_bool_months.csv` spans
+    three months, so `month` granularity keeps three classes and `_Hmax` is
+    `log2(3)` -- proving the month arm buckets rather than collapsing
+    everything unconditionally.
+    """
+    ct = _timed_ctable("timestamp_bool_months.csv")
+    day = precision_bscore(ct, dispersion_pressure=0.5)
+    month = precision_bscore(ct, dispersion_pressure=0.5, granularity=TemporalGranularity.month)
+    # Four distinct dates, three distinct months.
+    assert len(ct.get_timestamps()) == 4
+    assert day._Hmax == _to_score_t(math.log2(4))
+    assert month._Hmax == _to_score_t(math.log2(3))
+
+
+def test_time_bscore_ignores_the_granularity_flag():
+    """`time2res` is keyed on `tcv.first.timestamp` RAW
+    (precision_bscore.cc:247), not on `get_timestamp_class` -- only the
+    dispersion branch buckets. So `--time-bscore-granularity` cannot change
+    a `--time-bscore` run, which is what classic does too (measured: its
+    stdout is byte-identical with and without `=month`).
+    """
+    ct = _timed_ctable("timestamp_bool_months.csv")
+    tr = str_to_combo_tree("or(!$1 $2)")
+    day = precision_bscore(ct, time_bscore=True)(tr)
+    month = precision_bscore(ct, time_bscore=True, granularity=TemporalGranularity.month)(tr)
+    assert day == month
+    # ... and it really is per-DATE, not per-month: four dates, four components.
+    assert len(day) == 4 + 2
 
 
 def test_ensemble_scoring_raises():
@@ -223,18 +429,14 @@ def test_activation_penalty_narrows_the_ratio_before_subtracting():
     """
     table = loadTable(str(_PRECISION_CSV), "target")
     ct = table.compressed()
-    bsc = precision_bscore(
-        ct, activation_pressure=1.0, min_activation=0.287, max_activation=0.9
-    )
+    bsc = precision_bscore(ct, activation_pressure=1.0, min_activation=0.287, max_activation=0.9)
     activation = 2.0 / 7.0
 
     faithful_dst = _to_score_t(1.0 - _to_score_t(activation / bsc.min_activation))
     collapsed_dst = _to_score_t(1.0 - activation / bsc.min_activation)
     assert faithful_dst != collapsed_dst, "inputs must discriminate the two forms"
 
-    expected = _to_score_t(
-        bsc.activation_pressure * _to_score_t(math.log(1.0 - faithful_dst))
-    )
+    expected = _to_score_t(bsc.activation_pressure * _to_score_t(math.log(1.0 - faithful_dst)))
     assert bsc.get_activation_penalty(activation) == expected
 
 
@@ -390,7 +592,7 @@ def test_precision_conj_bscore_counts_nested_and_siblings_not_just_the_head():
 
 
 def test_precision_conj_bscore_zero_activation_gives_perfect_precision():
-    """"No hits means perfect precision :) Yes, zero hits is common,
+    """ "No hits means perfect precision :) Yes, zero hits is common,
     early on." (precision_bscore.cc:798-800's own comment.)
     """
     table = loadTable(str(_PRECISION_CSV), "target")

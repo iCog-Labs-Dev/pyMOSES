@@ -1260,19 +1260,23 @@ class TimedCounter(dict):
     # are keyed by `TimedValue` throughout, and code that rebuilds a cell
     # writes `dst[tcv.first] += tcv.second`, keeping the timestamp.
     #
-    # Three places in this port rebuild a cell vertex by vertex, written
-    # before this class existed and outside this file's ownership:
+    # Two places in this port still rebuild a cell vertex by vertex,
+    # written before this class existed and outside this file's ownership:
     # `feature_selector.build_fs_ctable` (feature_selector.cc:246 keeps the
-    # `TimedValue`), `feature_selection/ctable_subsample.ctable_remove_rows`
-    # and `scoring_base._copy_ctable` (which goes further and rebuilds the
-    # cell as a plain `collections.Counter`). Through any of them a table's
-    # timestamps are LOST -- `get_timestamps()` on the result returns the
-    # empty set. That is the port's behaviour before this slice, so it is a
-    # non-regression rather than a new gap, and it is why `--time-bscore`
-    # and `--time-dispersion-pressure` (which read `_wrk_ctable`) stay
-    # gated in `problem_params.py`. Raising here instead was tried and
-    # rejected: it breaks those three callers outright, two of them in
-    # trees this task does not own.
+    # `TimedValue`) and
+    # `feature_selection/ctable_subsample.ctable_remove_rows`. Through
+    # either of them a table's timestamps are LOST -- `get_timestamps()` on
+    # the result returns the empty set. That is the port's behaviour from
+    # before the timestamp slice, so it is a non-regression rather than a
+    # new gap. Raising here instead was tried and rejected: it breaks both
+    # callers outright, in trees this task does not own.
+    #
+    # `scoring_base._copy_ctable` was a THIRD such place, and the worst of
+    # them -- it rebuilt each cell as a plain `collections.Counter`, so
+    # `bscore_ctable_base._wrk_ctable` lost every timestamp the loader had
+    # just parsed. That is fixed: it now copies each cell through the
+    # cell's own `.copy()`, which is what let `--time-bscore` and
+    # `--time-dispersion-pressure` be un-gated.
 
     def __setitem__(self, key: vertex, value: float) -> None:
         self._timed = {tv: c for tv, c in self._timed.items() if not vertex_equal(tv.value, key)}
@@ -1329,18 +1333,34 @@ def timed_keys_of(counter) -> Iterable[TimedValue]:
     cell that is a plain `collections.Counter` instead.
 
     In C++ every CTable cell is a `TimedCounter` and there is nothing to
-    tolerate. In this port a cell can also be a plain `Counter[vertex]`,
-    from two sources: `scoring_base._copy_ctable` rebuilds `_wrk_ctable`'s
-    cells that way, and hand-built test tables do the same. Such a cell is
-    semantically a `TimedCounter` all of whose observations carry the
-    not-a-date sentinel -- exactly what `Table::compressed` builds for an
-    untimestamped table (table.cc:513) -- so it is presented as one here
-    rather than crashing on a missing attribute or, worse, being skipped.
+    tolerate. In this port a cell can also be a plain `Counter[vertex]` --
+    hand-built test tables do that. Such a cell is semantically a
+    `TimedCounter` all of whose observations carry the not-a-date sentinel
+    -- exactly what `Table::compressed` builds for an untimestamped table
+    (table.cc:513) -- so it is presented as one here rather than crashing
+    on a missing attribute or, worse, being skipped.
     """
     timed = getattr(counter, "timed_keys", None)
     if timed is not None:
         return timed()
     return [TimedValue(v) for v in counter]
+
+
+def timed_items_of(counter) -> Iterable[tuple[TimedValue, float]]:
+    """No direct C++ symbol: iterating a `TimedCounter`'s `(TimedValue,
+    count)` pairs -- C++'s own `for (const CTable::counter_t::value_type&
+    tcv : orow)` (precision_bscore.cc:243 and :257) -- tolerating a cell
+    that is a plain `collections.Counter` instead, exactly as
+    `timed_keys_of` above does and for the same reason.
+
+    The pair form is what `precision_bscore::do_score`'s two timestamp
+    branches need: they read `tcv.first.value`, `tcv.first.timestamp` AND
+    `tcv.second` together, which `timed_keys_of` cannot supply.
+    """
+    timed = getattr(counter, "timed_items", None)
+    if timed is not None:
+        return timed()
+    return [(TimedValue(v), c) for v, c in counter.items()]
 
 
 # C++: moses/comboreduct/table/table.h:518 CTableTime

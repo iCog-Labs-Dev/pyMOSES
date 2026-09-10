@@ -48,6 +48,34 @@
 //       real data here, this mode also accepts an explicit override via a
 //       tiny subclass -- see probe_time_dispersion below.
 //
+//   scorers_probe timedisp_penalty_tf <csv> <target> <pressure> <exponent> \
+//                                     <hmax_buckets> <true:false>...
+//       Same as timedisp_penalty, but each bucket's TRUE and FALSE counts
+//       are both given, so a bucket can be all-true (false count 0). That
+//       is the case the CLI actually reaches once a table has ONE
+//       timestamp class (`--time-bscore-granularity=month` over a
+//       single-month table, or a single-date table): _Hmax is log2(1) ==
+//       0 and H is 0 too, so `H / _Hmax` is 0.0f/0.0f. timedisp_penalty's
+//       hardcoded false count of 1.0 makes that unreachable -- it can only
+//       produce H > 0, hence -inf rather than NaN. The NaN's SIGN is the
+//       whole point (see the powf mode below), so this mode reports
+//       `penalty_signbit` alongside the value, which "nan" in JSON cannot
+//       carry.
+//
+//   scorers_probe powf <base> <exponent>
+//       `std::pow(float, float)` -- exactly the call at
+//       time_dispersion.cc:104 -- with its result's sign bit reported
+//       separately. glibc's powf is NOT sign-transparent for a NaN base:
+//       it XORs in powf's own `sign_bias`, which is set only for a
+//       negative base with an ODD-INTEGER exponent, so pow(-nan, 1) is
+//       +nan while pow(-nan, 2) is -nan. Python's math.pow preserves the
+//       sign in both cases, and RAISES where C returns a NaN or an
+//       infinity, so `_powf` (time_dispersion.py) has to reproduce this
+//       explicitly. <base>/<exponent> accept the literal tokens "negnan"
+//       (the 0.0f/0.0f indefinite, sign bit SET -- what `H / _Hmax`
+//       produces), "posnan", "inf" and "-inf" as well as ordinary
+//       numbers.
+//
 // IMPORTANT: like score_probe.cc, CTable is a std::map, so all "rows"
 // output is dumped keyed by its own input tuple, not positionally -- see
 // that probe's own comment for why.
@@ -60,6 +88,7 @@
 #include <moses/comboreduct/table/table_io.h>
 #include <moses/comboreduct/combo/iostream_combo.h>
 
+#include <cmath>
 #include <cstdio>
 #include <cstdlib>
 #include <sstream>
@@ -401,6 +430,80 @@ static int mode_timedisp_penalty(int argc, char **argv)
     return 0;
 }
 
+static float parse_float_arg(const std::string &s)
+{
+    // "negnan" must be produced by a real 0.0f/0.0f so it carries the
+    // x86-64 "QNaN floating-point indefinite" bit pattern (sign bit SET),
+    // which is what `H / _Hmax` yields at time_dispersion.cc:102 -- a
+    // literal -NAN is a different payload and not the value under test.
+    if (s == "negnan") { volatile float z = 0.0f; return z / z; }
+    if (s == "posnan") { volatile float z = 0.0f; return -(z / z); }
+    if (s == "inf") return INFINITY;
+    if (s == "-inf") return -INFINITY;
+    return strtof(s.c_str(), nullptr);
+}
+
+static int mode_timedisp_penalty_tf(int argc, char **argv)
+{
+    // timedisp_penalty_tf <csv> <target> <pressure> <exponent> <hmax_buckets> <true:false>...
+    if (argc < 8) {
+        fprintf(stderr, "timedisp_penalty_tf: need csv target pressure exponent "
+                        "hmax_buckets true:false...\n");
+        return 1;
+    }
+    std::string path = argv[2], target = argv[3];
+    float pressure = atof(argv[4]), exponent = atof(argv[5]);
+    int hmax_buckets = atoi(argv[6]);
+
+    Table table = loadTable(path, target);
+    CTable ctable = table.compressed();
+    probe_time_dispersion bsc(ctable, pressure, exponent, TemporalGranularity::day);
+    bsc.set_hmax((float)log2((double)hmax_buckets));
+
+    CTableTime ctt;
+    int n_buckets = argc - 7;
+    for (int i = 0; i < n_buckets; ++i) {
+        double t = 0.0, f = 0.0;
+        if (sscanf(argv[7 + i], "%lf:%lf", &t, &f) != 2) {
+            fprintf(stderr, "timedisp_penalty_tf: bad bucket '%s'\n", argv[7 + i]);
+            return 1;
+        }
+        TTable::value_type ts =
+            boost::gregorian::date(2000, 1, 1) + boost::gregorian::date_duration(i);
+        Counter<vertex, count_t> c;
+        c[vertex(id::logical_true)] = t;
+        c[vertex(id::logical_false)] = f;
+        ctt[ts] = c;
+    }
+
+    float pen = bsc.penalty(ctt);
+    printf("{\n");
+    printf("  \"hmax\": %s,\n", float_json((double)bsc.hmax()).c_str());
+    printf("  \"penalty\": %s,\n", float_json((double)pen).c_str());
+    printf("  \"penalty_signbit\": %d\n", std::signbit(pen) ? 1 : 0);
+    printf("}\n");
+    return 0;
+}
+
+static int mode_powf(int argc, char **argv)
+{
+    // powf <base> <exponent>
+    if (argc < 4) {
+        fprintf(stderr, "powf: need base exponent\n");
+        return 1;
+    }
+    volatile float b = parse_float_arg(argv[2]);
+    volatile float e = parse_float_arg(argv[3]);
+    float r = std::pow((float)b, (float)e);
+    printf("{\n");
+    printf("  \"base\": %s,\n", quote(argv[2]).c_str());
+    printf("  \"exponent\": %s,\n", quote(argv[3]).c_str());
+    printf("  \"value\": %s,\n", float_json((double)r).c_str());
+    printf("  \"signbit\": %d\n", std::signbit(r) ? 1 : 0);
+    printf("}\n");
+    return 0;
+}
+
 int main(int argc, char **argv)
 {
     if (argc < 2) {
@@ -413,6 +516,8 @@ int main(int argc, char **argv)
     if (mode == "precision") return mode_precision(argc, argv);
     if (mode == "timedisp_hmax") return mode_timedisp_hmax(argc, argv);
     if (mode == "timedisp_penalty") return mode_timedisp_penalty(argc, argv);
+    if (mode == "timedisp_penalty_tf") return mode_timedisp_penalty_tf(argc, argv);
+    if (mode == "powf") return mode_powf(argc, argv);
     fprintf(stderr, "unknown mode %s\n", mode.c_str());
     return 1;
 }

@@ -20,7 +20,12 @@ import pytest
 from pymetta.comboreduct.combo.vertex import builtin
 from pymetta.comboreduct.table.table_io import loadTable
 from pymetta.moses.moses.types import _to_score_t
-from pymetta.moses.scoring.time_dispersion import TemporalGranularity, bscore_ctable_time_dispersion
+from pymetta.moses.scoring.scoring_base import _ieee_div
+from pymetta.moses.scoring.time_dispersion import (
+    TemporalGranularity,
+    _powf,
+    bscore_ctable_time_dispersion,
+)
 
 _FIXTURE_DIR = Path(__file__).resolve().parents[2] / "fixtures"
 _CASES = json.loads((_FIXTURE_DIR / "scorers.json").read_text())["time_dispersion"]
@@ -357,3 +362,101 @@ def test_fractional_counts_are_truncated_to_unsigned_as_cpp_does():
 
     # Truncating: 0.20120501518249512. Not truncating: 0.1678072214126587.
     assert penalty == pytest.approx(0.20120501518249512, abs=0.0)
+
+
+# ---------------------------------------------------------------------------
+# _powf -- glibc's powf, which Python's math.pow is NOT a drop-in for
+# ---------------------------------------------------------------------------
+
+_POWF_CASES = json.loads((_FIXTURE_DIR / "scorers.json").read_text())["powf"]
+
+
+def _powf_arg(token: str) -> float:
+    """Mirror tools/cpp_probe/scorers_probe.cc's own `parse_float_arg`.
+
+    "negnan" must come from a real `0.0 / 0.0`, not from `-math.nan`: the
+    former is x86-64's "QNaN floating-point indefinite" (sign bit SET) and
+    is exactly what `_ieee_div(H, _Hmax)` produces, which is the value the
+    penalty formula actually feeds to `pow`.
+    """
+    if token == "negnan":
+        return _ieee_div(0.0, 0.0)
+    if token == "posnan":
+        return -_ieee_div(0.0, 0.0)
+    if token == "inf":
+        return math.inf
+    if token == "-inf":
+        return -math.inf
+    return float(token)
+
+
+@pytest.mark.oracle
+@pytest.mark.parametrize("case_name", sorted(_POWF_CASES), ids=lambda n: n)
+def test_powf_matches_cpp_probe(case_name):
+    """`_powf` reproduces `std::pow(float, float)` on this toolchain, SIGN
+    INCLUDED. The sign is asserted separately because a JSON "nan" cannot
+    carry it, and because the sign is the only thing that differs in the
+    case the CLI actually reaches.
+    """
+    case = _POWF_CASES[case_name]
+    got = _powf(_powf_arg(case["base"]), _powf_arg(case["exponent"]))
+    _assert_matches(got, case["value"])
+    assert (math.copysign(1.0, got) < 0.0) == bool(case["signbit"]), (
+        f"{case_name}: sign bit differs from classic's"
+    )
+
+
+def test_powf_fixture_is_not_all_one_sign():
+    """Guard against a vacuous parametrisation: the corpus must contain
+    BOTH sign outcomes, or `test_powf_matches_cpp_probe`'s sign assertion
+    could pass against an implementation that always returns a positive
+    result.
+    """
+    signs = {bool(c["signbit"]) for c in _POWF_CASES.values()}
+    assert signs == {False, True}
+    nan_signs = {bool(c["signbit"]) for c in _POWF_CASES.values() if c["value"] == "nan"}
+    assert nan_signs == {False, True}
+
+
+@pytest.mark.oracle
+@pytest.mark.parametrize(
+    "case_name", sorted(n for n in _CASES if n.startswith("penalty_tf::")), ids=lambda n: n
+)
+def test_get_time_dispersion_penalty_all_true_bucket_matches_cpp_probe(case_name):
+    """The `_Hmax == 0 and H == 0` case, i.e. `0.0f / 0.0f`.
+
+    `penalty::single_bucket_degenerate` cannot reach it: the
+    `timedisp_penalty` probe mode hardcodes a false count of 1.0 per
+    bucket, so `H > 0` always and the answer is `-inf`. These cases come
+    from the `timedisp_penalty_tf` mode, which takes both counts, and they
+    carry `penalty_signbit` because the NaN's sign is what reaches stdout
+    (classic prints `nan`, a sign-preserving port prints `-nan`).
+    """
+    case = _CASES[case_name]
+    table = loadTable(str(_TABLE_DATA_DIR / "trainingBoolean.dat"), "y")
+    ct = table.compressed()
+    bsc = _ConcreteTD(ct, case["pressure"], case["exponent"], TemporalGranularity.day)
+    n = case["hmax_buckets"]
+    bsc._Hmax = -math.inf if n == 0 else _to_score_t(math.log2(n))
+    _assert_matches(bsc._Hmax, case["hmax"])
+
+    ctt = {
+        i: Counter({builtin.logical_true: t, builtin.logical_false: f})
+        for i, (t, f) in enumerate(case["buckets"])
+    }
+    penalty = bsc.get_time_dispersion_penalty(ctt)
+    _assert_matches(penalty, case["penalty"])
+    assert (math.copysign(1.0, penalty) < 0.0) == bool(case["penalty_signbit"])
+
+
+def test_penalty_tf_fixture_covers_both_nan_signs():
+    """Non-vacuity guard for the parametrisation above: the corpus must
+    contain a `+nan` case AND a `-nan` case, so a `_powf` that dropped the
+    odd-integer sign rule fails at least one of them.
+    """
+    nan_signs = {
+        bool(c["penalty_signbit"])
+        for n, c in _CASES.items()
+        if n.startswith("penalty_tf::") and c["penalty"] == "nan"
+    }
+    assert nan_signs == {False, True}

@@ -54,6 +54,11 @@ Four families, four top-level fixture keys:
   plus additional trees and a `positive=False` (negative-predictive-value)
   case matching MOSESUTest's `test_negative_predictive_value`.
 
+* "powf" -- `std::pow(float, float)`, the exact call at
+  time_dispersion.cc:104, with its result's sign bit reported separately
+  because JSON "nan" cannot carry it. The oracle for `_powf`
+  (time_dispersion.py); see `capture_powf`'s own docstring.
+
 * "time_dispersion" -- `_Hmax` measured on two real (untimestamped)
   CTables (confirming it is always exactly 0.0 in this port -- see
   time_dispersion.py's module docstring for why), plus
@@ -312,6 +317,86 @@ def capture_time_dispersion() -> dict:
             "exponent": exponent,
             "true_counts": true_counts,
         }
+
+    # (pressure, exponent, hmax_buckets, [(true, false), ...]) -- both
+    # counts explicit, so a bucket can be ALL TRUE. That is the case the
+    # CLI reaches once a table has exactly one timestamp class
+    # (`--time-bscore-granularity=month` over a single-month table): _Hmax
+    # is log2(1) == 0 AND H is 0, so `H / _Hmax` is 0.0f/0.0f and the
+    # penalty is a NaN whose SIGN is what reaches stdout. The probe's
+    # `penalty_signbit` carries it, because JSON "nan" cannot. The
+    # `_degenerate` case above can never reach this: its false count is
+    # hardcoded to 1.0, so H > 0 and the result is -inf, not NaN.
+    penalty_tf_cases = [
+        ("one_class_all_true", 0.5, 1.0, 1, [(7.0, 0.0)]),
+        ("one_class_all_true_exponent2", 0.5, 2.0, 1, [(7.0, 0.0)]),
+        ("one_class_mixed", 0.5, 1.0, 1, [(5.0, 2.0)]),
+        ("two_classes_all_true", 0.5, 1.0, 2, [(3.0, 0.0), (4.0, 0.0)]),
+    ]
+    for name, pressure, exponent, hmax_buckets, buckets in penalty_tf_cases:
+        args = [
+            "timedisp_penalty_tf",
+            str(_BOOL_CSV),
+            "y",
+            str(pressure),
+            str(exponent),
+            str(hmax_buckets),
+        ]
+        args.extend(f"{t}:{f}" for t, f in buckets)
+        case = run_probe(args)
+        cases[f"penalty_tf::{name}"] = {
+            **case,
+            "pressure": pressure,
+            "exponent": exponent,
+            "hmax_buckets": hmax_buckets,
+            "buckets": [list(b) for b in buckets],
+        }
+    return cases
+
+
+def capture_powf() -> dict:
+    """`std::pow(float, float)` as time_dispersion.cc:104 calls it.
+
+    Python's `math.pow` differs from glibc's `powf` in four families, and
+    every one of them is reachable from `--time-dispersion-exponent`:
+    the NaN sign rule, a negative finite base with a non-integer exponent
+    (C returns -nan, Python raises `ValueError`), a zero base with a
+    negative exponent (C returns a signed infinity, Python raises), and
+    overflow (C returns a signed infinity, Python raises `OverflowError`).
+    `_powf` (time_dispersion.py) reproduces all four; these are its
+    oracle.
+    """
+    pairs = [
+        ("negnan", "1.0"),
+        ("negnan", "-1.0"),
+        ("negnan", "3.0"),
+        ("negnan", "2.0"),
+        ("negnan", "0.5"),
+        ("negnan", "1.5"),
+        ("negnan", "0.0"),
+        ("negnan", "1e30"),
+        ("posnan", "1.0"),
+        ("posnan", "2.0"),
+        ("posnan", "0.5"),
+        ("-3.0", "0.5"),
+        ("-3.0", "1.5"),
+        ("-0.5", "0.5"),
+        ("-2.0", "3.0"),
+        ("0.0", "-1.0"),
+        ("-0.0", "-1.0"),
+        ("-0.0", "-2.0"),
+        ("0.5", "-1e30"),
+        ("0.5", "1e30"),
+        ("-0.5", "-1e30"),
+        ("2.0", "1e30"),
+        ("-inf", "1.0"),
+        ("-inf", "0.5"),
+        ("-inf", "3.0"),
+        ("0.5", "2.0"),
+    ]
+    cases = {}
+    for base, exponent in pairs:
+        cases[f"{base}^{exponent}"] = run_probe(["powf", base, exponent])
     return cases
 
 
@@ -345,6 +430,7 @@ def main(argv: list[str]) -> int:
         "select": capture_select(),
         "precision": capture_precision(),
         "time_dispersion": capture_time_dispersion(),
+        "powf": capture_powf(),
     }
 
     FIXTURE_PATH.parent.mkdir(parents=True, exist_ok=True)
@@ -365,6 +451,7 @@ def main(argv: list[str]) -> int:
                 "n_select_cases": len(fixture["select"]),
                 "n_precision_cases": len(fixture["precision"]),
                 "n_time_dispersion_cases": len(fixture["time_dispersion"]),
+                "n_powf_cases": len(fixture["powf"]),
                 "select_regression_csv": "tests/fixtures/table_data/select_regression.csv",
             },
         ),
@@ -374,7 +461,8 @@ def main(argv: list[str]) -> int:
         f"{len(fixture['discriminating'])} discriminating, "
         f"{len(fixture['select'])} select, "
         f"{len(fixture['precision'])} precision, "
-        f"{len(fixture['time_dispersion'])} time_dispersion cases"
+        f"{len(fixture['time_dispersion'])} time_dispersion, "
+        f"{len(fixture['powf'])} powf cases"
     )
     return 0
 
