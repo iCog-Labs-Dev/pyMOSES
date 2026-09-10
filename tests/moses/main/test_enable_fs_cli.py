@@ -25,6 +25,12 @@ agree is this project's most-repeated defect. The pairs:
 * `it_contin_a5_r3`, `cluster_a5_r3` -- the two `REGRESSION(table, ...)`
   call sites, which reach `feature_selector`'s `Table` constructor overload
   with a non-boolean output type.
+* `weighted_contin_r1`, `weighted_contin_r7` -- the macro's FIRST argument,
+  `table` vs `ctable`. That choice is invisible on an unweighted table (both
+  compress to the same counts) and decides the answer on a weighted one;
+  swapping the two at `it`'s contin site is killed by these and by nothing
+  else in the suite. Measured: 2 of 144 grid cells discriminate, and both
+  are here.
 
 Two `--enable-fs` command lines have NO oracle, because classic itself dies
 on them; both are pinned at the bottom of this file with the measurement.
@@ -364,6 +370,70 @@ _CASES = [
         """`-Hcluster`, the third `REGRESSION(table, ...)` site
         (table-problems.cc:557). Same `Table` overload, same previously
         rejected non-boolean output type.""",
+    ),
+    (
+        "weighted_contin_r1",
+        [
+            "-i@contin_weighted.csv",
+            "-uy",
+            "-Hit",
+            "-m600",
+            "-W1",
+            "-r1",
+            "--enable-fs=1",
+            "--fs-target-size=2",
+            "--score-weight=wgt",
+        ],
+        (
+            "-47.625 +(1 *(+(-1 $x1) +($x3 $x5))) \n"
+            "-47.625 +(1 *(-1 +(*(+(1 *(-1 $x1)) $x3) $x5))) \n"
+            "-62 +(1 *(-1 $x3)) \n"
+            "-62 +(1 *(-1 $x3) $x5) \n"
+            "-62 +(1 *(-1 +($x3 $x5))) \n"
+            "-62 +(1 /(*(-1 $x3) +(1 $x5))) \n"
+            "-62 +(1 /(*(-1 $x3) +(1 *(-1 $x5)))) \n"
+            "-102.75 0 \n"
+        ),
+        """`--score-weight` is what makes the `REGRESSION` macro's FIRST argument
+        observable at all. `ctable` is `table.compressed(weighting_feature)`
+        (table-problems.cc:125) while `feature_selector`'s `Table` overload
+        computes `table.compressed()` itself, unweighted
+        (feature_selector.cc:56) -- so on a weighted table the selector sees
+        DIFFERENT per-row counts depending on which one the call site hands
+        it, and mutual information ranks the features differently. Swapping
+        `self.table` for `self.ctable` at `it`'s contin site changes this
+        case's output (239 -> 251 bytes); on every unweighted table in this
+        file it changes nothing, which is exactly why the distinction needed
+        a case of its own.""",
+    ),
+    (
+        "weighted_contin_r7",
+        [
+            "-i@contin_weighted.csv",
+            "-uy",
+            "-Hit",
+            "-m600",
+            "-W1",
+            "-r7",
+            "--enable-fs=1",
+            "--fs-target-size=2",
+            "--score-weight=wgt",
+        ],
+        (
+            "-30.5 +(1 *(-2 $x3) $x1) \n"
+            "-30.5 +(1 *(-2 $x3) $x1 $x5) \n"
+            "-30.5 +(1 /(+(*(-2 $x3) $x1) +(1 $x5))) \n"
+            "-31.125 +(1 *(+(-2 $x4) $x3) $x1) \n"
+            "-30.5 +(1 /(+(*(-2 $x3) $x1) +(1 *(-1 $x5)))) \n"
+            "-32 +(1 *(-1 +($x3 $x4)) $x1) \n"
+            "-62 +(1 *(-1 $x3)) \n"
+            "-62 +(1 *(-1 $x3) $x5) \n"
+            "-62 +(1 *(-1 +($x3 $x5))) \n"
+            "-62 +(1 /(*(-1 $x3) +(1 $x5))) \n"
+        ),
+        """The second seed at which the same swap shows (313 -> 191 bytes). Two,
+        not one, because a single seed agreeing or disagreeing is one
+        sample.""",
     ),
 ]
 
