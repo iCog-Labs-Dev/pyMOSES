@@ -376,13 +376,19 @@ def test_create_demes_succeeds_with_a_real_fstor():
     assert len(dex._demes) == 1
 
 
-def test_create_representations_raises_when_fstor_prune_xmplr_is_true():
+def test_create_representations_no_longer_gates_fstor_prune_xmplr():
+    """This test used to assert `NotImplementedError`. `prune_xmplr`
+    (deme_expander.cc:308) is ported now, so the gate is gone -- kept here,
+    inverted, so the removal is recorded at the site that used to pin it.
+    The behaviour of the branch itself is covered in
+    tests/moses/deme/test_prune_xmplr.py, against the C++ oracle.
+    """
     params = deme_parameters()
     params.perm_ratio = -1.0
     dex, ctable = _boolean_dex_and_ctable(params)
     dex._params.fstor = feature_selector(ctable, feature_selector_parameters(prune_xmplr=True))
-    with pytest.raises(NotImplementedError):
-        dex.create_representations(str_to_combo_tree("$1"))
+    dex.create_demeIDs(0)
+    assert dex.create_representations(str_to_combo_tree("$1")) is True
 
 
 def test_optimize_demes_raises_when_fstor_is_set_from_the_start():

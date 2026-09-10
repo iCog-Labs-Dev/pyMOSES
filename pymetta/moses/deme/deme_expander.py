@@ -30,17 +30,20 @@ selection (``deme_parameters.fstor``, ``--enable-fs``) is now REAL:
   introduces (measured: cc:205-268's loop is driven by
   ``pop_of_selected_feats.size()``, never by ``_demeIDs.size()``).
 
-  Two sub-pieces remain gated, both off by default and both narrower
-  than the old blanket "fstor is not ported" gate:
+  ``festor.params.prune_xmplr`` (feature_selector_parameters's own
+  struct default is INDETERMINATE -- see ``feature_selector.py``'s
+  module docstring; this port and every real CLI caller pin it to
+  ``False``) selects ``prune_xmplr`` (deme_expander.cc:308-332,
+  erasing argument leaves from the exemplar under a PRE-ORDER walk,
+  with a ``type_to_exemplar`` fallback if that empties the tree). It
+  is now REAL -- ported below, matched case for case against the C++
+  itself (tools/cpp_probe/prune_xmplr_probe.cc). Note the arm's
+  asymmetry, which is C++'s own: the pruning arm does NOT union the
+  exemplar's features back into the selected set, so they land in
+  ``ignore_ops`` too.
 
-  - ``festor.params.prune_xmplr`` (feature_selector_parameters's own
-    struct default is INDETERMINATE -- see ``feature_selector.py``'s
-    module docstring; this port and every real CLI caller pin it to
-    ``False``) selects ``prune_xmplr`` (deme_expander.cc:308-325,
-    erasing argument leaves from the exemplar under iteration, with a
-    ``type_to_exemplar`` fallback if that empties the tree) -- NOT
-    ported; raises in ``create_representations`` if ever set to
-    ``True``.
+  One sub-piece remains gated, off by default:
+
   - ``optimize_demes``'s OWN ``if (_params.fstor)`` branch
     (deme_expander.cc:432-471) needs
     ``behave_cscore.ignore_cols()``/``best_possible_score()``, neither
@@ -67,15 +70,20 @@ Both ``fstor=None`` and ``n_subsample_demes=0`` are still the defaults, so
 the fully-ported DEFAULT path is unchanged: exactly one representation,
 exactly one deme, per ``create_demes`` call.
 
-NOT ported at all (not merely gated -- these are feature-selector-only
-helpers that are either logging-only or, for ``prune_xmplr``, gated at
-its own call site rather than omitted, since it DOES have a live caller
-now that ``fstor`` is real): ``fs_to_names`` (deme_expander.h:115,
-deme_expander.cc:48) and ``log_selected_feature_sets``
-(deme_expander.h:121, deme_expander.cc:57) are both logging-only (their
-only effect is feeding ``logger().debug()``/``ostream_container`` --
-nothing else observes their return values), matching the "no logging
-surface in this port" convention stated throughout this project. Also
+``fs_to_names`` (deme_expander.h:115, deme_expander.cc:48) IS ported now.
+It used to be listed here as deliberately dropped, on the grounds that
+every call site is inside a ``logger()`` call -- true of cc:76/:78 (both
+in ``log_selected_feature_sets``, still not ported) but not of cc:227,
+which is in the ``prune_xmplr`` arm of ``create_representations``, live
+as of this change. Its one behavioural content is ORDER: a C++
+``std::set<arity_t>`` iterates ASCENDING and a Python ``set`` does not,
+so it sorts.
+
+STILL NOT ported: ``log_selected_feature_sets`` (deme_expander.h:121,
+deme_expander.cc:57), which is purely logging (its only effect is feeding
+``logger().info()``/``ostream_container``; nothing observes a return
+value), matching the "no logging surface in this port" convention stated
+throughout this project. Also
 NOT ported: the ``#if THIS_IS_DISABLED_UNTIL_ABOVE_IS_FIXED`` block inside
 ``optimize_demes`` (deme_expander.cc:460-474) -- dead code by construction
 in C++ itself (the guarding macro is never defined, matching CLAUDE.md's
@@ -95,12 +103,12 @@ directly at the test level, matching this task's own instruction).
 from __future__ import annotations
 
 import copy
-from collections.abc import Callable
+from collections.abc import Callable, Collection, Sequence
 
 from pymetta.comboreduct.combo.argument import argument
 from pymetta.comboreduct.combo.iostream_combo import tree_to_stream_str
-from pymetta.comboreduct.combo.vertex import combo_tree
-from pymetta.comboreduct.type_checker.type_signature import TypeSignature
+from pymetta.comboreduct.combo.vertex import builtin, combo_tree, is_argument
+from pymetta.comboreduct.type_checker.type_signature import TypeSignature, type_node
 from pymetta.moses.deme.deme_params import deme_parameters
 from pymetta.moses.deme.feature_selector import get_argument_abs_idx_from_zero_set
 from pymetta.moses.metapopulation.metapop_params import subsample_deme_filter_parameters
@@ -116,6 +124,48 @@ from pymetta.util.rng import randGen
 Simplifier = Callable[[combo_tree], None]
 
 __all__ = ["deme_expander"]
+
+
+def _type_to_exemplar(otn: type_node) -> combo_tree:
+    """C++: moses/moses/representation/representation.cc:75 type_to_exemplar
+
+    ``prune_xmplr``'s empty-tree seed (deme_expander.cc:327-330). Declared
+    ``moses/moses/representation/representation.h:42``, defined in
+    ``representation.cc``; ``pymetta/moses/representation/representation.py``
+    does NOT port it (grepped 2026-09-10), and the only Python counterpart
+    that exists anywhere in the tree is ``pymetta.moses.main.demo_problems.
+    _type_to_exemplar`` -- a private helper that file added for its own
+    ``pms.exemplars`` defaults, for the same "no port exists" reason it
+    states in its own module docstring.
+
+    Duplicated HERE rather than imported from there, for two independent
+    reasons. (1) LAYERING: ``moses/main`` is the CLI layer and sits ABOVE
+    ``moses/deme``; ``demo_problems`` imports ``moses_main``, which reaches
+    ``metapopulation`` and this very module, so importing it back would
+    close a real import cycle. (2) OWNERSHIP: ``pymetta/moses/main/`` is
+    out of this task's editable scope, so the shared definition cannot be
+    hoisted out of it either. FOLLOW-UP for whoever owns
+    ``pymetta/moses/representation/representation.py``: port
+    ``type_to_exemplar`` there (its actual C++ home) and have both this
+    module and ``demo_problems`` import it, deleting both copies.
+
+    Only the two branches this port's knob building can reach are real:
+    ``boolean_type`` -> ``combo_tree(logical_and)`` and ``contin_type`` ->
+    ``combo_tree(plus)``. C++'s ``enum_type`` branch (a ``cond`` root with
+    an ``enum_t::get_random_enum()`` child) is not ported -- the enum
+    domain is excluded project-wide -- and its ``ill_formed_type``/
+    ``default`` branches are ``OC_ASSERT(false, ...)``, i.e. aborts, ported
+    as a raise.
+    """
+    if otn == type_node.boolean_type:
+        return combo_tree(builtin.logical_and)
+    if otn == type_node.contin_type:
+        return combo_tree(builtin.plus)
+    raise NotImplementedError(
+        f"type_to_exemplar: type {otn!r} not supported by this port "
+        "(representation.cc:81's enum_type branch needs enum_t::"
+        "get_random_enum(); cc:87/:93 are OC_ASSERT(false) aborts)"
+    )
 
 
 class deme_expander:
@@ -173,6 +223,44 @@ class deme_expander:
         # Protected state (deme_expander.h:145,148).
         self._ignore_cols_seq: list[set[int]] = []
         self._demeIDs: list[demeID_t] = []
+
+    # -------------------------------------------------- feature-set naming
+
+    def fs_to_names(self, fs: Collection[int], ilabels: Sequence[str]) -> list[str]:
+        """C++: moses/moses/deme/deme_expander.cc:48 deme_expander::fs_to_names
+
+        "Takes a feature set, a header of the input features and return a
+        vector of the names of the featire set." (deme_expander.h:111-113's
+        own comment, typo included.)
+
+        ORDER IS THE WHOLE CONTENT of this function. C++'s ``feature_set``
+        is ``typedef std::set<arity_t> feature_set``
+        (feature-selection/main/feature-selection.h:124), and
+        ``for (arity_t i : fs)`` over a ``std::set`` walks it in ASCENDING
+        key order. A Python ``set`` iterates in hash order, which for small
+        non-negative ints happens to LOOK ascending most of the time and
+        then silently is not -- so ``sorted(fs)`` is the faithful
+        transliteration, not a cosmetic tidy-up.
+
+        Previously listed in this module's docstring as deliberately NOT
+        ported, on the grounds that its only C++ call sites (cc:76, :78,
+        :227) are inside ``logger()`` calls. That is still true of cc:76/:78
+        (both inside ``log_selected_feature_sets``, still not ported), but
+        cc:227 sits in the ``prune_xmplr`` arm of ``create_representations``
+        -- ported below as of this change -- so the function now has a real
+        caller here too.
+
+        Raises ``IndexError`` for a feature index at or beyond
+        ``len(ilabels)``, exactly where C++'s ``ilabels[i]`` -- an
+        UNCHECKED ``std::vector::operator[]`` -- is undefined behaviour
+        instead. Not a divergence in any reachable case (every caller
+        derives ``fs`` from column indices of the very table ``ilabels``
+        came from); loud rather than silent for the unreachable one.
+        """
+        fs_names: list[str] = []
+        for i in sorted(fs):
+            fs_names.append(ilabels[i])
+        return fs_names
 
     # ------------------------------------------------------------ subsample
 
@@ -254,26 +342,34 @@ class deme_expander:
           it on ``exemplar`` to get ``pop_of_selected_feats``
           (``feature_set_pop``, at most one entry for the only ported
           algorithm, ``"simple"``). For each selected feature set (cc:
-          205's own loop): the exemplar's own features are inserted
-          back in (cc:224-232's ``else`` arm -- ``prune_xmplr`` is the
-          gated ``if`` arm, see below), then any ``enforce_features``
-          are sampled in and added (cc:234-238); the COMPLEMENT of the
-          final feature set becomes ``ignore_cols``/``ignore_ops``
-          (cc:240-256, one ``argument(i + 1)`` per unselected column
-          index ``i``) and the set itself becomes ``considered_args``
-          (unused beyond an omitted debug log -- see module docstring).
+          205's own loop) one of TWO arms runs, then any
+          ``enforce_features`` are sampled in and added (cc:234-238);
+          the COMPLEMENT of the final feature set becomes
+          ``ignore_cols``/``ignore_ops`` (cc:240-256, one ``argument(i
+          + 1)`` per unselected column index ``i``) and the set itself
+          becomes ``considered_args`` (unused beyond an omitted debug
+          log -- see module docstring).
 
-          ``festor.params.prune_xmplr`` (see ``feature_selector.py``'s
-          own module docstring for why this field's C++ default is
-          indeterminate) selects ``prune_xmplr`` (deme_expander.cc:
-          308-325) -- NOT ported (needs ``combo_tree`` erase-under-
-          iteration plus a ``type_to_exemplar`` empty-tree fallback,
-          neither exercised or verified here); raises rather than
-          silently falling back to the non-pruning arm. Off by
-          default and by every real CLI's own default
-          (``--fs-prune-exemplar`` defaults to ``0``,
-          problem-params.cc:1663-1665), so this never fires on the
-          default ``--enable-fs`` path.
+          The two arms are selected by ``festor.params.prune_xmplr``
+          (see ``feature_selector.py``'s own module docstring for why
+          this field's C++ default is indeterminate; the CLI's
+          ``--fs-prune-exemplar`` defaults to ``0``,
+          problem-params.cc:1663-1665, so the ``else`` arm is what
+          every default ``--enable-fs`` run takes):
+
+          * ``False`` (cc:230-236): the exemplar's OWN features are
+            unioned back INTO the selected set, and the exemplar goes
+            into ``xmplr_seq`` untouched. Its features therefore stay
+            OUT of ``ignore_ops``.
+          * ``True`` (cc:216-229): ``prune_xmplr`` (cc:308, ported
+            below) strips the unselected arguments out of a copy of the
+            exemplar and THAT goes into ``xmplr_seq`` -- and the union
+            above is NOT performed, so the exemplar's own features do
+            land in ``ignore_ops``. Do not "tidy" this asymmetry away;
+            it is what ``--fs-prune-exemplar`` means. Classic's own
+            comment on the branch (cc:210-213) admits it does not know
+            why anyone would want it: "In particular, why would we ever
+            want to prune the exemplar? I can't figure this out."
 
         # DIVERGENCE(C++ moses/moses/deme/deme_expander.cc:287-294): the
         # real ``representation(...)`` call also forwards ``_params.
@@ -342,20 +438,54 @@ class deme_expander:
             festor = type(self._params.fstor)(self._params.fstor._ctable, copied_params)
             pop_of_selected_feats = festor(exemplar)
             xmplr_features = get_argument_abs_idx_from_zero_set(exemplar)
+            # C++: deme_expander.cc:193. Only ever read by the two debug
+            # records below (cc:227 via `fs_to_names`, plus the two inside
+            # the unported `log_selected_feature_sets`).
+            ilabels = festor._ctable.get_input_labels()
 
+            # C++: deme_expander.cc:204, `unsigned sfi = 0;` -- the index into
+            # `_demeIDs` the debug records below use, incremented at the end
+            # of each iteration (cc:266).
+            sfi = 0
             for selected_score, selected_feats in pop_of_selected_feats:
                 del selected_score  # only used for the omitted debug log
                 if festor.params.prune_xmplr:
-                    raise NotImplementedError(
-                        "deme_expander.create_representations: "
-                        "fstor.params.prune_xmplr=True (deme_expander.cc:"
-                        "308-325, needs combo_tree erase-under-iteration + "
-                        "a type_to_exemplar empty-tree fallback) is not "
-                        "ported; leave prune_xmplr at its default (False "
-                        "-- see feature_selector.py's module docstring)."
-                    )
-                selected_feats = set(selected_feats) | xmplr_features
-                xmplr_seq.append(exemplar)
+                    # C++: deme_expander.cc:216-229.
+                    if logger().is_debug_enabled():
+                        if not xmplr_features:
+                            # cc:219-221
+                            logger().debug(
+                                f"No feature to prune in the exemplar for deme {self._demeIDs[sfi]}"
+                            )
+                        else:
+                            # cc:222-228. `ostream_container`'s default
+                            # delimiter is a single space
+                            # (opencog/util/iostreamContainer.h:64).
+                            xmplr_nsf = xmplr_features - set(selected_feats)
+                            names = " ".join(self.fs_to_names(xmplr_nsf, ilabels))
+                            logger().debug(
+                                "Prune the exemplar from non-selected features "
+                                f"for deme {self._demeIDs[sfi]}: {names}"
+                            )
+                    # NOTE the asymmetry with the `else` arm below, and that
+                    # it is C++'s, not this port's: the pruning arm does NOT
+                    # union `xmplr_features` back into `selected_feats`, so
+                    # the exemplar's own features stay OUT of the feature set
+                    # and therefore land in `ignore_ops` a few lines down.
+                    # That is the entire point of `--fs-prune-exemplar`, and
+                    # it is why the two arms must not be collapsed into a
+                    # shared "compute selected_feats, then branch".
+                    xmplr_seq.append(self.prune_xmplr(exemplar, selected_feats))
+                else:
+                    # C++: deme_expander.cc:230-236.
+                    if logger().is_debug_enabled():
+                        logger().debug(
+                            "Do not prune the exemplar from non-selected "
+                            f"features for deme {self._demeIDs[sfi]}"
+                        )
+                    # Insert exemplar features as they are not pruned
+                    selected_feats = set(selected_feats) | xmplr_features
+                    xmplr_seq.append(exemplar)
 
                 if festor.params.enforce_features:
                     enforced = festor.sample_enforced_features()
@@ -371,6 +501,7 @@ class deme_expander:
                         ignore_ops.add(arg)
                 self._ignore_cols_seq.append(ignore_cols)
                 ignore_ops_seq.append(ignore_ops)
+                sfi += 1  # C++: deme_expander.cc:266
         else:  # no dynamic feature selection
             ignore_ops_seq.append(self._params.ignore_ops)
             xmplr_seq.append(exemplar)
@@ -422,6 +553,123 @@ class deme_expander:
             self._reps.append(rep)
 
         return len(self._reps) > 0
+
+    def prune_xmplr(self, xmplr: combo_tree, selected_features: Collection[int]) -> combo_tree:
+        """C++: moses/moses/deme/deme_expander.cc:308 deme_expander::prune_xmplr
+
+        "Return pruned exemplar from non-selected features"
+        (deme_expander.h:126's own comment, on the declaration at
+        deme_expander.h:128). Every argument leaf whose
+        zero-based column index is NOT in ``selected_features`` is erased
+        from a COPY of the exemplar, the survivor is run through
+        ``simplify_knob_building``, and -- if that leaves nothing at all --
+        a bare type seed replaces it. 25 lines in C++, and three of them
+        are traps.
+
+        **Trap 1: the walk is PRE-ORDER, and ``erase`` returns the next
+        PRE-ORDER position.** C++ iterates ``for (auto it = res.begin();
+        it != res.end();)``; ``tree<T>::begin()``/``end()`` return
+        ``pre_order_iterator`` (opencog/util/tree.h:830, :836), and
+        ``tree<T>::erase`` (tree.h:805) computes its return value as
+        ``iter ret = it; ret.skip_children(); ++ret;`` -- i.e. the
+        successor of ``it``'s WHOLE SUBTREE, using the ITERATOR TYPE'S own
+        ``operator++``. For a ``pre_order_iterator`` that flag is honoured
+        (tree.h:2430), so the answer is this port's
+        ``tree.erase_pre_order`` -- NOT ``tree.erase``, which is the SAME
+        C++ template instantiated for a ``sibling_iterator`` and returns
+        ``node.next_sibling`` (see both methods' docstrings in
+        ``pymetta/util/tree.py``). Using ``erase`` here is silent and
+        catastrophic: erasing the LAST child of a node yields ``None``,
+        the loop reads that as ``end()`` and stops, and every argument
+        after that point survives un-pruned. Measured against the C++
+        oracle (tools/cpp_probe/prune_xmplr_probe.cc, case 5): on
+        ``or(and($1 $2) $3)`` with ``{0}`` selected, classic returns
+        ``$1``; the ``erase``-instead-of-``erase_pre_order`` version stops
+        after erasing ``$2`` (the ``and``'s last child) and returns
+        ``or($1 $3)``.
+
+        What is NOT a trap, checked rather than assumed: computing the
+        successor BEFORE the erase (``nxt = res.next_pre_order(it)``, then
+        erase, then ``it = nxt``) is EQUIVALENT here, and mutation-testing
+        it kills nothing. ``skip_children()`` only matters for a node WITH
+        children, and an ``argument`` is always a leaf in a combo tree --
+        so the only thing that actually decides this loop is which
+        ITERATOR TYPE's ``operator++`` computes the successor, sibling or
+        pre-order, not when it is computed.
+
+        **Trap 2: mutation under iteration.** ``res`` is a *value copy*
+        (``combo_tree res = xmplr;``), so the caller's exemplar is never
+        touched -- ``create_representations`` reuses the same ``exemplar``
+        object for every feature set in ``pop_of_selected_feats``, so
+        pruning in place would corrupt the second and later demes.
+        Reproduced with ``combo_tree(xmplr.begin())``, which is this
+        port's ``tree(const iterator_base&)`` deep-copy overload
+        (``pymetta/util/tree.py``'s constructor) -- and which degrades
+        correctly to an empty tree when ``xmplr`` itself is empty, since
+        ``begin()`` is then ``None``. Never advance from an already-erased
+        node: this port poisons an erased node's links (``_DEAD``), so
+        stepping through one raises rather than silently walking back into
+        the live tree the way C++'s freed ``tree_node`` would.
+
+        **Trap 3: the empty-tree seed.** Only a bare-argument exemplar can
+        empty the tree -- erasing the root leaves ``res`` genuinely empty
+        (C++ splices the root out from between ``head`` and ``feet``;
+        ``_unlink`` clears ``_root`` here). Every other shape keeps at
+        least its root operator, and an argument-less ``and``/``or``
+        reduces to ``true`` instead. Oracle case 10: ``$1`` with nothing
+        selected returns ``and`` (``type_to_exemplar(boolean_type)``), not
+        an empty tree.
+
+        # DIVERGENCE(C++ moses/moses/deme/deme_expander.cc:325): classic
+        # SEGFAULTS on any exemplar that leaves a childless `not`.  Prune
+        # the only child of a `not` and `simplify_knob_building` is handed
+        # `not()`, which `logical_reduce` dereferences without checking.
+        # Measured directly against the real `libcomboreduct.so`
+        # (tools/cpp_probe/prune_xmplr_probe.cc, cases 6/7/8/9/12/20, and a
+        # standalone one-tree reducer): `not()` and `or(and($2) not())`
+        # both exit 139 (SIGSEGV) under `logical_reduction(2)`, while
+        # `and()`, `or()`, `and($2)` and `not($1)` all reduce fine -- so it
+        # is the childless `not` specifically, not degenerate operators in
+        # general.  Reachable from the CLI: `--fs-prune-exemplar 1` on any
+        # exemplar containing a negated feature that feature selection
+        # drops.  This port CANNOT reproduce a segfault; the same input
+        # raises `AttributeError` out of `logical_reduction` (measured:
+        # "'NoneType' object has no attribute 'data'"), which is this
+        # project's standing "loud where C++ is undefined" treatment (see
+        # `tree.py`'s `_unlink` DIVERGENCE for the same trade).  DO NOT
+        # FIX: do not add a childless-`not` guard here.  Classic has none,
+        # and inventing one would make the port SUCCEED where classic
+        # crashes -- a divergence in the direction that hides bugs.
+        """
+        res = combo_tree(xmplr.begin())
+        # remove literals of non selected features from the exemplar
+        it = res.begin()
+        while it is not res.end():
+            if is_argument(it.data):
+                # C++: `get_argument(*it).abs_idx_from_zero()`.  There is no
+                # `get_argument` in this port (grepped): `vertex` is a plain
+                # union of Python types, so a vertex for which `is_argument`
+                # holds simply IS the `argument`, and `boost::get<argument>`
+                # has nothing to unwrap.
+                feature = it.data.abs_idx_from_zero()
+                if feature not in selected_features:
+                    it = res.erase_pre_order(it)  # not selected, prune it
+                else:
+                    it = res.next_pre_order(it)
+            else:
+                it = res.next_pre_order(it)
+        self.simplify_knob_building(res)
+        # if the exemplar is empty use a seed
+        if res.empty():
+            # C++: `get_type_node(get_signature_output(_type_sig))`.
+            # `get_type_node` is not ported anywhere in this project, and
+            # `get_signature_output(sig).node` -- the only thing it is
+            # applied to here -- is definitionally `sig.otype`
+            # (type_signature.py's own `get_signature_output`), the same
+            # equivalence `demo_problems._alphabet_size` relies on.
+            otn = self._type_sig.otype
+            res = _type_to_exemplar(otn)
+        return res
 
     def create_demes(self, exemplar: combo_tree, n_expansions: int = 0) -> bool:
         """C++: moses/moses/deme/deme_expander.cc:375 deme_expander::create_demes
