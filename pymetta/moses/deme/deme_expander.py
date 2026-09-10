@@ -238,25 +238,116 @@ class deme_expander:
         then silently is not -- so ``sorted(fs)`` is the faithful
         transliteration, not a cosmetic tidy-up.
 
-        Previously listed in this module's docstring as deliberately NOT
-        ported, on the grounds that its only C++ call sites (cc:76, :78,
-        :227) are inside ``logger()`` calls. That is still true of cc:76/:78
-        (both inside ``log_selected_feature_sets``, still not ported), but
-        cc:227 sits in the ``prune_xmplr`` arm of ``create_representations``
-        -- ported below as of this change -- so the function now has a real
-        caller here too.
+        All three C++ call sites are ported: cc:76 and cc:78 inside
+        ``log_selected_feature_sets`` (below), and cc:227 in the
+        ``prune_xmplr`` arm of ``create_representations``.
 
         Raises ``IndexError`` for a feature index at or beyond
-        ``len(ilabels)``, exactly where C++'s ``ilabels[i]`` -- an
-        UNCHECKED ``std::vector::operator[]`` -- is undefined behaviour
-        instead. Not a divergence in any reachable case (every caller
-        derives ``fs`` from column indices of the very table ``ilabels``
-        came from); loud rather than silent for the unreachable one.
+        ``len(ilabels)``, where C++'s ``ilabels[i]`` -- an UNCHECKED
+        ``std::vector::operator[]`` -- is undefined behaviour instead.
+        **That case is REACHABLE, and it is where classic dies.** With
+        ``--fs-seed=xmplr`` (``xmplr_as_feature``),
+        ``feature_selector.build_fs_ctable`` appends a synthetic
+        ``__exemplar_feature__`` column at index ``_ctable.get_arity()``,
+        feature selection can pick it, and nothing removes it again --
+        ``feature_selector::remove_useless_features``
+        (feature_selector.cc:295), the function written to strip it, has
+        ZERO call sites in the whole classic tree. ``ilabels`` here is
+        ``festor._ctable.get_input_labels()``, the ORIGINAL columns, so
+        that index is one past the end. Measured under gdb on this
+        machine, 2026-09-10: ``moses -i bool_a5_maj.csv -u y -m1000 -W1
+        --enable-fs=1 --fs-target-size=2 -r1 --fs-seed=xmplr`` SIGSEGVs
+        (rc 139) with the fault inside ``std::char_traits<char>::copy``
+        under ``fs_to_names`` (deme_expander.cc:53), called from
+        ``log_selected_feature_sets`` (cc:78) from
+        ``create_representations`` (cc:200). Reproducing the UB is not
+        possible and producing an answer classic cannot would be worse,
+        so this raises -- the same rule ``interpreter.py`` applies to an
+        argument index beyond the table's arity (CARRY-FORWARD.md 3).
         """
         fs_names: list[str] = []
         for i in sorted(fs):
+            if not 0 <= i < len(ilabels):
+                raise IndexError(
+                    f"deme_expander.fs_to_names: feature index {i} is outside "
+                    f"the {len(ilabels)} input column(s) this table has. C++'s "
+                    "`ilabels[i]` (deme_expander.cc:53) is an unchecked "
+                    "std::vector::operator[] and SEGVs here; the reachable "
+                    "cause is --fs-seed=xmplr, whose synthetic "
+                    "__exemplar_feature__ column sits at index "
+                    f"{len(ilabels)} and is never removed again "
+                    "(feature_selector::remove_useless_features has zero "
+                    "call sites in classic). See this method's docstring."
+                )
             fs_names.append(ilabels[i])
         return fs_names
+
+    def log_selected_feature_sets(
+        self,
+        sf_pop: list,
+        xmplr_features: set[int],
+        ilabels: Sequence[str],
+    ) -> None:
+        """C++: moses/moses/deme/deme_expander.cc:57 deme_expander::log_selected_feature_sets
+
+        NOT logging-only, which is why it is ported rather than dropped
+        with the other ``logger()``-only helpers. Its first statement
+        after the size read is
+
+            OC_ASSERT(sfps == _demeIDs.size(), "The code is probably not robust enough");
+
+        (cc:63) and ``OC_ASSERT`` is ACTIVE in release builds --
+        ``IGNORE_OC_ASSERT`` is defined nowhere in the MOSES or CogUtil
+        trees -- so it throws ``opencog::AssertionException``
+        ($COGUTIL/opencog/util/oc_assert.cc:46), which nothing catches.
+
+        It fires for a real command line. ``create_demeIDs`` builds
+        ``fstor.params.n_demes`` ids (cc:152-154) while every ported
+        selection algorithm returns a single feature set, capped again by
+        ``select_top_feature_sets`` at ``min(n_demes, fss.size())``
+        (feature_selector.cc:237) -- so ``--fs-demes=N`` with ``N > 1``
+        gives ``1 != N`` and classic ABORTS. Measured, 2026-09-10:
+        ``moses -i bool_a5_maj.csv -u y -m1000 -W1 --enable-fs=1
+        --fs-target-size=2 -r1 --fs-demes=2`` exits 134 with "The code is
+        probably not robust enough (deme_expander.cc:63)", for
+        ``--fs-algo=simple`` and ``--fs-algo=random`` alike. Until this
+        function was ported, this port ran that command line happily and
+        printed a result -- accepting input classic refuses, the mirror
+        image of the over-gating this project usually guards against.
+
+        Ported as ``RuntimeError``, the same shape ``create_demes``
+        already gives cc:379-381's ``OC_ASSERT``.
+        """
+        # C++: `unsigned sfps = sf_pop.size(), sfi = 0;` (cc:60).
+        sfps = len(sf_pop)
+        sfi = 0
+        if sfps != len(self._demeIDs):
+            raise RuntimeError(
+                "The code is probably not robust enough "
+                "(OC_ASSERT, deme_expander.cc:63): feature selection "
+                f"returned {sfps} feature set(s) but create_demeIDs built "
+                f"{len(self._demeIDs)} deme id(s). --fs-demes > 1 always "
+                "reaches this, because every selection algorithm returns "
+                "exactly one feature set."
+            )
+        for _score, sf in sf_pop:
+            logger().info(f"Breadth-first expansion for deme : {self._demeIDs[sfi]}")
+            logger().info(f"Selected {len(sf)} features for representation building")
+            xmplr_sf = set(sf) & xmplr_features
+            new_sf = set(sf) - xmplr_features
+            logger().info(
+                f"Of these, {len(xmplr_sf)} are already in the exemplar, and {len(new_sf)} are new."
+            )
+            # C++ passes "," EXPLICITLY to both `ostream_container` calls
+            # (cc:76,78), unlike cc:227's use of the default " ".
+            logger().info(
+                "Selected features which are in the exemplar: "
+                + ",".join(self.fs_to_names(xmplr_sf, ilabels))
+            )
+            logger().info(
+                "Selected features which are new: " + ",".join(self.fs_to_names(new_sf, ilabels))
+            )
+            sfi += 1  # C++: deme_expander.cc:79
 
     # ------------------------------------------------------------ subsample
 
@@ -439,12 +530,31 @@ class deme_expander:
             # the unported `log_selected_feature_sets`).
             ilabels = festor._ctable.get_input_labels()
 
+            if festor.params.n_demes > 1:
+                # C++: deme_expander.cc:195-198.
+                logger().info(
+                    "Breadth-first deme expansion (same exemplar, multiple "
+                    f"feature sets): {festor.params.n_demes} demes"
+                )
+
+            # C++: deme_expander.cc:200. NOT a logging call despite the
+            # name -- see that method's own docstring for the live
+            # `OC_ASSERT` inside it and the two command lines that reach
+            # it.
+            self.log_selected_feature_sets(pop_of_selected_feats, xmplr_features, ilabels)
+
+            # C++: deme_expander.cc:202-203.
+            logger().debug(
+                "Post-treatment: possibly enforce some features and prune exemplars for each deme"
+            )
+
             # C++: deme_expander.cc:204, `unsigned sfi = 0;` -- the index into
             # `_demeIDs` the debug records below use, incremented at the end
             # of each iteration (cc:266).
             sfi = 0
             for selected_score, selected_feats in pop_of_selected_feats:
                 del selected_score  # only used for the omitted debug log
+                logger().debug(f"Deme {self._demeIDs[sfi]}:")  # C++: cc:210
                 if festor.params.prune_xmplr:
                     # C++: deme_expander.cc:216-229.
                     if logger().is_debug_enabled():

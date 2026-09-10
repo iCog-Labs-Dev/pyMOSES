@@ -51,7 +51,7 @@ from __future__ import annotations
 import math
 
 from pymetta.comboreduct.combo.vertex import builtin, combo_tree, is_argument, vertex
-from pymetta.comboreduct.interpreter.interpreter import boolean_interpreter
+from pymetta.comboreduct.interpreter.interpreter import interpreter_visitor
 from pymetta.comboreduct.table.table import CTable, Table, get_indices
 from pymetta.comboreduct.type_checker.type_signature import TypeSignature, type_node
 from pymetta.feature_selection.ctable_subsample import subsampleCTable
@@ -404,13 +404,17 @@ class feature_selector:
         on a reachable CLI combination.
         """
         sig = self._ctable.get_signature()
+        # C++: `auto cto = get_type_node(get_signature_output(sig));`
+        # (feature_selector.cc:125). NOT a gate: classic branches on this
+        # only inside `xmplr_as_feature` (cc:190-196), where the third
+        # arm is its own `OC_ASSERT(false, "Not implemented")`. This port
+        # used to reject every non-boolean `cto` right here, which made
+        # `-Hit` on a contin table and `-Hcluster` refuse a command line
+        # classic runs -- both go through `REGRESSION(table, ...)`
+        # (table-problems.cc:519,522,557), i.e. the `Table` constructor
+        # overload, and both were measured failing against classic's own
+        # binary before the gate moved down to cc:196 where it belongs.
         cto = sig.otype if sig is not None else type_node.unknown_type
-        if cto is not type_node.boolean_type:
-            raise NotImplementedError(
-                f"feature_selector.build_fs_ctable: output type {cto!r} is not "
-                "boolean_type -- this port's interpreter/representation stack "
-                "is boolean-only (see build_fs_ctable's own docstring)."
-            )
 
         olabel = self._ctable.get_labels()[0]
         ilabels = list(self._ctable.get_input_labels())
@@ -423,7 +427,16 @@ class feature_selector:
         new_sig = TypeSignature(itypes, cto) if sig is not None else None
         fs_ctable = CTable(olabel, ilabels, new_sig)
 
-        interp = boolean_interpreter
+        # C++: `interpreter_visitor iv(xmplr); auto ai =
+        # boost::apply_visitor(iv);` (feature_selector.cc:139-140),
+        # constructed ONCE, before the per-row loop. `interpreter_visitor`
+        # -- not `boolean_interpreter`: it picks `mixed_interpreter` when
+        # the exemplar holds a contin expression or `greater_than_zero`,
+        # and when the row itself is contin-valued (table.h:304-341). The
+        # port pinned `boolean_interpreter` here until 2026-09-10, which
+        # was wrong for exactly the two problems that reach this with a
+        # non-boolean table.
+        iv = interpreter_visitor(xmplr)
         ignored_sorted = sorted(self.params.ignored_features)
         if self.params.ignored_features:
             # C++: feature_selector.cc:144-145 -- `ostream_container(...,
@@ -432,7 +445,7 @@ class feature_selector:
             logger().debug("Ignore features: " + " ".join(str(i) for i in ignored_sorted))
 
         for row, counter in self._ctable.items():
-            predicted_out: vertex = interp(list(row))(xmplr)
+            predicted_out: vertex = iv(list(row))
 
             consider_row = True
             if self.params.restrict_true:
@@ -447,7 +460,22 @@ class feature_selector:
                     for i in ignored_sorted:
                         inputs[i] = builtin.null_vertex  # init_at_visitor's `vt()`
                 if self.params.xmplr_as_feature:
-                    inputs.append(predicted_out)  # get_builtin(predicted_out): identity here
+                    # C++: feature_selector.cc:190-196. `get_builtin`/
+                    # `get_contin` are `boost::get<>` on the vertex
+                    # variant -- the identity in this port, where a
+                    # `vertex` for which `is_builtin`/`is_contin` holds
+                    # simply IS that value -- but the third arm is a real
+                    # `OC_ASSERT(false, "Not implemented")` and is
+                    # reproduced as one. This is the ONLY place in
+                    # `build_fs_ctable` where the output type matters.
+                    if cto is not type_node.boolean_type and cto is not type_node.contin_type:
+                        raise NotImplementedError(
+                            "feature_selector.build_fs_ctable: "
+                            "--fs-seed=xmplr on a table whose output type is "
+                            f"{cto!r} -- classic's own OC_ASSERT(false, "
+                            '"Not implemented") (feature_selector.cc:196)'
+                        )
+                    inputs.append(predicted_out)
 
                 key = tuple(inputs)
                 # `fs_ctable[inputs] += vct.second;` (feature_selector.cc:202)
