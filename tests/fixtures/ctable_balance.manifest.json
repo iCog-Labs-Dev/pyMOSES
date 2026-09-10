@@ -1,0 +1,28 @@
+{
+  "capture_script": "tools/capture_ctable_balance.py",
+  "capture_script_sha256": "0166ad94e80d744ad84be1d63dcda62904a82434d2eb243007d6317e64dacca7",
+  "classic_dir": "/home/yab/Documents/Projects/iCog/HyperonRelated/MOSES/OpenCog/Moses",
+  "cli_tool": null,
+  "generated_at_utc": "2026-09-10T05:48:00+00:00",
+  "inputs": {
+    "balance_cases": [
+      "imbalanced_bool.csv",
+      "trainingBoolean.dat",
+      "trainingBooleanXor.dat",
+      "weighted.csv",
+      "contin_regression_sample.csv"
+    ]
+  },
+  "prefix_dir": "/home/yab/opt/moses-legacy",
+  "probe_kind": "cpp_probe",
+  "probe_source": "tools/cpp_probe/ctable_balance_probe.cc",
+  "probe_source_sha256": "283f22fd27b12c27b5dc32ce38344baafb50a625bdb58a93edcdf6f32224fb4c",
+  "repo_commit": "cc340da5e6c1cf044b82667de6a2e84d3ab7d3d9",
+  "schema_version": 2,
+  "toolchain": {
+    "boost_lib_version": "1_92",
+    "cxx": "g++ (GCC) 16.2.1 20260810",
+    "glibcxx_max_symbol": "GLIBCXX_3.4.36",
+    "libstdcxx_soname": "libstdc++.so.6.0.36"
+  }
+}

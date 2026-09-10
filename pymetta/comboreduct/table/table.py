@@ -131,6 +131,81 @@ def get_indices(labels: Sequence[str], header: Sequence[str]) -> list[int]:
 
 
 # ---------------------------------------------------------------------------
+# Contin-target discretization -- table.cc:573 / table.cc:583
+#
+# DUPLICATE ALERT, disclosed rather than silently left to drift:
+# `pymetta/feature_selection/scorers/mutual_info.py` carries its own copy of
+# `TARGET_DISCRETIZED_BINS_NUM`/`discretize_contin_feature`/
+# `get_discrete_bin`, landed concurrently, with a PLACEMENT divergence
+# marker saying they belong here and were put there only because this file
+# was owned by another task. These, in `table.py`, are the ones whose C++
+# home (`table.cc`) matches; `mutual_info.py`'s copies should import from
+# here and be deleted. Until that happens there are two implementations of
+# the same three symbols, and this comment is the only thing that says so.
+# Both are pinned against independently captured C++ fixtures
+# (`ctable_balance.json`'s `discretize` group here, `mi_contin.json`'s
+# `discretize` group there), so a drift between them turns one of the two
+# red rather than going unnoticed.
+# ---------------------------------------------------------------------------
+
+# C++: moses/comboreduct/table/table.h:56 TARGET_DISCRETIZED_BINS_NUM
+# `#define TARGET_DISCRETIZED_BINS_NUM 5  // discretize contin type target`
+TARGET_DISCRETIZED_BINS_NUM = 5
+
+
+def discretize_contin_feature(min_: float, max_: float) -> list[float]:
+    """C++: moses/comboreduct/table/table.cc:573 discretize_contin_feature
+
+    Returns the `TARGET_DISCRETIZED_BINS_NUM` LEFT EDGES of an equal-width
+    partition of `[min_, max_]`: `min_ + i*interval` for `i in 0..4`, with
+    `interval = (max_ - min_)/5`. The last edge is `min_ + 4*interval`,
+    never `max_` itself -- the bins are half-open and the top one is
+    unbounded above (see `get_discrete_bin`).
+
+    `contin_t` is `double` and `TARGET_DISCRETIZED_BINS_NUM` is an `int`
+    macro promoted by the division, so the arithmetic is plain binary64 in
+    both languages. `min_ + i*interval` is computed exactly as written
+    (one multiply, one add per element), so its rounding is reproduced
+    rather than avoided by an accumulating or compensated sum.
+    """
+    interval = (max_ - min_) / TARGET_DISCRETIZED_BINS_NUM
+    return [min_ + i * interval for i in range(TARGET_DISCRETIZED_BINS_NUM)]
+
+
+def get_discrete_bin(disc_intvs: Sequence[float], val: float) -> builtin:
+    """C++: moses/comboreduct/table/table.cc:583 get_discrete_bin
+
+    Returns the 1-based index of the bin `val` falls in, CAST TO
+    `builtin` -- `return (builtin)i;`, with `i` in `1..5`. The loop scans
+    `i = 1..4` and breaks on the first `val < disc_intvs[i]`; falling off
+    the end leaves `i == 5`. `disc_intvs[0]` (the bottom edge) is
+    therefore never consulted: a `val` below it still lands in bin 1, and
+    bin 5 is unbounded above.
+
+    The `(builtin)` cast genuinely reinterprets a bin ORDINAL as a combo
+    builtin token, so bins 1..5 come out as `logical_true`(1),
+    `logical_false`(2), `logical_and`(3), `logical_or`(4),
+    `logical_not`(5) -- vertex.h:72-79's own enumerator order. That is not
+    a transcription slip here: the values are used only as opaque distinct
+    keys for the `ioc`/`ycount` counters inside
+    `mutualInformation(CTable, FeatureSet)` (table.h:1220), never
+    interpreted as logic. Reproduced exactly, because the identity of
+    those keys is observable through the resulting entropy sums the moment
+    a bin ordinal collides with a real output value.
+
+    DO NOT FIX: bin 5 landing on `logical_not` (an operator, not a
+    constant) is classic's own behaviour, and is what a differential run
+    has to reproduce.
+    """
+    i = 1
+    while i < TARGET_DISCRETIZED_BINS_NUM:
+        if val < disc_intvs[i]:
+            break
+        i += 1
+    return builtin(i)
+
+
+# ---------------------------------------------------------------------------
 # ITable -- table.h:738
 # ---------------------------------------------------------------------------
 
@@ -810,6 +885,93 @@ class CTable(dict):
     def get_output_type(self) -> type_node:
         """C++: moses/comboreduct/table/table.cc:789 CTable::get_output_type"""
         return self._signature.otype if self._signature is not None else type_node.unknown_type
+
+    def balance(self) -> None:
+        """C++: moses/comboreduct/table/table.cc:806 CTable::balance
+
+        `--balance`'s implementation (`table-problems.cc:133-134`), whose
+        help text promises to "balance the resulting ctable so all classes
+        have the same weight" (problem-params.cc:235-238).
+
+        **It does nothing.** Not a narrowing, not an approximation: the
+        write-back loop mutates temporaries and is discarded. Both of its
+        range-for declarations bind BY VALUE --
+
+            for (auto iorow : *this)            // copy of the (key, cell) pair
+                for (auto tvc : iorow.second)   // copy of the (value, count) pair
+                    tvc.second *= (usize / n) / class_count[tvc.first.value];
+
+        -- so `tvc.second` is a field of a copy of a copy, and `*=` writes
+        it and then drops it at the end of the iteration. `auto&` on either
+        line would have made this the real thing; neither has it.
+
+        MEASURED, not inferred (`tools/cpp_probe/ctable_balance_probe.cc`,
+        captured into `tests/fixtures/ctable_balance.json`): on an 8-row
+        boolean table split 7 `true` / 1 `false` -- where a real balance
+        would scale the `true` rows by `(8/2)/7 = 0.571...` and the
+        `false` row by `(8/2)/1 = 4.0` -- every cell's counts are
+        byte-identical before and after, and `uncompressed_size()` stays
+        8.0. Confirmed end to end as well: classic's `moses --balance=1`
+        and `--balance=0` produce byte-identical stdout.
+
+        DO NOT FIX. Classic accepts `--balance` and exits 0 having changed
+        nothing; a port that actually balanced would silently disagree with
+        every classic run that passes the flag. The `class_count`/`usize`
+        computation IS reproduced below, because it is the part of the
+        function that genuinely executes, and the loop that throws its
+        result away is written out rather than elided so that the shape of
+        the bug stays legible to the next reader.
+
+        The `else` branch really does run: a non-discrete (contin) output
+        type logs `logger().warn()` and leaves the table alone -- which,
+        given the above, is the same observable outcome by a different
+        route.
+        """
+        otype = self.get_output_type()
+        if otype in (type_node.boolean_type, type_node.enum_type):
+            # C++: table.cc:811-813. `class_count += iorow.second.untimedCounter()`
+            # -- `untimedCounter()` (table.cc:616) collapses a cell's
+            # `TimedValue` keys onto their bare vertices, which is exactly
+            # what iterating this port's own cell mapping already yields
+            # (see `TimedCounter`'s class docstring). `class_count` is a
+            # real local, so THIS accumulation is not lost.
+            class_count: dict[vertex, float] = {}
+            for _row, counter in self.items():
+                for value, count in counter.items():
+                    class_count[value] = class_count.get(value, 0.0) + count
+
+            # C++: table.cc:815. `count_t usize = uncompressed_size(), n = class_count.size();`
+            usize = self.uncompressed_size()
+            n = float(len(class_count))
+
+            # C++: table.cc:829-832 -- the loop that does nothing. Both
+            # bindings are copies here for the same reason they are copies
+            # in C++, so that `scaled` is provably a dead store in both.
+            for _row, counter in self.items():
+                cell_copy = dict(counter)  # C++'s `auto iorow` (by value)
+                for value in cell_copy:
+                    tvc_second = cell_copy[value]  # C++'s `auto tvc` (by value)
+                    denominator = class_count[value]
+                    if denominator == 0.0:
+                        # C++ divides in IEEE-754 double, which yields
+                        # +/-inf (or NaN for 0/0) and never raises, where
+                        # Python's `/` raises ZeroDivisionError. Reachable
+                        # only from a weighted table whose weights sum to
+                        # zero for some class; the product is discarded
+                        # either way, so the branch exists purely so this
+                        # port cannot raise where classic cannot.
+                        continue
+                    tvc_second *= (usize / n) / denominator  # noqa: F841  (dead in C++ too)
+        else:
+            # C++: table.cc:834-836. C++ streams the `type_node` through
+            # its own `operator<<` (type_tree_def.h), which prints the
+            # SHORT name ("contin"), not the enumerator spelling -- hence
+            # `otype.name.removesuffix("_type")` rather than `%s` of the
+            # Python enum, which would print "type_node.contin_type".
+            logger().warn(
+                "CTable::balance() - cannot balance non discrete output type %s",
+                otype.name.removesuffix("_type"),
+            )
 
     def filtered(self, filter_indices: Iterable[int]) -> CTable:
         """C++: moses/comboreduct/table/table.h:585 CTable::filtered

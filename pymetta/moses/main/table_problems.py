@@ -519,14 +519,15 @@ class table_problem_base(problem_base):
             self._ctables.append(ctable)
 
             # C++: if (pms.balance) _ctables.back().balance() --
-            # table-problems.cc:133-134. `CTable.balance()` is not ported
-            # anywhere in this project (table.py, grep-confirmed).
+            # table-problems.cc:133-134. `CTable.balance()` (table.py) is a
+            # faithful port of a function that PROVABLY does nothing: both
+            # of its C++ range-for loops bind by value, so the scaling it
+            # computes is written to temporaries and dropped. See that
+            # method's own docstring for the measurement (and for why
+            # "fixing" it would put this port at odds with every classic
+            # `--balance` run).
             if pms.balance:
-                raise NotImplementedError(
-                    "table_problem_base.common_setup: --balance needs "
-                    "CTable.balance(), not ported anywhere in this project "
-                    "(table.py) -- table-problems.cc:133-134"
-                )
+                self._ctables[-1].balance()
 
         logger().info("Number of rows in tables = %d", num_rows)
 
