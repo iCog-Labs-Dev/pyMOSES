@@ -183,7 +183,9 @@
     {"a": "application(boolean)", "b": "boolean", "a_inherits_b": 0, "b_inherits_a": 0, "equal": 0, "intersection": "ill_formed"},
     {"a": "boolean", "b": "application(boolean)", "a_inherits_b": 0, "b_inherits_a": 0, "equal": 0, "intersection": "ill_formed"},
     {"a": "->(contin contin)", "b": "->(contin contin)", "a_inherits_b": 1, "b_inherits_a": 1, "equal": 1, "intersection": "->(contin contin)"},
-    {"a": "union(->(boolean boolean) contin)", "b": "union(->(boolean boolean) contin)", "a_inherits_b": 1, "b_inherits_a": 1, "equal": 1, "intersection": "union(->(boolean boolean) contin)"}
+    {"a": "union(->(boolean boolean) contin)", "b": "union(->(boolean boolean) contin)", "a_inherits_b": 1, "b_inherits_a": 1, "equal": 1, "intersection": "union(->(boolean boolean) contin)"},
+    {"a": "union(boolean ->(contin contin) contin)", "b": "union(boolean ->(contin contin) action_result)", "a_inherits_b": 0, "b_inherits_a": 0, "equal": 0, "intersection": "union(boolean ->(contin contin))"},
+    {"a": "union(boolean ->(contin contin) ->(boolean boolean) contin)", "b": "union(boolean ->(contin contin) ->(boolean boolean) action_result)", "a_inherits_b": 0, "b_inherits_a": 0, "equal": 0, "intersection": "union(boolean ->(boolean boolean) ->(contin contin))"}
   ],
   "reduce": [
     {"tt": "boolean", "arg_types": [], "reduced": "boolean", "is_well_formed": 1},
@@ -217,7 +219,32 @@
     {"tt": "application(->(boolean boolean) $1)", "arg_types": ["boolean"], "reduced": "boolean", "is_well_formed": 1},
     {"tt": "application(->(boolean boolean) $1)", "arg_types": ["contin"], "reduced": "ill_formed", "is_well_formed": 0},
     {"tt": "application(->(contin contin) $1)", "arg_types": ["unknown"], "reduced": "ill_formed", "is_well_formed": 0},
-    {"tt": "->($1 $2)", "arg_types": ["boolean", "contin"], "reduced": "->(boolean contin)", "is_well_formed": 1}
+    {"tt": "->($1 $2)", "arg_types": ["boolean", "contin"], "reduced": "->(boolean contin)", "is_well_formed": 1},
+    {"tt": "application(->(arg_list(application(->(boolean boolean) boolean)) boolean) boolean)", "arg_types": [], "reduced": "boolean", "is_well_formed": 1},
+    {"tt": "->(arg_list(application(->(boolean boolean) boolean)) boolean)", "arg_types": [], "reduced": "->(arg_list(boolean) boolean)", "is_well_formed": 1},
+    {"tt": "application(->(arg_list(boolean) application(->(boolean boolean) boolean)) boolean)", "arg_types": [], "reduced": "boolean", "is_well_formed": 1},
+    {"tt": "application(->(arg_list(contin) contin) application(->(arg_list(contin) contin) contin contin) contin)", "arg_types": [], "reduced": "contin", "is_well_formed": 1},
+    {"tt": "application(->(arg_list($1) boolean) $1 $1)", "arg_types": ["boolean"], "reduced": "boolean", "is_well_formed": 1}
+  ],
+  "parse": [
+    {"text": "boolean", "printed": "boolean", "size": 1},
+    {"text": "  boolean  ", "printed": "boolean", "size": 1},
+    {"text": "->(boolean boolean)", "printed": "->(boolean boolean)", "size": 3},
+    {"text": "->(boolean  boolean)", "printed": "->(boolean boolean)", "size": 3},
+    {"text": "-> (boolean boolean)", "printed": "->(boolean boolean)", "size": 3},
+    {"text": "->  ( boolean boolean )", "printed": "->(boolean boolean)", "size": 3},
+    {"text": "->(arg_list(boolean) boolean)", "printed": "->(arg_list(boolean) boolean)", "size": 4},
+    {"text": "->( arg_list( boolean ) boolean )", "printed": "->(arg_list(boolean) boolean)", "size": 4},
+    {"text": "union()", "printed": "union", "size": 1},
+    {"text": "->()", "printed": "->", "size": 1},
+    {"text": "boolean()", "printed": "boolean", "size": 1},
+    {"text": "arg_list()", "printed": "arg_list", "size": 1},
+    {"text": "->(arg_list() boolean)", "printed": "->(arg_list boolean)", "size": 3},
+    {"text": "application(->(boolean boolean) boolean)", "printed": "application(->(boolean boolean) boolean)", "size": 5},
+    {"text": "union(boolean contin)", "printed": "union(boolean contin)", "size": 3},
+    {"text": "$1", "printed": "$1", "size": 1},
+    {"text": "->($1 $2)", "printed": "->($1 $2)", "size": 3},
+    {"text": "->(arg_list(boolean unknown) unknown unknown)", "printed": "->(arg_list(boolean unknown) unknown unknown)", "size": 6}
   ],
   "type_node_io": {
     "ostream": [{"ord": 0, "str": "->"}, {"ord": 1, "str": "application"}, {"ord": 2, "str": "union"}, {"ord": 3, "str": "arg_list"}, {"ord": 4, "str": "boolean"}, {"ord": 5, "str": "contin"}, {"ord": 6, "str": "enum_t"}, {"ord": 7, "str": "UNKNOWN_HANDLE"}, {"ord": 8, "str": "action_result"}, {"ord": 9, "str": "definite_object"}, {"ord": 10, "str": "action_definite_object"}, {"ord": 11, "str": "indefinite_object"}, {"ord": 12, "str": "message"}, {"ord": 13, "str": "action_symbol"}, {"ord": 14, "str": "wild_card"}, {"ord": 15, "str": "UNKNOWN_HANDLE"}, {"ord": 16, "str": "unknown"}, {"ord": 17, "str": "ill_formed"}, {"ord": 18, "str": "$1"}, {"ord": 19, "str": "$2"}, {"ord": 20, "str": "$3"}, {"ord": 21, "str": "$4"}, {"ord": 22, "str": "$5"}, {"ord": 23, "str": "$6"}, {"ord": 24, "str": "$7"}],

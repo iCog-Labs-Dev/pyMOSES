@@ -318,6 +318,23 @@ class _FeatureSelectorParams:
 
     def __init__(self) -> None:
         self.prune_xmplr = False
+        # Added 2026-09-10 with `prune_xmplr`/`fs_to_names`, which read
+        # these five. Defaults are C++'s own member-initializer list
+        # (feature_selector.h:41-46): `increase_target_size(true)`,
+        # `ignore_xmplr_features(true)`, `restrict_incorrect(true)`,
+        # `restrict_true(false)`, `init_xmplr_features(false)`,
+        # `xmplr_as_feature(false)`. `ignored_features` has no C++
+        # initializer -- it is a default-constructed `std::set`.
+        self.increase_target_size = True
+        self.ignore_xmplr_features = True
+        self.restrict_incorrect = True
+        self.restrict_true = False
+        self.init_xmplr_features = False
+        self.xmplr_as_feature = False
+        self.ignored_features: set[int] = set()
+        # `std::map<combo::arity_t, float>` (feature_selector.h:150), no
+        # C++ initializer -- default-constructed, i.e. empty.
+        self.enforce_features: dict[int, float] = {}
         self.subsampling_ratio = 1.0
         self.subsampling_by_time = False
         self.n_demes = 1

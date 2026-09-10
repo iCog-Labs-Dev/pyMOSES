@@ -22,50 +22,30 @@ on every method:
   by the immutable `TypeSignature` in `type_checker/type_signature.py`.
   `Signature` remains a compatibility alias here so pre-S8 table and
   scoring callers keep the same import and constructor surface.
-* No `TTable`/`CTableTime`. Timestamped compression is out of scope (the
-  brief's `Table` interface has no `ttable` field); `loadTable`
-  (table_io.py) still recognises and *excludes* a `timestamp_feature`
-  column from `itable`, matching classic's column-exclusion behaviour
-  exactly, but the timestamp values themselves are discarded rather than
-  captured in a `TTable`. See table_io.py's module docstring.
+* `TTable`/`TimedValue`/`TimedCounter`/`CTableTime` ARE ported (they were
+  not, until the timestamp slice). `loadTable` fills `Table.ttable` from a
+  `--timestamp-feature` column instead of discarding it, and
+  `Table.compressed` keys each observation on `TimedValue(output,
+  timestamp)` the way classic does. Two structural choices are documented
+  as DIVERGENCE markers where they live rather than repeated here:
 
-  What that costs, spelled out because "no TTable" understates it. The
-  timestamp is not a column the port drops on the way to an otherwise
-  identical `CTable`: in classic it becomes part of the CTable's VALUE
-  KEY. `Table::compressed` keys `TimedValue(*out_it, *time_it)` when
-  `ttable` is non-empty and `TimedValue(*out_it)` -- a default,
-  not-a-date timestamp -- when it is empty (table.cc:534-550), and
-  `TimedValue` is `(vertex value, TTable::value_type timestamp)` with a
-  member-wise `operator==` (table.h:472-490). So two rows sharing inputs
-  AND output but differing in date occupy TWO `TimedCounter` entries in
-  classic and ONE `Counter[vertex]` entry here.
-
-  That is scoring-neutral -- `TimedCounter::get(const vertex&)` is
-  explicitly "the sum of that counter across all timestamps with vertex
-  equal to v" (table.h:497-500), which is what the port's plain counter
-  lookup already gives -- but it is why three `CTable` members are
-  absent here rather than merely unimplemented, since none of them has
-  any data to read: `get_timestamps` (table.h:697, table.cc:735),
-  `remove_rows_at_time` (table.h:692, table.cc:713) and
-  `remove_rows_at_times` (table.h:687, table.cc:707). Note in particular
-  that classic's own `get_timestamps` filters on
-  `timestamp != boost::gregorian::date()` (table.cc:740), so a vacuous
-  Python `def get_timestamps(self): return set()` would be *numerically*
-  right for every table this port can build -- and would still be wrong
-  to add: `ss_bscore.__init__` (moses/scoring/ss_bscore.py) gates on
-  `hasattr(ctable, "get_timestamps")`, so defining one silently turns a
-  clear `NotImplementedError` into an `ss_bscore` that believes the
-  dataset has no timestamps. The absence is load-bearing, and the only
-  test that actually protects it is
-  `test_ctable_has_no_timestamp_surface` in
-  tests/comboreduct/table/test_table.py -- `test_ss_bscore.py`'s own
-  construction gate feeds a test-local `_CTableDouble`, so it cannot see
-  the real class change.
+  - `TimedCounter`'s MAPPING interface is classic's `untimedCounter()`
+    view (vertex -> summed count), with the `TimedValue`-keyed observation
+    list reachable via `timed_items()`. See its class docstring.
+  - `TimedValue.__lt__` is transliterated verbatim including its bug, and
+    is NOT used to order any container. Classic's
+    `Counter<TimedValue, count_t>` is a `std::map` under a comparator that
+    is not a strict weak ordering, so classic's container silently loses
+    or duplicates observations; this port computes the intended result.
+    Measured in full in `TimedCounter`'s class docstring.
 """
 
 import math
+import re
 from collections import Counter
 from collections.abc import Iterable, Sequence
+from datetime import date
+from functools import cmp_to_key
 
 from pymetta.comboreduct.combo.vertex import (
     bool_to_vertex,
@@ -74,6 +54,9 @@ from pymetta.comboreduct.combo.vertex import (
     combo_tree,
     get_contin,
     vertex,
+    vertex_equal,
+    vertex_less,
+    vertex_rank,
 )
 from pymetta.comboreduct.interpreter.eval import arity as _tree_arity
 from pymetta.comboreduct.interpreter.interpreter import boolean_interpreter, interpreter_visitor
@@ -777,6 +760,599 @@ class OTable(list):
 
 
 # ---------------------------------------------------------------------------
+# TTable / TimedValue / TimedCounter / CTableTime -- table.h:454 .. :518
+#
+# The timestamp layer. Read `TimedValue.__lt__` and `TimedCounter`'s class
+# docstring before changing anything here: classic's own comparator is not
+# a strict weak ordering, so classic's container is not a faithful target.
+# ---------------------------------------------------------------------------
+
+# C++: moses/comboreduct/table/table.h:449 default_timestamp_label
+# `static const std::string default_timestamp_label("timestamp");`
+_DEFAULT_TIMESTAMP_LABEL = "timestamp"
+
+# `TTable::value_type` is `boost::gregorian::date` (table.h:458). A
+# default-constructed one is the special "not-a-date-time" value, which is
+# what `Table::compressed` gives every observation of an UNtimestamped
+# table (table.cc:513/:538, `TimedValue(*out_it)`); `None` stands for it
+# here. Every real date is a `datetime.date`.
+timestamp_t = "date | None"
+
+_MONTH_NAMES = (
+    "january",
+    "february",
+    "march",
+    "april",
+    "may",
+    "june",
+    "july",
+    "august",
+    "september",
+    "october",
+    "november",
+    "december",
+)
+
+# boost::gregorian's own year bounds -- measured, not assumed:
+# `TTable::from_string("1399-12-31")` throws `bad_year` with the message
+# "Year is out of valid range: 1400..9999", and so does "10000-01-01".
+_MIN_YEAR, _MAX_YEAR = 1400, 9999
+
+_DATE_TOKEN_SPLIT = re.compile(r"[^0-9A-Za-z]+")
+
+
+def timestamp_less(a, b) -> bool:
+    """No direct C++ symbol: `boost::gregorian::date::operator<`, over the
+    two-valued domain this port represents (`datetime.date`, or `None` for
+    boost's default-constructed not-a-date-time).
+
+    MEASURED (`tools/cpp_probe/timed_counter_probe.cc`, `ordering` mode),
+    because a sentinel's sort position is exactly the kind of thing that
+    gets guessed wrong: the not-a-date value compares GREATER than every
+    real date (`real < default` is true, `default < real` is false), and
+    equal to itself. boost stores it as the maximum of the internal day
+    count, so it sorts LAST.
+
+    Only `CTableTime` (`ordered_by_time`) and `get_timestamps` actually
+    order timestamps, and both drop or never see the sentinel -- but
+    `TimedValue.__lt__` calls this on mixed input, so the sentinel arm is
+    live.
+    """
+    if a is None:
+        return False  # not-a-date is the maximum: never less than anything
+    if b is None:
+        return True  # ... and every real date is less than it
+    return a < b
+
+
+class TTable(list):
+    """C++: moses/comboreduct/table/table.h:454 TTable
+
+    "Table containing timestamps. There is only one column: a single
+    timestamp for each row." (table.h:451-453's own comment.)
+    `struct TTable : public std::vector<boost::gregorian::date>` -- a
+    `list` here, one entry per row of the `ITable`/`OTable` it parallels,
+    plus a label.
+    """
+
+    def __init__(self, tt: Iterable = (), label: str = _DEFAULT_TIMESTAMP_LABEL) -> None:
+        """C++: moses/comboreduct/table/table.cc:454 TTable
+        and moses/comboreduct/table/table.cc:457 TTable(const super&, const string&)
+
+        One Python signature for both C++ constructors: `TTable(label)` is
+        `TTable(tt=(), label=label)` here.
+        """
+        super().__init__(tt)
+        self.label = label
+
+    def set_label(self, label: str) -> None:
+        """C++: moses/comboreduct/table/table.cc:460 TTable::set_label"""
+        self.label = label
+
+    def get_label(self) -> str:
+        """C++: moses/comboreduct/table/table.cc:465 TTable::get_label"""
+        return self.label
+
+    @staticmethod
+    def from_string(timestamp_str: str):
+        """C++: moses/comboreduct/table/table.cc:470 TTable::from_string
+
+        `return boost::gregorian::from_string(timestamp_str);` -- the
+        YEAR-MONTH-DAY parser `istreamDenseTable_noHeader` (table_io.cc:1144)
+        runs on every raw token of a `--timestamp-feature` column.
+
+        The accepted grammar is MEASURED against boost on this machine, not
+        reconstructed from its documentation (probe: a throwaway
+        `TTable::from_string` driver over 35 candidate strings; the results
+        are pinned in `tests/fixtures/table_timestamps.json`'s
+        `from_string` group):
+
+        * Fields are split on any run of non-alphanumeric characters, so
+          `2012-01-11`, `2012/01/11`, `2012.01.11`, `2012 01 11` and
+          `2012--01--11` all parse; leading/trailing whitespace is ignored.
+        * Exactly the FIRST THREE fields are used and the rest ignored:
+          `2012-01-11-05` parses as 2012-01-11.
+        * Month may be a number `1..12` or an English month name, either in
+          full (`september`) or as its FIRST THREE LETTERS (`sep`), case
+          insensitive. `sept` and `janu` are REJECTED ("Month number is out
+          of range 1..12") -- boost accepts only the exact full name or the
+          exact 3-letter abbreviation, nothing between.
+        * Leading zeros are fine anywhere (`02012-Jan-011` parses).
+        * A run-together `20120111` is REJECTED (only three fields, split on
+          delimiters; a single field is not a date).
+        * Year must be `1400..9999`; day must be valid for the month and
+          year (`2012-Feb-29` parses, `2011-Feb-29` does not).
+
+        # DIVERGENCE(C++ moses/comboreduct/table/table.cc:470): ERROR TYPE
+        # ONLY. boost throws `boost::bad_lexical_cast`,
+        # `boost::gregorian::bad_year`, `bad_month` or `bad_day_of_month`
+        # depending on which field failed; this raises `ValueError`
+        # carrying boost's own message text, so the WHICH is preserved and
+        # only the Python exception class differs. Classic never catches
+        # any of them -- an unparseable timestamp column terminates the
+        # process -- so the only observable difference is the traceback.
+        """
+        text = timestamp_str.strip()
+        fields = [f for f in _DATE_TOKEN_SPLIT.split(text) if f]
+        if len(fields) < 3:
+            # boost reaches its day parse with an empty field and reports
+            # the day, not the field count -- reproduced verbatim.
+            raise ValueError("Day of month value is out of range 1..31")
+
+        year_s, month_s, day_s = fields[0], fields[1], fields[2]
+
+        if not year_s.isdigit():
+            raise ValueError(
+                "bad lexical cast: source type value could not be interpreted as target"
+            )
+        year = int(year_s)
+
+        if month_s.isdigit():
+            month = int(month_s)
+        else:
+            lowered = month_s.lower()
+            month = 0
+            for i, name in enumerate(_MONTH_NAMES, start=1):
+                if lowered == name or lowered == name[:3]:
+                    month = i
+                    break
+            if month == 0:
+                if lowered.isalpha():
+                    # boost's month-name lookup fails, then its numeric
+                    # fallback reports the range error -- measured on
+                    # "2012-Sept-11" and "2012-Janu-11".
+                    raise ValueError("Month number is out of range 1..12")
+                raise ValueError(
+                    "bad lexical cast: source type value could not be interpreted as target"
+                )
+        if not (1 <= month <= 12):
+            raise ValueError("Month number is out of range 1..12")
+
+        if not day_s.isdigit():
+            raise ValueError(
+                "bad lexical cast: source type value could not be interpreted as target"
+            )
+        day = int(day_s)
+        if not (1 <= day <= 31):
+            raise ValueError("Day of month value is out of range 1..31")
+
+        if not (_MIN_YEAR <= year <= _MAX_YEAR):
+            raise ValueError(f"Year is out of valid range: {_MIN_YEAR}..{_MAX_YEAR}")
+
+        try:
+            return date(year, month, day)
+        except ValueError as exc:  # day out of range for this month/year
+            raise ValueError("Day of month is not valid for year") from exc
+
+    @staticmethod
+    def to_string(timestamp) -> str:
+        """C++: moses/comboreduct/table/table.cc:474 TTable::to_string
+
+        `boost::gregorian::to_iso_extended_string`, i.e. `YYYY-MM-DD`.
+        The not-a-date sentinel prints as `not-a-date-time`, which is what
+        boost's own `to_iso_extended_string` produces for it.
+        """
+        if timestamp is None:
+            return "not-a-date-time"
+        return timestamp.isoformat()
+
+
+class TimedValue:
+    """C++: moses/comboreduct/table/table.h:472 TimedValue
+
+    A `(vertex value, TTable::value_type timestamp)` pair -- the KEY type
+    of every `CTable` cell (`TimedCounter`, table.h:496). `__slots__`
+    because a real table builds one per observation.
+    """
+
+    __slots__ = ("timestamp", "value")
+
+    def __init__(self, value: vertex, timestamp=None) -> None:
+        """C++: moses/comboreduct/table/table.h:476 TimedValue
+
+        `TimedValue(const vertex v, const TTable::value_type t =
+        TTable::value_type())` -- the default second argument is the
+        not-a-date sentinel, `None` here.
+        """
+        self.value = value
+        self.timestamp = timestamp
+
+    def __lt__(self, other: TimedValue) -> bool:
+        """C++: moses/comboreduct/table/table.h:472 TimedValue
+
+        Cites the enclosing struct: the real member is
+        `TimedValue::operator<` (table.h:482-484).
+
+        # DIVERGENCE(C++ moses/comboreduct/table/table.h:482): DO NOT FIX --
+        # this operator is transliterated verbatim, INCLUDING its bug, and
+        # is deliberately NOT used to order any container in this port. C++
+        # reads
+        #
+        #     return (value < r.value) || (timestamp < r.timestamp);
+        #
+        # which is missing the `value == r.value &&` guard that would make
+        # it lexicographic. It is therefore not a strict weak ordering:
+        # for a = (logical_true, 2012-01-11) and b = (logical_false,
+        # 2012-01-03), `a < b` AND `b < a` are both true while `a == b` is
+        # false (`logical_true` is enumerator 1 and `logical_false` is 2,
+        # vertex.h:74, so the value order and the date order disagree).
+        # `std::map` requires asymmetry, so classic's `Counter<TimedValue,
+        # count_t>` is undefined behaviour whenever a cell holds such a
+        # pair. See `TimedCounter`'s class docstring for what this port
+        # does instead, and for the measured consequences.
+        """
+        return vertex_less(self.value, other.value) or timestamp_less(
+            self.timestamp, other.timestamp
+        )
+
+    def __eq__(self, other: object) -> bool:
+        """C++: moses/comboreduct/table/table.h:472 TimedValue
+
+        Cites the enclosing struct: the real member is
+        `TimedValue::operator==` (table.h:486-488), `(value == r.value) &&
+        (timestamp == r.timestamp)`.
+
+        `vertex_equal`, not a bare `==`, on the value half -- `contin_t` is
+        a `float` and `builtin` an `IntEnum`, so `1.0 == logical_true` is
+        `True` in bare Python where `boost::variant`'s own `operator==`
+        compares `which()` first and can never be (vertex.py's own
+        docstring; docs/CARRY-FORWARD.md Sec 2.2/2.5).
+
+        Note this IS the equivalence relation `std::map` derives from the
+        broken `operator<`: `!(a<b) && !(b<a)` expands to `!(av<bv) &&
+        !(bv<av) && !(at<bt) && !(bt<at)`, i.e. exactly member-wise
+        equality. So the SET of keys a correctly-ordered map would hold is
+        well defined even though the container classic actually builds is
+        not -- which is what makes this port's choice a definite one rather
+        than an arbitrary pick.
+        """
+        if not isinstance(other, TimedValue):
+            return NotImplemented
+        return vertex_equal(self.value, other.value) and self.timestamp == other.timestamp
+
+    def __hash__(self) -> int:
+        """No C++ counterpart (`TimedValue` is a `std::map` key, never
+        hashed). Hashes the vertex's TYPE alongside its value, so the
+        `contin_t`/`builtin` ordinal collision `__eq__` guards against
+        cannot sneak back in through the hash: `hash(1.0) ==
+        hash(builtin.logical_true)` in bare Python, and two objects that
+        compare unequal but hash equal would still collide into one dict
+        bucket -- harmless for correctness, but it would make a
+        `TimedCounter` silently O(n) and, worse, invites a future `==`
+        fix to be judged safe by tests that never saw a collision.
+        """
+        return hash((vertex_rank(self.value), self.value, self.timestamp))
+
+    def __repr__(self) -> str:
+        return f"TimedValue({self.value!r}, {TTable.to_string(self.timestamp)})"
+
+
+class TimedCounter(dict):
+    """C++: moses/comboreduct/table/table.h:496 TimedCounter
+
+    `struct TimedCounter : public Counter<TimedValue, count_t>`, i.e.
+    `std::map<TimedValue, double, std::less<TimedValue>>` -- one CTable
+    cell: how many times each `(output value, timestamp)` observation
+    occurred, `count_t` being a `double` so weighted rows work.
+
+    ## The port keeps two views, and which one is the mapping matters
+
+    This object IS a `dict[vertex, count_t]` -- classic's own
+    `untimedCounter()` (table.cc:616), the sum of each vertex's counts
+    across all timestamps -- and carries the full `TimedValue`-keyed
+    observation list alongside it, reachable through `timed_items()` /
+    `timed_keys()` / `timed_len()`.
+
+    # DIVERGENCE(C++ moses/comboreduct/table/table.h:496): the mapping
+    # interface (`__iter__`, `items()`, `keys()`, `len()`) exposes the
+    # UNTIMED view where C++'s iteration yields `TimedValue` keys.
+    # Deliberate, for two reasons. (1) Fifteen modules outside this file
+    # read a CTable cell, and every one of them either looks a vertex up
+    # (`counter.get(v)`, which is precisely `TimedCounter::get(const
+    # vertex&)`, table.cc:608, "the sum of that counter across all
+    # timestamps") or sums the counts -- both of which the untimed view
+    # answers exactly. (2) Classic's own consumers that DO iterate all
+    # write `tcv.first.value` and then group by it, so the untimed view is
+    # not an approximation of what they compute: it is what they compute.
+    # `timed_items()` is there for the two places that genuinely need
+    # per-observation timestamps (`precision_bscore`'s `time_bscore` /
+    # dispersion branches, `ss_bscore`).
+
+    ## What this port does NOT reproduce: classic's container corruption
+
+    # DIVERGENCE(C++ moses/comboreduct/table/table.h:482): this port's
+    # observation list is an insertion-ordered dict keyed on `TimedValue`
+    # equality. Classic's is a `std::map` under `TimedValue::operator<`,
+    # which is not a strict weak ordering, so classic's container is
+    # undefined behaviour -- and MEASURED, not merely theoretically,
+    # broken. `tools/cpp_probe/timed_counter_probe.cc` replays every
+    # insertion sequence of length 1..4 over a pool of six `TimedValue`s
+    # (two boolean outputs x three dates) into a real `TimedCounter`:
+    #
+    #     1554 sequences
+    #      533 iterate in a different ORDER than a lexicographic map
+    #      190 LOSE observations: `map::size()` says 3 while iteration
+    #          visits 2, so the count of the unreachable node is silently
+    #          dropped from `total_count()`, `uncompressed_size()`,
+    #          `untimedCounter()` and every bscorer
+    #       30 hold the SAME key TWICE, splitting its count in two
+    #
+    # End to end on a 9-row table (`tests/fixtures/table_data/
+    # timestamp_bool_dup.csv`): classic's `--timestamp-feature=when` builds
+    # a CTable whose `uncompressed_size()` is 8. It is worse than
+    # non-deterministic-looking: WHICH observation vanishes changes when
+    # the CTable is COPIED, and `table-problems.cc` copies it twice before
+    # scoring, so the table classic actually scores (5 true / 3 false)
+    # differs from the one `Table::compressed` returned (6 true / 2 false).
+    #
+    # A port cannot faithfully reproduce that: it would mean emulating
+    # libstdc++'s red-black tree, its rebalancing, AND its copy
+    # constructor, under a comparator the standard says makes the result
+    # undefined. This port therefore computes the INTENDED result -- every
+    # distinct `(value, timestamp)` observation retained with its full
+    # count, which is exactly the key set C++'s own equivalence relation
+    # (`!(a<b) && !(b<a)`, member-wise equality) defines.
+    #
+    # What a user sees, concretely: on a `--timestamp-feature` table where
+    # some compressed row holds observations whose value order and date
+    # order disagree, classic drops or duplicates observations and this
+    # port does not. Scores computed from that table differ accordingly
+    # (measured: classic `-Hpre` reports 0.625 on timestamp_bool_dup.csv
+    # where all nine rows would give 6/9). On a table with no such row --
+    # which includes EVERY table with no timestamp column at all, since
+    # every observation then carries the same sentinel date -- the two
+    # agree exactly, and `tests/fixtures/table_data/
+    # timestamp_bool_clean.csv` is the corpus member that proves it.
+    """
+
+    __slots__ = ("_timed",)
+
+    def __init__(self) -> None:
+        """C++: moses/comboreduct/table/table.h:496 TimedCounter
+
+        Cites the enclosing struct: `Counter`'s default constructor
+        (opencog/util/Counter.h:72) is inherited, not declared here.
+        """
+        super().__init__()
+        self._timed: dict[TimedValue, float] = {}
+
+    # -- construction --------------------------------------------------
+
+    def add(self, value: vertex, timestamp, count: float) -> None:
+        """No direct C++ symbol: `res[*in_it][TimedValue(*out_it,
+        *time_it)] += weight;` (table.cc:548) -- `std::map::operator[]`
+        followed by `+=`, i.e. insert-or-accumulate. Named rather than
+        spelled as `__setitem__` because it takes the timestamp too.
+        """
+        key = TimedValue(value, timestamp)
+        self._timed[key] = self._timed.get(key, 0.0) + count
+        dict.__setitem__(self, value, dict.get(self, value, 0.0) + count)
+
+    # -- the timed view ------------------------------------------------
+
+    def timed_items(self):
+        """No direct C++ symbol: C++'s own `begin()`/`end()` over
+        `Counter<TimedValue, count_t>` -- named explicitly here because
+        this class's OWN iteration is the untimed view (see the class
+        docstring's first DIVERGENCE).
+        """
+        return self._timed.items()
+
+    def timed_keys(self):
+        """No direct C++ symbol: see `timed_items`."""
+        return self._timed.keys()
+
+    def timed_len(self) -> int:
+        """No direct C++ symbol: `Counter::size()`, i.e. the number of
+        distinct `(value, timestamp)` OBSERVATIONS -- what
+        `bscore_ctable_time_dispersion`'s constructor loop
+        (time_dispersion.cc:48-50) iterates. `len(self)` is the number of
+        distinct VALUES instead; the two coincide only when every
+        observation shares one timestamp.
+        """
+        return len(self._timed)
+
+    # -- C++'s own members ---------------------------------------------
+
+    def get(self, v: vertex, default: float = 0.0) -> float:
+        """C++: moses/comboreduct/table/table.cc:608 TimedCounter::get
+
+        "Overload get(const TimedValue&) to work with a vertex v, in that
+        case it returns the sum of that counter across all timestamps with
+        vertex equal to v." (table.h:497-499's own comment.) Declaring
+        `get` in the derived struct HIDES `Counter::get(const T&, CT)`
+        entirely, so in classic there is no way to look a cell up by
+        `TimedValue` through `.get()` at all -- only by vertex.
+
+        C++ has no default parameter here and returns 0 for an absent
+        vertex; `default` exists so the dozen call sites written against a
+        plain `Counter[vertex]` (`counter.get(builtin.logical_true, 0.0)`)
+        keep working verbatim. Every one of them passes `0.0`, which is
+        exactly C++'s behaviour.
+        """
+        return dict.get(self, v, default)
+
+    def untimedCounter(self) -> dict:
+        """C++: moses/comboreduct/table/table.cc:616 TimedCounter::untimedCounter
+
+        "Return a counter without timestamps" (table.h:502's own comment)
+        -- `vc[vtc.first.value] += vtc.second` over every observation.
+        Returns a COPY, matching C++'s by-value `Counter<vertex, count_t>`
+        return: this object's own mapping half already IS that counter (see
+        the class docstring), so mutating the result must not touch it.
+        """
+        return dict(self)
+
+    def total_count(self) -> float:
+        """C++: opencog/util/Counter.h:104 Counter
+
+        Cites the enclosing class: the real member is
+        `Counter::total_count()` (Counter.h:104-107),
+        `boost::accumulate(*this | map_values, (CT)0)`. Summing the untimed
+        view gives the same total as summing the observations, since the
+        untimed view is exactly their per-vertex sum.
+        """
+        return sum(self.values())
+
+    def mode(self) -> vertex:
+        """C++: moses/comboreduct/table/table.cc:623 TimedCounter::mode
+
+        `return untimedCounter().mode();`, and `Counter::mode()`
+        (Counter.h:110-118) is
+
+            T key = begin()->first; CT cnt = begin()->second;
+            for (const auto& v : *this) if (cnt < v.second) key = v.first;
+            return key;
+
+        DO NOT FIX: `cnt` is never reassigned inside the loop, so this is
+        NOT an argmax. It returns the LAST key whose count exceeds the
+        FIRST entry's count, or the first key if none does. Reproduced
+        verbatim.
+
+        The iteration order this walks is `std::map`'s -- ascending key --
+        so the port sorts the untimed view by `vertex_less` first rather
+        than relying on insertion order, which would make "the first entry"
+        a different entry. (`feature_selector._timed_counter_mode` is a
+        pre-existing standalone transliteration of the same C++ method,
+        landed before this class existed; it takes the same approach.)
+        """
+        items = sorted(
+            self.items(),
+            key=cmp_to_key(lambda a, b: -1 if vertex_less(a[0], b[0]) else 1),
+        )
+        if not items:
+            raise IndexError(
+                "TimedCounter.mode: empty counter -- C++'s `super::begin()->first` "
+                "dereferences end() (Counter.h:112), which is undefined behaviour"
+            )
+        key, cnt = items[0]
+        for v, c in items:
+            if cnt < c:
+                key = v
+        return key
+
+    # -- timestamp-blind writes ----------------------------------------
+
+    # # DIVERGENCE(C++ moses/comboreduct/table/table.h:496): a plain
+    # `counter[v] = c` cannot say WHICH observation it means, so it is
+    # defined here to mean "replace every observation of `v` with a single
+    # untimestamped one of count `c`". C++ has no such operation: its cells
+    # are keyed by `TimedValue` throughout, and code that rebuilds a cell
+    # writes `dst[tcv.first] += tcv.second`, keeping the timestamp.
+    #
+    # Three places in this port rebuild a cell vertex by vertex, written
+    # before this class existed and outside this file's ownership:
+    # `feature_selector.build_fs_ctable` (feature_selector.cc:246 keeps the
+    # `TimedValue`), `feature_selection/ctable_subsample.ctable_remove_rows`
+    # and `scoring_base._copy_ctable` (which goes further and rebuilds the
+    # cell as a plain `collections.Counter`). Through any of them a table's
+    # timestamps are LOST -- `get_timestamps()` on the result returns the
+    # empty set. That is the port's behaviour before this slice, so it is a
+    # non-regression rather than a new gap, and it is why `--time-bscore`
+    # and `--time-dispersion-pressure` (which read `_wrk_ctable`) stay
+    # gated in `problem_params.py`. Raising here instead was tried and
+    # rejected: it breaks those three callers outright, two of them in
+    # trees this task does not own.
+
+    def __setitem__(self, key: vertex, value: float) -> None:
+        self._timed = {tv: c for tv, c in self._timed.items() if not vertex_equal(tv.value, key)}
+        self._timed[TimedValue(key, None)] = value
+        dict.__setitem__(self, key, value)
+
+    def __delitem__(self, key: vertex) -> None:
+        self._timed = {tv: c for tv, c in self._timed.items() if not vertex_equal(tv.value, key)}
+        dict.__delitem__(self, key)
+
+    def setdefault(self, key: vertex, default: float = 0.0) -> float:
+        if key not in self:
+            self[key] = default
+        return dict.get(self, key)
+
+    def pop(self, key: vertex, *default):
+        if key not in self:
+            if default:
+                return default[0]
+            raise KeyError(key)
+        value = dict.get(self, key)
+        del self[key]
+        return value
+
+    def popitem(self):
+        key, value = dict.popitem(self)
+        self._timed = {tv: c for tv, c in self._timed.items() if not vertex_equal(tv.value, key)}
+        return key, value
+
+    def update(self, other=(), /, **kwargs) -> None:
+        items = other.items() if hasattr(other, "items") else other
+        for k, v in items:
+            self[k] = v
+        for k, v in kwargs.items():
+            self[k] = v
+
+    def clear(self) -> None:
+        self._timed.clear()
+        dict.clear(self)
+
+    def copy(self) -> TimedCounter:
+        """No direct C++ symbol: `std::map`'s copy constructor, used by
+        `CTable`'s own value copies. `dict.copy()` would return a bare
+        `dict` and lose the observation list entirely.
+        """
+        new = TimedCounter()
+        for tv, c in self._timed.items():
+            new.add(tv.value, tv.timestamp, c)
+        return new
+
+
+def timed_keys_of(counter) -> Iterable[TimedValue]:
+    """No direct C++ symbol: iterating a `TimedCounter`'s keys, tolerating a
+    cell that is a plain `collections.Counter` instead.
+
+    In C++ every CTable cell is a `TimedCounter` and there is nothing to
+    tolerate. In this port a cell can also be a plain `Counter[vertex]`,
+    from two sources: `scoring_base._copy_ctable` rebuilds `_wrk_ctable`'s
+    cells that way, and hand-built test tables do the same. Such a cell is
+    semantically a `TimedCounter` all of whose observations carry the
+    not-a-date sentinel -- exactly what `Table::compressed` builds for an
+    untimestamped table (table.cc:513) -- so it is presented as one here
+    rather than crashing on a missing attribute or, worse, being skipped.
+    """
+    timed = getattr(counter, "timed_keys", None)
+    if timed is not None:
+        return timed()
+    return [TimedValue(v) for v in counter]
+
+
+# C++: moses/comboreduct/table/table.h:518 CTableTime
+# `typedef std::map<TTable::value_type, Counter<vertex, count_t>> CTableTime;`
+# -- "Like CTable but the keys are timestamps. Inputs are currently not
+# supported." (table.h:510-513's own comment.) A plain dict here, built
+# ONLY by `CTable.ordered_by_time()`, which sorts its keys on the way out
+# so the `std::map` ordering callers depend on is preserved.
+CTableTime = dict
+
+
+# ---------------------------------------------------------------------------
 # CTable -- table.h:550
 # ---------------------------------------------------------------------------
 
@@ -988,10 +1564,89 @@ class CTable(dict):
         res = CTable(self.olabel, [self.ilabels[i] for i in idxs], new_sig)
         for row, counter in self.items():
             key = tuple(row[i] for i in idxs)
-            dst = res.setdefault(key, Counter())
-            for v, c in counter.items():
-                dst[v] = dst.get(v, 0.0) + c
+            dst = res.setdefault(key, TimedCounter())
+            # Merge per OBSERVATION, not per vertex: `res[key] += v.second`
+            # (table.h:619) merges two whole `TimedCounter`s, which keeps
+            # each `(value, timestamp)` distinct.
+            for tv, c in counter.timed_items():
+                dst.add(tv.value, tv.timestamp, c)
         return res
+
+    def get_timestamps(self) -> set:
+        """C++: moses/comboreduct/table/table.cc:735 CTable::get_timestamps
+
+        The set of distinct timestamps appearing anywhere in the table,
+        EXCLUDING the default not-a-date sentinel -- `if (vtc.first.
+        timestamp != boost::gregorian::date())` (table.cc:740). So a table
+        loaded without `--timestamp-feature`, whose every observation
+        carries that sentinel, correctly yields the empty set; it is not a
+        stub.
+
+        Returned as a `set`, matching `std::set<TTable::value_type>`.
+        Callers that need C++'s ascending iteration order must sort --
+        `ss_bscore._partition_by_time` draws from it randomly and does not.
+        """
+        return {tv.timestamp for counter in self.values() for tv in counter.timed_keys()} - {None}
+
+    def remove_rows_at_time(self, timestamp) -> None:
+        """C++: moses/comboreduct/table/table.cc:713 CTable::remove_rows_at_time
+
+        Drops every observation made at `timestamp`, then drops any row
+        whose cell became empty -- both in place, matching C++'s
+        `outputs.erase(v_it)` / `erase(row_it)`.
+        """
+        for row in list(self.keys()):
+            counter = self[row]
+            kept = [(tv, c) for tv, c in counter.timed_items() if tv.timestamp != timestamp]
+            if len(kept) == counter.timed_len():
+                continue
+            if not kept:
+                del self[row]
+                continue
+            replacement = TimedCounter()
+            for tv, c in kept:
+                replacement.add(tv.value, tv.timestamp, c)
+            dict.__setitem__(self, row, replacement)
+
+    def remove_rows_at_times(self, timestamps: Iterable) -> None:
+        """C++: moses/comboreduct/table/table.cc:707 CTable::remove_rows_at_times
+
+        `for (const TTable::value_type& timestamp : timestamps)
+        remove_rows_at_time(timestamp);` -- one full pass per timestamp,
+        reproduced rather than fused into a single pass, because the
+        per-timestamp pass is what decides when a row disappears.
+        """
+        for timestamp in timestamps:
+            self.remove_rows_at_time(timestamp)
+
+    def ordered_by_time(self) -> dict:
+        """C++: moses/comboreduct/table/table.cc:794 CTable::ordered_by_time
+
+        "Turn the input to timestamped output map into timestamp to output
+        map" (table.cc:796-797's own comment): every observation in the
+        table, regrouped by timestamp and summed per value, discarding the
+        inputs entirely.
+
+        The result stands in for `CTableTime`, a `std::map` keyed on the
+        date -- and unlike `TimedValue`, `boost::gregorian::date`'s own
+        `operator<` IS a total order, so that map's iteration order is well
+        defined and observable: `get_time_dispersion_penalty` walks it to
+        build `act_time_dist` (time_dispersion.cc:85-90), and
+        `precision_bscore`'s `time_bscore` branch pushes one bscore
+        component per entry IN ORDER (precision_bscore.cc:266-274). The
+        entries are therefore sorted here on the way out, ascending, with
+        the not-a-date sentinel LAST (`timestamp_less`), rather than left
+        in encounter order.
+        """
+        res: dict = {}
+        for counter in self.values():
+            for tv, c in counter.timed_items():
+                bucket = res.setdefault(tv.timestamp, Counter())
+                bucket[tv.value] = bucket.get(tv.value, 0.0) + c
+        return {
+            k: res[k]
+            for k in sorted(res, key=cmp_to_key(lambda a, b: -1 if timestamp_less(a, b) else 1))
+        }
 
 
 # ---------------------------------------------------------------------------
@@ -1002,12 +1657,13 @@ class CTable(dict):
 class Table:
     """C++: moses/comboreduct/table/table.h:918 Table
 
-    No `ttable`/`timestamp_pos` field -- out of scope, see module
-    docstring. `timestamp_pos` is still computed internally by
-    `table_io.py`'s dense loader (it costs nothing and keeps the
-    ignore/target/timestamp index arithmetic visibly parallel to C++'s
-    `istreamDenseTable_noHeader`), but it is not part of this class's
-    public surface since nothing in this port's scope reads it.
+    `itable` + `otable` + `ttable`, plus `target_pos`/`timestamp_pos`, the
+    original column positions of the target and timestamp columns (used by
+    `ostreamTable` to put them back where they were).
+
+    `ttable` is empty unless `loadTable` was given a `timestamp_feature`;
+    when it is non-empty it holds exactly one date per row, parallel to
+    `itable`/`otable`.
     """
 
     def __init__(self, otable: OTable | None = None, itable: ITable | None = None) -> None:
@@ -1029,7 +1685,9 @@ class Table:
         """
         self.itable: ITable = itable.copy() if itable is not None else ITable()
         self.otable: OTable = otable.copy() if otable is not None else OTable()
+        self.ttable: TTable = TTable()
         self.target_pos: int = 0
+        self.timestamp_pos: int = 0
 
     def size(self) -> int:
         """C++: moses/comboreduct/table/table.h:936 size"""
@@ -1081,12 +1739,21 @@ class Table:
         return pos - filtered_out_count
 
     def filtered(self, f: Iterable[int]) -> Table:
-        """C++: moses/comboreduct/table/table.h:978 filtered"""
+        """C++: moses/comboreduct/table/table.h:978 filtered
+
+        `timestamp_pos` is updated only when `ttable` is non-empty
+        (table.h:996-997's own `if (!ttable.empty())`), so a table with no
+        timestamp column keeps `timestamp_pos == 0` rather than having a
+        meaningless index shifted.
+        """
         idxs = list(f)
         res = Table()
         res.itable = self.itable.filtered(idxs)
         res.otable = self.otable.copy()
+        res.ttable = TTable(self.ttable, self.ttable.get_label())
         res.target_pos = self.update_pos(self.target_pos, idxs)
+        if self.ttable:
+            res.timestamp_pos = self.update_pos(self.timestamp_pos, idxs)
         return res
 
     def compressed(self, weighting_feature: str = "") -> CTable:
@@ -1105,16 +1772,27 @@ class Table:
         `ilabels` (built from the trimmed one) -- table.cc:527 passes
         `get_signature()` (not a filtered signature) exactly the same
         way. Not fixed here; this is what classic actually does.
+
+        Both branches split on whether `ttable` is empty, exactly as C++
+        does (table.cc:509-517 and :534-550): a timestamped row is counted
+        under `TimedValue(out, date)`, an untimestamped one under
+        `TimedValue(out)` -- the not-a-date sentinel. That second form is
+        why an untimestamped table's cells are `TimedCounter`s too, rather
+        than a separate shape: the observation list simply has one
+        `(value, None)` entry per distinct value, so its untimed view and
+        the plain `Counter[vertex]` this method used to build are the same
+        mapping, element for element.
         """
         # C++: table.cc:503. `%d` fed an unsigned `size()` is classic's own
         # format/type mismatch; on x86-64 it prints the same digits.
         logger().debug("Compress the dataset, current size is %d", len(self.itable))
         signature = self.get_signature()
+        timestamps = list(self.ttable) if self.ttable else None
         if not weighting_feature:
             res = CTable(self.otable.get_label(), self.itable.get_labels(), signature)
-            for row, out in zip(self.itable, self.otable, strict=True):
-                counter = res.setdefault(tuple(row), Counter())
-                counter[out] = counter.get(out, 0.0) + 1.0
+            for i, (row, out) in enumerate(zip(self.itable, self.otable, strict=True)):
+                counter = res.setdefault(tuple(row), TimedCounter())
+                counter.add(out, timestamps[i] if timestamps is not None else None, 1.0)
             # C++: table.cc:519 uses `%u` here and `%d` at :551 for the same
             # quantity -- reproduced as written rather than harmonised.
             logger().debug("Size of the compressed dataset is %u", len(res))
@@ -1124,10 +1802,12 @@ class Table:
         trimmed.delete_column(weighting_feature)
         res = CTable(self.otable.get_label(), trimmed.get_labels(), signature)
         widx = self.itable.get_column_offset(weighting_feature)
-        for orig_row, row, out in zip(self.itable, trimmed, self.otable, strict=True):
+        for i, (orig_row, row, out) in enumerate(
+            zip(self.itable, trimmed, self.otable, strict=True)
+        ):
             weight = get_contin(orig_row[widx])
-            counter = res.setdefault(tuple(row), Counter())
-            counter[out] = counter.get(out, 0.0) + weight
+            counter = res.setdefault(tuple(row), TimedCounter())
+            counter.add(out, timestamps[i] if timestamps is not None else None, weight)
         logger().debug("Size of the compressed dataset is %d", len(res))
         return res
 
@@ -1135,11 +1815,25 @@ class Table:
         """C++: moses/comboreduct/table/table.cc:599 Table
 
         Cites the enclosing class (see ITable.__eq__ above); the real
-        member is `Table::operator==` (table.cc:599-602).
+        member is `Table::operator==` (table.cc:599-602), which compares
+        `itable`, `otable`, `ttable`, `target_pos` AND `timestamp_pos`.
+
+        # DIVERGENCE(C++ moses/comboreduct/table/table.cc:599): the two
+        # position fields are NOT compared here. They are output-formatting
+        # state (`ostreamTable` uses them to put the target and timestamp
+        # columns back where the input file had them), not data, and
+        # several places in this port build a `Table` by assigning
+        # `itable`/`otable` in place without restoring `target_pos` -- so
+        # comparing them would make equality depend on construction route
+        # rather than content. `ttable` IS compared, since it is data.
         """
         if not isinstance(other, Table):
             return NotImplemented
-        return self.itable == other.itable and self.otable == other.otable
+        return (
+            self.itable == other.itable
+            and self.otable == other.otable
+            and list(self.ttable) == list(other.ttable)
+        )
 
 
 # ---------------------------------------------------------------------------

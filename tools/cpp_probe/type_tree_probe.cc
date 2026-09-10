@@ -89,6 +89,14 @@
 //     at cc:930 (which needs type_tree_def.cc's is_argument_type/
 //     arg_to_idx).
 //
+//   "parse" -- the type-tree STRING reader, opencog/util/tree.cc:70's
+//     operator>>(istream&, tree<string>&) plus tree.h:3312's tree_convert,
+//     printed back through tree.h:3305. Reaches both halves of that
+//     reader's hand-written pre-pass (tree.cc:93-119): whitespace before
+//     an open paren is dropped, and a "( )" holding only whitespace loses
+//     BOTH parens, leaving the operator childless -- "union()" reads as a
+//     childless `union`, not as `union(union)`.
+//
 //   "type_node_io" -- operator<<(ostream&, type_node&) (cc:1360) for every
 //     ordinal 0..24 (so past id::argument_type, which prints "$1", "$2",
 //     ... , and including id::list_type and id::ann_type, which have NO
@@ -526,6 +534,16 @@ static const tt_pair inherit_corpus[] = {
     {"boolean", "application(boolean)"},
     {"->(contin contin)", "->(contin contin)"},
     {"union(->(boolean boolean) contin)", "union(->(boolean boolean) contin)"},
+    // Neither side inherits the other (contin is absent from the second,
+    // action_result from the first), so get_intersection reaches its
+    // union-of-unions branch (cc:960) and collects TWO well-formed
+    // intersections of DIFFERENT sizes -- `boolean` (1 node) and
+    // `->(contin contin)` (3). That makes the direction of
+    // size_tree_order's `s1 < s2` (tree.h:3219) decide the output order.
+    {"union(boolean ->(contin contin) contin)",
+     "union(boolean ->(contin contin) action_result)"},
+    {"union(boolean ->(contin contin) ->(boolean boolean) contin)",
+     "union(boolean ->(contin contin) ->(boolean boolean) action_result)"},
 };
 
 static void dump_inherit() {
@@ -598,6 +616,22 @@ static const reduce_case reduce_corpus[] = {
     {"application(->(boolean boolean) $1)", {"contin", 0}},
     {"application(->(contin contin) $1)", {"unknown", 0}},
     {"->($1 $2)", {"boolean", "contin", 0}},
+    // An arg_list whose CHILD is itself an application. This is the only
+    // shape found that distinguishes cc:917's `for (tit = it.begin(); tit
+    // != it.end(); ++tit)` -- a WHOLE-TREE pre-order walk, because
+    // `it.end()`'s node is null and a pre-order ++ walks up and out of the
+    // subtree -- from the subtree-restricted walk it reads like. Both rows
+    // were found by differential search over the two implementations, then
+    // measured here.
+    {"application(->(arg_list(application(->(boolean boolean) boolean)) boolean) boolean)",
+     {0}},
+    {"->(arg_list(application(->(boolean boolean) boolean)) boolean)", {0}},
+    {"application(->(arg_list(boolean) application(->(boolean boolean) boolean)) boolean)",
+     {0}},
+    {"application(->(arg_list(contin) contin) application(->(arg_list(contin) contin) "
+     "contin contin) contin)",
+     {0}},
+    {"application(->(arg_list($1) boolean) $1 $1)", {"boolean", 0}},
 };
 
 static void dump_reduce() {
@@ -620,6 +654,55 @@ static void dump_reduce() {
       printf(", \"reduced\": ");
       jstr(tt_str(tt));
       printf(", \"is_well_formed\": %d", is_well_formed(tt) ? 1 : 0);
+      printf("}%s\n", k + 1 == n ? "" : ",");
+    } catch (const std::exception&) {
+      printf(", \"threw\": true}%s\n", k + 1 == n ? "" : ",");
+    }
+  }
+  printf("  ],\n");
+}
+
+// ---------------------------------------------------------------------
+// "parse" -- opencog/util/tree.cc:70 operator>>(istream&, tree<string>&)
+// plus tree.h:3312's tree_convert, then printed back through tree.h:3305.
+// Pins the two halves of that function's hand-written pre-pass
+// (tree.cc:93-119): whitespace before an open paren is dropped, and a
+// "( )" containing only whitespace loses BOTH parens so the operator ends
+// up childless.
+// ---------------------------------------------------------------------
+
+static const char* parse_corpus[] = {
+    "boolean",
+    "  boolean  ",
+    "->(boolean boolean)",
+    "->(boolean  boolean)",
+    "-> (boolean boolean)",
+    "->  ( boolean boolean )",
+    "->(arg_list(boolean) boolean)",
+    "->( arg_list( boolean ) boolean )",
+    "union()",
+    "->()",
+    "boolean()",
+    "arg_list()",
+    "->(arg_list() boolean)",
+    "application(->(boolean boolean) boolean)",
+    "union(boolean contin)",
+    "$1",
+    "->($1 $2)",
+    "->(arg_list(boolean unknown) unknown unknown)",
+};
+
+static void dump_parse() {
+  printf("  \"parse\": [\n");
+  const int n = (int)(sizeof(parse_corpus) / sizeof(parse_corpus[0]));
+  for (int k = 0; k < n; ++k) {
+    printf("    {\"text\": ");
+    jstr(parse_corpus[k]);
+    try {
+      type_tree tt = parse_tt(parse_corpus[k]);
+      printf(", \"printed\": ");
+      jstr(tt_str(tt));
+      printf(", \"size\": %d", tt.size());
       printf("}%s\n", k + 1 == n ? "" : ",");
     } catch (const std::exception&) {
       printf(", \"threw\": true}%s\n", k + 1 == n ? "" : ",");
@@ -779,6 +862,7 @@ int main() {
   dump_programs();
   dump_inherit();
   dump_reduce();
+  dump_parse();
   dump_type_node_io();
   dump_misc();
   printf("}\n");

@@ -22,6 +22,9 @@ tournament, `n_select` tournaments -- the property this task's fidelity
 requirements call out most (`randint_n`, not `randint`).
 """
 
+import json
+from pathlib import Path
+
 import pytest
 
 from pymetta.moses.moses.types import _to_score_t, composite_score
@@ -353,3 +356,149 @@ def test_mutation_off_by_one_in_inner_loop_changes_draw_count():
     dst_real: list = []
     tournament_selection(2, rng2)(items, dst_real, 1)
     assert len(rng2.calls) == 2  # faithful port draws exactly t_size == 2
+
+
+# ---------------------------------------------------------------------------
+# ScoreT is a real parameter -- local_structure.cc:146 instantiates it at int
+# ---------------------------------------------------------------------------
+#
+# Oracle: tests/fixtures/univariate_rng.json, sections "roulette_counts",
+# "roulette_draws", "roulette_int" and "roulette_double". They were captured
+# from the REAL `opencog::roulette_select` template (tools/cpp_probe/
+# univariate_rng_probe.cc) instantiated once at `ScoreT = int` and once at
+# `ScoreT = double`, over the same 26 x 239 (counts x randdouble) grid, so the
+# disagreement between the two instantiations is a measurement, not a claim.
+#
+# Note what the fixture's float arm is and is NOT: it is `ScoreT = double`,
+# which is the right oracle for `score_type=float` but NOT for this port's
+# DEFAULT `score_type=_to_score_t` (`score_t` is binary32, CARRY-FORWARD.md
+# 4.2). `test_default_score_type_really_narrows_to_binary32` measures that
+# third arm's own divergence from binary64 rather than pretending they agree.
+
+
+_ROULETTE_FIXTURE = Path(__file__).resolve().parents[1] / "fixtures" / "univariate_rng.json"
+_ROULETTE_GOLDEN = json.loads(_ROULETTE_FIXTURE.read_text())
+_ROULETTE_COUNTS = _ROULETTE_GOLDEN["roulette_counts"]
+_ROULETTE_DRAWS = _ROULETTE_GOLDEN["roulette_draws"]
+
+
+@pytest.mark.oracle
+@pytest.mark.parametrize("case", range(len(_ROULETTE_COUNTS)))
+def test_score_type_int_matches_the_real_int_instantiation(case):
+    """`score_type=int` must reproduce `ScoreT = int` -- the instantiation
+    `local_structure.cc:146` actually gets, since `dtree_node` is
+    `typedef vector<int>` (local_structure.h:68). Compared index for index
+    across all 239 draws.
+    """
+    counts = _ROULETTE_COUNTS[case]
+    total = sum(counts)
+    expected = _ROULETTE_GOLDEN["roulette_int"][case]
+    got = [roulette_select(counts, total, _FixedRng(r), score_type=int) for r in _ROULETTE_DRAWS]
+    assert got == expected
+
+
+@pytest.mark.oracle
+@pytest.mark.parametrize("case", range(len(_ROULETTE_COUNTS)))
+def test_score_type_float_matches_the_real_double_instantiation(case):
+    """The other half of the same plumbing: `score_type=float` (a no-op
+    conversion, i.e. C++'s `double`) must reproduce `ScoreT = double`. This
+    is what shows `score_type` is a genuine template parameter rather than
+    an `int`-only special case.
+    """
+    counts = [float(c) for c in _ROULETTE_COUNTS[case]]
+    total = float(sum(counts))
+    expected = _ROULETTE_GOLDEN["roulette_double"][case]
+    got = [roulette_select(counts, total, _FixedRng(r), score_type=float) for r in _ROULETTE_DRAWS]
+    assert got == expected
+
+
+@pytest.mark.oracle
+def test_the_two_instantiations_really_do_disagree():
+    """Vacuity guard for the two tests above: if `ScoreT = int` and
+    `ScoreT = double` agreed everywhere on this grid, both would pass with
+    a single implementation and neither would be evidence of anything.
+    MEASURED disagreement, read off the C++ side's own two arms: 1,409 of
+    6,214 grid points.
+    """
+    total = 0
+    differing = 0
+    for case in range(len(_ROULETTE_COUNTS)):
+        int_row = _ROULETTE_GOLDEN["roulette_int"][case]
+        dbl_row = _ROULETTE_GOLDEN["roulette_double"][case]
+        assert len(int_row) == len(dbl_row) == len(_ROULETTE_DRAWS)
+        total += len(int_row)
+        differing += sum(1 for a, b in zip(int_row, dbl_row, strict=True) if a != b)
+    assert total == 6214
+    assert differing == 1409
+
+
+def test_default_score_type_really_narrows_to_binary32():
+    """The default arm is `score_t` (binary32), NOT `double`, so it is a
+    THIRD behaviour and the fixture's `roulette_double` is not its oracle.
+    Measured here: over the same grid the default arm disagrees with
+    `score_type=float` at exactly 17 points, and EVERY one of them is one
+    of the `k/20 +- 1e-12` draws the probe adds specifically to sit astride
+    an integer boundary -- narrowing the product to binary32 snaps it onto
+    that boundary. Both facts are asserted, so neither is prose: a non-zero
+    count proves the default is not silently `double`, and the location
+    check proves the divergence is the expected rounding one rather than
+    something structural.
+    """
+    # The probe emits 201 evenly spaced draws first, then the 38 boundary
+    # ones; anything at index > 200 is a boundary draw.
+    differing = []
+    for counts in _ROULETTE_COUNTS:
+        fcounts = [float(c) for c in counts]
+        total = float(sum(counts))
+        for i, r in enumerate(_ROULETTE_DRAWS):
+            narrowed = roulette_select(fcounts, total, _FixedRng(r))
+            widened = roulette_select(fcounts, total, _FixedRng(r), score_type=float)
+            if narrowed != widened:
+                differing.append(i)
+    assert len(differing) == 17
+    assert all(i > 200 for i in differing)
+
+
+@pytest.mark.oracle
+def test_int_truncation_can_select_a_zero_mass_bucket():
+    """The single most surprising consequence of `ScoreT = int`, pinned
+    because it looks like a bug and must NOT be "fixed": when
+    `int(total * rand)` truncates to 0, the do-while's first subtraction
+    leaves `sum` at 0, `(sum > 0)` is false immediately, and the function
+    returns index 0 -- EVEN IF bucket 0 has zero mass. For `counts ==
+    [0, 1]` that happens for every `rand` STRICTLY below 1.0, so classic
+    picks the empty bucket for all of them; `ScoreT = double` picks bucket
+    1 for every `rand > 0`. (`randdouble()` is documented "[0,1]", closed
+    at both ends, so `rand == 1.0` is reachable and is the one draw where
+    the int arm reaches bucket 1 -- excluded explicitly below rather than
+    hand-waved.)
+    """
+    case = _ROULETTE_COUNTS.index([0, 1])
+    int_row = _ROULETTE_GOLDEN["roulette_int"][case]
+    dbl_row = _ROULETTE_GOLDEN["roulette_double"][case]
+    below_one = [i for i, r in enumerate(_ROULETTE_DRAWS) if r < 1.0]
+    assert {int_row[i] for i in below_one} == {0}
+    assert {int_row[i] for i, r in enumerate(_ROULETTE_DRAWS) if r >= 1.0} == {1}
+    assert set(dbl_row) == {0, 1}
+    got = [roulette_select([0, 1], 1, _FixedRng(r), score_type=int) for r in _ROULETTE_DRAWS]
+    assert got == int_row
+
+
+def test_mutation_dropping_int_truncation_is_caught_by_the_oracle():
+    """Mutation proof for `score_type`: run the SAME loop with a float
+    conversion in place of `int` and count the disagreements with the C++
+    `int` oracle. A non-zero count is the proof that the oracle tests above
+    would go red if `local_structure` stopped passing `score_type=int`.
+    """
+    mismatches = 0
+    for case, counts in enumerate(_ROULETTE_COUNTS):
+        total = sum(counts)
+        expected = _ROULETTE_GOLDEN["roulette_int"][case]
+        mutant = [
+            roulette_select(
+                [float(c) for c in counts], float(total), _FixedRng(r), score_type=float
+            )
+            for r in _ROULETTE_DRAWS
+        ]
+        mismatches += sum(1 for a, b in zip(mutant, expected, strict=True) if a != b)
+    assert mismatches == 1409

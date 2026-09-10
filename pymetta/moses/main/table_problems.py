@@ -200,6 +200,7 @@ from pymetta.comboreduct.type_checker.type_signature import (
     ostream_type_signature,
 )
 from pymetta.comboreduct.type_checker.type_tree import get_output_type_tree
+from pymetta.moses.deme.feature_selector import feature_selector
 from pymetta.moses.main.problem import (
     _register_unported_table_problems,
     problem_base,
@@ -589,7 +590,7 @@ class table_problem_base(problem_base):
 
         logger().info("Inferred output type: " + ostream_type_node(self.output_type))
 
-    def _regression(self, pms: problem_params, make_bscore) -> None:
+    def _regression(self, pms: problem_params, make_bscore, table_or_ctable=None) -> None:
         """C++: moses/moses/main/table-problems.cc:328 REGRESSION (macro)
 
         `make_bscore` is a zero-argument factory, not an already-built
@@ -610,25 +611,32 @@ class table_problem_base(problem_base):
         this module's own docstring); `pre-conj` DOES use it, as classic
         does (table-problems.cc:421-422).
 
-        The macro's FIRST argument (`table`/`ctable`) has no counterpart
-        parameter here: classic uses it only to construct a
-        `feature_selector` (table-problems.cc:333), which the gate just
-        below refuses to build.
+        `table_or_ctable` IS the macro's FIRST argument. classic uses it
+        for one thing only -- constructing the `feature_selector`
+        (table-problems.cc:333) -- and which of `ctable`/`table` each call
+        site passes is not cosmetic: `feature_selector`'s two C++
+        constructors differ (feature_selector.cc:51 takes a `CTable`
+        as-is; :55 takes a `Table` and compresses it), and the three
+        `REGRESSION(table, ...)` sites (cc:519, :522, :557) really do pass
+        the uncompressed one. Defaulting to `None` keeps the parameter
+        optional for a caller that has already refused feature selection.
         """
-        # C++: table-problems.cc:330-334. `feature_selector`
-        # (moses/deme/feature_selector.h) is not ported anywhere in this
-        # project (P2, --enable-fs). A real CLI run already rejects
-        # `--enable-fs=1` earlier, inside `problem_params.parse_options`
-        # (that module's own docstring, phase-2 gate list) -- this check
-        # is therefore unreachable via a real `parse_table_args` call and
-        # is ported here only for direct-call fidelity (a caller that
-        # hand-builds a `problem_params` bypassing `parse_options`).
+        # C++: table-problems.cc:330-334 -- "Enable feature selection while
+        # selecting exemplar". Ported for real since 2026-09-10; it raised
+        # `NotImplementedError` here until then, on the (by then false)
+        # grounds that `feature_selector` was "not ported anywhere in this
+        # project". It is: `pymetta.moses.deme.feature_selector`.
+        #
+        # A CLI run still cannot reach this with `--enable-fs=1`, because
+        # `problem_params.parse_options` refuses that flag earlier -- but
+        # the blocker is now one layer DEEPER than this line, in
+        # `deme_expander.optimize_demes`' own `if (_params.fstor)` arm
+        # (deme_expander.cc:432-450), which needs `behave_cscore.
+        # ignore_cols()`/`best_possible_score()`. See that gate's own
+        # message. This construction site is exercised directly by
+        # `tests/moses/main/test_table_problems.py`.
         if pms.enable_feature_selection and pms.fs_params.target_size > 0:
-            raise NotImplementedError(
-                "table_problem_base._regression: feature_selector is not "
-                "ported anywhere in this project (P2, --enable-fs) -- "
-                "table-problems.cc:330-334"
-            )
+            pms.deme_params.fstor = feature_selector(table_or_ctable, pms.festor_params)
 
         # C++: table-problems.cc:335,372 `int as = alphabet_size(...)` --
         # the `unsigned` return narrowed to a signed 32-bit `int`. Only the
@@ -707,7 +715,7 @@ class it_table_problem(table_problem_base):
         self.common_type_setup(pms)
 
         if self.output_type == type_node.boolean_type:
-            self._regression(pms, lambda: ctruth_table_bscore(self.ctable))
+            self._regression(pms, lambda: ctruth_table_bscore(self.ctable), self.ctable)
         elif self.output_type == type_node.enum_type:
             raise NotImplementedError(
                 "it_table_problem.run: enum-output tables need "
@@ -740,10 +748,14 @@ class it_table_problem(table_problem_base):
                         pms.discretize_thresholds,
                         pms.weighted_accuracy,
                     ),
+                    # C++: REGRESSION(table, ...) -- table-problems.cc:522
+                    # passes the UNCOMPRESSED table here, not ctable.
+                    self.table,
                 )
                 return
             eft = contin_bscore.abs_error if pms.it_abs_err else contin_bscore.squared_error
-            self._regression(pms, lambda: contin_bscore(self.table, eft=eft))
+            # C++: REGRESSION(table, ...) -- table-problems.cc:519.
+            self._regression(pms, lambda: contin_bscore(self.table, eft=eft), self.table)
         else:
             # C++: table-problems.cc:528-535 logs an error and exit(1)s --
             # ported as a hard-failure ValueError, this port's usual
@@ -779,14 +791,12 @@ class pre_table_problem(table_problem_base):
         self.common_setup(pms)
         self.common_type_setup(pms, type_node.boolean_type)
 
-        # C++: table-problems.cc:367-370 -- see `_regression`'s own
-        # identical comment for why this is unreachable via a real CLI run.
+        # C++: table-problems.cc:367-370. `pre_table_problem::run` is
+        # "very nearly identical to the REGRESSION macro" (its own C++
+        # comment) and hand-inlines this construction -- see
+        # `_regression`'s own comment for the deeper blocker.
         if pms.enable_feature_selection and pms.fs_params.target_size > 0:
-            raise NotImplementedError(
-                "pre_table_problem.run: feature_selector is not ported "
-                "anywhere in this project (P2, --enable-fs) -- "
-                "table-problems.cc:367-370"
-            )
+            pms.deme_params.fstor = feature_selector(self.ctable, pms.festor_params)
 
         # C++: table-problems.cc:335,372 `int as = alphabet_size(...)` --
         # the `unsigned` return narrowed to a signed 32-bit `int`. Only the
@@ -887,7 +897,9 @@ class pre_conj_table_problem(table_problem_base):
             raise NotImplementedError("Boosting not supported for the pre problem!")
 
         self._regression(
-            pms, lambda: precision_conj_bscore(self.ctable, pms.hardness, pms.pre_positive)
+            pms,
+            lambda: precision_conj_bscore(self.ctable, pms.hardness, pms.pre_positive),
+            self.ctable,
         )
 
 
@@ -920,6 +932,7 @@ class prerec_table_problem(table_problem_base):
             lambda: prerec_bscore(
                 self.ctable, pms.min_rand_input, pms.max_rand_input, pms.hardness
             ),
+            self.ctable,
         )
 
 
@@ -947,6 +960,7 @@ class recall_table_problem(table_problem_base):
             lambda: recall_bscore(
                 self.ctable, pms.min_rand_input, pms.max_rand_input, pms.hardness
             ),
+            self.ctable,
         )
 
 
@@ -972,6 +986,7 @@ class bep_table_problem(table_problem_base):
         self._regression(
             pms,
             lambda: bep_bscore(self.ctable, pms.min_rand_input, pms.max_rand_input, pms.hardness),
+            self.ctable,
         )
 
 
@@ -996,7 +1011,7 @@ class f_one_table_problem(table_problem_base):
         self.common_type_setup(pms, type_node.boolean_type)
 
         # DO NOT FIX: `f_one_bscore` always raises.
-        self._regression(pms, lambda: f_one_bscore(self.ctable))  # pragma: no cover
+        self._regression(pms, lambda: f_one_bscore(self.ctable), self.ctable)  # pragma: no cover
 
 
 class select_table_problem(table_problem_base):
@@ -1023,6 +1038,7 @@ class select_table_problem(table_problem_base):
                 pms.hardness,
                 pms.pre_positive,
             ),
+            self.ctable,
         )
 
 
@@ -1074,7 +1090,8 @@ class cluster_table_problem(table_problem_base):
         self.common_setup(pms)
         self.common_type_setup(pms, type_node.contin_type)
 
-        self._regression(pms, lambda: cluster_bscore(self.table.itable))
+        # C++: REGRESSION(table, ...) -- table-problems.cc:557.
+        self._regression(pms, lambda: cluster_bscore(self.table.itable), self.table)
 
 
 # ---------------------------------------------------------------------------

@@ -4,74 +4,59 @@ Ports `TemporalGranularity` and `bscore_ctable_time_dispersion`, the base
 class `precision_bscore` (precision_bscore.py) uses for its optional
 time-dispersion penalty.
 
-## A whole-project architectural gap, not a time_dispersion-specific one:
-## this port's CTable carries no timestamp at all
+## The CTable now carries real timestamps
 
-table.py's own module docstring is explicit: "No `TTable`/`CTableTime`.
-Timestamped compression is out of scope." Every observation in classic's
-`CTable` is keyed by a `TimedValue` (`vertex` + a `boost::gregorian::date`
-timestamp, table.h:472-490); this port's `CTable` counter keys are bare
-`vertex` values with no timestamp field at all (table.py's own `CTable`
-class docstring). This is a PERMANENT, already-decided scope boundary for
-the whole port, not something raised or deferred by this task.
+Until the timestamp slice this port's `CTable` had no timestamp field at
+all, so `get_timestamp_class` was a raising gate and the constructor's
+`timestamp_classes` loop was COUNTED rather than run. Both are real now:
+`pymetta.comboreduct.table.table` ports `TTable`/`TimedValue`/
+`TimedCounter`/`CTableTime`, `loadTable` fills `Table.ttable` from a
+`--timestamp-feature` column, and `Table.compressed` keys each
+observation on `TimedValue(output, timestamp)`.
 
-Two consequences, handled differently:
+Two consequences worth stating, because they decide what the numbers
+below mean:
 
-1. `bscore_ctable_time_dispersion.__init__` (time_dispersion.cc:34-54)
-   ALWAYS runs -- `precision_bscore` extends this class unconditionally,
-   regardless of whether time-dispersion is ever actually used
-   (`time_dispersion_pressure` defaults to `0.0`). Its constructor loop
-   (`for (iorow : _ctable) for (tcv : iorow.second) timestamp_classes.
-   insert(get_timestamp_class(tcv.first.timestamp));`) collects the SET
-   of distinct timestamp classes across every observation in the table.
-   Classic's OWN `Table::compress()` (table.cc:513, `TimedValue(*out_it)`)
-   constructs every `TimedValue` with the DEFAULT-CONSTRUCTED timestamp
-   (`boost::gregorian::date()`, "not-a-date-time") whenever no
-   `--timestamp-feature` column was loaded -- which is EVERY table this
-   port can construct, since timestamp loading itself is out of scope
-   (table_io.py's own module docstring: a timestamp column's VALUES are
-   discarded at parse time, never captured). So in classic itself,
-   restricted to the only input shape this port can ever produce, EVERY
-   observation's timestamp is the SAME single sentinel value, so at
-   `granularity == day` (where `get_timestamp_class` is the identity)
-   `timestamp_classes` always has EXACTLY 0 elements (an empty table) or
-   EXACTLY 1 (any non-empty table) -- never more. At `month` classic
-   never finishes the loop at all: `get_timestamp_class` OC_ASSERTs that
-   the timestamp is a real date (time_dispersion.cc:61-64), which the
-   sentinel is not, so the constructor throws on the first observation.
-   `__init__` below reproduces both halves. `_Hmax = log2(1) == 0.0`
-   or `log2(0) == -inf` are therefore not approximations of what this
-   port's constructor computes: they are the EXACT values classic itself
-   computes for the only case this port (or, for that matter, an
-   un-flagged classic run) can ever construct. Measured directly
-   (tools/cpp_probe/scorers_probe.cc's `timedisp_hmax` mode, a real
-   `bscore_ctable_time_dispersion` over `trainingBoolean.dat` and
-   `weighted.csv`): `_Hmax == 0.0` in both cases, confirming this.
+1. When no `--timestamp-feature` was given, EVERY observation carries the
+   default not-a-date timestamp (`None` here; `TimedValue(*out_it)`,
+   table.cc:513), so `timestamp_classes` has exactly 1 element for any
+   non-empty table and `_Hmax == log2(1) == 0.0`. That is not an
+   approximation of classic's answer -- it IS classic's answer for that
+   input shape, confirmed against a real `bscore_ctable_time_dispersion`
+   (`tools/cpp_probe/scorers_probe.cc`'s `timedisp_hmax` mode over
+   `trainingBoolean.dat` and `weighted.csv`: `_Hmax == 0.0` in both).
+   At `month` granularity classic instead ABORTS on the first
+   observation, because `get_timestamp_class` OC_ASSERTs the timestamp is
+   a real date; that is reproduced.
+2. `get_time_dispersion_penalty` takes a `CTableTime`-shaped mapping
+   directly, and `CTable.ordered_by_time()` now builds real ones. Its
+   arithmetic was already measured exact against classic
+   (`tools/cpp_probe/scorers_probe.cc`'s `timedisp_penalty` mode, which
+   builds a synthetic `CTableTime` in C++); what changed is that there is
+   now a way to reach it from actual data.
 
-2. `get_timestamp_class`/`get_time_dispersion_penalty`'s CALLER
-   (`precision_bscore::do_score`, precision_bscore.py) needs a REAL
-   per-observation timestamp to bucket by whenever `time_bscore=True` or
-   `dispersion_pressure > 0.0` -- which this port's CTable can never
-   supply. `get_timestamp_class` below is therefore a genuine raising
-   gate (there is no reachable input to give it). `get_time_dispersion_
-   penalty` itself, however, is PORTED IN FULL and independently tested:
-   its signature takes a `CTableTime`-shaped mapping directly (`Mapping[
-   Any, Counter[vertex]]`, mirroring `std::map<TTable::value_type,
-   Counter<vertex, count_t>>`, table.h:518) rather than deriving one from
-   a `CTable` -- so the pure entropy-penalty MATH is fully portable and
-   measured exact against classic (`tools/cpp_probe/scorers_probe.cc`'s
-   `timedisp_penalty` mode builds a synthetic `CTableTime` directly in
-   C++, bypassing the unreachable timestamp-collection pipeline
-   entirely), even though NOTHING in this port can yet construct a real
-   `CTableTime` from actual data.
+Still NOT reachable from the CLI: `--time-bscore` and
+`--time-dispersion-pressure` stay gated in `problem_params.py`, because
+`precision_bscore.do_score`'s two timestamp branches
+(precision_bscore.cc:245-263) are not ported, and because
+`bscore_ctable_base._wrk_ctable` is built by `scoring_base._copy_ctable`,
+which rebuilds each cell as a plain `Counter` and drops the observation
+list. Both are outside this module. Classic's own
+`--time-dispersion-pressure` is not in great shape either: measured
+2026-09-10, `-Hpre -q0.5 -w1.0 --timestamp-feature=when
+--time-dispersion-pressure=0.5` SIGSEGVs (rc 139, no exception text) on
+`tests/fixtures/table_data/timestamp_bool_clean.csv` while completing on
+`timestamp_bool_dup.csv`.
 """
 
 import math
 from collections.abc import Mapping
+from datetime import date
 from enum import IntEnum
 from typing import Any
 
 from pymetta.comboreduct.combo.vertex import builtin
+from pymetta.comboreduct.table.table import timed_keys_of
 from pymetta.moses.moses.types import _to_score_t, score_t
 from pymetta.moses.scoring.scoring_base import _ieee_div, _to_usize, bscore_ctable_base
 
@@ -144,34 +129,56 @@ class bscore_ctable_time_dispersion(bscore_ctable_base):
         self._pressure = _to_score_t(time_dispersion_pressure)
         self._exponent = _to_score_t(time_dispersion_exponent)
 
-        n_observations = sum(len(counter) for counter in ctable.values())
-        if n_observations > 0 and granularity == TemporalGranularity.month:
-            raise AssertionError(
-                "timestamp is not a valid date, "
-                "are you sure you have loaded a timestamp feature "
-                "(option --timestamp-feature)?"
-            )
-        n_timestamp_classes = 1 if n_observations > 0 else 0
+        # C++: time_dispersion.cc:47-50 -- the real loop, over every
+        # OBSERVATION (`timed_keys()`, not this port's untimed mapping
+        # view; see `TimedCounter`'s class docstring for why they differ).
+        timestamp_classes = set()
+        for counter in ctable.values():
+            for tv in timed_keys_of(counter):
+                timestamp_classes.add(self.get_timestamp_class(tv.timestamp))
+
+        # C++: time_dispersion.cc:53, `_Hmax = log2(timestamp_classes.size())`.
+        # `math.log2(0)` raises `ValueError` in Python where C++'s
+        # `std::log2(0.0)` returns `-HUGE_VAL`; handled explicitly here
+        # rather than via `_to_score_t`, which narrows precision, not this
+        # library-behaviour difference. An empty CTable is the only input
+        # that reaches it.
         self._Hmax: score_t = (
-            _to_score_t(math.log2(n_timestamp_classes)) if n_timestamp_classes > 0 else -math.inf
+            _to_score_t(math.log2(len(timestamp_classes))) if timestamp_classes else -math.inf
         )
 
     def get_timestamp_class(self, timestamp: Any) -> Any:
         """C++: moses/moses/scoring/time_dispersion.cc:56 get_timestamp_class
 
-        Genuinely unreachable in this port -- see this module's own
-        docstring, point 2. There is no `TTable::value_type` (a
-        timestamp) this port can ever hand it; every caller that would
-        need one (`precision_bscore.do_score`'s `time_bscore`/
-        `_pressure > 0.0` branches) raises before reaching here instead
-        (precision_bscore.py), so this exists only for structural
-        completeness/fidelity.
+        Buckets one observation's timestamp at the configured granularity:
+        `day` returns it unchanged; `month` returns the FIRST of its month
+        (`TTable::value_type(timestamp.year(), timestamp.month(), 1)`).
+
+        The `month` arm asserts the timestamp is a real date first
+        (time_dispersion.cc:61-64). Every observation of a table loaded
+        WITHOUT `--timestamp-feature` carries the not-a-date sentinel
+        (`None` here), so that assertion fires on the first observation of
+        any such table -- reproduced with classic's own message text.
+        Measured 2026-09-09: `-Hpre -i dataset.csv -m300 -W1 -q0.1 -w1.0
+        --time-bscore-granularity=month` exits 134 in classic
+        (AssertionException at time_dispersion.cc:62, core dumped).
+
+        The `default:` arm (time_dispersion.cc:65-70) is unreachable while
+        `TemporalGranularity` has exactly two members, but is ported so a
+        third one added later fails loudly instead of silently getting
+        `day`'s answer.
         """
-        raise NotImplementedError(
-            "get_timestamp_class: no TTable/timestamp representation exists in this "
-            "port (table.py's module docstring) -- there is no reachable input for "
-            "this method to classify"
-        )
+        if self._granularity == TemporalGranularity.day:
+            return timestamp
+        if self._granularity == TemporalGranularity.month:
+            if timestamp is None:
+                raise AssertionError(
+                    "timestamp is not a valid date, "
+                    "are you sure you have loaded a timestamp feature "
+                    "(option --timestamp-feature)?"
+                )
+            return date(timestamp.year, timestamp.month, 1)
+        raise AssertionError(f"Case {int(self._granularity)} not implemented")
 
     def get_time_dispersion_penalty(self, ctt: Mapping[Any, Any]) -> score_t:
         """C++: moses/moses/scoring/time_dispersion.cc:76 get_time_dispersion_penalty

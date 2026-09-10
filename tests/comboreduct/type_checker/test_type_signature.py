@@ -5,13 +5,19 @@ linked against the classic ``libcomboreduct`` build.
 """
 
 import json
-from collections import Counter
 from dataclasses import FrozenInstanceError
 
 import pytest
 
 from pymetta.comboreduct.combo.vertex import builtin
-from pymetta.comboreduct.table.table import CTable, ITable, OTable, Signature, Table
+from pymetta.comboreduct.table.table import (
+    CTable,
+    ITable,
+    OTable,
+    Signature,
+    Table,
+    TimedCounter,
+)
 from pymetta.comboreduct.type_checker.type_signature import (
     TypeSignature,
     action_result_arity,
@@ -20,6 +26,7 @@ from pymetta.comboreduct.type_checker.type_signature import (
     gen_signature,
     get_signature_inputs,
     get_signature_output,
+    ostream_type_node,
     type_node,
     type_tree_arity,
 )
@@ -123,9 +130,7 @@ def test_gen_signature_uniform_overloads_round_trip_leaf_types():
     assert gen_signature(
         (type_tree(type_node.boolean_type), type_tree(type_node.contin_type)),
         type_tree(type_node.boolean_type),
-    ) == TypeSignature(
-        (type_node.boolean_type, type_node.contin_type), type_node.boolean_type
-    )
+    ) == TypeSignature((type_node.boolean_type, type_node.contin_type), type_node.boolean_type)
 
 
 def test_signature_is_deeply_immutable():
@@ -145,8 +150,12 @@ def test_returned_leaf_wrappers_are_independent_copies():
     inputs = get_signature_inputs(signature)
     output = get_signature_output(signature)
 
-    inputs[0].node = type_node.contin_type
-    output.node = type_node.boolean_type
+    # `type_tree` is a real `tree[type_node]` now, so mutating a returned
+    # leaf means writing its root node's data -- there is no `.node` setter
+    # (the `.node` property is read-only, kept only for the two `main/`
+    # call sites that read it).
+    inputs[0].begin().data = type_node.contin_type
+    output.begin().data = type_node.boolean_type
 
     assert signature == TypeSignature(
         (type_node.boolean_type, type_node.contin_type), type_node.action_result_type
@@ -184,21 +193,47 @@ def test_ctable_filtered_preserves_a_filtered_canonical_signature():
         (type_node.boolean_type, type_node.contin_type), type_node.boolean_type
     )
     table = CTable("result", ("flag", "value"), signature)
-    table[(builtin.logical_true, 2.5)] = Counter({builtin.logical_false: 1.0})
+    # A CTable cell is a `TimedCounter` (table.h:496), not a bare
+    # `Counter`: since timestamps landed, `filtered` merges per
+    # OBSERVATION rather than per vertex, so it reads the timed view.
+    cell = TimedCounter()
+    cell.add(builtin.logical_false, None, 1.0)  # None = the default not-a-date
+    table[(builtin.logical_true, 2.5)] = cell
 
     filtered = table.filtered((1,))
     assert filtered.get_signature() == gen_signature(
         (type_node.contin_type,), type_node.boolean_type
     )
-    assert filtered == {(2.5,): Counter({builtin.logical_false: 1.0})}
+    assert list(filtered) == [(2.5,)]
+    assert filtered[(2.5,)].get(builtin.logical_false) == 1.0
 
 
 def test_type_tree_leaf_node_is_revalidated():
     invalid_leaf = type_tree(type_node.boolean_type)
-    invalid_leaf.node = 999
+    # -1, not 999. Since `type_node` gained the `_missing_` hook that mints
+    # the unnamed argument ordinals past `argument_type` (type_signature.py),
+    # 999 IS a valid `type_node` -- it is `$982`, exactly as classic's
+    # `(type_node)999` would be. A NEGATIVE ordinal is still rejected, and
+    # that is what this guard is about: `TypeSignature` revalidates the leaf
+    # rather than storing whatever it was handed.
+    invalid_leaf.begin().data = -1
 
-    with pytest.raises(ValueError, match="999 is not a valid type_node"):
+    with pytest.raises(ValueError, match="-1 is not a valid type_node"):
         TypeSignature((invalid_leaf,), type_node.boolean_type)
+
+
+def test_an_ordinal_past_argument_type_is_a_valid_type_node():
+    """The other half of the guard above, and the reason it moved to -1.
+
+    `type_node`'s own comment (type_tree_def.h:70-78) says `argument_type`
+    must be last precisely so that every larger integer names a variable.
+    `type_node(19)` is `$2`, `type_node(999)` is `$982`, and neither is a
+    named member -- `list(type_node)` still shows exactly classic's 19
+    enumerators.
+    """
+    assert ostream_type_node(type_node(19)) == "$2"
+    assert ostream_type_node(type_node(999)) == "$982"
+    assert len(list(type_node)) == 19
 
 
 @pytest.mark.parametrize("arity", [-1, -2])

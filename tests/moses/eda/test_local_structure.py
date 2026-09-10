@@ -65,16 +65,48 @@ def test_probs_learning_counts_and_grand_total_are_correct():
     assert leaf.data == [1, 3, 1, 5]
 
 
-def test_sampling_deterministic_when_only_one_bucket_has_mass():
+def test_sampling_deterministic_when_bucket_ZERO_has_all_the_mass():
+    """Only bucket 0 is deterministic under `ScoreT = int`. With counts
+    `[n, 0, ...]` and total `n`, `sum = int(n * rand)` is in `[0, n]`, the
+    first subtraction leaves `sum - n <= 0`, `(sum > 0)` is false, and the
+    do-while returns index 0 for EVERY draw. See the companion test below
+    for why the same is NOT true of any other bucket.
+    """
     fs = field_set([disc_spec(3), disc_spec(4)])
-    pop = _pop(fs, [[1, 2]] * 6)  # every instance identical
+    pop = _pop(fs, [[0, 0]] * 6)  # every instance identical, all mass on bucket 0
     model = local_structure_model(fs, pop)
     local_structure_probs_learning()(fs, pop, model)
     randGen().seed(123)
     for _ in range(10):
         sampled = model()
-        assert fs.get_raw(sampled, 0) == 1
-        assert fs.get_raw(sampled, 1) == 2
+        assert fs.get_raw(sampled, 0) == 0
+        assert fs.get_raw(sampled, 1) == 0
+
+
+def test_sampling_a_single_massive_bucket_can_still_return_bucket_zero():
+    """`ScoreT = int` at local_structure.cc:146 (`dtree_node` is
+    `vector<int>`), so `sum = ScoreT(double(sum) * rng.randdouble())`
+    TRUNCATES. With all six instances on bucket 1 of a `disc_spec(3)` --
+    counts `[0, 6, 0]`, total 6 -- every draw below `1/6` truncates to 0,
+    the first subtraction of the zero-mass bucket 0 leaves `sum == 0`, and
+    `(sum > 0)` stops immediately: classic returns the EMPTY bucket.
+
+    This is classic's real behaviour, pinned so it is not "fixed": the
+    equivalent grid point is in `tests/fixtures/univariate_rng.json`
+    (`roulette_int` for counts `[0, 5, 5]` at small draws; see
+    `tests/util/test_selection.py::test_int_truncation_can_select_a_zero_
+    mass_bucket`). A float `ScoreT` would return bucket 1 every time, which
+    is what this port used to do.
+    """
+    fs = field_set([disc_spec(3)])
+    pop = _pop(fs, [[1]] * 6)
+    model = local_structure_model(fs, pop)
+    local_structure_probs_learning()(fs, pop, model)
+    assert model.dtrees()[0].begin().data == [0, 6, 0, 6]
+
+    randGen().seed(123)
+    seen = {fs.get_raw(model(), 0) for _ in range(200)}
+    assert seen == {0, 1}  # NOT {1}: the zero-mass bucket is reachable
 
 
 def test_sampling_an_all_zero_leaf_returns_zero_without_drawing_rng():
@@ -189,32 +221,67 @@ def test_split_raises_when_target_node_already_has_children():
         model._split(0, 1, root)
 
 
+def _randgen_draws_consumed(fn) -> int:
+    """How many `genrand_int32()` draws `fn()` consumes, from seed 1.
+
+    Counted rather than inferred from the sampled VALUE, because under
+    `ScoreT = int` no non-zero bucket is deterministic (see
+    `test_sampling_a_single_massive_bucket_can_still_return_bucket_zero`),
+    so a value-based check cannot cleanly identify which child was
+    descended into. A draw count can: `roulette_select` consumes exactly
+    one `randdouble()` per non-empty leaf -- and `randdouble()` is one
+    `genrand_int32()` (rng.py) -- while an all-zero leaf consumes none
+    (local_structure.cc:144-149).
+    """
+    rng = randGen()
+    rng.seed(1)
+    calls = 0
+    real = rng.genrand_int32
+
+    def counting():
+        nonlocal calls
+        calls += 1
+        return real()
+
+    rng.genrand_int32 = counting
+    try:
+        fn()
+    finally:
+        del rng.genrand_int32
+    return calls
+
+
 def test_sampling_a_split_contin_dtree_reads_the_parent_margs_value():
     """`_sample` on an internal node reads `margs[src_idx]` (the ALREADY-
     sampled value of the parent field) to select which child to descend
-    into -- verified by forcing every leaf under one specific child to be
-    the only leaf with any mass, then checking the value assigned to that
-    field only ever comes from the corresponding child's distribution.
+    into. Verified by making the three children distinguishable by whether
+    they DRAW at all: an all-zero leaf consumes no `randGen()` draw
+    (local_structure.cc:148-149), a non-empty one consumes exactly one.
+
+    The parent (raw idx 0) is given all its mass on bucket 0, which under
+    `ScoreT = int` is the one value that is deterministic for every draw
+    (see `test_sampling_deterministic_when_bucket_ZERO_has_all_the_mass`),
+    so the child index is pinned at 0 without depending on the RNG.
     """
     fs = field_set([contin_spec(0.0, 1.0, 2.0, 2)])
     pop = _pop(fs, [[0, 5], [1, 6], [2, 7]])  # non-uniform idx1 -> forces a split
     model = local_structure_model(fs, pop)
     dtr1 = model.dtrees()[1]
     root = dtr1.begin()
-    # Force raw idx 0 (dtree[0], a plain never-split leaf) to always sample
-    # value 1, so the parent value driving the split below is deterministic.
-    model.dtrees()[0].begin().data = [0, 7, 0, 7]
-    # Manually seed all-mass onto child 1 (the "Left" partition) only.
-    for i in range(3):
-        child = dtr1.child(root, i)
-        child.data = [0, 0, 0, 0]
-    left_child = dtr1.child(root, 1)
-    left_child.data = [0, 7, 0, 7]  # bucket 1 has all the mass
+    # Parent leaf: all mass on bucket 0 -> margs[0] == 0 for every draw,
+    # and it consumes exactly one draw of its own.
+    model.dtrees()[0].begin().data = [7, 0, 0, 7]
 
-    randGen().seed(1)
-    for _ in range(5):
-        sampled = model()
-        raw0 = fs.get_raw(sampled, 0)
-        raw1 = fs.get_raw(sampled, 1)
-        assert raw0 == 1
-        assert raw1 == 1  # sampled via the correctly-selected child 1
+    # Case A: only child 0 has mass. Correct routing -> parent draw + child
+    # draw == 2. Routing into child 1 or 2 (all-zero) would draw only once.
+    for i in range(3):
+        dtr1.child(root, i).data = [0, 0, 0, 0]
+    dtr1.child(root, 0).data = [7, 0, 0, 7]
+    assert _randgen_draws_consumed(model) == 2
+
+    # Case B: the mirror image -- child 0 empty, children 1 and 2 with
+    # mass. Correct routing -> parent draw only == 1.
+    for i in range(3):
+        dtr1.child(root, i).data = [7, 0, 0, 7]
+    dtr1.child(root, 0).data = [0, 0, 0, 0]
+    assert _randgen_draws_consumed(model) == 1

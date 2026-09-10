@@ -1,0 +1,23 @@
+{
+  "capture_script": "tools/capture_nth_element.py",
+  "capture_script_sha256": "045e69a52e28750ef110c1dd90daa304bd30b3cd3dc58e95ebec20b97a8a60c7",
+  "classic_dir": "/home/yab/Documents/Projects/iCog/HyperonRelated/MOSES/OpenCog/Moses",
+  "cli_tool": null,
+  "generated_at_utc": "2026-09-10T05:58:40+00:00",
+  "inputs": {
+    "description": "133 OMP_ALGO::nth_element cases over vectors of [key, tag] pairs compared on key alone: every (size, nth) pair for sizes 0..17, pseudo-random key streams with 1, 2, 3, 7 and 50 distinct keys at sizes 20/33/64/100/298/597, and sorted / reversed / organ-pipe / all-equal shapes at 597 (the real -aun deme size). Key streams come from an LCG hardcoded in the probe, so the fixture depends on no library RNG and no external dataset.",
+    "host_dependency": "libstdc++'s std::__introselect (median-of-3 introselect); see pymetta/moses/eda/replacement.py's module docstring"
+  },
+  "prefix_dir": "/home/yab/opt/moses-legacy",
+  "probe_kind": "cpp_probe",
+  "probe_source": "tools/cpp_probe/nth_element_probe.cc",
+  "probe_source_sha256": "0b24b4829180d13f983db8fa4879fba424321ded85b98dbeef7243d62743c6d5",
+  "repo_commit": "058d51b5be8e25c8388177022af0c1a76b2dce65",
+  "schema_version": 2,
+  "toolchain": {
+    "boost_lib_version": "1_92",
+    "cxx": "g++ (GCC) 16.2.1 20260810",
+    "glibcxx_max_symbol": "GLIBCXX_3.4.36",
+    "libstdcxx_soname": "libstdc++.so.6.0.36"
+  }
+}

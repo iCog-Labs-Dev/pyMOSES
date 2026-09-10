@@ -12,6 +12,7 @@ tools/cpp_probe/scorers_probe.cc's own `probe_time_dispersion` pattern.
 import json
 import math
 from collections import Counter
+from datetime import date
 from pathlib import Path
 
 import pytest
@@ -156,12 +157,70 @@ def test_month_granularity_on_an_EMPTY_ctable_does_not_raise():
     assert _ConcreteTD(ct, granularity=TemporalGranularity.month)._Hmax == -math.inf
 
 
-def test_get_timestamp_class_is_a_raising_gate():
+def test_get_timestamp_class_day_is_the_identity():
+    """`case TemporalGranularity::day: return timestamp;`
+    (time_dispersion.cc:59-60) -- including for the not-a-date sentinel,
+    which is why an untimestamped table gets exactly one timestamp class.
+    """
     table = loadTable(str(_TABLE_DATA_DIR / "trainingBoolean.dat"), "y")
-    ct = table.compressed()
-    bsc = _ConcreteTD(ct)
-    with pytest.raises(NotImplementedError):
+    bsc = _ConcreteTD(table.compressed(), granularity=TemporalGranularity.day)
+    assert bsc.get_timestamp_class(None) is None
+    assert bsc.get_timestamp_class(date(2012, 3, 23)) == date(2012, 3, 23)
+
+
+def test_get_timestamp_class_month_truncates_to_the_first_of_the_month():
+    """`return TTable::value_type(timestamp.year(), timestamp.month(), 1);`
+    (time_dispersion.cc:65). Two dates in the same month must collapse to
+    ONE class and two in different months must not -- a `day`-style
+    identity would pass a single-date check.
+    """
+    table = loadTable(str(_TABLE_DATA_DIR / "trainingBoolean.dat"), "y")
+    bsc = _ConcreteTD(table.compressed(), granularity=TemporalGranularity.day)
+    bsc._granularity = TemporalGranularity.month
+    assert bsc.get_timestamp_class(date(2012, 3, 23)) == date(2012, 3, 1)
+    assert bsc.get_timestamp_class(date(2012, 3, 1)) == date(2012, 3, 1)
+    assert bsc.get_timestamp_class(date(2012, 4, 1)) == date(2012, 4, 1)
+
+
+def test_get_timestamp_class_month_rejects_the_not_a_date_sentinel():
+    """`OC_ASSERT(!timestamp.is_not_a_date(), ...)` (time_dispersion.cc:
+    61-64), with classic's own message text. This is what makes the
+    constructor abort on the first observation of an untimestamped table
+    at `month` granularity.
+    """
+    table = loadTable(str(_TABLE_DATA_DIR / "trainingBoolean.dat"), "y")
+    bsc = _ConcreteTD(table.compressed(), granularity=TemporalGranularity.day)
+    bsc._granularity = TemporalGranularity.month
+    with pytest.raises(AssertionError, match="are you sure you have loaded a timestamp feature"):
         bsc.get_timestamp_class(None)
+
+
+def test_get_timestamp_class_rejects_an_unknown_granularity():
+    """The `default:` arm (time_dispersion.cc:65-70), unreachable while
+    `TemporalGranularity` has two members but ported so a third fails
+    loudly instead of silently getting `day`'s answer.
+    """
+    table = loadTable(str(_TABLE_DATA_DIR / "trainingBoolean.dat"), "y")
+    bsc = _ConcreteTD(table.compressed(), granularity=TemporalGranularity.day)
+    bsc._granularity = 7
+    with pytest.raises(AssertionError, match="Case 7 not implemented"):
+        bsc.get_timestamp_class(date(2012, 3, 23))
+
+
+def test_hmax_counts_real_timestamp_classes():
+    """The constructor loop is now REAL, not counted. A three-date table
+    gives `log2(3)` at `day` granularity; the same table gives `log2(2)`
+    at `month`, because two of its dates share a month. An implementation
+    that hard-coded "1 class" (which is all an untimestamped table can
+    produce) passes neither.
+    """
+    table = loadTable(str(_TABLE_DATA_DIR / "timestamp_bool_dup.csv"), "y", "when")
+    ct = table.compressed()
+    assert sorted(ct.get_timestamps()) == [date(2012, 1, 3), date(2012, 1, 11), date(2012, 1, 19)]
+    assert _ConcreteTD(ct, granularity=TemporalGranularity.day)._Hmax == pytest.approx(
+        math.log2(3), abs=1e-7
+    )
+    assert _ConcreteTD(ct, granularity=TemporalGranularity.month)._Hmax == 0.0
 
 
 # ---------------------------------------------------------------------------

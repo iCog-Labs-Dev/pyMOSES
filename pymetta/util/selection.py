@@ -37,25 +37,37 @@ unreachable in ANY real classic build, not merely unported here.
 # DIVERGENCE(C++ opencog/util/selection.h:89): the real function is
 # a template over `It` (any iterator type) and `ScoreT` (any type
 # `roulette_select`'s own arithmetic works against). This port specializes
-# both to exactly the one instantiation `select_exemplar` needs -- a Python
-# `Sequence[score_t]` in place of an iterator PAIR, and `score_t` (`float`,
-# narrowed via `_to_score_t`) in place of a generic `ScoreT` -- rather than
+# `It` to a Python `Sequence` in place of an iterator PAIR, rather than
 # reproducing C++ template genericity Python has no equivalent mechanism
 # for. Python has no iterator arithmetic (`from++`, `--from`,
 # `std::distance`) either, so this returns the WINNING INDEX directly (the
 # same index `select_exemplar`'s own `std::distance(probs.begin(), ...)`
 # call immediately re-derives from the iterator C++ returns) -- the direct
 # analogue of "the position `--from` ends up pointing at", not a behavioural
-# difference: `select_exemplar` is this function's only caller in scope, and
-# it needs exactly that index either way.
+# difference: both callers need exactly that index either way.
+#
+# `ScoreT` is NOT specialized away: it is passed explicitly as `score_type`,
+# because the two live instantiations are genuinely different arithmetic.
+# `select_exemplar` instantiates `ScoreT = score_t` (`float`, binary32);
+# `local_structure.cc:146` instantiates `ScoreT = int`, because `dtree_node`
+# is `typedef vector<int>` (`local_structure.h:68`) and `dtr->back()` is
+# therefore an `int`. At `ScoreT = int`, `sum = ScoreT(double(sum) *
+# rng.randdouble())` TRUNCATES TOWARD ZERO and the whole loop runs in exact
+# integer arithmetic; at `ScoreT = score_t` it narrows to binary32 and the
+# loop runs in float. MEASURED 2026-09-10 over the 6,214-point grid in
+# `tests/fixtures/univariate_rng.json` (26 leaf-count vectors x 239
+# `randdouble` values, both instantiations dumped from the REAL C++
+# template by `tools/cpp_probe/univariate_rng_probe.cc`): the two
+# instantiations return a DIFFERENT index at 1,409 of those 6,214 points.
+# Collapsing them to one was a real behavioural bug on the `-aun` path.
 """
 
 from __future__ import annotations
 
-from collections.abc import Sequence
+from collections.abc import Callable, Sequence
 from typing import TYPE_CHECKING
 
-from pymetta.moses.moses.types import _to_score_t, score_t
+from pymetta.moses.moses.types import _to_score_t
 from pymetta.util.rng import randGen
 
 if TYPE_CHECKING:
@@ -65,9 +77,10 @@ __all__ = ["roulette_select", "tournament_selection"]
 
 
 def roulette_select(
-    items: Sequence[score_t],
-    total: score_t,
+    items: Sequence[float],
+    total: float,
     rng: MT19937RandGen | None = None,
+    score_type: Callable[[float], float] = _to_score_t,
 ) -> int:
     """C++: opencog/util/selection.h:89 roulette_select
 
@@ -78,16 +91,23 @@ def roulette_select(
     `[from, to)` range -- see module docstring for why the two-endpoint
     generality is dropped. Returns the selected index into `items`.
 
-    `sum = ScoreT(double(sum) * rng.randdouble());` (selection.h:90) is a
-    `score_t` NARROWING conversion -- `ScoreT` is `score_t` at this port's
-    one instantiation (module docstring) -- ported via `_to_score_t`, the
-    same convention every other `score_t`-typed arithmetic step in this
-    port's scope follows (CARRY-FORWARD.md 4.2). `double(sum)` is a no-op
-    widening in Python (every value here already IS a Python `float`,
-    i.e. what C++ calls `double`); `rng.randdouble()` is already `double`
-    in both languages, so the product is computed at double precision and
-    narrowed ONCE, matching C++'s own single narrowing at the assignment
-    (not per-operand).
+    `score_type` IS the template parameter `ScoreT`: the conversion C++
+    applies at every step where the standing `sum` is written back. It
+    defaults to `_to_score_t` (`ScoreT = score_t`, `select_exemplar`'s
+    instantiation); `local_structure.py` passes `int` (`ScoreT = int`,
+    `local_structure.cc:146`'s instantiation, whose `dtree_node` element
+    type is `int`). See the module docstring for the measured size of the
+    difference.
+
+    `sum = ScoreT(double(sum) * rng.randdouble());` (selection.h:90) is the
+    conversion above applied to a double product. `double(sum)` is a no-op
+    widening in Python (every value here already IS a Python `float`, i.e.
+    what C++ calls `double`, or an `int`, which Python widens losslessly);
+    `rng.randdouble()` is already `double` in both languages, so the product
+    is computed at double precision and converted ONCE, matching C++'s own
+    single conversion at the assignment (not per-operand). At `ScoreT =
+    score_t` that conversion narrows to binary32; at `ScoreT = int` it
+    truncates toward zero, which `int()` also does.
 
     The loop itself:
 
@@ -100,14 +120,13 @@ def roulette_select(
     even for a single-element range -- ported as a Python
     `while True: ... ; if not (...): break` with the C++ post-increment's
     two effects (use the CURRENT element, then advance) kept in that exact
-    order via a plain index cursor. `sum -= *from++` is `score_t -= score_t`
-    -- another float32 operation, narrowed via `_to_score_t` after every
-    single subtraction (not once at the end): with `items` holding many
-    small values, each individual subtraction's rounding is what a real
-    `score_t sum` accumulator would actually store before the NEXT
-    subtraction reads it, so narrowing only at the end would let
-    double-precision precision leak into intermediate comparisons the `> 0`
-    check below makes every iteration.
+    order via a plain index cursor. `sum -= *from++` is `ScoreT -= ScoreT`,
+    so `score_type` is applied after every single subtraction, not once at
+    the end: with `items` holding many small values, each individual
+    subtraction's rounding is what a real `ScoreT sum` accumulator would
+    actually store before the NEXT subtraction reads it, so converting only
+    at the end would let double-precision precision leak into the
+    intermediate comparisons the `> 0` check below makes every iteration.
 
     `(sum > 0)`, NOT `(sum >= 0)` -- selection.h:92-95's own comment
     explains why: "For integer-valued arrays, it can happen that *from are
@@ -120,11 +139,15 @@ def roulette_select(
         rng = randGen()
 
     n = len(items)
-    remaining: score_t = _to_score_t(_to_score_t(total) * rng.randdouble())
+    # `ScoreT sum` is a BY-VALUE parameter, so C++ converts the caller's
+    # argument to `ScoreT` on binding before `double(sum)` widens it back;
+    # the inner `score_type` reproduces that binding, and is the identity
+    # whenever the caller already holds a `ScoreT`-typed value.
+    remaining = score_type(score_type(total) * rng.randdouble())
 
     cursor = 0
     while True:
-        remaining = _to_score_t(remaining - items[cursor])
+        remaining = score_type(remaining - items[cursor])
         cursor += 1
         if not (remaining > 0 and cursor != n):
             break

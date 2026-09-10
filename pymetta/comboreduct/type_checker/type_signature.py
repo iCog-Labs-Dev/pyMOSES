@@ -52,6 +52,88 @@ class type_node(IntEnum):
     ill_formed_type = 17
     argument_type = 18
 
+    @classmethod
+    def _missing_(cls, value: object) -> type_node | None:
+        """C++: moses/comboreduct/type_checker/type_tree_def.h:32 type_node
+
+        # DIVERGENCE(C++ moses/comboreduct/type_checker/type_tree_def.h:70):
+        # classic's `type_node` is a plain C enum, so
+        # `(type_node)((int)id::argument_type + k)` is a legal value for any
+        # k >= 0 and needs no declaration -- that is the entire purpose of
+        # `argument_type` being last. Python's `IntEnum` is closed by
+        # default and `type_node(19)` would raise `ValueError`, so this hook
+        # mints an unnamed pseudo-member for any ordinal past
+        # `argument_type`, the same mechanism `enum.IntFlag` uses for
+        # unnamed flag combinations. Pseudo-members are cached in
+        # `_value2member_map_` (so identity and hashing stay stable) but are
+        # deliberately NOT added to `_member_map_`, so `list(type_node)` and
+        # `type_node.__members__` still show exactly classic's 19
+        # enumerators.
+        """
+        if isinstance(value, int) and value > cls.argument_type:
+            member = int.__new__(cls, value)
+            member._name_ = f"argument_type_{value - int(cls.argument_type) + 1}"
+            member._value_ = value
+            return cls._value2member_map_.setdefault(value, member)
+        return None
+
+
+# C++: moses/comboreduct/type_checker/type_tree.cc:250 get_output_type_tree's
+# final `else` and type_tree.cc:243's commented-out one both mean "this vertex
+# kind is not handled". This port reaches them for exactly one reason -- its
+# `vertex` union spells enum_t, definite_object, action_definite_object,
+# indefinite_object, message, action_symbol and wild_card all as a bare `str`
+# (vertex.py's own module docstring) and cannot tell them apart -- and every one
+# of those domains is out of scope. Shared so the message is identical wherever
+# it is raised.
+EXCLUDED_STR_VERTEX_MESSAGE = (
+    "{fn}: a `str` vertex stands in for enum_t, definite_object, "
+    "action_definite_object, indefinite_object, message, action_symbol or "
+    "wild_card, which this port's four-way `vertex` union cannot tell apart; "
+    "all of those domains are out of scope, so no type is inferred for {v!r}"
+)
+
+
+def argument_type_node(abs_idx_from_zero: int) -> type_node:
+    """C++: moses/comboreduct/type_checker/type_tree.cc:158 get_type_tree
+
+    The `(type_node)((int)id::argument_type + a.abs_idx_from_zero())` cast
+    that `get_type_tree(const argument&)` performs, and that
+    `operator>>(istream&, type_node&)` performs again for a `$N` spelling
+    (type_tree.cc:1443). `$1` is `argument_type` itself, `$2` is
+    `argument_type + 1`, and so on without bound -- which is exactly what
+    `type_node`'s own comment says the enumerator is for ("THIS MUST BE
+    LAST IN THE ENUM. The rest of the integers enumerate variables",
+    type_tree_def.h:70-78). `type_node._missing_` above is what makes the
+    unnamed values past `argument_type` real `type_node`s here, so that
+    `set_arg_type`/`get_arg_type` can still tell a type_node apart from a
+    plain 1-based index the way C++'s overload resolution does.
+    """
+    return type_node(int(type_node.argument_type) + abs_idx_from_zero)
+
+
+def is_argument_type(n: type_node) -> bool:
+    """C++: moses/comboreduct/type_checker/type_tree_def.cc:29 is_argument_type
+
+    `((int)n) >= id::argument_type`. `argument_type` is deliberately LAST
+    in the enum (type_tree_def.h:70-78) precisely so that every ordinal at
+    or beyond it encodes an argument: `argument_type` is `$1`,
+    `argument_type + 1` is `$2`, and so on without bound.
+    """
+    return int(n) >= int(type_node.argument_type)
+
+
+def arg_to_idx(n: type_node) -> int:
+    """C++: moses/comboreduct/type_checker/type_tree_def.cc:34 arg_to_idx
+
+    The 1-based argument index a `type_node` encodes, "as defined in class
+    argument in vertex.h" (type_tree_def.h:104). The `OC_ASSERT` on
+    `is_argument_type` is real.
+    """
+    if not is_argument_type(n):
+        raise AssertionError("Cannot find the idx of a non-argument type")
+    return int(n) - int(type_node.argument_type) + 1
+
 
 def _type_node_of(leaf: type_node | type_tree) -> type_node:
     if isinstance(leaf, type_node):
@@ -94,19 +176,25 @@ class TypeSignature:
 def get_signature_inputs(signature: TypeSignature) -> tuple[type_tree, ...]:
     """C++: moses/comboreduct/type_checker/type_tree.cc:1282 get_signature_inputs
 
-    C++ returns independent leaf ``type_tree`` values.  The tuple preserves
-    input order while making the Python result immutable as well.
+    The `TypeSignature`-shaped entry point; the real one, over a
+    `type_tree`, is in `type_tree.py` and this delegates to it. C++
+    returns a `type_tree_seq` (a `std::vector`); the tuple preserves input
+    order while making the Python result immutable as well.
     """
-    from pymetta.comboreduct.type_checker.type_tree import type_tree
+    from pymetta.comboreduct.type_checker import type_tree as _tt
 
-    return tuple(type_tree(node) for node in signature.itypes)
+    return tuple(_tt.get_signature_inputs(signature_to_type_tree(signature)))
 
 
 def get_signature_output(signature: TypeSignature) -> type_tree:
-    """C++: moses/comboreduct/type_checker/type_tree.cc:1272 get_signature_output"""
-    from pymetta.comboreduct.type_checker.type_tree import type_tree
+    """C++: moses/comboreduct/type_checker/type_tree.cc:1272 get_signature_output
 
-    return type_tree(signature.otype)
+    The `TypeSignature`-shaped entry point; the real one, over a
+    `type_tree`, is in `type_tree.py` and this delegates to it.
+    """
+    from pymetta.comboreduct.type_checker import type_tree as _tt
+
+    return _tt.get_signature_output(signature_to_type_tree(signature))
 
 
 @overload
@@ -180,33 +268,56 @@ def gen_signature(
     return TypeSignature(inputs_or_itype, output_or_arity)  # type: ignore[arg-type]
 
 
+def signature_to_type_tree(signature: TypeSignature) -> type_tree:
+    """C++: moses/comboreduct/type_checker/type_tree.cc:1299 gen_signature
+
+    No C++ analogue as a separate function -- classic never needs one,
+    because a signature simply IS a `type_tree` there. Here it is the
+    bridge from this module's flat `TypeSignature` to the real
+    `lambda_type`-rooted tree the engine in `type_tree.py` operates on,
+    and it is exactly `gen_signature(itypes, otype)`.
+    """
+    from pymetta.comboreduct.type_checker import type_tree as _tt
+
+    return _tt.gen_signature(list(signature.itypes), signature.otype)
+
+
 def type_tree_arity(signature: TypeSignature) -> int:
-    """C++: moses/comboreduct/type_checker/type_tree.cc:352 type_tree_arity"""
-    # DIVERGENCE(C++ moses/comboreduct/type_checker/type_tree.cc:366):
-    # classic returns a NEGATIVE arity (`-a`) when the signature's last input
-    # is `id::arg_list_type` -- a deliberate sentinel meaning "variadic, |a|
-    # named arguments plus a trailing arg_list" (see also convert_index's use
-    # of that sign, type_tree.cc:379-382). `arg_list_type` has no
-    # representation in this scoped port (term-algebra/enum/etc. are
-    # excluded outside the Boolean+continuous domain), so `len(...)` here is
-    # always the plain non-negative count and never reproduces that
-    # negative-arity variadic encoding.
-    return len(signature.itypes)
+    """C++: moses/comboreduct/type_checker/type_tree.cc:352 type_tree_arity
+
+    Delegates to the real algorithm in `type_tree.py`, over the arrow tree
+    this signature stands for. It used to be `len(signature.itypes)` with
+    a DIVERGENCE marker saying the negative `arg_list` sentinel was not
+    reproduced; delegating removes the divergence rather than documenting
+    it. The two agree on every signature this port constructs -- nothing
+    builds a `TypeSignature` whose last input is `arg_list_type` -- so the
+    change is behaviour-preserving today and correct if that stops being
+    true.
+    """
+    from pymetta.comboreduct.type_checker import type_tree as _tt
+
+    return _tt.type_tree_arity(signature_to_type_tree(signature))
 
 
 def contin_arity(signature: TypeSignature) -> int:
     """C++: moses/comboreduct/type_checker/type_tree.cc:316 contin_arity"""
-    return signature.itypes.count(type_node.contin_type)
+    from pymetta.comboreduct.type_checker import type_tree as _tt
+
+    return _tt.contin_arity(signature_to_type_tree(signature))
 
 
 def boolean_arity(signature: TypeSignature) -> int:
     """C++: moses/comboreduct/type_checker/type_tree.cc:328 boolean_arity"""
-    return signature.itypes.count(type_node.boolean_type)
+    from pymetta.comboreduct.type_checker import type_tree as _tt
+
+    return _tt.boolean_arity(signature_to_type_tree(signature))
 
 
 def action_result_arity(signature: TypeSignature) -> int:
     """C++: moses/comboreduct/type_checker/type_tree.cc:340 action_result_arity"""
-    return signature.itypes.count(type_node.action_result_type)
+    from pymetta.comboreduct.type_checker import type_tree as _tt
+
+    return _tt.action_result_arity(signature_to_type_tree(signature))
 
 
 # ---------------------------------------------------------------------------

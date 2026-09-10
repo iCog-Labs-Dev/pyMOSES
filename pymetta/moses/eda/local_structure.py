@@ -35,31 +35,27 @@ concurrently with this task).
 it specializes the four-argument `(items, sum, rng)` form, which is exactly
 the shape `dtree` leaf-sampling also needs), consuming draws from the same
 seeded `pymetta.util.rng.randGen()` singleton the rest of this port shares.
+It instantiates that template at `ScoreT = int`, NOT `score_t` -- see
+`_sample`'s own docstring.
 
-`local_structure_model`'s CONSTRUCTOR also draws from RNG, but NOT from
-`randGen()`: it calls `randomized_topological_sort`
-(`pymetta.util.digraph`), whose own module docstring records a DIVERGENCE --
-classic's real shuffle there is driven by an UNSEEDED `std::rand()`, wholly
-disconnected from MOSES's own `-r` seed, so this port draws it from
-`randGen()` instead (for the port's OWN reproducibility) rather than
-attempting to reproduce glibc's independent `rand()` stream bit-for-bit.
-Consequence for trajectory-level comparison against classic: every
-`local_structure_model` construction consumes one extra, UNMATCHED batch of
-`randGen()` draws (the Fisher-Yates shuffle) that classic's own trace does
-not show at the corresponding point, so a byte-for-byte `randGen()` draw-log
-diff against classic's `-aun` run will show recorded divergences AT the
-model-construction boundary even on a Boolean-only (contin-empty) field set,
-where the shuffled order is otherwise the ENTIRE `_ordering` (no real
-dependency edges exist to order). Everything downstream of that boundary
-that reads `randGen()` for its OWN reasons (`roulette_select`'s
-`rng.randdouble()` draws inside `sample()`) still consumes exactly the draws
-its own inputs call for -- only their *order* can shift, because which raw
-field is visited (and hence sampled, and hence draws from `randGen()`) in
-which position of `_ordering` is no longer classic's own permutation. This
-is disclosed, not hidden: `test_un_3_pa_multi_thread` (this task's oracle)
-checks the FINAL SCORE the search converges to, not a specific trajectory,
-and `tests/moses/moses/optimization/test_univariate.py`'s own docstring
-records the same limitation for its comparison-scope tests.
+THIS MODULE READS TWO INDEPENDENT RANDOM STREAMS, and getting either one
+wrong changes the search:
+
+* `randGen()` (mt19937, seeded by `-r`), read by `roulette_select`'s
+  `rng.randdouble()` once per non-empty leaf inside `_sample`, in
+  `_ordering` order.
+* C's `rand()` (glibc TYPE_3, UNSEEDED and NOT controlled by `-r`), read
+  by `randomized_topological_sort`'s `std::random_shuffle` -- once per
+  `local_structure_model` construction, i.e. once per generation of
+  `optimize()`. `pymetta.util.digraph` reproduces that stream draw for
+  draw; its module docstring carries the whole derivation and the
+  residual divergence.
+
+The second stream decides `_ordering`, and `_ordering` decides which raw
+field consumes which `randGen()` draw in `operator()`. So an error in
+EITHER stream shifts the other's effect -- which is why the port matched
+classic below `-m1000` (where `max_gens_total` collapses to 0, no model is
+ever built, and neither stream is read) and diverged above it.
 """
 
 from __future__ import annotations
@@ -228,10 +224,27 @@ class local_structure_model:
 
         `dst` is an out-parameter (`disc_t&`) in C++; returned here instead
         (see class docstring's general convention).
+
+        `roulette_select(dtr->begin(), --(dtr->end()), dtr->back())`
+        (local_structure.cc:146) instantiates the template at
+        **`ScoreT = int`**, not `score_t`: `dtree_node` is `typedef
+        vector<int>` (local_structure.h:68), so `dtr->back()` is an `int`
+        and template argument deduction picks `int`. That makes
+        `sum = ScoreT(double(sum) * rng.randdouble())` a TRUNCATION toward
+        zero and the whole subtraction loop exact integer arithmetic --
+        hence the explicit `score_type=int`. It is not a detail: over the
+        6,214-point oracle grid in `tests/fixtures/univariate_rng.json`,
+        the `int` and `score_t` instantiations of the real C++ template
+        disagree at 1,409 points (see `pymetta/util/selection.py`'s module
+        docstring).
+
+        `distance(dtr->begin(), roulette_select(...))` becomes the returned
+        index directly, per `roulette_select`'s own index-returning
+        convention.
         """
         if dtr_tree.is_childless(node):  # a leaf
             if node.data[-1] > 0:
-                return roulette_select(node.data[:-1], node.data[-1])
+                return roulette_select(node.data[:-1], node.data[-1], score_type=int)
             # "if no data, do uniform selection    WHY IS THIS COMMENTED
             # OUT???" (local_structure.cc:149's own comment) -- classic
             # returns 0 unconditionally here, DO NOT "FIX" to a uniform

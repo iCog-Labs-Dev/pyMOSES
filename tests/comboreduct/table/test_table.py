@@ -32,6 +32,7 @@ adapted test says so at the point of adaptation.
 """
 
 from collections import Counter
+from datetime import date
 from pathlib import Path
 
 import pytest
@@ -350,83 +351,86 @@ def test_loadCTable():
 def test_timestamp_feature(fixture_dir):
     """C++: tableUTest.cxxtest:393 test_timestamp_feature
 
-    ADAPTED: classic builds a `TTable` of the three parsed dates and
-    asserts `table.ttable == dates`; this port has no `TTable` (table.py's
-    module docstring: timestamps are excluded from `itable` but not
-    otherwise retained). Checks the thing that IS in scope: the timestamp
-    column is excluded from `itable` exactly like an ignored column would
-    be, while the target and its values are unaffected.
+    Now the real thing: classic builds a `TTable` of the three parsed
+    dates and asserts `table.ttable == dates`, and so does this.
     """
     input_file = fixture_dir / "table_data" / "timestamp_table.csv"
     table = loadTable(str(input_file), "length", "time")
     assert table.itable.get_labels() == ["width"]
     assert table.otable.get_label() == "length"
     assert list(table.otable) == pytest.approx([12.0, 10.0, 14.0])
+    assert list(table.ttable) == [date(2012, 1, 11), date(2012, 1, 13), date(2012, 2, 18)]
+    assert table.ttable.get_label() == "time"
+    assert table.timestamp_pos == 0
 
 
-def test_ctable_has_no_timestamp_surface(tmp_path):
-    """The port's `CTable` carries no timestamp DATA, so it has none of
-    classic's three timestamp members -- and the absence is load-bearing,
-    not cosmetic.
+def test_ctable_has_the_timestamp_surface(tmp_path):
+    """The inverse of what this test used to assert.
 
-    Classic's `CTable` is `map<multi_type_seq, TimedCounter>` and its
-    `TimedCounter` is `Counter<TimedValue, count_t>`, where `TimedValue`
-    is `(vertex value, TTable::value_type timestamp)` with a member-wise
-    `operator==` (table.h:472-490,496). `Table::compressed` fills the
-    timestamp half only when `ttable` is non-empty (table.cc:534-550),
-    which `loadTable` only ever makes it when `--timestamp-feature` was
-    given (table_io.cc:1109-1110,1144). This port has no `TTable` at all,
-    so every key collapses to a bare vertex and there is nothing for
-    `get_timestamps` (table.h:697), `remove_rows_at_time` (table.h:692)
-    or `remove_rows_at_times` (table.h:687) to read.
-
-    Why pin the ABSENCE rather than shrug at it: classic's own
-    `get_timestamps` skips any default (not-a-date) timestamp
-    (table.cc:740), so a vacuous `def get_timestamps(self): return set()`
-    would return the numerically correct answer for every table this port
-    can build -- and would still be a real defect, because
-    `ss_bscore.__init__` (moses/scoring/ss_bscore.py) gates on
-    `hasattr(ctable, "get_timestamps")`. Defining one turns that clear
-    `NotImplementedError` into an `ss_bscore` that silently believes the
-    dataset is untimestamped.
-
-    And measured, not assumed: THIS test is the only thing that catches
-    that. `test_construction_raises_because_get_timestamps_is_missing`
-    (tests/moses/scoring/test_ss_bscore.py) looks like it guards the same
-    property, but it feeds `ss_bscore` a `_CTableDouble` -- an empty
-    test-local class that has no `get_timestamps` by construction -- so
-    it stays green no matter what the real `CTable` grows. Verified by
-    adding a vacuous `CTable.get_timestamps` returning `set()`: this test
-    failed, that one did not.
+    It used to pin the ABSENCE of `get_timestamps`/`remove_rows_at_time`/
+    `remove_rows_at_times`/`Table.ttable`, because a vacuous
+    `get_timestamps` returning `set()` would have been numerically right
+    for every table the port could then build while silently un-gating
+    `ss_bscore.__init__` (which tests `hasattr(ctable, "get_timestamps")`).
+    All four now exist and are backed by real data, so the property worth
+    pinning is the one that made the absence load-bearing: `get_timestamps`
+    must be NON-vacuous -- it must return the actual dates for a
+    timestamped table, not just `set()` for an untimestamped one.
     """
-    assert not hasattr(CTable, "get_timestamps")
-    assert not hasattr(CTable, "remove_rows_at_time")
-    assert not hasattr(CTable, "remove_rows_at_times")
-    assert not hasattr(Table(), "ttable")
+    assert hasattr(CTable, "get_timestamps")
+    assert hasattr(CTable, "remove_rows_at_time")
+    assert hasattr(CTable, "remove_rows_at_times")
+    assert hasattr(Table(), "ttable")
 
-    # Two rows agreeing on inputs AND output but differing in date. In
-    # classic these are two distinct TimedValue keys, each counted 1.0;
-    # here they collapse to one bare-vertex key counted 2.0. Scoring is
-    # unaffected -- TimedCounter::get(const vertex&) is defined as "the
-    # sum of that counter across all timestamps with vertex equal to v"
-    # (table.h:497-500), which is exactly what one collapsed entry gives.
+    # Two rows agreeing on inputs AND output but differing in date. Classic
+    # keys them as two distinct `TimedValue`s, each counted 1.0; so does
+    # this port now. Before the timestamp slice they collapsed into one
+    # bare-vertex key counted 2.0.
     path = tmp_path / "dupe_rows_distinct_dates.csv"
     path.write_text("time,width,length\n2012-Jan-11,6,12\n2012-Feb-18,6,12\n2012-Mar-23,3,10\n")
     table = loadTable(str(path), "length", "time")
     assert table.itable.get_labels() == ["width"]  # timestamp column excluded
 
     ctable = table.compressed()
-    assert dict(ctable) == {(6.0,): Counter({12.0: 2.0}), (3.0,): Counter({10.0: 1.0})}
 
-    # Every counter key is a bare vertex, never a (value, timestamp) pair
-    # -- the concrete reason get_timestamps() cannot be implemented here.
-    for counter in ctable.values():
-        for key in counter:
-            assert not isinstance(key, tuple)
+    # The UNTIMED view -- what every vertex-keyed consumer sees, and what
+    # `TimedCounter::get(const vertex&)` (table.cc:608) is defined to
+    # return: "the sum of that counter across all timestamps".
+    assert {row: dict(counter) for row, counter in ctable.items()} == {
+        (6.0,): {12.0: 2.0},
+        (3.0,): {10.0: 1.0},
+    }
 
-    # Total observations are preserved either way, which is why the
-    # collapse is scoring-neutral.
+    # ... and the observation list underneath it, which is where the two
+    # 2012 dates survive separately.
+    assert {
+        (tv.value, tv.timestamp): c for tv, c in ctable[(6.0,)].timed_items()
+    } == {(12.0, date(2012, 1, 11)): 1.0, (12.0, date(2012, 2, 18)): 1.0}
+    assert ctable[(6.0,)].timed_len() == 2
+    assert len(ctable[(6.0,)]) == 1  # one distinct VALUE, two observations
+
+    assert ctable.get_timestamps() == {
+        date(2012, 1, 11),
+        date(2012, 2, 18),
+        date(2012, 3, 23),
+    }
     assert ctable.uncompressed_size() == 3.0
+
+
+def test_get_timestamps_is_empty_without_a_timestamp_feature(fixture_dir):
+    """Classic's `get_timestamps` filters out the default not-a-date value
+    (table.cc:740), and `Table::compressed` gives every observation of an
+    untimestamped table exactly that value (table.cc:513) -- so the empty
+    set here is C++'s own answer, reached the same way, not a stub.
+    """
+    table = loadTable(str(fixture_dir / "table_data" / "trainingBoolean.dat"), "y")
+    ctable = table.compressed()
+    assert len(ctable) > 0
+    assert ctable.get_timestamps() == set()
+    # Non-vacuously so: there ARE observations, they just all carry the
+    # sentinel.
+    assert sum(c.timed_len() for c in ctable.values()) > 0
+    assert all(tv.timestamp is None for c in ctable.values() for tv in c.timed_keys())
 
 
 def test_ostream_timestamp_table(fixture_dir):

@@ -1,0 +1,23 @@
+{
+  "capture_script": "tools/capture_univariate_rng.py",
+  "capture_script_sha256": "895e8857b65f831241f7f2db45b688b3c3e2253821ea110c3849abd1a45348df",
+  "classic_dir": "/home/yab/Documents/Projects/iCog/HyperonRelated/MOSES/OpenCog/Moses",
+  "cli_tool": null,
+  "generated_at_utc": "2026-09-10T06:01:54+00:00",
+  "inputs": {
+    "description": "raw std::rand() streams (process default, srand(1), srand(0) and six explicit seeds); randomized_topological_sort over edgeless graphs of 15 sizes and over four dependency-chain graphs, 12 consecutive calls each from a freshly srand(1)'d state; and roulette_select over a fixed 26 x 239 (leaf-counts x randdouble) grid at BOTH ScoreT = int and ScoreT = double. All hardcoded in univariate_rng_probe.cc; no external dataset, and the roulette sections drive a scripted randdouble rather than MT19937 so they isolate roulette_select's own arithmetic.",
+    "host_dependency": "glibc's rand() (TYPE_3 additive feedback) and libstdc++'s two-argument std::random_shuffle; see pymetta/util/digraph.py's module docstring"
+  },
+  "prefix_dir": "/home/yab/opt/moses-legacy",
+  "probe_kind": "cpp_probe",
+  "probe_source": "tools/cpp_probe/univariate_rng_probe.cc",
+  "probe_source_sha256": "901d3b263a6ea907811b583dcd09e4f243358f4ec9754141c4fdd3170f750d75",
+  "repo_commit": "058d51b5be8e25c8388177022af0c1a76b2dce65",
+  "schema_version": 2,
+  "toolchain": {
+    "boost_lib_version": "1_92",
+    "cxx": "g++ (GCC) 16.2.1 20260810",
+    "glibcxx_max_symbol": "GLIBCXX_3.4.36",
+    "libstdcxx_soname": "libstdc++.so.6.0.36"
+  }
+}

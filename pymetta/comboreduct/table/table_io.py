@@ -71,7 +71,14 @@ it is what classic MOSES does.
 from collections.abc import Iterable, Sequence
 
 from pymetta.comboreduct.combo.vertex import builtin, enum_t, vertex
-from pymetta.comboreduct.table.table import ITable, OTable, Table, get_indices, type_node
+from pymetta.comboreduct.table.table import (
+    ITable,
+    OTable,
+    Table,
+    TTable,
+    get_indices,
+    type_node,
+)
 from pymetta.comboreduct.type_checker.type_signature import (
     gen_signature,
     ostream_type_node,
@@ -491,6 +498,7 @@ def _load_dense_table(
 
     itable = ITable()
     otable = OTable()
+    ttable = TTable()
 
     if has_header:
         header = tokenize_row(lines[0])
@@ -508,13 +516,16 @@ def _load_dense_table(
 
         ignore_idxs = get_indices(ignore_features, header)
 
-        in_labels, out_label, _ts_label = _tokenize_row_iot(
+        in_labels, out_label, ts_label = _tokenize_row_iot(
             lines[0], ignore_idxs, target_idx, timestamp_idx
         )
         itable.set_labels(in_labels)
         otable.set_label(out_label)
-        # timestamp label discarded -- no TTable in this port, see
-        # table.py's module docstring.
+        # C++: table_io.cc:1221, `tab.ttable.set_label(std::get<2>(iotlabels))`
+        # -- set UNCONDITIONALLY there, even when no timestamp column was
+        # requested (in which case `_ts_label` is ""), so the label is not
+        # guarded on `timestamp_idx >= 0` here either.
+        ttable.set_label(ts_label)
 
     itable.set_types(list(itypes))
     otable.set_type(otype)
@@ -535,20 +546,40 @@ def _load_dense_table(
     # itable and otable by one and surfacing far downstream as an opaque
     # `zip() argument 2 is shorter` from `Table.compressed()`.
     otable_values: list[vertex] = [0.0] * len(data_lines)
+    # C++: table_io.cc:1109-1110, `if (timestamp_idx >= 0) tab.ttable.
+    # resize(lines.size());` -- the ttable is pre-sized ONLY when a
+    # timestamp column was requested, and each slot is then overwritten
+    # only `if ("" != date_str)` (table_io.cc:1141-1144), so a row whose
+    # timestamp token is empty keeps the default-constructed
+    # (not-a-date) value rather than being dropped. `None` is that value
+    # here (table.py's `timestamp_t`).
+    ttable_values: list = [None] * len(data_lines) if timestamp_idx >= 0 else []
     for i, line in enumerate(data_lines):
-        inputs, output_str, _timestamp_str = _tokenize_row_iot(
+        inputs, output_str, timestamp_str = _tokenize_row_iot(
             line, ignore_idxs, target_idx, timestamp_idx
         )
         row = tuple(token_to_vertex(t, tok) for t, tok in zip(itypes, inputs, strict=True))
         itable.push_back(row)
         if output_str != "":
             otable_values[i] = token_to_vertex(otype, output_str)
-        # timestamp value discarded -- see table.py's module docstring.
+        if timestamp_idx >= 0 and timestamp_str != "":
+            ttable_values[i] = TTable.from_string(timestamp_str)
     otable.extend(otable_values)
+    ttable.extend(ttable_values)
 
     table = Table(otable, itable)
+    # `Table.__init__` COPIES itable/otable (table.cc:484) but has no
+    # ttable parameter at all -- C++ fills `tab.ttable` in place
+    # (table_io.cc:1144), so this assignment mirrors that rather than
+    # widening the constructor.
+    table.ttable = ttable
     ignore_before_target = sum(1 for i in ignore_idxs if i < target_idx)
     table.target_pos = target_idx - ignore_before_target
+    # C++: table_io.cc:1163-1165 -- guarded on `timestamp_idx >= 0`, so a
+    # table with no timestamp column keeps `timestamp_pos == 0` rather
+    # than the meaningless `-1 - <count>`.
+    if timestamp_idx >= 0:
+        table.timestamp_pos = timestamp_idx - sum(1 for i in ignore_idxs if i < timestamp_idx)
     return table
 
 

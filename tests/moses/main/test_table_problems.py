@@ -241,13 +241,28 @@ def test_common_setup_nsamples_gate(tmp_path):
         prob.common_setup(pms)
 
 
-def test_common_setup_balance_gate(tmp_path):
+def test_common_setup_balance_no_longer_raises(tmp_path):
+    """`--balance` was gated while `CTable::balance()` was unported. It is
+    ported now -- as the NO-OP classic's actually is: both of its range-for
+    loops bind by value (`table.cc:830-832`), so the rescaling is computed
+    and thrown away. See `CTable.balance`'s own DO NOT FIX note.
+
+    So the observable contract is "accepts the flag, changes nothing", and
+    that is what this asserts: the run completes and the ctable is
+    unchanged. Measured against classic, `--balance=1` and `--balance=0`
+    produce byte-identical stdout.
+    """
     csv_path = _write_dataset(tmp_path)
     pmr, tpp, pms = _fresh_pms_and_tpp(["-i", csv_path])
     pms.balance = True
     prob = pmr.find_problem("it")
-    with pytest.raises(NotImplementedError, match="CTable.balance"):
-        prob.common_setup(pms)
+
+    prob.common_setup(pms)
+
+    before = {row: dict(counter) for row, counter in prob.ctable.items()}
+    prob.ctable.balance()
+    after = {row: dict(counter) for row, counter in prob.ctable.items()}
+    assert after == before
 
 
 def test_common_setup_multi_file_scores_only_the_first_file(tmp_path):
@@ -711,7 +726,7 @@ def test_pre_table_problem_reproduces_mosesutest_negative_predictive_value(tmp_p
     assert combo_tree_to_str(mp.best_tree()).strip() == "$1"
 
 
-def test_pre_table_problem_feature_selection_gate(tmp_path):
+def test_pre_table_problem_builds_a_feature_selector(tmp_path, monkeypatch):
     csv_path = _write_dataset(tmp_path)
     pmr, tpp, pms = _fresh_pms_and_tpp(["-i", csv_path, "-q", "0.2", "-w", "0.5", "-Q", "1"])
     # A real CLI run already rejects --enable-fs=1 earlier, inside
@@ -720,9 +735,18 @@ def test_pre_table_problem_feature_selection_gate(tmp_path):
     # mirroring how a caller could hand-build a problem_params bypassing
     # parse_options.
     pms.enable_feature_selection = True
+    pms.fs_params.target_size = 1
     prob = pmr.find_problem("pre")
-    with pytest.raises(NotImplementedError, match="feature_selector"):
-        prob.run(pms)
+    calls = _capture_metapop_moses_results(monkeypatch)
+
+    prob.run(pms)
+
+    # C++: the REGRESSION macro's own first lines (table-problems.cc:331-334)
+    # -- `if (pms.enable_feature_selection and pms.fs_params.target_size > 0)
+    # pms.deme_params.fstor = new feature_selector(TABLE, pms.festor_params);`
+    # This used to raise, accurately, while `feature_selector` was unported.
+    assert len(calls) == 1
+    assert pms.deme_params.fstor is not None
 
 
 # ---------------------------------------------------------------------------
