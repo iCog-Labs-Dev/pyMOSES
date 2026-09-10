@@ -570,10 +570,10 @@ class logical_bscore(bscore_base):
     scope for this whole port cycle, exactly as `ctruth_table_bscore.
     __init__`'s own docstring already documents for the same reason
     (bscores.py); `call_ensemble` (the `operator()(const
-    scored_combo_tree_set&)` overload, bscores.cc:85-113) is likewise not
-    overridden here, for the same reason `ctruth_table_bscore` does not
-    override it either -- falling back to `bscore_base.call_ensemble`'s
-    own unconditional raise (scoring_base.py).
+    scored_combo_tree_set&)` overload, bscores.cc:85-113) IS overridden
+    here -- see its own docstring. It is the only such override in this
+    port's reachable scope, which is exactly why `--boost` works on the
+    demo problems and aborts on the table problems, as in classic.
     """
 
     def __init__(
@@ -589,6 +589,11 @@ class logical_bscore(bscore_base):
         else:
             self._target = _iterator_function_truth_table(func_or_tree, arity)
         self._size = len(self._target)
+        # C++ calls this at the end of BOTH ctors (bscores.h:59,65). It was
+        # omitted while boosting was out of scope; with `call_ensemble`
+        # ported it matters, because `_weights` must exist before
+        # `update_weights` is ever called.
+        self.reset_weights()
 
     def __call__(self, tr: combo_tree) -> behavioral_score:
         """C++: moses/moses/scoring/bscores.cc:67 logical_bscore::operator()
@@ -600,6 +605,51 @@ class logical_bscore(bscore_base):
         """
         tt = complete_truth_table(tr, self._arity)
         return [-_to_score_t(b1 != b2) for b1, b2 in zip(tt, self._target, strict=True)]
+
+    def call_ensemble(self, ensemble) -> behavioral_score:
+        """C++: moses/moses/scoring/bscores.cc:85 logical_bscore::operator()
+        (the `const scored_combo_tree_set&` overload)
+
+        "Boolean ensemble scorer. Assumes that the ensemble signature
+        outputs a boolean value. All of the trees in the ensmble get a
+        weighted vote, that vote is totalled to get the prediction of the
+        ensemble, and then compared to the desired output." (bscores.cc:
+        81-84's own comment; typo in the original not reproduced.)
+
+        This is what makes `--boost` reachable at all:
+        `bscore_base.call_ensemble` raises unconditionally, and
+        `logical_bscore` is the only scorer in this port's reachable scope
+        that overrides it. That matches classic, where `--boost` on a
+        TABLE problem aborts inside `bscore_base::get_error` ("bscore
+        error not implemented for bscorer ... ctruth_table_bscore",
+        scoring_base.cc:115). Measured: classic exits 134 on
+        `-i dataset.csv --boost=1` and exits 0 on `-Hpa -k3 --boost=1`.
+
+        `sct.get_weight()` is a **double**; `hypoth` and the resulting
+        bscore are `score_t` (binary32). C++ accumulates into a
+        `behavioral_score`, i.e. in float, so every `+=` narrows --
+        reproduced here rather than summing in double and narrowing once
+        at the end, which would not be the same number.
+        """
+        # Step 1: accumulate the weighted prediction of each tree in the
+        # ensemble.
+        hypoth = [_to_score_t(0.0)] * self._size
+        for sct in ensemble:
+            tt = complete_truth_table(sct.get_tree(), self._arity)
+            weight = sct.get_weight()
+            for i in range(self._size):
+                # Add +1 if the prediction is true, -1 if it is false.
+                hypoth[i] = _to_score_t(
+                    hypoth[i] + weight * (2.0 * _to_score_t(tt[i]) - 1.0)
+                )
+
+        # Step 2: compare the ensemble's prediction to the desired result.
+        # `hypoth` is positive to predict true, negative to predict false;
+        # the resulting score is 0 if correct and -1 if incorrect.
+        return [
+            -_to_score_t((hyp > 0.0) != b2)
+            for hyp, b2 in zip(hypoth, self._target, strict=True)
+        ]
 
     def best_possible_bscore(self) -> behavioral_score:
         """C++: moses/moses/scoring/bscores.cc:115 logical_bscore::best_possible_bscore"""
@@ -672,15 +722,31 @@ class bool_problem_base(problem_base):
             pms.exemplars = [_type_to_exemplar(type_node.boolean_type)]
 
         bscore = self.get_bscore(self._dparms.problem_size)
-        if getattr(pms.meta_params, "do_boosting", False):
-            raise NotImplementedError(
-                "bool_problem_base: --boost needs logical_bscore."
-                "use_weighted_scores()/reset_weights(), which are boosting-"
-                "weight infrastructure out of scope for this whole port "
-                "cycle (scoring_base.py's own module docstring) -- this is "
-                "why test_4_parity_boosting/test_5_parity_boosting stay "
-                "blocked (docs/CARRY-FORWARD.md's own MOSESUTest classification)"
-            )
+        # C++: demo-problems.cc:109 -- `if (pms.meta_params.do_boosting)
+        # bscore.use_weighted_scores();`. This line was REPLACED by a gate
+        # while boosting was out of scope, so restoring it is part of
+        # un-gating: without it `_return_weighted_score` stays false,
+        # `reset_weights()` leaves `_weights` empty, and the first
+        # `update_weights` from the AdaBoost loop asserts "Unexpected use
+        # of weights in the bscorer!" (scoring_base.cc:169) -- measured.
+        if pms.meta_params.do_boosting:
+            bscore.use_weighted_scores()
+            # `use_weighted_scores` only flips the flag; `_weights` is
+            # sized by `reset_weights`, which the ctor already called
+            # BEFORE the flag was set, so it sized an empty vector. C++
+            # has the same ordering and the same consequence, and
+            # `ensemble`'s own first action on the boosting path is
+            # `_bscorer.reset_weights()` (ensemble.cc), which re-sizes it
+            # now that the flag is true.
+            bscore.reset_weights()
+        # `--boost` is NOT gated here any more. The gate claimed
+        # `logical_bscore` lacked `use_weighted_scores()`/`reset_weights()`;
+        # both are ported on `bscore_base` (scoring_base.py) and the ctor
+        # now calls `reset_weights()` as C++ does. What actually blocked
+        # boosting was the missing `call_ensemble` override, which
+        # `logical_bscore` now has -- see its own docstring for why that
+        # one override is exactly what makes `--boost` work on the demo
+        # problems and abort on the table problems, as in classic.
 
         sig = gen_signature(type_node.boolean_type, self.get_arity(self._dparms.problem_size))
         as_ = _alphabet_size(sig, pms.ignore_ops)

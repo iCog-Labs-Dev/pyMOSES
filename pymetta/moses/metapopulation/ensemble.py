@@ -41,37 +41,24 @@ with no CTable/table-loading setup).
 ## (both files are outside this task's owned scope, `pymetta/moses/
 ## metapopulation/`)
 
-1. **[CLOSED in `types.py`; NOT yet consumed here]
-   `scored_combo_tree` (`types.py`) had no `get_weight()`/`set_weight()`**
-   -- the boosting weight field itself. That is fixed:
-   `scored_combo_tree` now carries `weight` (`types.h:274`) with
-   `get_weight`/`set_weight` (`types.h:291,295`), it is in `__slots__`,
-   `__eq__` compares it (`types.cc:56`) and `_copy_sct` carries it across
-   a copy. THIS FILE has not been rewired onto it -- doing so is a
-   behavioural change to a fully-ported module and belonged to neither
-   task -- so everything below still describes what this class actually
-   does today, and an `ensemble` member's `sct.get_weight()` still reads
-   back the constructor's 1.0 default rather than its real alpha. The
-   one place that difference was observable, `metapop_printer`'s
-   python-format ensemble output (`moses_main.h:124`), is explicitly
-   gated in `moses_main.py` so the accessor's arrival could not turn an
-   `AttributeError` into silently wrong output. Worked around HERE: this class keeps its own
-   `_sct_weights: dict[id(scored_combo_tree), float]` (keyed by object
-   IDENTITY, not the unhashable `scored_combo_tree` itself --
-   `scored_combo_tree.__hash__` is explicitly `None`, types.py) via
-   `_get_weight`/`_set_weight` below, defaulting a never-explicitly-set
-   entry to `1.0` -- C++'s own member-initializer default
-   (`_weight(1.0)`, `types.h:266`). Every `scored_combo_tree` this class
-   inserts into `_scored_trees` is a freshly `_copy_sct`'d object with a
-   unique identity for as long as it stays in the set (never re-copied,
-   never aliased elsewhere in this file), so identity-keying is safe: the
-   dict entry and the set membership share exactly one lifetime, mirrored
-   explicitly at the one place they must move together (the "perfect
-   score" branch in `add_adaboost`, which clears both together). The
-   remaining work is entirely in THIS file: replace `_get_weight`/
-   `_set_weight` and the `_sct_weights` dict with direct
-   `sct.get_weight()`/`sct.set_weight()` calls, which is what classic
-   does, and then drop `moses_main.py`'s python-format ensemble gate.
+1. **[CLOSED] `scored_combo_tree` carries its own boosting weight.**
+   It has `weight` (`types.h:274`) with `get_weight`/`set_weight`
+   (`types.h:291,295`); it is in `__slots__`, `__eq__` compares it
+   (`types.cc:56`) and `_copy_sct` carries it across a copy. **This file
+   is now rewired onto it** -- `_get_weight`/`_set_weight` are
+   pass-throughs and the private `_sct_weights` dict is gone.
+
+   That dict was keyed by object IDENTITY (`scored_combo_tree.__hash__`
+   is `None`), which worked, but made the weight invisible to everything
+   outside this class. The place that mattered is `metapop_printer`'s
+   `output_ensemble` branch (`moses_main.h:124`), which prints
+   `sct.get_weight()` per member: once the accessor existed but this file
+   still wrote to the shadow dict, that branch would have printed the
+   `1.0` constructor default for every tree while boosting believed
+   otherwise -- silently wrong output rather than a crash. It was gated
+   to raise for exactly that reason; with the rewiring done, the gate can
+   go.
+
 2. **`behave_cscore` has no `get_bscorer()`** -- already noted by the
    PRIOR stub's own docstring (see class docstring below, unchanged):
    `cs._bscorer` stands in for it, matching that module's own documented
@@ -215,7 +202,6 @@ class ensemble:
         self._params: ensemble_parameters = ep if ep is not None else ensemble_parameters()
         self._bscorer = cs._bscorer
         self._scored_trees: scored_combo_tree_set = scored_combo_tree_set()
-        self._sct_weights: dict[int, float] = {}
         self._weighted_tree: combo_tree | None = None
 
         if not self._params.do_boosting:
@@ -233,17 +219,27 @@ class ensemble:
             self._row_bias = [0.0] * bslen
 
     def _get_weight(self, sct: scored_combo_tree) -> float:
-        """Not itself a ported C++ symbol -- see module docstring's
-        prerequisite-gap #1. `1.0` matches `scored_combo_tree`'s own C++
-        member-initializer default (`_weight(1.0)`, `types.h:266`) for an
-        entry whose weight was never explicitly set (the `exact_experts`
-        branch of `add_expert` never calls `set_weight` at all).
+        """C++: moses/moses/moses/types.h:291 scored_combo_tree::get_weight
+
+        A pass-through, kept only so this file reads like classic's, which
+        calls `sct.get_weight()` directly at every one of these sites.
+
+        This used to be a lookup in a private `_sct_weights` dict keyed by
+        `id(sct)`, because `scored_combo_tree` carried no weight of its
+        own. It does now, so the shadow storage is gone: it made the
+        weight invisible to everything outside this class -- in particular
+        to `metapop_printer`'s `output_ensemble` branch, which prints
+        `sct.get_weight()` per member and would have printed the 1.0
+        default for every tree while boosting believed otherwise.
         """
-        return self._sct_weights.get(id(sct), 1.0)
+        return sct.get_weight()
 
     def _set_weight(self, sct: scored_combo_tree, weight: float) -> None:
-        """Not itself a ported C++ symbol -- see `_get_weight` above."""
-        self._sct_weights[id(sct)] = weight
+        """C++: moses/moses/moses/types.h:295 scored_combo_tree::set_weight
+
+        See `_get_weight` above.
+        """
+        sct.set_weight(weight)
 
     def add_candidates(self, cands: scored_combo_tree_set) -> None:
         """C++: moses/moses/metapopulation/ensemble.cc:79 ensemble::add_candidates
@@ -305,7 +301,6 @@ class ensemble:
                 # combo_tree_set.clear()`'s own docstring (types.py)
                 # documents for `update_best_candidates`.
                 self._scored_trees.clear()
-                self._sct_weights.clear()
                 best = _copy_sct(best_p)
                 self._set_weight(best, 1.0)
                 self._scored_trees.insert(best)

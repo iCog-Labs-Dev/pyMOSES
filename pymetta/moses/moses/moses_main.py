@@ -194,7 +194,11 @@ import copy
 import sys
 from collections.abc import Callable, Sequence
 
-from pymetta.comboreduct.combo.iostream_combo import combo_tree_to_str, output_format
+from pymetta.comboreduct.combo.iostream_combo import (
+    combo_tree_to_str,
+    output_format,
+    tree_to_stream_str,
+)
 from pymetta.comboreduct.combo.vertex import combo_tree
 from pymetta.comboreduct.type_checker.type_signature import TypeSignature
 from pymetta.moses.deme.deme_expander import Simplifier, deme_expander
@@ -433,9 +437,27 @@ class metapop_printer:
                 # threads both through). Reproduced faithfully, not
                 # "fixed" to match the other branch.
                 parts.append(f"{_format_score_t(ensm.flat_score())} ")
-                parts.append(
-                    combo_tree_to_str(ensm.get_weighted_tree(), precision=io_score_precision)
-                )
+                # `tree_to_stream_str`, NOT `combo_tree_to_str`: C++ streams
+                # the tree with a bare `operator<<` (moses_main.h:135),
+                # which resolves to cogutil's generic
+                # `operator<<(ostream&, const tree<T>&)` -- whereas
+                # `combo_tree_to_str` ports `ostream_combo_tree`, which
+                # appends a TRAILING SPACE. Measured: with the wrong one,
+                # every `--boost` run differed from classic by exactly
+                # that one invisible character, same trees and same score.
+                # No `precision=` argument: streaming a `combo_tree` does
+                # NOT honour the enclosing stream's precision. MEASURED
+                # with a probe against classic's own libraries -- a tree
+                # holding the contin 2.2719106674194336 prints as
+                # "2.27191" both with `setprecision(18)` in effect and
+                # without. `subtree_to_string` (tree.h:3353) builds its own
+                # `stringstream` per node, which starts at the default 6.
+                #
+                # This matters because the AdaBoost weights are embedded
+                # in the tree as contin vertices, so passing
+                # `io_score_precision` here printed every weight at 18
+                # significant digits where classic prints 6.
+                parts.append(tree_to_stream_str(ensm.get_weighted_tree()))
                 parts.append("\n")
         else:
             if self.output_only_best:

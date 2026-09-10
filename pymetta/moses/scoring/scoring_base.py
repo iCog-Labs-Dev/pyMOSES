@@ -71,7 +71,6 @@ discipline the S10 metapopulation plan uses for every other P2 subsystem.
 
 import math
 from abc import ABC, abstractmethod
-from collections import Counter
 
 from pymetta.comboreduct.combo.iostream_combo import tree_to_stream_str
 from pymetta.comboreduct.combo.vertex import combo_tree
@@ -331,6 +330,34 @@ class bscore_base(ABC):
         """
         return tree_complexity(tr)
 
+    def get_complexity_ensemble(self, ensemble) -> complexity_t:
+        """C++: moses/moses/scoring/scoring_base.cc:96 bscore_base::get_complexity
+        (the `const scored_combo_tree_set&` overload)
+
+        A weight-normalised mean of the members' tree complexities. Named
+        `get_complexity_ensemble` rather than overloading `get_complexity`
+        above: Python has no overload resolution, and dispatching on
+        `isinstance(x, combo_tree)` inside one method would make the
+        C++ line each branch corresponds to harder to cite, not easier.
+
+        The empty case returns 0.0 BEFORE the division (scoring_base.cc:
+        98) -- otherwise `norm` is zero. Note `cpxy`/`norm` are `double`
+        here even though `complexity_t` is an int; classic's own comment
+        at :108 calls that out ("XXX FIXME complexity_t should be a double
+        not an int") and the `floor(x + 0.5)` round-half-up is what
+        converts, NOT C's truncating cast, so a mean of 2.5 gives 3.
+        """
+        if not ensemble:
+            return 0.0
+
+        cpxy = 0.0
+        norm = 0.0
+        for sct in ensemble:
+            w = sct.get_weight()
+            cpxy += w * tree_complexity(sct.get_tree())
+            norm += w
+        return complexity_t(math.floor(cpxy / norm + 0.5))
+
     def get_complexity_coef(self) -> score_t:
         """C++: moses/moses/scoring/scoring_base.h:214 bscore_base::get_complexity_coef
 
@@ -445,10 +472,22 @@ def _copy_ctable(ctable: CTable) -> CTable:
     row's `Counter` (aliasing it between old and new) -- neither of which
     is a value copy, so this helper is written from scratch rather than
     delegating to it.
+
+    Each CELL is copied through its own `.copy()`, not rebuilt as a plain
+    `collections.Counter`. In C++ a `CTable` cell is a `TimedCounter`
+    (`std::map<TimedValue, count_t>`, table.h:496) and the map's copy
+    constructor keeps every `(value, timestamp)` observation; rebuilding it
+    from the untimed mapping view here silently dropped the timestamps, so
+    `_wrk_ctable.get_timestamps()` came back empty on a table loaded WITH
+    `--timestamp-feature`. That is exactly what `precision_bscore.do_score`'s
+    `time_bscore` / dispersion branches read (precision_bscore.cc:243, :257),
+    and it is why they were gated. `TimedCounter.copy()` (table.py) and
+    `collections.Counter.copy()` both return their own type, so this single
+    call is correct for a real cell and for a hand-built test one alike.
     """
     new = CTable(ctable.olabel, list(ctable.ilabels), ctable.get_signature())
     for row, counter in ctable.items():
-        new[row] = Counter(counter)
+        new[row] = counter.copy()
     return new
 
 

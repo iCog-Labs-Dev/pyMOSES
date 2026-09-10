@@ -185,6 +185,46 @@ class behave_cscore:
         """C++: moses/moses/scoring/behave_cscore.cc:41 behave_cscore::get_bscore"""
         return self._bscorer(tr)
 
+    def get_bscore_ensemble(self, ensemble) -> list[score_t]:
+        """C++: moses/moses/scoring/behave_cscore.cc:46 behave_cscore::get_bscore
+        (the `const scored_combo_tree_set&` overload)
+
+        Named `get_bscore_ensemble` rather than overloading `get_bscore`:
+        Python has no overload resolution, and a single method dispatching
+        on argument type would obscure which C++ line each branch is.
+        """
+        return self._bscorer.call_ensemble(ensemble)
+
+    def get_cscore_ensemble(self, ensemble) -> composite_score:
+        """C++: moses/moses/scoring/behave_cscore.cc:100 behave_cscore::get_cscore
+        (the `const scored_combo_tree_set&` overload)
+
+        Reached from `metapopulation.best_composite_score`'s boosting arm
+        (metapopulation.cc:213).
+
+        The subtle part is classic's own comment at :104-108: "For
+        ensembles, this method is called to obtain the 'true' composite
+        score, as it would hold for the unadulterated dataset. Thus we do
+        NOT use the row weights as the weighted scorer would, but use the
+        flat, uniform weighting." So this sums the bscore directly
+        (`boost::accumulate(bs, 0.0)`) instead of calling
+        `_bscorer.score(bs)` -- the commented-out line at :109 is classic
+        showing its work. Getting that wrong would silently apply the
+        boosting row weights twice.
+
+        The accumulator starts at a `double` 0.0 and the result is stored
+        into `score_t res` (binary32), so the sum accumulates in double
+        and narrows ONCE at the end -- not per-element.
+
+        `uniformity_penalty` is 0.0 (:120), not carried from anywhere.
+        """
+        bs = self.get_bscore_ensemble(ensemble)
+        res = _to_score_t(sum(bs, 0.0))
+
+        cpxy = self._bscorer.get_complexity_ensemble(ensemble)
+        cpxy_coef = self._bscorer.get_complexity_coef()
+        return composite_score(res, cpxy, cpxy * cpxy_coef, 0.0)
+
     def get_ctable_usize(self) -> int:
         """C++: moses/moses/scoring/behave_cscore.h:98 behave_cscore::get_ctable_usize
 

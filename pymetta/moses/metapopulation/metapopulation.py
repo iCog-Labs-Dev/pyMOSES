@@ -608,46 +608,24 @@ class metapopulation:
 
         Gate: `not _params.do_boosting` returns `_best_cscore` outright
         (metapopulation.cc:208-209). The boosting arm
-        (metapopulation.cc:213, `_cscorer.get_cscore(_ensemble.
-        get_ensemble())`) is reached, not stubbed out separately, per this
-        task's own instruction ("The ensemble from Task 1 already raises
-        if driven -- so the boosting arm should reach it rather than being
-        stubbed out separately"): `ensemble.get_ensemble()` never raises
-        (it is a trivial accessor over a permanently-empty ensemble, since
-        `add_candidates` always raises first -- ensemble.py), but
-        `behave_cscore.get_cscore` has no ported overload taking a
-        `scored_combo_tree_set`/list of scored trees at all
-        (behave_cscore.py's own module docstring: "NOT ported ... out of
-        scope for this whole cycle").
+        (metapopulation.cc:213) calls
+        `_cscorer.get_cscore(_ensemble.get_ensemble())` -- the
+        `scored_combo_tree_set` overload (behave_cscore.cc:100), ported as
+        `get_cscore_ensemble` since Python has no overload resolution.
 
-        CORRECTED (S10 branch review, Minor): this method used to call
-        `self._cscorer.get_cscore(...)` directly with that list, on the
-        theory that "reaches straight into that unported surface and
-        fails there naturally" was good enough -- MEASURED WRONG:
-        `get_cscore(tr: combo_tree)` (behave_cscore.py) assumes its
-        argument IS a `combo_tree` and reads `.data` off it, so a `list`
-        argument fails with an unrelated `AttributeError: 'list' object
-        has no attribute 'data'`, not the specific, already-ported
-        `NotImplementedError` `bscore_base.call_ensemble`
-        (scoring_base.py:124, `moses/moses/scoring/scoring_base.h:66`)
-        exists for EXACTLY this case ("Ensemble scoring not implemented
-        for bscorer %s"). Real C++'s own `get_cscore(scored_combo_tree_
-        set)` overload would itself call `_bscorer(ensemble)` (the
-        `operator()` `call_ensemble` ports) as part of its own body before
-        ever reaching anything an `AttributeError`-shaped bug could stand
-        in for -- so this now calls `call_ensemble` directly on the
-        underlying bscorer, reaching the SAME raise real C++ reaches (no
-        bscorer this port ships overrides it), one call closer to the
-        real control flow instead of an accidental crash one step removed
-        from it. `call_ensemble` always raises before returning (no
-        subclass overrides it -- see its own docstring), so its declared
-        `-> behavioral_score` return type is never actually exercised
-        here; nothing in this method's own `-> composite_score` signature
-        is violated by a call that never returns.
+        This used to reach into `_cscorer._bscorer.call_ensemble(...)`
+        directly. That was the closest approximation to classic's control
+        flow while the real overload did not exist: every bscorer the port
+        shipped inherited `call_ensemble`'s unconditional raise, so the arm
+        could only fail, and calling it directly at least failed with the
+        RIGHT error rather than an `AttributeError` from handing a list to
+        a `combo_tree` parameter. `logical_bscore` overrides
+        `call_ensemble` now (demo_problems.py), so this arm returns a real
+        `composite_score` and the workaround is gone.
         """
         if not self._params.do_boosting:
             return copy.copy(self._best_cscore)
-        return self._cscorer._bscorer.call_ensemble(self._ensemble.get_ensemble())
+        return self._cscorer.get_cscore_ensemble(self._ensemble.get_ensemble())
 
     def best_candidates(self) -> scored_combo_tree_set:
         """C++: moses/moses/metapopulation/metapopulation.cc:222 metapopulation::best_candidates
