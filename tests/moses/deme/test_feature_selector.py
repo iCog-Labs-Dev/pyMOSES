@@ -194,12 +194,35 @@ def test_build_fs_ctable_raises_for_non_boolean_output(boolean_ctable):
         fs.build_fs_ctable(str_to_combo_tree("$1"))
 
 
-def test_build_fs_ctable_raises_for_subsampling_ratio_below_one(boolean_ctable):
+def test_build_fs_ctable_subsamples_by_row(boolean_ctable):
+    """`--fs-subsampling-ratio` alone (the BY-ROW branch,
+    feature_selector.cc:217) now runs -- see
+    tests/feature_selection/test_ctable_subsample.py and
+    tests/moses/deme/test_feature_selector_diversity.py for the oracle
+    coverage. Here: it changes the table, and it does not raise.
+    """
+    xmplr = str_to_combo_tree("$1")
+
+    full = feature_selector(boolean_ctable, feature_selector_parameters())
+    full.preprocess_params(xmplr)
+    full_size = full.build_fs_ctable(xmplr).uncompressed_size()
+
     params = feature_selector_parameters(subsampling_ratio=0.5)
+    fs = feature_selector(boolean_ctable, params)
+    fs.preprocess_params(xmplr)
+    randGen().seed(1)
+    assert fs.build_fs_ctable(xmplr).uncompressed_size() < full_size
+
+
+def test_build_fs_ctable_raises_for_subsampling_by_time(boolean_ctable):
+    """The BY-TIME branch (feature_selector.cc:207-215) is a separate C++
+    block and is still gated -- see build_fs_ctable's own docstring.
+    """
+    params = feature_selector_parameters(subsampling_ratio=0.5, subsampling_by_time=True)
     fs = feature_selector(boolean_ctable, params)
     xmplr = str_to_combo_tree("$1")
     fs.preprocess_params(xmplr)
-    with pytest.raises(NotImplementedError):
+    with pytest.raises(NotImplementedError, match="subsampling_by_time"):
         fs.build_fs_ctable(xmplr)
 
 
@@ -215,11 +238,20 @@ def test_select_top_feature_sets_slices_to_n_demes(boolean_ctable):
     assert fs.select_top_feature_sets(pop) == [(0.9, {0})]
 
 
-def test_select_top_feature_sets_raises_when_diversity_pressure_is_positive(boolean_ctable):
+def test_select_top_feature_sets_ranks_when_diversity_pressure_is_positive(boolean_ctable):
+    """`diversity_pressure > 0` takes the rank_feature_sets branch
+    (feature_selector.cc:238-244) instead of the plain slice. A
+    single-entry population comes back re-keyed on its own
+    `get_penalized_score()`, which for one feature set (no other set to be
+    penalized against) is its score narrowed to `score_t`.
+    """
     params = feature_selector_parameters(diversity_pressure=0.5)
     fs = feature_selector(boolean_ctable, params)
-    with pytest.raises(NotImplementedError):
-        fs.select_top_feature_sets([(0.9, {0})])
+    top = fs.select_top_feature_sets([(0.9, {0})])
+    assert len(top) == 1
+    assert top[0][1] == {0}
+    assert top[0][0] == pytest.approx(0.9, abs=1e-7)
+    assert top[0][0] != 0.9  # narrowed to binary32 by composite_score
 
 
 def test_call_diversity_cap_is_unreachable_for_the_only_ported_algorithm(boolean_ctable):

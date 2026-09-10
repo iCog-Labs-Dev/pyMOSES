@@ -24,40 +24,67 @@ Scope narrowing vs. the 233+477-line C++ original:
   don't add a placeholder" discipline (``deme_expander.py``'s treatment of
   ``fs_to_names``/``prune_xmplr`` is the same call, for a different
   reason -- those two DO have callers, but only inside a gated branch).
-* ``rank_feature_sets``/``mi`` (feature_selector.cc:314-419) are reachable
-  only via ``select_top_feature_sets`` when
-  ``feature_selector_parameters.diversity_pressure > 0.0`` (struct default
-  ``0.0`` -- off). ``rank_feature_sets`` builds a ``composite_score`` per
-  feature set (``moses/moses/moses/types.h``) to combine a raw score with
-  a computed "uniformity penalty" -- ``composite_score`` lives in
-  ``pymetta.moses.moses``, explicitly OUT OF SCOPE for this task
-  (CLAUDE.md: "Do not touch ... pymetta/moses/moses/"). Both methods
-  raise ``NotImplementedError`` citing this; the default
-  (``diversity_pressure <= 0.0``) path through ``select_top_feature_sets``
-  is fully ported and never reaches either.
+* ``rank_feature_sets``/``mi`` (feature_selector.cc:343/:434) ARE ported
+  now, together with the ranked branch of ``select_top_feature_sets``
+  (cc:238-244) they are the only callers of -- ``--fs-diversity-pressure
+  > 0`` used to raise here. They need ``composite_score``
+  (``pymetta.moses.moses.types``), ``jaccard_index``
+  (``opencog/util/jaccard_index.h``) and ``powerset``
+  (``opencog/util/algorithm.h``); the last two are transliterated in this
+  module (they are five-line free functions with no other call site in
+  this port's scope, the same call ``get_argument_abs_idx_from_zero_set``
+  below already makes).
+* ``--fs-subsampling-ratio < 1.0``'s BY-ROW branch (cc:217,
+  ``subsampleCTable``) is ported and wired; ``pymetta.feature_selection.
+  ctable_subsample`` holds it, out of ``pymetta.comboreduct.table`` for
+  the placement reason that module's own docstring gives. The BY-TIME
+  branch (cc:207-215, ``--fs-subsampling-by-time``) still raises: it is a
+  separate C++ block needing ``rand_element_erase`` over
+  ``CTable.get_timestamps()`` and ``CTable.remove_rows_at_times()``, and
+  this slice has no captured classic oracle for a TIMESTAMPED
+  ``fs_ctable``. See ``build_fs_ctable``'s own docstring.
 """
 
 from __future__ import annotations
+
+import math
 
 from pymetta.comboreduct.combo.vertex import builtin, combo_tree, is_argument, vertex
 from pymetta.comboreduct.interpreter.interpreter import boolean_interpreter
 from pymetta.comboreduct.table.table import CTable, Table, get_indices
 from pymetta.comboreduct.type_checker.type_signature import TypeSignature, type_node
+from pymetta.feature_selection.ctable_subsample import subsampleCTable
 from pymetta.feature_selection.main.feature_selection import select_feature_sets
 from pymetta.feature_selection.main.feature_selection_params import (
     feature_selection_parameters,
     feature_set,
     feature_set_pop,
 )
+from pymetta.feature_selection.scorers.mutual_info import mutual_information_between_sets
+from pymetta.moses.moses.types import _to_score_t, composite_score
 from pymetta.util.logger import logger
 from pymetta.util.rng import randGen
 
 __all__ = [
     "EXEMPLAR_FEATURE_NAME",
+    "csc_feature_set_pop",
     "feature_selector",
     "feature_selector_parameters",
     "get_argument_abs_idx_from_zero_set",
 ]
+
+# C++: moses/moses/deme/feature_selector.h:170 csc_feature_set_pop
+#
+# `typedef std::multimap<composite_score, feature_set,
+# std::greater<composite_score>> csc_feature_set_pop;` -- "used for
+# diversity ranking". Modelled, exactly as `feature_set_pop` is
+# (feature_selection_params.py's own type docstring), as a list whose
+# order IS the multimap's: `rank_feature_sets` appends each element as it
+# is chosen, and each chosen element's key is <= the previous one's, so
+# appending and inserting into the multimap produce the same sequence --
+# including for equal keys, which C++11 places at the END of their
+# equivalent range.
+csc_feature_set_pop = list[tuple[composite_score, feature_set]]
 
 # C++: moses/moses/deme/feature_selector.cc:43 EXEMPLAR_FEATURE_NAME
 EXEMPLAR_FEATURE_NAME = "__exemplar_feature__"
@@ -196,6 +223,93 @@ def _timed_counter_mode(counter) -> vertex:
     return key
 
 
+def jaccard_index(s1, s2) -> float:
+    """C++: opencog/util/jaccard_index.h:35 jaccard_index
+
+    ``(float)set_intersection(s1, s2).size() / (float)set_union(s1,
+    s2).size()`` -- both operands are C ``float``s and so is the quotient,
+    so the result is narrowed to binary32 (``_to_score_t``, the same
+    binary32 rounding; this value is a plain C ``float``, not a
+    ``score_t``, but the conversion is identical). Transliterated here
+    rather than in ``pymetta.util``: it is a five-line templated free
+    function whose ONLY call site anywhere under ``moses/`` is
+    ``feature_selector::rank_feature_sets`` (feature_selector.cc:386).
+
+    # DIVERGENCE(C++ opencog/util/jaccard_index.h:37): two EMPTY sets give
+    # ``0.0f / 0.0f`` -- IEEE-754 NaN in C++, where Python's ``/`` raises
+    # ZeroDivisionError. Returned as ``nan`` so the C++ value survives.
+    # Reachable: ``--fs-target-size=0`` makes ``simple_select_feature_sets``
+    # return the empty feature set (simple.cc:44-49).
+    """
+    left, right = set(s1), set(s2)
+    union_size = len(left | right)
+    if union_size == 0:
+        return math.nan
+    return _to_score_t(len(left & right) / union_size)
+
+
+def powerset(s, n: int, exact: bool = False) -> list[frozenset[int]]:
+    """C++: opencog/util/algorithm.h:282 powerset
+
+    "Return the power set ps of s such that all elements of ps are subsets
+    of size n or below ... @param exact if true then do not include
+    subsets of size below n" (algorithm.h:271-278's own doc comment).
+
+    C++ returns a ``std::set<Set>``, so its ITERATION order is ascending
+    lexicographic over each subset's own ascending elements -- and that
+    order decides the summation order in ``feature_selector.mi``, where
+    ``double`` addition is not associative. Reproduced by sorting on
+    ``tuple(sorted(subset))`` on the way out; the recursion itself uses a
+    ``set``, exactly as C++ does, so duplicates collapse the same way.
+
+    ``exact=True`` with ``n`` GREATER than ``len(s)`` returns an EMPTY
+    list: the recursion's innermost loop finds no element outside a
+    full-size subset, and ``exact`` suppresses the smaller ones. That is
+    C++'s behaviour too, and ``feature_selector.mi`` divides by the
+    product of the two powerset sizes -- see that method for what happens
+    then.
+    """
+    res: set[frozenset[int]] = set()
+    if n > 0:
+        ps = powerset(s, n - 1, exact)
+        for ss in ps:
+            # `for (const auto& el : s)` -- `s` is a `std::set<arity_t>`,
+            # ascending. Irrelevant to the RESULT (a set), kept anyway.
+            for el in sorted(s):
+                if el not in ss:
+                    res.add(ss | {el})
+        if not exact:
+            res.update(ps)
+    else:
+        res.add(frozenset())
+    return sorted(res, key=lambda fs: tuple(sorted(fs)))
+
+
+def _merge_timed_counter(dst, src) -> None:
+    """C++: opencog/util/Counter.h:80 Counter
+
+    Cites the enclosing class; the real member is
+    ``Counter::operator+=(const Counter&)`` (Counter.h:80-85), which
+    ``build_fs_ctable``'s ``fs_ctable[inputs] += vct.second``
+    (feature_selector.cc:202) invokes. ``TimedCounter`` is a
+    ``Counter<TimedValue, count_t>``, so C++ merges per
+    ``(value, timestamp)`` OBSERVATION, not per value.
+
+    This port's ``CTable`` cell exposes those observations through
+    ``timed_items()`` and accumulates them through ``add()``
+    (``pymetta.comboreduct.table.table.TimedCounter``); a cell shaped like
+    a plain vertex-keyed ``Counter`` -- which is what this port's cells
+    were before that class existed -- falls back to a per-value merge,
+    which is the same thing with the timestamp half already collapsed.
+    """
+    if hasattr(src, "timed_items") and hasattr(dst, "add"):
+        for tv, count in src.timed_items():
+            dst.add(tv.value, tv.timestamp, count)
+        return
+    for value, count in src.items():
+        dst[value] = dst.get(value, 0.0) + count
+
+
 class feature_selector:
     """C++: moses/moses/deme/feature_selector.h:178 feature_selector"""
 
@@ -217,9 +331,7 @@ class feature_selector:
         """
         self.params = festor_params if festor_params is not None else feature_selector_parameters()
         self._ctable: CTable = (
-            ctable_or_table.compressed()
-            if isinstance(ctable_or_table, Table)
-            else ctable_or_table
+            ctable_or_table.compressed() if isinstance(ctable_or_table, Table) else ctable_or_table
         )
 
     # ------------------------------------------------------------ helpers
@@ -304,9 +416,7 @@ class feature_selector:
             # C++: feature_selector.cc:144-145 -- `ostream_container(...,
             # params.ignored_features)` with the default " " delimiter, so
             # a space-separated list after the prefix.
-            logger().debug(
-                "Ignore features: " + " ".join(str(i) for i in ignored_sorted)
-            )
+            logger().debug("Ignore features: " + " ".join(str(i) for i in ignored_sorted))
 
         for row, counter in self._ctable.items():
             predicted_out: vertex = interp(list(row))(xmplr)
@@ -327,23 +437,31 @@ class feature_selector:
                     inputs.append(predicted_out)  # get_builtin(predicted_out): identity here
 
                 key = tuple(inputs)
+                # `fs_ctable[inputs] += vct.second;` (feature_selector.cc:202)
                 dst = fs_ctable.setdefault(key, type(counter)())
-                for value, count in counter.items():
-                    dst[value] = dst.get(value, 0.0) + count
+                _merge_timed_counter(dst, counter)
+
+        # subsample (feature_selector.cc:205-218's own comment). Runs
+        # BEFORE the size log below, as in C++ -- the logged size is the
+        # POST-subsampling one.
+        if self.params.subsampling_ratio < 1.0:
+            if self.params.subsampling_by_time:
+                raise NotImplementedError(
+                    "feature_selector.build_fs_ctable: subsampling_by_time is not "
+                    "ported (feature_selector.cc:207-215). Its pieces now exist -- "
+                    "CTable.get_timestamps()/remove_rows_at_times() and the "
+                    "rand_element_erase transliteration in "
+                    "pymetta.moses.scoring.ss_bscore._partition_by_time -- but the "
+                    "slice that landed subsampleCTable captured no classic oracle "
+                    "for a TIMESTAMPED fs_ctable, and this project does not land "
+                    "unmeasured code. The by-ROW branch "
+                    "(--fs-subsampling-ratio alone) is ported and runs."
+                )
+            subsampleCTable(self.params.subsampling_ratio, fs_ctable)
 
         # C++: feature_selector.cc:220-221. `%u` on a `size_t` is classic's
         # own format/type mismatch and prints the same digits.
         logger().debug("CTable size for feature selection = %u", len(fs_ctable))
-
-        if self.params.subsampling_ratio < 1.0:
-            what = "by-time" if self.params.subsampling_by_time else "by-row"
-            raise NotImplementedError(
-                f"feature_selector.build_fs_ctable: subsampling_ratio < 1.0 ({what}) "
-                "needs subsampleCTable/timestamp support, neither ported -- "
-                "pymetta.comboreduct is out of this task's scope, and this "
-                "port's CTable carries no timestamps at all. Leave "
-                "subsampling_ratio at its default (1.0)."
-            )
 
         return fs_ctable
 
@@ -358,20 +476,169 @@ class feature_selector:
         ``std::multimap``'s ``begin()``-relative range here).
 
         ``diversity_pressure > 0.0`` (struct default ``0.0``, off) selects
-        a DIFFERENT branch -- rank by penalized (diversity-adjusted)
-        score first -- gated: see this module's own docstring for why
-        (needs ``composite_score``, ``pymetta.moses.moses``, out of
-        scope).
+        a DIFFERENT branch: rank by diversity-penalized score first
+        (``rank_feature_sets``), then take the first ``res_size`` of THAT
+        order, re-keyed on each one's ``get_penalized_score()``.
+
+        The C++ result is a fresh ``feature_set_pop``, i.e. a
+        ``std::multimap<double, feature_set, std::greater<double>>`` built
+        by inserting the ranked entries in ranked order -- so equal
+        penalized scores keep ranked order (C++11 inserts an equivalent
+        key at the END of its equivalent range). Reproduced by a STABLE
+        descending sort, which is a no-op on this input (the ranked order
+        is already non-increasing in penalized score, since
+        ``composite_score``'s own ``operator<`` compares penalized score
+        first) but is written out because that no-op is a PROPERTY of the
+        input, not of the code.
+
+        ``res_size`` is computed BEFORE the branch in C++ and is
+        ``min(n_demes, fss.size())`` either way -- note it counts the
+        INPUT's size, so it is never larger than ``ranked_fss``.
         """
-        if self.params.diversity_pressure > 0.0:
-            raise NotImplementedError(
-                "feature_selector.select_top_feature_sets: diversity_pressure "
-                "> 0.0 selects rank_feature_sets(), which needs composite_score "
-                "(pymetta.moses.moses.types) -- moses/moses/moses/ is out of "
-                "this task's scope. Leave diversity_pressure at its default (0.0)."
-            )
         res_size = min(self.params.n_demes, len(fss))
+        if self.params.diversity_pressure > 0.0:
+            ranked_fss = self.rank_feature_sets(fss)
+            res: feature_set_pop = [
+                (cs.get_penalized_score(), fs) for cs, fs in ranked_fss[:res_size]
+            ]
+            res.sort(key=lambda entry: entry[0], reverse=True)
+            return res
         return fss[:res_size]
+
+    def rank_feature_sets(self, fs_pop: feature_set_pop) -> csc_feature_set_pop:
+        """C++: moses/moses/deme/feature_selector.cc:343
+        feature_selector::rank_feature_sets
+
+        "Rank feature sets, penalized by diversity" (feature_selector.h:213).
+        Greedy: repeatedly take the best remaining ``composite_score``, move
+        it to the result, then re-penalize every survivor against the one
+        just taken.
+
+        Aggregation is ``max`` over the pairwise penalties, which is why
+        only the LAST inserted feature set has to be compared against --
+        C++'s own comment at cc:352-357 says exactly this.
+
+        Five things decide the output and are each reproduced verbatim:
+
+        * ``composite_score(fs.first, fs.second.size())`` -- the multimap
+          key (a ``double``) narrows to ``score_t`` (binary32) inside
+          ``composite_score``, and the complexity is the feature set's own
+          SIZE. Measured: a raw score of ``0.9`` comes back out as
+          ``0.89999997615814209``.
+        * ``float sim`` -- ``jaccard_index`` already returns a C ``float``;
+          ``mi()`` returns a ``double`` and narrows HERE.
+        * ``float last_dp = params.diversity_pressure * sim`` -- a
+          ``double`` product (``sim`` promotes) narrowed to ``float``.
+        * ``std::max_element`` returns the FIRST maximum, so ties keep the
+          earlier position. Written as an explicit loop with a strict
+          ``<``, not ``max(...)``, so that is unmistakable.
+        * ``res.insert(*mit)`` into a ``std::multimap<composite_score,
+          feature_set, std::greater<composite_score>>``. Appending
+          reproduces it -- see ``csc_feature_set_pop``'s own note above.
+
+        ``composite_score``'s ``operator<`` breaks a tie on equal penalized
+        scores by preferring the SMALLER complexity (``lef == rig and
+        self.complexity > other.complexity`` makes the bigger-complexity
+        score the lesser), so among equally-penalized feature sets the
+        smaller one is ranked first. That is C++'s behaviour, not a choice
+        made here.
+
+        The C++ body wraps the re-penalization in ``OMP_ALGO::for_each``
+        and the pick in ``OMP_ALGO::max_element``. ``OMP_ALGO`` is
+        ``__gnu_parallel`` only when ``OC_OMP`` is defined, which needs
+        ``HAVE_PARALLEL_STL``; that macro is added by CogUtil's OWN
+        ``ADD_DEFINITIONS`` (CogUtil/CMakeLists.txt:157), a
+        directory-scoped command, and MOSES's build never defines it
+        (``grep -rn HAVE_PARALLEL_STL`` over ``$CLASSIC`` returns
+        nothing). So both are ``std::`` here, and the oracle probe -- a
+        plain ``g++`` command with no ``-DHAVE_PARALLEL_STL`` -- matches
+        the real library.
+        """
+        # `csc_feature_set_pop res;` plus `last_fs_cit = res.end()`
+        res: csc_feature_set_pop = []
+        last_fs_cit: tuple[composite_score, feature_set] | None = None
+
+        csc_fs_seq: list[tuple[composite_score, feature_set]] = [
+            (composite_score(score, len(fs)), fs) for score, fs in fs_pop
+        ]
+
+        while csc_fs_seq:
+            if last_fs_cit is not None:
+                for csc_fs in csc_fs_seq:
+                    # feature set similarity measure
+                    sim = (
+                        jaccard_index(last_fs_cit[1], csc_fs[1])
+                        if self.params.diversity_jaccard
+                        else _to_score_t(self.mi(last_fs_cit[1], csc_fs[1]))
+                    )
+                    # sim_to_penalty(sim): `params.diversity_pressure * sim`,
+                    # a double product assigned to a `float`.
+                    last_dp = _to_score_t(self.params.diversity_pressure * sim)
+                    # aggregate the results (here max)
+                    agg_dp = max(csc_fs[0].get_uniformity_penalty(), last_dp)
+                    # compute and update the uniformity penalty
+                    csc_fs[0].set_uniformity_penalty(agg_dp)
+
+            # insert the best candidate in res and delete it from csc_fs_pop.
+            # `std::max_element` with `csc_fs_lt` keeps the FIRST maximum.
+            mit = 0
+            for idx in range(1, len(csc_fs_seq)):
+                if csc_fs_seq[mit][0] < csc_fs_seq[idx][0]:
+                    mit = idx
+            # `res.insert(*mit)` copies the pair, then `erase(mit)` destroys
+            # the source -- so nothing ever mutates the inserted element
+            # afterwards and sharing the object here is safe.
+            last_fs_cit = csc_fs_seq.pop(mit)
+            res.append(last_fs_cit)
+
+        return res
+
+    def mi(self, fs_l: feature_set, fs_r: feature_set) -> float:
+        """C++: moses/moses/deme/feature_selector.cc:434 feature_selector::mi
+
+        "Compute (or approximate) the mutual information between 2 feature
+        sets. If params.diversity_interaction is negative then it returns
+        the mutual information between fs_l and fs_r. Otherwise it returns
+        the average of mutual informations between all subsets of fs_l and
+        fs_r of size params.diversity_interaction + 1"
+        (feature_selector.h:224-232's own doc comment).
+
+        Computed against ``self._ctable`` -- the WHOLE table, not the
+        exemplar-filtered ``fs_ctable`` ``build_fs_ctable`` returns.
+
+        The summation runs over ``std::set<Set>``'s ascending lexicographic
+        order (see ``powerset``); ``double`` addition is not associative,
+        so that order is part of the answer.
+
+        # DIVERGENCE(C++ moses/moses/deme/feature_selector.cc:452): the
+        # final `mi / (pfs_l.size() * pfs_r.size())` is IEEE-754 division
+        # in C++ and gives nan/+-inf when the denominator is 0, where
+        # Python raises ZeroDivisionError. Reproduced explicitly. It is
+        # reachable: `powerset(fs, n, exact=true)` returns the EMPTY set
+        # whenever `n > fs.size()`, i.e. whenever
+        # `diversity_interaction + 1` exceeds a feature set's own size --
+        # `--fs-diversity-interaction=3` against any 2-feature set, say.
+        """
+        if self.params.diversity_interaction < 0:
+            return mutual_information_between_sets(self._ctable, fs_l, fs_r)
+
+        # Compute the average mutual informations between subsets of
+        # size diversity_interaction + 1 of fs_l and fs_r
+        sss = self.params.diversity_interaction + 1
+        mi = 0.0
+        # determine powersets of fs_l and fs_r, each containing
+        # feature sets of size diversity_interaction + 1
+        pfs_l = powerset(fs_l, sss, True)
+        pfs_r = powerset(fs_r, sss, True)
+        for sub_fs_l in pfs_l:
+            for sub_fs_r in pfs_r:
+                mi += mutual_information_between_sets(self._ctable, sub_fs_l, sub_fs_r)
+        denominator = len(pfs_l) * len(pfs_r)
+        if denominator == 0:
+            if mi == 0.0:
+                return math.nan
+            return math.copysign(math.inf, mi)
+        return mi / denominator
 
     def sample_enforced_features(self) -> feature_set:
         """C++: moses/moses/deme/feature_selector.cc:445
