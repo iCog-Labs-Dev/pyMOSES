@@ -438,33 +438,42 @@ def test_it_table_problem_contin_it_abs_err_selects_abs_error(tmp_path, monkeypa
     assert bscore._err_func(3.0, 0.0) == pytest.approx(3.0)
 
 
-def test_discretize_threshold_is_rejected_at_parse_time(tmp_path):
-    """`discretize_contin_bscore` (table-problems.cc:520-524) is the one
-    contin arm that is genuinely NOT ported, and `problem_params`' own
-    Phase-2 gate rejects `--discretize-threshold` during option parsing --
-    before any problem runs. That is this port's established discipline,
-    and it means a CLI user never reaches the run-time gate below.
+def test_discretize_threshold_reaches_discretize_contin_bscore(tmp_path, monkeypatch):
+    """`discretize_contin_bscore` (bscores.cc:196) is ported as of
+    2026-09-10, so `--discretize-threshold` no longer raises at either the
+    parse-time or the run-time gate. Both of those gates had tests here
+    asserting the refusal; this replaces them.
+
+    `-R` selects a DIFFERENT scorer from the plain contin arm, so the
+    assertion is on which class was built, not merely that the run
+    completed.
     """
     csv_path = _write_contin_dataset(tmp_path)
-    with pytest.raises(NotImplementedError, match="discretize_contin_bscore"):
-        _fresh_pms_and_tpp(["-i", csv_path, "-u", "y", "--discretize-threshold=0.5"])
+    pmr, tpp, pms = _fresh_pms_and_tpp(["-i", csv_path, "-u", "y", "--discretize-threshold=0.5"])
+    assert pms.discretize_thresholds == [0.5]
+    calls = _capture_metapop_moses_results(monkeypatch)
+
+    pmr.find_problem("it").run(pms)
+
+    assert len(calls) == 1
+    bscore = calls[0][0][4]._bscorer
+    assert isinstance(bscore, tp.discretize_contin_bscore)
+    assert bscore._thresholds == [0.5]
 
 
-def test_it_table_problem_discretize_threshold_run_time_gate(tmp_path):
-    """The run-time half of the same gate, reached by setting the field
-    directly after a clean parse -- the only way in, since the parse-time
-    gate above fires first for any real command line.
-
-    Both gates are kept: the parse-time one is what a user meets, and this
-    one stops a direct `run()` caller (or a future parse-time change) from
-    silently falling through to `contin_bscore` and producing scores for
-    the wrong scorer.
+def test_discretize_threshold_takes_precedence_over_the_plain_contin_arm(tmp_path, monkeypatch):
+    """Without `-R` the same table builds a `contin_bscore` instead --
+    otherwise the test above would pass against a branch that ignored the
+    flag entirely.
     """
     csv_path = _write_contin_dataset(tmp_path)
     pmr, tpp, pms = _fresh_pms_and_tpp(["-i", csv_path, "-u", "y"])
-    pms.discretize_thresholds = [0.5]
-    with pytest.raises(NotImplementedError, match="discretize_contin_bscore"):
-        pmr.find_problem("it").run(pms)
+    assert pms.discretize_thresholds == []
+    calls = _capture_metapop_moses_results(monkeypatch)
+
+    pmr.find_problem("it").run(pms)
+
+    assert isinstance(calls[0][0][4]._bscorer, tp.contin_bscore)
 
 
 # ---------------------------------------------------------------------------

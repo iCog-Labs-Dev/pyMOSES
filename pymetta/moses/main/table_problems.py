@@ -208,7 +208,12 @@ from pymetta.moses.main.problem import (
 from pymetta.moses.main.problem_params import problem_params
 from pymetta.moses.moses.moses_main import metapop_moses_results
 from pymetta.moses.scoring.behave_cscore import behave_cscore
-from pymetta.moses.scoring.bscores import cluster_bscore, contin_bscore, ctruth_table_bscore
+from pymetta.moses.scoring.bscores import (
+    cluster_bscore,
+    contin_bscore,
+    ctruth_table_bscore,
+    discretize_contin_bscore,
+)
 from pymetta.moses.scoring.discriminating_bscore import (
     bep_bscore,
     f_one_bscore,
@@ -723,16 +728,19 @@ class it_table_problem(table_problem_base):
             # blocking work that already existed. Found by driving the CLI
             # against classic on a real contin table.
             if pms.discretize_thresholds:
-                # DIVERGENCE(C++ moses/moses/main/table-problems.cc:520-524):
-                # the `--discretize-threshold` arm needs
-                # `discretize_contin_bscore`, which is genuinely NOT ported
-                # (bscores.py ports `ctruth_table_bscore` and `contin_bscore`
-                # only). Classic runs this arm; this port raises.
-                raise NotImplementedError(
-                    "it_table_problem.run: --discretize-threshold needs "
-                    "discretize_contin_bscore (bscores.h), which is not "
-                    "ported -- table-problems.cc:520-524"
+                # C++: table-problems.cc:520-524. This arm raised until
+                # 2026-09-10, on the accurate grounds that
+                # `discretize_contin_bscore` was not ported. It is now.
+                self._regression(
+                    pms,
+                    lambda: discretize_contin_bscore(
+                        self.table.otable,
+                        self.table.itable,
+                        pms.discretize_thresholds,
+                        pms.weighted_accuracy,
+                    ),
                 )
+                return
             eft = contin_bscore.abs_error if pms.it_abs_err else contin_bscore.squared_error
             self._regression(pms, lambda: contin_bscore(self.table, eft=eft))
         else:

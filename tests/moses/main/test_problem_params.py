@@ -478,6 +478,9 @@ def test_hc_allow_resize_deme_is_a_deprecated_alias_for_the_same_dest():
         # a boolean table, ignores it, and prints byte-identical output;
         # gating it made this port refuse a command line classic runs.
         (["--well-enough", "1"], "use_well_enough", True),
+        # Un-gated 2026-09-10 with `discretize_contin_bscore`; the flag
+        # now reaches its scorer through `it_table_problem.run`.
+        (["--discretize-threshold", "1.0"], "discretize_thresholds", [1.0]),
     ],
 )
 def test_supported_non_default_option_applies_and_does_not_raise(argv, path, expected):
@@ -542,7 +545,6 @@ def test_contin_depth_reaches_representations_module_static():
         # proof.
         ["--ss-n-subsample-demes", "2"],
         ["--ss-n-subsample-fitnesses", "2"],
-        ["--discretize-threshold", "1.0"],
         # NOTE: --contin-depth and --it-abs-err are DELIBERATELY ABSENT --
         # both were gated on the grounds that their only CLI-reachable
         # consumers raised unconditionally, which stopped being true when

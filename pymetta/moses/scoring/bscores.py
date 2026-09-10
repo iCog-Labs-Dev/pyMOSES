@@ -912,3 +912,140 @@ class cluster_bscore(bscore_base):
         no-op.
         """
         return _to_score_t(0.1)
+
+
+# ---------------------------------------------------------------------------
+# discretize_contin_bscore -- bscores.h:91 / bscores.cc:196.
+# ---------------------------------------------------------------------------
+
+
+class discretize_contin_bscore(bscore_base):
+    """C++: moses/moses/scoring/bscores.h:91 discretize_contin_bscore
+
+    Scores a contin-output tree as a CLASSIFIER: each threshold cuts the
+    contin range into a class, and a row scores `weights[c]` when the
+    tree's class differs from the target's, `0` when it agrees.
+
+    Two things about this scorer are the opposite of every other one here,
+    and both are classic's, not a port choice:
+
+    * **Its bscore entries are non-negative penalties**, so a PERFECT
+      candidate scores all zeros -- which is exactly what
+      `best_possible_bscore` returns (bscores.cc:222-225). Elsewhere in
+      this file a better candidate scores closer to zero from BELOW.
+    * **`min_improv()` returns 0.0**, with classic's own comment saying
+      "not necessarily right, just the backwards-compat behavior"
+      (bscores.cc:227-231). Ported verbatim, comment included.
+
+    Reached only through `-R/--discretize-threshold` on a contin-output
+    table (`table-problems.cc:520-524`).
+    """
+
+    def __init__(
+        self,
+        ot: OTable,
+        it: ITable,
+        thres: Sequence[float],
+        wa: bool = False,
+    ) -> None:
+        """C++: moses/moses/scoring/bscores.cc:196 discretize_contin_bscore"""
+        super().__init__()
+        # `target(ot), cit(it)` copy-construct in C++'s member-initializer
+        # list, matching this file's established copying convention.
+        self._target = ot.copy()
+        self._cit = it.copy()
+        # `boost::sort(thresholds)` (cc:204) sorts the MEMBER in place,
+        # after it was copy-initialised from the argument -- so the
+        # caller's vector is untouched. `sorted()` gives both halves.
+        self._thresholds: list[float] = sorted(thres)
+        self._weighted_accuracy = wa
+        # `weights(thresholds.size() + 1, 1)` (cc:201) -- one weight per
+        # class, and there is one more class than there are thresholds.
+        self._weights: list[score_t] = [_to_score_t(1.0)] * (len(self._thresholds) + 1)
+
+        # `boost::transform(target, classes.begin(), ...)` (cc:206-207).
+        self._classes: list[int] = [self.class_idx(get_contin(v)) for v in self._target]
+
+        if self._weighted_accuracy:
+            # C++: cc:209-213. `cs.count(i)` is a `multiset` count, i.e.
+            # how many rows fall in class `i`.
+            #
+            # The division is `classes.size() / (float)(weights.size() *
+            # cs.count(i))` -- a FLOAT divide, so the result is narrowed to
+            # binary32 here and not at some later comparison. A class with
+            # no members makes `cs.count(i)` zero and C++ divides by zero
+            # in float, yielding +inf rather than trapping; `_c_div`
+            # reproduces that rather than raising ZeroDivisionError.
+            n_classes = len(self._weights)
+            for i in range(n_classes):
+                count = self._classes.count(i)
+                self._weights[i] = _c_div(
+                    _to_score_t(len(self._classes)),
+                    _to_score_t(n_classes * count),
+                )
+
+        # DIVERGENCE(C++ moses/moses/scoring/bscores.cc:215-218): the
+        # OC_ASSERT on mismatched table sizes aborts the process; this
+        # raises ValueError, matching this file's convention.
+        if len(ot) != len(it):
+            raise ValueError(
+                "Error: discretize_contin_bscore: input and output table size "
+                f"do not match: {len(it)} {len(ot)}"
+            )
+        self._size = len(ot)
+
+    def best_possible_bscore(self) -> behavioral_score:
+        """C++: moses/moses/scoring/bscores.cc:222 discretize_contin_bscore::best_possible_bscore"""
+        return behavioral_score([_to_score_t(0.0)] * len(self._target))
+
+    def min_improv(self) -> score_t:
+        """C++: moses/moses/scoring/bscores.cc:228 discretize_contin_bscore::min_improv"""
+        # "not necessarily right, just the backwards-compat behavior" --
+        # classic's own comment (cc:229-230).
+        return _to_score_t(0.0)
+
+    def class_idx(self, v: float) -> int:
+        """C++: moses/moses/scoring/bscores.cc:233 discretize_contin_bscore::class_idx"""
+        if v < self._thresholds[0]:
+            return 0
+        s = len(self._thresholds)
+        if v >= self._thresholds[s - 1]:
+            return s
+        return self.class_idx_within(v, 1, s)
+
+    def class_idx_within(self, v: float, l_idx: int, u_idx: int) -> int:
+        """C++: moses/moses/scoring/bscores.cc:242 discretize_contin_bscore::class_idx_within
+
+        A binary search over `thresholds`, transliterated including its
+        recursion. `u_idx - l_idx` is a `size_t` subtraction in C++, but
+        every caller keeps `l_idx < u_idx` (`class_idx` enters with
+        `(1, s)` after ruling out both ends, and each recursive call
+        preserves it), so it cannot wrap -- no mask is needed here, and
+        this note records that it was checked rather than overlooked.
+        """
+        # base case
+        if u_idx - l_idx == 1:
+            return l_idx
+        # recursive case
+        m_idx = l_idx + (u_idx - l_idx) // 2
+        t = self._thresholds[m_idx - 1]
+        if v < t:
+            return self.class_idx_within(v, l_idx, m_idx)
+        return self.class_idx_within(v, m_idx, u_idx)
+
+    def __call__(self, tr: combo_tree) -> behavioral_score:
+        """C++: moses/moses/scoring/bscores.cc:257 discretize_contin_bscore::operator()"""
+        ct = OTable(tr, self._cit)
+        # `(c_idx != this->class_idx(get_contin(v))) * this->weights[c_idx]`
+        # (cc:266-267) -- a bool promoted to int and multiplied by a float
+        # weight, so a MATCH contributes exactly 0 and a MISS contributes
+        # the class weight. Note it indexes `weights` by the TARGET's class
+        # `c_idx`, not by the candidate's.
+        bs = behavioral_score(
+            [
+                _to_score_t((c_idx != self.class_idx(get_contin(v))) * self._weights[c_idx])
+                for v, c_idx in zip(ct, self._classes, strict=True)
+            ]
+        )
+        log_candidate_bscore(tr, bs)  # C++: bscores.cc:269
+        return bs

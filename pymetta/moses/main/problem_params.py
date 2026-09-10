@@ -1034,17 +1034,11 @@ class problem_params:
                 "SS-fitness scorer are not -- leave both ss-n-subsample-demes "
                 "and ss-n-subsample-fitnesses at their default (0/1)."
             )
-        # `discretize_contin_bscore` genuinely does not exist anywhere in
-        # this port yet (confirmed: no such class in bscores.py, only a
-        # module-docstring mention) -- this gate's original message is
-        # still accurate, reworded only for consistency with its
-        # neighbours above.
-        if self.discretize_thresholds:
-            raise NotImplementedError(
-                "--discretize-threshold: discretize_contin_bscore does not "
-                "exist anywhere in this port (contin/mixed, S14); leave "
-                "--discretize-threshold unset."
-            )
+        # `--discretize-threshold` was gated here until 2026-09-10, on the
+        # accurate grounds that `discretize_contin_bscore` did not exist.
+        # It is ported now (`bscores.py`) and wired into
+        # `it_table_problem.run`'s contin arm, so the flag reaches its
+        # scorer and the gate is gone.
         # `--contin-depth` and `--it-abs-err` were BOTH gated here until
         # 2026-09-09, each on the same stated grounds: that their only
         # CLI-reachable consumers (`it_table_problem`'s contin branch and
