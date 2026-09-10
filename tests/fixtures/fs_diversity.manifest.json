@@ -1,0 +1,27 @@
+{
+  "capture_script": "tools/capture_fs_diversity.py",
+  "capture_script_sha256": "81866f56154b407fc257462966564731c476f9f1661e324f07824262dfa97e6a",
+  "classic_dir": "/home/yab/Documents/Projects/iCog/HyperonRelated/MOSES/OpenCog/Moses",
+  "cli_tool": null,
+  "generated_at_utc": "2026-09-10T06:22:36+00:00",
+  "inputs": {
+    "a5_csv": "tests/fixtures/table_data/bool_a5_maj.csv",
+    "big_csv": "tests/fixtures/table_data/ctable_unsorted_big.csv",
+    "boolean_csv": "tests/fixtures/table_data/trainingBoolean.dat",
+    "description": "CTable::remove_rows() over 12 index sets on a compressed table deliberately built so std::map order differs from insertion order for both the rows and two of the four rows' TimedCounters, plus 10 more on a 4-input/30-row table whose index sets contain elements >= 8 (so a Python set's own iteration order is not ascending there); lazy_random_selector draw SEQUENCES for 5 (u, seed, n) triples; subsampleCTable() for 10 (ratio, seed) pairs, 8 more at ratios where the binary32 narrowing of the `float ratio` parameter changes nremove, and 10 on the 30-row table; rank_feature_sets() plus select_top_feature_sets() for 33 hand-built feature_set_pops carrying deliberate ties (equal scores, duplicated sets, and the fully symmetric 5-input majority table where every same-size feature set has identical mutual information), across jaccard/mi, four diversity_interaction values and several n_demes; and feature_selector::mi() at full double precision for 22 (table, fs_l, fs_r, diversity_interaction) cases -- most on fs_mi_skewed.csv, which is NOT a full truth-table enumeration and therefore has irrational mutual informations where the other tables have whole numbers of bits; and feature_selector::operator()() end to end with diversity_pressure > 0 and/or subsampling_ratio < 1. Seeds are set with randGen().seed(...) immediately before each drawing call. NOT captured: the 'hc' algorithm, the only one whose feature_set_pop can exceed one entry -- classic's own 'hc' feature-selection path segfaults unconditionally (measured again here, rc 139; see tools/cpp_probe/fs_standalone_probe.cc).",
+    "skew_csv": "tests/fixtures/table_data/fs_mi_skewed.csv",
+    "unsorted_csv": "tests/fixtures/table_data/ctable_unsorted.csv"
+  },
+  "prefix_dir": "/home/yab/opt/moses-legacy",
+  "probe_kind": "cpp_probe",
+  "probe_source": "tools/cpp_probe/fs_diversity_probe.cc",
+  "probe_source_sha256": "0580609c82fe3102f61cddf37f449c746c5a716410da4b5eded554b0a9455998",
+  "repo_commit": "1627b0bac3caeb2de687c63c88c13935b3f72c97",
+  "schema_version": 2,
+  "toolchain": {
+    "boost_lib_version": "1_92",
+    "cxx": "g++ (GCC) 16.2.1 20260810",
+    "glibcxx_max_symbol": "GLIBCXX_3.4.36",
+    "libstdcxx_soname": "libstdc++.so.6.0.36"
+  }
+}

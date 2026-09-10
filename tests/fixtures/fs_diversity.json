@@ -1,0 +1,9119 @@
+{
+  "ctable": [
+    {
+      "inputs": [
+        "1",
+        "1",
+        "1"
+      ],
+      "outputs": [
+        [
+          "true",
+          1
+        ],
+        [
+          "false",
+          1
+        ]
+      ]
+    },
+    {
+      "inputs": [
+        "1",
+        "0",
+        "1"
+      ],
+      "outputs": [
+        [
+          "true",
+          2
+        ]
+      ]
+    },
+    {
+      "inputs": [
+        "0",
+        "1",
+        "0"
+      ],
+      "outputs": [
+        [
+          "true",
+          1
+        ]
+      ]
+    },
+    {
+      "inputs": [
+        "0",
+        "0",
+        "0"
+      ],
+      "outputs": [
+        [
+          "true",
+          1
+        ],
+        [
+          "false",
+          2
+        ]
+      ]
+    }
+  ],
+  "ctable_big": [
+    {
+      "inputs": [
+        "1",
+        "1",
+        "1",
+        "1"
+      ],
+      "outputs": [
+        [
+          "true",
+          3
+        ],
+        [
+          "false",
+          1
+        ]
+      ]
+    },
+    {
+      "inputs": [
+        "1",
+        "1",
+        "0",
+        "0"
+      ],
+      "outputs": [
+        [
+          "true",
+          3
+        ],
+        [
+          "false",
+          1
+        ]
+      ]
+    },
+    {
+      "inputs": [
+        "1",
+        "0",
+        "1",
+        "0"
+      ],
+      "outputs": [
+        [
+          "true",
+          3
+        ],
+        [
+          "false",
+          2
+        ]
+      ]
+    },
+    {
+      "inputs": [
+        "1",
+        "0",
+        "0",
+        "1"
+      ],
+      "outputs": [
+        [
+          "true",
+          1
+        ],
+        [
+          "false",
+          2
+        ]
+      ]
+    },
+    {
+      "inputs": [
+        "0",
+        "1",
+        "1",
+        "0"
+      ],
+      "outputs": [
+        [
+          "true",
+          2
+        ],
+        [
+          "false",
+          1
+        ]
+      ]
+    },
+    {
+      "inputs": [
+        "0",
+        "1",
+        "0",
+        "1"
+      ],
+      "outputs": [
+        [
+          "true",
+          2
+        ],
+        [
+          "false",
+          1
+        ]
+      ]
+    },
+    {
+      "inputs": [
+        "0",
+        "0",
+        "1",
+        "1"
+      ],
+      "outputs": [
+        [
+          "true",
+          1
+        ],
+        [
+          "false",
+          3
+        ]
+      ]
+    },
+    {
+      "inputs": [
+        "0",
+        "0",
+        "0",
+        "0"
+      ],
+      "outputs": [
+        [
+          "true",
+          2
+        ],
+        [
+          "false",
+          2
+        ]
+      ]
+    }
+  ],
+  "end_to_end": [
+    {
+      "algorithm": "simple",
+      "base_target_size": 2,
+      "diversity_cap": 0,
+      "diversity_interaction": 0,
+      "diversity_jaccard": true,
+      "diversity_pressure": 0.5,
+      "exemplar": "$1",
+      "increase_target_size": true,
+      "n_demes": 2,
+      "seed": 1,
+      "subsampling_ratio": 1,
+      "table": "boolean",
+      "top": [
+        [
+          0,
+          [
+            0,
+            1,
+            2
+          ]
+        ]
+      ]
+    },
+    {
+      "algorithm": "simple",
+      "base_target_size": 2,
+      "diversity_cap": 0,
+      "diversity_interaction": 0,
+      "diversity_jaccard": false,
+      "diversity_pressure": 0.5,
+      "exemplar": "$1",
+      "increase_target_size": true,
+      "n_demes": 2,
+      "seed": 1,
+      "subsampling_ratio": 1,
+      "table": "boolean",
+      "top": [
+        [
+          0,
+          [
+            0,
+            1,
+            2
+          ]
+        ]
+      ]
+    },
+    {
+      "algorithm": "simple",
+      "base_target_size": 2,
+      "diversity_cap": 0,
+      "diversity_interaction": 0,
+      "diversity_jaccard": true,
+      "diversity_pressure": 1,
+      "exemplar": "and($1 $2)",
+      "increase_target_size": true,
+      "n_demes": 3,
+      "seed": 1,
+      "subsampling_ratio": 1,
+      "table": "boolean",
+      "top": [
+        [
+          0,
+          [
+            0,
+            1,
+            2
+          ]
+        ]
+      ]
+    },
+    {
+      "algorithm": "simple",
+      "base_target_size": 2,
+      "diversity_cap": 0,
+      "diversity_interaction": 0,
+      "diversity_jaccard": true,
+      "diversity_pressure": 0,
+      "exemplar": "$1",
+      "increase_target_size": true,
+      "n_demes": 2,
+      "seed": 1,
+      "subsampling_ratio": 0.75,
+      "table": "boolean",
+      "top": [
+        [
+          0,
+          [
+            0,
+            1,
+            2
+          ]
+        ]
+      ]
+    },
+    {
+      "algorithm": "simple",
+      "base_target_size": 2,
+      "diversity_cap": 0,
+      "diversity_interaction": 0,
+      "diversity_jaccard": true,
+      "diversity_pressure": 0,
+      "exemplar": "$1",
+      "increase_target_size": true,
+      "n_demes": 2,
+      "seed": 1,
+      "subsampling_ratio": 0.5,
+      "table": "boolean",
+      "top": [
+        [
+          0,
+          [
+            0,
+            1,
+            2
+          ]
+        ]
+      ]
+    },
+    {
+      "algorithm": "simple",
+      "base_target_size": 2,
+      "diversity_cap": 0,
+      "diversity_interaction": 0,
+      "diversity_jaccard": true,
+      "diversity_pressure": 0.5,
+      "exemplar": "$1",
+      "increase_target_size": true,
+      "n_demes": 2,
+      "seed": 1,
+      "subsampling_ratio": 0.75,
+      "table": "boolean",
+      "top": [
+        [
+          0,
+          [
+            0,
+            1,
+            2
+          ]
+        ]
+      ]
+    },
+    {
+      "algorithm": "simple",
+      "base_target_size": 1,
+      "diversity_cap": 0,
+      "diversity_interaction": 0,
+      "diversity_jaccard": true,
+      "diversity_pressure": 0.25,
+      "exemplar": "and($1 $2)",
+      "increase_target_size": true,
+      "n_demes": 2,
+      "seed": 3,
+      "subsampling_ratio": 0.5,
+      "table": "boolean",
+      "top": [
+        [
+          0,
+          [
+            0,
+            1,
+            2
+          ]
+        ]
+      ]
+    },
+    {
+      "algorithm": "simple",
+      "base_target_size": 1,
+      "diversity_cap": 0,
+      "diversity_interaction": 0,
+      "diversity_jaccard": true,
+      "diversity_pressure": 0,
+      "exemplar": "$1",
+      "increase_target_size": false,
+      "n_demes": 1,
+      "seed": 1,
+      "subsampling_ratio": 0.75,
+      "table": "a5",
+      "top": [
+        [
+          0,
+          [
+            3
+          ]
+        ]
+      ]
+    },
+    {
+      "algorithm": "simple",
+      "base_target_size": 1,
+      "diversity_cap": 0,
+      "diversity_interaction": 0,
+      "diversity_jaccard": true,
+      "diversity_pressure": 0,
+      "exemplar": "$1",
+      "increase_target_size": false,
+      "n_demes": 1,
+      "seed": 1,
+      "subsampling_ratio": 0.5,
+      "table": "a5",
+      "top": [
+        [
+          0,
+          [
+            3
+          ]
+        ]
+      ]
+    },
+    {
+      "algorithm": "simple",
+      "base_target_size": 1,
+      "diversity_cap": 0,
+      "diversity_interaction": 0,
+      "diversity_jaccard": true,
+      "diversity_pressure": 0,
+      "exemplar": "$1",
+      "increase_target_size": false,
+      "n_demes": 1,
+      "seed": 7,
+      "subsampling_ratio": 0.25,
+      "table": "a5",
+      "top": [
+        [
+          0,
+          [
+            2
+          ]
+        ]
+      ]
+    }
+  ],
+  "mi": [
+    {
+      "diversity_interaction": -1,
+      "fs_l": [
+        0
+      ],
+      "fs_r": [
+        1
+      ],
+      "mi": 0.10519553207004617,
+      "table": "skew"
+    },
+    {
+      "diversity_interaction": -1,
+      "fs_l": [
+        0
+      ],
+      "fs_r": [
+        2
+      ],
+      "mi": 0.03276539733096584,
+      "table": "skew"
+    },
+    {
+      "diversity_interaction": -1,
+      "fs_l": [
+        1
+      ],
+      "fs_r": [
+        4
+      ],
+      "mi": 0.004886164091842504,
+      "table": "skew"
+    },
+    {
+      "diversity_interaction": -1,
+      "fs_l": [
+        0,
+        1
+      ],
+      "fs_r": [
+        2,
+        3
+      ],
+      "mi": 0.7080986635018056,
+      "table": "skew"
+    },
+    {
+      "diversity_interaction": -1,
+      "fs_l": [
+        0,
+        1,
+        2
+      ],
+      "fs_r": [
+        2,
+        3,
+        4
+      ],
+      "mi": 2.1180782093497093,
+      "table": "skew"
+    },
+    {
+      "diversity_interaction": 0,
+      "fs_l": [
+        0,
+        1,
+        2
+      ],
+      "fs_r": [
+        0,
+        1,
+        2
+      ],
+      "mi": 0.33497308182798835,
+      "table": "skew"
+    },
+    {
+      "diversity_interaction": 0,
+      "fs_l": [
+        0,
+        1,
+        2
+      ],
+      "fs_r": [
+        2,
+        3,
+        4
+      ],
+      "mi": 0.13914659750563663,
+      "table": "skew"
+    },
+    {
+      "diversity_interaction": 1,
+      "fs_l": [
+        0,
+        1,
+        2
+      ],
+      "fs_r": [
+        0,
+        1,
+        2
+      ],
+      "mi": 1.2632728582653763,
+      "table": "skew"
+    },
+    {
+      "diversity_interaction": 1,
+      "fs_l": [
+        0,
+        1,
+        2
+      ],
+      "fs_r": [
+        0,
+        2,
+        3
+      ],
+      "mi": 1.1119551815851123,
+      "table": "skew"
+    },
+    {
+      "diversity_interaction": 1,
+      "fs_l": [
+        0,
+        1,
+        2
+      ],
+      "fs_r": [
+        0,
+        2,
+        4
+      ],
+      "mi": 1.1787826766835552,
+      "table": "skew"
+    },
+    {
+      "diversity_interaction": 1,
+      "fs_l": [
+        0,
+        1,
+        2
+      ],
+      "fs_r": [
+        1,
+        2,
+        4
+      ],
+      "mi": 1.1635324241145963,
+      "table": "skew"
+    },
+    {
+      "diversity_interaction": 1,
+      "fs_l": [
+        0,
+        1,
+        2
+      ],
+      "fs_r": [
+        1,
+        3,
+        4
+      ],
+      "mi": 0.9640165989873619,
+      "table": "skew"
+    },
+    {
+      "diversity_interaction": 1,
+      "fs_l": [
+        0,
+        1,
+        2
+      ],
+      "fs_r": [
+        2,
+        3,
+        4
+      ],
+      "mi": 0.9344328929932172,
+      "table": "skew"
+    },
+    {
+      "diversity_interaction": 1,
+      "fs_l": [
+        0,
+        1,
+        3
+      ],
+      "fs_r": [
+        0,
+        3,
+        4
+      ],
+      "mi": 1.2231867287512093,
+      "table": "skew"
+    },
+    {
+      "diversity_interaction": 1,
+      "fs_l": [
+        0,
+        1,
+        3
+      ],
+      "fs_r": [
+        1,
+        3,
+        4
+      ],
+      "mi": 1.184800172591813,
+      "table": "skew"
+    },
+    {
+      "diversity_interaction": 1,
+      "fs_l": [
+        0,
+        1,
+        2,
+        3
+      ],
+      "fs_r": [
+        1,
+        2,
+        3,
+        4
+      ],
+      "mi": 1.074184199160401,
+      "table": "skew"
+    },
+    {
+      "diversity_interaction": 2,
+      "fs_l": [
+        0,
+        1,
+        2,
+        3
+      ],
+      "fs_r": [
+        1,
+        2,
+        3,
+        4
+      ],
+      "mi": 2.1610645969390347,
+      "table": "skew"
+    },
+    {
+      "diversity_interaction": 2,
+      "fs_l": [
+        0,
+        1,
+        2,
+        3,
+        4
+      ],
+      "fs_r": [
+        0,
+        1,
+        2,
+        3,
+        4
+      ],
+      "mi": 2.086408383262391,
+      "table": "skew"
+    },
+    {
+      "diversity_interaction": 0,
+      "fs_l": [
+        0,
+        1
+      ],
+      "fs_r": [
+        1,
+        2
+      ],
+      "mi": 0.25,
+      "table": "a5"
+    },
+    {
+      "diversity_interaction": 1,
+      "fs_l": [
+        0,
+        1,
+        2
+      ],
+      "fs_r": [
+        2,
+        3,
+        4
+      ],
+      "mi": 0.4444444444444444,
+      "table": "a5"
+    },
+    {
+      "diversity_interaction": -1,
+      "fs_l": [
+        0
+      ],
+      "fs_r": [
+        1
+      ],
+      "mi": 0,
+      "table": "boolean"
+    },
+    {
+      "diversity_interaction": 0,
+      "fs_l": [
+        0,
+        1
+      ],
+      "fs_r": [
+        1,
+        2
+      ],
+      "mi": 0.25,
+      "table": "boolean"
+    }
+  ],
+  "rank": [
+    {
+      "diversity_interaction": 0,
+      "diversity_jaccard": true,
+      "diversity_pressure": 1,
+      "n_demes": 3,
+      "name": "tie3_jaccard_p1",
+      "pop": [
+        [
+          0.5,
+          [
+            0
+          ]
+        ],
+        [
+          0.5,
+          [
+            1
+          ]
+        ],
+        [
+          0.5,
+          [
+            2
+          ]
+        ]
+      ],
+      "ranked": [
+        {
+          "cs": {
+            "complexity": 1,
+            "complexity_penalty": 0,
+            "penalized_score": 0.5,
+            "score": 0.5,
+            "uniformity_penalty": 0
+          },
+          "fs": [
+            0
+          ]
+        },
+        {
+          "cs": {
+            "complexity": 1,
+            "complexity_penalty": 0,
+            "penalized_score": 0.5,
+            "score": 0.5,
+            "uniformity_penalty": 0
+          },
+          "fs": [
+            1
+          ]
+        },
+        {
+          "cs": {
+            "complexity": 1,
+            "complexity_penalty": 0,
+            "penalized_score": 0.5,
+            "score": 0.5,
+            "uniformity_penalty": 0
+          },
+          "fs": [
+            2
+          ]
+        }
+      ],
+      "table": "boolean",
+      "top": [
+        [
+          0.5,
+          [
+            0
+          ]
+        ],
+        [
+          0.5,
+          [
+            1
+          ]
+        ],
+        [
+          0.5,
+          [
+            2
+          ]
+        ]
+      ]
+    },
+    {
+      "diversity_interaction": 0,
+      "diversity_jaccard": true,
+      "diversity_pressure": 0.25,
+      "n_demes": 3,
+      "name": "tie3_jaccard_p0.25",
+      "pop": [
+        [
+          0.5,
+          [
+            0
+          ]
+        ],
+        [
+          0.5,
+          [
+            1
+          ]
+        ],
+        [
+          0.5,
+          [
+            2
+          ]
+        ]
+      ],
+      "ranked": [
+        {
+          "cs": {
+            "complexity": 1,
+            "complexity_penalty": 0,
+            "penalized_score": 0.5,
+            "score": 0.5,
+            "uniformity_penalty": 0
+          },
+          "fs": [
+            0
+          ]
+        },
+        {
+          "cs": {
+            "complexity": 1,
+            "complexity_penalty": 0,
+            "penalized_score": 0.5,
+            "score": 0.5,
+            "uniformity_penalty": 0
+          },
+          "fs": [
+            1
+          ]
+        },
+        {
+          "cs": {
+            "complexity": 1,
+            "complexity_penalty": 0,
+            "penalized_score": 0.5,
+            "score": 0.5,
+            "uniformity_penalty": 0
+          },
+          "fs": [
+            2
+          ]
+        }
+      ],
+      "table": "boolean",
+      "top": [
+        [
+          0.5,
+          [
+            0
+          ]
+        ],
+        [
+          0.5,
+          [
+            1
+          ]
+        ],
+        [
+          0.5,
+          [
+            2
+          ]
+        ]
+      ]
+    },
+    {
+      "diversity_interaction": 0,
+      "diversity_jaccard": true,
+      "diversity_pressure": 1,
+      "n_demes": 3,
+      "name": "tie3_jaccard_reversed_insert",
+      "pop": [
+        [
+          0.5,
+          [
+            2
+          ]
+        ],
+        [
+          0.5,
+          [
+            1
+          ]
+        ],
+        [
+          0.5,
+          [
+            0
+          ]
+        ]
+      ],
+      "ranked": [
+        {
+          "cs": {
+            "complexity": 1,
+            "complexity_penalty": 0,
+            "penalized_score": 0.5,
+            "score": 0.5,
+            "uniformity_penalty": 0
+          },
+          "fs": [
+            2
+          ]
+        },
+        {
+          "cs": {
+            "complexity": 1,
+            "complexity_penalty": 0,
+            "penalized_score": 0.5,
+            "score": 0.5,
+            "uniformity_penalty": 0
+          },
+          "fs": [
+            1
+          ]
+        },
+        {
+          "cs": {
+            "complexity": 1,
+            "complexity_penalty": 0,
+            "penalized_score": 0.5,
+            "score": 0.5,
+            "uniformity_penalty": 0
+          },
+          "fs": [
+            0
+          ]
+        }
+      ],
+      "table": "boolean",
+      "top": [
+        [
+          0.5,
+          [
+            2
+          ]
+        ],
+        [
+          0.5,
+          [
+            1
+          ]
+        ],
+        [
+          0.5,
+          [
+            0
+          ]
+        ]
+      ]
+    },
+    {
+      "diversity_interaction": 0,
+      "diversity_jaccard": true,
+      "diversity_pressure": 1,
+      "n_demes": 3,
+      "name": "dup_set_jaccard",
+      "pop": [
+        [
+          0.5,
+          [
+            0
+          ]
+        ],
+        [
+          0.5,
+          [
+            0
+          ]
+        ],
+        [
+          0.5,
+          [
+            1
+          ]
+        ]
+      ],
+      "ranked": [
+        {
+          "cs": {
+            "complexity": 1,
+            "complexity_penalty": 0,
+            "penalized_score": 0.5,
+            "score": 0.5,
+            "uniformity_penalty": 0
+          },
+          "fs": [
+            0
+          ]
+        },
+        {
+          "cs": {
+            "complexity": 1,
+            "complexity_penalty": 0,
+            "penalized_score": 0.5,
+            "score": 0.5,
+            "uniformity_penalty": 0
+          },
+          "fs": [
+            1
+          ]
+        },
+        {
+          "cs": {
+            "complexity": 1,
+            "complexity_penalty": 0,
+            "penalized_score": -0.5,
+            "score": 0.5,
+            "uniformity_penalty": 1
+          },
+          "fs": [
+            0
+          ]
+        }
+      ],
+      "table": "boolean",
+      "top": [
+        [
+          0.5,
+          [
+            0
+          ]
+        ],
+        [
+          0.5,
+          [
+            1
+          ]
+        ],
+        [
+          -0.5,
+          [
+            0
+          ]
+        ]
+      ]
+    },
+    {
+      "diversity_interaction": 0,
+      "diversity_jaccard": true,
+      "diversity_pressure": 0.5,
+      "n_demes": 5,
+      "name": "mixed_sizes_jaccard",
+      "pop": [
+        [
+          0.9,
+          [
+            0,
+            1
+          ]
+        ],
+        [
+          0.9,
+          [
+            1,
+            2
+          ]
+        ],
+        [
+          0.5,
+          [
+            0
+          ]
+        ],
+        [
+          0.5,
+          [
+            1
+          ]
+        ],
+        [
+          0.5,
+          [
+            2
+          ]
+        ]
+      ],
+      "ranked": [
+        {
+          "cs": {
+            "complexity": 2,
+            "complexity_penalty": 0,
+            "penalized_score": 0.8999999761581421,
+            "score": 0.8999999761581421,
+            "uniformity_penalty": 0
+          },
+          "fs": [
+            0,
+            1
+          ]
+        },
+        {
+          "cs": {
+            "complexity": 2,
+            "complexity_penalty": 0,
+            "penalized_score": 0.7333332896232605,
+            "score": 0.8999999761581421,
+            "uniformity_penalty": 0.1666666716337204
+          },
+          "fs": [
+            1,
+            2
+          ]
+        },
+        {
+          "cs": {
+            "complexity": 1,
+            "complexity_penalty": 0,
+            "penalized_score": 0.25,
+            "score": 0.5,
+            "uniformity_penalty": 0.25
+          },
+          "fs": [
+            0
+          ]
+        },
+        {
+          "cs": {
+            "complexity": 1,
+            "complexity_penalty": 0,
+            "penalized_score": 0.25,
+            "score": 0.5,
+            "uniformity_penalty": 0.25
+          },
+          "fs": [
+            1
+          ]
+        },
+        {
+          "cs": {
+            "complexity": 1,
+            "complexity_penalty": 0,
+            "penalized_score": 0.25,
+            "score": 0.5,
+            "uniformity_penalty": 0.25
+          },
+          "fs": [
+            2
+          ]
+        }
+      ],
+      "table": "boolean",
+      "top": [
+        [
+          0.8999999761581421,
+          [
+            0,
+            1
+          ]
+        ],
+        [
+          0.7333332896232605,
+          [
+            1,
+            2
+          ]
+        ],
+        [
+          0.25,
+          [
+            0
+          ]
+        ],
+        [
+          0.25,
+          [
+            1
+          ]
+        ],
+        [
+          0.25,
+          [
+            2
+          ]
+        ]
+      ]
+    },
+    {
+      "diversity_interaction": 0,
+      "diversity_jaccard": true,
+      "diversity_pressure": 0.5,
+      "n_demes": 2,
+      "name": "mixed_sizes_jaccard_n2",
+      "pop": [
+        [
+          0.9,
+          [
+            0,
+            1
+          ]
+        ],
+        [
+          0.9,
+          [
+            1,
+            2
+          ]
+        ],
+        [
+          0.5,
+          [
+            0
+          ]
+        ],
+        [
+          0.5,
+          [
+            1
+          ]
+        ],
+        [
+          0.5,
+          [
+            2
+          ]
+        ]
+      ],
+      "ranked": [
+        {
+          "cs": {
+            "complexity": 2,
+            "complexity_penalty": 0,
+            "penalized_score": 0.8999999761581421,
+            "score": 0.8999999761581421,
+            "uniformity_penalty": 0
+          },
+          "fs": [
+            0,
+            1
+          ]
+        },
+        {
+          "cs": {
+            "complexity": 2,
+            "complexity_penalty": 0,
+            "penalized_score": 0.7333332896232605,
+            "score": 0.8999999761581421,
+            "uniformity_penalty": 0.1666666716337204
+          },
+          "fs": [
+            1,
+            2
+          ]
+        },
+        {
+          "cs": {
+            "complexity": 1,
+            "complexity_penalty": 0,
+            "penalized_score": 0.25,
+            "score": 0.5,
+            "uniformity_penalty": 0.25
+          },
+          "fs": [
+            0
+          ]
+        },
+        {
+          "cs": {
+            "complexity": 1,
+            "complexity_penalty": 0,
+            "penalized_score": 0.25,
+            "score": 0.5,
+            "uniformity_penalty": 0.25
+          },
+          "fs": [
+            1
+          ]
+        },
+        {
+          "cs": {
+            "complexity": 1,
+            "complexity_penalty": 0,
+            "penalized_score": 0.25,
+            "score": 0.5,
+            "uniformity_penalty": 0.25
+          },
+          "fs": [
+            2
+          ]
+        }
+      ],
+      "table": "boolean",
+      "top": [
+        [
+          0.8999999761581421,
+          [
+            0,
+            1
+          ]
+        ],
+        [
+          0.7333332896232605,
+          [
+            1,
+            2
+          ]
+        ]
+      ]
+    },
+    {
+      "diversity_interaction": 0,
+      "diversity_jaccard": true,
+      "diversity_pressure": 0.5,
+      "n_demes": 1,
+      "name": "mixed_sizes_jaccard_n1",
+      "pop": [
+        [
+          0.9,
+          [
+            0,
+            1
+          ]
+        ],
+        [
+          0.9,
+          [
+            1,
+            2
+          ]
+        ],
+        [
+          0.5,
+          [
+            0
+          ]
+        ],
+        [
+          0.5,
+          [
+            1
+          ]
+        ],
+        [
+          0.5,
+          [
+            2
+          ]
+        ]
+      ],
+      "ranked": [
+        {
+          "cs": {
+            "complexity": 2,
+            "complexity_penalty": 0,
+            "penalized_score": 0.8999999761581421,
+            "score": 0.8999999761581421,
+            "uniformity_penalty": 0
+          },
+          "fs": [
+            0,
+            1
+          ]
+        },
+        {
+          "cs": {
+            "complexity": 2,
+            "complexity_penalty": 0,
+            "penalized_score": 0.7333332896232605,
+            "score": 0.8999999761581421,
+            "uniformity_penalty": 0.1666666716337204
+          },
+          "fs": [
+            1,
+            2
+          ]
+        },
+        {
+          "cs": {
+            "complexity": 1,
+            "complexity_penalty": 0,
+            "penalized_score": 0.25,
+            "score": 0.5,
+            "uniformity_penalty": 0.25
+          },
+          "fs": [
+            0
+          ]
+        },
+        {
+          "cs": {
+            "complexity": 1,
+            "complexity_penalty": 0,
+            "penalized_score": 0.25,
+            "score": 0.5,
+            "uniformity_penalty": 0.25
+          },
+          "fs": [
+            1
+          ]
+        },
+        {
+          "cs": {
+            "complexity": 1,
+            "complexity_penalty": 0,
+            "penalized_score": 0.25,
+            "score": 0.5,
+            "uniformity_penalty": 0.25
+          },
+          "fs": [
+            2
+          ]
+        }
+      ],
+      "table": "boolean",
+      "top": [
+        [
+          0.8999999761581421,
+          [
+            0,
+            1
+          ]
+        ]
+      ]
+    },
+    {
+      "diversity_interaction": 0,
+      "diversity_jaccard": false,
+      "diversity_pressure": 1,
+      "n_demes": 3,
+      "name": "tie3_mi_p1",
+      "pop": [
+        [
+          0.5,
+          [
+            0
+          ]
+        ],
+        [
+          0.5,
+          [
+            1
+          ]
+        ],
+        [
+          0.5,
+          [
+            2
+          ]
+        ]
+      ],
+      "ranked": [
+        {
+          "cs": {
+            "complexity": 1,
+            "complexity_penalty": 0,
+            "penalized_score": 0.5,
+            "score": 0.5,
+            "uniformity_penalty": 0
+          },
+          "fs": [
+            0
+          ]
+        },
+        {
+          "cs": {
+            "complexity": 1,
+            "complexity_penalty": 0,
+            "penalized_score": 0.5,
+            "score": 0.5,
+            "uniformity_penalty": 0
+          },
+          "fs": [
+            1
+          ]
+        },
+        {
+          "cs": {
+            "complexity": 1,
+            "complexity_penalty": 0,
+            "penalized_score": 0.5,
+            "score": 0.5,
+            "uniformity_penalty": 0
+          },
+          "fs": [
+            2
+          ]
+        }
+      ],
+      "table": "boolean",
+      "top": [
+        [
+          0.5,
+          [
+            0
+          ]
+        ],
+        [
+          0.5,
+          [
+            1
+          ]
+        ],
+        [
+          0.5,
+          [
+            2
+          ]
+        ]
+      ]
+    },
+    {
+      "diversity_interaction": -1,
+      "diversity_jaccard": false,
+      "diversity_pressure": 1,
+      "n_demes": 3,
+      "name": "tie3_mi_interaction_neg",
+      "pop": [
+        [
+          0.5,
+          [
+            0
+          ]
+        ],
+        [
+          0.5,
+          [
+            1
+          ]
+        ],
+        [
+          0.5,
+          [
+            2
+          ]
+        ]
+      ],
+      "ranked": [
+        {
+          "cs": {
+            "complexity": 1,
+            "complexity_penalty": 0,
+            "penalized_score": 0.5,
+            "score": 0.5,
+            "uniformity_penalty": 0
+          },
+          "fs": [
+            0
+          ]
+        },
+        {
+          "cs": {
+            "complexity": 1,
+            "complexity_penalty": 0,
+            "penalized_score": 0.5,
+            "score": 0.5,
+            "uniformity_penalty": 0
+          },
+          "fs": [
+            1
+          ]
+        },
+        {
+          "cs": {
+            "complexity": 1,
+            "complexity_penalty": 0,
+            "penalized_score": 0.5,
+            "score": 0.5,
+            "uniformity_penalty": 0
+          },
+          "fs": [
+            2
+          ]
+        }
+      ],
+      "table": "boolean",
+      "top": [
+        [
+          0.5,
+          [
+            0
+          ]
+        ],
+        [
+          0.5,
+          [
+            1
+          ]
+        ],
+        [
+          0.5,
+          [
+            2
+          ]
+        ]
+      ]
+    },
+    {
+      "diversity_interaction": -1,
+      "diversity_jaccard": false,
+      "diversity_pressure": 0.5,
+      "n_demes": 5,
+      "name": "mixed_sizes_mi_interaction_neg",
+      "pop": [
+        [
+          0.9,
+          [
+            0,
+            1
+          ]
+        ],
+        [
+          0.9,
+          [
+            1,
+            2
+          ]
+        ],
+        [
+          0.5,
+          [
+            0
+          ]
+        ],
+        [
+          0.5,
+          [
+            1
+          ]
+        ],
+        [
+          0.5,
+          [
+            2
+          ]
+        ]
+      ],
+      "ranked": [
+        {
+          "cs": {
+            "complexity": 2,
+            "complexity_penalty": 0,
+            "penalized_score": 0.8999999761581421,
+            "score": 0.8999999761581421,
+            "uniformity_penalty": 0
+          },
+          "fs": [
+            0,
+            1
+          ]
+        },
+        {
+          "cs": {
+            "complexity": 1,
+            "complexity_penalty": 0,
+            "penalized_score": 0.5,
+            "score": 0.5,
+            "uniformity_penalty": 0
+          },
+          "fs": [
+            2
+          ]
+        },
+        {
+          "cs": {
+            "complexity": 2,
+            "complexity_penalty": 0,
+            "penalized_score": 0.3999999761581421,
+            "score": 0.8999999761581421,
+            "uniformity_penalty": 0.5
+          },
+          "fs": [
+            1,
+            2
+          ]
+        },
+        {
+          "cs": {
+            "complexity": 1,
+            "complexity_penalty": 0,
+            "penalized_score": 0,
+            "score": 0.5,
+            "uniformity_penalty": 0.5
+          },
+          "fs": [
+            0
+          ]
+        },
+        {
+          "cs": {
+            "complexity": 1,
+            "complexity_penalty": 0,
+            "penalized_score": 0,
+            "score": 0.5,
+            "uniformity_penalty": 0.5
+          },
+          "fs": [
+            1
+          ]
+        }
+      ],
+      "table": "boolean",
+      "top": [
+        [
+          0.8999999761581421,
+          [
+            0,
+            1
+          ]
+        ],
+        [
+          0.5,
+          [
+            2
+          ]
+        ],
+        [
+          0.3999999761581421,
+          [
+            1,
+            2
+          ]
+        ],
+        [
+          0,
+          [
+            0
+          ]
+        ],
+        [
+          0,
+          [
+            1
+          ]
+        ]
+      ]
+    },
+    {
+      "diversity_interaction": 0,
+      "diversity_jaccard": false,
+      "diversity_pressure": 0.5,
+      "n_demes": 5,
+      "name": "mixed_sizes_mi_interaction_0",
+      "pop": [
+        [
+          0.9,
+          [
+            0,
+            1
+          ]
+        ],
+        [
+          0.9,
+          [
+            1,
+            2
+          ]
+        ],
+        [
+          0.5,
+          [
+            0
+          ]
+        ],
+        [
+          0.5,
+          [
+            1
+          ]
+        ],
+        [
+          0.5,
+          [
+            2
+          ]
+        ]
+      ],
+      "ranked": [
+        {
+          "cs": {
+            "complexity": 2,
+            "complexity_penalty": 0,
+            "penalized_score": 0.8999999761581421,
+            "score": 0.8999999761581421,
+            "uniformity_penalty": 0
+          },
+          "fs": [
+            0,
+            1
+          ]
+        },
+        {
+          "cs": {
+            "complexity": 2,
+            "complexity_penalty": 0,
+            "penalized_score": 0.7749999761581421,
+            "score": 0.8999999761581421,
+            "uniformity_penalty": 0.125
+          },
+          "fs": [
+            1,
+            2
+          ]
+        },
+        {
+          "cs": {
+            "complexity": 1,
+            "complexity_penalty": 0,
+            "penalized_score": 0.25,
+            "score": 0.5,
+            "uniformity_penalty": 0.25
+          },
+          "fs": [
+            0
+          ]
+        },
+        {
+          "cs": {
+            "complexity": 1,
+            "complexity_penalty": 0,
+            "penalized_score": 0.25,
+            "score": 0.5,
+            "uniformity_penalty": 0.25
+          },
+          "fs": [
+            1
+          ]
+        },
+        {
+          "cs": {
+            "complexity": 1,
+            "complexity_penalty": 0,
+            "penalized_score": 0.25,
+            "score": 0.5,
+            "uniformity_penalty": 0.25
+          },
+          "fs": [
+            2
+          ]
+        }
+      ],
+      "table": "boolean",
+      "top": [
+        [
+          0.8999999761581421,
+          [
+            0,
+            1
+          ]
+        ],
+        [
+          0.7749999761581421,
+          [
+            1,
+            2
+          ]
+        ],
+        [
+          0.25,
+          [
+            0
+          ]
+        ],
+        [
+          0.25,
+          [
+            1
+          ]
+        ],
+        [
+          0.25,
+          [
+            2
+          ]
+        ]
+      ]
+    },
+    {
+      "diversity_interaction": 1,
+      "diversity_jaccard": false,
+      "diversity_pressure": 0.5,
+      "n_demes": 4,
+      "name": "mixed_sizes_mi_interaction_1",
+      "pop": [
+        [
+          0.9,
+          [
+            0,
+            1
+          ]
+        ],
+        [
+          0.9,
+          [
+            1,
+            2
+          ]
+        ],
+        [
+          0.5,
+          [
+            0,
+            2
+          ]
+        ],
+        [
+          0.5,
+          [
+            1,
+            2
+          ]
+        ]
+      ],
+      "ranked": [
+        {
+          "cs": {
+            "complexity": 2,
+            "complexity_penalty": 0,
+            "penalized_score": 0.8999999761581421,
+            "score": 0.8999999761581421,
+            "uniformity_penalty": 0
+          },
+          "fs": [
+            0,
+            1
+          ]
+        },
+        {
+          "cs": {
+            "complexity": 2,
+            "complexity_penalty": 0,
+            "penalized_score": 0.3999999761581421,
+            "score": 0.8999999761581421,
+            "uniformity_penalty": 0.5
+          },
+          "fs": [
+            1,
+            2
+          ]
+        },
+        {
+          "cs": {
+            "complexity": 2,
+            "complexity_penalty": 0,
+            "penalized_score": 0,
+            "score": 0.5,
+            "uniformity_penalty": 0.5
+          },
+          "fs": [
+            0,
+            2
+          ]
+        },
+        {
+          "cs": {
+            "complexity": 2,
+            "complexity_penalty": 0,
+            "penalized_score": -0.5,
+            "score": 0.5,
+            "uniformity_penalty": 1
+          },
+          "fs": [
+            1,
+            2
+          ]
+        }
+      ],
+      "table": "boolean",
+      "top": [
+        [
+          0.8999999761581421,
+          [
+            0,
+            1
+          ]
+        ],
+        [
+          0.3999999761581421,
+          [
+            1,
+            2
+          ]
+        ],
+        [
+          0,
+          [
+            0,
+            2
+          ]
+        ],
+        [
+          -0.5,
+          [
+            1,
+            2
+          ]
+        ]
+      ]
+    },
+    {
+      "diversity_interaction": 0,
+      "diversity_jaccard": true,
+      "diversity_pressure": 1,
+      "n_demes": 3,
+      "name": "distinct_scores_jaccard",
+      "pop": [
+        [
+          0.9,
+          [
+            0
+          ]
+        ],
+        [
+          0.7,
+          [
+            1
+          ]
+        ],
+        [
+          0.3,
+          [
+            2
+          ]
+        ]
+      ],
+      "ranked": [
+        {
+          "cs": {
+            "complexity": 1,
+            "complexity_penalty": 0,
+            "penalized_score": 0.8999999761581421,
+            "score": 0.8999999761581421,
+            "uniformity_penalty": 0
+          },
+          "fs": [
+            0
+          ]
+        },
+        {
+          "cs": {
+            "complexity": 1,
+            "complexity_penalty": 0,
+            "penalized_score": 0.699999988079071,
+            "score": 0.699999988079071,
+            "uniformity_penalty": 0
+          },
+          "fs": [
+            1
+          ]
+        },
+        {
+          "cs": {
+            "complexity": 1,
+            "complexity_penalty": 0,
+            "penalized_score": 0.30000001192092896,
+            "score": 0.30000001192092896,
+            "uniformity_penalty": 0
+          },
+          "fs": [
+            2
+          ]
+        }
+      ],
+      "table": "boolean",
+      "top": [
+        [
+          0.8999999761581421,
+          [
+            0
+          ]
+        ],
+        [
+          0.699999988079071,
+          [
+            1
+          ]
+        ],
+        [
+          0.30000001192092896,
+          [
+            2
+          ]
+        ]
+      ]
+    },
+    {
+      "diversity_interaction": 0,
+      "diversity_jaccard": true,
+      "diversity_pressure": 100,
+      "n_demes": 3,
+      "name": "big_pressure_jaccard",
+      "pop": [
+        [
+          0.5,
+          [
+            0
+          ]
+        ],
+        [
+          0.5,
+          [
+            1
+          ]
+        ],
+        [
+          0.5,
+          [
+            2
+          ]
+        ]
+      ],
+      "ranked": [
+        {
+          "cs": {
+            "complexity": 1,
+            "complexity_penalty": 0,
+            "penalized_score": 0.5,
+            "score": 0.5,
+            "uniformity_penalty": 0
+          },
+          "fs": [
+            0
+          ]
+        },
+        {
+          "cs": {
+            "complexity": 1,
+            "complexity_penalty": 0,
+            "penalized_score": 0.5,
+            "score": 0.5,
+            "uniformity_penalty": 0
+          },
+          "fs": [
+            1
+          ]
+        },
+        {
+          "cs": {
+            "complexity": 1,
+            "complexity_penalty": 0,
+            "penalized_score": 0.5,
+            "score": 0.5,
+            "uniformity_penalty": 0
+          },
+          "fs": [
+            2
+          ]
+        }
+      ],
+      "table": "boolean",
+      "top": [
+        [
+          0.5,
+          [
+            0
+          ]
+        ],
+        [
+          0.5,
+          [
+            1
+          ]
+        ],
+        [
+          0.5,
+          [
+            2
+          ]
+        ]
+      ]
+    },
+    {
+      "diversity_interaction": 0,
+      "diversity_jaccard": false,
+      "diversity_pressure": 1,
+      "n_demes": 5,
+      "name": "a5_tie5_mi_p1",
+      "pop": [
+        [
+          0.5,
+          [
+            0
+          ]
+        ],
+        [
+          0.5,
+          [
+            1
+          ]
+        ],
+        [
+          0.5,
+          [
+            2
+          ]
+        ],
+        [
+          0.5,
+          [
+            3
+          ]
+        ],
+        [
+          0.5,
+          [
+            4
+          ]
+        ]
+      ],
+      "ranked": [
+        {
+          "cs": {
+            "complexity": 1,
+            "complexity_penalty": 0,
+            "penalized_score": 0.5,
+            "score": 0.5,
+            "uniformity_penalty": 0
+          },
+          "fs": [
+            0
+          ]
+        },
+        {
+          "cs": {
+            "complexity": 1,
+            "complexity_penalty": 0,
+            "penalized_score": 0.5,
+            "score": 0.5,
+            "uniformity_penalty": 0
+          },
+          "fs": [
+            1
+          ]
+        },
+        {
+          "cs": {
+            "complexity": 1,
+            "complexity_penalty": 0,
+            "penalized_score": 0.5,
+            "score": 0.5,
+            "uniformity_penalty": 0
+          },
+          "fs": [
+            2
+          ]
+        },
+        {
+          "cs": {
+            "complexity": 1,
+            "complexity_penalty": 0,
+            "penalized_score": 0.5,
+            "score": 0.5,
+            "uniformity_penalty": 0
+          },
+          "fs": [
+            3
+          ]
+        },
+        {
+          "cs": {
+            "complexity": 1,
+            "complexity_penalty": 0,
+            "penalized_score": 0.5,
+            "score": 0.5,
+            "uniformity_penalty": 0
+          },
+          "fs": [
+            4
+          ]
+        }
+      ],
+      "table": "a5",
+      "top": [
+        [
+          0.5,
+          [
+            0
+          ]
+        ],
+        [
+          0.5,
+          [
+            1
+          ]
+        ],
+        [
+          0.5,
+          [
+            2
+          ]
+        ],
+        [
+          0.5,
+          [
+            3
+          ]
+        ],
+        [
+          0.5,
+          [
+            4
+          ]
+        ]
+      ]
+    },
+    {
+      "diversity_interaction": -1,
+      "diversity_jaccard": false,
+      "diversity_pressure": 1,
+      "n_demes": 5,
+      "name": "a5_tie5_mi_interaction_neg",
+      "pop": [
+        [
+          0.5,
+          [
+            0
+          ]
+        ],
+        [
+          0.5,
+          [
+            1
+          ]
+        ],
+        [
+          0.5,
+          [
+            2
+          ]
+        ],
+        [
+          0.5,
+          [
+            3
+          ]
+        ],
+        [
+          0.5,
+          [
+            4
+          ]
+        ]
+      ],
+      "ranked": [
+        {
+          "cs": {
+            "complexity": 1,
+            "complexity_penalty": 0,
+            "penalized_score": 0.5,
+            "score": 0.5,
+            "uniformity_penalty": 0
+          },
+          "fs": [
+            0
+          ]
+        },
+        {
+          "cs": {
+            "complexity": 1,
+            "complexity_penalty": 0,
+            "penalized_score": 0.5,
+            "score": 0.5,
+            "uniformity_penalty": 0
+          },
+          "fs": [
+            1
+          ]
+        },
+        {
+          "cs": {
+            "complexity": 1,
+            "complexity_penalty": 0,
+            "penalized_score": 0.5,
+            "score": 0.5,
+            "uniformity_penalty": 0
+          },
+          "fs": [
+            2
+          ]
+        },
+        {
+          "cs": {
+            "complexity": 1,
+            "complexity_penalty": 0,
+            "penalized_score": 0.5,
+            "score": 0.5,
+            "uniformity_penalty": 0
+          },
+          "fs": [
+            3
+          ]
+        },
+        {
+          "cs": {
+            "complexity": 1,
+            "complexity_penalty": 0,
+            "penalized_score": 0.5,
+            "score": 0.5,
+            "uniformity_penalty": 0
+          },
+          "fs": [
+            4
+          ]
+        }
+      ],
+      "table": "a5",
+      "top": [
+        [
+          0.5,
+          [
+            0
+          ]
+        ],
+        [
+          0.5,
+          [
+            1
+          ]
+        ],
+        [
+          0.5,
+          [
+            2
+          ]
+        ],
+        [
+          0.5,
+          [
+            3
+          ]
+        ],
+        [
+          0.5,
+          [
+            4
+          ]
+        ]
+      ]
+    },
+    {
+      "diversity_interaction": 0,
+      "diversity_jaccard": false,
+      "diversity_pressure": 0.5,
+      "n_demes": 4,
+      "name": "a5_pairs_mi_interaction_0",
+      "pop": [
+        [
+          0.8,
+          [
+            0,
+            1
+          ]
+        ],
+        [
+          0.8,
+          [
+            2,
+            3
+          ]
+        ],
+        [
+          0.8,
+          [
+            1,
+            2
+          ]
+        ],
+        [
+          0.8,
+          [
+            3,
+            4
+          ]
+        ]
+      ],
+      "ranked": [
+        {
+          "cs": {
+            "complexity": 2,
+            "complexity_penalty": 0,
+            "penalized_score": 0.800000011920929,
+            "score": 0.800000011920929,
+            "uniformity_penalty": 0
+          },
+          "fs": [
+            0,
+            1
+          ]
+        },
+        {
+          "cs": {
+            "complexity": 2,
+            "complexity_penalty": 0,
+            "penalized_score": 0.800000011920929,
+            "score": 0.800000011920929,
+            "uniformity_penalty": 0
+          },
+          "fs": [
+            2,
+            3
+          ]
+        },
+        {
+          "cs": {
+            "complexity": 2,
+            "complexity_penalty": 0,
+            "penalized_score": 0.675000011920929,
+            "score": 0.800000011920929,
+            "uniformity_penalty": 0.125
+          },
+          "fs": [
+            1,
+            2
+          ]
+        },
+        {
+          "cs": {
+            "complexity": 2,
+            "complexity_penalty": 0,
+            "penalized_score": 0.675000011920929,
+            "score": 0.800000011920929,
+            "uniformity_penalty": 0.125
+          },
+          "fs": [
+            3,
+            4
+          ]
+        }
+      ],
+      "table": "a5",
+      "top": [
+        [
+          0.800000011920929,
+          [
+            0,
+            1
+          ]
+        ],
+        [
+          0.800000011920929,
+          [
+            2,
+            3
+          ]
+        ],
+        [
+          0.675000011920929,
+          [
+            1,
+            2
+          ]
+        ],
+        [
+          0.675000011920929,
+          [
+            3,
+            4
+          ]
+        ]
+      ]
+    },
+    {
+      "diversity_interaction": 1,
+      "diversity_jaccard": false,
+      "diversity_pressure": 0.5,
+      "n_demes": 4,
+      "name": "a5_pairs_mi_interaction_1",
+      "pop": [
+        [
+          0.8,
+          [
+            0,
+            1
+          ]
+        ],
+        [
+          0.8,
+          [
+            2,
+            3
+          ]
+        ],
+        [
+          0.8,
+          [
+            1,
+            2
+          ]
+        ],
+        [
+          0.8,
+          [
+            3,
+            4
+          ]
+        ]
+      ],
+      "ranked": [
+        {
+          "cs": {
+            "complexity": 2,
+            "complexity_penalty": 0,
+            "penalized_score": 0.800000011920929,
+            "score": 0.800000011920929,
+            "uniformity_penalty": 0
+          },
+          "fs": [
+            0,
+            1
+          ]
+        },
+        {
+          "cs": {
+            "complexity": 2,
+            "complexity_penalty": 0,
+            "penalized_score": 0.800000011920929,
+            "score": 0.800000011920929,
+            "uniformity_penalty": 0
+          },
+          "fs": [
+            2,
+            3
+          ]
+        },
+        {
+          "cs": {
+            "complexity": 2,
+            "complexity_penalty": 0,
+            "penalized_score": 0.30000001192092896,
+            "score": 0.800000011920929,
+            "uniformity_penalty": 0.5
+          },
+          "fs": [
+            1,
+            2
+          ]
+        },
+        {
+          "cs": {
+            "complexity": 2,
+            "complexity_penalty": 0,
+            "penalized_score": 0.30000001192092896,
+            "score": 0.800000011920929,
+            "uniformity_penalty": 0.5
+          },
+          "fs": [
+            3,
+            4
+          ]
+        }
+      ],
+      "table": "a5",
+      "top": [
+        [
+          0.800000011920929,
+          [
+            0,
+            1
+          ]
+        ],
+        [
+          0.800000011920929,
+          [
+            2,
+            3
+          ]
+        ],
+        [
+          0.30000001192092896,
+          [
+            1,
+            2
+          ]
+        ],
+        [
+          0.30000001192092896,
+          [
+            3,
+            4
+          ]
+        ]
+      ]
+    },
+    {
+      "diversity_interaction": 2,
+      "diversity_jaccard": false,
+      "diversity_pressure": 0.5,
+      "n_demes": 3,
+      "name": "a5_pairs_mi_interaction_2",
+      "pop": [
+        [
+          0.8,
+          [
+            0,
+            1,
+            2
+          ]
+        ],
+        [
+          0.8,
+          [
+            2,
+            3,
+            4
+          ]
+        ],
+        [
+          0.8,
+          [
+            1,
+            2,
+            3
+          ]
+        ]
+      ],
+      "ranked": [
+        {
+          "cs": {
+            "complexity": 3,
+            "complexity_penalty": 0,
+            "penalized_score": 0.800000011920929,
+            "score": 0.800000011920929,
+            "uniformity_penalty": 0
+          },
+          "fs": [
+            0,
+            1,
+            2
+          ]
+        },
+        {
+          "cs": {
+            "complexity": 3,
+            "complexity_penalty": 0,
+            "penalized_score": 0.30000001192092896,
+            "score": 0.800000011920929,
+            "uniformity_penalty": 0.5
+          },
+          "fs": [
+            2,
+            3,
+            4
+          ]
+        },
+        {
+          "cs": {
+            "complexity": 3,
+            "complexity_penalty": 0,
+            "penalized_score": -0.19999998807907104,
+            "score": 0.800000011920929,
+            "uniformity_penalty": 1
+          },
+          "fs": [
+            1,
+            2,
+            3
+          ]
+        }
+      ],
+      "table": "a5",
+      "top": [
+        [
+          0.800000011920929,
+          [
+            0,
+            1,
+            2
+          ]
+        ],
+        [
+          0.30000001192092896,
+          [
+            2,
+            3,
+            4
+          ]
+        ],
+        [
+          -0.19999998807907104,
+          [
+            1,
+            2,
+            3
+          ]
+        ]
+      ]
+    },
+    {
+      "diversity_interaction": 0,
+      "diversity_jaccard": true,
+      "diversity_pressure": 0.5,
+      "n_demes": 4,
+      "name": "a5_pairs_jaccard",
+      "pop": [
+        [
+          0.8,
+          [
+            0,
+            1
+          ]
+        ],
+        [
+          0.8,
+          [
+            2,
+            3
+          ]
+        ],
+        [
+          0.8,
+          [
+            1,
+            2
+          ]
+        ],
+        [
+          0.8,
+          [
+            3,
+            4
+          ]
+        ]
+      ],
+      "ranked": [
+        {
+          "cs": {
+            "complexity": 2,
+            "complexity_penalty": 0,
+            "penalized_score": 0.800000011920929,
+            "score": 0.800000011920929,
+            "uniformity_penalty": 0
+          },
+          "fs": [
+            0,
+            1
+          ]
+        },
+        {
+          "cs": {
+            "complexity": 2,
+            "complexity_penalty": 0,
+            "penalized_score": 0.800000011920929,
+            "score": 0.800000011920929,
+            "uniformity_penalty": 0
+          },
+          "fs": [
+            2,
+            3
+          ]
+        },
+        {
+          "cs": {
+            "complexity": 2,
+            "complexity_penalty": 0,
+            "penalized_score": 0.6333333253860474,
+            "score": 0.800000011920929,
+            "uniformity_penalty": 0.1666666716337204
+          },
+          "fs": [
+            1,
+            2
+          ]
+        },
+        {
+          "cs": {
+            "complexity": 2,
+            "complexity_penalty": 0,
+            "penalized_score": 0.6333333253860474,
+            "score": 0.800000011920929,
+            "uniformity_penalty": 0.1666666716337204
+          },
+          "fs": [
+            3,
+            4
+          ]
+        }
+      ],
+      "table": "a5",
+      "top": [
+        [
+          0.800000011920929,
+          [
+            0,
+            1
+          ]
+        ],
+        [
+          0.800000011920929,
+          [
+            2,
+            3
+          ]
+        ],
+        [
+          0.6333333253860474,
+          [
+            1,
+            2
+          ]
+        ],
+        [
+          0.6333333253860474,
+          [
+            3,
+            4
+          ]
+        ]
+      ]
+    },
+    {
+      "diversity_interaction": 0,
+      "diversity_jaccard": true,
+      "diversity_pressure": 0.25,
+      "n_demes": 4,
+      "name": "a5_triples_jaccard",
+      "pop": [
+        [
+          0.8,
+          [
+            0,
+            1,
+            2
+          ]
+        ],
+        [
+          0.8,
+          [
+            2,
+            3,
+            4
+          ]
+        ],
+        [
+          0.8,
+          [
+            1,
+            2,
+            3
+          ]
+        ],
+        [
+          0.8,
+          [
+            0,
+            3,
+            4
+          ]
+        ]
+      ],
+      "ranked": [
+        {
+          "cs": {
+            "complexity": 3,
+            "complexity_penalty": 0,
+            "penalized_score": 0.800000011920929,
+            "score": 0.800000011920929,
+            "uniformity_penalty": 0
+          },
+          "fs": [
+            0,
+            1,
+            2
+          ]
+        },
+        {
+          "cs": {
+            "complexity": 3,
+            "complexity_penalty": 0,
+            "penalized_score": 0.75,
+            "score": 0.800000011920929,
+            "uniformity_penalty": 0.05000000074505806
+          },
+          "fs": [
+            2,
+            3,
+            4
+          ]
+        },
+        {
+          "cs": {
+            "complexity": 3,
+            "complexity_penalty": 0,
+            "penalized_score": 0.675000011920929,
+            "score": 0.800000011920929,
+            "uniformity_penalty": 0.125
+          },
+          "fs": [
+            1,
+            2,
+            3
+          ]
+        },
+        {
+          "cs": {
+            "complexity": 3,
+            "complexity_penalty": 0,
+            "penalized_score": 0.675000011920929,
+            "score": 0.800000011920929,
+            "uniformity_penalty": 0.125
+          },
+          "fs": [
+            0,
+            3,
+            4
+          ]
+        }
+      ],
+      "table": "a5",
+      "top": [
+        [
+          0.800000011920929,
+          [
+            0,
+            1,
+            2
+          ]
+        ],
+        [
+          0.75,
+          [
+            2,
+            3,
+            4
+          ]
+        ],
+        [
+          0.675000011920929,
+          [
+            1,
+            2,
+            3
+          ]
+        ],
+        [
+          0.675000011920929,
+          [
+            0,
+            3,
+            4
+          ]
+        ]
+      ]
+    },
+    {
+      "diversity_interaction": -1,
+      "diversity_jaccard": false,
+      "diversity_pressure": 0.3,
+      "n_demes": 5,
+      "name": "a5_mixed_mi_neg",
+      "pop": [
+        [
+          0.7,
+          [
+            0,
+            1,
+            2
+          ]
+        ],
+        [
+          0.7,
+          [
+            0
+          ]
+        ],
+        [
+          0.7,
+          [
+            1,
+            2
+          ]
+        ],
+        [
+          0.7,
+          [
+            3,
+            4
+          ]
+        ],
+        [
+          0.7,
+          [
+            2
+          ]
+        ]
+      ],
+      "ranked": [
+        {
+          "cs": {
+            "complexity": 1,
+            "complexity_penalty": 0,
+            "penalized_score": 0.699999988079071,
+            "score": 0.699999988079071,
+            "uniformity_penalty": 0
+          },
+          "fs": [
+            0
+          ]
+        },
+        {
+          "cs": {
+            "complexity": 1,
+            "complexity_penalty": 0,
+            "penalized_score": 0.699999988079071,
+            "score": 0.699999988079071,
+            "uniformity_penalty": 0
+          },
+          "fs": [
+            2
+          ]
+        },
+        {
+          "cs": {
+            "complexity": 2,
+            "complexity_penalty": 0,
+            "penalized_score": 0.699999988079071,
+            "score": 0.699999988079071,
+            "uniformity_penalty": 0
+          },
+          "fs": [
+            3,
+            4
+          ]
+        },
+        {
+          "cs": {
+            "complexity": 2,
+            "complexity_penalty": 0,
+            "penalized_score": 0.3999999761581421,
+            "score": 0.699999988079071,
+            "uniformity_penalty": 0.30000001192092896
+          },
+          "fs": [
+            1,
+            2
+          ]
+        },
+        {
+          "cs": {
+            "complexity": 3,
+            "complexity_penalty": 0,
+            "penalized_score": 0.09999996423721313,
+            "score": 0.699999988079071,
+            "uniformity_penalty": 0.6000000238418579
+          },
+          "fs": [
+            0,
+            1,
+            2
+          ]
+        }
+      ],
+      "table": "a5",
+      "top": [
+        [
+          0.699999988079071,
+          [
+            0
+          ]
+        ],
+        [
+          0.699999988079071,
+          [
+            2
+          ]
+        ],
+        [
+          0.699999988079071,
+          [
+            3,
+            4
+          ]
+        ],
+        [
+          0.3999999761581421,
+          [
+            1,
+            2
+          ]
+        ],
+        [
+          0.09999996423721313,
+          [
+            0,
+            1,
+            2
+          ]
+        ]
+      ]
+    },
+    {
+      "diversity_interaction": -1,
+      "diversity_jaccard": false,
+      "diversity_pressure": 0.3,
+      "n_demes": 2,
+      "name": "a5_mixed_mi_neg_n2",
+      "pop": [
+        [
+          0.7,
+          [
+            0,
+            1,
+            2
+          ]
+        ],
+        [
+          0.7,
+          [
+            0
+          ]
+        ],
+        [
+          0.7,
+          [
+            1,
+            2
+          ]
+        ],
+        [
+          0.7,
+          [
+            3,
+            4
+          ]
+        ],
+        [
+          0.7,
+          [
+            2
+          ]
+        ]
+      ],
+      "ranked": [
+        {
+          "cs": {
+            "complexity": 1,
+            "complexity_penalty": 0,
+            "penalized_score": 0.699999988079071,
+            "score": 0.699999988079071,
+            "uniformity_penalty": 0
+          },
+          "fs": [
+            0
+          ]
+        },
+        {
+          "cs": {
+            "complexity": 1,
+            "complexity_penalty": 0,
+            "penalized_score": 0.699999988079071,
+            "score": 0.699999988079071,
+            "uniformity_penalty": 0
+          },
+          "fs": [
+            2
+          ]
+        },
+        {
+          "cs": {
+            "complexity": 2,
+            "complexity_penalty": 0,
+            "penalized_score": 0.699999988079071,
+            "score": 0.699999988079071,
+            "uniformity_penalty": 0
+          },
+          "fs": [
+            3,
+            4
+          ]
+        },
+        {
+          "cs": {
+            "complexity": 2,
+            "complexity_penalty": 0,
+            "penalized_score": 0.3999999761581421,
+            "score": 0.699999988079071,
+            "uniformity_penalty": 0.30000001192092896
+          },
+          "fs": [
+            1,
+            2
+          ]
+        },
+        {
+          "cs": {
+            "complexity": 3,
+            "complexity_penalty": 0,
+            "penalized_score": 0.09999996423721313,
+            "score": 0.699999988079071,
+            "uniformity_penalty": 0.6000000238418579
+          },
+          "fs": [
+            0,
+            1,
+            2
+          ]
+        }
+      ],
+      "table": "a5",
+      "top": [
+        [
+          0.699999988079071,
+          [
+            0
+          ]
+        ],
+        [
+          0.699999988079071,
+          [
+            2
+          ]
+        ]
+      ]
+    },
+    {
+      "diversity_interaction": -1,
+      "diversity_jaccard": false,
+      "diversity_pressure": 0.3,
+      "n_demes": 3,
+      "name": "a5_mixed_mi_neg_n3",
+      "pop": [
+        [
+          0.7,
+          [
+            0,
+            1,
+            2
+          ]
+        ],
+        [
+          0.7,
+          [
+            0
+          ]
+        ],
+        [
+          0.7,
+          [
+            1,
+            2
+          ]
+        ],
+        [
+          0.7,
+          [
+            3,
+            4
+          ]
+        ],
+        [
+          0.7,
+          [
+            2
+          ]
+        ]
+      ],
+      "ranked": [
+        {
+          "cs": {
+            "complexity": 1,
+            "complexity_penalty": 0,
+            "penalized_score": 0.699999988079071,
+            "score": 0.699999988079071,
+            "uniformity_penalty": 0
+          },
+          "fs": [
+            0
+          ]
+        },
+        {
+          "cs": {
+            "complexity": 1,
+            "complexity_penalty": 0,
+            "penalized_score": 0.699999988079071,
+            "score": 0.699999988079071,
+            "uniformity_penalty": 0
+          },
+          "fs": [
+            2
+          ]
+        },
+        {
+          "cs": {
+            "complexity": 2,
+            "complexity_penalty": 0,
+            "penalized_score": 0.699999988079071,
+            "score": 0.699999988079071,
+            "uniformity_penalty": 0
+          },
+          "fs": [
+            3,
+            4
+          ]
+        },
+        {
+          "cs": {
+            "complexity": 2,
+            "complexity_penalty": 0,
+            "penalized_score": 0.3999999761581421,
+            "score": 0.699999988079071,
+            "uniformity_penalty": 0.30000001192092896
+          },
+          "fs": [
+            1,
+            2
+          ]
+        },
+        {
+          "cs": {
+            "complexity": 3,
+            "complexity_penalty": 0,
+            "penalized_score": 0.09999996423721313,
+            "score": 0.699999988079071,
+            "uniformity_penalty": 0.6000000238418579
+          },
+          "fs": [
+            0,
+            1,
+            2
+          ]
+        }
+      ],
+      "table": "a5",
+      "top": [
+        [
+          0.699999988079071,
+          [
+            0
+          ]
+        ],
+        [
+          0.699999988079071,
+          [
+            2
+          ]
+        ],
+        [
+          0.699999988079071,
+          [
+            3,
+            4
+          ]
+        ]
+      ]
+    },
+    {
+      "diversity_interaction": 0,
+      "diversity_jaccard": true,
+      "diversity_pressure": 1,
+      "n_demes": 2,
+      "name": "tie3_jaccard_p1_n2",
+      "pop": [
+        [
+          0.5,
+          [
+            0
+          ]
+        ],
+        [
+          0.5,
+          [
+            1
+          ]
+        ],
+        [
+          0.5,
+          [
+            2
+          ]
+        ]
+      ],
+      "ranked": [
+        {
+          "cs": {
+            "complexity": 1,
+            "complexity_penalty": 0,
+            "penalized_score": 0.5,
+            "score": 0.5,
+            "uniformity_penalty": 0
+          },
+          "fs": [
+            0
+          ]
+        },
+        {
+          "cs": {
+            "complexity": 1,
+            "complexity_penalty": 0,
+            "penalized_score": 0.5,
+            "score": 0.5,
+            "uniformity_penalty": 0
+          },
+          "fs": [
+            1
+          ]
+        },
+        {
+          "cs": {
+            "complexity": 1,
+            "complexity_penalty": 0,
+            "penalized_score": 0.5,
+            "score": 0.5,
+            "uniformity_penalty": 0
+          },
+          "fs": [
+            2
+          ]
+        }
+      ],
+      "table": "boolean",
+      "top": [
+        [
+          0.5,
+          [
+            0
+          ]
+        ],
+        [
+          0.5,
+          [
+            1
+          ]
+        ]
+      ]
+    },
+    {
+      "diversity_interaction": 0,
+      "diversity_jaccard": true,
+      "diversity_pressure": 0.3,
+      "n_demes": 2,
+      "name": "f32_jaccard_1over5_p0.3",
+      "pop": [
+        [
+          0.9,
+          [
+            0,
+            1,
+            2
+          ]
+        ],
+        [
+          0.5,
+          [
+            2,
+            3,
+            4
+          ]
+        ]
+      ],
+      "ranked": [
+        {
+          "cs": {
+            "complexity": 3,
+            "complexity_penalty": 0,
+            "penalized_score": 0.8999999761581421,
+            "score": 0.8999999761581421,
+            "uniformity_penalty": 0
+          },
+          "fs": [
+            0,
+            1,
+            2
+          ]
+        },
+        {
+          "cs": {
+            "complexity": 3,
+            "complexity_penalty": 0,
+            "penalized_score": 0.4399999976158142,
+            "score": 0.5,
+            "uniformity_penalty": 0.06000000238418579
+          },
+          "fs": [
+            2,
+            3,
+            4
+          ]
+        }
+      ],
+      "table": "a5",
+      "top": [
+        [
+          0.8999999761581421,
+          [
+            0,
+            1,
+            2
+          ]
+        ],
+        [
+          0.4399999976158142,
+          [
+            2,
+            3,
+            4
+          ]
+        ]
+      ]
+    },
+    {
+      "diversity_interaction": 0,
+      "diversity_jaccard": true,
+      "diversity_pressure": 0.6,
+      "n_demes": 2,
+      "name": "f32_jaccard_2over5_p0.6",
+      "pop": [
+        [
+          0.9,
+          [
+            0,
+            1,
+            2
+          ]
+        ],
+        [
+          0.5,
+          [
+            1,
+            2,
+            3,
+            4
+          ]
+        ]
+      ],
+      "ranked": [
+        {
+          "cs": {
+            "complexity": 3,
+            "complexity_penalty": 0,
+            "penalized_score": 0.8999999761581421,
+            "score": 0.8999999761581421,
+            "uniformity_penalty": 0
+          },
+          "fs": [
+            0,
+            1,
+            2
+          ]
+        },
+        {
+          "cs": {
+            "complexity": 4,
+            "complexity_penalty": 0,
+            "penalized_score": 0.25999999046325684,
+            "score": 0.5,
+            "uniformity_penalty": 0.24000000953674316
+          },
+          "fs": [
+            1,
+            2,
+            3,
+            4
+          ]
+        }
+      ],
+      "table": "a5",
+      "top": [
+        [
+          0.8999999761581421,
+          [
+            0,
+            1,
+            2
+          ]
+        ],
+        [
+          0.25999999046325684,
+          [
+            1,
+            2,
+            3,
+            4
+          ]
+        ]
+      ]
+    },
+    {
+      "diversity_interaction": 0,
+      "diversity_jaccard": true,
+      "diversity_pressure": 0.7,
+      "n_demes": 2,
+      "name": "f32_jaccard_3over5_p0.7",
+      "pop": [
+        [
+          0.9,
+          [
+            0,
+            1,
+            2,
+            3
+          ]
+        ],
+        [
+          0.5,
+          [
+            1,
+            2,
+            3,
+            4
+          ]
+        ]
+      ],
+      "ranked": [
+        {
+          "cs": {
+            "complexity": 4,
+            "complexity_penalty": 0,
+            "penalized_score": 0.8999999761581421,
+            "score": 0.8999999761581421,
+            "uniformity_penalty": 0
+          },
+          "fs": [
+            0,
+            1,
+            2,
+            3
+          ]
+        },
+        {
+          "cs": {
+            "complexity": 4,
+            "complexity_penalty": 0,
+            "penalized_score": 0.07999998331069946,
+            "score": 0.5,
+            "uniformity_penalty": 0.42000001668930054
+          },
+          "fs": [
+            1,
+            2,
+            3,
+            4
+          ]
+        }
+      ],
+      "table": "a5",
+      "top": [
+        [
+          0.8999999761581421,
+          [
+            0,
+            1,
+            2,
+            3
+          ]
+        ],
+        [
+          0.07999998331069946,
+          [
+            1,
+            2,
+            3,
+            4
+          ]
+        ]
+      ]
+    },
+    {
+      "diversity_interaction": -1,
+      "diversity_jaccard": false,
+      "diversity_pressure": 0.9,
+      "n_demes": 3,
+      "name": "skew_mi_neg_p0.9",
+      "pop": [
+        [
+          0.9,
+          [
+            0
+          ]
+        ],
+        [
+          0.5,
+          [
+            1
+          ]
+        ],
+        [
+          0.5,
+          [
+            2
+          ]
+        ]
+      ],
+      "ranked": [
+        {
+          "cs": {
+            "complexity": 1,
+            "complexity_penalty": 0,
+            "penalized_score": 0.8999999761581421,
+            "score": 0.8999999761581421,
+            "uniformity_penalty": 0
+          },
+          "fs": [
+            0
+          ]
+        },
+        {
+          "cs": {
+            "complexity": 1,
+            "complexity_penalty": 0,
+            "penalized_score": 0.47051113843917847,
+            "score": 0.5,
+            "uniformity_penalty": 0.029488855972886086
+          },
+          "fs": [
+            2
+          ]
+        },
+        {
+          "cs": {
+            "complexity": 1,
+            "complexity_penalty": 0,
+            "penalized_score": 0.4053240418434143,
+            "score": 0.5,
+            "uniformity_penalty": 0.09467597305774689
+          },
+          "fs": [
+            1
+          ]
+        }
+      ],
+      "table": "skew",
+      "top": [
+        [
+          0.8999999761581421,
+          [
+            0
+          ]
+        ],
+        [
+          0.47051113843917847,
+          [
+            2
+          ]
+        ],
+        [
+          0.4053240418434143,
+          [
+            1
+          ]
+        ]
+      ]
+    },
+    {
+      "diversity_interaction": -1,
+      "diversity_jaccard": false,
+      "diversity_pressure": 0.13,
+      "n_demes": 3,
+      "name": "skew_mi_neg_p0.13",
+      "pop": [
+        [
+          0.9,
+          [
+            0
+          ]
+        ],
+        [
+          0.5,
+          [
+            1
+          ]
+        ],
+        [
+          0.5,
+          [
+            2
+          ]
+        ]
+      ],
+      "ranked": [
+        {
+          "cs": {
+            "complexity": 1,
+            "complexity_penalty": 0,
+            "penalized_score": 0.8999999761581421,
+            "score": 0.8999999761581421,
+            "uniformity_penalty": 0
+          },
+          "fs": [
+            0
+          ]
+        },
+        {
+          "cs": {
+            "complexity": 1,
+            "complexity_penalty": 0,
+            "penalized_score": 0.49574050307273865,
+            "score": 0.5,
+            "uniformity_penalty": 0.004259501583874226
+          },
+          "fs": [
+            2
+          ]
+        },
+        {
+          "cs": {
+            "complexity": 1,
+            "complexity_penalty": 0,
+            "penalized_score": 0.48632457852363586,
+            "score": 0.5,
+            "uniformity_penalty": 0.013675418682396412
+          },
+          "fs": [
+            1
+          ]
+        }
+      ],
+      "table": "skew",
+      "top": [
+        [
+          0.8999999761581421,
+          [
+            0
+          ]
+        ],
+        [
+          0.49574050307273865,
+          [
+            2
+          ]
+        ],
+        [
+          0.48632457852363586,
+          [
+            1
+          ]
+        ]
+      ]
+    },
+    {
+      "diversity_interaction": 1,
+      "diversity_jaccard": false,
+      "diversity_pressure": 0.7,
+      "n_demes": 3,
+      "name": "skew_mi_interaction_1",
+      "pop": [
+        [
+          0.9,
+          [
+            0,
+            1,
+            2
+          ]
+        ],
+        [
+          0.5,
+          [
+            0,
+            2,
+            3
+          ]
+        ],
+        [
+          0.5,
+          [
+            1,
+            3,
+            4
+          ]
+        ]
+      ],
+      "ranked": [
+        {
+          "cs": {
+            "complexity": 3,
+            "complexity_penalty": 0,
+            "penalized_score": 0.8999999761581421,
+            "score": 0.8999999761581421,
+            "uniformity_penalty": 0
+          },
+          "fs": [
+            0,
+            1,
+            2
+          ]
+        },
+        {
+          "cs": {
+            "complexity": 3,
+            "complexity_penalty": 0,
+            "penalized_score": -0.17481160163879395,
+            "score": 0.5,
+            "uniformity_penalty": 0.674811601638794
+          },
+          "fs": [
+            1,
+            3,
+            4
+          ]
+        },
+        {
+          "cs": {
+            "complexity": 3,
+            "complexity_penalty": 0,
+            "penalized_score": -0.27836859226226807,
+            "score": 0.5,
+            "uniformity_penalty": 0.7783685922622681
+          },
+          "fs": [
+            0,
+            2,
+            3
+          ]
+        }
+      ],
+      "table": "skew",
+      "top": [
+        [
+          0.8999999761581421,
+          [
+            0,
+            1,
+            2
+          ]
+        ],
+        [
+          -0.17481160163879395,
+          [
+            1,
+            3,
+            4
+          ]
+        ],
+        [
+          -0.27836859226226807,
+          [
+            0,
+            2,
+            3
+          ]
+        ]
+      ]
+    },
+    {
+      "diversity_interaction": 2,
+      "diversity_jaccard": false,
+      "diversity_pressure": 0.7,
+      "n_demes": 3,
+      "name": "skew_mi_interaction_2",
+      "pop": [
+        [
+          0.9,
+          [
+            0,
+            1,
+            2
+          ]
+        ],
+        [
+          0.5,
+          [
+            0,
+            2,
+            3
+          ]
+        ],
+        [
+          0.5,
+          [
+            1,
+            3,
+            4
+          ]
+        ]
+      ],
+      "ranked": [
+        {
+          "cs": {
+            "complexity": 3,
+            "complexity_penalty": 0,
+            "penalized_score": 0.8999999761581421,
+            "score": 0.8999999761581421,
+            "uniformity_penalty": 0
+          },
+          "fs": [
+            0,
+            1,
+            2
+          ]
+        },
+        {
+          "cs": {
+            "complexity": 3,
+            "complexity_penalty": 0,
+            "penalized_score": -0.9762996435165405,
+            "score": 0.5,
+            "uniformity_penalty": 1.4762996435165405
+          },
+          "fs": [
+            1,
+            3,
+            4
+          ]
+        },
+        {
+          "cs": {
+            "complexity": 3,
+            "complexity_penalty": 0,
+            "penalized_score": -1.157965898513794,
+            "score": 0.5,
+            "uniformity_penalty": 1.657965898513794
+          },
+          "fs": [
+            0,
+            2,
+            3
+          ]
+        }
+      ],
+      "table": "skew",
+      "top": [
+        [
+          0.8999999761581421,
+          [
+            0,
+            1,
+            2
+          ]
+        ],
+        [
+          -0.9762996435165405,
+          [
+            1,
+            3,
+            4
+          ]
+        ],
+        [
+          -1.157965898513794,
+          [
+            0,
+            2,
+            3
+          ]
+        ]
+      ]
+    },
+    {
+      "diversity_interaction": 0,
+      "diversity_jaccard": true,
+      "diversity_pressure": 0.23,
+      "n_demes": 3,
+      "name": "skew_jaccard_p0.23",
+      "pop": [
+        [
+          0.9,
+          [
+            0,
+            1,
+            2
+          ]
+        ],
+        [
+          0.5,
+          [
+            2,
+            3,
+            4
+          ]
+        ],
+        [
+          0.5,
+          [
+            0,
+            4
+          ]
+        ]
+      ],
+      "ranked": [
+        {
+          "cs": {
+            "complexity": 3,
+            "complexity_penalty": 0,
+            "penalized_score": 0.8999999761581421,
+            "score": 0.8999999761581421,
+            "uniformity_penalty": 0
+          },
+          "fs": [
+            0,
+            1,
+            2
+          ]
+        },
+        {
+          "cs": {
+            "complexity": 3,
+            "complexity_penalty": 0,
+            "penalized_score": 0.45399999618530273,
+            "score": 0.5,
+            "uniformity_penalty": 0.04600000008940697
+          },
+          "fs": [
+            2,
+            3,
+            4
+          ]
+        },
+        {
+          "cs": {
+            "complexity": 2,
+            "complexity_penalty": 0,
+            "penalized_score": 0.4424999952316284,
+            "score": 0.5,
+            "uniformity_penalty": 0.057500001043081284
+          },
+          "fs": [
+            0,
+            4
+          ]
+        }
+      ],
+      "table": "skew",
+      "top": [
+        [
+          0.8999999761581421,
+          [
+            0,
+            1,
+            2
+          ]
+        ],
+        [
+          0.45399999618530273,
+          [
+            2,
+            3,
+            4
+          ]
+        ],
+        [
+          0.4424999952316284,
+          [
+            0,
+            4
+          ]
+        ]
+      ]
+    }
+  ],
+  "remove_rows": [
+    {
+      "idxs": [],
+      "result": [
+        {
+          "inputs": [
+            "1",
+            "1",
+            "1"
+          ],
+          "outputs": [
+            [
+              "true",
+              1
+            ],
+            [
+              "false",
+              1
+            ]
+          ]
+        },
+        {
+          "inputs": [
+            "1",
+            "0",
+            "1"
+          ],
+          "outputs": [
+            [
+              "true",
+              2
+            ]
+          ]
+        },
+        {
+          "inputs": [
+            "0",
+            "1",
+            "0"
+          ],
+          "outputs": [
+            [
+              "true",
+              1
+            ]
+          ]
+        },
+        {
+          "inputs": [
+            "0",
+            "0",
+            "0"
+          ],
+          "outputs": [
+            [
+              "true",
+              1
+            ],
+            [
+              "false",
+              2
+            ]
+          ]
+        }
+      ],
+      "uncompressed_size": 8
+    },
+    {
+      "idxs": [
+        0
+      ],
+      "result": [
+        {
+          "inputs": [
+            "1",
+            "1",
+            "1"
+          ],
+          "outputs": [
+            [
+              "false",
+              1
+            ]
+          ]
+        },
+        {
+          "inputs": [
+            "1",
+            "0",
+            "1"
+          ],
+          "outputs": [
+            [
+              "true",
+              2
+            ]
+          ]
+        },
+        {
+          "inputs": [
+            "0",
+            "1",
+            "0"
+          ],
+          "outputs": [
+            [
+              "true",
+              1
+            ]
+          ]
+        },
+        {
+          "inputs": [
+            "0",
+            "0",
+            "0"
+          ],
+          "outputs": [
+            [
+              "true",
+              1
+            ],
+            [
+              "false",
+              2
+            ]
+          ]
+        }
+      ],
+      "uncompressed_size": 7
+    },
+    {
+      "idxs": [
+        1
+      ],
+      "result": [
+        {
+          "inputs": [
+            "1",
+            "1",
+            "1"
+          ],
+          "outputs": [
+            [
+              "true",
+              1
+            ]
+          ]
+        },
+        {
+          "inputs": [
+            "1",
+            "0",
+            "1"
+          ],
+          "outputs": [
+            [
+              "true",
+              2
+            ]
+          ]
+        },
+        {
+          "inputs": [
+            "0",
+            "1",
+            "0"
+          ],
+          "outputs": [
+            [
+              "true",
+              1
+            ]
+          ]
+        },
+        {
+          "inputs": [
+            "0",
+            "0",
+            "0"
+          ],
+          "outputs": [
+            [
+              "true",
+              1
+            ],
+            [
+              "false",
+              2
+            ]
+          ]
+        }
+      ],
+      "uncompressed_size": 7
+    },
+    {
+      "idxs": [
+        0,
+        1
+      ],
+      "result": [
+        {
+          "inputs": [
+            "1",
+            "0",
+            "1"
+          ],
+          "outputs": [
+            [
+              "true",
+              2
+            ]
+          ]
+        },
+        {
+          "inputs": [
+            "0",
+            "1",
+            "0"
+          ],
+          "outputs": [
+            [
+              "true",
+              1
+            ]
+          ]
+        },
+        {
+          "inputs": [
+            "0",
+            "0",
+            "0"
+          ],
+          "outputs": [
+            [
+              "true",
+              1
+            ],
+            [
+              "false",
+              2
+            ]
+          ]
+        }
+      ],
+      "uncompressed_size": 6
+    },
+    {
+      "idxs": [
+        2,
+        3
+      ],
+      "result": [
+        {
+          "inputs": [
+            "1",
+            "1",
+            "1"
+          ],
+          "outputs": [
+            [
+              "true",
+              1
+            ],
+            [
+              "false",
+              1
+            ]
+          ]
+        },
+        {
+          "inputs": [
+            "0",
+            "1",
+            "0"
+          ],
+          "outputs": [
+            [
+              "true",
+              1
+            ]
+          ]
+        },
+        {
+          "inputs": [
+            "0",
+            "0",
+            "0"
+          ],
+          "outputs": [
+            [
+              "true",
+              1
+            ],
+            [
+              "false",
+              2
+            ]
+          ]
+        }
+      ],
+      "uncompressed_size": 6
+    },
+    {
+      "idxs": [
+        4
+      ],
+      "result": [
+        {
+          "inputs": [
+            "1",
+            "1",
+            "1"
+          ],
+          "outputs": [
+            [
+              "true",
+              1
+            ],
+            [
+              "false",
+              1
+            ]
+          ]
+        },
+        {
+          "inputs": [
+            "1",
+            "0",
+            "1"
+          ],
+          "outputs": [
+            [
+              "true",
+              2
+            ]
+          ]
+        },
+        {
+          "inputs": [
+            "0",
+            "0",
+            "0"
+          ],
+          "outputs": [
+            [
+              "true",
+              1
+            ],
+            [
+              "false",
+              2
+            ]
+          ]
+        }
+      ],
+      "uncompressed_size": 7
+    },
+    {
+      "idxs": [
+        5
+      ],
+      "result": [
+        {
+          "inputs": [
+            "1",
+            "1",
+            "1"
+          ],
+          "outputs": [
+            [
+              "true",
+              1
+            ],
+            [
+              "false",
+              1
+            ]
+          ]
+        },
+        {
+          "inputs": [
+            "1",
+            "0",
+            "1"
+          ],
+          "outputs": [
+            [
+              "true",
+              2
+            ]
+          ]
+        },
+        {
+          "inputs": [
+            "0",
+            "1",
+            "0"
+          ],
+          "outputs": [
+            [
+              "true",
+              1
+            ]
+          ]
+        },
+        {
+          "inputs": [
+            "0",
+            "0",
+            "0"
+          ],
+          "outputs": [
+            [
+              "false",
+              2
+            ]
+          ]
+        }
+      ],
+      "uncompressed_size": 7
+    },
+    {
+      "idxs": [
+        5,
+        6,
+        7
+      ],
+      "result": [
+        {
+          "inputs": [
+            "1",
+            "1",
+            "1"
+          ],
+          "outputs": [
+            [
+              "true",
+              1
+            ],
+            [
+              "false",
+              1
+            ]
+          ]
+        },
+        {
+          "inputs": [
+            "1",
+            "0",
+            "1"
+          ],
+          "outputs": [
+            [
+              "true",
+              2
+            ]
+          ]
+        },
+        {
+          "inputs": [
+            "0",
+            "1",
+            "0"
+          ],
+          "outputs": [
+            [
+              "true",
+              1
+            ]
+          ]
+        }
+      ],
+      "uncompressed_size": 5
+    },
+    {
+      "idxs": [
+        0,
+        2,
+        4,
+        6
+      ],
+      "result": [
+        {
+          "inputs": [
+            "1",
+            "1",
+            "1"
+          ],
+          "outputs": [
+            [
+              "false",
+              1
+            ]
+          ]
+        },
+        {
+          "inputs": [
+            "1",
+            "0",
+            "1"
+          ],
+          "outputs": [
+            [
+              "true",
+              1
+            ]
+          ]
+        },
+        {
+          "inputs": [
+            "0",
+            "0",
+            "0"
+          ],
+          "outputs": [
+            [
+              "true",
+              1
+            ],
+            [
+              "false",
+              1
+            ]
+          ]
+        }
+      ],
+      "uncompressed_size": 4
+    },
+    {
+      "idxs": [
+        1,
+        3,
+        5,
+        7
+      ],
+      "result": [
+        {
+          "inputs": [
+            "1",
+            "1",
+            "1"
+          ],
+          "outputs": [
+            [
+              "true",
+              1
+            ]
+          ]
+        },
+        {
+          "inputs": [
+            "1",
+            "0",
+            "1"
+          ],
+          "outputs": [
+            [
+              "true",
+              1
+            ]
+          ]
+        },
+        {
+          "inputs": [
+            "0",
+            "1",
+            "0"
+          ],
+          "outputs": [
+            [
+              "true",
+              1
+            ]
+          ]
+        },
+        {
+          "inputs": [
+            "0",
+            "0",
+            "0"
+          ],
+          "outputs": [
+            [
+              "false",
+              1
+            ]
+          ]
+        }
+      ],
+      "uncompressed_size": 4
+    },
+    {
+      "idxs": [
+        2,
+        5
+      ],
+      "result": [
+        {
+          "inputs": [
+            "1",
+            "1",
+            "1"
+          ],
+          "outputs": [
+            [
+              "true",
+              1
+            ],
+            [
+              "false",
+              1
+            ]
+          ]
+        },
+        {
+          "inputs": [
+            "1",
+            "0",
+            "1"
+          ],
+          "outputs": [
+            [
+              "true",
+              1
+            ]
+          ]
+        },
+        {
+          "inputs": [
+            "0",
+            "1",
+            "0"
+          ],
+          "outputs": [
+            [
+              "true",
+              1
+            ]
+          ]
+        },
+        {
+          "inputs": [
+            "0",
+            "0",
+            "0"
+          ],
+          "outputs": [
+            [
+              "false",
+              2
+            ]
+          ]
+        }
+      ],
+      "uncompressed_size": 6
+    },
+    {
+      "idxs": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7
+      ],
+      "result": [],
+      "uncompressed_size": 0
+    }
+  ],
+  "remove_rows_big": [
+    {
+      "idxs": [
+        3,
+        9
+      ],
+      "result": [
+        {
+          "inputs": [
+            "1",
+            "1",
+            "1",
+            "1"
+          ],
+          "outputs": [
+            [
+              "true",
+              3
+            ]
+          ]
+        },
+        {
+          "inputs": [
+            "1",
+            "1",
+            "0",
+            "0"
+          ],
+          "outputs": [
+            [
+              "true",
+              3
+            ],
+            [
+              "false",
+              1
+            ]
+          ]
+        },
+        {
+          "inputs": [
+            "1",
+            "0",
+            "1",
+            "0"
+          ],
+          "outputs": [
+            [
+              "true",
+              2
+            ],
+            [
+              "false",
+              2
+            ]
+          ]
+        },
+        {
+          "inputs": [
+            "1",
+            "0",
+            "0",
+            "1"
+          ],
+          "outputs": [
+            [
+              "true",
+              1
+            ],
+            [
+              "false",
+              2
+            ]
+          ]
+        },
+        {
+          "inputs": [
+            "0",
+            "1",
+            "1",
+            "0"
+          ],
+          "outputs": [
+            [
+              "true",
+              2
+            ],
+            [
+              "false",
+              1
+            ]
+          ]
+        },
+        {
+          "inputs": [
+            "0",
+            "1",
+            "0",
+            "1"
+          ],
+          "outputs": [
+            [
+              "true",
+              2
+            ],
+            [
+              "false",
+              1
+            ]
+          ]
+        },
+        {
+          "inputs": [
+            "0",
+            "0",
+            "1",
+            "1"
+          ],
+          "outputs": [
+            [
+              "true",
+              1
+            ],
+            [
+              "false",
+              3
+            ]
+          ]
+        },
+        {
+          "inputs": [
+            "0",
+            "0",
+            "0",
+            "0"
+          ],
+          "outputs": [
+            [
+              "true",
+              2
+            ],
+            [
+              "false",
+              2
+            ]
+          ]
+        }
+      ],
+      "uncompressed_size": 28
+    },
+    {
+      "idxs": [
+        5,
+        13
+      ],
+      "result": [
+        {
+          "inputs": [
+            "1",
+            "1",
+            "1",
+            "1"
+          ],
+          "outputs": [
+            [
+              "true",
+              3
+            ],
+            [
+              "false",
+              1
+            ]
+          ]
+        },
+        {
+          "inputs": [
+            "1",
+            "1",
+            "0",
+            "0"
+          ],
+          "outputs": [
+            [
+              "true",
+              2
+            ],
+            [
+              "false",
+              1
+            ]
+          ]
+        },
+        {
+          "inputs": [
+            "1",
+            "0",
+            "1",
+            "0"
+          ],
+          "outputs": [
+            [
+              "true",
+              3
+            ],
+            [
+              "false",
+              2
+            ]
+          ]
+        },
+        {
+          "inputs": [
+            "1",
+            "0",
+            "0",
+            "1"
+          ],
+          "outputs": [
+            [
+              "false",
+              2
+            ]
+          ]
+        },
+        {
+          "inputs": [
+            "0",
+            "1",
+            "1",
+            "0"
+          ],
+          "outputs": [
+            [
+              "true",
+              2
+            ],
+            [
+              "false",
+              1
+            ]
+          ]
+        },
+        {
+          "inputs": [
+            "0",
+            "1",
+            "0",
+            "1"
+          ],
+          "outputs": [
+            [
+              "true",
+              2
+            ],
+            [
+              "false",
+              1
+            ]
+          ]
+        },
+        {
+          "inputs": [
+            "0",
+            "0",
+            "1",
+            "1"
+          ],
+          "outputs": [
+            [
+              "true",
+              1
+            ],
+            [
+              "false",
+              3
+            ]
+          ]
+        },
+        {
+          "inputs": [
+            "0",
+            "0",
+            "0",
+            "0"
+          ],
+          "outputs": [
+            [
+              "true",
+              2
+            ],
+            [
+              "false",
+              2
+            ]
+          ]
+        }
+      ],
+      "uncompressed_size": 28
+    },
+    {
+      "idxs": [
+        7,
+        15
+      ],
+      "result": [
+        {
+          "inputs": [
+            "1",
+            "1",
+            "1",
+            "1"
+          ],
+          "outputs": [
+            [
+              "true",
+              3
+            ],
+            [
+              "false",
+              1
+            ]
+          ]
+        },
+        {
+          "inputs": [
+            "1",
+            "1",
+            "0",
+            "0"
+          ],
+          "outputs": [
+            [
+              "true",
+              3
+            ]
+          ]
+        },
+        {
+          "inputs": [
+            "1",
+            "0",
+            "1",
+            "0"
+          ],
+          "outputs": [
+            [
+              "true",
+              3
+            ],
+            [
+              "false",
+              2
+            ]
+          ]
+        },
+        {
+          "inputs": [
+            "1",
+            "0",
+            "0",
+            "1"
+          ],
+          "outputs": [
+            [
+              "true",
+              1
+            ],
+            [
+              "false",
+              1
+            ]
+          ]
+        },
+        {
+          "inputs": [
+            "0",
+            "1",
+            "1",
+            "0"
+          ],
+          "outputs": [
+            [
+              "true",
+              2
+            ],
+            [
+              "false",
+              1
+            ]
+          ]
+        },
+        {
+          "inputs": [
+            "0",
+            "1",
+            "0",
+            "1"
+          ],
+          "outputs": [
+            [
+              "true",
+              2
+            ],
+            [
+              "false",
+              1
+            ]
+          ]
+        },
+        {
+          "inputs": [
+            "0",
+            "0",
+            "1",
+            "1"
+          ],
+          "outputs": [
+            [
+              "true",
+              1
+            ],
+            [
+              "false",
+              3
+            ]
+          ]
+        },
+        {
+          "inputs": [
+            "0",
+            "0",
+            "0",
+            "0"
+          ],
+          "outputs": [
+            [
+              "true",
+              2
+            ],
+            [
+              "false",
+              2
+            ]
+          ]
+        }
+      ],
+      "uncompressed_size": 28
+    },
+    {
+      "idxs": [
+        3,
+        11,
+        19
+      ],
+      "result": [
+        {
+          "inputs": [
+            "1",
+            "1",
+            "1",
+            "1"
+          ],
+          "outputs": [
+            [
+              "true",
+              3
+            ]
+          ]
+        },
+        {
+          "inputs": [
+            "1",
+            "1",
+            "0",
+            "0"
+          ],
+          "outputs": [
+            [
+              "true",
+              3
+            ],
+            [
+              "false",
+              1
+            ]
+          ]
+        },
+        {
+          "inputs": [
+            "1",
+            "0",
+            "1",
+            "0"
+          ],
+          "outputs": [
+            [
+              "true",
+              3
+            ],
+            [
+              "false",
+              1
+            ]
+          ]
+        },
+        {
+          "inputs": [
+            "1",
+            "0",
+            "0",
+            "1"
+          ],
+          "outputs": [
+            [
+              "true",
+              1
+            ],
+            [
+              "false",
+              2
+            ]
+          ]
+        },
+        {
+          "inputs": [
+            "0",
+            "1",
+            "1",
+            "0"
+          ],
+          "outputs": [
+            [
+              "true",
+              2
+            ],
+            [
+              "false",
+              1
+            ]
+          ]
+        },
+        {
+          "inputs": [
+            "0",
+            "1",
+            "0",
+            "1"
+          ],
+          "outputs": [
+            [
+              "true",
+              1
+            ],
+            [
+              "false",
+              1
+            ]
+          ]
+        },
+        {
+          "inputs": [
+            "0",
+            "0",
+            "1",
+            "1"
+          ],
+          "outputs": [
+            [
+              "true",
+              1
+            ],
+            [
+              "false",
+              3
+            ]
+          ]
+        },
+        {
+          "inputs": [
+            "0",
+            "0",
+            "0",
+            "0"
+          ],
+          "outputs": [
+            [
+              "true",
+              2
+            ],
+            [
+              "false",
+              2
+            ]
+          ]
+        }
+      ],
+      "uncompressed_size": 27
+    },
+    {
+      "idxs": [
+        2,
+        3,
+        9
+      ],
+      "result": [
+        {
+          "inputs": [
+            "1",
+            "1",
+            "1",
+            "1"
+          ],
+          "outputs": [
+            [
+              "true",
+              2
+            ]
+          ]
+        },
+        {
+          "inputs": [
+            "1",
+            "1",
+            "0",
+            "0"
+          ],
+          "outputs": [
+            [
+              "true",
+              3
+            ],
+            [
+              "false",
+              1
+            ]
+          ]
+        },
+        {
+          "inputs": [
+            "1",
+            "0",
+            "1",
+            "0"
+          ],
+          "outputs": [
+            [
+              "true",
+              2
+            ],
+            [
+              "false",
+              2
+            ]
+          ]
+        },
+        {
+          "inputs": [
+            "1",
+            "0",
+            "0",
+            "1"
+          ],
+          "outputs": [
+            [
+              "true",
+              1
+            ],
+            [
+              "false",
+              2
+            ]
+          ]
+        },
+        {
+          "inputs": [
+            "0",
+            "1",
+            "1",
+            "0"
+          ],
+          "outputs": [
+            [
+              "true",
+              2
+            ],
+            [
+              "false",
+              1
+            ]
+          ]
+        },
+        {
+          "inputs": [
+            "0",
+            "1",
+            "0",
+            "1"
+          ],
+          "outputs": [
+            [
+              "true",
+              2
+            ],
+            [
+              "false",
+              1
+            ]
+          ]
+        },
+        {
+          "inputs": [
+            "0",
+            "0",
+            "1",
+            "1"
+          ],
+          "outputs": [
+            [
+              "true",
+              1
+            ],
+            [
+              "false",
+              3
+            ]
+          ]
+        },
+        {
+          "inputs": [
+            "0",
+            "0",
+            "0",
+            "0"
+          ],
+          "outputs": [
+            [
+              "true",
+              2
+            ],
+            [
+              "false",
+              2
+            ]
+          ]
+        }
+      ],
+      "uncompressed_size": 27
+    },
+    {
+      "idxs": [
+        4,
+        12,
+        20,
+        28
+      ],
+      "result": [
+        {
+          "inputs": [
+            "1",
+            "1",
+            "1",
+            "1"
+          ],
+          "outputs": [
+            [
+              "true",
+              3
+            ],
+            [
+              "false",
+              1
+            ]
+          ]
+        },
+        {
+          "inputs": [
+            "1",
+            "1",
+            "0",
+            "0"
+          ],
+          "outputs": [
+            [
+              "true",
+              2
+            ],
+            [
+              "false",
+              1
+            ]
+          ]
+        },
+        {
+          "inputs": [
+            "1",
+            "0",
+            "1",
+            "0"
+          ],
+          "outputs": [
+            [
+              "true",
+              3
+            ],
+            [
+              "false",
+              1
+            ]
+          ]
+        },
+        {
+          "inputs": [
+            "1",
+            "0",
+            "0",
+            "1"
+          ],
+          "outputs": [
+            [
+              "true",
+              1
+            ],
+            [
+              "false",
+              2
+            ]
+          ]
+        },
+        {
+          "inputs": [
+            "0",
+            "1",
+            "1",
+            "0"
+          ],
+          "outputs": [
+            [
+              "true",
+              2
+            ],
+            [
+              "false",
+              1
+            ]
+          ]
+        },
+        {
+          "inputs": [
+            "0",
+            "1",
+            "0",
+            "1"
+          ],
+          "outputs": [
+            [
+              "true",
+              1
+            ],
+            [
+              "false",
+              1
+            ]
+          ]
+        },
+        {
+          "inputs": [
+            "0",
+            "0",
+            "1",
+            "1"
+          ],
+          "outputs": [
+            [
+              "true",
+              1
+            ],
+            [
+              "false",
+              3
+            ]
+          ]
+        },
+        {
+          "inputs": [
+            "0",
+            "0",
+            "0",
+            "0"
+          ],
+          "outputs": [
+            [
+              "true",
+              2
+            ],
+            [
+              "false",
+              1
+            ]
+          ]
+        }
+      ],
+      "uncompressed_size": 26
+    },
+    {
+      "idxs": [
+        1,
+        10,
+        17
+      ],
+      "result": [
+        {
+          "inputs": [
+            "1",
+            "1",
+            "1",
+            "1"
+          ],
+          "outputs": [
+            [
+              "true",
+              2
+            ],
+            [
+              "false",
+              1
+            ]
+          ]
+        },
+        {
+          "inputs": [
+            "1",
+            "1",
+            "0",
+            "0"
+          ],
+          "outputs": [
+            [
+              "true",
+              3
+            ],
+            [
+              "false",
+              1
+            ]
+          ]
+        },
+        {
+          "inputs": [
+            "1",
+            "0",
+            "1",
+            "0"
+          ],
+          "outputs": [
+            [
+              "true",
+              2
+            ],
+            [
+              "false",
+              2
+            ]
+          ]
+        },
+        {
+          "inputs": [
+            "1",
+            "0",
+            "0",
+            "1"
+          ],
+          "outputs": [
+            [
+              "true",
+              1
+            ],
+            [
+              "false",
+              2
+            ]
+          ]
+        },
+        {
+          "inputs": [
+            "0",
+            "1",
+            "1",
+            "0"
+          ],
+          "outputs": [
+            [
+              "true",
+              1
+            ],
+            [
+              "false",
+              1
+            ]
+          ]
+        },
+        {
+          "inputs": [
+            "0",
+            "1",
+            "0",
+            "1"
+          ],
+          "outputs": [
+            [
+              "true",
+              2
+            ],
+            [
+              "false",
+              1
+            ]
+          ]
+        },
+        {
+          "inputs": [
+            "0",
+            "0",
+            "1",
+            "1"
+          ],
+          "outputs": [
+            [
+              "true",
+              1
+            ],
+            [
+              "false",
+              3
+            ]
+          ]
+        },
+        {
+          "inputs": [
+            "0",
+            "0",
+            "0",
+            "0"
+          ],
+          "outputs": [
+            [
+              "true",
+              2
+            ],
+            [
+              "false",
+              2
+            ]
+          ]
+        }
+      ],
+      "uncompressed_size": 27
+    },
+    {
+      "idxs": [
+        3,
+        5,
+        9,
+        26
+      ],
+      "result": [
+        {
+          "inputs": [
+            "1",
+            "1",
+            "1",
+            "1"
+          ],
+          "outputs": [
+            [
+              "true",
+              3
+            ]
+          ]
+        },
+        {
+          "inputs": [
+            "1",
+            "1",
+            "0",
+            "0"
+          ],
+          "outputs": [
+            [
+              "true",
+              2
+            ],
+            [
+              "false",
+              1
+            ]
+          ]
+        },
+        {
+          "inputs": [
+            "1",
+            "0",
+            "1",
+            "0"
+          ],
+          "outputs": [
+            [
+              "true",
+              2
+            ],
+            [
+              "false",
+              2
+            ]
+          ]
+        },
+        {
+          "inputs": [
+            "1",
+            "0",
+            "0",
+            "1"
+          ],
+          "outputs": [
+            [
+              "true",
+              1
+            ],
+            [
+              "false",
+              2
+            ]
+          ]
+        },
+        {
+          "inputs": [
+            "0",
+            "1",
+            "1",
+            "0"
+          ],
+          "outputs": [
+            [
+              "true",
+              2
+            ],
+            [
+              "false",
+              1
+            ]
+          ]
+        },
+        {
+          "inputs": [
+            "0",
+            "1",
+            "0",
+            "1"
+          ],
+          "outputs": [
+            [
+              "true",
+              2
+            ],
+            [
+              "false",
+              1
+            ]
+          ]
+        },
+        {
+          "inputs": [
+            "0",
+            "0",
+            "1",
+            "1"
+          ],
+          "outputs": [
+            [
+              "true",
+              1
+            ],
+            [
+              "false",
+              3
+            ]
+          ]
+        },
+        {
+          "inputs": [
+            "0",
+            "0",
+            "0",
+            "0"
+          ],
+          "outputs": [
+            [
+              "true",
+              1
+            ],
+            [
+              "false",
+              2
+            ]
+          ]
+        }
+      ],
+      "uncompressed_size": 26
+    },
+    {
+      "idxs": [
+        2,
+        11,
+        29
+      ],
+      "result": [
+        {
+          "inputs": [
+            "1",
+            "1",
+            "1",
+            "1"
+          ],
+          "outputs": [
+            [
+              "true",
+              2
+            ],
+            [
+              "false",
+              1
+            ]
+          ]
+        },
+        {
+          "inputs": [
+            "1",
+            "1",
+            "0",
+            "0"
+          ],
+          "outputs": [
+            [
+              "true",
+              3
+            ],
+            [
+              "false",
+              1
+            ]
+          ]
+        },
+        {
+          "inputs": [
+            "1",
+            "0",
+            "1",
+            "0"
+          ],
+          "outputs": [
+            [
+              "true",
+              3
+            ],
+            [
+              "false",
+              1
+            ]
+          ]
+        },
+        {
+          "inputs": [
+            "1",
+            "0",
+            "0",
+            "1"
+          ],
+          "outputs": [
+            [
+              "true",
+              1
+            ],
+            [
+              "false",
+              2
+            ]
+          ]
+        },
+        {
+          "inputs": [
+            "0",
+            "1",
+            "1",
+            "0"
+          ],
+          "outputs": [
+            [
+              "true",
+              2
+            ],
+            [
+              "false",
+              1
+            ]
+          ]
+        },
+        {
+          "inputs": [
+            "0",
+            "1",
+            "0",
+            "1"
+          ],
+          "outputs": [
+            [
+              "true",
+              2
+            ],
+            [
+              "false",
+              1
+            ]
+          ]
+        },
+        {
+          "inputs": [
+            "0",
+            "0",
+            "1",
+            "1"
+          ],
+          "outputs": [
+            [
+              "true",
+              1
+            ],
+            [
+              "false",
+              3
+            ]
+          ]
+        },
+        {
+          "inputs": [
+            "0",
+            "0",
+            "0",
+            "0"
+          ],
+          "outputs": [
+            [
+              "true",
+              2
+            ],
+            [
+              "false",
+              1
+            ]
+          ]
+        }
+      ],
+      "uncompressed_size": 27
+    },
+    {
+      "idxs": [
+        0,
+        8,
+        16,
+        24
+      ],
+      "result": [
+        {
+          "inputs": [
+            "1",
+            "1",
+            "1",
+            "1"
+          ],
+          "outputs": [
+            [
+              "true",
+              2
+            ],
+            [
+              "false",
+              1
+            ]
+          ]
+        },
+        {
+          "inputs": [
+            "1",
+            "1",
+            "0",
+            "0"
+          ],
+          "outputs": [
+            [
+              "true",
+              3
+            ],
+            [
+              "false",
+              1
+            ]
+          ]
+        },
+        {
+          "inputs": [
+            "1",
+            "0",
+            "1",
+            "0"
+          ],
+          "outputs": [
+            [
+              "true",
+              2
+            ],
+            [
+              "false",
+              2
+            ]
+          ]
+        },
+        {
+          "inputs": [
+            "1",
+            "0",
+            "0",
+            "1"
+          ],
+          "outputs": [
+            [
+              "true",
+              1
+            ],
+            [
+              "false",
+              2
+            ]
+          ]
+        },
+        {
+          "inputs": [
+            "0",
+            "1",
+            "1",
+            "0"
+          ],
+          "outputs": [
+            [
+              "true",
+              1
+            ],
+            [
+              "false",
+              1
+            ]
+          ]
+        },
+        {
+          "inputs": [
+            "0",
+            "1",
+            "0",
+            "1"
+          ],
+          "outputs": [
+            [
+              "true",
+              2
+            ],
+            [
+              "false",
+              1
+            ]
+          ]
+        },
+        {
+          "inputs": [
+            "0",
+            "0",
+            "1",
+            "1"
+          ],
+          "outputs": [
+            [
+              "true",
+              1
+            ],
+            [
+              "false",
+              2
+            ]
+          ]
+        },
+        {
+          "inputs": [
+            "0",
+            "0",
+            "0",
+            "0"
+          ],
+          "outputs": [
+            [
+              "true",
+              2
+            ],
+            [
+              "false",
+              2
+            ]
+          ]
+        }
+      ],
+      "uncompressed_size": 26
+    },
+    {
+      "idxs": [
+        2,
+        5,
+        13,
+        21,
+        29
+      ],
+      "result": [
+        {
+          "inputs": [
+            "1",
+            "1",
+            "1",
+            "1"
+          ],
+          "outputs": [
+            [
+              "true",
+              2
+            ],
+            [
+              "false",
+              1
+            ]
+          ]
+        },
+        {
+          "inputs": [
+            "1",
+            "1",
+            "0",
+            "0"
+          ],
+          "outputs": [
+            [
+              "true",
+              2
+            ],
+            [
+              "false",
+              1
+            ]
+          ]
+        },
+        {
+          "inputs": [
+            "1",
+            "0",
+            "1",
+            "0"
+          ],
+          "outputs": [
+            [
+              "true",
+              3
+            ],
+            [
+              "false",
+              2
+            ]
+          ]
+        },
+        {
+          "inputs": [
+            "1",
+            "0",
+            "0",
+            "1"
+          ],
+          "outputs": [
+            [
+              "false",
+              2
+            ]
+          ]
+        },
+        {
+          "inputs": [
+            "0",
+            "1",
+            "1",
+            "0"
+          ],
+          "outputs": [
+            [
+              "true",
+              2
+            ],
+            [
+              "false",
+              1
+            ]
+          ]
+        },
+        {
+          "inputs": [
+            "0",
+            "1",
+            "0",
+            "1"
+          ],
+          "outputs": [
+            [
+              "true",
+              2
+            ]
+          ]
+        },
+        {
+          "inputs": [
+            "0",
+            "0",
+            "1",
+            "1"
+          ],
+          "outputs": [
+            [
+              "true",
+              1
+            ],
+            [
+              "false",
+              3
+            ]
+          ]
+        },
+        {
+          "inputs": [
+            "0",
+            "0",
+            "0",
+            "0"
+          ],
+          "outputs": [
+            [
+              "true",
+              2
+            ],
+            [
+              "false",
+              1
+            ]
+          ]
+        }
+      ],
+      "uncompressed_size": 25
+    },
+    {
+      "idxs": [
+        4,
+        5,
+        6,
+        7,
+        20,
+        21,
+        22
+      ],
+      "result": [
+        {
+          "inputs": [
+            "1",
+            "1",
+            "1",
+            "1"
+          ],
+          "outputs": [
+            [
+              "true",
+              3
+            ],
+            [
+              "false",
+              1
+            ]
+          ]
+        },
+        {
+          "inputs": [
+            "1",
+            "0",
+            "1",
+            "0"
+          ],
+          "outputs": [
+            [
+              "true",
+              3
+            ],
+            [
+              "false",
+              2
+            ]
+          ]
+        },
+        {
+          "inputs": [
+            "1",
+            "0",
+            "0",
+            "1"
+          ],
+          "outputs": [
+            [
+              "true",
+              1
+            ],
+            [
+              "false",
+              2
+            ]
+          ]
+        },
+        {
+          "inputs": [
+            "0",
+            "1",
+            "1",
+            "0"
+          ],
+          "outputs": [
+            [
+              "true",
+              2
+            ],
+            [
+              "false",
+              1
+            ]
+          ]
+        },
+        {
+          "inputs": [
+            "0",
+            "1",
+            "0",
+            "1"
+          ],
+          "outputs": [
+            [
+              "true",
+              1
+            ]
+          ]
+        },
+        {
+          "inputs": [
+            "0",
+            "0",
+            "1",
+            "1"
+          ],
+          "outputs": [
+            [
+              "false",
+              3
+            ]
+          ]
+        },
+        {
+          "inputs": [
+            "0",
+            "0",
+            "0",
+            "0"
+          ],
+          "outputs": [
+            [
+              "true",
+              2
+            ],
+            [
+              "false",
+              2
+            ]
+          ]
+        }
+      ],
+      "uncompressed_size": 23
+    },
+    {
+      "idxs": [
+        28,
+        29
+      ],
+      "result": [
+        {
+          "inputs": [
+            "1",
+            "1",
+            "1",
+            "1"
+          ],
+          "outputs": [
+            [
+              "true",
+              3
+            ],
+            [
+              "false",
+              1
+            ]
+          ]
+        },
+        {
+          "inputs": [
+            "1",
+            "1",
+            "0",
+            "0"
+          ],
+          "outputs": [
+            [
+              "true",
+              3
+            ],
+            [
+              "false",
+              1
+            ]
+          ]
+        },
+        {
+          "inputs": [
+            "1",
+            "0",
+            "1",
+            "0"
+          ],
+          "outputs": [
+            [
+              "true",
+              3
+            ],
+            [
+              "false",
+              2
+            ]
+          ]
+        },
+        {
+          "inputs": [
+            "1",
+            "0",
+            "0",
+            "1"
+          ],
+          "outputs": [
+            [
+              "true",
+              1
+            ],
+            [
+              "false",
+              2
+            ]
+          ]
+        },
+        {
+          "inputs": [
+            "0",
+            "1",
+            "1",
+            "0"
+          ],
+          "outputs": [
+            [
+              "true",
+              2
+            ],
+            [
+              "false",
+              1
+            ]
+          ]
+        },
+        {
+          "inputs": [
+            "0",
+            "1",
+            "0",
+            "1"
+          ],
+          "outputs": [
+            [
+              "true",
+              2
+            ],
+            [
+              "false",
+              1
+            ]
+          ]
+        },
+        {
+          "inputs": [
+            "0",
+            "0",
+            "1",
+            "1"
+          ],
+          "outputs": [
+            [
+              "true",
+              1
+            ],
+            [
+              "false",
+              3
+            ]
+          ]
+        },
+        {
+          "inputs": [
+            "0",
+            "0",
+            "0",
+            "0"
+          ],
+          "outputs": [
+            [
+              "true",
+              2
+            ]
+          ]
+        }
+      ],
+      "uncompressed_size": 28
+    },
+    {
+      "idxs": [
+        0,
+        29
+      ],
+      "result": [
+        {
+          "inputs": [
+            "1",
+            "1",
+            "1",
+            "1"
+          ],
+          "outputs": [
+            [
+              "true",
+              2
+            ],
+            [
+              "false",
+              1
+            ]
+          ]
+        },
+        {
+          "inputs": [
+            "1",
+            "1",
+            "0",
+            "0"
+          ],
+          "outputs": [
+            [
+              "true",
+              3
+            ],
+            [
+              "false",
+              1
+            ]
+          ]
+        },
+        {
+          "inputs": [
+            "1",
+            "0",
+            "1",
+            "0"
+          ],
+          "outputs": [
+            [
+              "true",
+              3
+            ],
+            [
+              "false",
+              2
+            ]
+          ]
+        },
+        {
+          "inputs": [
+            "1",
+            "0",
+            "0",
+            "1"
+          ],
+          "outputs": [
+            [
+              "true",
+              1
+            ],
+            [
+              "false",
+              2
+            ]
+          ]
+        },
+        {
+          "inputs": [
+            "0",
+            "1",
+            "1",
+            "0"
+          ],
+          "outputs": [
+            [
+              "true",
+              2
+            ],
+            [
+              "false",
+              1
+            ]
+          ]
+        },
+        {
+          "inputs": [
+            "0",
+            "1",
+            "0",
+            "1"
+          ],
+          "outputs": [
+            [
+              "true",
+              2
+            ],
+            [
+              "false",
+              1
+            ]
+          ]
+        },
+        {
+          "inputs": [
+            "0",
+            "0",
+            "1",
+            "1"
+          ],
+          "outputs": [
+            [
+              "true",
+              1
+            ],
+            [
+              "false",
+              3
+            ]
+          ]
+        },
+        {
+          "inputs": [
+            "0",
+            "0",
+            "0",
+            "0"
+          ],
+          "outputs": [
+            [
+              "true",
+              2
+            ],
+            [
+              "false",
+              1
+            ]
+          ]
+        }
+      ],
+      "uncompressed_size": 28
+    },
+    {
+      "idxs": [
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10,
+        11,
+        12,
+        13,
+        14
+      ],
+      "result": [
+        {
+          "inputs": [
+            "1",
+            "1",
+            "1",
+            "1"
+          ],
+          "outputs": [
+            [
+              "true",
+              2
+            ]
+          ]
+        },
+        {
+          "inputs": [
+            "1",
+            "0",
+            "0",
+            "1"
+          ],
+          "outputs": [
+            [
+              "false",
+              1
+            ]
+          ]
+        },
+        {
+          "inputs": [
+            "0",
+            "1",
+            "1",
+            "0"
+          ],
+          "outputs": [
+            [
+              "true",
+              2
+            ],
+            [
+              "false",
+              1
+            ]
+          ]
+        },
+        {
+          "inputs": [
+            "0",
+            "1",
+            "0",
+            "1"
+          ],
+          "outputs": [
+            [
+              "true",
+              2
+            ],
+            [
+              "false",
+              1
+            ]
+          ]
+        },
+        {
+          "inputs": [
+            "0",
+            "0",
+            "1",
+            "1"
+          ],
+          "outputs": [
+            [
+              "true",
+              1
+            ],
+            [
+              "false",
+              3
+            ]
+          ]
+        },
+        {
+          "inputs": [
+            "0",
+            "0",
+            "0",
+            "0"
+          ],
+          "outputs": [
+            [
+              "true",
+              2
+            ],
+            [
+              "false",
+              2
+            ]
+          ]
+        }
+      ],
+      "uncompressed_size": 17
+    }
+  ],
+  "selector": [
+    {
+      "draws": [
+        2,
+        5,
+        6,
+        4,
+        7,
+        0,
+        1,
+        3
+      ],
+      "seed": 1,
+      "u": 8
+    },
+    {
+      "draws": [
+        4,
+        7,
+        6,
+        0
+      ],
+      "seed": 2,
+      "u": 8
+    },
+    {
+      "draws": [
+        7,
+        2,
+        4,
+        3,
+        1,
+        0
+      ],
+      "seed": 7,
+      "u": 8
+    },
+    {
+      "draws": [
+        2,
+        5,
+        6,
+        4,
+        15,
+        0,
+        1,
+        3,
+        7,
+        8
+      ],
+      "seed": 1,
+      "u": 16
+    },
+    {
+      "draws": [
+        2,
+        0,
+        1
+      ],
+      "seed": 5,
+      "u": 3
+    }
+  ],
+  "subsample": [
+    {
+      "ctable_usize": 8,
+      "nremove": 0,
+      "ratio": 1,
+      "result": [
+        {
+          "inputs": [
+            "1",
+            "1",
+            "1"
+          ],
+          "outputs": [
+            [
+              "true",
+              1
+            ],
+            [
+              "false",
+              1
+            ]
+          ]
+        },
+        {
+          "inputs": [
+            "1",
+            "0",
+            "1"
+          ],
+          "outputs": [
+            [
+              "true",
+              2
+            ]
+          ]
+        },
+        {
+          "inputs": [
+            "0",
+            "1",
+            "0"
+          ],
+          "outputs": [
+            [
+              "true",
+              1
+            ]
+          ]
+        },
+        {
+          "inputs": [
+            "0",
+            "0",
+            "0"
+          ],
+          "outputs": [
+            [
+              "true",
+              1
+            ],
+            [
+              "false",
+              2
+            ]
+          ]
+        }
+      ],
+      "seed": 1,
+      "uncompressed_size": 8
+    },
+    {
+      "ctable_usize": 8,
+      "nremove": 0,
+      "ratio": 0.9,
+      "result": [
+        {
+          "inputs": [
+            "1",
+            "1",
+            "1"
+          ],
+          "outputs": [
+            [
+              "true",
+              1
+            ],
+            [
+              "false",
+              1
+            ]
+          ]
+        },
+        {
+          "inputs": [
+            "1",
+            "0",
+            "1"
+          ],
+          "outputs": [
+            [
+              "true",
+              2
+            ]
+          ]
+        },
+        {
+          "inputs": [
+            "0",
+            "1",
+            "0"
+          ],
+          "outputs": [
+            [
+              "true",
+              1
+            ]
+          ]
+        },
+        {
+          "inputs": [
+            "0",
+            "0",
+            "0"
+          ],
+          "outputs": [
+            [
+              "true",
+              1
+            ],
+            [
+              "false",
+              2
+            ]
+          ]
+        }
+      ],
+      "seed": 1,
+      "uncompressed_size": 8
+    },
+    {
+      "ctable_usize": 8,
+      "nremove": 2,
+      "ratio": 0.75,
+      "result": [
+        {
+          "inputs": [
+            "1",
+            "1",
+            "1"
+          ],
+          "outputs": [
+            [
+              "true",
+              1
+            ],
+            [
+              "false",
+              1
+            ]
+          ]
+        },
+        {
+          "inputs": [
+            "1",
+            "0",
+            "1"
+          ],
+          "outputs": [
+            [
+              "true",
+              1
+            ]
+          ]
+        },
+        {
+          "inputs": [
+            "0",
+            "1",
+            "0"
+          ],
+          "outputs": [
+            [
+              "true",
+              1
+            ]
+          ]
+        },
+        {
+          "inputs": [
+            "0",
+            "0",
+            "0"
+          ],
+          "outputs": [
+            [
+              "false",
+              2
+            ]
+          ]
+        }
+      ],
+      "seed": 1,
+      "uncompressed_size": 6
+    },
+    {
+      "ctable_usize": 8,
+      "nremove": 2,
+      "ratio": 0.75,
+      "result": [
+        {
+          "inputs": [
+            "1",
+            "1",
+            "1"
+          ],
+          "outputs": [
+            [
+              "true",
+              1
+            ],
+            [
+              "false",
+              1
+            ]
+          ]
+        },
+        {
+          "inputs": [
+            "1",
+            "0",
+            "1"
+          ],
+          "outputs": [
+            [
+              "true",
+              2
+            ]
+          ]
+        },
+        {
+          "inputs": [
+            "0",
+            "0",
+            "0"
+          ],
+          "outputs": [
+            [
+              "true",
+              1
+            ],
+            [
+              "false",
+              1
+            ]
+          ]
+        }
+      ],
+      "seed": 2,
+      "uncompressed_size": 6
+    },
+    {
+      "ctable_usize": 8,
+      "nremove": 4,
+      "ratio": 0.5,
+      "result": [
+        {
+          "inputs": [
+            "1",
+            "1",
+            "1"
+          ],
+          "outputs": [
+            [
+              "true",
+              1
+            ],
+            [
+              "false",
+              1
+            ]
+          ]
+        },
+        {
+          "inputs": [
+            "1",
+            "0",
+            "1"
+          ],
+          "outputs": [
+            [
+              "true",
+              1
+            ]
+          ]
+        },
+        {
+          "inputs": [
+            "0",
+            "0",
+            "0"
+          ],
+          "outputs": [
+            [
+              "false",
+              1
+            ]
+          ]
+        }
+      ],
+      "seed": 1,
+      "uncompressed_size": 4
+    },
+    {
+      "ctable_usize": 8,
+      "nremove": 4,
+      "ratio": 0.5,
+      "result": [
+        {
+          "inputs": [
+            "1",
+            "0",
+            "1"
+          ],
+          "outputs": [
+            [
+              "true",
+              2
+            ]
+          ]
+        },
+        {
+          "inputs": [
+            "0",
+            "0",
+            "0"
+          ],
+          "outputs": [
+            [
+              "false",
+              2
+            ]
+          ]
+        }
+      ],
+      "seed": 3,
+      "uncompressed_size": 4
+    },
+    {
+      "ctable_usize": 8,
+      "nremove": 6,
+      "ratio": 0.25,
+      "result": [
+        {
+          "inputs": [
+            "1",
+            "1",
+            "1"
+          ],
+          "outputs": [
+            [
+              "false",
+              1
+            ]
+          ]
+        },
+        {
+          "inputs": [
+            "1",
+            "0",
+            "1"
+          ],
+          "outputs": [
+            [
+              "true",
+              1
+            ]
+          ]
+        }
+      ],
+      "seed": 1,
+      "uncompressed_size": 2
+    },
+    {
+      "ctable_usize": 8,
+      "nremove": 7,
+      "ratio": 0.1,
+      "result": [
+        {
+          "inputs": [
+            "1",
+            "0",
+            "1"
+          ],
+          "outputs": [
+            [
+              "true",
+              1
+            ]
+          ]
+        }
+      ],
+      "seed": 1,
+      "uncompressed_size": 1
+    },
+    {
+      "ctable_usize": 8,
+      "nremove": 8,
+      "ratio": 0,
+      "result": [],
+      "seed": 1,
+      "uncompressed_size": 0
+    },
+    {
+      "ctable_usize": 8,
+      "nremove": 2,
+      "ratio": 0.7,
+      "result": [
+        {
+          "inputs": [
+            "1",
+            "1",
+            "1"
+          ],
+          "outputs": [
+            [
+              "true",
+              1
+            ],
+            [
+              "false",
+              1
+            ]
+          ]
+        },
+        {
+          "inputs": [
+            "1",
+            "0",
+            "1"
+          ],
+          "outputs": [
+            [
+              "true",
+              2
+            ]
+          ]
+        },
+        {
+          "inputs": [
+            "0",
+            "1",
+            "0"
+          ],
+          "outputs": [
+            [
+              "true",
+              1
+            ]
+          ]
+        },
+        {
+          "inputs": [
+            "0",
+            "0",
+            "0"
+          ],
+          "outputs": [
+            [
+              "false",
+              1
+            ]
+          ]
+        }
+      ],
+      "seed": 4,
+      "uncompressed_size": 6
+    }
+  ],
+  "subsample_big": [
+    {
+      "ctable_usize": 30,
+      "nremove": 3,
+      "ratio": 0.9,
+      "result": [
+        {
+          "inputs": [
+            "1",
+            "1",
+            "1",
+            "1"
+          ],
+          "outputs": [
+            [
+              "true",
+              2
+            ],
+            [
+              "false",
+              1
+            ]
+          ]
+        },
+        {
+          "inputs": [
+            "1",
+            "1",
+            "0",
+            "0"
+          ],
+          "outputs": [
+            [
+              "true",
+              3
+            ],
+            [
+              "false",
+              1
+            ]
+          ]
+        },
+        {
+          "inputs": [
+            "1",
+            "0",
+            "1",
+            "0"
+          ],
+          "outputs": [
+            [
+              "true",
+              3
+            ],
+            [
+              "false",
+              1
+            ]
+          ]
+        },
+        {
+          "inputs": [
+            "1",
+            "0",
+            "0",
+            "1"
+          ],
+          "outputs": [
+            [
+              "true",
+              1
+            ],
+            [
+              "false",
+              2
+            ]
+          ]
+        },
+        {
+          "inputs": [
+            "0",
+            "1",
+            "1",
+            "0"
+          ],
+          "outputs": [
+            [
+              "true",
+              2
+            ],
+            [
+              "false",
+              1
+            ]
+          ]
+        },
+        {
+          "inputs": [
+            "0",
+            "1",
+            "0",
+            "1"
+          ],
+          "outputs": [
+            [
+              "true",
+              2
+            ],
+            [
+              "false",
+              1
+            ]
+          ]
+        },
+        {
+          "inputs": [
+            "0",
+            "0",
+            "1",
+            "1"
+          ],
+          "outputs": [
+            [
+              "true",
+              1
+            ],
+            [
+              "false",
+              3
+            ]
+          ]
+        },
+        {
+          "inputs": [
+            "0",
+            "0",
+            "0",
+            "0"
+          ],
+          "outputs": [
+            [
+              "true",
+              2
+            ],
+            [
+              "false",
+              1
+            ]
+          ]
+        }
+      ],
+      "seed": 1,
+      "uncompressed_size": 27
+    },
+    {
+      "ctable_usize": 30,
+      "nremove": 5,
+      "ratio": 0.8,
+      "result": [
+        {
+          "inputs": [
+            "1",
+            "1",
+            "1",
+            "1"
+          ],
+          "outputs": [
+            [
+              "true",
+              2
+            ],
+            [
+              "false",
+              1
+            ]
+          ]
+        },
+        {
+          "inputs": [
+            "1",
+            "1",
+            "0",
+            "0"
+          ],
+          "outputs": [
+            [
+              "true",
+              2
+            ],
+            [
+              "false",
+              1
+            ]
+          ]
+        },
+        {
+          "inputs": [
+            "1",
+            "0",
+            "1",
+            "0"
+          ],
+          "outputs": [
+            [
+              "true",
+              3
+            ],
+            [
+              "false",
+              1
+            ]
+          ]
+        },
+        {
+          "inputs": [
+            "1",
+            "0",
+            "0",
+            "1"
+          ],
+          "outputs": [
+            [
+              "true",
+              1
+            ],
+            [
+              "false",
+              2
+            ]
+          ]
+        },
+        {
+          "inputs": [
+            "0",
+            "1",
+            "1",
+            "0"
+          ],
+          "outputs": [
+            [
+              "true",
+              2
+            ],
+            [
+              "false",
+              1
+            ]
+          ]
+        },
+        {
+          "inputs": [
+            "0",
+            "1",
+            "0",
+            "1"
+          ],
+          "outputs": [
+            [
+              "true",
+              2
+            ]
+          ]
+        },
+        {
+          "inputs": [
+            "0",
+            "0",
+            "1",
+            "1"
+          ],
+          "outputs": [
+            [
+              "true",
+              1
+            ],
+            [
+              "false",
+              3
+            ]
+          ]
+        },
+        {
+          "inputs": [
+            "0",
+            "0",
+            "0",
+            "0"
+          ],
+          "outputs": [
+            [
+              "true",
+              2
+            ],
+            [
+              "false",
+              1
+            ]
+          ]
+        }
+      ],
+      "seed": 1,
+      "uncompressed_size": 25
+    },
+    {
+      "ctable_usize": 30,
+      "nremove": 7,
+      "ratio": 0.75,
+      "result": [
+        {
+          "inputs": [
+            "1",
+            "1",
+            "1",
+            "1"
+          ],
+          "outputs": [
+            [
+              "true",
+              2
+            ],
+            [
+              "false",
+              1
+            ]
+          ]
+        },
+        {
+          "inputs": [
+            "1",
+            "1",
+            "0",
+            "0"
+          ],
+          "outputs": [
+            [
+              "false",
+              1
+            ]
+          ]
+        },
+        {
+          "inputs": [
+            "1",
+            "0",
+            "1",
+            "0"
+          ],
+          "outputs": [
+            [
+              "true",
+              3
+            ],
+            [
+              "false",
+              1
+            ]
+          ]
+        },
+        {
+          "inputs": [
+            "1",
+            "0",
+            "0",
+            "1"
+          ],
+          "outputs": [
+            [
+              "true",
+              1
+            ],
+            [
+              "false",
+              2
+            ]
+          ]
+        },
+        {
+          "inputs": [
+            "0",
+            "1",
+            "1",
+            "0"
+          ],
+          "outputs": [
+            [
+              "true",
+              2
+            ],
+            [
+              "false",
+              1
+            ]
+          ]
+        },
+        {
+          "inputs": [
+            "0",
+            "1",
+            "0",
+            "1"
+          ],
+          "outputs": [
+            [
+              "true",
+              2
+            ]
+          ]
+        },
+        {
+          "inputs": [
+            "0",
+            "0",
+            "1",
+            "1"
+          ],
+          "outputs": [
+            [
+              "true",
+              1
+            ],
+            [
+              "false",
+              3
+            ]
+          ]
+        },
+        {
+          "inputs": [
+            "0",
+            "0",
+            "0",
+            "0"
+          ],
+          "outputs": [
+            [
+              "true",
+              2
+            ],
+            [
+              "false",
+              1
+            ]
+          ]
+        }
+      ],
+      "seed": 1,
+      "uncompressed_size": 23
+    },
+    {
+      "ctable_usize": 30,
+      "nremove": 15,
+      "ratio": 0.5,
+      "result": [
+        {
+          "inputs": [
+            "1",
+            "0",
+            "1",
+            "0"
+          ],
+          "outputs": [
+            [
+              "true",
+              1
+            ]
+          ]
+        },
+        {
+          "inputs": [
+            "1",
+            "0",
+            "0",
+            "1"
+          ],
+          "outputs": [
+            [
+              "true",
+              1
+            ],
+            [
+              "false",
+              2
+            ]
+          ]
+        },
+        {
+          "inputs": [
+            "0",
+            "1",
+            "1",
+            "0"
+          ],
+          "outputs": [
+            [
+              "true",
+              2
+            ],
+            [
+              "false",
+              1
+            ]
+          ]
+        },
+        {
+          "inputs": [
+            "0",
+            "1",
+            "0",
+            "1"
+          ],
+          "outputs": [
+            [
+              "true",
+              1
+            ]
+          ]
+        },
+        {
+          "inputs": [
+            "0",
+            "0",
+            "1",
+            "1"
+          ],
+          "outputs": [
+            [
+              "true",
+              1
+            ],
+            [
+              "false",
+              3
+            ]
+          ]
+        },
+        {
+          "inputs": [
+            "0",
+            "0",
+            "0",
+            "0"
+          ],
+          "outputs": [
+            [
+              "true",
+              2
+            ],
+            [
+              "false",
+              1
+            ]
+          ]
+        }
+      ],
+      "seed": 1,
+      "uncompressed_size": 15
+    },
+    {
+      "ctable_usize": 30,
+      "nremove": 15,
+      "ratio": 0.5,
+      "result": [
+        {
+          "inputs": [
+            "1",
+            "1",
+            "0",
+            "0"
+          ],
+          "outputs": [
+            [
+              "true",
+              1
+            ],
+            [
+              "false",
+              1
+            ]
+          ]
+        },
+        {
+          "inputs": [
+            "1",
+            "0",
+            "1",
+            "0"
+          ],
+          "outputs": [
+            [
+              "true",
+              2
+            ]
+          ]
+        },
+        {
+          "inputs": [
+            "1",
+            "0",
+            "0",
+            "1"
+          ],
+          "outputs": [
+            [
+              "false",
+              2
+            ]
+          ]
+        },
+        {
+          "inputs": [
+            "0",
+            "1",
+            "1",
+            "0"
+          ],
+          "outputs": [
+            [
+              "true",
+              2
+            ]
+          ]
+        },
+        {
+          "inputs": [
+            "0",
+            "1",
+            "0",
+            "1"
+          ],
+          "outputs": [
+            [
+              "false",
+              1
+            ]
+          ]
+        },
+        {
+          "inputs": [
+            "0",
+            "0",
+            "1",
+            "1"
+          ],
+          "outputs": [
+            [
+              "true",
+              1
+            ],
+            [
+              "false",
+              2
+            ]
+          ]
+        },
+        {
+          "inputs": [
+            "0",
+            "0",
+            "0",
+            "0"
+          ],
+          "outputs": [
+            [
+              "true",
+              1
+            ],
+            [
+              "false",
+              2
+            ]
+          ]
+        }
+      ],
+      "seed": 11,
+      "uncompressed_size": 15
+    },
+    {
+      "ctable_usize": 30,
+      "nremove": 22,
+      "ratio": 0.25,
+      "result": [
+        {
+          "inputs": [
+            "0",
+            "1",
+            "0",
+            "1"
+          ],
+          "outputs": [
+            [
+              "true",
+              1
+            ]
+          ]
+        },
+        {
+          "inputs": [
+            "0",
+            "0",
+            "1",
+            "1"
+          ],
+          "outputs": [
+            [
+              "true",
+              1
+            ],
+            [
+              "false",
+              3
+            ]
+          ]
+        },
+        {
+          "inputs": [
+            "0",
+            "0",
+            "0",
+            "0"
+          ],
+          "outputs": [
+            [
+              "true",
+              2
+            ],
+            [
+              "false",
+              1
+            ]
+          ]
+        }
+      ],
+      "seed": 1,
+      "uncompressed_size": 8
+    },
+    {
+      "ctable_usize": 30,
+      "nremove": 26,
+      "ratio": 0.1,
+      "result": [
+        {
+          "inputs": [
+            "0",
+            "1",
+            "1",
+            "0"
+          ],
+          "outputs": [
+            [
+              "true",
+              1
+            ],
+            [
+              "false",
+              1
+            ]
+          ]
+        },
+        {
+          "inputs": [
+            "0",
+            "0",
+            "0",
+            "0"
+          ],
+          "outputs": [
+            [
+              "true",
+              1
+            ],
+            [
+              "false",
+              1
+            ]
+          ]
+        }
+      ],
+      "seed": 2,
+      "uncompressed_size": 4
+    },
+    {
+      "ctable_usize": 30,
+      "nremove": 30,
+      "ratio": 0,
+      "result": [],
+      "seed": 1,
+      "uncompressed_size": 0
+    },
+    {
+      "ctable_usize": 30,
+      "nremove": 1,
+      "ratio": 0.966666667,
+      "result": [
+        {
+          "inputs": [
+            "1",
+            "1",
+            "1",
+            "1"
+          ],
+          "outputs": [
+            [
+              "true",
+              3
+            ],
+            [
+              "false",
+              1
+            ]
+          ]
+        },
+        {
+          "inputs": [
+            "1",
+            "1",
+            "0",
+            "0"
+          ],
+          "outputs": [
+            [
+              "true",
+              3
+            ],
+            [
+              "false",
+              1
+            ]
+          ]
+        },
+        {
+          "inputs": [
+            "1",
+            "0",
+            "1",
+            "0"
+          ],
+          "outputs": [
+            [
+              "true",
+              3
+            ],
+            [
+              "false",
+              1
+            ]
+          ]
+        },
+        {
+          "inputs": [
+            "1",
+            "0",
+            "0",
+            "1"
+          ],
+          "outputs": [
+            [
+              "true",
+              1
+            ],
+            [
+              "false",
+              2
+            ]
+          ]
+        },
+        {
+          "inputs": [
+            "0",
+            "1",
+            "1",
+            "0"
+          ],
+          "outputs": [
+            [
+              "true",
+              2
+            ],
+            [
+              "false",
+              1
+            ]
+          ]
+        },
+        {
+          "inputs": [
+            "0",
+            "1",
+            "0",
+            "1"
+          ],
+          "outputs": [
+            [
+              "true",
+              2
+            ],
+            [
+              "false",
+              1
+            ]
+          ]
+        },
+        {
+          "inputs": [
+            "0",
+            "0",
+            "1",
+            "1"
+          ],
+          "outputs": [
+            [
+              "true",
+              1
+            ],
+            [
+              "false",
+              3
+            ]
+          ]
+        },
+        {
+          "inputs": [
+            "0",
+            "0",
+            "0",
+            "0"
+          ],
+          "outputs": [
+            [
+              "true",
+              2
+            ],
+            [
+              "false",
+              2
+            ]
+          ]
+        }
+      ],
+      "seed": 1,
+      "uncompressed_size": 29
+    },
+    {
+      "ctable_usize": 30,
+      "nremove": 29,
+      "ratio": 0.033333333,
+      "result": [
+        {
+          "inputs": [
+            "0",
+            "0",
+            "1",
+            "1"
+          ],
+          "outputs": [
+            [
+              "false",
+              1
+            ]
+          ]
+        }
+      ],
+      "seed": 4,
+      "uncompressed_size": 1
+    }
+  ],
+  "subsample_f32": [
+    {
+      "ctable_usize": 8,
+      "nremove": 1,
+      "ratio": 0.875000001,
+      "result": [
+        {
+          "inputs": [
+            "1",
+            "1",
+            "1"
+          ],
+          "outputs": [
+            [
+              "true",
+              1
+            ],
+            [
+              "false",
+              1
+            ]
+          ]
+        },
+        {
+          "inputs": [
+            "1",
+            "0",
+            "1"
+          ],
+          "outputs": [
+            [
+              "true",
+              1
+            ]
+          ]
+        },
+        {
+          "inputs": [
+            "0",
+            "1",
+            "0"
+          ],
+          "outputs": [
+            [
+              "true",
+              1
+            ]
+          ]
+        },
+        {
+          "inputs": [
+            "0",
+            "0",
+            "0"
+          ],
+          "outputs": [
+            [
+              "true",
+              1
+            ],
+            [
+              "false",
+              2
+            ]
+          ]
+        }
+      ],
+      "seed": 1,
+      "uncompressed_size": 7
+    },
+    {
+      "ctable_usize": 8,
+      "nremove": 2,
+      "ratio": 0.750000001,
+      "result": [
+        {
+          "inputs": [
+            "1",
+            "1",
+            "1"
+          ],
+          "outputs": [
+            [
+              "true",
+              1
+            ],
+            [
+              "false",
+              1
+            ]
+          ]
+        },
+        {
+          "inputs": [
+            "1",
+            "0",
+            "1"
+          ],
+          "outputs": [
+            [
+              "true",
+              1
+            ]
+          ]
+        },
+        {
+          "inputs": [
+            "0",
+            "1",
+            "0"
+          ],
+          "outputs": [
+            [
+              "true",
+              1
+            ]
+          ]
+        },
+        {
+          "inputs": [
+            "0",
+            "0",
+            "0"
+          ],
+          "outputs": [
+            [
+              "false",
+              2
+            ]
+          ]
+        }
+      ],
+      "seed": 1,
+      "uncompressed_size": 6
+    },
+    {
+      "ctable_usize": 8,
+      "nremove": 2,
+      "ratio": 0.750000001,
+      "result": [
+        {
+          "inputs": [
+            "1",
+            "1",
+            "1"
+          ],
+          "outputs": [
+            [
+              "true",
+              1
+            ]
+          ]
+        },
+        {
+          "inputs": [
+            "1",
+            "0",
+            "1"
+          ],
+          "outputs": [
+            [
+              "true",
+              2
+            ]
+          ]
+        },
+        {
+          "inputs": [
+            "0",
+            "1",
+            "0"
+          ],
+          "outputs": [
+            [
+              "true",
+              1
+            ]
+          ]
+        },
+        {
+          "inputs": [
+            "0",
+            "0",
+            "0"
+          ],
+          "outputs": [
+            [
+              "true",
+              1
+            ],
+            [
+              "false",
+              1
+            ]
+          ]
+        }
+      ],
+      "seed": 5,
+      "uncompressed_size": 6
+    },
+    {
+      "ctable_usize": 8,
+      "nremove": 3,
+      "ratio": 0.625000001,
+      "result": [
+        {
+          "inputs": [
+            "1",
+            "1",
+            "1"
+          ],
+          "outputs": [
+            [
+              "true",
+              1
+            ],
+            [
+              "false",
+              1
+            ]
+          ]
+        },
+        {
+          "inputs": [
+            "1",
+            "0",
+            "1"
+          ],
+          "outputs": [
+            [
+              "true",
+              1
+            ]
+          ]
+        },
+        {
+          "inputs": [
+            "0",
+            "1",
+            "0"
+          ],
+          "outputs": [
+            [
+              "true",
+              1
+            ]
+          ]
+        },
+        {
+          "inputs": [
+            "0",
+            "0",
+            "0"
+          ],
+          "outputs": [
+            [
+              "false",
+              1
+            ]
+          ]
+        }
+      ],
+      "seed": 1,
+      "uncompressed_size": 5
+    },
+    {
+      "ctable_usize": 8,
+      "nremove": 4,
+      "ratio": 0.500000001,
+      "result": [
+        {
+          "inputs": [
+            "1",
+            "1",
+            "1"
+          ],
+          "outputs": [
+            [
+              "true",
+              1
+            ],
+            [
+              "false",
+              1
+            ]
+          ]
+        },
+        {
+          "inputs": [
+            "1",
+            "0",
+            "1"
+          ],
+          "outputs": [
+            [
+              "true",
+              1
+            ]
+          ]
+        },
+        {
+          "inputs": [
+            "0",
+            "0",
+            "0"
+          ],
+          "outputs": [
+            [
+              "false",
+              1
+            ]
+          ]
+        }
+      ],
+      "seed": 1,
+      "uncompressed_size": 4
+    },
+    {
+      "ctable_usize": 8,
+      "nremove": 5,
+      "ratio": 0.375000001,
+      "result": [
+        {
+          "inputs": [
+            "1",
+            "1",
+            "1"
+          ],
+          "outputs": [
+            [
+              "false",
+              1
+            ]
+          ]
+        },
+        {
+          "inputs": [
+            "1",
+            "0",
+            "1"
+          ],
+          "outputs": [
+            [
+              "true",
+              1
+            ]
+          ]
+        },
+        {
+          "inputs": [
+            "0",
+            "0",
+            "0"
+          ],
+          "outputs": [
+            [
+              "true",
+              1
+            ]
+          ]
+        }
+      ],
+      "seed": 2,
+      "uncompressed_size": 3
+    },
+    {
+      "ctable_usize": 8,
+      "nremove": 6,
+      "ratio": 0.250000001,
+      "result": [
+        {
+          "inputs": [
+            "1",
+            "1",
+            "1"
+          ],
+          "outputs": [
+            [
+              "false",
+              1
+            ]
+          ]
+        },
+        {
+          "inputs": [
+            "1",
+            "0",
+            "1"
+          ],
+          "outputs": [
+            [
+              "true",
+              1
+            ]
+          ]
+        }
+      ],
+      "seed": 1,
+      "uncompressed_size": 2
+    },
+    {
+      "ctable_usize": 8,
+      "nremove": 7,
+      "ratio": 0.125000001,
+      "result": [
+        {
+          "inputs": [
+            "1",
+            "0",
+            "1"
+          ],
+          "outputs": [
+            [
+              "true",
+              1
+            ]
+          ]
+        }
+      ],
+      "seed": 1,
+      "uncompressed_size": 1
+    }
+  ]
+}
