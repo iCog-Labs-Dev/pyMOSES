@@ -54,6 +54,7 @@ from pathlib import Path
 import pytest
 
 from pymetta.comboreduct.combo.iostream_combo import str_to_combo_tree
+from pymetta.comboreduct.combo.vertex import builtin
 from pymetta.comboreduct.table.table import CTable
 from pymetta.comboreduct.table.table_io import loadTable
 from pymetta.moses.deme.feature_selector import (
@@ -292,6 +293,97 @@ def test_operator_call_matches_classic(golden, tables, case_index):
     for (score, fs), (want_score, want_fs) in zip(top, case["top"], strict=True):
         assert sorted(fs) == want_fs
         assert score == want_score
+
+
+# ----------------------------------------------------- by-time subsampling
+
+
+def _timestamp_str(timestamp) -> str:
+    """`TTable::to_string` (table.cc) -- an ISO date, or boost's own
+    "not-a-date-time" for the default-constructed sentinel this port
+    spells `None`.
+    """
+    return "not-a-date-time" if timestamp is None else str(timestamp)
+
+
+def _timed_content(ctable) -> dict:
+    """The CTable as row -> {(value, timestamp): count}, order-insensitive
+    for the same reason test_ctable_subsample.py's own `_content` is.
+    """
+    return {
+        tuple(int(v) for v in row): {
+            (str(tv.value), _timestamp_str(tv.timestamp)): count
+            for tv, count in counter.timed_items()
+        }
+        for row, counter in ctable.items()
+    }
+
+
+_VALUE_STR = {"true": str(int(builtin.logical_true)), "false": str(int(builtin.logical_false))}
+_INPUT_V = {"0": builtin.logical_false, "1": builtin.logical_true}
+
+
+def _expected_timed(rows: list) -> dict:
+    return {
+        tuple(int(_INPUT_V[s]) for s in row["inputs"]): {
+            (_VALUE_STR[value], timestamp): count for value, timestamp, count in row["outputs"]
+        }
+        for row in rows
+    }
+
+
+@pytest.mark.oracle
+@pytest.mark.parametrize("case_index", range(len(_GOLDEN["subsample_by_time"])))
+def test_subsample_by_time_matches_classic(golden, case_index):
+    """`--fs-subsampling-by-time` (feature_selector.cc:207-215) -- a
+    DIFFERENT C++ block from `subsampleCTable`, reading the same
+    `subsampling_ratio` field at `double` precision instead of binary32.
+
+    Three of the cases run on a table with no timestamp column at all,
+    where classic removes nothing; the rest run on
+    timestamp_bool_clean.csv, where which timestamp goes depends on the
+    seed (seed 1 drops 2012-01-03, seed 5 drops 2012-01-19).
+    """
+    case = golden["subsample_by_time"][case_index]
+    if case["table"] == "a5":
+        ctable = loadTable(str(_TABLE_DATA_DIR / "bool_a5_maj.csv"), "y").compressed()
+    else:
+        ctable = loadTable(
+            str(_TABLE_DATA_DIR / "timestamp_bool_clean.csv"), "y", "when"
+        ).compressed()
+    assert len(ctable.get_timestamps()) == case["n_timestamps"]
+
+    params = feature_selector_parameters(
+        subsampling_ratio=case["subsampling_ratio"],
+        subsampling_by_time=True,
+        restrict_incorrect=case["restrict_incorrect"],
+        ignore_xmplr_features=False,
+    )
+    fs = feature_selector(ctable, params)
+    xmplr = str_to_combo_tree(case["exemplar"])
+    fs.preprocess_params(xmplr)
+    randGen().seed(case["seed"])
+    out = fs.build_fs_ctable(xmplr)
+
+    assert out.uncompressed_size() == case["uncompressed_size"]
+    assert _timed_content(out) == _expected_timed(case["result"])
+
+
+@pytest.mark.oracle
+def test_by_time_corpus_actually_removes_something(golden):
+    """Guard: if every by-time case were a no-op (which is what the
+    untimestamped ones are), the whole branch would be untested.
+    """
+    timed = [c for c in golden["subsample_by_time"] if c["table"] != "a5"]
+    full = max(c["uncompressed_size"] for c in timed)
+    removing = sum(1 for c in timed if c["uncompressed_size"] < full)
+    assert removing >= 5, f"only {removing} by-time case(s) remove anything"
+    seeds = {
+        c["seed"]: tuple(sorted({o[1] for r in c["result"] for o in r["outputs"]}))
+        for c in timed
+        if c["subsampling_ratio"] == 0.5 and not c["restrict_incorrect"]
+    }
+    assert len(set(seeds.values())) >= 2, "every seed drops the same timestamp"
 
 
 @pytest.mark.oracle

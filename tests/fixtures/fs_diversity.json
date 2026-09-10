@@ -8693,6 +8693,2095 @@
       "uncompressed_size": 1
     }
   ],
+  "subsample_by_time": [
+    {
+      "exemplar": "$1",
+      "n_timestamps": 0,
+      "restrict_incorrect": true,
+      "result": [
+        {
+          "inputs": [
+            "1",
+            "1",
+            "0",
+            "0",
+            "0"
+          ],
+          "outputs": [
+            [
+              "false",
+              "not-a-date-time",
+              1
+            ]
+          ]
+        },
+        {
+          "inputs": [
+            "1",
+            "0",
+            "1",
+            "0",
+            "0"
+          ],
+          "outputs": [
+            [
+              "false",
+              "not-a-date-time",
+              1
+            ]
+          ]
+        },
+        {
+          "inputs": [
+            "1",
+            "0",
+            "0",
+            "1",
+            "0"
+          ],
+          "outputs": [
+            [
+              "false",
+              "not-a-date-time",
+              1
+            ]
+          ]
+        },
+        {
+          "inputs": [
+            "1",
+            "0",
+            "0",
+            "0",
+            "1"
+          ],
+          "outputs": [
+            [
+              "false",
+              "not-a-date-time",
+              1
+            ]
+          ]
+        },
+        {
+          "inputs": [
+            "1",
+            "0",
+            "0",
+            "0",
+            "0"
+          ],
+          "outputs": [
+            [
+              "false",
+              "not-a-date-time",
+              1
+            ]
+          ]
+        },
+        {
+          "inputs": [
+            "0",
+            "1",
+            "1",
+            "1",
+            "1"
+          ],
+          "outputs": [
+            [
+              "true",
+              "not-a-date-time",
+              1
+            ]
+          ]
+        },
+        {
+          "inputs": [
+            "0",
+            "1",
+            "1",
+            "1",
+            "0"
+          ],
+          "outputs": [
+            [
+              "true",
+              "not-a-date-time",
+              1
+            ]
+          ]
+        },
+        {
+          "inputs": [
+            "0",
+            "1",
+            "1",
+            "0",
+            "1"
+          ],
+          "outputs": [
+            [
+              "true",
+              "not-a-date-time",
+              1
+            ]
+          ]
+        },
+        {
+          "inputs": [
+            "0",
+            "1",
+            "0",
+            "1",
+            "1"
+          ],
+          "outputs": [
+            [
+              "true",
+              "not-a-date-time",
+              1
+            ]
+          ]
+        },
+        {
+          "inputs": [
+            "0",
+            "0",
+            "1",
+            "1",
+            "1"
+          ],
+          "outputs": [
+            [
+              "true",
+              "not-a-date-time",
+              1
+            ]
+          ]
+        }
+      ],
+      "seed": 1,
+      "subsampling_ratio": 0.5,
+      "table": "a5",
+      "uncompressed_size": 10
+    },
+    {
+      "exemplar": "$1",
+      "n_timestamps": 0,
+      "restrict_incorrect": false,
+      "result": [
+        {
+          "inputs": [
+            "1",
+            "1",
+            "1",
+            "1",
+            "1"
+          ],
+          "outputs": [
+            [
+              "true",
+              "not-a-date-time",
+              1
+            ]
+          ]
+        },
+        {
+          "inputs": [
+            "1",
+            "1",
+            "1",
+            "1",
+            "0"
+          ],
+          "outputs": [
+            [
+              "true",
+              "not-a-date-time",
+              1
+            ]
+          ]
+        },
+        {
+          "inputs": [
+            "1",
+            "1",
+            "1",
+            "0",
+            "1"
+          ],
+          "outputs": [
+            [
+              "true",
+              "not-a-date-time",
+              1
+            ]
+          ]
+        },
+        {
+          "inputs": [
+            "1",
+            "1",
+            "1",
+            "0",
+            "0"
+          ],
+          "outputs": [
+            [
+              "true",
+              "not-a-date-time",
+              1
+            ]
+          ]
+        },
+        {
+          "inputs": [
+            "1",
+            "1",
+            "0",
+            "1",
+            "1"
+          ],
+          "outputs": [
+            [
+              "true",
+              "not-a-date-time",
+              1
+            ]
+          ]
+        },
+        {
+          "inputs": [
+            "1",
+            "1",
+            "0",
+            "1",
+            "0"
+          ],
+          "outputs": [
+            [
+              "true",
+              "not-a-date-time",
+              1
+            ]
+          ]
+        },
+        {
+          "inputs": [
+            "1",
+            "1",
+            "0",
+            "0",
+            "1"
+          ],
+          "outputs": [
+            [
+              "true",
+              "not-a-date-time",
+              1
+            ]
+          ]
+        },
+        {
+          "inputs": [
+            "1",
+            "1",
+            "0",
+            "0",
+            "0"
+          ],
+          "outputs": [
+            [
+              "false",
+              "not-a-date-time",
+              1
+            ]
+          ]
+        },
+        {
+          "inputs": [
+            "1",
+            "0",
+            "1",
+            "1",
+            "1"
+          ],
+          "outputs": [
+            [
+              "true",
+              "not-a-date-time",
+              1
+            ]
+          ]
+        },
+        {
+          "inputs": [
+            "1",
+            "0",
+            "1",
+            "1",
+            "0"
+          ],
+          "outputs": [
+            [
+              "true",
+              "not-a-date-time",
+              1
+            ]
+          ]
+        },
+        {
+          "inputs": [
+            "1",
+            "0",
+            "1",
+            "0",
+            "1"
+          ],
+          "outputs": [
+            [
+              "true",
+              "not-a-date-time",
+              1
+            ]
+          ]
+        },
+        {
+          "inputs": [
+            "1",
+            "0",
+            "1",
+            "0",
+            "0"
+          ],
+          "outputs": [
+            [
+              "false",
+              "not-a-date-time",
+              1
+            ]
+          ]
+        },
+        {
+          "inputs": [
+            "1",
+            "0",
+            "0",
+            "1",
+            "1"
+          ],
+          "outputs": [
+            [
+              "true",
+              "not-a-date-time",
+              1
+            ]
+          ]
+        },
+        {
+          "inputs": [
+            "1",
+            "0",
+            "0",
+            "1",
+            "0"
+          ],
+          "outputs": [
+            [
+              "false",
+              "not-a-date-time",
+              1
+            ]
+          ]
+        },
+        {
+          "inputs": [
+            "1",
+            "0",
+            "0",
+            "0",
+            "1"
+          ],
+          "outputs": [
+            [
+              "false",
+              "not-a-date-time",
+              1
+            ]
+          ]
+        },
+        {
+          "inputs": [
+            "1",
+            "0",
+            "0",
+            "0",
+            "0"
+          ],
+          "outputs": [
+            [
+              "false",
+              "not-a-date-time",
+              1
+            ]
+          ]
+        },
+        {
+          "inputs": [
+            "0",
+            "1",
+            "1",
+            "1",
+            "1"
+          ],
+          "outputs": [
+            [
+              "true",
+              "not-a-date-time",
+              1
+            ]
+          ]
+        },
+        {
+          "inputs": [
+            "0",
+            "1",
+            "1",
+            "1",
+            "0"
+          ],
+          "outputs": [
+            [
+              "true",
+              "not-a-date-time",
+              1
+            ]
+          ]
+        },
+        {
+          "inputs": [
+            "0",
+            "1",
+            "1",
+            "0",
+            "1"
+          ],
+          "outputs": [
+            [
+              "true",
+              "not-a-date-time",
+              1
+            ]
+          ]
+        },
+        {
+          "inputs": [
+            "0",
+            "1",
+            "1",
+            "0",
+            "0"
+          ],
+          "outputs": [
+            [
+              "false",
+              "not-a-date-time",
+              1
+            ]
+          ]
+        },
+        {
+          "inputs": [
+            "0",
+            "1",
+            "0",
+            "1",
+            "1"
+          ],
+          "outputs": [
+            [
+              "true",
+              "not-a-date-time",
+              1
+            ]
+          ]
+        },
+        {
+          "inputs": [
+            "0",
+            "1",
+            "0",
+            "1",
+            "0"
+          ],
+          "outputs": [
+            [
+              "false",
+              "not-a-date-time",
+              1
+            ]
+          ]
+        },
+        {
+          "inputs": [
+            "0",
+            "1",
+            "0",
+            "0",
+            "1"
+          ],
+          "outputs": [
+            [
+              "false",
+              "not-a-date-time",
+              1
+            ]
+          ]
+        },
+        {
+          "inputs": [
+            "0",
+            "1",
+            "0",
+            "0",
+            "0"
+          ],
+          "outputs": [
+            [
+              "false",
+              "not-a-date-time",
+              1
+            ]
+          ]
+        },
+        {
+          "inputs": [
+            "0",
+            "0",
+            "1",
+            "1",
+            "1"
+          ],
+          "outputs": [
+            [
+              "true",
+              "not-a-date-time",
+              1
+            ]
+          ]
+        },
+        {
+          "inputs": [
+            "0",
+            "0",
+            "1",
+            "1",
+            "0"
+          ],
+          "outputs": [
+            [
+              "false",
+              "not-a-date-time",
+              1
+            ]
+          ]
+        },
+        {
+          "inputs": [
+            "0",
+            "0",
+            "1",
+            "0",
+            "1"
+          ],
+          "outputs": [
+            [
+              "false",
+              "not-a-date-time",
+              1
+            ]
+          ]
+        },
+        {
+          "inputs": [
+            "0",
+            "0",
+            "1",
+            "0",
+            "0"
+          ],
+          "outputs": [
+            [
+              "false",
+              "not-a-date-time",
+              1
+            ]
+          ]
+        },
+        {
+          "inputs": [
+            "0",
+            "0",
+            "0",
+            "1",
+            "1"
+          ],
+          "outputs": [
+            [
+              "false",
+              "not-a-date-time",
+              1
+            ]
+          ]
+        },
+        {
+          "inputs": [
+            "0",
+            "0",
+            "0",
+            "1",
+            "0"
+          ],
+          "outputs": [
+            [
+              "false",
+              "not-a-date-time",
+              1
+            ]
+          ]
+        },
+        {
+          "inputs": [
+            "0",
+            "0",
+            "0",
+            "0",
+            "1"
+          ],
+          "outputs": [
+            [
+              "false",
+              "not-a-date-time",
+              1
+            ]
+          ]
+        },
+        {
+          "inputs": [
+            "0",
+            "0",
+            "0",
+            "0",
+            "0"
+          ],
+          "outputs": [
+            [
+              "false",
+              "not-a-date-time",
+              1
+            ]
+          ]
+        }
+      ],
+      "seed": 1,
+      "subsampling_ratio": 0.5,
+      "table": "a5",
+      "uncompressed_size": 32
+    },
+    {
+      "exemplar": "$1",
+      "n_timestamps": 0,
+      "restrict_incorrect": false,
+      "result": [
+        {
+          "inputs": [
+            "1",
+            "1",
+            "1",
+            "1",
+            "1"
+          ],
+          "outputs": [
+            [
+              "true",
+              "not-a-date-time",
+              1
+            ]
+          ]
+        },
+        {
+          "inputs": [
+            "1",
+            "1",
+            "1",
+            "1",
+            "0"
+          ],
+          "outputs": [
+            [
+              "true",
+              "not-a-date-time",
+              1
+            ]
+          ]
+        },
+        {
+          "inputs": [
+            "1",
+            "1",
+            "1",
+            "0",
+            "1"
+          ],
+          "outputs": [
+            [
+              "true",
+              "not-a-date-time",
+              1
+            ]
+          ]
+        },
+        {
+          "inputs": [
+            "1",
+            "1",
+            "1",
+            "0",
+            "0"
+          ],
+          "outputs": [
+            [
+              "true",
+              "not-a-date-time",
+              1
+            ]
+          ]
+        },
+        {
+          "inputs": [
+            "1",
+            "1",
+            "0",
+            "1",
+            "1"
+          ],
+          "outputs": [
+            [
+              "true",
+              "not-a-date-time",
+              1
+            ]
+          ]
+        },
+        {
+          "inputs": [
+            "1",
+            "1",
+            "0",
+            "1",
+            "0"
+          ],
+          "outputs": [
+            [
+              "true",
+              "not-a-date-time",
+              1
+            ]
+          ]
+        },
+        {
+          "inputs": [
+            "1",
+            "1",
+            "0",
+            "0",
+            "1"
+          ],
+          "outputs": [
+            [
+              "true",
+              "not-a-date-time",
+              1
+            ]
+          ]
+        },
+        {
+          "inputs": [
+            "1",
+            "1",
+            "0",
+            "0",
+            "0"
+          ],
+          "outputs": [
+            [
+              "false",
+              "not-a-date-time",
+              1
+            ]
+          ]
+        },
+        {
+          "inputs": [
+            "1",
+            "0",
+            "1",
+            "1",
+            "1"
+          ],
+          "outputs": [
+            [
+              "true",
+              "not-a-date-time",
+              1
+            ]
+          ]
+        },
+        {
+          "inputs": [
+            "1",
+            "0",
+            "1",
+            "1",
+            "0"
+          ],
+          "outputs": [
+            [
+              "true",
+              "not-a-date-time",
+              1
+            ]
+          ]
+        },
+        {
+          "inputs": [
+            "1",
+            "0",
+            "1",
+            "0",
+            "1"
+          ],
+          "outputs": [
+            [
+              "true",
+              "not-a-date-time",
+              1
+            ]
+          ]
+        },
+        {
+          "inputs": [
+            "1",
+            "0",
+            "1",
+            "0",
+            "0"
+          ],
+          "outputs": [
+            [
+              "false",
+              "not-a-date-time",
+              1
+            ]
+          ]
+        },
+        {
+          "inputs": [
+            "1",
+            "0",
+            "0",
+            "1",
+            "1"
+          ],
+          "outputs": [
+            [
+              "true",
+              "not-a-date-time",
+              1
+            ]
+          ]
+        },
+        {
+          "inputs": [
+            "1",
+            "0",
+            "0",
+            "1",
+            "0"
+          ],
+          "outputs": [
+            [
+              "false",
+              "not-a-date-time",
+              1
+            ]
+          ]
+        },
+        {
+          "inputs": [
+            "1",
+            "0",
+            "0",
+            "0",
+            "1"
+          ],
+          "outputs": [
+            [
+              "false",
+              "not-a-date-time",
+              1
+            ]
+          ]
+        },
+        {
+          "inputs": [
+            "1",
+            "0",
+            "0",
+            "0",
+            "0"
+          ],
+          "outputs": [
+            [
+              "false",
+              "not-a-date-time",
+              1
+            ]
+          ]
+        },
+        {
+          "inputs": [
+            "0",
+            "1",
+            "1",
+            "1",
+            "1"
+          ],
+          "outputs": [
+            [
+              "true",
+              "not-a-date-time",
+              1
+            ]
+          ]
+        },
+        {
+          "inputs": [
+            "0",
+            "1",
+            "1",
+            "1",
+            "0"
+          ],
+          "outputs": [
+            [
+              "true",
+              "not-a-date-time",
+              1
+            ]
+          ]
+        },
+        {
+          "inputs": [
+            "0",
+            "1",
+            "1",
+            "0",
+            "1"
+          ],
+          "outputs": [
+            [
+              "true",
+              "not-a-date-time",
+              1
+            ]
+          ]
+        },
+        {
+          "inputs": [
+            "0",
+            "1",
+            "1",
+            "0",
+            "0"
+          ],
+          "outputs": [
+            [
+              "false",
+              "not-a-date-time",
+              1
+            ]
+          ]
+        },
+        {
+          "inputs": [
+            "0",
+            "1",
+            "0",
+            "1",
+            "1"
+          ],
+          "outputs": [
+            [
+              "true",
+              "not-a-date-time",
+              1
+            ]
+          ]
+        },
+        {
+          "inputs": [
+            "0",
+            "1",
+            "0",
+            "1",
+            "0"
+          ],
+          "outputs": [
+            [
+              "false",
+              "not-a-date-time",
+              1
+            ]
+          ]
+        },
+        {
+          "inputs": [
+            "0",
+            "1",
+            "0",
+            "0",
+            "1"
+          ],
+          "outputs": [
+            [
+              "false",
+              "not-a-date-time",
+              1
+            ]
+          ]
+        },
+        {
+          "inputs": [
+            "0",
+            "1",
+            "0",
+            "0",
+            "0"
+          ],
+          "outputs": [
+            [
+              "false",
+              "not-a-date-time",
+              1
+            ]
+          ]
+        },
+        {
+          "inputs": [
+            "0",
+            "0",
+            "1",
+            "1",
+            "1"
+          ],
+          "outputs": [
+            [
+              "true",
+              "not-a-date-time",
+              1
+            ]
+          ]
+        },
+        {
+          "inputs": [
+            "0",
+            "0",
+            "1",
+            "1",
+            "0"
+          ],
+          "outputs": [
+            [
+              "false",
+              "not-a-date-time",
+              1
+            ]
+          ]
+        },
+        {
+          "inputs": [
+            "0",
+            "0",
+            "1",
+            "0",
+            "1"
+          ],
+          "outputs": [
+            [
+              "false",
+              "not-a-date-time",
+              1
+            ]
+          ]
+        },
+        {
+          "inputs": [
+            "0",
+            "0",
+            "1",
+            "0",
+            "0"
+          ],
+          "outputs": [
+            [
+              "false",
+              "not-a-date-time",
+              1
+            ]
+          ]
+        },
+        {
+          "inputs": [
+            "0",
+            "0",
+            "0",
+            "1",
+            "1"
+          ],
+          "outputs": [
+            [
+              "false",
+              "not-a-date-time",
+              1
+            ]
+          ]
+        },
+        {
+          "inputs": [
+            "0",
+            "0",
+            "0",
+            "1",
+            "0"
+          ],
+          "outputs": [
+            [
+              "false",
+              "not-a-date-time",
+              1
+            ]
+          ]
+        },
+        {
+          "inputs": [
+            "0",
+            "0",
+            "0",
+            "0",
+            "1"
+          ],
+          "outputs": [
+            [
+              "false",
+              "not-a-date-time",
+              1
+            ]
+          ]
+        },
+        {
+          "inputs": [
+            "0",
+            "0",
+            "0",
+            "0",
+            "0"
+          ],
+          "outputs": [
+            [
+              "false",
+              "not-a-date-time",
+              1
+            ]
+          ]
+        }
+      ],
+      "seed": 1,
+      "subsampling_ratio": 0,
+      "table": "a5",
+      "uncompressed_size": 32
+    },
+    {
+      "exemplar": "$1",
+      "n_timestamps": 3,
+      "restrict_incorrect": false,
+      "result": [
+        {
+          "inputs": [
+            "1",
+            "1"
+          ],
+          "outputs": [
+            [
+              "true",
+              "2012-01-03",
+              1
+            ],
+            [
+              "false",
+              "2012-01-19",
+              1
+            ]
+          ]
+        },
+        {
+          "inputs": [
+            "1",
+            "0"
+          ],
+          "outputs": [
+            [
+              "false",
+              "2012-01-03",
+              1
+            ],
+            [
+              "false",
+              "2012-01-11",
+              1
+            ]
+          ]
+        },
+        {
+          "inputs": [
+            "0",
+            "1"
+          ],
+          "outputs": [
+            [
+              "true",
+              "2012-01-03",
+              1
+            ],
+            [
+              "true",
+              "2012-01-11",
+              1
+            ]
+          ]
+        },
+        {
+          "inputs": [
+            "0",
+            "0"
+          ],
+          "outputs": [
+            [
+              "true",
+              "2012-01-03",
+              1
+            ],
+            [
+              "true",
+              "2012-01-11",
+              1
+            ],
+            [
+              "false",
+              "2012-01-19",
+              1
+            ]
+          ]
+        }
+      ],
+      "seed": 1,
+      "subsampling_ratio": 1,
+      "table": "timed",
+      "uncompressed_size": 9
+    },
+    {
+      "exemplar": "$1",
+      "n_timestamps": 3,
+      "restrict_incorrect": false,
+      "result": [
+        {
+          "inputs": [
+            "1",
+            "1"
+          ],
+          "outputs": [
+            [
+              "true",
+              "2012-01-03",
+              1
+            ],
+            [
+              "false",
+              "2012-01-19",
+              1
+            ]
+          ]
+        },
+        {
+          "inputs": [
+            "1",
+            "0"
+          ],
+          "outputs": [
+            [
+              "false",
+              "2012-01-03",
+              1
+            ],
+            [
+              "false",
+              "2012-01-11",
+              1
+            ]
+          ]
+        },
+        {
+          "inputs": [
+            "0",
+            "1"
+          ],
+          "outputs": [
+            [
+              "true",
+              "2012-01-03",
+              1
+            ],
+            [
+              "true",
+              "2012-01-11",
+              1
+            ]
+          ]
+        },
+        {
+          "inputs": [
+            "0",
+            "0"
+          ],
+          "outputs": [
+            [
+              "true",
+              "2012-01-03",
+              1
+            ],
+            [
+              "true",
+              "2012-01-11",
+              1
+            ],
+            [
+              "false",
+              "2012-01-19",
+              1
+            ]
+          ]
+        }
+      ],
+      "seed": 1,
+      "subsampling_ratio": 0.9,
+      "table": "timed",
+      "uncompressed_size": 9
+    },
+    {
+      "exemplar": "$1",
+      "n_timestamps": 3,
+      "restrict_incorrect": false,
+      "result": [
+        {
+          "inputs": [
+            "1",
+            "1"
+          ],
+          "outputs": [
+            [
+              "true",
+              "2012-01-03",
+              1
+            ],
+            [
+              "false",
+              "2012-01-19",
+              1
+            ]
+          ]
+        },
+        {
+          "inputs": [
+            "1",
+            "0"
+          ],
+          "outputs": [
+            [
+              "false",
+              "2012-01-03",
+              1
+            ],
+            [
+              "false",
+              "2012-01-11",
+              1
+            ]
+          ]
+        },
+        {
+          "inputs": [
+            "0",
+            "1"
+          ],
+          "outputs": [
+            [
+              "true",
+              "2012-01-03",
+              1
+            ],
+            [
+              "true",
+              "2012-01-11",
+              1
+            ]
+          ]
+        },
+        {
+          "inputs": [
+            "0",
+            "0"
+          ],
+          "outputs": [
+            [
+              "true",
+              "2012-01-03",
+              1
+            ],
+            [
+              "true",
+              "2012-01-11",
+              1
+            ],
+            [
+              "false",
+              "2012-01-19",
+              1
+            ]
+          ]
+        }
+      ],
+      "seed": 1,
+      "subsampling_ratio": 0.75,
+      "table": "timed",
+      "uncompressed_size": 9
+    },
+    {
+      "exemplar": "$1",
+      "n_timestamps": 3,
+      "restrict_incorrect": false,
+      "result": [
+        {
+          "inputs": [
+            "1",
+            "1"
+          ],
+          "outputs": [
+            [
+              "false",
+              "2012-01-19",
+              1
+            ]
+          ]
+        },
+        {
+          "inputs": [
+            "1",
+            "0"
+          ],
+          "outputs": [
+            [
+              "false",
+              "2012-01-11",
+              1
+            ]
+          ]
+        },
+        {
+          "inputs": [
+            "0",
+            "1"
+          ],
+          "outputs": [
+            [
+              "true",
+              "2012-01-11",
+              1
+            ]
+          ]
+        },
+        {
+          "inputs": [
+            "0",
+            "0"
+          ],
+          "outputs": [
+            [
+              "true",
+              "2012-01-11",
+              1
+            ],
+            [
+              "false",
+              "2012-01-19",
+              1
+            ]
+          ]
+        }
+      ],
+      "seed": 1,
+      "subsampling_ratio": 0.5,
+      "table": "timed",
+      "uncompressed_size": 5
+    },
+    {
+      "exemplar": "$1",
+      "n_timestamps": 3,
+      "restrict_incorrect": false,
+      "result": [
+        {
+          "inputs": [
+            "1",
+            "1"
+          ],
+          "outputs": [
+            [
+              "false",
+              "2012-01-19",
+              1
+            ]
+          ]
+        },
+        {
+          "inputs": [
+            "1",
+            "0"
+          ],
+          "outputs": [
+            [
+              "false",
+              "2012-01-11",
+              1
+            ]
+          ]
+        },
+        {
+          "inputs": [
+            "0",
+            "1"
+          ],
+          "outputs": [
+            [
+              "true",
+              "2012-01-11",
+              1
+            ]
+          ]
+        },
+        {
+          "inputs": [
+            "0",
+            "0"
+          ],
+          "outputs": [
+            [
+              "true",
+              "2012-01-11",
+              1
+            ],
+            [
+              "false",
+              "2012-01-19",
+              1
+            ]
+          ]
+        }
+      ],
+      "seed": 2,
+      "subsampling_ratio": 0.5,
+      "table": "timed",
+      "uncompressed_size": 5
+    },
+    {
+      "exemplar": "$1",
+      "n_timestamps": 3,
+      "restrict_incorrect": false,
+      "result": [
+        {
+          "inputs": [
+            "1",
+            "1"
+          ],
+          "outputs": [
+            [
+              "true",
+              "2012-01-03",
+              1
+            ]
+          ]
+        },
+        {
+          "inputs": [
+            "1",
+            "0"
+          ],
+          "outputs": [
+            [
+              "false",
+              "2012-01-03",
+              1
+            ],
+            [
+              "false",
+              "2012-01-11",
+              1
+            ]
+          ]
+        },
+        {
+          "inputs": [
+            "0",
+            "1"
+          ],
+          "outputs": [
+            [
+              "true",
+              "2012-01-03",
+              1
+            ],
+            [
+              "true",
+              "2012-01-11",
+              1
+            ]
+          ]
+        },
+        {
+          "inputs": [
+            "0",
+            "0"
+          ],
+          "outputs": [
+            [
+              "true",
+              "2012-01-03",
+              1
+            ],
+            [
+              "true",
+              "2012-01-11",
+              1
+            ]
+          ]
+        }
+      ],
+      "seed": 5,
+      "subsampling_ratio": 0.5,
+      "table": "timed",
+      "uncompressed_size": 7
+    },
+    {
+      "exemplar": "$1",
+      "n_timestamps": 3,
+      "restrict_incorrect": false,
+      "result": [
+        {
+          "inputs": [
+            "1",
+            "1"
+          ],
+          "outputs": [
+            [
+              "false",
+              "2012-01-19",
+              1
+            ]
+          ]
+        },
+        {
+          "inputs": [
+            "1",
+            "0"
+          ],
+          "outputs": [
+            [
+              "false",
+              "2012-01-11",
+              1
+            ]
+          ]
+        },
+        {
+          "inputs": [
+            "0",
+            "1"
+          ],
+          "outputs": [
+            [
+              "true",
+              "2012-01-11",
+              1
+            ]
+          ]
+        },
+        {
+          "inputs": [
+            "0",
+            "0"
+          ],
+          "outputs": [
+            [
+              "true",
+              "2012-01-11",
+              1
+            ],
+            [
+              "false",
+              "2012-01-19",
+              1
+            ]
+          ]
+        }
+      ],
+      "seed": 1,
+      "subsampling_ratio": 0.34,
+      "table": "timed",
+      "uncompressed_size": 5
+    },
+    {
+      "exemplar": "$1",
+      "n_timestamps": 3,
+      "restrict_incorrect": false,
+      "result": [
+        {
+          "inputs": [
+            "1",
+            "1"
+          ],
+          "outputs": [
+            [
+              "false",
+              "2012-01-19",
+              1
+            ]
+          ]
+        },
+        {
+          "inputs": [
+            "1",
+            "0"
+          ],
+          "outputs": [
+            [
+              "false",
+              "2012-01-11",
+              1
+            ]
+          ]
+        },
+        {
+          "inputs": [
+            "0",
+            "1"
+          ],
+          "outputs": [
+            [
+              "true",
+              "2012-01-11",
+              1
+            ]
+          ]
+        },
+        {
+          "inputs": [
+            "0",
+            "0"
+          ],
+          "outputs": [
+            [
+              "true",
+              "2012-01-11",
+              1
+            ],
+            [
+              "false",
+              "2012-01-19",
+              1
+            ]
+          ]
+        }
+      ],
+      "seed": 1,
+      "subsampling_ratio": 0.6666666656666668,
+      "table": "timed",
+      "uncompressed_size": 5
+    },
+    {
+      "exemplar": "$1",
+      "n_timestamps": 3,
+      "restrict_incorrect": false,
+      "result": [
+        {
+          "inputs": [
+            "1",
+            "0"
+          ],
+          "outputs": [
+            [
+              "false",
+              "2012-01-11",
+              1
+            ]
+          ]
+        },
+        {
+          "inputs": [
+            "0",
+            "1"
+          ],
+          "outputs": [
+            [
+              "true",
+              "2012-01-11",
+              1
+            ]
+          ]
+        },
+        {
+          "inputs": [
+            "0",
+            "0"
+          ],
+          "outputs": [
+            [
+              "true",
+              "2012-01-11",
+              1
+            ]
+          ]
+        }
+      ],
+      "seed": 1,
+      "subsampling_ratio": 0.33333333333333337,
+      "table": "timed",
+      "uncompressed_size": 3
+    },
+    {
+      "exemplar": "$1",
+      "n_timestamps": 3,
+      "restrict_incorrect": false,
+      "result": [
+        {
+          "inputs": [
+            "1",
+            "1"
+          ],
+          "outputs": [
+            [
+              "true",
+              "2012-01-03",
+              1
+            ]
+          ]
+        },
+        {
+          "inputs": [
+            "1",
+            "0"
+          ],
+          "outputs": [
+            [
+              "false",
+              "2012-01-03",
+              1
+            ]
+          ]
+        },
+        {
+          "inputs": [
+            "0",
+            "1"
+          ],
+          "outputs": [
+            [
+              "true",
+              "2012-01-03",
+              1
+            ]
+          ]
+        },
+        {
+          "inputs": [
+            "0",
+            "0"
+          ],
+          "outputs": [
+            [
+              "true",
+              "2012-01-03",
+              1
+            ]
+          ]
+        }
+      ],
+      "seed": 5,
+      "subsampling_ratio": 0.33333333333333337,
+      "table": "timed",
+      "uncompressed_size": 4
+    },
+    {
+      "exemplar": "$1",
+      "n_timestamps": 3,
+      "restrict_incorrect": false,
+      "result": [],
+      "seed": 1,
+      "subsampling_ratio": 0,
+      "table": "timed",
+      "uncompressed_size": 0
+    },
+    {
+      "exemplar": "$1",
+      "n_timestamps": 3,
+      "restrict_incorrect": true,
+      "result": [
+        {
+          "inputs": [
+            "1",
+            "0"
+          ],
+          "outputs": [
+            [
+              "false",
+              "2012-01-11",
+              1
+            ]
+          ]
+        },
+        {
+          "inputs": [
+            "0",
+            "1"
+          ],
+          "outputs": [
+            [
+              "true",
+              "2012-01-11",
+              1
+            ]
+          ]
+        },
+        {
+          "inputs": [
+            "0",
+            "0"
+          ],
+          "outputs": [
+            [
+              "true",
+              "2012-01-11",
+              1
+            ],
+            [
+              "false",
+              "2012-01-19",
+              1
+            ]
+          ]
+        }
+      ],
+      "seed": 1,
+      "subsampling_ratio": 0.5,
+      "table": "timed",
+      "uncompressed_size": 4
+    },
+    {
+      "exemplar": "and($1 $2)",
+      "n_timestamps": 3,
+      "restrict_incorrect": false,
+      "result": [
+        {
+          "inputs": [
+            "1",
+            "1"
+          ],
+          "outputs": [
+            [
+              "true",
+              "2012-01-03",
+              1
+            ]
+          ]
+        },
+        {
+          "inputs": [
+            "1",
+            "0"
+          ],
+          "outputs": [
+            [
+              "false",
+              "2012-01-03",
+              1
+            ],
+            [
+              "false",
+              "2012-01-11",
+              1
+            ]
+          ]
+        },
+        {
+          "inputs": [
+            "0",
+            "1"
+          ],
+          "outputs": [
+            [
+              "true",
+              "2012-01-03",
+              1
+            ],
+            [
+              "true",
+              "2012-01-11",
+              1
+            ]
+          ]
+        },
+        {
+          "inputs": [
+            "0",
+            "0"
+          ],
+          "outputs": [
+            [
+              "true",
+              "2012-01-03",
+              1
+            ],
+            [
+              "true",
+              "2012-01-11",
+              1
+            ]
+          ]
+        }
+      ],
+      "seed": 3,
+      "subsampling_ratio": 0.5,
+      "table": "timed",
+      "uncompressed_size": 7
+    }
+  ],
   "subsample_f32": [
     {
       "ctable_usize": 8,

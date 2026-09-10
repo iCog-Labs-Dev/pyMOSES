@@ -47,6 +47,7 @@ BIG_CSV = TABLE_DATA / "ctable_unsorted_big.csv"
 BOOLEAN_CSV = TABLE_DATA / "trainingBoolean.dat"
 A5_CSV = TABLE_DATA / "bool_a5_maj.csv"
 SKEW_CSV = TABLE_DATA / "fs_mi_skewed.csv"
+TIMED_CSV = TABLE_DATA / "timestamp_bool_clean.csv"
 _MEM_LIMIT_BYTES = 2097152 * 1024
 _COMPILE_TIMEOUT_S = 300
 _RUN_TIMEOUT_S = 120
@@ -133,6 +134,9 @@ def _build_manifest() -> dict:
                 "fs_mi_skewed.csv, which is NOT a full truth-table enumeration "
                 "and therefore has irrational mutual informations where the "
                 "other tables have whole numbers of bits; and "
+                "build_fs_ctable()'s by-TIME subsampling branch for 13 cases, "
+                "three of them on a table with no timestamp column at all "
+                "(where classic removes nothing); and "
                 "feature_selector::operator()() end to end with "
                 "diversity_pressure > 0 and/or subsampling_ratio < 1. "
                 "Seeds are set with randGen().seed(...) immediately before "
@@ -147,6 +151,7 @@ def _build_manifest() -> dict:
             "boolean_csv": "tests/fixtures/table_data/trainingBoolean.dat",
             "a5_csv": "tests/fixtures/table_data/bool_a5_maj.csv",
             "skew_csv": "tests/fixtures/table_data/fs_mi_skewed.csv",
+            "timestamped_csv": "tests/fixtures/table_data/timestamp_bool_clean.csv",
         },
     )
 
@@ -161,6 +166,7 @@ def capture_fixture() -> None:
                 str(BOOLEAN_CSV),
                 str(A5_CSV),
                 str(SKEW_CSV),
+                str(TIMED_CSV),
             ],
             cwd=str(REPO_ROOT),
             capture_output=True,

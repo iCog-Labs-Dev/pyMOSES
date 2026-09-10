@@ -214,16 +214,30 @@ def test_build_fs_ctable_subsamples_by_row(boolean_ctable):
     assert fs.build_fs_ctable(xmplr).uncompressed_size() < full_size
 
 
-def test_build_fs_ctable_raises_for_subsampling_by_time(boolean_ctable):
-    """The BY-TIME branch (feature_selector.cc:207-215) is a separate C++
-    block and is still gated -- see build_fs_ctable's own docstring.
+def test_build_fs_ctable_subsampling_by_time_is_a_no_op_without_timestamps(boolean_ctable):
+    """The BY-TIME branch (feature_selector.cc:207-215) removes nothing on
+    a table loaded without `--timestamp-feature`: `get_timestamps()`
+    excludes the not-a-date sentinel, so it is empty, `rm_size` is 0, and
+    `remove_rows_at_times({})` does nothing.
+
+    MEASURED against the classic binary, which is why this is a no-op test
+    and not a raise: `moses -i bool_a5_maj.csv -u y -m 300 -r 1 -W1
+    --enable-fs=1 --fs-subsampling-ratio=0.5 --fs-subsampling-by-time=1`
+    exits 0 with the same best candidate as the plain `--enable-fs=1` run
+    (`-8 or(and($x2 $x3) $x1)`), where the by-ROW form of the same run
+    returns a different one (`-6 or(and($x2 $x4) and($x3 $x5))`).
     """
+    xmplr = str_to_combo_tree("$1")
+
+    plain = feature_selector(boolean_ctable, feature_selector_parameters())
+    plain.preprocess_params(xmplr)
+    expected = plain.build_fs_ctable(xmplr).uncompressed_size()
+
     params = feature_selector_parameters(subsampling_ratio=0.5, subsampling_by_time=True)
     fs = feature_selector(boolean_ctable, params)
-    xmplr = str_to_combo_tree("$1")
     fs.preprocess_params(xmplr)
-    with pytest.raises(NotImplementedError, match="subsampling_by_time"):
-        fs.build_fs_ctable(xmplr)
+    randGen().seed(1)
+    assert fs.build_fs_ctable(xmplr).uncompressed_size() == expected
 
 
 # ---------------------------------------------------------------------------
@@ -271,14 +285,10 @@ def test_call_diversity_cap_is_unreachable_for_the_only_ported_algorithm(boolean
     xmplr = str_to_combo_tree("$1")
 
     randGen().seed(1)
-    uncapped = feature_selector(boolean_ctable, feature_selector_parameters(diversity_cap=0))(
-        xmplr
-    )
+    uncapped = feature_selector(boolean_ctable, feature_selector_parameters(diversity_cap=0))(xmplr)
 
     randGen().seed(1)
-    capped = feature_selector(boolean_ctable, feature_selector_parameters(diversity_cap=1))(
-        xmplr
-    )
+    capped = feature_selector(boolean_ctable, feature_selector_parameters(diversity_cap=1))(xmplr)
 
     assert uncapped == capped
 

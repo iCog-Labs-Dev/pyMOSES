@@ -62,7 +62,7 @@
 // Bound every run: ( ulimit -v 2097152; timeout 300 <cmd> ).
 //
 // Usage: fs_diversity_probe <unsorted-csv> <big-csv> <boolean-csv> <a5-csv>
-//        <skew-csv> [weighted-csv]
+//        <skew-csv> <timestamped-csv> [weighted-csv]
 //        (with the optional 4th argument the probe runs ONLY the
 //        OC_ASSERT demonstration described in main(), and aborts.)
 
@@ -89,7 +89,9 @@ using namespace std;
 struct fs_access : public feature_selector
 {
     using feature_selector::feature_selector;
+    using feature_selector::build_fs_ctable;
     using feature_selector::mi;
+    using feature_selector::preprocess_params;
     using feature_selector::rank_feature_sets;
     using feature_selector::select_top_feature_sets;
 };
@@ -148,6 +150,79 @@ static void print_ctable(const CTable &ct)
                    (double)tv.second);
         }
         printf("]}");
+    }
+    printf("]");
+}
+
+// Like print_ctable, but keeps the TIMESTAMP half of every TimedValue --
+// the by-time branch is defined entirely by which timestamps survive.
+static void print_ctable_timed(const CTable &ct)
+{
+    printf("[");
+    bool first_row = true;
+    for (const auto &vct : ct) {
+        if (!first_row) printf(",");
+        first_row = false;
+        printf("{\"inputs\":[");
+        bool first_in = true;
+        for (const string &s : vct.first.to_strings()) {
+            if (!first_in) printf(",");
+            first_in = false;
+            printf("%s", json_string(s).c_str());
+        }
+        printf("],\"outputs\":[");
+        bool first_out = true;
+        for (const auto &tv : vct.second) {
+            if (!first_out) printf(",");
+            first_out = false;
+            printf("[%s,%s,%.17g]", json_string(vertex_str(tv.first.value)).c_str(),
+                   json_string(TTable::to_string(tv.first.timestamp)).c_str(),
+                   (double)tv.second);
+        }
+        printf("]}");
+    }
+    printf("]");
+}
+
+struct by_time_case
+{
+    const char *table;  // "timed" or "a5"
+    const char *exemplar;
+    double subsampling_ratio;
+    bool restrict_incorrect;
+    unsigned seed;
+};
+
+static void dump_subsample_by_time(const CTable &timed, const CTable &a5,
+                                   const vector<by_time_case> &cases)
+{
+    printf("\"subsample_by_time\":[");
+    bool first = true;
+    for (const by_time_case &bc : cases) {
+        if (!first) printf(",\n");
+        first = false;
+        const CTable &ctable = (string(bc.table) == "a5") ? a5 : timed;
+
+        feature_selector_parameters params;
+        params.subsampling_ratio = bc.subsampling_ratio;
+        params.subsampling_by_time = true;
+        params.restrict_incorrect = bc.restrict_incorrect;
+        params.ignore_xmplr_features = false;
+
+        fs_access fsa(ctable, params);
+        combo_tree xmplr = str2combo_tree(bc.exemplar, std::vector<std::string>());
+        fsa.preprocess_params(xmplr);
+        randGen().seed(bc.seed);
+        CTable out = fsa.build_fs_ctable(xmplr);
+
+        printf("{\"table\":%s,\"exemplar\":%s,\"subsampling_ratio\":%.17g,"
+               "\"restrict_incorrect\":%s,\"seed\":%u,\"n_timestamps\":%zu,"
+               "\"result\":",
+               json_string(bc.table).c_str(), json_string(bc.exemplar).c_str(),
+               bc.subsampling_ratio, bc.restrict_incorrect ? "true" : "false", bc.seed,
+               ctable.get_timestamps().size());
+        print_ctable_timed(out);
+        printf(",\"uncompressed_size\":%.17g}", out.uncompressed_size());
     }
     printf("]");
 }
@@ -445,10 +520,10 @@ static void dump_end_to_end(const CTable &boolean, const CTable &a5, const CTabl
 
 int main(int argc, char **argv)
 {
-    if (argc < 6) {
+    if (argc < 7) {
         fprintf(stderr,
                 "usage: %s <unsorted-csv> <big-csv> <boolean-csv> <a5-csv> "
-                "<skew-csv> [weighted-csv]\n",
+                "<skew-csv> <timestamped-csv> [weighted-csv]\n",
                 argv[0]);
         return 1;
     }
@@ -459,8 +534,8 @@ int main(int argc, char **argv)
     // remove_rows' own `OC_ASSERT(0.0 == (total_row_weights - truncate),
     // "This algo is broken!")` (table.cc:668) and aborts the process --
     // so it cannot share a run with the JSON dump.
-    if (argc >= 7) {
-        CTable weighted = loadTable(argv[6], "r").compressed("wgt");
+    if (argc >= 8) {
+        CTable weighted = loadTable(argv[7], "r").compressed("wgt");
         fprintf(stderr, "weighted ctable usize=%.17g rows=%zu\n",
                 weighted.uncompressed_size(), weighted.size());
         set<unsigned> idxs{0};
@@ -474,6 +549,11 @@ int main(int argc, char **argv)
     CTable boolean = loadTable(argv[3], "y").compressed();
     CTable a5 = loadTable(argv[4], "y").compressed();
     CTable skew = loadTable(argv[5], "y").compressed();
+    // The by-time subsampling branch needs a table with real timestamps;
+    // loaded with the timestamp column named, exactly as
+    // `--timestamp-feature` does.
+    CTable timed = loadTable(argv[6], "y", "when").compressed();
+    CTable untimed_a5 = a5;
 
     printf("{\n");
 
@@ -740,6 +820,36 @@ int main(int argc, char **argv)
         {"boolean", {0, 1}, {1, 2}, 0},
     };
     dump_mi(boolean, a5, skew, mi_cases);
+    printf(",\n");
+
+    // table, exemplar, subsampling_ratio, restrict_incorrect, seed.
+    // The "a5" cases have NO timestamp column, so get_timestamps() is
+    // empty, rm_size is 0 and classic does nothing at all -- the fact that
+    // makes this branch worth porting rather than gating.
+    vector<by_time_case> by_time_cases = {
+        {"a5", "$1", 0.5, true, 1},
+        {"a5", "$1", 0.5, false, 1},
+        {"a5", "$1", 0.0, false, 1},
+        {"timed", "$1", 1.0, false, 1},
+        {"timed", "$1", 0.9, false, 1},
+        {"timed", "$1", 0.75, false, 1},
+        {"timed", "$1", 0.5, false, 1},
+        {"timed", "$1", 0.5, false, 2},
+        {"timed", "$1", 0.5, false, 5},
+        {"timed", "$1", 0.34, false, 1},
+        // subsampling_ratio stays a DOUBLE in this branch (unlike the
+        // by-row one, which binds it to subsampleCTable's `float ratio`).
+        // Over 3 timestamps, (1.0 - 0.6666666656666668) * 3 truncates to 1
+        // in double and to 0 once narrowed; 0.33333333333333337 gives 2
+        // vs 1. Classic's answers here are the DOUBLE ones.
+        {"timed", "$1", 0.6666666656666668, false, 1},
+        {"timed", "$1", 0.33333333333333337, false, 1},
+        {"timed", "$1", 0.33333333333333337, false, 5},
+        {"timed", "$1", 0.0, false, 1},
+        {"timed", "$1", 0.5, true, 1},
+        {"timed", "and($1 $2)", 0.5, false, 3},
+    };
+    dump_subsample_by_time(timed, untimed_a5, by_time_cases);
     printf("\n}\n");
     return 0;
 }

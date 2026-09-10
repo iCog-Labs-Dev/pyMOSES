@@ -34,15 +34,16 @@ Scope narrowing vs. the 233+477-line C++ original:
   module (they are five-line free functions with no other call site in
   this port's scope, the same call ``get_argument_abs_idx_from_zero_set``
   below already makes).
-* ``--fs-subsampling-ratio < 1.0``'s BY-ROW branch (cc:217,
-  ``subsampleCTable``) is ported and wired; ``pymetta.feature_selection.
-  ctable_subsample`` holds it, out of ``pymetta.comboreduct.table`` for
-  the placement reason that module's own docstring gives. The BY-TIME
-  branch (cc:207-215, ``--fs-subsampling-by-time``) still raises: it is a
-  separate C++ block needing ``rand_element_erase`` over
-  ``CTable.get_timestamps()`` and ``CTable.remove_rows_at_times()``, and
-  this slice has no captured classic oracle for a TIMESTAMPED
-  ``fs_ctable``. See ``build_fs_ctable``'s own docstring.
+* ``--fs-subsampling-ratio < 1.0`` is ported in BOTH its branches
+  (cc:206-218). The by-ROW one calls ``subsampleCTable``, which
+  ``pymetta.feature_selection.ctable_subsample`` holds -- out of
+  ``pymetta.comboreduct.table`` for the placement reason that module's
+  own docstring gives. The by-TIME one
+  (``--fs-subsampling-by-time``) is transliterated inline, over
+  ``CTable.get_timestamps()``/``remove_rows_at_times()`` and the same
+  ``rand_element_erase`` shape ``ss_bscore._partition_by_time`` uses.
+  Note the two branches read ``subsampling_ratio`` at DIFFERENT
+  precisions -- see ``build_fs_ctable``.
 """
 
 from __future__ import annotations
@@ -383,12 +384,24 @@ class feature_selector:
         Scope: boolean output only (this port's own tables never carry
         anything else, per ``pymetta.moses.representation.representation``'s
         Boolean-only scope) -- a non-boolean ``cto`` raises.
-        ``subsampling_ratio < 1.0`` needs ``subsampleCTable``/
-        ``get_timestamps``/``remove_rows_at_times``, none ported (out of
-        scope: touching ``pymetta.comboreduct`` is off limits, and this
-        port's ``CTable`` carries no timestamps at all -- see
-        ``pymetta.comboreduct.table.table``'s own module docstring) --
-        raises rather than silently skipping.
+
+        ``subsampling_ratio < 1.0`` (cc:206-218) runs in both its
+        branches. The typing differs between them and it matters:
+        ``subsampling_ratio`` is a ``double`` (feature_selector.h:120) and
+        the by-TIME branch keeps it in ``double``, while the by-ROW branch
+        passes it to ``subsampleCTable(float ratio, ...)``, which narrows
+        it to binary32 first.
+
+        MEASURED, and the reason the by-time branch is ported rather than
+        gated: on a table with no ``--timestamp-feature``,
+        ``get_timestamps()`` is empty, so ``rm_size`` is 0 and classic
+        does NOTHING and exits 0. `moses -i bool_a5_maj.csv -u y -m 300
+        -r 1 --enable-fs=1 --fs-subsampling-ratio=0.5
+        --fs-subsampling-by-time=1` returns the same best candidate as the
+        plain `--enable-fs=1` run (`-8 or(and($x2 $x3) $x1)`), where the
+        by-ROW run returns a different one (`-6 or(and($x2 $x4) and($x3
+        $x5))`). A raise here would therefore have diverged from classic
+        on a reachable CLI combination.
         """
         sig = self._ctable.get_signature()
         cto = sig.otype if sig is not None else type_node.unknown_type
@@ -446,18 +459,33 @@ class feature_selector:
         # POST-subsampling one.
         if self.params.subsampling_ratio < 1.0:
             if self.params.subsampling_by_time:
-                raise NotImplementedError(
-                    "feature_selector.build_fs_ctable: subsampling_by_time is not "
-                    "ported (feature_selector.cc:207-215). Its pieces now exist -- "
-                    "CTable.get_timestamps()/remove_rows_at_times() and the "
-                    "rand_element_erase transliteration in "
-                    "pymetta.moses.scoring.ss_bscore._partition_by_time -- but the "
-                    "slice that landed subsampleCTable captured no classic oracle "
-                    "for a TIMESTAMPED fs_ctable, and this project does not land "
-                    "unmeasured code. The by-ROW branch "
-                    "(--fs-subsampling-ratio alone) is ported and runs."
-                )
-            subsampleCTable(self.params.subsampling_ratio, fs_ctable)
+                # `std::set<TTable::value_type> timestamps =
+                # fs_ctable.get_timestamps(), rm_timestamps;`
+                #
+                # NOTE the typing asymmetry with the by-row branch below:
+                # `params.subsampling_ratio` is a `double`
+                # (feature_selector.h:120) and STAYS a double here, where
+                # `subsampleCTable(float ratio, ...)` narrows it to
+                # binary32 at the call. Same field, two precisions,
+                # depending on the branch.
+                timestamps = fs_ctable.get_timestamps()
+                rm_timestamps: set = set()
+                timestamps_size = len(timestamps)
+                rm_size = int((1.0 - self.params.subsampling_ratio) * timestamps_size)
+                # `rand_element_erase(timestamps)` (opencog/util/random.h:92)
+                # is `std::next(c.begin(), rng.randint(c.size()))` then
+                # erase -- a `std::set` iterates ASCENDING, so this draws a
+                # uniformly random SORTED-POSITION index each round. Exactly
+                # the transliteration ss_bscore._partition_by_time already
+                # carries, over the same container type; `get_timestamps()`
+                # never returns the not-a-date sentinel, so a plain
+                # `sorted()` is `timestamp_less`'s order here.
+                remaining = sorted(timestamps)
+                for _ in range(rm_size):
+                    rm_timestamps.add(remaining.pop(randGen().randint_n(len(remaining))))
+                fs_ctable.remove_rows_at_times(rm_timestamps)
+            else:
+                subsampleCTable(self.params.subsampling_ratio, fs_ctable)
 
         # C++: feature_selector.cc:220-221. `%u` on a `size_t` is classic's
         # own format/type mismatch and prints the same digits.
