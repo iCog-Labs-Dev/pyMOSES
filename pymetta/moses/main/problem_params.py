@@ -1170,12 +1170,12 @@ class problem_params:
         return ignore_ops
 
     def _parse_enforce_features(self) -> None:
-        """C++: moses/moses/main/problem-params.cc:2149 problem_params
+        """C++: moses/moses/main/problem-params.cc:2058 problem_params::parse_options
 
-        Cites the enclosing class at its `parse_options` member (the
-        breadcrumb convention for a symbol the matcher cannot name): the
-        real code is the "Parse enforce features" block inlined in
-        `problem_params::parse_options`, problem-params.cc:2231-2259.
+        Cites the enclosing member (the breadcrumb convention for code
+        that is not a symbol of its own): the real code is the "Parse
+        enforce features" block inlined in `problem_params::parse_options`
+        at problem-params.cc:2231-2259.
 
         Line format is "<feature name>[ <weight>]": the FIRST space splits
         name from weight, `stof` parses the rest, and a line with no space
