@@ -44,7 +44,50 @@ Written so the next execution resumes from measurement rather than re-deriving
 it. `bash tools/ci.sh` is **green (exit 0, 5242 passed, 5 skipped)** at this
 point, and the working tree is clean.
 
-### THE COMPLETION PLAN — started 2026-09-10
+### COMPLETION PLAN — CLOSED 2026-09-11
+
+All six workstreams landed. Measured at the closing commit:
+
+| Measure | Result |
+|---|---|
+| CLI flags where both binaries succeed and disagree | **0** |
+| Flags byte-identical (90-flag sweep) | **82** — the rest classic rejects at every value |
+| Flags classic accepts that this port refuses | **0** |
+| End-to-end differential (20 configurations × 3 seeds) | **60 / 60 byte-identical** |
+| Optimizers (`hc`/`sa`/`un`/`ps`) | all byte-identical, including `-m1500` |
+| `-H` problems | 14 byte-identical; 4 fail exactly where classic fails |
+| `tools/ci.sh` | green — 7345 passed, 5 skipped |
+| `PLANNED` coverage | 1 file / 41 lines |
+
+Four `raise`s remain in `problem_params.py`, and none blocks a command
+line classic accepts: an unknown `--opt-algo` (classic `exit(1)`s too),
+`-j host:N` distributed dispatch (EXCLUDED by scope decision), and the
+`ss-*` family (`deme_expander`'s subsample-splitting branch).
+
+**What is NOT byte-identical, and cannot be.** Three places where classic's
+own behaviour is unspecified or undefined, each marked DO NOT FIX with the
+measurement behind it:
+
+1. **Boosting member order** — `add_adaboost` picks with `min_element` over
+   a `std::unordered_set`, so ties are broken by hash-bucket order. Measured:
+   4 of 4 candidates tied on one call, 12 of 32 on the next; 11 of 18 runs
+   match classic's score, and the port sometimes scores *better*, which is
+   what rules out an arithmetic error.
+2. **`TimedCounter` insertion order** — `TimedValue::operator<` is not a
+   strict weak ordering (`table.h:482`), so the `std::map` behind every
+   timestamped CTable cell is UB. 1554 insertion sequences measured: 533
+   reorder, 190 lose observations, 30 duplicate a key.
+3. **`std::unordered_set` iteration** wherever else it decides output order.
+
+**Upstream defects reproduced, not fixed** (each with a probe): classic
+SIGSEGVs under `--time-dispersion-pressure` on a timestamped table (rc 139,
+no diagnostic, 18/18 configurations) where the port completes; aborts on
+`--time-bscore-granularity=month` without a timestamp column; `--fs-algo hc`
+null-derefs; `--fs-demes=2` aborts; `--fs-seed=xmplr` SIGSEGVs;
+`logical_reduce` never terminates on `0<(log(-1))`; and an argument index
+past the table's arity reads out of bounds and reports a *perfect* score.
+
+### Historical: the plan as written 2026-09-10
 
 Everything below is measured, not estimated. Six workstreams, partitioned so
 no two touch the same files. A/B/C/D dispatched in parallel; E/F follow because
