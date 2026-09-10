@@ -492,3 +492,16 @@ def fs_main(argv: Sequence[str] | str) -> int:
     else:
         unsupported_type_exit(inferred_type)
     return 0
+
+
+def _console_main() -> int:
+    """The `[project.scripts]` entry point (pyproject.toml).
+
+    A console script is called with NO arguments, so it must read
+    `sys.argv` itself, and passes it through WHOLE -- `argv[0]`
+    included, because the entry point reads the program name from it
+    exactly as every C++ overload does. See the sibling `__main__.py`.
+    """
+    import sys
+
+    return fs_main(sys.argv)

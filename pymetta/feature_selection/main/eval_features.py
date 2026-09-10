@@ -343,3 +343,16 @@ def eval_features_main(argv: Sequence[str] | str) -> int:
     # C++: eval-features.cc:108
     read_eval_output_results(pa)
     return 0
+
+
+def _console_main() -> int:
+    """The `[project.scripts]` entry point (pyproject.toml).
+
+    A console script is called with NO arguments, so it must read
+    `sys.argv` itself, and passes it through WHOLE -- `argv[0]`
+    included, because the entry point reads the program name from it
+    exactly as every C++ overload does. See the sibling `__main__.py`.
+    """
+    import sys
+
+    return eval_features_main(sys.argv)

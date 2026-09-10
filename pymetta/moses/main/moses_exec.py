@@ -313,9 +313,7 @@ def moses_exec(argv: Sequence[str] | str) -> int:
     # once `problem_params.parse_options` grows its one line, the records are
     # emitted from inside it, at classic's own position; until then the
     # fallback call below emits them, and the run-once flag stops both firing.
-    ns._setup_logging = lambda: _setup_logging(
-        pp, _explicit_options(build_parser, argv_list[1:])
-    )
+    ns._setup_logging = lambda: _setup_logging(pp, _explicit_options(build_parser, argv_list[1:]))
 
     pp.parse_options(ns)
     tpp.parse_options(ns)
@@ -383,3 +381,16 @@ def moses_exec(argv: Sequence[str] | str) -> int:
 
     print(f'problem type "{pp.problem}" is currently unsupported.', file=sys.stderr)
     return 1
+
+
+def _console_main() -> int:
+    """The `[project.scripts]` entry point (pyproject.toml).
+
+    A console script is called with NO arguments, so it must read
+    `sys.argv` itself, and passes it through WHOLE -- `argv[0]`
+    included, because the entry point reads the program name from it
+    exactly as every C++ overload does. See the sibling `__main__.py`.
+    """
+    import sys
+
+    return moses_exec(sys.argv)
