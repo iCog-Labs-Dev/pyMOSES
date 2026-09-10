@@ -32,6 +32,18 @@ agree is this project's most-repeated defect. The pairs:
   else in the suite. Measured: 2 of 144 grid cells discriminate, and both
   are here.
 
+  The THIRD `REGRESSION(table, ...)` site, `-Hcluster`
+  (table-problems.cc:557), has NO such case and cannot have one: classic
+  itself prints `-inf 0 ` for every combination of table, evaluation
+  budget, seed and `--fs-target-size` tried (contin_weighted, contin_a5,
+  contin_a4, contin_regression_sample, select_regression, regression_sample
+  at `-m600`/`-m2000`/`-m4000`). `cluster_bscore` is degenerate on every
+  table this project has, so `-Hcluster`'s stdout carries no information
+  about which features were selected. The swap at that site is a
+  zero-kill mutation because there is nothing to observe, not because the
+  suite is missing a case -- `cluster_a5_r3` below still pins that the
+  command line RUNS and matches classic.
+
 Two `--enable-fs` command lines have NO oracle, because classic itself dies
 on them; both are pinned at the bottom of this file with the measurement.
 `--fs-algo=hc` is a third, already recorded in docs/CARRY-FORWARD.md and
