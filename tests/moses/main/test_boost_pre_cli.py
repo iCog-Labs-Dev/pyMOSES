@@ -1,4 +1,5 @@
-"""`-H pre --boost=1` end to end, against classic's own binary.
+"""`-H pre --boost=1` (and `-H select --boost=1`) end to end, against
+classic's own binary.
 
 This is the configuration that made `precision_bscore.do_score` raise:
 `table-problems.cc:385` calls `bscore.use_weighted_scores()` for every
@@ -36,6 +37,15 @@ the empty-ensemble path, and proves nothing else.
 
 `xor4.csv` is the discriminating corpus: `--boost-promote` genuinely
 changes the number of members (1, 2 and 3 members at 1, 2 and 5).
+
+`-H select --boost=1` is the other scorer whose ensemble overload was
+missing (`select_bscore.cc:191`); it goes through AdaBoost rather than
+the experts path, so it exercises a different `ensemble.py` branch with
+the same `behave_cscore.get_bscore_ensemble` entry point. Measured over
+eight configurations: six byte-identical to classic, two differing in
+which of several TIED candidates was promoted (same score, and in one
+case logically equivalent members in a different syntactic form). The
+six stable ones are pinned.
 
 Measured with:
 
@@ -216,3 +226,75 @@ def test_inexact_experts_fail_exactly_where_classic_aborts(tmp_path):
     """
     with pytest.raises(AssertionError, match="inexact experts not yet supported"):
         _run(tmp_path, "xor4", ["-m2000", "-r1", "--boost-exact=0"])
+
+
+# ---------------------------------------------------------------------------
+# `-H select --boost=1` -- select_bscore.call_ensemble, via AdaBoost
+# ---------------------------------------------------------------------------
+
+_CONTIN = (
+    "x1,x2,y\n"
+    "0.0,1.0,1.0\n"
+    "1.0,0.0,1.0\n"
+    "1.0,1.0,2.0\n"
+    "2.0,1.0,3.0\n"
+    "0.5,0.5,1.0\n"
+    "2.0,2.0,4.0\n"
+    "3.0,1.0,4.0\n"
+    "1.0,3.0,4.0\n"
+)
+
+
+def _run_select(tmp_path, argv: list[str]) -> str:
+    csv = tmp_path / "contin.csv"
+    csv.write_text(_CONTIN)
+    log = tmp_path / "moses.log"
+    buf = io.StringIO()
+    with redirect_stdout(buf):
+        rc = moses_exec(
+            [
+                "moses",
+                f"-i{csv}",
+                "-uy",
+                "-W1",
+                "-Hselect",
+                "-q0.1",
+                "-w0.9",
+                f"-f{log}",
+                *argv,
+            ]
+        )
+    assert rc == 0
+    out = buf.getvalue().strip()
+    assert out, "empty output compares equal to anything"
+    return out
+
+
+@pytest.mark.oracle
+@pytest.mark.parametrize(
+    "argv",
+    [
+        ["-m500", "-r1", "--boost=1"],
+        ["-m500", "-r3", "--boost=1"],
+        ["-m2000", "-r1", "--boost=1"],
+        ["-m2000", "-r1", "--boost=1", "--boost-promote=3"],
+        ["-m2000", "-r1", "--boost=1", "--boost-promote=5"],
+    ],
+    ids=lambda v: " ".join(v),
+)
+def test_boosted_select_matches_classic(tmp_path, argv):
+    """Classic prints `0 or(0<($1) 0<($2))` for every one of these; the
+    two ensemble members carry different AdaBoost alphas, so a scorer
+    that ignored `get_weight()` would vote differently.
+    """
+    score, members = _members(_run_select(tmp_path, argv))
+    assert score == "0"
+    assert members == frozenset({"0<($1)", "0<($2)"})
+
+
+@pytest.mark.oracle
+def test_unboosted_select_is_unchanged(tmp_path):
+    """The flat path must not move: classic prints `0 true` here, and
+    `select_bscore.call_ensemble` must never be reached without --boost.
+    """
+    assert _run_select(tmp_path, ["-m500", "-r1"]).split() == ["0", "true"]
