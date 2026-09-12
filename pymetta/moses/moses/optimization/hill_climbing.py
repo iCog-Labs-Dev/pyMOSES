@@ -345,6 +345,36 @@ _SIZEOF_INSTANCE_BYTES = 24
 # Pinned to the same 64-bit ABI `instance.py`'s `packed_t`/`_PACKED_MASK`
 # and `neighborhood_sampling.py`'s `_SIZE_T_MAX` already commit to.
 _SIZE_T_MAX = (1 << 64) - 1
+_INT64_LIMIT = 1 << 63
+
+
+def _double_to_size_t(value: float) -> int:
+    """The `size_t *= double` conversion at hill-climbing.cc:531.
+
+    `number_of_new_instances` is a `size_t` and `fraction_of_nn` a
+    `double`, so each `*=` promotes to double, multiplies, and converts
+    BACK to `size_t`. For a negative product that conversion is formally
+    undefined; on x86-64 GCC emits `cvttsd2si` and keeps the low 64 bits,
+    so a small negative value becomes a huge unsigned one.
+
+    That is reachable: `--hc-fraction-of-nn` accepts a negative value
+    (the `OC_ASSERT(0.0 < fraction_of_nn)` at hill-climbing.h:51 is in the
+    CONSTRUCTOR, which the CLI bypasses by assigning the field afterwards),
+    and classic exits 0 on it. Measured on `-Hpa -k4 -m5000`: classic's
+    output at `--hc-fraction-of-nn=-1` DIFFERS from its own output at `0`,
+    so the two are not interchangeable, and a plain Python `int()` -- which
+    keeps the sign -- gave the wrong one.
+    """
+    if value != value or not (-_INT64_LIMIT <= value < _INT64_LIMIT):
+        # x86-64's "integer indefinite" result for NaN or an out-of-range
+        # double. NOT 0 -- the low 64 bits of 0x8000000000000000 are
+        # 0x8000000000000000 itself, unlike the 32-bit case in
+        # `neighborhood_sampling._double_to_unsigned`, where they are 0.
+        # The second loop iteration lands here: at fraction -1 the first
+        # multiply already produced ~2**64, and multiplying that by -1
+        # overflows int64.
+        return _INT64_LIMIT
+    return int(value) & _SIZE_T_MAX
 
 
 def _get_total_ram_bytes() -> int:
@@ -524,7 +554,9 @@ class hill_climbing(optimizer_base):
 
         number_of_new_instances = total_number_of_neighbors
         for _ in range(distance):
-            number_of_new_instances = int(number_of_new_instances * self.hc_params.fraction_of_nn)
+            number_of_new_instances = _double_to_size_t(
+                number_of_new_instances * self.hc_params.fraction_of_nn
+            )
 
         if number_of_new_instances > self.hc_params.max_nn_evals:
             number_of_new_instances = self.hc_params.max_nn_evals

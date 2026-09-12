@@ -660,13 +660,44 @@ def test_hc_fraction_of_nn_zero_matches_classic():
     assert out2 != out  # the flag is load-bearing on this run, not inert
 
 
+_EXPECTED_PA_K4_FRAC_NEG1 = (
+    "-4 or(and(or(and(or($1 !$3) $4) !$2) or(and(!$1 $2) $3)) and(or(!$2 $3) !$1 !$4)) \n"
+    "-5 or(and(or(and($1 $4) !$2) $3) and(or(!$2 $3) !$1 !$4)) \n"
+    "-4 or(and(or(and(or(!$1 !$4) $2) $3) or(and(!$3 $4) $1 !$2)) and(or(!$2 $3) !$1 !$4)) \n"
+    "-4 or(and(or(and(or($1 !$2 !$3) $4) !$2) or(and(!$1 $2) $3)) and(or(!$2 $3) !$1 !$4)) \n"
+    "-4 or(and(or(and(or($1 !$3) $4) !$2) or(and(!$1 $2 $4) $3)) and(or(!$2 $3) !$1 !$4)) \n"
+    "-4 or(and(or(and(or(!$1 $3) $2) $3) or(and(or($1 !$3) $4) !$2)) and(or(!$2 $3) !$1 !$4)) \n"
+    "-4 or(and(or(and(or(!$1 !$4) $2) $3) or(and(or($1 !$3) $4) !$2)) and(or(!$2 $3) !$1 !$4)) \n"
+    "-4 or(and(or(and(or($1 !$3) or(!$2 $4)) !$2) or(and(!$1 $2) $3)) and(or(!$2 $3) !$1 !$4)) \n"
+    "-4 or(and(or(and(or($1 !$3) $4) and(!$2 $3)) or(and(!$1 $2) $3)) and(or(!$2 $3) !$1 !$4)) \n"
+    "-4 or(and(or(and(or($1 !$3) $4) !$2) or(and(or($2 $3) !$1) $3)) and(or(!$2 $3) !$1 !$4)) \n"
+)
+
+
 def test_hc_fraction_of_nn_negative_is_accepted_like_classic():
-    """`=-1` too: same reasoning, same measurement (classic exits 0). DO
-    NOT FIX -- restoring a positivity check here would reject a command
-    line classic runs."""
+    """`=-1` is accepted (classic exits 0), and is NOT equivalent to `0`.
+
+    This test used to assert `out == _EXPECTED_PA_K4_FRAC0`, on the stated
+    theory that "<= 0 all take the same zeroed path". **Measured false:**
+    classic's own output at `-1` differs from its own output at `0`.
+
+    Why: `number_of_new_instances` is a `size_t` and `fraction_of_nn` a
+    `double`, so `*=` (hill-climbing.cc:531) promotes, multiplies, and
+    converts BACK to `size_t` each iteration. At `0` that yields 0; at a
+    negative fraction the first multiply wraps to a huge unsigned value and
+    the second overflows int64, giving x86-64's "integer indefinite"
+    0x8000000000000000. A plain Python `int()`, which keeps the sign, gave
+    neither -- see `_double_to_size_t`.
+
+    DO NOT FIX by restoring a positivity check: `OC_ASSERT(0.0 <
+    fraction_of_nn)` (hill-climbing.h:51) is in the CONSTRUCTOR, which the
+    CLI bypasses by assigning the field afterwards, so classic really does
+    run this command line.
+    """
     rc, out = _run(["moses", "-Hpa", "-k4", "-m5000", "--hc-fraction-of-nn=-1"])
     assert rc == 0
-    assert out == _EXPECTED_PA_K4_FRAC0  # <= 0 all take the same zeroed path
+    assert out == _EXPECTED_PA_K4_FRAC_NEG1
+    assert out != _EXPECTED_PA_K4_FRAC0, "negative is not the same path as zero"
 
 
 def test_hc_parameters_constructor_still_asserts():
@@ -745,9 +776,7 @@ def test_ip_problem_params_defaults(dataset_csv):
         ippp.ip_skew_U_weight,
     ) == (1.0, 1.0, 1.0, 1.0)
 
-    rc, out = _run(
-        ["moses", f"-i{dataset_csv}", "-m1000", "-K2", "-J0.5", "-U3", "-X-1"]
-    )
+    rc, out = _run(["moses", f"-i{dataset_csv}", "-m1000", "-K2", "-J0.5", "-U3", "-X-1"])
     assert rc == 0
     assert out == _EXPECTED_IT_NO_LABELS
 
@@ -779,47 +808,198 @@ def test_ip_problem_params_defaults(dataset_csv):
 # and the port exited 2 with "unrecognized arguments". They were the only
 # four missing, and there were no port-only extras, so with them added the
 # two surfaces are exactly equal.
-_CLASSIC_OPTION_SPELLINGS = frozenset({
-    "--alpha", "--balance", "--boost", "--boost-bias", "--boost-exact", "--boost-expalpha",
-    "--boost-promote", "--cache-size", "--cap-coef", "--combo-program", "--complexity-ratio",
-    "--complexity-temperature", "--contin-depth", "--discard-dominated", "--discretize-threshold",
-    "--diversity-autoscale", "--diversity-dst", "--diversity-dst2dp", "--diversity-exponent",
-    "--diversity-normalize", "--diversity-p-norm", "--diversity-pressure", "--enable-fs",
-    "--exemplar", "--fs-algo", "--fs-demes", "--fs-diversity-cap", "--fs-diversity-interaction",
-    "--fs-diversity-jaccard", "--fs-diversity-pressure", "--fs-enforce-features-filename",
-    "--fs-exp-distrib", "--fs-focus", "--fs-hc-crossover", "--fs-hc-crossover-min-neighbors",
-    "--fs-hc-crossover-pop-size", "--fs-hc-fraction-of-remaining", "--fs-hc-max-evals",
-    "--fs-hc-max-score", "--fs-hc-widen-search", "--fs-inc-interaction-terms",
-    "--fs-inc-redundant-intensity", "--fs-inc-target-size-epsilon", "--fs-mi-penalty",
-    "--fs-pre-max-activation", "--fs-pre-min-activation", "--fs-pre-penalty", "--fs-pre-positive",
-    "--fs-prune-exemplar", "--fs-scorer", "--fs-seed", "--fs-smd-top-size",
-    "--fs-subsampling-by-time", "--fs-subsampling-ratio", "--fs-target-size", "--fs-threshold",
-    "--gen-best-tree", "--hc-allow-resize-deme", "--hc-crossover", "--hc-crossover-min-neighbors",
-    "--hc-crossover-pop-size", "--hc-fraction-of-nn", "--hc-max-nn-evals",
-    "--hc-resize-to-fit-ram", "--hc-single-step", "--hc-widen-search", "--help",
-    "--ignore-feature", "--ignore-operator", "--include-only-operator", "--input-file",
-    "--ip_kld_weight", "--ip_skew_U_weight", "--ip_skewness_weight", "--ip_stdU_weight",
-    "--it-abs-err", "--jobs", "--linear-regression", "--log-file", "--log-file-dep-opt",
-    "--log-level", "--logical-perm-ratio", "--max-candidates-per-deme", "--max-dist",
-    "--max-evals", "--max-gens", "--max-rand-input", "--max-score", "--max-time", "--min-pool",
-    "--min-rand-input", "--noise", "--nsamples", "--opt-algo", "--output-bscore",
-    "--output-cscore", "--output-deme-id", "--output-eval-number", "--output-file",
-    "--output-format", "--output-only-best", "--output-score", "--output-with-labels",
-    "--pop-size-ratio", "--pre-positive", "--problem", "--problem-size", "--ps-max-particles",
-    "--random-seed", "--reduce-all", "--reduct-candidate-effort", "--reduct-knob-building-effort",
-    "--result-count", "--revisit", "--score-weight", "--ss-by-time", "--ss-contiguous-time",
-    "--ss-low-dev-pressure", "--ss-n-best-bfdemes", "--ss-n-subsample-demes",
-    "--ss-n-subsample-fitnesses", "--ss-n-top-candidates", "--ss-n-tuples",
-    "--ss-std-dev-threshold", "--ss-tanimoto-geometric-mean-threshold",
-    "--ss-tanimoto-geometric-mean-weight", "--ss-tanimoto-max-threshold",
-    "--ss-tanimoto-max-weight", "--ss-tanimoto-mean-threshold", "--ss-tanimoto-mean-weight",
-    "--target-feature", "--time-bscore", "--time-bscore-granularity",
-    "--time-dispersion-exponent", "--time-dispersion-pressure", "--timestamp-feature",
-    "--version", "--weighted-accuracy", "--well-enough", "-A", "-B", "-C", "-D", "-E", "-F", "-G",
-    "-H", "-J", "-K", "-L", "-M", "-N", "-P", "-Q", "-R", "-S", "-T", "-U", "-V", "-W", "-X",
-    "-Y", "-Z", "-a", "-c", "-d", "-e", "-f", "-g", "-h", "-i", "-j", "-k", "-l", "-m", "-n",
-    "-o", "-p", "-q", "-r", "-s", "-t", "-u", "-v", "-w", "-x", "-y", "-z",
-})
+_CLASSIC_OPTION_SPELLINGS = frozenset(
+    {
+        "--alpha",
+        "--balance",
+        "--boost",
+        "--boost-bias",
+        "--boost-exact",
+        "--boost-expalpha",
+        "--boost-promote",
+        "--cache-size",
+        "--cap-coef",
+        "--combo-program",
+        "--complexity-ratio",
+        "--complexity-temperature",
+        "--contin-depth",
+        "--discard-dominated",
+        "--discretize-threshold",
+        "--diversity-autoscale",
+        "--diversity-dst",
+        "--diversity-dst2dp",
+        "--diversity-exponent",
+        "--diversity-normalize",
+        "--diversity-p-norm",
+        "--diversity-pressure",
+        "--enable-fs",
+        "--exemplar",
+        "--fs-algo",
+        "--fs-demes",
+        "--fs-diversity-cap",
+        "--fs-diversity-interaction",
+        "--fs-diversity-jaccard",
+        "--fs-diversity-pressure",
+        "--fs-enforce-features-filename",
+        "--fs-exp-distrib",
+        "--fs-focus",
+        "--fs-hc-crossover",
+        "--fs-hc-crossover-min-neighbors",
+        "--fs-hc-crossover-pop-size",
+        "--fs-hc-fraction-of-remaining",
+        "--fs-hc-max-evals",
+        "--fs-hc-max-score",
+        "--fs-hc-widen-search",
+        "--fs-inc-interaction-terms",
+        "--fs-inc-redundant-intensity",
+        "--fs-inc-target-size-epsilon",
+        "--fs-mi-penalty",
+        "--fs-pre-max-activation",
+        "--fs-pre-min-activation",
+        "--fs-pre-penalty",
+        "--fs-pre-positive",
+        "--fs-prune-exemplar",
+        "--fs-scorer",
+        "--fs-seed",
+        "--fs-smd-top-size",
+        "--fs-subsampling-by-time",
+        "--fs-subsampling-ratio",
+        "--fs-target-size",
+        "--fs-threshold",
+        "--gen-best-tree",
+        "--hc-allow-resize-deme",
+        "--hc-crossover",
+        "--hc-crossover-min-neighbors",
+        "--hc-crossover-pop-size",
+        "--hc-fraction-of-nn",
+        "--hc-max-nn-evals",
+        "--hc-resize-to-fit-ram",
+        "--hc-single-step",
+        "--hc-widen-search",
+        "--help",
+        "--ignore-feature",
+        "--ignore-operator",
+        "--include-only-operator",
+        "--input-file",
+        "--ip_kld_weight",
+        "--ip_skew_U_weight",
+        "--ip_skewness_weight",
+        "--ip_stdU_weight",
+        "--it-abs-err",
+        "--jobs",
+        "--linear-regression",
+        "--log-file",
+        "--log-file-dep-opt",
+        "--log-level",
+        "--logical-perm-ratio",
+        "--max-candidates-per-deme",
+        "--max-dist",
+        "--max-evals",
+        "--max-gens",
+        "--max-rand-input",
+        "--max-score",
+        "--max-time",
+        "--min-pool",
+        "--min-rand-input",
+        "--noise",
+        "--nsamples",
+        "--opt-algo",
+        "--output-bscore",
+        "--output-cscore",
+        "--output-deme-id",
+        "--output-eval-number",
+        "--output-file",
+        "--output-format",
+        "--output-only-best",
+        "--output-score",
+        "--output-with-labels",
+        "--pop-size-ratio",
+        "--pre-positive",
+        "--problem",
+        "--problem-size",
+        "--ps-max-particles",
+        "--random-seed",
+        "--reduce-all",
+        "--reduct-candidate-effort",
+        "--reduct-knob-building-effort",
+        "--result-count",
+        "--revisit",
+        "--score-weight",
+        "--ss-by-time",
+        "--ss-contiguous-time",
+        "--ss-low-dev-pressure",
+        "--ss-n-best-bfdemes",
+        "--ss-n-subsample-demes",
+        "--ss-n-subsample-fitnesses",
+        "--ss-n-top-candidates",
+        "--ss-n-tuples",
+        "--ss-std-dev-threshold",
+        "--ss-tanimoto-geometric-mean-threshold",
+        "--ss-tanimoto-geometric-mean-weight",
+        "--ss-tanimoto-max-threshold",
+        "--ss-tanimoto-max-weight",
+        "--ss-tanimoto-mean-threshold",
+        "--ss-tanimoto-mean-weight",
+        "--target-feature",
+        "--time-bscore",
+        "--time-bscore-granularity",
+        "--time-dispersion-exponent",
+        "--time-dispersion-pressure",
+        "--timestamp-feature",
+        "--version",
+        "--weighted-accuracy",
+        "--well-enough",
+        "-A",
+        "-B",
+        "-C",
+        "-D",
+        "-E",
+        "-F",
+        "-G",
+        "-H",
+        "-J",
+        "-K",
+        "-L",
+        "-M",
+        "-N",
+        "-P",
+        "-Q",
+        "-R",
+        "-S",
+        "-T",
+        "-U",
+        "-V",
+        "-W",
+        "-X",
+        "-Y",
+        "-Z",
+        "-a",
+        "-c",
+        "-d",
+        "-e",
+        "-f",
+        "-g",
+        "-h",
+        "-i",
+        "-j",
+        "-k",
+        "-l",
+        "-m",
+        "-n",
+        "-o",
+        "-p",
+        "-q",
+        "-r",
+        "-s",
+        "-t",
+        "-u",
+        "-v",
+        "-w",
+        "-x",
+        "-y",
+        "-z",
+    }
+)
 
 
 def test_help_lists_exactly_classics_options():
