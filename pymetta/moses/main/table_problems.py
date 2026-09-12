@@ -214,6 +214,7 @@ from pymetta.moses.scoring.bscores import (
     contin_bscore,
     ctruth_table_bscore,
     discretize_contin_bscore,
+    interesting_predicate_bscore,
 )
 from pymetta.moses.scoring.discriminating_bscore import (
     bep_bscore,
@@ -231,6 +232,7 @@ __all__ = [
     "cluster_table_problem",
     "f_one_table_problem",
     "ip_problem_params",
+    "ip_table_problem",
     "it_table_problem",
     "parse_table_args",
     "pre_table_problem",
@@ -1170,11 +1172,174 @@ class cluster_table_problem(table_problem_base):
 
 
 # ---------------------------------------------------------------------------
+# ip_table_problem -- table-problems.h:86 / table-problems.cc:229.
+# ---------------------------------------------------------------------------
+
+
+class ip_table_problem(table_problem_base):
+    """C++: moses/moses/main/table-problems.h:86 ip_problem
+
+    "Find interesting predicates" (table-problems.h:85's own comment).
+    Named `ip_problem` in C++ and `ip_table_problem` here, matching the
+    `*_table_problem` spelling every sibling in this module already uses
+    for the classes `register_table_problems` registers (C++ itself is
+    inconsistent: `ip_problem`/`ann_table_problem`/`pre_table_problem`).
+    `name()` returns classic's own `"ip"`.
+
+    Takes a SECOND params object, `ip_problem_params` -- the only table
+    problem that does. C++ builds both inside `register_table_problems`
+    and hands them to `new ip_problem(*tpp, *ippp)` (table-problems.cc:
+    564-570); this port's `register_table_problems` does the same, taking
+    the `ip_problem_params` as an optional argument so that the ONE
+    instance the argument parser fills is the one the problem reads (the
+    same shared-instance discipline `parse_table_args`' own docstring
+    already spells out for `table_problem_params`).
+
+    REACHABILITY, measured against classic's own binary rather than
+    assumed. `-H ip` exits 0 on any table whose output column is contin
+    and whose every input column is boolean, and aborts (SIGABRT, exit
+    134) on anything else -- the `OC_ASSERT` at table-problems.cc:236,
+    reproduced in `run` below. At classic's DEFAULT activation bounds it
+    prints exactly one line, `nan true`, because
+    `interesting_predicate_bscore`'s activation penalty is `0.0f/0.0f`
+    in both arms; with `-q 0.2 -w 0.8` it prints a normal ranked
+    candidate list. Both are covered by
+    `tests/moses/main/test_ip_problem_cli.py`.
+    """
+
+    def __init__(self, tpp: table_problem_params, ippp: ip_problem_params) -> None:
+        """C++: moses/moses/main/table-problems.h:89 ip_problem
+
+        `ip_problem(table_problem_params& tp, ip_problem_params& ip) :
+        table_problem_base(tp), _ippp(ip) {}` -- both are REFERENCES
+        (table-problems.h:96 declares `ip_problem_params& _ippp;`), so
+        neither is copied and both see whatever the option parser later
+        writes into them. Python's plain attribute binding is that.
+        """
+        super().__init__(tpp)
+        self._ippp = ippp
+
+    def name(self) -> str:
+        return "ip"
+
+    def description(self) -> str:
+        return "Find interesting patterns"
+
+    def run(self, ob: object) -> None:
+        """C++: moses/moses/main/table-problems.cc:229 ip_problem::run
+
+        NOT the `REGRESSION` macro and NOT `common_type_setup` either --
+        this is the only registered table problem that calls
+        `common_setup` alone (cc:232) and then builds its own signatures
+        by hand. Three consequences worth naming, because each is a place
+        a copy-paste from `it_table_problem` would go wrong:
+
+        1. `self.cand_type_signature` and `self.output_type` are NEVER
+           SET here (they are `common_type_setup`'s job). `run` uses its
+           own local `tt`, an ALL-BOOLEAN signature
+           (`gen_signature(id::boolean_type, arity)`, cc:242), for both
+           `alphabet_size` and `metapop_moses_results`. The candidate is
+           a Boolean predicate over Boolean inputs even though the
+           TABLE's output column is contin.
+        2. The default exemplar is `type_to_exemplar(id::boolean_type)`
+           (cc:245-246), chosen from that same Boolean output type rather
+           than from the table's.
+        3. `alphabet_size(tt, ...)` therefore always takes the BOOLEAN
+           arm (`3 + arity`, problem.cc:141-144), so the contin arm's
+           unsigned wrap cannot be reached from here.
+
+        The `OC_ASSERT` at cc:234-237 is the reachability gate this whole
+        problem lives behind: the table's signature must be exactly
+        `->(boolean ... boolean) contin`. Measured against classic on
+        three tables -- a Boolean-output one, a contin-input one and a
+        Boolean-input/contin-output one -- the first two abort with
+        SIGABRT and this exact message and the third exits 0. Ported as
+        an `AssertionError` carrying classic's own text, this port's
+        convention for a direct `OC_ASSERT(false, ...)`.
+
+        `OC_ASSERT(not pms.meta_params.do_boosting, ...)` (cc:266-267) is
+        the second gate, with classic's own reason above it: "In order to
+        support boosting, the interesting_predicate_bscore would have to
+        modified to always return a bscore that is the smae length, and
+        so that the same item always refered to the same row in the
+        ctable." (cc:262-265, typos and all.)
+
+        Nothing here does feature selection (no `fstor` block), calls
+        `use_weighted_scores`, or zeroes `pms.cache_size` -- all three
+        belong to the `REGRESSION` macro and to `pre_table_problem`, and
+        `ip_problem::run` has none of them.
+        """
+        pms = ob
+        self.common_setup(pms)
+
+        # ip assumes that the inputs are boolean and the output is contin
+        # C++: table-problems.cc:233-237.
+        ettt = gen_signature(type_node.boolean_type, type_node.contin_type, self.arity)
+        if ettt != self.table.get_signature():
+            raise AssertionError(
+                "The input table doesn't have the right data types."
+                " The output should be contin and the inputs should"
+                " be boolean"
+            )
+
+        # signature of the functions to learn. C++: table-problems.cc:239-240.
+        tt = gen_signature(type_node.boolean_type, self.arity)
+
+        # determine the default exemplar to start with
+        # C++: table-problems.cc:242-244.
+        if not pms.exemplars:
+            pms.exemplars.append(_type_to_exemplar(type_node.boolean_type))
+
+        # C++: table-problems.cc:246 `int as = alphabet_size(tt, pms.ignore_ops);`
+        # -- note `tt`, the BOOLEAN signature, not `cand_type_signature`.
+        as_ = _to_int32(_alphabet_size(tt, pms.ignore_ops))
+
+        bscore = interesting_predicate_bscore(
+            self.ctable,
+            self._ippp.ip_kld_weight,
+            self._ippp.ip_skewness_weight,
+            self._ippp.ip_stdU_weight,
+            self._ippp.ip_skew_U_weight,
+            pms.min_rand_input,
+            pms.max_rand_input,
+            pms.hardness,
+            pms.pre_positive,
+        )
+        _set_noise_or_ratio(bscore, as_, pms.noise, pms.complexity_ratio)
+
+        # In order to support boosting, the interesting_predicate_bscore
+        # would have to modified to always return a bscore that is the
+        # smae length, and so that the same item always refered to the
+        # same row in the ctable. C++: table-problems.cc:262-267.
+        if pms.meta_params.do_boosting:
+            raise AssertionError("Boosting not supported for the ip problem!")
+
+        mbcscore = behave_cscore(bscore, pms.cache_size)
+        metapop_moses_results(
+            pms.exemplars,
+            tt,
+            pms.bool_reduct,
+            pms.bool_reduct_rep,
+            mbcscore,
+            pms.opt_params,
+            pms.hc_params,
+            pms.ps_params,
+            pms.deme_params,
+            pms.filter_params,
+            pms.meta_params,
+            pms.moses_params,
+            pms.printer,
+        )
+
+
+# ---------------------------------------------------------------------------
 # register_table_problems -- table-problems.cc:562-581.
 # ---------------------------------------------------------------------------
 
 
-def register_table_problems(pmr: problem_manager) -> table_problem_params:
+def register_table_problems(
+    pmr: problem_manager, ippp: ip_problem_params | None = None
+) -> table_problem_params:
     """C++: moses/moses/main/table-problems.cc:562 register_table_problems
 
     `void register_table_problems(problem_manager&, option_manager&)` in
@@ -1184,17 +1349,35 @@ def register_table_problems(pmr: problem_manager) -> table_problem_params:
     equivalent, same convention `demo_problems.py`'s `register_demo_problems`
     already established for its own shared `demo_params`).
 
-    Registers the NINE problems this port has wired for real, then
+    Registers the TEN problems this port has wired for real, then
     defers to `problem.py`'s own `_register_unported_table_problems` for
-    the remaining two (`ip`, `ann-it`) -- see this module's own
-    docstring, "Composing on top of `problem.py` without editing it",
-    for why calling it AFTER the real registrations is safe
+    the remaining one (`ann-it`) -- see this module's own docstring,
+    "Composing on top of `problem.py` without editing it", for why
+    calling it AFTER the real registrations is safe
     (`register_problem`'s `dict.setdefault` semantics). It said "seven ...
     remaining four (..., `cluster`)" until `cluster_table_problem` landed
-    below, and "EIGHT ... remaining three (..., `pre-conj`)" until
-    `pre_conj_table_problem` did.
+    below, "EIGHT ... remaining three (..., `pre-conj`)" until
+    `pre_conj_table_problem` did, and "NINE ... remaining two (`ip`,
+    `ann-it`)" until `ip_table_problem` did.
+
+    `ippp` has no C++ counterpart as a PARAMETER: classic constructs its
+    `ip_problem_params` here (table-problems.cc:567) and registers it with
+    the `option_manager` on the next line, which is how the one instance
+    reaches both `new ip_problem(*tpp, *ippp)` and the parser. This port
+    has no `option_manager`, so the caller that owns the argparse parser
+    (`moses_exec.py`) constructs the instance and passes it IN; omitting
+    it builds a private one at classic's defaults, which is right for
+    every caller that never parses `-K/-J/-U/-X`. Handing `ip_table_problem`
+    a DIFFERENT instance from the one the parser fills would silently run
+    `-H ip` at default weights no matter what the command line said --
+    the exact bug this parameter exists to prevent, and the one the old
+    "construct a throwaway at the parser" arrangement would have had the
+    moment `-H ip` stopped being a stub.
     """
     tpp = table_problem_params()
+    if ippp is None:
+        ippp = ip_problem_params()
+    pmr.register_problem(ip_table_problem(tpp, ippp))
     pmr.register_problem(it_table_problem(tpp))
     pmr.register_problem(pre_table_problem(tpp))
     pmr.register_problem(pre_conj_table_problem(tpp))
@@ -1208,7 +1391,9 @@ def register_table_problems(pmr: problem_manager) -> table_problem_params:
     return tpp
 
 
-def parse_table_args(argv: list[str], tpp: table_problem_params) -> problem_params:
+def parse_table_args(
+    argv: list[str], tpp: table_problem_params, ippp: ip_problem_params | None = None
+) -> problem_params:
     """Not itself a ported C++ symbol. Mirrors `problem_params.py`'s own
     `parse_args` convenience function exactly, extended to also register
     and parse `table_problem_params`'s options on the SAME shared
@@ -1236,13 +1421,22 @@ def parse_table_args(argv: list[str], tpp: table_problem_params) -> problem_para
     tpp.add_options(parser)
     # `ip_problem_params` is the third `option_base` classic registers into
     # the ONE shared `options_description` (problem.cc:50-56, via
-    # table-problems.cc:565-566), so its four flags parse here too. Its
-    # values are discarded: this helper returns a `problem_params`, and the
-    # `-H ip` problem that would read them is an unported stub. Registering
-    # them anyway is what keeps `-K`/`-J`/`-U`/`-X` from being an error on a
-    # command line classic accepts.
-    ip_problem_params().add_options(parser)
+    # table-problems.cc:565-566), so its four flags parse here too.
+    #
+    # CORRECTED: this used to build a throwaway instance and DISCARD the
+    # parsed values, on the stated grounds that "the `-H ip` problem that
+    # would read them is an unported stub". It no longer is
+    # (`ip_table_problem` above), so a discarded instance would run `-H ip`
+    # at default weights whatever `-K/-J/-U/-X` said. `ippp` is now taken
+    # as a parameter for the same reason `tpp` is: it must be the SAME
+    # instance `register_table_problems` wired into `ip_table_problem`.
+    # Omitting it keeps the old behaviour -- the flags still parse without
+    # error -- for callers that never select `-H ip`.
+    if ippp is None:
+        ippp = ip_problem_params()
+    ippp.add_options(parser)
     ns = parser.parse_args(argv)
     pp.parse_options(ns)
     tpp.parse_options(ns)
+    ippp.parse_options(ns)
     return pp

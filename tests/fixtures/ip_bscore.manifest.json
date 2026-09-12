@@ -1,0 +1,35 @@
+{
+  "capture_script": "tools/capture_ip_bscore.py",
+  "capture_script_sha256": "705d66a8e00c86f9424a134bb11fe1f3b96ddde10ecdd180053bd8204ef3e1a0",
+  "classic_dir": "/home/yab/Documents/Projects/iCog/HyperonRelated/MOSES/OpenCog/Moses",
+  "cli_tool": null,
+  "generated_at_utc": "2026-09-12T07:34:09+00:00",
+  "inputs": {
+    "csv_files": [
+      "ip_boolean_contin.csv",
+      "ip_boolean_contin_reversed.csv",
+      "ip_sweep.csv"
+    ],
+    "description": "hand-built Counter<contin_t,contin_t> pairs and a fixed (activation, min, max, penalty) grid, both hardcoded in ip_bscore_probe.cc; plus interesting_predicate_bscore over tests/fixtures/table_data/ip_boolean_contin.csv, its row-reversed twin ip_boolean_contin_reversed.csv, and ip_sweep.csv (byte-for-byte tools/flag_sweep.py's DATASETS['ip']), at 14 weight/activation/positive combinations x 6 fixed combo trees. No RNG anywhere.",
+    "trees": [
+      "$1",
+      "and($1 $2)",
+      "not($1)",
+      "and($1 not($1))",
+      "or($1 or($2 $3))",
+      "true"
+    ]
+  },
+  "prefix_dir": "/home/yab/opt/moses-legacy",
+  "probe_kind": "cpp_probe",
+  "probe_source": "tools/cpp_probe/ip_bscore_probe.cc",
+  "probe_source_sha256": "8d3c5129ac86d80fc24502f32a764b6ba7817880e56f21c78f55d19d0240bb87",
+  "repo_commit": "49c01c7341264a1d98fe48c476333843928a0b00",
+  "schema_version": 2,
+  "toolchain": {
+    "boost_lib_version": "1_92",
+    "cxx": "g++ (GCC) 16.2.1 20260810",
+    "glibcxx_max_symbol": "GLIBCXX_3.4.36",
+    "libstdcxx_soname": "libstdc++.so.6.0.36"
+  }
+}

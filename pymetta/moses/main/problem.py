@@ -256,6 +256,29 @@ class _unported_table_problem(problem_base):
         return self._description
 
     def run(self, ob: object) -> None:
+        """C++: moses/moses/main/table-problems.cc:294 ann_table_problem::run
+
+        Breadcrumb added 2026-09-12, having been ABSENT since this class
+        was written. That absence was not cosmetic: `tools/coverage_totals.
+        py`'s `check_ported_rows_do_not_gate` attributes every `raise
+        NotImplementedError` to the C++ file named by its NEAREST ENCLOSING
+        BREADCRUMBED symbol, so a gate with no breadcrumb anywhere above it
+        is invisible to that check -- it can never be flagged, no matter
+        what MODULE-COVERAGE.md claims about the file it stands in for.
+        This is the only gate in the package that stood in for a C++
+        function while citing none.
+
+        The cited symbol is the ONE C++ `run` this stub still stands in
+        for: `ann_table_problem::run` (cc:294), the ANN-domain problem.
+        It stood in for `ip_problem::run` (cc:229) too until
+        `ip_table_problem` (table_problems.py) was written, at which point
+        the `ip` entry was deleted from `_unported_table_problems` below
+        rather than left shadowed -- see that function's own docstring on
+        why a stub for a ported problem has nothing true to say.
+
+        `ob` is discarded rather than dispatched on: there is no real work
+        this stub could correctly do with any `problem_params`.
+        """
         del ob
         raise NotImplementedError(
             f"problem {self._name!r} ({self._cpp_class}) is not ported: "
@@ -273,35 +296,25 @@ def _unported_table_problems() -> list[problem_base]:
     overrides, the fourth is measured, per-problem, against classic's own
     binary (see each entry's own comment).
 
-    CORRECTED: this returned TEN stubs -- every problem except `it` --
+    CORRECTED TWICE. It returned TEN stubs -- every problem except `it` --
     until `table_problems.py` grew to wire eight of the eleven for real.
     Seven of those ten were already dead (`register_problem` is
     `dict.setdefault` and `table_problems.py` registers first), so they
     were unreachable stubs asserting a falsehood about a scorer that was
-    in fact ported. They are dropped rather than corrected: a stub for a
+    in fact ported. They were dropped rather than corrected: a stub for a
     ported problem has nothing true to say.
+
+    The second correction removed `ip`, on the same rule, when
+    `ip_table_problem` (table_problems.py) landed. Its reason string had
+    said "it needs interesting_predicate_bscore (bscores.h:553), which
+    bscores.py does not port", which is now false -- bscores.py ports it,
+    along with cogutil's `standardizedMannWhitneyU` and boost's
+    `weighted_skewness`. `ann-it` is the ONE stub left, and it is the ANN
+    domain, excluded project-wide rather than unscheduled.
     """
     return [
         _unported_table_problem(*args)
         for args in (
-            (
-                "ip",
-                "Find interesting patterns",
-                "table-problems.h:86 ip_problem",
-                # `interesting_predicate_bscore` (bscores.h:553) is one
-                # of the bscores.h classes bscores.py does not port (see
-                # that module's own docstring for the full list). Note
-                # classic does not get that far on an
-                # ordinary table either: it OC_ASSERTs first, at
-                # table-problems.cc:236, unless the output column is
-                # contin and every input column is boolean. Measured:
-                # `-Hip -i$CLASSIC/tests/moses/dataset.csv` aborts with
-                # "The input table doesn't have the right data types. The
-                # output should be contin and the inputs should be
-                # boolean (table-problems.cc:236)".
-                "it needs interesting_predicate_bscore (bscores.h:553), which "
-                "bscores.py does not port",
-            ),
             (
                 "ann-it",
                 "ANN-based regression on input table",

@@ -302,18 +302,24 @@ def moses_exec(argv: Sequence[str] | str) -> int:
     from pymetta.moses.main.table_problems import ip_problem_params, register_table_problems
 
     pmr = problem_manager()
-    tpp = register_table_problems(pmr)
-    dp = register_demo_problems(pmr)
-
     # C++: table-problems.cc:565-566 constructs `ip_problem_params` inside
     # `register_table_problems` and registers it with the option manager
     # there, because it also hands it to `new ip_problem(*tpp, *ippp)` on
-    # the next line. `ip_problem` is an unported stub here (problem.py) and
-    # takes no parameters, so there is nothing to hand it; the object is
-    # built at the one place that still needs it -- the parser -- rather
-    # than changing `register_table_problems`' return type for a value its
-    # only other consumer cannot use.
+    # the next line -- ONE instance, seen by both the parser and the
+    # problem.
+    #
+    # CORRECTED: this file used to build its own throwaway instance AFTER
+    # `register_table_problems` returned, on the stated grounds that
+    # "`ip_problem` is an unported stub here (problem.py) and takes no
+    # parameters, so there is nothing to hand it". `ip_table_problem`
+    # (table_problems.py) is real now, so that arrangement would hand the
+    # problem a DIFFERENT `ip_problem_params` from the one the parser
+    # fills, and `-K/-J/-U/-X` would be silently ignored on every `-H ip`
+    # run. It is built here and passed IN instead -- `register_table_problems`
+    # keeps its return type and grows an optional parameter.
     ippp = ip_problem_params()
+    tpp = register_table_problems(pmr, ippp)
+    dp = register_demo_problems(pmr)
 
     pp = problem_params()
 

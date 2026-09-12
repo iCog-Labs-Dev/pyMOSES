@@ -84,47 +84,93 @@ already writes out its own per-row `interpreter_visitor` loop, so
 """
 
 import math
-from collections.abc import Callable, Sequence
+from collections.abc import Callable, Iterable, Sequence
 from enum import IntEnum
 
-from pymetta.comboreduct.combo.vertex import builtin, combo_tree, get_contin, negate_vertex, vertex
+from pymetta.comboreduct.combo.vertex import (
+    bool_to_vertex,
+    builtin,
+    combo_tree,
+    get_contin,
+    negate_vertex,
+    vertex,
+    vertex_equal,
+)
 from pymetta.comboreduct.interpreter.interpreter import interpreter_visitor
-from pymetta.comboreduct.table.table import CTable, ITable, OTable, Table, type_node
+from pymetta.comboreduct.table.table import (
+    CTable,
+    ITable,
+    OTable,
+    Table,
+    timed_items_of,
+    type_node,
+)
+from pymetta.feature_selection.scorers.kld import KLDS
 from pymetta.moses.moses.types import (
     _to_score_t,
     behavioral_score,
     ostream_behavioral_score,
     score_t,
     very_best_score,
+    very_worst_score,
 )
 from pymetta.moses.scoring.scoring_base import (
+    _copy_ctable,
     _cpp_reciprocal,
+    _ieee_div,
+    _to_usize,
     bscore_base,
+    bscore_ctable_base,
     log_candidate_bscore,
 )
 from pymetta.util.logger import logger, ostream_double
 
 
-class ctruth_table_bscore(bscore_base):
+class ctruth_table_bscore(bscore_ctable_base):
     """C++: moses/moses/scoring/bscores.h:360 ctruth_table_bscore
 
-    Extends `bscore_base` directly, per task-6-brief.md's interface line
-    (`class ctruth_table_bscore(bscore_base)`) -- NOT `bscore_ctable_base`
-    (bscores.h's own base, scoring_base.h:236), which is out of scope (see
-    scoring_base.py's module docstring). Every `_wrk_ctable` reference in
-    the C++ member functions below reads, in this port, as `self._ctable`
-    -- there is no separate `_orig_ctable`/`_wrk_ctable` distinction to
-    maintain without `ignore_cols`/`ignore_rows`.
+    Extends `bscore_ctable_base` (scoring_base.h:236), matching bscores.h:
+    360 exactly. It used to extend `bscore_base` directly, per
+    task-6-brief.md's interface line, on the stated grounds that
+    `bscore_ctable_base`'s row/feature subsetting was out of scope; every
+    `_wrk_ctable` in the C++ member functions below then read as a single
+    private table attribute. That is no longer tenable:
+    `--ss-n-subsample-demes>1` and `--ss-n-subsample-fitnesses>1` both
+    drive `bscore_ctable_base.ignore_rows` (scoring_base.py) on the *it*
+    problem's boolean scorer -- i.e. on THIS class -- so the
+    `_orig_ctable`/`_wrk_ctable`/`_all_rows_wrk_ctable` distinction is
+    load-bearing here, and every member below reads `self._wrk_ctable`
+    exactly where C++ does.
+
+    Consequence worth naming: `_wrk_ctable` is a VALUE COPY of the
+    caller's table (`_copy_ctable`, scoring_base.py), where this class
+    used to alias it. That matches C++ (`_wrk_ctable(_orig_ctable)` is a
+    `std::map` copy-construction, scoring_base.cc:188) and is what lets
+    `ignore_rows` restore the full table between subsamples;
+    `get_ctable()` still hands back `_orig_ctable`, the caller's own
+    object, exactly as scoring_base.cc:323 does.
     """
 
     def __init__(self, ctable: CTable) -> None:
         """C++: moses/moses/scoring/bscores.h:362 ctruth_table_bscore
 
-        `_size = _wrk_ctable.size()` (bscores.h:365) is `len(ctable)`
-        (compressed-row count, i.e. `dict.__len__`, not
-        `uncompressed_size()`); `reset_weights()` (bscores.h:366) is not
-        called -- it is boosting-only infrastructure this port does not
-        implement (scoring_base.py's module docstring).
+        `bscore_ctable_base(ctt)` (bscores.h:363) runs first and does the
+        `_orig_ctable`/`_wrk_ctable`/`_all_rows_wrk_ctable`/
+        `_ctable_usize`/`_ctable_weight` work; this body then re-does
+        `_size = _wrk_ctable.size()` (bscores.h:365) -- the compressed-row
+        count, i.e. `dict.__len__`, not `uncompressed_size()` -- exactly
+        as C++ does, redundantly, since the base already set the same
+        value from the same table.
+
+        `reset_weights()` (bscores.h:366) IS called now. It used to be
+        skipped here as "boosting-only infrastructure this port does not
+        implement"; `bscore_base.reset_weights` (scoring_base.py) is real,
+        and with `_return_weighted_score` false -- which it always is for
+        this class, nothing ever calls `use_weighted_scores()` on it --
+        its whole body is `self._weights = []`, so calling it is both
+        faithful and observationally inert. Verified inert by mutation:
+        removing the call again changes no test's outcome and no CLI
+        byte.
 
         # DIVERGENCE(C++ moses/moses/scoring/bscores.h:362-368): classic's
         # constructor never calls `get_output_type()`, it simply assumes a
@@ -151,9 +197,9 @@ class ctruth_table_bscore(bscore_base):
         # weighting feature, so the mismatch is actually present) in
         # tests/moses/scoring/test_bscores.py.
         """
-        super().__init__()
-        self._ctable = ctable
-        self._size = len(ctable)
+        super().__init__(ctable)
+        self._size = len(self._wrk_ctable)
+        self.reset_weights()
         output_type = ctable.get_output_type()
         if output_type != type_node.boolean_type:
             raise ValueError(
@@ -184,7 +230,7 @@ class ctruth_table_bscore(bscore_base):
         """
         iv = interpreter_visitor(tr)
         bs: behavioral_score = []
-        for row, counter in self._ctable.items():
+        for row, counter in self._wrk_ctable.items():
             sc = _to_score_t(counter.get(negate_vertex(iv(list(row))), 0.0))
             bs.append(-sc)
 
@@ -216,7 +262,7 @@ class ctruth_table_bscore(bscore_base):
             -_to_score_t(
                 min(counter.get(builtin.logical_true, 0.0), counter.get(builtin.logical_false, 0.0))
             )
-            for counter in self._ctable.values()
+            for counter in self._wrk_ctable.values()
         ]
 
         # C++: bscores.cc:373-374, the last statement of the function.
@@ -256,7 +302,7 @@ class ctruth_table_bscore(bscore_base):
         arbitrary float-point values." (bscores.cc:395-398's own comment.)
         """
         result = []
-        for counter in self._ctable.values():
+        for counter in self._wrk_ctable.values():
             t = counter.get(builtin.logical_true, 0.0)
             f = counter.get(builtin.logical_false, 0.0)
             result.append(-_to_score_t(abs(t - f)))
@@ -276,7 +322,7 @@ class ctruth_table_bscore(bscore_base):
         not `math.inf`.
         """
         min_weight = very_best_score
-        for counter in self._ctable.values():
+        for counter in self._wrk_ctable.values():
             t = counter.get(builtin.logical_true, 0.0)
             f = counter.get(builtin.logical_false, 0.0)
             w = _to_score_t(abs(t - f))
@@ -1049,3 +1095,813 @@ class discretize_contin_bscore(bscore_base):
         )
         log_candidate_bscore(tr, bs)  # C++: bscores.cc:269
         return bs
+
+
+# ===========================================================================
+# interesting_predicate_bscore -- bscores.h:553 / bscores.cc:726-905, and
+# the two cogutil statistics it is the only MOSES caller of.
+# ===========================================================================
+
+
+def _fmax(x: float, y: float) -> float:
+    """Not a ported symbol -- C99 `fmax`, which `bscores.cc:897-900` calls
+    three times and which Python's `max` is NOT a drop-in for.
+
+    `fmax` returns the OTHER operand when one is a NaN (`max` returns
+    whichever the comparison happens to pick, and `max(nan, 0.0)` is
+    `nan`). That difference is load-bearing here, not theoretical: with
+    `--min-rand-input 0` (the DEFAULT) the first quotient in
+    `get_activation_penalty` is `0.0f/0.0f`, a NaN, and classic's `dst`
+    comes out as the SECOND quotient -- measured, `tests/fixtures/
+    ip_bscore.json` group `activation`, case
+    `(0.5, min=0.0, max=0.8) -> dst 0.0`, where `max` would give `nan`.
+
+    When neither is a NaN this is glibc's `x < y ? y : x`, so `fmax(+0.0,
+    -0.0)` returns `+0.0` and `fmax(-0.0, +0.0)` returns `-0.0` -- C
+    leaves that unspecified and nothing here observes it.
+    """
+    if math.isnan(x):
+        return y
+    if math.isnan(y):
+        return x
+    return y if x < y else x
+
+
+def _c_pow(base: float, exponent: float) -> float:
+    """Not a ported symbol -- `std::pow(double, double)` as called at
+    `bscores.cc:903`, i.e. glibc's `pow`. `time_dispersion.py`'s `_powf`
+    is the binary32 sibling; this is the binary64 one, and the two are NOT
+    interchangeable (`bscores.cc:903` is `pow(1.0 - dst, _penalty)`, whose
+    first argument is a `double` because of the `1.0` literal, so the
+    `double` overload is selected and `_penalty` is PROMOTED, not the
+    other way round).
+
+    The same four families where `math.pow` is not a drop-in, all MEASURED
+    against classic's own toolchain here rather than carried over from
+    `powf` (`tools/cpp_probe/ip_bscore_probe.cc`'s `activation` mode,
+    pinned in `tests/fixtures/ip_bscore.json`):
+
+    1. **NaN base.** glibc XORs its internal `sign_bias` -- set only for a
+       negative base with an ODD-INTEGER exponent -- into the result's
+       sign, so a NEGATIVE NaN base comes back POSITIVE for an odd integer
+       exponent and negative otherwise. Measured, with `dst == -nan` (what
+       the DEFAULT activation bounds produce): `penalty 1.0 -> nan`,
+       `penalty 2.0 -> -nan`, `penalty 0.5 -> -nan`. That single character
+       is the whole difference between classic's `nan true` and `-nan
+       true` on the `-H ip` sweep rows.
+    2. **Negative finite base, non-integer exponent** -- C99 domain error,
+       a negative NaN; Python raises `ValueError`. Unreachable from
+       `get_activation_penalty` (`dst <= 1` for any activation in
+       `[0, 1]`, so `1.0 - dst >= 0`), written out for the contract.
+    3. **Zero base, negative exponent** -- C99 pole error, a signed
+       infinity; Python raises `ValueError`.
+    4. **Overflow** -- `+-inf`; Python raises `OverflowError`.
+
+    `pow(x, +-0) == 1` for every `x`, NaN included, so the exponent-zero
+    case is answered first, matching C99 and keeping the NaN rule from
+    firing on it.
+    """
+    if exponent == 0.0:
+        return 1.0
+
+    odd_int = exponent.is_integer() and int(exponent) % 2 != 0
+    negative_base = math.copysign(1.0, base) < 0.0
+
+    if math.isnan(base):
+        return -math.nan if (negative_base and not odd_int) else math.nan
+
+    try:
+        return math.pow(base, exponent)
+    except ValueError:
+        if base == 0.0:
+            return -math.inf if (negative_base and odd_int) else math.inf
+        return -math.nan
+    except OverflowError:
+        return -math.inf if (negative_base and odd_int) else math.inf
+
+
+def _c_log(x: float) -> float:
+    """Not a ported symbol -- `std::log(double)` as called at
+    `bscores.cc:903`, which never raises where Python's `math.log` does.
+
+    `log(0)` is `-inf` (the C99 pole error), `log(x < 0)` is a negative
+    NaN (the domain error), and a NaN propagates sign and all. Reachable
+    here: `dst == 1.0` exactly -- an activation of 0 against a positive
+    `--min-rand-input` -- makes `pow(0.0, penalty)` zero and the penalty
+    `-inf`. Measured, `tests/fixtures/ip_bscore.json` group `activation`.
+
+    A local sibling of the identically-shaped `_c_log` in
+    `pymetta/feature_selection/scorers/kld.py`, not an import: that module
+    is a `pymetta.feature_selection` one, and small C-semantics helpers
+    are kept per-file in this project (`_alphabet_size`,
+    `_type_to_exemplar`, `_sq`, `_contin_complexity_coef` all follow the
+    same convention).
+    """
+    if math.isnan(x):
+        return x
+    if x == 0.0:
+        return -math.inf
+    if x < 0.0:
+        return -math.nan
+    return math.log(x)
+
+
+def _accumulate_with_int_init(values: Iterable[float]) -> float:
+    """C++: opencog/util/MannWhitneyU.h:53 accumulate
+
+    Breadcrumb cites the expression, not a declaration: this reproduces
+    `boost::accumulate(c2 | map_values, 0)`, which has no definition of
+    its own in cogutil. The expression appears three times --
+    MannWhitneyU.h:53 (inside `MannWhitneyU`) and :67/:69 (inside
+    `standardizedMannWhitneyU`).
+
+    `boost::accumulate` is `std::accumulate`, whose accumulator type comes
+    from the INIT VALUE, and the init is the literal `0`: an `int`. So the
+    running sum is `acc = acc + *it` with `acc` an `int` and `*it` a
+    `contin_t` -- the addition happens in double and the result is
+    converted back to `int`, TRUNCATING TOWARD ZERO, at EVERY step.
+
+    Observable: yes, and not only in theory. A `--score-weight` column
+    makes every `CTable` count fractional, and `n1`/`n2` then truncate.
+    Measured (`tests/fixtures/ip_bscore.json`, group `stats`, case
+    `fractional_counts`): for `c1 = {1:1.5, 2:2.5, 3:0.25}` the exact
+    total is 4.25 and the accumulated `n1` is 3; for
+    `c2 = {2:0.75, 3:0.25}` the exact total is 1.0 and `n2` is **0**,
+    which makes `sU` zero and `standardizedMannWhitneyU` return `+inf`
+    instead of a finite z-score.
+
+    Traversal is the caller's order, which every caller here makes
+    ascending-by-key to match `std::map`. That matters: truncation makes
+    the accumulation NON-ASSOCIATIVE (0.6+0.6 truncating to 1, versus 0
+    twice).
+
+    A local sibling of `kld.py`'s identically-shaped helper, per this
+    project's per-file convention for cogutil-adjacent helpers; it is
+    cited to MannWhitneyU.h here because that is the expression this copy
+    exists for.
+    """
+    acc = 0
+    for value in values:
+        acc = int(acc + value)
+    return float(acc)
+
+
+def _ranking(counter: dict[float, float]) -> dict[float, float]:
+    """C++: opencog/util/ranking.h:40 ranking
+
+    "Return a rank given a counter. Ties ranks are averaged. Given a
+    Counter {'blue': 3, 'red': 2, 'green': 1}, it will produce a new
+    Counter {'blue': 3, 'red': 4.5, 'green': 6}" (ranking.h:33-38's own
+    comment -- note the example is written in Python-Counter insertion
+    order, but the C++ container is a `std::map`, so the walk is ascending
+    BY KEY, which for those three strings happens to be the same order).
+
+    `lrank` is carried across iterations and `res.insert(res.end(), ...)`
+    appends with a hint, so BOTH the running rank and the result's order
+    depend on the ascending walk; iterating a Python `dict` in insertion
+    order here would assign every rank to the wrong key. Sorted
+    explicitly, leaving the returned `dict` in that same ascending order
+    (which is what `MannWhitneyU`'s `r[v.first]` lookups and this port's
+    own tests then see).
+
+    `(2 * lrank + v.second - 1) / 2` is evaluated in `FloatT` (double)
+    throughout: the `2` and `1` literals are `int`s promoted by the
+    `double` operand, and the trailing `/ 2` is likewise a double divide.
+    """
+    res: dict[float, float] = {}
+    lrank = 1.0
+    for key, count in sorted(counter.items()):
+        res[key] = (2 * lrank + count - 1) / 2
+        lrank += count
+    return res
+
+
+def _counter_add(c1: dict[float, float], c2: dict[float, float]) -> dict[float, float]:
+    """C++: opencog/util/Counter.h:127 Counter
+
+    Breadcrumb cites the bare enclosing CLASS: the real symbol is
+    `Counter::operator+=`, and `operator+=` is not an identifier the
+    alignment checker can look for (it strips to `operator+=`, which
+    matches nothing).
+
+    `c1 + c2`, which `boost::arithmetic<Counter>` (Counter.h:55) defines
+    as "copy c1, then `+= c2`" -- and `Counter::operator+=` is
+    `for (const auto& v : other) this->operator[](v.first) += v.second;`
+    (Counter.h:127-131), where `std::map::operator[]` VALUE-INITIALIZES a
+    missing key to `0` before adding. `dict.get(key, 0.0)` is that.
+
+    Breadcrumb cites `operator+=`, the member that carries the behaviour;
+    the free `operator+` it is used through is generated by
+    `boost::arithmetic` and has no line of its own.
+
+    `other` is walked ascending (it is a `std::map`), which decides the
+    order the summed values are computed in -- the result is
+    order-insensitive for exact doubles but not in general, so the walk is
+    reproduced rather than left to insertion order. The RESULT is left in
+    "c1's keys in c1's order, then c2's new keys" order; every consumer
+    here (`_ranking`) sorts.
+    """
+    res = dict(c1)
+    for key, count in sorted(c2.items()):
+        res[key] = res.get(key, 0.0) + count
+    return res
+
+
+def _mann_whitney_u(c1: dict[float, float], c2: dict[float, float], n2: float = -1.0) -> float:
+    """C++: opencog/util/MannWhitneyU.h:44 MannWhitneyU
+
+    "return the Mann-Whitney U (U_2 to be precise) given 2 distributions
+    described by Counters. If n2, the size of c2, is not provided it is
+    automatically calculated." (MannWhitneyU.h:39-42's own comment.)
+
+    Two things are easy to get wrong and are reproduced exactly:
+
+    * `sum2 += r[v.first]` sums each of c2's ranks ONCE, unweighted --
+      the count `v.second` is not multiplied in, even though `r` was built
+      from the COMBINED counter `c1 + c2`. Verified against classic on the
+      `identical` case (c1 == c2 == {1:1, 2:2, 5:1}): ranks 1.5/4.5/7.5
+      sum to 13.5, and U is 3.5, not the 20.5 a count-weighted sum would
+      give.
+    * `r[v.first]` is `std::map::operator[]`, which INSERTS a
+      value-initialized `0` for a missing key rather than throwing. No key
+      of c2 can be missing from `c1 + c2`, so the insert never fires; it
+      is written out (`res.setdefault`) so the port does not raise where
+      C++ would silently continue.
+
+    `n2 * (n2 + 1) / 2` is `(n2 * (n2 + 1)) / 2` in doubles.
+    """
+    c = _counter_add(c1, c2)
+    r = _ranking(c)
+    sum2 = 0.0
+    for key, _ in sorted(c2.items()):
+        sum2 += r.setdefault(key, 0.0)
+    if n2 < 0:
+        n2 = _accumulate_with_int_init(count for _, count in sorted(c2.items()))
+    return sum2 - n2 * (n2 + 1) / 2
+
+
+def _standardized_mann_whitney_u(
+    c1: dict[float, float], c2: dict[float, float], n1: float = -1.0, n2: float = -1.0
+) -> float:
+    """C++: opencog/util/MannWhitneyU.h:64 standardizedMannWhitneyU
+
+    "return the standardized Mann-Whitney U given 2 distributions
+    described by Counters" (MannWhitneyU.h:60-61's own comment). The one
+    MOSES caller is `interesting_predicate_bscore::operator()`
+    (bscores.cc:856), which passes neither `n1` nor `n2`, so both go
+    through `_accumulate_with_int_init`'s truncation.
+
+    `n1`/`n2` are computed BEFORE `MannWhitneyU` is called and the already
+    -truncated `n2` is passed down, so `MannWhitneyU` never recomputes it.
+
+    `(U - mU) / sU` divides by zero whenever `n1` or `n2` truncates to 0 --
+    `+inf` when `U > mU`, and `0/0`'s NEGATIVE NaN when the predicate
+    selected nothing at all. Both measured; see `_ieee_div`. `sqrt` of a
+    negative argument is C's domain error (a negative NaN) rather than
+    Python's `ValueError`; unreachable for non-negative counts, written
+    out for the contract.
+    """
+    if n1 < 0:
+        n1 = _accumulate_with_int_init(count for _, count in sorted(c1.items()))
+    if n2 < 0:
+        n2 = _accumulate_with_int_init(count for _, count in sorted(c2.items()))
+    u = _mann_whitney_u(c1, c2, n2)
+    m_u = n1 * n2 / 2
+    radicand = m_u * (n1 + n2 + 1) / 6
+    s_u = -math.nan if radicand < 0.0 else math.sqrt(radicand)
+    return _ieee_div(u - m_u, s_u)
+
+
+def _weighted_skewness(counter: dict[float, float]) -> float:
+    """C++: boost/accumulators/statistics/weighted_skewness.hpp:59 result
+
+    `weighted_skewness(acc)` on a
+    `accumulator_set<contin_t, stats<tag::weighted_skewness>, contin_t>`
+    (bscores.h:558-561), fed by
+    `for (const auto& v : pred_counter) acc(v.first, weight = v.second);`
+    (bscores.cc:751-752 and :827-828) -- so the SAMPLE is the observed
+    value and the WEIGHT is its count, and the feed order is the
+    `std::map`'s, ascending by key.
+
+    Breadcrumb cites `weighted_skewness_impl::result`, the member that
+    holds the formula, under the header's own path (the alignment checker
+    resolves `boost/...` against `/usr/include`, the third of its roots --
+    the same route `neighborhood_sampling.py`'s
+    `_boost_binomial_coefficient_double` already uses).
+
+    Boost's own documented formula, transcribed with its EXACT
+    associativity because every operation is a double rounding:
+
+        (m3 - 3.*m2*mean + 2.*mean*mean*mean)
+        / ((m2 - mean*mean) * sqrt(m2 - mean*mean))
+
+    where `mean` is `weighted_mean` = `weighted_sum / sum_of_weights`
+    (weighted_mean.hpp:56, the LAZY default) and `m_n` is
+    `weighted_moment<n>` = `sum(w_i * pow(x_i, n)) / sum_of_weights`
+    (weighted_moment.hpp:60). `numeric::pow(x, mpl::int_<2>)` is `x * x`
+    and `numeric::pow(x, mpl::int_<3>)` is `(x * x) * x`
+    (moment.hpp:28-42) -- repeated multiplication, NOT `std::pow`, which
+    rounds differently.
+
+    Every accumulator is a running sum in the order the samples arrive, so
+    the ascending walk is load-bearing beyond tidiness.
+
+    Degenerate inputs, both reachable and both measured
+    (`tests/fixtures/ip_bscore.json`, group `stats`): an EMPTY counter
+    gives `0/0` for `mean`/`m2`/`m3` and a NEGATIVE NaN overall (the
+    predicate selected no rows); a SINGLE-point counter gives a zero
+    denominator and likewise a negative NaN. `numeric::fdiv` on two
+    `double`s is plain `/`, so those go through `_ieee_div`.
+    """
+    sum_of_weights = 0.0
+    weighted_sum = 0.0
+    moment2_sum = 0.0
+    moment3_sum = 0.0
+    for x, w in sorted(counter.items()):
+        sum_of_weights += w
+        weighted_sum += w * x
+        moment2_sum += w * (x * x)
+        moment3_sum += w * ((x * x) * x)
+
+    mean = _ieee_div(weighted_sum, sum_of_weights)
+    m2 = _ieee_div(moment2_sum, sum_of_weights)
+    m3 = _ieee_div(moment3_sum, sum_of_weights)
+
+    numerator = m3 - 3.0 * m2 * mean + 2.0 * mean * mean * mean
+    variance = m2 - mean * mean
+    root = -math.nan if variance < 0.0 else math.sqrt(variance)
+    return _ieee_div(numerator, variance * root)
+
+
+def _ctable_rows_in_map_order(ctable: CTable) -> list[tuple[tuple, object]]:
+    """No C++ symbol -- re-establishes `std::map`'s ordering over a
+    `CTable`, which this port stores as an insertion-ordered `dict`.
+
+    `CTable` is `std::map<multi_type_seq, TimedCounter>` (table.h:550), so
+    every `boost::for_each(_ctable | map_values, ...)` in
+    `interesting_predicate_bscore` walks the rows ASCENDING BY INPUT
+    TUPLE. The port's `Table.compressed` inserts in FILE ROW ORDER, which
+    is a different order for any table whose rows are not already sorted.
+
+    That difference is observable here, and only here among this port's
+    scorers, because `operator()` builds `pred_counter` with an
+    ASSIGNMENT (`pred_counter[...] = mv.second`, bscores.cc:800) rather
+    than a `+=`: when two selected rows report the same output value, the
+    LAST one visited wins, so the visiting order decides the value.
+    MEASURED both ways: classic's `-H ip` output is byte-identical for a
+    14-row table and for the same 14 rows reversed, which it could not be
+    if it walked them in file order.
+
+    `multi_type_seq::operator<` is `get_variant() < r.get_variant()`
+    (table.h:383). `-H ip` admits only all-boolean inputs
+    (`table-problems.cc:233-237`), so every key's variant alternative is
+    the same one -- a `builtin_seq`, i.e. `vector<builtin>`, confirmed by
+    measurement: `get_seq<vertex>()` throws `boost::bad_get` on these keys
+    -- and the comparison reduces to a lexicographic walk over the
+    `builtin` enum's ordinals. `builtin` is an `IntEnum` here with the
+    same ordinals (`logical_true = 1` BEFORE `logical_false = 2`,
+    vertex.h:74), so a plain tuple `sorted()` IS that comparison. Classic
+    therefore visits `(true, true, true)` first and `(false, false,
+    false)` last, and so does this.
+    """
+    return sorted(ctable.items())
+
+
+def _cell_items_in_value_order(cell) -> list[tuple[object, float]]:
+    """No C++ symbol -- re-establishes `std::map`'s ordering over ONE
+    `CTable` cell, the companion to `_ctable_rows_in_map_order` above.
+
+    A cell is a `TimedCounter`, i.e. `Counter<TimedValue, count_t>`
+    (table.h:496), so C++ walks it ascending by `TimedValue`. This port
+    carries no timestamps inside a `CTable` cell (every `TimedValue`
+    collapses to its bare vertex -- docs/CARRY-FORWARD.md Sec 3), so that
+    ordering reduces here to ascending by the observation's `contin_t`
+    value, which is also what `TimedValue::operator<` (table.h:482) gives
+    for a set of same-timestamp entries.
+
+    It matters in both of this scorer's walks: the constructor's `+=`
+    histogram accumulates in this order (a float-rounding dependency), and
+    `operator()`'s `pred_counter` ASSIGNS in it (a which-value-wins
+    dependency).
+    """
+    return sorted(timed_items_of(cell), key=lambda item: get_contin(item[0].value))
+
+
+class interesting_predicate_bscore(bscore_base):
+    """C++: moses/moses/scoring/bscores.h:553 interesting_predicate_bscore
+
+    The `-H ip` ("find interesting patterns") scorer. It does NOT score a
+    candidate against a target column: it treats the candidate as a
+    PREDICATE that selects rows, and rewards the selection whose output
+    distribution is most unlike the unconditioned one -- by
+    Kullback-Leibler divergence, by a shift in skewness, and by a
+    standardized Mann-Whitney U. `__call__`'s own docstring walks the
+    four weighted components.
+
+    `ip_problem::run` (table-problems.cc:229) is the only constructor
+    site, and it `OC_ASSERT`s first that the table's signature is exactly
+    `->(boolean ... boolean) contin` (table-problems.cc:233-237), so the
+    predicate's inputs are Boolean and the histogram's values are contin.
+
+    REACHABILITY, measured rather than assumed. Classic exits 0 on this
+    problem, but at its DEFAULT activation bounds (`--min-rand-input 0`,
+    `--max-rand-input 1`) every candidate's activation penalty is a NaN --
+    `0.0f/0.0f` in both arms of `get_activation_penalty` -- so every
+    composite score is `nan` and classic prints a single `nan true` line.
+    The four `--ip_*` weights make no difference there, which is exactly
+    what the 16 `-H ip` rows of this project's CLI sweep observe. Give it
+    real bounds (`-q 0.2 -w 0.8`) and the scorer discriminates normally.
+    Both regimes are covered by this port's tests; neither is a
+    degenerate-output path (classic prints a real, ranked candidate list
+    in the second).
+    """
+
+    def __init__(
+        self,
+        ctable: CTable,
+        kld_weight: float = 1.0,
+        skewness_weight: float = 1.0,
+        stdU_weight: float = 1.0,
+        skew_U_weight: float = 1.0,
+        min_activation: float = 0.0,
+        max_activation: float = 1.0,
+        penalty: float = 1.0,
+        positive: bool = True,
+        abs_skewness: bool = False,
+        decompose_kld: bool = False,
+    ) -> None:
+        """C++: moses/moses/scoring/bscores.cc:726 interesting_predicate_bscore
+
+        Every weight and bound is a `score_t`/`weight_t` PARAMETER in C++
+        (`typedef score_t weight_t;`, bscores.h:555), so each narrows to
+        binary32 at the call boundary -- before any `> 0` gate below ever
+        sees it. `ip_problem::run` passes `double`s
+        (`ip_problem_params`' four fields are `double`,
+        table-problems.h:79-82), so the narrowing is real, not notional.
+
+        `CTable _ctable;` (bscores.h:590) is a by-VALUE member, so the
+        member-initializer list copy-constructs the caller's table;
+        `_copy_ctable` here for the same reason (docs/CARRY-FORWARD.md
+        Sec 1.1/1.2: a bare assignment would alias where C++ copies).
+
+        The histogram loop (cc:743-747) is a nested `boost::for_each` over
+        the ctable's cells, `+=`-ing each `(value, count)` into
+        `_counter` -- an ADDITION, unlike `operator()`'s `pred_counter`,
+        which assigns. Both walks are ascending, per
+        `_ctable_rows_in_map_order`; the inner one is ascending by the
+        cell's own key, which for this port (no timestamps in a `CTable`
+        cell -- docs/CARRY-FORWARD.md Sec 3) is ascending by contin value.
+
+        `_skewness` IS ONLY ASSIGNED WHEN `_kld_w > 0` (cc:749-758): the
+        whole precompute block, `_pdf` included, sits inside that `if`.
+        `contin_t _skewness;` (bscores.h:591) has no default member
+        initializer and is not in the constructor's initializer list, so
+        `--ip_kld_weight=0` leaves classic READING AN UNINITIALIZED
+        `double` in `operator()`'s `diff_skewness` -- undefined behaviour.
+
+        # DIVERGENCE(C++ moses/moses/scoring/bscores.cc:749): this port
+        # initialises `_skewness` to 0.0 rather than leaving it
+        # uninitialised, the same refusal-to-reproduce-UB this project
+        # already applies to an out-of-range argument index
+        # (docs/CARRY-FORWARD.md Sec 3) and to `KLDS::p_s`
+        # (feature_selection/scorers/kld.py). Measured on this toolchain,
+        # classic's uninitialised `_skewness` READS AS 0.0 -- `-Hip -K0
+        # -J0 -U0 -X1` scores every candidate exactly 0 on a symmetric
+        # table, which requires `_skewness == pred_skewness == 0` -- so
+        # 0.0 is also the value that agrees with the measurement. It is
+        # still a divergence and not a port of anything: another build,
+        # another allocator or another stack layout can hand classic any
+        # bit pattern there, and no port can be faithful to that.
+
+        `abs_skewness` and `decompose_kld` are the two constructor
+        parameters `ip_problem::run` never passes (it supplies nine of the
+        eleven, cc:248-256), so both keep their declared defaults on every
+        CLI-reachable path. Ported anyway, because they change
+        `operator()`'s shape rather than just a constant.
+        """
+        super().__init__()
+        self._ctable = _copy_ctable(ctable)
+        self._kld_w = _to_score_t(kld_weight)
+        self._skewness_w = _to_score_t(skewness_weight)
+        self._abs_skewness = abs_skewness
+        self._stdU_w = _to_score_t(stdU_weight)
+        self._skew_U_w = _to_score_t(skew_U_weight)
+        self._min_activation = _to_score_t(min_activation)
+        self._max_activation = _to_score_t(max_activation)
+        self._penalty = _to_score_t(penalty)
+        self._positive = positive
+        self._decompose_kld = decompose_kld
+
+        # Define counter (mapping between observation and its number of
+        # occurences). That is, create a historgram showing how often each
+        # output value occurs in the ctable. (cc:739-742's own comment,
+        # typos and all.)
+        self._counter: dict[float, float] = {}
+        for _row, cell in _ctable_rows_in_map_order(self._ctable):
+            for tv, count in _cell_items_in_value_order(cell):
+                value = get_contin(tv.value)
+                self._counter[value] = self._counter.get(value, 0.0) + count
+
+        self._pdf: dict[float, float] = {}
+        self._klds = KLDS()
+        self._skewness: float = 0.0
+        # Precompute pdf (probability distribution function). C++: cc:749-758.
+        if self._kld_w > 0:
+            self._pdf = dict(self._counter)
+            self._klds.set_p_pdf(self._pdf)
+
+            # Compute the skewness of the pdf. `_pdf` is still the raw
+            # COUNTS here: `set_p_pdf` copies into KLDS's own `p_pdf` and
+            # only that copy is turned into densities (KLD.h:67-73).
+            self._skewness = _weighted_skewness(self._pdf)
+            logger().debug("interesting_predicate_bscore::_skewness = %f", self._skewness)
+
+    def __call__(self, tr: combo_tree) -> behavioral_score:
+        """C++: moses/moses/scoring/bscores.cc:761 interesting_predicate_bscore::operator()
+
+        "OK, here's the deal. The combo tree evaluates to T/F on each
+        input table row. That is, the combo tree is a predicate that
+        selects certain rows of the input table. Here, pred_cache is just
+        a cache, to avoid multiple evaluations of the combo tree: its just
+        a table with just one column, equal to the value of the combo tree
+        on each input row." (cc:763-769's own comment.)
+
+        Bscore layout, in push order -- between two and five elements
+        depending on the weights:
+
+        0. `_kld_w * KLD(unconditioned || selected)`, if `_kld_w > 0`.
+           With `_decompose_kld` it is instead one element PER DISTINCT
+           OBSERVATION of the unconditioned distribution.
+        1. `_skewness_w * (skewness(selected) - _skewness)`, if
+           `_skewness_w > 0`.
+        2. `_stdU_w * |standardizedMannWhitneyU|`, if `_stdU_w > 0`.
+        3. `_skew_U_w * stdU * diff_skewness` -- "the product of the
+           relative differences of the shift (stdU) and the skewness (so
+           that if both go in the same direction the value if positive,
+           and negative otherwise)" (cc:858-861's own comment).
+        4. the activation penalty, ALWAYS.
+
+        Note elements 1-3 are gated as a BLOCK on
+        `_skewness_w > 0 || _stdU_w > 0 || _skew_U_w > 0` (cc:824) and
+        then individually, so `-J0 -U0 -X1` still computes both
+        statistics; and `stdU` is computed whenever `_stdU_w > 0 ||
+        _skew_U_w > 0` but only PUSHED when `_stdU_w > 0`.
+
+        ## `OTable pred_cache(tr, _ctable)` is written out inline
+
+        `OTable(const combo_tree&, const CTable&, const string&)`
+        (table.cc:350) is not ported (table.py's own class docstring says
+        so), and this is its only MOSES call site. Its body is the
+        `interpreter_visitor`-per-KEY loop below -- the same
+        write-it-out-inline treatment `cluster_bscore.__call__` already
+        gives the ITable overload. Its first statement, `arity_set as =
+        get_argument_abs_idx_set(tr);` (table.cc:352), is DEAD -- `as` is
+        never read -- and is not reproduced.
+
+        ## DO NOT FIX: `pred_counter` ASSIGNS where `_counter` ADDS
+
+        `pred_counter[get_contin(mv.first.value)] = mv.second;`
+        (cc:800) -- an assignment. Two different selected rows that share
+        an output value do NOT accumulate: the later one in `std::map`
+        order overwrites the earlier. The constructor's histogram, three
+        dozen lines up, uses `+=` on the same shape of data. So the
+        "conditioned" distribution this scorer compares against the
+        unconditioned one is not a sub-histogram of it -- it under-counts
+        every value that appears in more than one selected row.
+        Reproduced as written: classic's printed scores are computed from
+        it, and it is the reason `_ctable_rows_in_map_order` exists.
+
+        ## The `pred_counter.size() == 1` guard does not cover size 0
+
+        cc:805-811 returns `[very_worst_score]` for a ONE-value filtered
+        distribution ("Statistics like skewness need a distribution that
+        isn't a single spike"), but a predicate that selects NOTHING falls
+        straight through. Measured in classic for `and($1 not($1))`:
+        `[-inf, -nan, nan, -nan, -inf]`. Every one of those comes from a
+        division by zero this port routes through `_ieee_div` /
+        `KLDS.next`'s own IEEE arithmetic.
+        """
+        # C++: cc:771 `OTable pred_cache(tr, _ctable);` -- table.cc:350.
+        rows = _ctable_rows_in_map_order(self._ctable)
+        iv = interpreter_visitor(tr)
+        pred_cache = [iv(list(row)) for row, _cell in rows]
+
+        # target simply negates (inverts) the predicate. C++: cc:773-774.
+        target = bool_to_vertex(self._positive)
+
+        # Count how many rows the predicate selected. C++: cc:776-787.
+        # `unsigned tc = c.total_count();` narrows `count_t` (double) to
+        # `unsigned`, truncating -- which a `--score-weight` column makes
+        # observable, exactly as `_ctable_usize` does elsewhere.
+        total = 0
+        actives = 0
+        for (_row, cell), v in zip(rows, pred_cache, strict=True):
+            tc = _to_usize(sum(count for _tv, count in timed_items_of(cell)))
+            if vertex_equal(v, target):
+                actives += tc
+            total += tc
+
+        logger().fine("ip scorer: total = %u", total)
+        logger().fine("ip scorer: actives = %u", actives)
+
+        # Create a histogram of output values, ignoring non-selected rows.
+        # C++: cc:794-802. NOTE the assignment -- see this method's own
+        # DO NOT FIX note.
+        pred_counter: dict[float, float] = {}
+        for (_row, cell), v in zip(rows, pred_cache, strict=True):
+            if vertex_equal(v, target):
+                for tv, count in _cell_items_in_value_order(cell):
+                    pred_counter[get_contin(tv.value)] = count
+
+        logger().fine("ip scorer: pred_cache.size() = %u", len(pred_cache))
+        logger().fine("ip scorer: pred_counter.size() = %u", len(pred_counter))
+
+        # If there's only one output value left, then punt. Statistics
+        # like skewness need a distribution that isn't a single spike.
+        # C++: cc:805-811.
+        if len(pred_counter) == 1:
+            bs: behavioral_score = [very_worst_score]
+            log_candidate_bscore(tr, bs)
+            return bs
+
+        bs = behavioral_score()
+        # Compute Kullback-Leibler divergence (KLD) of the filetered
+        # distribution. C++: cc:813-823.
+        if self._kld_w > 0.0:
+            if self._decompose_kld:
+                # `_klds(pred_counter, back_inserter(bs))` then
+                # `boost::transform(bs, bs.begin(), _kld_w * arg1)`
+                # (cc:816-817): the phoenix lambda multiplies each element
+                # by the weight IN PLACE, after the fact.
+                bs.extend(self._klds.components(pred_counter))
+                for i, element in enumerate(bs):
+                    bs[i] = _to_score_t(self._kld_w * _to_score_t(element))
+            else:
+                pred_klds = _to_score_t(self._klds(pred_counter))
+                logger().fine("ip scorer: klds = %f", pred_klds)
+                bs.append(_to_score_t(self._kld_w * pred_klds))
+
+        # Compute skewness of the filtered distribution. C++: cc:825-863.
+        if self._skewness_w > 0 or self._stdU_w > 0 or self._skew_U_w > 0:
+            diff_skewness: score_t = 0.0
+            if self._skewness_w > 0 or self._skew_U_w > 0:
+                # push the absolute difference between the unconditioned
+                # skewness and conditioned one. `pred_skewness` is a
+                # `score_t` LOCAL (cc:838) -- the double result of
+                # `weighted_skewness` narrows BEFORE the subtraction.
+                pred_skewness = _to_score_t(_weighted_skewness(pred_counter))
+                diff_skewness = _to_score_t(pred_skewness - self._skewness)
+                val_skewness = abs(diff_skewness) if self._abs_skewness else diff_skewness
+                logger().fine("ip scorer: pred_skewness = %f", pred_skewness)
+                if self._skewness_w > 0:
+                    bs.append(_to_score_t(self._skewness_w * val_skewness))
+
+            stdU: score_t = 0.0
+            if self._stdU_w > 0 or self._skew_U_w > 0:
+                # Compute the standardized Mann-Whitney U. C++: cc:856.
+                stdU = _to_score_t(_standardized_mann_whitney_u(self._counter, pred_counter))
+                logger().fine("ip scorer: stdU = %f", stdU)
+                if self._stdU_w > 0.0:
+                    bs.append(_to_score_t(self._stdU_w * abs(stdU)))
+
+            # push the product of the relative differences of the shift
+            # (stdU) and the skewness (so that if both go in the same
+            # direction the value if positive, and negative otherwise)
+            if self._skew_U_w > 0:
+                bs.append(_to_score_t(_to_score_t(self._skew_U_w * stdU) * diff_skewness))
+
+        # add activation_penalty component. C++: cc:865-871.
+        activation = _to_score_t(_ieee_div(float(actives), _to_score_t(float(total))))
+        activation_penalty = self._get_activation_penalty(activation)
+        logger().fine("ip scorer: activation = %f", activation)
+        logger().fine("ip scorer: activation penalty = %e", activation_penalty)
+        bs.append(activation_penalty)
+
+        log_candidate_bscore(tr, bs)  # C++: cc:873
+        return bs
+
+    def best_possible_bscore(self) -> behavioral_score:
+        """C++: moses/moses/scoring/bscores.cc:876 best_possible_bscore
+
+        Breadcrumb cites the BARE member name, which is all the alignment
+        checker keeps anyway (it strips everything before the last `::`);
+        the real symbol is
+        `interesting_predicate_bscore::best_possible_bscore`, and the
+        fully-qualified spelling every sibling here uses would not fit the
+        100-column limit.
+
+        "the KLD has no upper boundary so the best of possible score is
+        the maximum value a behavioral_score can represent"
+        (bscores.h:576-577's own comment) -- `behavioral_score(1,
+        very_best_score)`, a ONE-element score regardless of how many
+        elements `operator()` actually returns.
+        """
+        return [very_best_score]
+
+    def min_improv(self) -> score_t:
+        """C++: moses/moses/scoring/bscores.cc:906 interesting_predicate_bscore::min_improv
+
+        "not necessarily right, just the backwards-compatible behavior"
+        (cc:907-908's own comment) -- 0.0, the same value
+        `bscore_base::min_improv` already returns, spelled out here
+        because classic spells it out.
+        """
+        return 0.0
+
+    def set_complexity_coef(self, *args: float) -> None:
+        """C++: moses/moses/scoring/bscores.cc:880 interesting_predicate_bscore::set_complexity_coef
+        (the `(alphabet_size, stdev)` overload, which OVERRIDES
+        `bscore_base`'s own two-argument one per the `virtual void
+        set_complexity_coef(unsigned, float)` declaration at bscores.h:582)
+        and moses/moses/scoring/scoring_base.cc:63
+        bscore_base::set_complexity_coef (the one-argument
+        `complexity_ratio` overload, brought into this class's scope
+        UNCHANGED by C++'s own `using bscore_base::set_complexity_coef;`,
+        bscores.h:583).
+
+        Byte-for-byte the same body as `contin_bscore.set_complexity_coef`
+        above, including `_contin_complexity_coef` and the `stdev > 0`
+        gate -- NOT `bscore_base`'s `discrete_complexity_coef` with its
+        `0 < p < 0.5` gate, which would be a different formula AND a
+        different singularity. Only the log line's prefix differs, and
+        classic misspells it: "intersting_predicate_bscore" (cc:888), plus
+        the same "alphabest" typo the other two carry.
+
+        Which overload `-H ip` takes is decided by `set_noise_or_ratio`
+        (table-problems.cc:41): `--noise >= 0` takes the two-argument one,
+        otherwise `--complexity-ratio` takes the one-argument one. The
+        default `--noise` is negative, so the ONE-argument form is the
+        default path here.
+        """
+        if len(args) == 2:
+            alphabet_size, stdev = args
+            stdev = _to_score_t(stdev)
+            self._complexity_coef = 0.0
+            if stdev > 0:
+                self._complexity_coef = _contin_complexity_coef(int(alphabet_size), stdev)
+            # C++: cc:886-889. "intersting"/"alphabest" are classic's own
+            # typos, and the ratio is the RECIPROCAL of the stored
+            # coefficient -- `inf` when it stayed 0.0.
+            logger().info(
+                f"intersting_predicate_bscore noise = {ostream_double(stdev)}"
+                f" alphabest size = {alphabet_size}"
+                f" complexity ratio = {ostream_double(_cpp_reciprocal(self._complexity_coef))}"
+            )
+        else:
+            super().set_complexity_coef(*args)
+
+    def _get_activation_penalty(self, activation: score_t) -> score_t:
+        """C++: moses/moses/scoring/bscores.cc:896 get_activation_penalty
+
+        The real symbol is
+        `interesting_predicate_bscore::get_activation_penalty`; the
+        breadcrumb cites the bare member name because the qualified one
+        does not fit the 100-column limit (see `best_possible_bscore`).
+
+        A `private` member (bscores.h:608), so it is private here too.
+        Every type in these two statements is load-bearing and none of
+        them is uniform:
+
+            score_t dst = fmax(fmax(_min_activation - activation, score_t(0))
+                              / _min_activation,
+                              fmax(activation - _max_activation, score_t(0))
+                              / (1.0 - _max_activation));
+            return log(pow((1.0 - dst), _penalty));
+
+        * the FIRST quotient is `float / float` -- both operands are
+          `score_t`, so it rounds to binary32;
+        * the SECOND is `float / double`, because the `1.0` literal
+          promotes `_max_activation`, so it stays binary64;
+        * the outer `fmax` therefore resolves to the `double` overload and
+          narrows only on the store to `score_t dst`;
+        * `1.0 - dst` promotes back to `double`, so `pow` is the
+          `(double, double)` overload with `_penalty` promoted -- NOT
+          `powf`.
+
+        Both quotients are `0/0` at classic's DEFAULT bounds
+        (`--min-rand-input 0`, `--max-rand-input 1`), which is the whole
+        reason `-H ip` prints `nan` out of the box. `fmax` returning the
+        non-NaN operand is what keeps a HALF-degenerate configuration
+        (only one bound at its default) finite -- see `_fmax`.
+
+        `dst <= 1` for any `activation` in `[0, 1]`, so `1.0 - dst` is
+        never negative and `pow`'s domain error is unreachable from here;
+        `dst == 1` IS reachable (activation 0 against a positive low
+        bound) and gives `log(0) == -inf`.
+        """
+        dst = _to_score_t(
+            _fmax(
+                _to_score_t(
+                    _ieee_div(
+                        _fmax(_to_score_t(self._min_activation - activation), 0.0),
+                        self._min_activation,
+                    )
+                ),
+                _ieee_div(
+                    _fmax(_to_score_t(activation - self._max_activation), 0.0),
+                    1.0 - self._max_activation,
+                ),
+            )
+        )
+        logger().fine("ip scorer: dst = %f", dst)
+        return _to_score_t(_c_log(_c_pow(1.0 - dst, self._penalty)))

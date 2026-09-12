@@ -63,6 +63,54 @@ __all__ = ["KLD", "KLDS", "pdf_t"]
 pdf_t = dict[float, float]
 
 
+def _ieee_div(numerator: float, denominator: float) -> float:
+    """Not a ported symbol -- C/C++ IEEE-754 division, which never raises.
+
+    A local copy of `pymetta/moses/scoring/scoring_base.py`'s `_ieee_div`,
+    not an import: `pymetta.feature_selection` must not depend on
+    `pymetta.moses.scoring` (the dependency runs the other way -- see this
+    module's own PLACEMENT divergence note above, and the same
+    each-file-keeps-its-own-copy convention `_alphabet_size` and
+    `_type_to_exemplar` already follow in `pymetta/moses/main/`).
+
+    `x/0` is a signed infinity and `0/0` is the x86-64 "QNaN
+    floating-point indefinite", whose SIGN BIT IS SET -- so C++ prints it
+    as `-nan`. Python raises `ZeroDivisionError` for both.
+    """
+    if denominator != 0:
+        return numerator / denominator
+    if numerator > 0:
+        return math.inf
+    if numerator < 0:
+        return -math.inf
+    return -math.nan
+
+
+def _c_log(x: float) -> float:
+    """Not a ported symbol -- C/C++ `std::log(double)`, which never raises.
+
+    `log(0)` is the C99 pole error, `-inf` (`log(-0.0)` too); `log(x)` for
+    a negative finite `x` is the domain error, a NEGATIVE NaN on glibc;
+    `log(nan)` propagates the NaN, sign and all; `log(+inf)` is `+inf`.
+    Python's `math.log` raises `ValueError` for the first two and
+    propagates for the rest.
+
+    NOT gathered from a table: only the `log(0.0) == -inf` arm is
+    reachable from this module (`delta_p / delta_q` underflows to `+0.0`
+    when `delta_q` is `+inf`, i.e. when `q_s == 0`). The negative-argument
+    arm cannot be reached -- `delta_p` is a density, `delta_q` a positive
+    ratio -- and is written out rather than left to raise so that the
+    helper's contract is C's, not a subset of it.
+    """
+    if math.isnan(x):
+        return x
+    if x == 0.0:
+        return -math.inf
+    if x < 0.0:
+        return -math.nan
+    return math.log(x)
+
+
 def _counter(seq: Iterable[float]) -> pdf_t:
     """C++: opencog/util/Counter.h:50 Counter
 
@@ -303,10 +351,27 @@ class KLDS:
         delta_p = self._p_sorted[iters.cit_p][1]
         delta_q_x = q_x - iters.q_x_pre
         n_duplicates = 1.0 if iters.cit_q == q_end else q_items[iters.cit_q][1]
-        delta_q = (self.p_s / q_s) * n_duplicates / delta_q_x
+        # `(p_s / q_s) * n_duplicates / delta_q_x` and `log(delta_p /
+        # delta_q)` are C++ `FloatT` (double) arithmetic, which NEVER
+        # raises: `x/0` is a signed infinity, `0/0` is a negative NaN on
+        # x86-64, and `std::log(0.0)` is `-inf`. Python's `/` raises
+        # `ZeroDivisionError` and `math.log(0.0)` raises `ValueError`, so
+        # both go through the IEEE helpers here. NOT a behaviour change
+        # for any input that did not previously CRASH: `_ieee_div(a, b)`
+        # is `a / b` whenever `b != 0`, and `_c_log(x)` is `math.log(x)`
+        # whenever `x > 0`.
+        #
+        # The reachable caller is `interesting_predicate_bscore.__call__`
+        # (pymetta/moses/scoring/bscores.py): a `-H ip` predicate that
+        # selects NO rows hands this an EMPTY `q_counter`, so `q_s` is
+        # exactly `0.0`, `delta_q` is `+inf`, `delta_p / delta_q` is
+        # `0.0` and the component is `-inf`. Measured in classic --
+        # bscore `[-inf, ...]` for `and($1 not($1))`,
+        # tests/fixtures/ip_bscore.json group `skewed_table`.
+        delta_q = _ieee_div(self.p_s, q_s) * n_duplicates / delta_q_x
 
         iters.cit_p += 1
-        return math.log(delta_p / delta_q)
+        return _c_log(_ieee_div(delta_p, delta_q))
 
     def __call__(self, q_counter: pdf_t) -> float:
         """C++: opencog/util/KLD.h:156 operator()
