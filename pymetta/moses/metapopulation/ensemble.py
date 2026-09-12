@@ -63,28 +63,36 @@ with no CTable/table-loading setup).
    PRIOR stub's own docstring (see class docstring below, unchanged):
    `cs._bscorer` stands in for it, matching that module's own documented
    choice not to add "a thin one-line delegation" method.
-3. **No concrete scorer in this port overrides `call_ensemble`** (`bscore_
-   base.operator()(const scored_combo_tree_set&)`) -- classic's own base
-   body is itself `OC_ASSERT(false, "Ensemble scoring not implemented for
-   bscorer %s", ...)` (`scoring_base.cc:74-75`), same shape as `get_error`
-   above, and EVERY real concrete scorer this project has a partial port
-   of overrides it for real in classic (`logical_bscore`, `bscores.cc:85`;
-   `ctruth_table_bscore`, `bscores.cc:303`; `select_bscore`, `select_
-   bscore.cc:191`; `precision_bscore`, `precision_bscore.cc:368`) -- but
-   NONE has been given one in this port yet (`precision_bscore.py`'s own
-   docstring and `demo_problems.py`'s own docstring both already note
-   this for their own classes: "not overridden here, so they inherit
-   `bscore_base.call_ensemble`'s raising"). This blocks `add_expert`'s
-   exact-experts weight-update step and `flat_score` against every real
-   scorer currently in this port -- `test_ensemble.py` works around it
-   with its own test-local `_BoostableBscore.call_ensemble` override (a
-   deliberately UNWEIGHTED simplification -- see that test double's own
-   docstring for why prerequisite gap #1 above makes the real weighted
-   formula unimplementable there too). The real fix belongs in whichever
-   of `bscores.py`/`demo_problems.py`/`select_bscore.py`/
-   `precision_bscore.py` a caller actually wants boosting to work
-   against -- none are edited here (`pymetta/moses/scoring/`/`pymetta/
-   moses/main/` are outside this task's owned scope).
+3. **`call_ensemble` overrides** (`bscore_base.operator()(const scored_
+   combo_tree_set&)`) -- classic's own base body is itself
+   `OC_ASSERT(false, "Ensemble scoring not implemented for bscorer %s",
+   ...)` (`scoring_base.cc:74-75`), same shape as `get_error` above, and
+   every real concrete scorer overrides it in classic (`logical_bscore`,
+   `bscores.cc:85`; `ctruth_table_bscore`, `bscores.cc:303`;
+   `select_bscore`, `select_bscore.cc:191`; `precision_bscore`,
+   `precision_bscore.cc:368`).
+
+   RESOLVED for three of the four, in the order the CLI needed them:
+   `logical_bscore` (`demo_problems.py`, which is what made `--boost`
+   work on the demo problems at all), then `precision_bscore` and
+   `select_bscore` (`precision_bscore.py`, `select_bscore.py`), which is
+   what `-H pre --boost=1` and `-H select --boost=1` need. So BOTH
+   branches of `add_candidates` below now run against real scorers:
+   `add_expert` for `pre` (`table-problems.cc:396` sets
+   `ensemble_params.experts`) and `add_adaboost` for everything else.
+
+   STILL ABSENT: `ctruth_table_bscore` (`bscores.cc:303`) -- and that is
+   faithful, because classic itself aborts on a boosted table problem
+   before it could ever be called ("bscore error not implemented for
+   bscorer ... ctruth_table_bscore", `scoring_base.cc:115`; measured,
+   exit 134).
+
+   `test_ensemble.py` still uses its own test-local `_BoostableBscore.
+   call_ensemble` (a deliberately UNWEIGHTED simplification), which is
+   now a unit-test double rather than a stand-in for a missing feature;
+   the real scorers are covered end to end in
+   `tests/moses/main/test_boost_cli.py` and
+   `tests/moses/main/test_boost_pre_cli.py`.
 
 ## `_scored_trees` is now a real `scored_combo_tree_set`
 
