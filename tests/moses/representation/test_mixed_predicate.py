@@ -253,7 +253,7 @@ def test_boolean_output_rejects_a_contin_typed_argument_outside_a_predicate():
     would silently build a Boolean knob over a contin term.
     """
     signature = gen_signature([type_node.contin_type], type_node.boolean_type)
-    with pytest.raises(ValueError, match="contin-typed"):
+    with pytest.raises(ValueError, match="may only appear inside a predicate"):
         build_knobs(
             str_to_combo_tree("$1"),
             signature,

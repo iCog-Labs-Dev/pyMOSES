@@ -151,16 +151,10 @@ def test_boolean_builder_fixture_schema_and_inputs_are_non_vacuous(golden):
         for case in golden["cases"]
     ] == list(_EXPECTED_CASES)
     assert all(set(case) == _CASE_KEYS for case in golden["cases"])
-    assert all(
-        set(knob) == _KNOB_KEYS
-        for case in golden["cases"]
-        for knob in case["knobs"]
-    )
+    assert all(set(knob) == _KNOB_KEYS for case in golden["cases"] for knob in case["knobs"])
     assert sum(len(case["probe_calls"]) for case in golden["cases"]) == 124
     assert sum(len(case["knobs"]) for case in golden["cases"]) == 13
-    assert any(
-        knob["multy"] == 2 for case in golden["cases"] for knob in case["knobs"]
-    )
+    assert any(knob["multy"] == 2 for case in golden["cases"] for knob in case["knobs"])
 
 
 @pytest.mark.oracle
@@ -170,11 +164,7 @@ def test_deterministic_boolean_builder_matches_classic(golden):
 
 @pytest.mark.parametrize(
     "output_type",
-    [
-        node
-        for node in type_node
-        if node not in (type_node.boolean_type, type_node.contin_type)
-    ],
+    [node for node in type_node if node not in (type_node.boolean_type, type_node.contin_type)],
 )
 def test_builder_rejects_every_non_boolean_non_contin_output_before_mutation(output_type):
     """``contin_type`` output is excluded from this parametrization -- it is
@@ -192,31 +182,68 @@ def test_builder_rejects_every_non_boolean_non_contin_output_before_mutation(out
     assert _render(exemplar) == before
 
 
-@pytest.mark.parametrize(
-    "input_type",
-    [
-        node
-        for node in type_node
-        if node not in (type_node.boolean_type, type_node.contin_type)
-    ],
-)
+# `arg_list_type` is excluded from both input-type sweeps below: it is
+# C++'s variadic marker, so `type_tree_arity` returns -1 for it rather than
+# 1, and the exemplar is rejected one check earlier ("$1 is outside
+# signature arity -1"). Still rejected, still before mutation -- just not by
+# the check these two tests are about.
+_UNSUPPORTED_INPUT_TYPES = [
+    node
+    for node in type_node
+    if node not in (type_node.boolean_type, type_node.contin_type, type_node.arg_list_type)
+]
+
+
+@pytest.mark.parametrize("input_type", _UNSUPPORTED_INPUT_TYPES)
 def test_builder_rejects_every_unsupported_input_before_mutation(input_type):
-    """``contin_type`` input is excluded from this parametrization -- as of
-    the mixed-predicate slice it is a SUPPORTED Boolean-output input
-    (build_knobs.cc:82-86: "Exemplar may consist of a mix of boolean and
-    contin-typed variables and functions, but we want the end result to be
-    typed boolean"), covered positively by
-    ``tests/moses/representation/test_mixed_predicate.py`` rather than by
-    this "every other type is still rejected" sweep.
+    """A BARE non-Boolean argument is rejected structurally, whatever its
+    type -- not by a signature-wide input-type gate.
+
+    This test used to assert `NotImplementedError("... Boolean or contin
+    inputs ...")`, i.e. a gate rejecting any signature holding an input
+    that was neither Boolean nor contin. **That gate was deliberately
+    removed**, for a measured reason recorded on
+    `_validate_boolean_exemplar`: the Boolean path in classic has no such
+    assert anywhere (`sample_logical_perms` and `insert_typed_arg` both
+    have a bare `if boolean / else if contin` with NO `else`, so an
+    argument of any other type is silently skipped and simply never gets a
+    knob), and the difference is CLI-reachable. A CSV column that parses
+    as no known type is inferred `ill_formed_type` -- a date column is the
+    easy way -- and classic searches happily over the remaining columns
+    where the port refused the whole run.
+
+    What survives is the STRUCTURAL rule, which is what this now pins: a
+    non-Boolean argument may only appear inside a predicate's contin
+    sub-expression, so a bare `$1` at the root is rejected. `contin_type`
+    stays out of the parametrization because a contin input is supported
+    (covered positively by `test_mixed_predicate.py`); the rejection here
+    is about POSITION, not about the type being unsupported.
     """
     exemplar = str_to_combo_tree("$1")
     before = _render(exemplar)
     signature = TypeSignature((input_type,), type_node.boolean_type)
 
-    with pytest.raises(NotImplementedError, match="Boolean or contin inputs"):
+    with pytest.raises(ValueError, match="may only appear inside a predicate"):
         build_knobs(exemplar, signature, knob_mapper(), lambda _tr: None)
 
     assert _render(exemplar) == before
+
+
+@pytest.mark.parametrize("input_type", _UNSUPPORTED_INPUT_TYPES)
+def test_rejection_message_names_the_actual_declared_type(input_type):
+    """The message must not claim a type the argument does not have.
+
+    It read "is contin-typed" unconditionally, which was false for every
+    non-Boolean type that is not contin -- exactly the confidently-wrong
+    claim this project keeps having to correct. Pinned so it cannot come
+    back.
+    """
+    signature = TypeSignature((input_type,), type_node.boolean_type)
+    with pytest.raises(ValueError) as excinfo:
+        build_knobs(str_to_combo_tree("$1"), signature, knob_mapper(), lambda _tr: None)
+
+    assert repr(input_type) in str(excinfo.value)
+    assert "is contin-typed" not in str(excinfo.value)
 
 
 @pytest.mark.parametrize(
@@ -235,9 +262,7 @@ def test_builder_rejects_every_unsupported_input_before_mutation(input_type):
         ("$2", 1, "outside signature arity"),
     ],
 )
-def test_builder_rejects_unsupported_or_mistyped_vertices_without_mutation(
-    source, arity, message
-):
+def test_builder_rejects_unsupported_or_mistyped_vertices_without_mutation(source, arity, message):
     exemplar = str_to_combo_tree(source)
     before = _render(exemplar)
 

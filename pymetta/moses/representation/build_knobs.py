@@ -349,10 +349,20 @@ class build_knobs:
                 raise ValueError(
                     f"Boolean argument ${value.abs_idx()} is outside signature arity {arity}"
                 )
-            if signature.itypes[value.abs_idx() - 1] is not type_node.boolean_type:
+            arg_type = signature.itypes[value.abs_idx() - 1]
+            if arg_type is not type_node.boolean_type:
+                # Says the declared type rather than asserting "contin".
+                # This used to read "is contin-typed" unconditionally,
+                # which is false for every non-Boolean type that is not
+                # contin -- an `ill_formed_type` column (a date, the easy
+                # way to get one) or an excluded domain would be reported
+                # as contin. The constraint itself is the same either way:
+                # only a predicate's contin sub-expression may hold a
+                # non-Boolean argument.
                 raise ValueError(
-                    f"argument ${value.abs_idx()} is contin-typed and may only appear "
-                    "inside a predicate's contin sub-expression"
+                    f"argument ${value.abs_idx()} is declared {arg_type!r}, not "
+                    "boolean, and a non-Boolean argument may only appear inside "
+                    "a predicate's contin sub-expression"
                 )
             return
         if isinstance(value, builtin):

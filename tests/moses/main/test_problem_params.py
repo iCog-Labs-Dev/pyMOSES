@@ -582,8 +582,10 @@ def test_contin_depth_reaches_representations_module_static():
         # two rows for both, and test_moses_exec.py's CLI-level oracle tests
         # (byte-for-byte against classic's own binary) for the end-to-end
         # proof.
-        ["--ss-n-subsample-demes", "2"],
-        ["--ss-n-subsample-fitnesses", "2"],
+        # --ss-n-subsample-demes / --ss-n-subsample-fitnesses are NOT here
+        # any more: the whole ss-* family runs now, and classic exits 0 on
+        # every one of them. See test_ss_cli.py for the byte-for-byte
+        # comparison that replaced these two rows.
         # NOTE: --contin-depth and --it-abs-err are DELIBERATELY ABSENT --
         # both were gated on the grounds that their only CLI-reachable
         # consumers raised unconditionally, which stopped being true when
@@ -615,29 +617,22 @@ def test_unsupported_option_raises(argv):
         _parse(*argv)
 
 
-@pytest.mark.parametrize(
-    "argv,must_contain",
-    [
-        (["--ss-n-subsample-demes", "2"], "subsample.cc port"),
-        # --boost's row is gone: `f155013` removed that gate, so there is no
-        # message left to pin. See test_boost_cli.py instead.
-        # --time-dispersion-pressure's row is gone: the gate itself is gone
-        # (2026-09-10), so there is no message left to pin.
-    ],
-)
-def test_still_gated_option_message_names_what_is_actually_ported(argv, must_contain):
-    """[CLI-gate-reconciliation task] This project's own most-repeated
-    defect is a message claiming "not ported" about code that IS ported.
-    Six of the nine Phase-2 gates this task reconciled stay gated (the
-    underlying subsystem is genuinely unreachable end to end through this
-    port's CLI), but their OLD messages claimed blanket non-porting that
-    is no longer true -- each of these substrings is the corrected
-    message's own honest acknowledgement of what has, in fact, landed.
-    Pins the corrected text so a future edit cannot silently regress it
-    back to a blanket "is P2, not ported" claim.
-    """
-    with pytest.raises(NotImplementedError, match=must_contain):
-        _parse(*argv)
+# `test_still_gated_option_message_names_what_is_actually_ported` used to
+# live here. It pinned, for each Phase-2 gate that survived the
+# CLI-gate-reconciliation pass, that the gate's MESSAGE honestly named what
+# had already landed -- this project's most-repeated defect being a message
+# claiming "not ported" about code that is.
+#
+# **Every gate it covered is now gone**: --boost (`f155013`),
+# --time-dispersion-pressure and --time-bscore, --enable-fs, --balance,
+# --discretize-threshold, --output-deme-id, --contin-depth, --it-abs-err,
+# and the ss-* family. Its parameter list emptied out, which pytest
+# rightly rejects rather than passing vacuously, so the test is retired
+# instead of being left as an empty shell.
+#
+# What replaced it is stronger: each of those flags now has a
+# byte-for-byte CLI oracle against classic's own binary rather than a
+# pinned apology for not working.
 
 
 def test_output_bscore_no_longer_raises_at_parse_time():
