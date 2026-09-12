@@ -1377,11 +1377,91 @@ CTableTime = dict
 # ---------------------------------------------------------------------------
 
 
+def ctable_row_key(row: tuple[vertex, ...]) -> tuple[tuple[int, vertex], ...]:
+    """No direct C++ symbol: the sort key that reproduces
+    `std::map<multi_type_seq, TimedCounter>`'s own ascending-key iteration
+    order (table.h:550, `class CTable : public std::map<...>`) for this
+    port's `dict`-based `CTable`.
+
+    The C++ member is `multi_type_seq::operator<` (table.h:383), which is
+    `get_variant() < r.get_variant()` over
+    `boost::variant<builtin_seq, contin_seq, string_seq, vertex_seq,
+    combo_tree_seq>` (table.h:364). `boost::variant::operator<`
+    (boost/variant/variant.hpp:2134) compares the HELD ALTERNATIVE first --
+    `if (this->which() != rhs.which()) return this->which() < rhs.which();`
+    -- and only then the contained values. It is never Python's plain `<`
+    between two boxed values.
+
+    Two measured facts make an element-wise `(vertex_rank, value)` key
+    exactly equivalent to that:
+
+    * **The alternative is fixed per TABLE, never per row.**
+      `from_tokens_visitor` (table_io.cc:409) computes `all_boolean` /
+      `all_contin` ONCE, in its constructor, from the whole-column type
+      vector, and one visitor instance is then applied to every row
+      (table_io.cc:724, :759, :1122). `Table::compressed` (table.cc:501)
+      copies `ITable` rows verbatim into the map, and `CTable::filtered`'s
+      `seq_filtered_visitor` (table.h:439) is a template over `Seq`, so it
+      preserves the alternative. The `which()` branch of `operator<` is
+      therefore unreachable WITHIN one table, and the ordering reduces to
+      that alternative's own `std::vector` lexicographic `operator<`.
+    * **Inside a `vertex_seq` the elements are themselves
+      `boost::variant`s**, whose `operator<` IS rank-then-value.
+
+    So one uniform rule covers all three live alternatives: `builtin_seq`
+    and `contin_seq` (a single kind everywhere, so the rank is constant and
+    the comparison falls through to the values) and `vertex_seq` (rank
+    first, then value) alike. Python's tuple comparison then supplies
+    `std::vector`'s own lexicographic rule, shorter-is-less included.
+
+    Ranking before comparing is not decoration. `contin_t` is `float` and
+    `builtin` is an `IntEnum`, so `1.0 == builtin.logical_true` is `True`
+    in bare Python where C++'s variant alternatives never compare equal --
+    the confusion behind both of this project's Criticals
+    (docs/CARRY-FORWARD.md section 2.5). `vertex_rank` guarantees that both
+    operands of the fall-through `<` share one Python type before it ever
+    runs.
+
+    For a boolean table the whole thing collapses to `builtin`'s ordinals,
+    and those are NOT the digits in the CSV: `logical_true` is 1 and
+    `logical_false` is 2 (vertex.h:71-74), so a `1` cell sorts BEFORE a `0`
+    cell. Measured, not assumed: classic walks
+    `tests/fixtures/table_data/ctable_unsorted.csv` as `(1,1,1), (1,0,1),
+    (0,1,0), (0,0,0)` where the file compresses it as `(1,1,1), (0,0,0),
+    (1,0,1), (0,1,0)` -- captured from classic's own `CTable::remove_rows`
+    in `tests/fixtures/fs_diversity.json`.
+
+    NOTE: `pymetta/feature_selection/ctable_subsample.py:90` holds a
+    behaviourally identical private copy, written before this one when only
+    `CTable::remove_rows` needed the order. That module is a higher layer
+    and cannot be imported from here; the duplicate is left in place
+    deliberately rather than quietly deleted from a file this change does
+    not own. The two are pinned to each other by
+    `tests/comboreduct/table/test_ctable_order.py`.
+    """
+    return tuple((vertex_rank(v), v) for v in row)
+
+
 class CTable(dict):
     """C++: moses/comboreduct/table/table.h:550 CTable
 
     `public std::map<multi_type_seq, TimedCounter>`, narrowed exactly as
     the brief specifies: `dict[tuple[vertex, ...], Counter[vertex]]`.
+
+    **It is an ORDERED mapping, not an insertion-ordered one.** `std::map`
+    iterates ascending by key under `multi_type_seq::operator<`
+    (table.h:383), and that order is observable: every per-row behavioural
+    score is built by pushing one element per row (bscores.cc:283,
+    select_bscore.cc:166, precision_bscore.cc:227, ...), so
+    `--output-bscore` prints the CTable key order verbatim, and
+    `CTable::remove_rows` (table.cc:651) defines its uncompressed row index
+    space by walking the map -- which decides WHICH rows `subsampleCTable`
+    and `ss_bscore` delete. A `dict` in file order therefore produced a
+    correctly-summed but wrongly-permuted bscore vector, which is exactly
+    why this stayed hidden: the composite score is a sum, and sums do not
+    care. `ctable_row_key` (above) is the ordering rule and carries its
+    derivation; `_order` (below) carries the cost argument for applying it
+    lazily.
     `TimedCounter` (table.h:496, `Counter<TimedValue, count_t>`) itself
     narrows to a plain `Counter[vertex]` -- `TimedValue` pairs a vertex
     with a timestamp (table.h:472), and this port carries no timestamps
@@ -1432,6 +1512,149 @@ class CTable(dict):
         self.olabel = olabel
         self.ilabels: list[str] = list(ilabels)
         self._signature = signature
+
+    # -- std::map key ordering ----------------------------------------------
+    #
+    # WHY LAZILY, RATHER THAN ON INSERT OR ON EVERY WALK.
+    #
+    # C++ keeps the map sorted at every insert, which a `dict` cannot do: it
+    # has no mid-sequence insert, so holding the invariant eagerly means
+    # rebuilding the whole mapping once per new row -- O(n^2) to build a
+    # table classic builds in O(n log n). Sorting afresh inside every walk is
+    # the other obvious choice and is worse where it actually costs: a
+    # `CTable` holds thousands of rows and is walked ONCE PER SCORED
+    # CANDIDATE (bscores.py, precision_bscore.py, select_bscore.py all push
+    # one bscore element per row), so that would drop an O(n log n) sort into
+    # the inner loop of the entire search.
+    #
+    # So: flag the mapping unordered when a NEW key is inserted, and
+    # physically reorder the underlying `dict` ONCE, lazily, the next time
+    # anything observes the order. Building costs n appends plus a single
+    # sort; every subsequent walk is a plain `dict` walk at native speed, and
+    # a walk of an already-ordered table costs one attribute load.
+    #
+    # Reordering the real storage rather than yielding a sorted view is the
+    # other half of the choice: every inherited `dict` behaviour -- `repr`,
+    # `==`, `|`, `copy`, `**` unpacking, `json.dumps` -- then sees map order
+    # for free, with no override and no way for a future caller to reach
+    # insertion order by accident.
+    #
+    # Only insertion of a NEW key can break the invariant. Overwriting an
+    # existing key leaves its position alone (`dict` semantics), and neither
+    # deletion nor `clear()` can unsort what was sorted -- so those paths
+    # deliberately do not set the flag.
+    #
+    # The class-level default is False ("assume unordered"), so a `CTable`
+    # built by any route that skips `__init__` -- `dict.fromkeys`,
+    # `copy.deepcopy`, an unpickle -- still orders itself on first use.
+    _ordered = False
+
+    def _order(self) -> None:
+        """No direct C++ symbol: restores `std::map<multi_type_seq,
+        TimedCounter>`'s key order (table.h:550) on this `dict`'s own
+        storage. See the block comment above for why this is lazy.
+
+        The sort runs to completion BEFORE anything is cleared, so a key
+        `ctable_row_key` cannot rank -- a row holding a vertex kind outside
+        this port's four alternatives -- raises with the mapping intact
+        rather than half-rebuilt.
+        """
+        if self._ordered:
+            return
+        ordered = sorted(dict.items(self), key=lambda kv: ctable_row_key(kv[0]))
+        dict.clear(self)
+        for row, counter in ordered:
+            dict.__setitem__(self, row, counter)
+        self._ordered = True
+
+    def __setitem__(self, row, counter) -> None:
+        """No direct C++ symbol: `std::map::operator[]`'s inserting form
+        (table.h:550's inherited interface), which places a NEW key in sorted
+        position. Here it appends and defers the sort -- see the block
+        comment above `_order`.
+        """
+        if row not in self:
+            self._ordered = False
+        dict.__setitem__(self, row, counter)
+
+    def setdefault(self, row, default=None):
+        """No direct C++ symbol: `std::map::operator[]`'s
+        default-constructing form (`++res[*in_it][...]`, table.cc:512).
+
+        Overridden because C-level `dict.setdefault` does NOT route through
+        an overridden `__setitem__`, so a new row inserted this way would
+        otherwise leave the mapping silently unordered. `Table.compressed` --
+        the one place every `CTable` in this port is born -- inserts every
+        single row through exactly this method.
+        """
+        if row not in self:
+            self._ordered = False
+        return dict.setdefault(self, row, default)
+
+    def update(self, *args, **kwargs) -> None:
+        """No direct C++ symbol: `std::map::insert(first, last)`
+        (table.h:550's inherited interface).
+
+        Overridden for the same reason as `setdefault`: C-level
+        `dict.update` does not route through `__setitem__`.
+        """
+        dict.update(self, *args, **kwargs)
+        self._ordered = False
+
+    def __iter__(self):
+        """No direct C++ symbol: `std::map::begin()`/`end()`
+        (table.h:550's inherited interface) -- ASCENDING key order, which is
+        what `for (const CTable::value_type& v : *this)` (table.h:618) and
+        every per-row bscore loop actually walk.
+        """
+        self._order()
+        return dict.__iter__(self)
+
+    def __reversed__(self):
+        """No direct C++ symbol: `std::map::rbegin()`/`rend()`
+        (table.h:550's inherited interface).
+        """
+        self._order()
+        return dict.__reversed__(self)
+
+    def keys(self):
+        """No direct C++ symbol: the key half of a `std::map` range walk
+        (table.h:550's inherited interface), ascending.
+        """
+        self._order()
+        return dict.keys(self)
+
+    def values(self):
+        """No direct C++ symbol: the mapped half of a `std::map` range walk
+        (table.h:550's inherited interface), in ascending KEY order -- which
+        is what `_wrk_ctable | map_values` (bscores.cc:352) iterates.
+        """
+        self._order()
+        return dict.values(self)
+
+    def items(self):
+        """No direct C++ symbol: a `std::map` range walk
+        (table.h:550's inherited interface), ascending by key.
+        """
+        self._order()
+        return dict.items(self)
+
+    def popitem(self):
+        """No direct C++ symbol: `std::map`'s inherited interface.
+
+        Orders first so that "the last item" means the greatest key, as it
+        would for a `std::map`, rather than the most recently inserted one.
+        """
+        self._order()
+        return dict.popitem(self)
+
+    def __repr__(self) -> str:
+        """No direct C++ symbol: `ostreamCTable` (table_io.cc:1359) prints
+        the rows in map order; Python's own `repr` of the mapping is the
+        nearest equivalent and is ordered here for the same reason.
+        """
+        self._order()
+        return dict.__repr__(self)
 
     def get_arity(self) -> int:
         """C++: moses/comboreduct/table/table.h:571 get_arity"""

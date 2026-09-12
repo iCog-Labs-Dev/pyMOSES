@@ -101,14 +101,26 @@ def test_fixture_actually_discriminates_iteration_order(golden, unsorted_ctable)
     """The corpus must be able to detect the bug it exists for.
 
     Both of the two orders `remove_rows` walks must differ between
-    classic's `std::map` (the fixture) and this port's `dict` (the live
-    table), or every mutation of those orders is a zero-kill mutation for
-    a reason that has nothing to do with the code under test.
+    classic's `std::map` (the fixture) and the order the table was BUILT
+    in, or every mutation of those orders is a zero-kill mutation for a
+    reason that has nothing to do with the code under test.
+
+    The row half of that used to read `for row in unsorted_ctable`, back
+    when `CTable` was an insertion-ordered `dict`. `CTable` now iterates in
+    `std::map` key order itself (`ctable_row_key` / `CTable._order`,
+    pymetta/comboreduct/table/table.py), so the *public* walk agrees with
+    the fixture by construction and proves nothing -- the discriminating
+    fact is that `Table.compressed` still APPENDS in file order, which the
+    unbound `dict.__iter__` still shows. Both claims are asserted below:
+    the build order differs from classic's, and the public order matches
+    it.
     """
     classic_rows = [tuple(int(_IN[s]) for s in r["inputs"]) for r in golden["ctable"]]
+    build_rows = [tuple(int(v) for v in row) for row in dict.__iter__(unsorted_ctable)]
+    assert classic_rows != build_rows, "fixture rows are already in map order"
+    assert sorted(classic_rows) == sorted(build_rows)
     port_rows = [tuple(int(v) for v in row) for row in unsorted_ctable]
-    assert classic_rows != port_rows, "fixture rows are already in map order"
-    assert sorted(classic_rows) == sorted(port_rows)
+    assert port_rows == classic_rows
 
     classic_values = [[_OUT[o] for o, _ in r["outputs"]] for r in golden["ctable"]]
     differing = 0
@@ -226,18 +238,27 @@ def test_insertion_order_iteration_would_be_wrong(golden, unsorted_ctable):
     least one case then disagrees with classic. Without this, a reviewer
     has to take the ordering claim on faith.
     """
+    # Snapshot the BUILD order before anything walks the table publicly:
+    # every public accessor -- `items()` included, which `copy.deepcopy`
+    # itself goes through -- reorders the storage into `std::map` order.
+    build_rows = list(dict.__iter__(unsorted_ctable))
     disagreements = 0
     for case in golden["remove_rows"]:
         ct = copy.deepcopy(unsorted_ctable)
-        _remove_rows_insertion_order(ct, set(case["idxs"]))
+        _remove_rows_insertion_order(ct, set(case["idxs"]), build_rows)
         if _content(ct) != _expected(case["result"]):
             disagreements += 1
     assert disagreements >= 1
 
 
-def _remove_rows_insertion_order(ctable: CTable, idxs: set[int]) -> None:
+def _remove_rows_insertion_order(ctable: CTable, idxs: set[int], build_rows: list) -> None:
     """`ctable_remove_rows` with both `sorted()` iteration orders replaced
-    by `dict` insertion order. Test-local mutant; see the test above.
+    by the order the table was BUILT in. Test-local mutant; see the test
+    above.
+
+    `build_rows` is passed in rather than read off `ctable` because
+    `CTable` is no longer insertion-ordered: reading it here would hand the
+    mutant the correct order and silently defang it.
 
     Reuses the module's own cell read/write helpers so that ONLY the two
     orders differ -- otherwise the comparison would also be measuring the
@@ -246,7 +267,7 @@ def _remove_rows_insertion_order(ctable: CTable, idxs: set[int]) -> None:
     idx_seq = sorted(idxs)
     idx_it = 0
     i = 0
-    row_keys = list(ctable.keys())
+    row_keys = list(build_rows)
     row_it = 0
     while row_it < len(row_keys) and idx_it < len(idx_seq):
         row = row_keys[row_it]
