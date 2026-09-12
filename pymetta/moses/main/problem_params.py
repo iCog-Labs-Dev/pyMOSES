@@ -850,15 +850,35 @@ class problem_params:
         self.hc_max_nn = args.hc_max_nn
         self.hc_frac_of_nn = args.hc_frac_of_nn
         self.hc_resize_to_fit_ram = args.hc_resize_to_fit_ram
-        hc_params = hc_parameters(
-            widen=self.hc_widen_search,
-            step=self.hc_single_step,
-            cross=self.hc_crossover,
-            max_evals=self.hc_max_nn,
-            fraction_of_nn=self.hc_frac_of_nn,
-        )
+        # C++: problem-params.cc:2360-2368. `hc_params` is a DEFAULT-
+        # CONSTRUCTED member of `problem_params` (problem-params.h:220) and
+        # every field is ASSIGNED afterwards -- eight plain assignments, no
+        # constructor call. This port used to route five of them through
+        # `hc_parameters(...)`'s constructor instead, which looks equivalent
+        # and is not: the constructor carries `OC_ASSERT(0.0 <
+        # fraction_of_nn)` (hill-climbing.h:51) and a plain assignment does
+        # not. MEASURED consequence before the fix: classic accepts
+        # `--hc-fraction-of-nn=0` (and `=-1`) and exits 0, because its own
+        # assert ran once, at construction, against the 2.0 default and was
+        # never re-run; this port raised `ValueError: fraction_of_nn must be
+        # positive` and refused to start. `hc_parameters.__init__` keeps the
+        # assert -- it is faithful to the constructor -- and this block stops
+        # going through it, which is faithful to the caller.
+        #
+        # `--hc-fraction-of-nn=0` is not inert, either: `number_of_new_
+        # instances *= hc_params.fraction_of_nn` (hill-climbing.cc:531) then
+        # zeroes the count. Measured on `-Hpa -k4 -m5000`, classic prints
+        # three DIFFERENT candidate lists for 0, 0.5 and 2 -- so this is a
+        # value that flows through to the search, not one the optimizer
+        # shrugs off.
+        hc_params = hc_parameters()
+        hc_params.widen_search = self.hc_widen_search
+        hc_params.single_step = self.hc_single_step
+        hc_params.crossover = self.hc_crossover
         hc_params.crossover_pop_size = self.hc_crossover_pop_size
         hc_params.crossover_min_neighbors = self.hc_crossover_min_neighbors
+        hc_params.max_nn_evals = self.hc_max_nn
+        hc_params.fraction_of_nn = self.hc_frac_of_nn
         hc_params.resize_to_fit_ram = self.hc_resize_to_fit_ram
         hc_params.prefix_stat_deme = "Demes"
         self.hc_params = hc_params

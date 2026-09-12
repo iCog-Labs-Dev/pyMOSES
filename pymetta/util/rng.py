@@ -3,9 +3,32 @@
 C++: opencog/util/mt19937ar.cc:44 MT19937RandGen
 """
 
+import struct
+
 _N, _M = 624, 397
 _MATRIX_A, _UPPER_MASK, _LOWER_MASK = 0x9908B0DF, 0x80000000, 0x7FFFFFFF
 _UINT32_MAX = 0xFFFFFFFF
+
+# `(float) std::mt19937::max()`, precomputed. `max()` is 4294967295, which is
+# NOT representable in binary32 -- the two neighbours are 4294967296 (2**32)
+# and 4294966784 (2**32 - 512, one ulp below), and 4294967295 is one away from
+# the first and 511 from the second, so it rounds UP to exactly 2**32.
+# Measured on the real cogutil class: `(double)(float)MT19937RandGen::max()`
+# prints 4294967296.
+_RANDFLOAT_DIVISOR = 4294967296.0
+
+
+def _to_float32(x: float) -> float:
+    """No direct C++ symbol: the implicit conversion to a C ``float``
+    (IEEE-754 binary32, round-to-nearest-even) that ``randfloat``'s
+    ``operator()() / (float)max()`` performs on its unsigned operand.
+
+    Same mechanism as ``pymetta.moses.moses.types._to_score_t``, restated
+    here rather than imported: ``pymetta.util`` sits below
+    ``pymetta.moses`` and this value is a plain C ``float``, not a
+    ``score_t``.
+    """
+    return struct.unpack("f", struct.pack("f", x))[0]
 
 
 class MT19937RandGen:
@@ -103,12 +126,37 @@ class MT19937RandGen:
         return self.randint() % 2 == 0
 
     def randfloat(self) -> float:
-        """C++: opencog/util/mt19937ar.cc:50 MT19937RandGen::randfloat"""
-        raise NotImplementedError(
-            "randfloat() returns a C float32 and is only reachable via the combo "
-            "`rand` builtin (P2). Reproducing it needs struct.pack('f', ...). "
-            "See spec section 6.2."
-        )
+        """C++: opencog/util/mt19937ar.cc:50 MT19937RandGen::randfloat
+
+        ``return operator()() / (float)max();`` -- ONE raw draw, divided by
+        ``(float)max()``. Every type in that one line matters:
+
+        * ``operator()()`` is ``std::mt19937::operator()``, whose
+          ``result_type`` is ``uint_fast32_t`` (64-bit on x86-64) holding a
+          value in ``[0, 2**32)``. The usual arithmetic conversions against
+          the ``float`` divisor narrow it to binary32 FIRST -- so a raw draw
+          needing more than 24 significand bits is ROUNDED before the
+          division, and 2**8 consecutive raw values can share one result.
+          ``_to_float32`` is that narrowing.
+        * ``(float)max()`` is ``(float)4294967295`` == ``2**32`` exactly
+          (see ``_RANDFLOAT_DIVISOR``), a power of two, so the division
+          itself is exact -- a pure exponent decrement, with no second
+          rounding and no subnormal case (the smallest non-zero numerator
+          is 1.0f, giving 2**-32).
+
+        The C++ return type is ``float``; the Python ``float`` returned here
+        holds that binary32 value exactly, so ``b > rng.randfloat()``
+        (``biased_randbool``, $COGUTIL/opencog/util/random.h:127) compares
+        the same two numbers in both languages provided ``b`` is itself
+        float32-narrowed -- which it is, at its only caller
+        (``feature_selector.sample_enforced_features``, whose weights
+        problem-params.cc:2248 stores in a ``std::map<std::string,float>``).
+
+        Verified against the real cogutil ``MT19937RandGen``, linked and
+        called directly: ``tests/fixtures/rng.json``'s ``randfloat`` series,
+        2000 draws for each of seeds 0 and 42, agrees bit for bit.
+        """
+        return _to_float32(self.genrand_int32()) / _RANDFLOAT_DIVISOR
 
     def randdouble_one_excluded(self) -> float:
         """C++: opencog/util/mt19937ar.cc:60 MT19937RandGen::randdouble_one_excluded"""

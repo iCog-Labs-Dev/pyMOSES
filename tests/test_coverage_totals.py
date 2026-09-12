@@ -337,8 +337,15 @@ def test_gate_check_fires_on_the_real_document_when_a_row_is_wrongly_promoted():
     problems = ct.check_ported_rows_do_not_gate(
         text.replace(row, "| `opencog/util/mt19937ar.cc` | 94 | PORTED |")
     )
-    assert len(problems) == 3
-    assert {"randfloat", "randdouble_one_excluded", "rand_discrete"} == {
+    # Was three until `randfloat` was implemented (it is reachable from the
+    # CLI through --fs-enforce-features-filename / biased_randbool, and
+    # through the combo `rand` builtin). docs/MODULE-COVERAGE.md's own
+    # mt19937ar.cc / RandGen.h reason text still names randfloat as a gap
+    # and is stale in that one respect; the row's STATUS (PARTIAL) is still
+    # right, because the two below really do still raise, so
+    # `check_ported_rows_do_not_gate` stays clean on the real document.
+    assert len(problems) == 2
+    assert {"randdouble_one_excluded", "rand_discrete"} == {
         p.split("(MT19937RandGen.")[1].split(")")[0] for p in problems
     }
 

@@ -132,6 +132,43 @@ def _sorted_counts(counter: dict) -> list[float]:
     return [count for _, count in sorted(counter.items())]
 
 
+def _div_total(c: float, total: float) -> float:
+    """No direct C++ symbol: the ``auto div_total = [&](count_t c) { return
+    c/total; }`` lambda that every ``mutualInformation`` overload declares
+    (table.h:1093, :1236, :1383) and then feeds to ``transform(counter |
+    map_values, out.begin(), div_total)``.
+
+    Two properties of that C++ line are load-bearing and were both lost by
+    the ``if total == 0.0: return NaN`` early return this replaces.
+
+    1. **The division is PER ELEMENT, so an EMPTY counter never divides at
+       all.** ``std::vector<double> ip(ic.size())`` is empty when ``ic``
+       is, ``transform`` over an empty range is a no-op, and
+       ``entropy(empty)`` is ``double res = 0;`` with no loop body --
+       i.e. exactly ``0.0``. An empty ``CTable`` therefore scores
+       ``0.0 + 0.0 - 0.0 == 0.0`` in classic, NOT NaN. Reachable from the
+       CLI: ``--enable-fs=1 --fs-subsampling-ratio=0`` empties the
+       feature-selection ctable outright (``subsampleCTable`` removes
+       ``(1.0 - 0.0) * uncompressed_size`` rows), and then
+       ``simple_selection``'s ``threshold <= sc`` keeps every feature at
+       score 0 where a NaN would keep none -- classic selects
+       ``--fs-target-size`` features, the port used to select zero and
+       lose the search.
+    2. **When a NON-empty counter does divide by a zero total, C++ gets
+       IEEE-754 infinities and NaNs, not an exception.** Python's ``/``
+       raises ``ZeroDivisionError`` there, so the C semantics are spelled
+       out. ``weighted_information`` (numeric.h:207) tests ``p >
+       PROB_EPSILON``, which is false for NaN, so a 0/0 column still
+       contributes 0 to the entropy -- again 0.0, not an error.
+    """
+    if total == 0.0:
+        # C's IEEE-754 double division by (signed) zero.
+        if c == 0.0 or c != c:
+            return math.nan
+        return math.copysign(math.inf, c) * math.copysign(1.0, total)
+    return c / total
+
+
 def _all_discrete_inputs(ctable: CTable) -> bool:
     sig = ctable.get_signature()
     if sig is None:
@@ -337,18 +374,12 @@ def _mutual_information_discrete_inputs(
             ioc[key] = ioc.get(key, 0.0) + count
         total += row_total
 
-    if total == 0.0:
-        # C++ divides by `total` unconditionally (`double total = it.size()`
-        # is never checked against 0 either) -- an empty ctable produces a
-        # 0/0 -> NaN probability distribution, and IEEE754 division carries
-        # that through to a NaN entropy. DO NOT FIX: matches C++'s own
-        # unguarded division; not expected to be reachable from a real
-        # CTable (loadTable never produces zero rows for a real file).
-        return float("nan")
-
-    yprob = [c / total for c in _sorted_counts(ycount)]
-    ip = [c / total for c in _sorted_counts(ic)]
-    iop = [c / total for c in _sorted_counts(ioc)]
+    # C++: table.h:1233-1240. The division is per element and the vectors
+    # are sized from the counters, so an EMPTY ctable divides zero times
+    # and the three entropies are each exactly 0.0 -- see `_div_total`.
+    yprob = [_div_total(c, total) for c in _sorted_counts(ycount)]
+    ip = [_div_total(c, total) for c in _sorted_counts(ic)]
+    iop = [_div_total(c, total) for c in _sorted_counts(ioc)]
     return _entropy(ip) + _entropy(yprob) - _entropy(iop)
 
 
@@ -464,7 +495,10 @@ def _ot_entropy(ot: OTable) -> float:
     for value in ot:
         counts[value] = counts.get(value, 0) + 1
     total = len(ot)
-    return _entropy(c / total for c in _sorted_counts(counts))
+    # C++: table.cc:922-924. Same per-element division as `_div_total`
+    # documents: an empty OTable yields an empty `py` and `entropy` over it
+    # is exactly 0.0.
+    return _entropy(_div_total(c, total) for c in _sorted_counts(counts))
 
 
 def mutual_information_it_ot(it: ITable, ot: OTable, fs: Iterable[int]) -> float:
@@ -501,13 +535,10 @@ def mutual_information_it_ot(it: ITable, ot: OTable, fs: Iterable[int]) -> float
         ioc[key] = ioc.get(key, 0.0) + 1.0
         total += 1.0
 
-    if total == 0.0:
-        # DO NOT FIX -- see mutual_information's own note: C++ divides by
-        # `total = it.size()` unconditionally too.
-        return float("nan")
-
-    ip = [c / total for c in _sorted_counts(ic)]
-    iop = [c / total for c in _sorted_counts(ioc)]
+    # C++: table.h:1106-1112 -- see `_div_total`; an empty ITable/OTable
+    # pair divides zero times and every entropy is 0.0.
+    ip = [_div_total(c, total) for c in _sorted_counts(ic)]
+    iop = [_div_total(c, total) for c in _sorted_counts(ioc)]
     return _entropy(ip) + _ot_entropy(ot) - _entropy(iop)
 
 
@@ -571,12 +602,11 @@ def mutual_information_between_sets(
         rc[vec_r] = rc.get(vec_r, 0.0) + row_total
         total += row_total
 
-    if total == 0.0:
-        return float("nan")  # DO NOT FIX -- see mutual_information's own note.
-
-    up = [c / total for c in _sorted_counts(uc)]
-    lp = [c / total for c in _sorted_counts(lc)]
-    rp = [c / total for c in _sorted_counts(rc)]
+    # C++: table.h:1380-1387 -- see `_div_total`; an empty CTable divides
+    # zero times and every entropy is 0.0.
+    up = [_div_total(c, total) for c in _sorted_counts(uc)]
+    lp = [_div_total(c, total) for c in _sorted_counts(lc)]
+    rp = [_div_total(c, total) for c in _sorted_counts(rc)]
     return _entropy(lp) + _entropy(rp) - _entropy(up)
 
 

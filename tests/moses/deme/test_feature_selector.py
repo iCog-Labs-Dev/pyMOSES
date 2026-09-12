@@ -51,6 +51,8 @@ from pymetta.util.rng import randGen
 _FIXTURE_PATH = Path(__file__).resolve().parents[2] / "fixtures" / "feature_selection.json"
 _TABLE_DATA_DIR = Path(__file__).resolve().parents[2] / "fixtures" / "table_data"
 _GOLDEN = json.loads(_FIXTURE_PATH.read_text())
+_RNG_FIXTURE_PATH = Path(__file__).resolve().parents[2] / "fixtures" / "rng.json"
+_RNG_GOLDEN = json.loads(_RNG_FIXTURE_PATH.read_text())
 
 
 @pytest.fixture(scope="module")
@@ -337,19 +339,97 @@ def test_get_argument_abs_idx_from_zero_set():
 
 def test_sample_enforced_features_is_empty_and_draw_free_by_default(boolean_ctable):
     """The default `enforce_features={}` means the loop runs zero
-    iterations -- proven by NOT raising, since the underlying
-    `randGen().randfloat()` primitive `biased_randbool` needs is itself
-    NotImplementedError (pymetta.util.rng, not this file's own gate).
+    iterations, so the RNG stream must be UNTOUCHED afterwards -- checked
+    directly now that `randfloat` is implemented and no longer raises (a
+    raise used to be the proof).
     """
     fs = feature_selector(boolean_ctable, feature_selector_parameters())
+    randGen().seed(7)
+    before = [randGen().randint() for _ in range(3)]
+    randGen().seed(7)
     assert fs.sample_enforced_features() == set()
+    assert [randGen().randint() for _ in range(3)] == before
 
 
-def test_sample_enforced_features_raises_via_randfloat_when_non_empty(boolean_ctable):
-    params = feature_selector_parameters(enforce_features={"x1": 1.0})
-    fs = feature_selector(boolean_ctable, params)
-    with pytest.raises(NotImplementedError):
-        fs.sample_enforced_features()
+@pytest.mark.oracle
+@pytest.mark.parametrize("case", _RNG_GOLDEN["biased_randbool"], ids=lambda c: f"seed{c['seed']}")
+def test_sample_enforced_features_matches_classic_biased_randbool(boolean_ctable, case):
+    """`biased_randbool(b)` == `b > rng.randfloat()`
+    ($COGUTIL/opencog/util/random.h:127), oracle'd against the REAL cogutil
+    function -- see tools/cpp_probe/rng_probe.cc's "biased_randbool" group.
+
+    Driven through `sample_enforced_features` rather than a bare
+    comparison, so the test covers the whole chain the CLI uses: the
+    binary32 narrowing `feature_selector_parameters` applies at the store
+    (C++'s `std::map<std::string,float>`, feature_selector.h:166), the
+    `>` direction, and the one-draw-per-entry consumption.
+
+    ONE generator per seed, weights consumed in order -- so the k-th
+    weight must face the k-th `randfloat` draw, exactly as the fixture's
+    single C++ generator did. The weights include, for several seeds, the
+    draw itself AND the next double above it: both narrow to the same
+    float32, so classic answers identically for the pair while a port
+    comparing doubles does not. That pair is what makes the narrowing
+    killable rather than merely asserted.
+    """
+    label = boolean_ctable.get_input_labels()[0]
+    randGen().seed(case["seed"])
+    got = []
+    for weight in case["weights"]:
+        params = feature_selector_parameters(enforce_features={label: weight})
+        selected = feature_selector(boolean_ctable, params).sample_enforced_features()
+        got.append(1 if selected else 0)
+    assert got == case["results"]
+
+
+@pytest.mark.oracle
+@pytest.mark.parametrize(
+    "case", _RNG_GOLDEN["biased_randbool_first_draw"], ids=lambda c: f"seed{c['seed']}"
+)
+def test_sample_enforced_features_narrows_the_weight_to_float32(boolean_ctable, case):
+    """The same oracle with a FRESH generator per weight, so every call
+    faces that seed's FIRST `randfloat` draw -- which is what makes the
+    binary32 narrowing killable.
+
+    For the seeds whose first draw is in the weight list, the list holds
+    BOTH that draw and the next double above it. They are different
+    doubles that narrow to the SAME float32, so classic answers the same
+    for both; a port comparing doubles answers `False` then `True`.
+    """
+    label = boolean_ctable.get_input_labels()[0]
+    got = []
+    for weight in case["weights"]:
+        randGen().seed(case["seed"])
+        params = feature_selector_parameters(enforce_features={label: weight})
+        selected = feature_selector(boolean_ctable, params).sample_enforced_features()
+        got.append(1 if selected else 0)
+    assert got == case["results"]
+
+
+def test_biased_randbool_fixture_contains_a_narrowing_discriminator():
+    """Guard on the CORPUS, not the code: at least one weight must be a
+    double that is NOT equal to its own float32, and adjacent to a value
+    the same seed actually draws. Without one, `test_...matches_classic...`
+    above would pass with the narrowing removed, and this file would be
+    another "correct but nothing tests it" entry.
+    """
+    import struct
+
+    def f32(x):
+        return struct.unpack("f", struct.pack("f", x))[0]
+
+    draws = _RNG_GOLDEN["draws"]
+    # The discriminator must sit in the FRESH-generator group, where every
+    # weight faces draw #1: a weight that merely appears somewhere in the
+    # draw list faces a different draw in the shared-generator group and
+    # proves nothing.
+    discriminators = [
+        (case["seed"], w)
+        for case in _RNG_GOLDEN["biased_randbool_first_draw"]
+        for w in case["weights"]
+        if f32(w) != w and f32(w) == draws[str(case["seed"])]["randfloat"][0]
+    ]
+    assert discriminators, "no weight distinguishes a float32 compare from a double one"
 
 
 # ---------------------------------------------------------------------------

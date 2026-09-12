@@ -240,9 +240,18 @@ def _setup_logging(pms: problem_params, explicit: dict[str, object]) -> None:
         )
         pms.log_file = log_file
 
-    # C++: :2091 `remove(log_file.c_str());` -- C's remove() ignores a
-    # missing file, so the FileNotFoundError is suppressed rather than raised.
-    with contextlib.suppress(FileNotFoundError):
+    # C++: :2091 `remove(log_file.c_str());` -- C's `remove()` returns -1
+    # on ANY failure and classic discards the return value, so EVERY error
+    # is ignored here, not just a missing file. This used to suppress only
+    # `FileNotFoundError`, which covered the common case and nothing else.
+    # MEASURED consequence: `moses -f /dev/null` exits 0 in classic (remove
+    # fails with EACCES, is ignored, and the logger opens /dev/null for
+    # append quite happily) and died here with `PermissionError: [Errno 13]
+    # Permission denied: '/dev/null'` -- before any search ran, with empty
+    # stdout. /dev/null is the obvious case; ANY log target that cannot be
+    # unlinked but can be opened for append hits it (a file in a
+    # sticky/read-only directory, a device node, a named pipe).
+    with contextlib.suppress(OSError):
         os.remove(log_file)
 
     logger().set_filename(log_file)
@@ -290,24 +299,88 @@ def moses_exec(argv: Sequence[str] | str) -> int:
     # exactly the precedent `moses_main.py`'s own `run_moses` already set
     # for `local_moses` during S11 ("write your module and tests against
     # it anyway ... do not reimplement it").
-    from pymetta.moses.main.table_problems import register_table_problems
+    from pymetta.moses.main.table_problems import ip_problem_params, register_table_problems
 
     pmr = problem_manager()
     tpp = register_table_problems(pmr)
     dp = register_demo_problems(pmr)
 
+    # C++: table-problems.cc:565-566 constructs `ip_problem_params` inside
+    # `register_table_problems` and registers it with the option manager
+    # there, because it also hands it to `new ip_problem(*tpp, *ippp)` on
+    # the next line. `ip_problem` is an unported stub here (problem.py) and
+    # takes no parameters, so there is nothing to hand it; the object is
+    # built at the one place that still needs it -- the parser -- rather
+    # than changing `register_table_problems`' return type for a value its
+    # only other consumer cannot use.
+    ippp = ip_problem_params()
+
     pp = problem_params()
 
     def build_parser() -> argparse.ArgumentParser:
-        p = argparse.ArgumentParser(prog="moses", add_help=True)
+        # `add_help=False` plus an explicit `-h`/`--help`: argparse's own
+        # built-in help action prints and exits 0 the moment it is seen,
+        # which is BOTH the wrong exit code and the wrong moment. C++
+        # declares help as an ordinary option -- `("help,h", "Produce help
+        # message.\n")`, problem.cc:50-51 -- and acts on it only AFTER the
+        # whole command line has been stored and notified (problem.cc:70-73).
+        p = argparse.ArgumentParser(prog="moses", add_help=False)
+        # C++: moses/moses/main/problem.cc:50 option_manager::init_options --
+        # `_desc.add_options()("help,h", "Produce help message.\n");`, added
+        # BEFORE the loop over the registered `option_base`s, which is why it
+        # is the first entry in classic's own `--help` listing.
+        p.add_argument("-h", "--help", dest="help", action="store_true", default=False)
         pp.add_options(p)
         tpp.add_options(p)
+        ippp.add_options(p)
         _add_demo_options(p)
         return p
 
     parser = build_parser()
 
     ns = parser.parse_args(argv_list[1:])
+
+    # C++: moses/moses/main/problem.cc:70-73
+    #
+    #     if (vm.count("help") or argc == 1) {
+    #         std::cout << _desc << std::endl;
+    #         exit(1);
+    #     }
+    #
+    # Two things here are surprising and both are MEASURED against
+    # $CLASSIC/build/moses/moses/main/moses, not inferred:
+    #
+    # * the exit code is 1, not 0. DO NOT FIX: `moses --help` really does
+    #   report failure in classic. `echo $?` after it prints 1, and a bare
+    #   `moses` with no arguments at all prints the identical 70462 bytes
+    #   and also exits 1 (both hashed, five runs each, byte-stable).
+    # * `argc == 1` -- no arguments at all -- takes the SAME branch. This
+    #   port previously ran the default `-H it` problem with no input file
+    #   and died with `ValueError: no input data file has been specified
+    #   (option -i)` and an argparse-less traceback.
+    #
+    # It runs AFTER `parse_args`, matching C++'s position after
+    # `po::store`/`po::notify`: an unparseable command line is rejected
+    # first, and `--help` does not rescue it.
+    #
+    # DIVERGENCE(C++ moses/moses/main/problem.cc:71): the help TEXT is this
+    # port's argparse listing, not boost::program_options' rendering of
+    # `_desc`. Measured: classic emits 70462 bytes -- 139 options, each with
+    # its full prose description word-wrapped into a 40-column right-hand
+    # column -- and this port emits roughly 11KB of argparse usage. The
+    # option SURFACE is identical (see `test_help_lists_exactly_classics_
+    # options`, tests/moses/main/test_moses_exec.py, which diffs the two
+    # binaries' option names directly); only the descriptive prose is
+    # absent, which `docs/MODULE-COVERAGE.md` records as a deliberate
+    # non-goal for `problem-params.cc` ("only the option names and defaults
+    # are reproduced, via argparse"). Closing it means transcribing ~65KB of
+    # description strings from problem-params.cc/table-problems.cc/problem.cc
+    # AND porting boost's own `format_paragraph`/`format_description`
+    # word-wrapper (options_description.cpp) to reproduce the column layout;
+    # that is a self-contained piece of work, and it is not this slice's.
+    if ns.help or len(argv_list) == 1:
+        sys.stdout.write(parser.format_help())
+        raise SystemExit(1)
 
     # The drop-in hook `_setup_logging`'s own DIVERGENCE marker describes:
     # once `problem_params.parse_options` grows its one line, the records are
@@ -317,6 +390,7 @@ def moses_exec(argv: Sequence[str] | str) -> int:
 
     pp.parse_options(ns)
     tpp.parse_options(ns)
+    ippp.parse_options(ns)
     dp.combo_str = ns.combo_str
     dp.problem_size = ns.problem_size
 

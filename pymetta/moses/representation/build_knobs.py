@@ -308,11 +308,28 @@ class build_knobs:
         flat precisely so that the two halves stay separated: logic ops,
         Boolean constants and Boolean-typed argument literals above, and a
         full contin sub-expression only ever BELOW a `greater_than_zero`.
+
+        THERE IS NO SIGNATURE-WIDE INPUT-TYPE GATE HERE, and that is
+        deliberate. One used to reject any signature holding an input that
+        was neither Boolean nor contin. The CONTIN-output path is right to
+        have such a gate -- `append_linear_combination` visits EVERY
+        argument index and `OC_ASSERT(0, "... unsupported argument type")`s
+        on anything else (build_knobs.cc:958-961), and classic really does
+        abort (SIGABRT, rc 134) on such a table. The BOOLEAN path has no
+        such assert anywhere: `sample_logical_perms` (build_knobs.cc:422-430)
+        and `insert_typed_arg` (:381-393) both have a bare `if boolean /
+        else if contin` with NO `else`, so an argument of any other type is
+        silently skipped and simply never gets a knob.
+
+        That difference is CLI-reachable and cost a whole run. A CSV column
+        whose values parse as none of the known types is inferred
+        `ill_formed_type` (a date column such as `2012-01-03` is the easy
+        way to get one), and classic then searches happily over the
+        remaining columns -- `->(boolean boolean ill_formed contin boolean)`
+        on `i1,i2,when,w,y` gives `-2 and($i1 $i2)`. The port refused the
+        whole run. Nothing about the weight column (`--score-weight`) was
+        involved; that flag is byte-identical with and without.
         """
-        if any(input_type not in _CONTIN_INPUT_TYPES for input_type in signature.itypes):
-            raise NotImplementedError(
-                "Boolean output only supports Boolean or contin inputs in this scoped port"
-            )
         build_knobs._validate_boolean_node(
             exemplar, exemplar.begin(), signature, type_tree_arity(signature)
         )

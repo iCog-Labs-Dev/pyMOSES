@@ -449,14 +449,12 @@ class contin_interpreter:
                             return math.nan
 
                     case builtin.rand:
-                        # C++: interpreter.cc:194-195. `randfloat()` is
-                        # not yet implemented in this port (rng.py, PLANNED:
-                        # P2 per docs/MODULE-COVERAGE.md) -- this correctly
-                        # propagates its NotImplementedError rather than
-                        # silently returning a placeholder. No test in
-                        # this port's scope (interpreterUTest itself never
-                        # exercises `rand`) depends on this actually
-                        # producing a value yet.
+                        # C++: interpreter.cc:194-195. `randfloat()` returns
+                        # a C `float`, and C++ then widens it into the
+                        # `contin_t` (double) this function returns -- so
+                        # the value carries exactly 24 significand bits of
+                        # information no matter which language reads it.
+                        # See `MT19937RandGen.randfloat`'s own docstring.
                         return randGen().randfloat()
 
                     case _:

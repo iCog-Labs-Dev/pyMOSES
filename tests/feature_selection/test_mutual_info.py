@@ -90,11 +90,19 @@ def test_mutual_information_no_longer_gates_a_contin_output():
     tests/feature_selection/test_mutual_info_contin.py for the oracle
     tests). A contin output over discrete inputs takes the DISCRETE
     branch, after binning -- so on an empty ctable it reaches the same
-    `total == 0.0` NaN path a boolean-output empty ctable does, rather
-    than raising."""
+    zero-counter path a boolean-output empty ctable does, rather than
+    raising.
+
+    This test used to assert NaN. That was the port's own invention: C++
+    never tests `total`, it sizes each probability vector from its counter
+    and `transform`s into it, so an empty counter divides zero times and
+    `entropy()` returns exactly 0.0 (table.h:1233-1240, numeric.h:229).
+    Measured against the real classic code -- see
+    tests/feature_selection/test_mutual_info_empty.py and its oracle
+    fixture."""
     sig = TypeSignature([type_node.boolean_type], type_node.contin_type)
     ctable = CTable("y", ["x1"], sig)  # empty: no rows to bin or count
-    assert math.isnan(mutual_information(ctable, {0}))
+    assert mutual_information(ctable, {0}) == 0.0
 
 
 def test_mutual_information_raises_for_a_contin_input_with_a_boolean_output():

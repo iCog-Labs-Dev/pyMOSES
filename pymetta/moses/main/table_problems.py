@@ -230,6 +230,7 @@ __all__ = [
     "bep_table_problem",
     "cluster_table_problem",
     "f_one_table_problem",
+    "ip_problem_params",
     "it_table_problem",
     "parse_table_args",
     "pre_table_problem",
@@ -460,6 +461,80 @@ class table_problem_params:
         self.weighting_feature = args.weighting_feature
         self.timestamp_feature = args.timestamp_feature
         self.ignore_features_str = list(args.ignore_features_str)
+
+
+# ---------------------------------------------------------------------------
+# ip_problem_params -- table-problems.h:76 / table-problems.cc:204.
+# ---------------------------------------------------------------------------
+
+
+class ip_problem_params:
+    """C++: moses/moses/main/table-problems.h:76 ip_problem_params
+
+    A SECOND `option_base` that `register_table_problems` constructs and
+    registers alongside `table_problem_params` (table-problems.cc:
+    565-566), carrying the four `-H ip` weights and nothing else.
+
+    It was missing entirely until the S13-CLI option-surface slice, and
+    with it the only four flags classic's `--help` lists that this port's
+    parser did not accept: `-K/--ip_kld_weight`, `-J/--ip_skewness_weight`,
+    `-U/--ip_stdU_weight`, `-X/--ip_skew_U_weight`. Classic exits 0 on all
+    four (they are parsed and stored before any problem runs); this port
+    exited 2 with argparse's "unrecognized arguments". With these four
+    added the two option surfaces are exactly equal -- 139 options each,
+    no port-only extras -- which `tests/moses/main/test_moses_exec.py`
+    pins directly against the compiled binary's own `--help`.
+
+    They are stored and NOT gated, deliberately. `ip_problem` is one of
+    the two table problems `problem.py` still registers as an unported
+    stub, and classic's own `-H ip` `OC_ASSERT`s on any table whose output
+    is not contin with boolean inputs (table-problems.cc:236) -- so
+    gating the WEIGHTS would reject command lines classic accepts, to
+    protect a problem that fails for its own reasons the moment it is
+    actually selected. Gate the problem, not its parameters.
+    """
+
+    def __init__(self) -> None:
+        """No C++ constructor line to cite: `ip_problem_params` declares no
+        constructor of its own (table-problems.h:76-83). Unlike
+        `table_problem_params`, all four of its options DO carry
+        `->default_value(1.0)` (table-problems.cc:211,215,219,223), so the
+        field defaults below are those, not boost's empty-value defaults.
+        """
+        self.ip_kld_weight = 1.0
+        self.ip_skewness_weight = 1.0
+        self.ip_stdU_weight = 1.0
+        self.ip_skew_U_weight = 1.0
+
+    def add_options(self, parser: argparse.ArgumentParser) -> None:
+        """C++: moses/moses/main/table-problems.cc:204 ip_problem_params::add_options
+
+        `po::value<double>` -- `contin_t`-shaped, so `type=float`. The
+        short forms are `,K`/`,J`/`,U`/`,X` in the boost option names and
+        are part of the surface: classic accepts `-K2` and `--ip_kld_weight=2`
+        alike. The long names keep their C++ spelling exactly, underscores
+        included -- they are the only options in the whole CLI that use
+        underscores rather than hyphens, and normalising them would invent
+        a flag classic does not have while dropping one it does.
+        """
+        add = parser.add_argument
+        add("-K", "--ip_kld_weight", dest="ip_kld_weight", type=float, default=1.0)
+        add("-J", "--ip_skewness_weight", dest="ip_skewness_weight", type=float, default=1.0)
+        add("-U", "--ip_stdU_weight", dest="ip_stdU_weight", type=float, default=1.0)
+        add("-X", "--ip_skew_U_weight", dest="ip_skew_U_weight", type=float, default=1.0)
+
+    def parse_options(self, args: argparse.Namespace) -> None:
+        """No direct C++ line: `ip_problem_params` declares no
+        `parse_options` override either (table-problems.h:76-83), so C++
+        uses `option_base::parse_options`' empty body and the fields are
+        populated by boost's own `po::value<double>(&member)` binding. Done
+        by hand here for the same reason `table_problem_params.parse_options`
+        does it.
+        """
+        self.ip_kld_weight = args.ip_kld_weight
+        self.ip_skewness_weight = args.ip_skewness_weight
+        self.ip_stdU_weight = args.ip_stdU_weight
+        self.ip_skew_U_weight = args.ip_skew_U_weight
 
 
 # ---------------------------------------------------------------------------
@@ -1159,6 +1234,14 @@ def parse_table_args(argv: list[str], tpp: table_problem_params) -> problem_para
     parser = argparse.ArgumentParser(add_help=True)
     pp.add_options(parser)
     tpp.add_options(parser)
+    # `ip_problem_params` is the third `option_base` classic registers into
+    # the ONE shared `options_description` (problem.cc:50-56, via
+    # table-problems.cc:565-566), so its four flags parse here too. Its
+    # values are discarded: this helper returns a `problem_params`, and the
+    # `-H ip` problem that would read them is an unported stub. Registering
+    # them anyway is what keeps `-K`/`-J`/`-U`/`-X` from being an error on a
+    # command line classic accepts.
+    ip_problem_params().add_options(parser)
     ns = parser.parse_args(argv)
     pp.parse_options(ns)
     tpp.parse_options(ns)

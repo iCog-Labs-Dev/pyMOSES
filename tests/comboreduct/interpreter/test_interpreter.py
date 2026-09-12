@@ -31,6 +31,7 @@ from pymetta.comboreduct.interpreter.interpreter import (
     interpreter_visitor,
     mixed_interpreter,
 )
+from pymetta.util.rng import MT19937RandGen, randGen
 
 # tests/fixtures/, computed directly (not via the `fixture_dir` fixture)
 # because @pytest.mark.parametrize below needs the corpus at collection
@@ -621,13 +622,18 @@ def test_contin_integral_collision_with_builtin_ordinal_does_not_misroute(
 
 
 def test_contin_rand_delegates_to_randgen_randfloat():
-    # rng.py's randfloat() is not yet implemented (PLANNED: P2, see
-    # docs/MODULE-COVERAGE.md) -- this proves contin_interpreter's own
-    # wiring is correct (it reaches randGen().randfloat(), not a
-    # different/wrong call) even though the RNG itself is still a stub.
+    # C++: interpreter.cc:194-195, `return randGen().randfloat();` -- ONE
+    # draw off the process-wide singleton, and specifically `randfloat`
+    # (binary32) rather than `randdouble`, which is a different value from
+    # the same raw draw. Pinned by seeding the singleton and comparing
+    # against an independently seeded generator, so a swap to randdouble or
+    # an extra/missing draw both fail.
     tr = str_to_combo_tree("rand")
-    with pytest.raises(NotImplementedError):
-        contin_interpreter([])(tr)
+    randGen().seed(99)
+    got = contin_interpreter([])(tr)
+    expected = MT19937RandGen(99)
+    assert got == expected.randfloat()
+    assert got != MT19937RandGen(99).randdouble()
 
 
 def test_mixed_greater_than_zero_recovers_the_sign_from_an_overflow():

@@ -81,7 +81,9 @@ _INPUTS = {
     "rng_probe.cc": {
         "seeds": [0, 1, 7, 42, 12345, 4294967295],
         "draws_per_seed": 2000,
-        "series": ["raw", "randint", "randint_7", "randbool", "randdouble"],
+        "series": ["raw", "randint", "randint_7", "randbool", "randdouble", "randfloat"],
+        "biased_randbool_weights": 20,
+        "biased_randbool_groups": ["shared generator", "fresh generator per weight"],
     },
 }
 

@@ -180,8 +180,20 @@ class feature_selector_parameters:
         self.diversity_cap = diversity_cap
         self.diversity_interaction = diversity_interaction
         self.diversity_jaccard = diversity_jaccard
+        # C++: feature_selector.h:166 is `std::map<std::string,float>`, so
+        # the map NARROWS every weight to binary32 on the way in -- and the
+        # value's only reader, `biased_randbool(float b)`
+        # ($COGUTIL/opencog/util/random.h:127), compares it against a
+        # `float` `randfloat()`. Narrowing here, at the store, is where C++
+        # narrows; problem-params.cc:2248's own `float weight = stof(...)`
+        # is the same narrowing on the CLI path and is already reproduced
+        # in `problem_params._parse_enforce_features`, so this is
+        # idempotent there and load-bearing only for a direct Python
+        # caller, which would otherwise compare a double against a float32.
         self.enforce_features: dict[str, float] = (
-            dict(enforce_features) if enforce_features is not None else {}
+            {name: _to_score_t(weight) for name, weight in enforce_features.items()}
+            if enforce_features is not None
+            else {}
         )
 
 
@@ -735,13 +747,17 @@ class feature_selector:
 
         With the default (empty) ``enforce_features`` the loop runs zero
         iterations and this returns an empty set without ever calling
-        ``randGen().randfloat()`` -- which is NOT itself ported yet
-        (``pymetta.util.rng.MT19937RandGen.randfloat`` raises
-        ``NotImplementedError`` by its own design, needing C float32
-        truncation -- see that method's own docstring). A non-empty
-        ``enforce_features`` will surface THAT ``NotImplementedError``
-        here, faithfully -- not a gate this file adds, but a real,
-        already-documented gap one call away.
+        ``randGen().randfloat()`` -- so the RNG stream is untouched, which
+        is exactly what makes the default path's draw count observable.
+
+        BOTH SIDES OF THE COMPARISON ARE C ``float``s. ``randfloat()``
+        returns binary32 (mt19937ar.cc:50) and ``biased_randbool``'s
+        parameter is ``float b``; the weight reaches here already narrowed,
+        because ``feature_selector_parameters`` stores it the way C++'s
+        ``std::map<std::string,float>`` does (see that constructor).
+        Comparing an un-narrowed double against ``randfloat()`` would flip
+        the decision for any weight whose double and float32 values
+        straddle the draw.
         """
         sampled_features: list[str] = []
         for name, probability in self.params.enforce_features.items():

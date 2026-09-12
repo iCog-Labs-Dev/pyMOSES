@@ -27,6 +27,7 @@ from pymetta.comboreduct.interpreter.eval import (
     eval_throws_vertex,
     is_procedure_call,
 )
+from pymetta.util.rng import MT19937RandGen, randGen
 
 F = builtin.logical_false
 T = builtin.logical_true
@@ -239,13 +240,19 @@ def test_sin_ordinary():
     assert eval_binding([], str_to_combo_tree("sin(0)")) == 0.0
 
 
-def test_rand_is_p2_deferred():
-    # C++: eval.cc:249-250 -- randGen().randfloat(). rng.py's randfloat()
-    # is itself an already-established NotImplementedError stub (P2, see
-    # its own docstring) -- eval.py must call straight through to it, not
-    # work around the gap.
-    with pytest.raises(NotImplementedError):
-        eval_binding([], str_to_combo_tree("rand"))
+def test_rand_draws_one_randfloat_from_the_singleton():
+    # C++: eval.cc:249-250 -- `return randGen().randfloat();`. ONE draw off
+    # the process-wide singleton, and specifically `randfloat` (binary32),
+    # not `randdouble` -- the two produce different values from the same
+    # raw draw, so comparing against both pins which one is called.
+    randGen().seed(5)
+    got = eval_binding([], str_to_combo_tree("rand"))
+    assert got == MT19937RandGen(5).randfloat()
+    assert got != MT19937RandGen(5).randdouble()
+    # exactly one draw consumed: the singleton's next value is draw #2
+    reference = MT19937RandGen(5)
+    reference.randfloat()
+    assert randGen().randfloat() == reference.randfloat()
 
 
 def test_equ_is_not_handled_yet():

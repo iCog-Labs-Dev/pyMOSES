@@ -34,6 +34,7 @@ under either of those two names, since neither name's C++ body does.
 
 from __future__ import annotations
 
+import argparse
 import io
 from contextlib import redirect_stdout
 from pathlib import Path
@@ -81,6 +82,21 @@ def _run(argv) -> tuple[int, str]:
 # Captured: ( ulimit -v 2097152; timeout 60
 #   $CLASSIC/build/moses/moses/main/moses -i$CLASSIC/tests/moses/dataset.csv
 #   -m1000 -W1 )
+# The same run without `-W1` -- `$1`/`$2` instead of `$arg1`/`$arg2`.
+# Named because several tests below need the plain-output oracle to prove a
+# flag they pass is inert in classic too.
+_EXPECTED_IT_NO_LABELS = (
+    "-3 and($1 $2) \n"
+    "-4 $1 \n"
+    "-4 $2 \n"
+    "-4 and(!$1 !$2) \n"
+    "-4 or(!$1 $2) \n"
+    "-4 or($1 !$2) \n"
+    "-5 true \n"
+    "-5 !$1 \n"
+    "-5 !$2 \n"
+)
+
 _EXPECTED_IT_LABELS = (
     "-3 and($arg1 $arg2) \n"
     "-4 $arg1 \n"
@@ -117,17 +133,7 @@ def test_moses_exec_reproduces_classic_it_oracle_no_labels(dataset_csv):
     """
     rc, out = _run(["moses", f"-i{dataset_csv}", "-m1000"])
     assert rc == 0
-    assert out == (
-        "-3 and($1 $2) \n"
-        "-4 $1 \n"
-        "-4 $2 \n"
-        "-4 and(!$1 !$2) \n"
-        "-4 or(!$1 $2) \n"
-        "-4 or($1 !$2) \n"
-        "-5 true \n"
-        "-5 !$1 \n"
-        "-5 !$2 \n"
-    )
+    assert out == _EXPECTED_IT_NO_LABELS
 
 
 def test_moses_exec_reproduces_classic_cscore_oracle(dataset_csv):
@@ -596,6 +602,294 @@ def test_moses_exec_output_bscore_ctable_row_order_matches_classic(dataset_csv):
 
 
 # ---------------------------------------------------------------------------
+# Three flags classic accepts and this port refused, all found by the
+# value-aware sweep that replaced the fixed-candidate one.
+# ---------------------------------------------------------------------------
+
+# Captured: ( ulimit -v 2097152; timeout 200
+#   $CLASSIC/build/moses/moses/main/moses -Hpa -k4 -m5000
+#   --hc-fraction-of-nn=0 )
+_EXPECTED_PA_K4_FRAC0 = (
+    "-4 or(and(or($1 $3) !$2 $4) and(or($1 $3) $2 !$4) and($1 $3)) \n"
+    "-4 or(and(or(and(!$2 $4) $1) $3) and(or($1 $3) $2 !$4) and($1 !$2 $4)) \n"
+    "-4 or(and(or(and(!$2 $4) $3) $1) and(or($1 $3) $2 !$4) and(!$2 $3 $4)) \n"
+    "-5 or(and(or($1 $3) !$2 $4) and($1 $3) and($2 !$4)) \n"
+    "-5 or(and(or($1 $3) $2 !$4) and(or($2 !$4) $1 $3)) \n"
+    "-5 or(and(or($1 $3) $2 !$4) and($1 $3) and(!$2 $4)) \n"
+    "-5 or(and(or(and(!$2 $4) $3) $1) and(or($1 $3) $2 !$4)) \n"
+    "-4 or(and(or(and(!$2 $4) $1) $3) and(or($1 $3) $2 !$4) and($1 !$2 !$3 $4)) \n"
+    "-4 or(and(or(and(!$2 $4) $3) $1) and(or($1 $3) $2 !$4) and(!$1 !$2 $3 $4)) \n"
+    "-4 or(and(or($1 $3) !$2 $4) and(or($1 $3) $2 !$4) and(or(!$2 $4) $1 $3)) \n"
+)
+
+
+def test_hc_fraction_of_nn_zero_matches_classic():
+    """`--hc-fraction-of-nn=0`: classic exits 0; this port raised
+    `ValueError: fraction_of_nn must be positive`.
+
+    The port's check was not an invention -- `OC_ASSERT(0.0 <
+    fraction_of_nn)` is real (hill-climbing.h:51) -- it was in the wrong
+    place. That assert lives in `hc_parameters`' CONSTRUCTOR, and
+    `problem-params.cc:2360-2368` never calls the constructor with CLI
+    values: `hc_params` is a default-constructed member and every field is
+    assigned afterwards. So the assert fires once, against the 2.0 default,
+    and a CLI value of 0 (or -1) sails past it.
+
+    `-Hpa -k4 -m5000` is used rather than a table because this is also the
+    proof the value REACHES the optimizer: measured on that run, classic
+    prints three different candidate lists for 0, 0.5 and 2
+    (`number_of_new_instances *= hc_params.fraction_of_nn`,
+    hill-climbing.cc:531). A test on a run where 0 changed nothing would
+    pass against a port that silently ignored the flag.
+    """
+    rc, out = _run(["moses", "-Hpa", "-k4", "-m5000", "--hc-fraction-of-nn=0"])
+    assert rc == 0
+    assert out == _EXPECTED_PA_K4_FRAC0
+    rc2, out2 = _run(["moses", "-Hpa", "-k4", "-m5000"])
+    assert rc2 == 0
+    assert out2 != out  # the flag is load-bearing on this run, not inert
+
+
+def test_hc_fraction_of_nn_negative_is_accepted_like_classic():
+    """`=-1` too: same reasoning, same measurement (classic exits 0). DO
+    NOT FIX -- restoring a positivity check here would reject a command
+    line classic runs."""
+    rc, out = _run(["moses", "-Hpa", "-k4", "-m5000", "--hc-fraction-of-nn=-1"])
+    assert rc == 0
+    assert out == _EXPECTED_PA_K4_FRAC0  # <= 0 all take the same zeroed path
+
+
+def test_hc_parameters_constructor_still_asserts():
+    """The other half of the same fix: `hc_parameters.__init__` KEEPS
+    `OC_ASSERT(0.0 < fraction_of_nn)`, because it is faithful to the
+    constructor. Only the CLI stopped going through it."""
+    from pymetta.moses.moses.optimization.hill_climbing import hc_parameters
+
+    with pytest.raises(ValueError, match="fraction_of_nn"):
+        hc_parameters(fraction_of_nn=0.0)
+
+
+def test_log_file_that_cannot_be_unlinked_matches_classic(dataset_csv):
+    """`-f /dev/null`: classic exits 0, this port raised `PermissionError:
+    [Errno 13] Permission denied: '/dev/null'` before any search ran.
+
+    C's `remove()` returns -1 on ANY failure and classic discards the
+    return value (problem-params.cc:2091), so an unlink that fails for
+    ANY reason is ignored -- not just the missing-file case this port was
+    suppressing. /dev/null is the reproducer because it is the one such
+    target that exists on every machine; the same shape covers a log file
+    in a read-only or sticky directory.
+    """
+    rc, out = _run(["moses", f"-i{dataset_csv}", "-m1000", "-f", "/dev/null"])
+    assert rc == 0
+    assert out == _EXPECTED_IT_NO_LABELS
+
+
+@pytest.mark.parametrize(
+    "argv,field,expected",
+    [
+        (["-K", "2"], "ip_kld_weight", 2.0),
+        (["--ip_kld_weight=2.5"], "ip_kld_weight", 2.5),
+        (["-J", "0.5"], "ip_skewness_weight", 0.5),
+        (["--ip_skewness_weight=3"], "ip_skewness_weight", 3.0),
+        (["-U", "3"], "ip_stdU_weight", 3.0),
+        (["--ip_stdU_weight=0"], "ip_stdU_weight", 0.0),
+        (["-X", "-1"], "ip_skew_U_weight", -1.0),
+        (["--ip_skew_U_weight=1.25"], "ip_skew_U_weight", 1.25),
+    ],
+)
+def test_ip_problem_params_parse_and_store(argv, field, expected):
+    """The four `-H ip` weights (table-problems.cc:210-223) were absent
+    from this port's parser entirely: classic exits 0 on each, the port
+    exited 2 with argparse's "unrecognized arguments". Both spellings of
+    each are exercised, because the short forms (-K/-J/-U/-X) come from
+    boost's `"name,X"` syntax and are easy to drop.
+
+    Deliberately NOT gated on `-H ip` being runnable. Classic parses and
+    stores them regardless of `-H`, and its own `ip_problem` aborts for a
+    reason of its own (table-problems.cc:236) on any table that is not
+    contin-output/boolean-input. Gating the weights would reject command
+    lines classic accepts.
+    """
+    from pymetta.moses.main.table_problems import ip_problem_params
+
+    parser = argparse.ArgumentParser(add_help=False)
+    ippp = ip_problem_params()
+    ippp.add_options(parser)
+    ippp.parse_options(parser.parse_args(argv))
+    assert getattr(ippp, field) == expected
+
+
+def test_ip_problem_params_defaults(dataset_csv):
+    """All four default to 1.0 (`->default_value(1.0)`,
+    table-problems.cc:211/215/219/223) and passing them changes nothing
+    about an ordinary `-H it` run -- measured against classic, which also
+    prints the same output with and without them."""
+    from pymetta.moses.main.table_problems import ip_problem_params
+
+    ippp = ip_problem_params()
+    assert (
+        ippp.ip_kld_weight,
+        ippp.ip_skewness_weight,
+        ippp.ip_stdU_weight,
+        ippp.ip_skew_U_weight,
+    ) == (1.0, 1.0, 1.0, 1.0)
+
+    rc, out = _run(
+        ["moses", f"-i{dataset_csv}", "-m1000", "-K2", "-J0.5", "-U3", "-X-1"]
+    )
+    assert rc == 0
+    assert out == _EXPECTED_IT_NO_LABELS
+
+
+# ---------------------------------------------------------------------------
+# --help / no arguments at all / the option surface itself.
+#
+# Classic's `option_manager::parse_options` (problem.cc:70-73) prints the
+# whole options_description and exits ONE -- not zero -- and takes the same
+# branch when argc == 1. Both were divergences here: argparse's built-in
+# help action exits 0, and a bare `moses` ran the default problem and died
+# on the missing -i.
+#
+# The help TEXT is still argparse's, not boost's (70462 bytes vs ~11KB);
+# see the DIVERGENCE marker at moses_exec.py's own help block. What IS
+# pinned byte-exactly is the option SURFACE, below, which is the part a
+# script or a user can actually trip over.
+# ---------------------------------------------------------------------------
+
+# Every option spelling -- long and short -- that
+# $CLASSIC/build/moses/moses/main/moses --help lists. Extracted from that
+# output with `^  (?:(-[A-Za-z0-9]) \[ )?(--[-\w.]+)`, which is exactly
+# boost's own `format_name()` shape ("  -h [ --help ]" / "  --version").
+# 188 spellings over 139 options.
+#
+# Four of these -- -K/--ip_kld_weight, -J/--ip_skewness_weight,
+# -U/--ip_stdU_weight, -X/--ip_skew_U_weight -- were MISSING from this port
+# entirely until the S13-CLI option-surface slice; classic exits 0 on each
+# and the port exited 2 with "unrecognized arguments". They were the only
+# four missing, and there were no port-only extras, so with them added the
+# two surfaces are exactly equal.
+_CLASSIC_OPTION_SPELLINGS = frozenset({
+    "--alpha", "--balance", "--boost", "--boost-bias", "--boost-exact", "--boost-expalpha",
+    "--boost-promote", "--cache-size", "--cap-coef", "--combo-program", "--complexity-ratio",
+    "--complexity-temperature", "--contin-depth", "--discard-dominated", "--discretize-threshold",
+    "--diversity-autoscale", "--diversity-dst", "--diversity-dst2dp", "--diversity-exponent",
+    "--diversity-normalize", "--diversity-p-norm", "--diversity-pressure", "--enable-fs",
+    "--exemplar", "--fs-algo", "--fs-demes", "--fs-diversity-cap", "--fs-diversity-interaction",
+    "--fs-diversity-jaccard", "--fs-diversity-pressure", "--fs-enforce-features-filename",
+    "--fs-exp-distrib", "--fs-focus", "--fs-hc-crossover", "--fs-hc-crossover-min-neighbors",
+    "--fs-hc-crossover-pop-size", "--fs-hc-fraction-of-remaining", "--fs-hc-max-evals",
+    "--fs-hc-max-score", "--fs-hc-widen-search", "--fs-inc-interaction-terms",
+    "--fs-inc-redundant-intensity", "--fs-inc-target-size-epsilon", "--fs-mi-penalty",
+    "--fs-pre-max-activation", "--fs-pre-min-activation", "--fs-pre-penalty", "--fs-pre-positive",
+    "--fs-prune-exemplar", "--fs-scorer", "--fs-seed", "--fs-smd-top-size",
+    "--fs-subsampling-by-time", "--fs-subsampling-ratio", "--fs-target-size", "--fs-threshold",
+    "--gen-best-tree", "--hc-allow-resize-deme", "--hc-crossover", "--hc-crossover-min-neighbors",
+    "--hc-crossover-pop-size", "--hc-fraction-of-nn", "--hc-max-nn-evals",
+    "--hc-resize-to-fit-ram", "--hc-single-step", "--hc-widen-search", "--help",
+    "--ignore-feature", "--ignore-operator", "--include-only-operator", "--input-file",
+    "--ip_kld_weight", "--ip_skew_U_weight", "--ip_skewness_weight", "--ip_stdU_weight",
+    "--it-abs-err", "--jobs", "--linear-regression", "--log-file", "--log-file-dep-opt",
+    "--log-level", "--logical-perm-ratio", "--max-candidates-per-deme", "--max-dist",
+    "--max-evals", "--max-gens", "--max-rand-input", "--max-score", "--max-time", "--min-pool",
+    "--min-rand-input", "--noise", "--nsamples", "--opt-algo", "--output-bscore",
+    "--output-cscore", "--output-deme-id", "--output-eval-number", "--output-file",
+    "--output-format", "--output-only-best", "--output-score", "--output-with-labels",
+    "--pop-size-ratio", "--pre-positive", "--problem", "--problem-size", "--ps-max-particles",
+    "--random-seed", "--reduce-all", "--reduct-candidate-effort", "--reduct-knob-building-effort",
+    "--result-count", "--revisit", "--score-weight", "--ss-by-time", "--ss-contiguous-time",
+    "--ss-low-dev-pressure", "--ss-n-best-bfdemes", "--ss-n-subsample-demes",
+    "--ss-n-subsample-fitnesses", "--ss-n-top-candidates", "--ss-n-tuples",
+    "--ss-std-dev-threshold", "--ss-tanimoto-geometric-mean-threshold",
+    "--ss-tanimoto-geometric-mean-weight", "--ss-tanimoto-max-threshold",
+    "--ss-tanimoto-max-weight", "--ss-tanimoto-mean-threshold", "--ss-tanimoto-mean-weight",
+    "--target-feature", "--time-bscore", "--time-bscore-granularity",
+    "--time-dispersion-exponent", "--time-dispersion-pressure", "--timestamp-feature",
+    "--version", "--weighted-accuracy", "--well-enough", "-A", "-B", "-C", "-D", "-E", "-F", "-G",
+    "-H", "-J", "-K", "-L", "-M", "-N", "-P", "-Q", "-R", "-S", "-T", "-U", "-V", "-W", "-X",
+    "-Y", "-Z", "-a", "-c", "-d", "-e", "-f", "-g", "-h", "-i", "-j", "-k", "-l", "-m", "-n",
+    "-o", "-p", "-q", "-r", "-s", "-t", "-u", "-v", "-w", "-x", "-y", "-z",
+})
+
+
+def test_help_lists_exactly_classics_options():
+    """The option surface, diffed against the compiled binary's own --help.
+
+    This is the guard that would have caught the four missing `-H ip`
+    weights on the day they went missing, and it is a MUCH stronger claim
+    than "--help exits 1": a flag classic accepts and this port rejects is
+    a hard failure for any script driving moses, whatever the help text
+    says. Asserted in both directions -- a port-only flag is just as much a
+    divergence as a missing one.
+    """
+    import argparse
+
+    from pymetta.moses.main.demo_problems import register_demo_problems
+    from pymetta.moses.main.moses_exec import _add_demo_options
+    from pymetta.moses.main.problem import problem_manager
+    from pymetta.moses.main.problem_params import problem_params
+    from pymetta.moses.main.table_problems import ip_problem_params, register_table_problems
+
+    pmr = problem_manager()
+    tpp = register_table_problems(pmr)
+    register_demo_problems(pmr)
+    parser = argparse.ArgumentParser(prog="moses", add_help=False)
+    parser.add_argument("-h", "--help", dest="help", action="store_true", default=False)
+    problem_params().add_options(parser)
+    tpp.add_options(parser)
+    ip_problem_params().add_options(parser)
+    _add_demo_options(parser)
+
+    port = {opt for action in parser._actions for opt in action.option_strings}
+    assert sorted(port - _CLASSIC_OPTION_SPELLINGS) == []
+    assert sorted(_CLASSIC_OPTION_SPELLINGS - port) == []
+
+
+def test_help_exits_one_like_classic():
+    """DO NOT FIX: `moses --help` exits 1 in classic, not 0
+    (problem.cc:72's `exit(1)` -- measured, `echo $?` prints 1). argparse's
+    built-in help action exits 0, which is why this port registers `-h` as
+    an ordinary flag and acts on it after parsing instead."""
+    buf = io.StringIO()
+    with redirect_stdout(buf), pytest.raises(SystemExit) as exc:
+        moses_exec(["moses", "--help"])
+    assert exc.value.code == 1
+    assert buf.getvalue().startswith("usage: moses")
+
+
+def test_no_arguments_prints_help_and_exits_one_like_classic():
+    """`argc == 1` takes the same branch as `--help` (problem.cc:70).
+    Measured: a bare `moses` prints the identical 70462 bytes classic's
+    `--help` prints and exits 1. This port used to run the default `-H it`
+    problem with no table and raise `ValueError: no input data file has
+    been specified (option -i)`."""
+    buf = io.StringIO()
+    with redirect_stdout(buf), pytest.raises(SystemExit) as exc:
+        moses_exec(["moses"])
+    assert exc.value.code == 1
+    assert buf.getvalue().startswith("usage: moses")
+    assert buf.getvalue() == _help_text()
+
+
+def _help_text() -> str:
+    buf = io.StringIO()
+    with redirect_stdout(buf), pytest.raises(SystemExit):
+        moses_exec(["moses", "-h"])
+    return buf.getvalue()
+
+
+def test_help_is_not_consulted_before_the_command_line_parses():
+    """C++ checks `vm.count("help")` only AFTER `po::store`/`po::notify`
+    (problem.cc:63-70), so an unparseable command line is rejected first
+    and `--help` does not rescue it. Pinned because moving the check
+    earlier -- the obvious "simplification" -- would silently change
+    which of the two failures a user sees."""
+    with pytest.raises(SystemExit) as exc:
+        moses_exec(["moses", "--help", "--no-such-option"])
+    assert exc.value.code != 1  # argparse's own usage error, not the help exit
+
+
+# ---------------------------------------------------------------------------
 # --version. Classic prints two lines and exits 0; this port printed NOTHING
 # and exited 0 until the S13-CLI --version slice, on the (half-right)
 # grounds that `version_string` is a build-time define. See
@@ -807,17 +1101,7 @@ def test_moses_exec_output_bscore_and_deme_id_defaults_do_not_raise(dataset_csv)
     (shared, `False`) default must still reproduce the ordinary oracle."""
     rc, out = _run(["moses", f"-i{dataset_csv}", "-m1000"])
     assert rc == 0
-    assert out == (
-        "-3 and($1 $2) \n"
-        "-4 $1 \n"
-        "-4 $2 \n"
-        "-4 and(!$1 !$2) \n"
-        "-4 or(!$1 $2) \n"
-        "-4 or($1 !$2) \n"
-        "-5 true \n"
-        "-5 !$1 \n"
-        "-5 !$2 \n"
-    )
+    assert out == _EXPECTED_IT_NO_LABELS
 
 
 # ---------------------------------------------------------------------------
