@@ -83,6 +83,28 @@ STATUS_ORDER = [
     "EXCLUDED",
 ]
 
+# Statuses allowed to have ZERO rows, and why each one is.
+#
+# `_aggregate` treats the two directions of a STATUS_ORDER/row mismatch very
+# differently, because only one of them can corrupt the table:
+#
+# * A row status NOT in STATUS_ORDER stays fatal. Such a row is summed into the
+#   printed Total while no table line accounts for it, so the table under-sums
+#   in silence -- the exact failure this module's docstring opens with.
+# * A STATUS_ORDER entry with no rows corrupts nothing. It renders as a `0 | 0`
+#   line. Refusing it only forces the display list to be hand-edited whenever a
+#   bucket empties, and hand-editing the display list is how a status gets
+#   dropped in the first place.
+#
+# `PLANNED: P2` emptied on 2026-09-11: the last PLANNED row -- `type_tree_def.cc`,
+# 41 lines, `is_argument_type` and `arg_to_idx` -- was found already ported at
+# `pymetta/comboreduct/type_checker/type_signature.py:115,:126`. Rendering the
+# bucket at zero states that milestone in the table instead of hiding it, and
+# leaves the PLANNED machinery (AWAITING_RE / FOLDS_INTO_RE and
+# `check_planned_rows_against_reality`) armed for the next PLANNED row anyone
+# adds. Every other status must still be backed by at least one real row.
+MAY_BE_EMPTY = {"PLANNED: P2"}
+
 ROW_RE = re.compile(r"^\| `([^`]+)` \| *([\d,]+) \| ([A-Z][A-Za-z0-9: ]*?) \|", re.M)
 
 # The same row, with the reason column captured. Every staleness check below
@@ -203,13 +225,16 @@ def _aggregate(text: str) -> tuple[OrderedDict[str, tuple[int, int]], int, int]:
     total_lines = sum(v[1] for v in agg.values())
 
     unknown = set(agg) - set(STATUS_ORDER)
-    missing = set(STATUS_ORDER) - set(agg)
+    missing = set(STATUS_ORDER) - set(agg) - MAY_BE_EMPTY
     if unknown or missing:
         raise SystemExit(
             f"status mismatch: rows use {sorted(unknown)} which STATUS_ORDER omits; "
             f"STATUS_ORDER names {sorted(missing)} which no row uses. "
             "Rendering would silently drop rows from the table."
         )
+    for status in MAY_BE_EMPTY:
+        agg.setdefault(status, (0, 0))
+    agg = OrderedDict((s, agg[s]) for s in STATUS_ORDER)
     if sum(agg[k][0] for k in STATUS_ORDER) != total_files:
         raise SystemExit("per-status file counts do not sum to the total")
     if (total_files, total_lines) != (EXPECTED_FILES, EXPECTED_LINES):

@@ -385,7 +385,7 @@ def test_partial_to_ported_gap_is_documented_rather_than_half_checked():
 
 
 @pytest.mark.parametrize(
-    "status", ["PORTED", "PARTIAL", "PLANNED: P2", "EXCLUDED"]
+    "status", [s for s in ct.STATUS_ORDER if s not in ct.MAY_BE_EMPTY]
 )
 def test_every_status_in_status_order_is_used_by_a_real_row(status):
     # `_aggregate` already raises if STATUS_ORDER and the rows disagree, but it
@@ -393,3 +393,37 @@ def test_every_status_in_status_order_is_used_by_a_real_row(status):
     # partition invariant as a plain assertion, per status.
     agg, _files, _lines = ct._aggregate(ct.DOC.read_text())
     assert agg[status][0] > 0
+
+
+def test_planned_is_the_only_status_allowed_to_be_empty():
+    # Pins the exemption rather than letting it widen by accident. If a second
+    # status is ever added to MAY_BE_EMPTY, that is a decision someone should
+    # have to make here, in a test, with a reason -- not a one-word edit to a
+    # set literal.
+    assert ct.MAY_BE_EMPTY == {"PLANNED: P2"}
+    assert ct.MAY_BE_EMPTY < set(ct.STATUS_ORDER)
+
+
+def test_the_empty_planned_bucket_still_renders_as_a_zero_row():
+    # The whole point of MAY_BE_EMPTY: an emptied bucket must stay VISIBLE at
+    # zero, because silently dropping it is indistinguishable from the
+    # under-summing bug this module exists to prevent. Asserted against the
+    # real document, which has had no PLANNED row since 2026-09-11.
+    agg, files, lines = ct._aggregate(ct.DOC.read_text())
+    assert agg["PLANNED: P2"] == (0, 0)
+    summary, macro = ct._render(agg, files, lines)
+    assert "| PLANNED: P2 | 0 | 0 | 0.0% | 0.0% |" in summary
+    assert "| PLANNED: P2 (deferred tail) | 0 | 0 |" in macro
+
+
+def test_an_unknown_row_status_is_still_fatal():
+    # The direction that CAN corrupt the table is unchanged by MAY_BE_EMPTY:
+    # a row whose status no table line accounts for must still abort, or the
+    # table under-sums while the printed Total does not.
+    rows = _doc(
+        "| `a.cc` | 10 | PORTED | pymetta/x.py |\n"
+        "| `b.cc` | 20 | WIBBLE | pymetta/y.py |\n"
+    )
+    with pytest.raises(SystemExit) as exc:
+        ct._aggregate(rows)
+    assert "WIBBLE" in str(exc.value)
