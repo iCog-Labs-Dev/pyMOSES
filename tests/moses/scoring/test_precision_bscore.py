@@ -218,12 +218,19 @@ def test_time_bscore_components_are_in_ascending_date_order_not_encounter_order(
     the emitted bscore components -- is ascending by DATE, not by the order
     the rows happened to introduce each date.
 
-    `timestamp_bool_desc.csv` exists for exactly this: its first compressed
-    row lists 2012-03-09, then 2012-02-07, then 2012-01-05, so the
-    encounter order is the REVERSE of the date order. Every other
+    `timestamp_bool_desc.csv` exists for exactly this: walking its
+    compressed rows meets 2012-03-09 first, then 2012-01-05, then
+    2012-02-07 -- not ascending, and not descending either. Every other
     timestamped corpus here encounters dates ascending, which makes the two
     orders coincide -- and a mutation that emitted encounter order survived
     the whole suite until this test was added.
+
+    The encounter list is `(3/9, 1/5, 2/7)` rather than the exact reverse
+    `(3/9, 2/7, 1/5)` it read before `CTable` was given `std::map` key order
+    (`ctable_row_key`, pymetta/comboreduct/table/table.py): the row walk
+    itself changed, the property this test needs -- encounter order is NOT
+    date order -- did not. Both halves are asserted, so a corpus or an
+    ordering change that made them coincide fails loudly here.
 
     With `true` every row is selected (9 observations, `active == 9`):
     2012-01-05 has 4 true and 0 false, 2012-02-07 has 2 and 0, 2012-03-09
@@ -236,9 +243,10 @@ def test_time_bscore_components_are_in_ascending_date_order_not_encounter_order(
         for tv in counter.timed_keys():
             if tv.timestamp not in encountered:
                 encountered.append(tv.timestamp)
-    assert encountered == [date(2012, 3, 9), date(2012, 2, 7), date(2012, 1, 5)], (
+    assert encountered == [date(2012, 3, 9), date(2012, 1, 5), date(2012, 2, 7)], (
         "corpus no longer discriminates: encounter order must NOT be date order"
     )
+    assert encountered != sorted(encountered)
 
     bs = precision_bscore(ct, time_bscore=True)(str_to_combo_tree("true"))
     iac = _to_score_t(1.0 / 9.0)
@@ -498,7 +506,7 @@ def test_update_weights_drops_rewards_at_or_above_one(weighted_ctable):
     the base class's plain rescale. `if (rew[i] < 1.0) _weights[i] *=
     rew[i];` throws the `expalpha` half of `ensemble::add_expert`'s reward
     vector away entirely -- "whatever we do, we don't want to let later
-    updates push them up" (precision_bscore.cc:713-716) -- and only then
+    updates push them up" (precision_bscore.cc:717-721) -- and only then
     renormalises to `sum == _size`.
 
     The exact values are asserted, because the SHAPE is the same either
@@ -617,7 +625,7 @@ def test_exact_selection_is_insensitive_to_ensemble_iteration_order(weighted_cta
 
 
 def test_get_error_is_one_minus_precision_and_leaves_the_flag_set(weighted_ctable):
-    """`0.5 - sum(bs[:_size])` (precision_bscore.cc:512-517).  `$1` has
+    """`0.5 - sum(bs[:_size])` (precision_bscore.cc:513-517).  `$1` has
     precision `sao/active + 0.5 = 1/6 + 0.5`, so the error is `1/3`.
     `ensemble::add_expert` admits a tree only when this is ~0, which is
     why the toggle inside `get_error` has to disable weighting.
@@ -694,7 +702,7 @@ def test_bias_scale_decides_which_rows_clear_the_bias(weighted_ctable):
 
 def test_bias_comes_only_from_rows_that_should_NOT_be_selected(weighted_ctable):
     """`if (0.0 > sumo and bias < hypoth[i]) bias = hypoth[i];`
-    (precision_bscore.cc:487).  Drop the `0.0 > sumo` guard and the bias
+    (precision_bscore.cc:486).  Drop the `0.0 > sumo` guard and the bias
     becomes 4.0 (the (T,T) row's own weight) instead of 1.0, which at
     `bias_scale=0.5` loses the (F,T) row -- a different bscore.
     """

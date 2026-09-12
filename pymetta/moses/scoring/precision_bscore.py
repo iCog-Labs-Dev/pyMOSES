@@ -341,7 +341,7 @@ class precision_bscore(bscore_ctable_time_dispersion):
                 # DIVERGENCE(C++ moses/moses/scoring/precision_bscore.cc:285):
                 # this loop runs to `_size`, the COMPRESSED ROW count, but
                 # under `time_bscore` `ac` holds one entry per distinct
-                # TIMESTAMP instead (precision_bscore.cc:272) -- so
+                # TIMESTAMP instead (precision_bscore.cc:273) -- so
                 # `--time-bscore=1 --boost=1` indexes a `std::vector<score_t>`
                 # past its end with a bare `operator[]`, which is undefined
                 # behaviour, not a wrong-but-defined answer.
@@ -450,7 +450,7 @@ class precision_bscore(bscore_ctable_time_dispersion):
         comment.)
 
         Only the `#else` arm is ported: `SCORE_MANY_TREES`
-        (precision_bscore.cc:396-427) is `#define`d out in classic's own
+        (precision_bscore.cc:398-427) is `#define`d out in classic's own
         source (the `// #define SCORE_MANY_TREES` at :397 is commented
         out), so it never compiles -- the same "port only the branch the
         preprocessor actually builds" convention `bscore_base.update_
@@ -494,12 +494,12 @@ class precision_bscore(bscore_ctable_time_dispersion):
         the `get_error` assertion that fires first.  Ported and unit-
         tested directly.
 
-        `score_t trweight = sct.get_weight();` (precision_bscore.cc:459)
+        `score_t trweight = sct.get_weight();` (precision_bscore.cc:460)
         NARROWS the `double` ensemble weight to binary32 before it is
         accumulated -- `hypoth` itself is a `std::vector<double>`, so the
         accumulation is in double but each addend has already been
         rounded to float.  `double sumo = sum_outputs(orow);`
-        (precision_bscore.cc:484) is the mirror image: `sum_outputs`
+        (precision_bscore.cc:485) is the mirror image: `sum_outputs`
         returns a `score_t` which is then widened, so the comparison
         `0.0 > sumo` is made on the float32 value.
 
@@ -509,7 +509,7 @@ class precision_bscore(bscore_ctable_time_dispersion):
         order in both languages.
 
         The `logger().info() << "Precision ensemble bias: "` line
-        (precision_bscore.cc:491) is not reproduced: this module emits no
+        (precision_bscore.cc:489) is not reproduced: this module emits no
         log output at all (it imports no logger), unlike select_bscore.py.
         """
         # Step 1: If any tree in the ensemble picks a row, that row is
