@@ -452,3 +452,41 @@ def test_call_ensemble_narrows_the_ensemble_weight_to_float32():
         "this case only discriminates with the + vote first"
     )
     assert bsc.call_ensemble(ens)[2] == -2.0
+
+
+@pytest.mark.skipif(
+    not _MIXED_INTERPRETER_AVAILABLE,
+    reason="ensemble scoring interprets trees over contin inputs",
+)
+def test_call_ensemble_accumulates_hypoth_in_float32_not_double():
+    """`behavioral_score hypoth(_size, 0.0);` (select_bscore.cc:195) is a
+    `std::vector<score_t>`, so `hypoth[i] += ...` (:205) ROUNDS TO
+    BINARY32 ON EVERY MEMBER, not once at the end.
+
+    Two members cannot show this -- the running sum only has one addend
+    before the last one, and the rounding cancels -- so this uses three,
+    weighted 2**24, 1 and 2**24, all exactly representable in float32 so
+    that the separate `trweight` narrowing plays no part. On the
+    `x == 3.0` row the votes are +2**24, +1, -2**24: in float32 the
+    middle vote is swallowed (`float32(2**24 + 1) == 2**24`, ties to
+    even) and the row nets exactly 0.0, which the strict `0 < hypoth`
+    rule reads as "outside"; accumulating in double leaves +1.0 and reads
+    "inside". `x == 3.0` IS inside [2, 4], so the two answers differ by a
+    full point on that row.
+
+    Order-pinned for the same reason `test_call_ensemble_narrows_the_
+    ensemble_weight_to_float32` is: the permutation that puts the
+    cancelling member first observes nothing.
+    """
+    bsc = select_bscore(_contin_ctable([1.0, 2.0, 3.0, 4.0, 5.0]), 0.4, 0.8)
+    assert (bsc._lower_bound, bsc._upper_bound) == (2.0, 4.0)
+
+    big = float(2**24)
+    ens, members = _ensemble(
+        (_GT2, big),  # votes + on x = 3, 4, 5
+        ("0<(+($1 -2.5))", 1.0),  # votes + on x = 3, 4, 5
+        (_GT3, big),  # votes - on x = 3
+    )
+    assert [a is b for a, b in zip(list(ens), members, strict=True)] == [True] * 3
+
+    assert bsc.call_ensemble(ens) == [0.0, -1.0, -1.0, 0.0, -1.0]

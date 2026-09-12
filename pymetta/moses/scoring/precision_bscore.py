@@ -338,6 +338,42 @@ class precision_bscore(bscore_ctable_time_dispersion):
             # Only the final `iac = 1.0 / wactive;` narrows, once, because
             # `iac` is the `score_t` declared two lines up.
             if self._return_weighted_score:
+                # DIVERGENCE(C++ moses/moses/scoring/precision_bscore.cc:285):
+                # this loop runs to `_size`, the COMPRESSED ROW count, but
+                # under `time_bscore` `ac` holds one entry per distinct
+                # TIMESTAMP instead (precision_bscore.cc:272) -- so
+                # `--time-bscore=1 --boost=1` indexes a `std::vector<score_t>`
+                # past its end with a bare `operator[]`, which is undefined
+                # behaviour, not a wrong-but-defined answer.
+                #
+                # MEASURED on tests/fixtures/table_data/timestamp_bool_clean
+                # .csv (9 rows, 4 compressed, 3 distinct dates) with
+                # `-Hpre -q0.1 -w0.9 --timestamp-feature=when --time-bscore=1
+                # --boost=1 -m200 -W1`: classic exits 0 and prints
+                # `0.5 or($1 $2)`, reproducibly across seeds 1/2/3 and repeat
+                # runs -- reproducible here, but computed from whatever
+                # follows a 3-element heap vector, so it is a property of this
+                # build's allocator rather than of MOSES. A port cannot
+                # reproduce that, and reproducing a *plausible* number would
+                # be worse than failing: it would look like agreement. This
+                # raises instead, naming both sizes -- the same choice
+                # `interpreter.py` makes for `interpreter.cc:54`'s unchecked
+                # argument index (docs/CARRY-FORWARD.md Sec 3). DO NOT "fix"
+                # by clamping or by padding `ac`.
+                #
+                # The IN-BOUNDS case (at least as many timestamps as rows) is
+                # NOT undefined in C++, merely odd -- it pairs row weights
+                # with timestamp activities -- so it is reproduced faithfully
+                # rather than rejected.
+                if len(ac) < self._size:
+                    raise IndexError(
+                        "precision_bscore.do_score: the boosted normalisation "
+                        f"reads {self._size} activity entries but time_bscore "
+                        f"produced only {len(ac)} (one per timestamp). C++ "
+                        "reads past the end of the vector here "
+                        "(precision_bscore.cc:285); that is undefined "
+                        "behaviour and cannot be ported."
+                    )
                 wactive = 0.0
                 for i in range(self._size):
                     wactive += self._weights[i] * ac[i]

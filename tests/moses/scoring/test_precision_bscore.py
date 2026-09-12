@@ -493,22 +493,52 @@ def test_uniform_weights_reproduce_the_flat_normalisation(weighted_ctable):
     assert bsc(tr)[:4] == precision_bscore(weighted_ctable)(tr)[:4]
 
 
-def test_update_weights_renormalises_through_wnorm(weighted_ctable):
+def test_update_weights_drops_rewards_at_or_above_one(weighted_ctable):
     """`precision_bscore::update_weights` (precision_bscore.cc:707) is NOT
-    the base class's plain rescale: it re-applies the previous
-    normalisation (`_weights[i] *= wnorm`), only lets a REWARD BELOW 1.0
-    through (`if (rew[i] < 1.0)`), and renormalises so the weights sum to
-    `_size`.
+    the base class's plain rescale. `if (rew[i] < 1.0) _weights[i] *=
+    rew[i];` throws the `expalpha` half of `ensemble::add_expert`'s reward
+    vector away entirely -- "whatever we do, we don't want to let later
+    updates push them up" (precision_bscore.cc:713-716) -- and only then
+    renormalises to `sum == _size`.
+
+    The exact values are asserted, because the SHAPE is the same either
+    way: dropping the guard still leaves weight 0 smallest, the other
+    three equal, and the sum at 4.0. Only the numbers separate them
+    (4/3.5 vs 4/6.5 as the normaliser).
     """
     bsc = _boosted(weighted_ctable)
     # expalpha = 2.0: selected rows get 1/2, unselected rows get 2.0.
     bsc.update_weights([0.5, 2.0, 2.0, 2.0])
-    # Only the sub-1.0 reward is applied, then everything is renormalised
-    # to sum to _size == 4.
+    assert bsc._weights == [0.5 * 4 / 3.5, 4 / 3.5, 4 / 3.5, 4 / 3.5]
     assert sum(bsc._weights) == pytest.approx(4.0)
-    assert bsc._weights[0] < bsc._weights[1]
-    assert bsc._weights[1] == bsc._weights[2] == bsc._weights[3]
-    assert bsc.wnorm != 1.0
+    assert bsc.wnorm == pytest.approx(3.5 / 4.0)
+
+
+def test_update_weights_keeps_knocked_down_rows_down(weighted_ctable):
+    """Two rounds, which is the only way the `wnorm` bookkeeping can
+    matter at all -- after `reset_weights` it is 1.0, so a single call
+    cannot tell it apart from nothing.
+
+    MEASURED, and recorded because it is a surprise: `_weights[i] *=
+    wnorm` (precision_bscore.cc:722) is ALGEBRAICALLY A NO-OP. It scales
+    every weight by the same factor, and the renormalisation two lines
+    later divides that same factor straight back out. Removing it leaves
+    the weights unchanged to ~1e-15 after eight successive updates over
+    200 random reward vectors -- i.e. below anything this port can
+    assert. So there is no test here that kills that mutant, and the
+    reason is "no trap", not "no coverage".
+
+    What this test DOES pin is the real effect of two rounds: row 0 is
+    knocked down twice and ends further below the others than one round
+    leaves it.
+    """
+    bsc = _boosted(weighted_ctable)
+    bsc.update_weights([0.5, 2.0, 2.0, 2.0])
+    after_one = list(bsc._weights)
+    bsc.update_weights([0.5, 2.0, 2.0, 2.0])
+    assert bsc._weights == [0.25 * 4 / 3.25, 4 / 3.25, 4 / 3.25, 4 / 3.25]
+    assert bsc._weights[0] < after_one[0]
+    assert sum(bsc._weights) == pytest.approx(4.0)
 
 
 def test_update_weights_rejects_a_wrong_sized_reward(weighted_ctable):
@@ -916,3 +946,43 @@ def test_precision_conj_bscore_zero_activation_gives_perfect_precision():
     tr = str_to_combo_tree("logical_false")
     bs = bsc(tr)
     assert bs[0] == 1.0
+
+
+def test_boosted_time_bscore_refuses_to_guess_at_classic_s_out_of_bounds_read():
+    """`--time-bscore=1 --boost=1` is the one reachable combination where
+    classic's weighted normalisation indexes past the end of its own
+    activity vector: the loop runs to `_size` (4 compressed rows here)
+    while `ac` was filled per TIMESTAMP (3 dates). Classic exits 0 and
+    prints a reproducible answer computed from whatever follows that
+    3-element vector; this port raises instead, naming both sizes. See the
+    DIVERGENCE marker in `do_score` for the measurement.
+
+    The guard is deliberately `len(ac) < _size` and not "time_bscore is
+    on": a table with at least as many dates as compressed rows is
+    in-bounds, defined (if odd) in C++, and must keep working.
+    """
+    ct = _timed_ctable()
+    assert len(ct) == 4
+    assert len(ct.get_timestamps()) == 3
+    bsc = precision_bscore(ct, time_bscore=True)
+    bsc.use_weighted_scores()
+    bsc.reset_weights()
+    with pytest.raises(IndexError, match="reads 4 activity entries but time_bscore"):
+        bsc(str_to_combo_tree("$1"))
+
+
+def test_boosted_time_bscore_is_fine_when_there_are_enough_timestamps():
+    """The other side of the same guard: `timestamp_bool_months.csv` has
+    more distinct dates than compressed rows, so classic's loop is
+    in-bounds and this port must reproduce it rather than refuse.
+    """
+    ct = _timed_ctable("timestamp_bool_months.csv")
+    assert len(ct.get_timestamps()) >= len(ct)
+    bsc = precision_bscore(ct, time_bscore=True)
+    bsc.use_weighted_scores()
+    bsc.reset_weights()
+    got = bsc(str_to_combo_tree("$1"))
+    # One component per date, plus the +0.5 offset and NO activation
+    # penalty (the boosted path drops it).
+    assert len(got) == len(ct.get_timestamps()) + 1
+    assert got[-1] == 0.5
