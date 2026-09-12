@@ -49,9 +49,10 @@ actually drives real boosting whenever `_params.do_boosting` is `True`.
 The ONLY code change this needed in `merge_demes` itself is splitting the
 combined `do_boosting or keep_bscore` raise (merging.cc:264-265's single
 `if`, previously ported as two Python `if`s per this module's OLDER "Gates
-ported" note below) so that `do_boosting` ALONE no longer raises --
-`keep_bscore` alone still does, unchanged, since it has no other unported
-dependency but was never asked for by anything real either.
+ported" note below) so that `do_boosting` ALONE no longer raises. That
+split is GONE again as of the `-t/--output-bscore` slice: `keep_bscore`'s
+raise was the last piece of it, and the condition is now transcribed as
+C++'s own single four-term `if` (merging.cc:264-265).
 
 ## P2 metapopulation task: `discard_dominated` is now real
 
@@ -182,18 +183,18 @@ own docstring.
   349-350) runs for real, after `merge_candidates`. Previously raised.
 * `diversity_enabled() or _params.do_boosting or _params.discard_dominated
   or _params.keep_bscore` -- `merge_demes`'s behavioural-score recompute
-  block (merging.cc:264-296) is DECOMPOSED rather than gated as one unit:
-  `keep_bscore` ALONE still raises (it has no other unported dependency
-  but was never asked for by anything real); `discard_dominated or
-  diversity_enabled() or do_boosting` (P2 metapopulation task: `do_boosting`
-  added to the real-recompute condition once `ensemble.py` went real --
-  boosting NEEDS real bscores on every candidate exactly as much as
-  diversity/domination do, since `ensemble.add_candidates`, reached
-  further down this same function, calls `_bscorer.get_error(sct.
-  get_bscore())`) now runs the real recompute. `merge_demes`'s own
-  docstring explains why splitting the single C++ `if` into two
-  independent Python ones has no observable effect on `keep_bscore`,
-  the one flag still gated, whether alone or combined with any real one.
+  block (merging.cc:264-296) NO LONGER GATES AT ALL. All four terms are
+  real: `discard_dominated`/`diversity_enabled()`/`do_boosting` went real
+  in the P2 metapopulation task, and `keep_bscore` (the `-t`/
+  `--output-bscore` CLI flag, `problem-params.cc:2288`) in the S13-CLI
+  `-t` slice. The condition is now one `if` with C++'s own four terms in
+  C++'s own order (merging.cc:264-265), not the two decomposed Python
+  `if`s this module used to carry. `keep_bscore` needs nothing beyond
+  that recompute: the block it enables only rebuilds each candidate with
+  a real `_cscorer.get_bscore(...)`, and the printing side
+  (`ostream_scored_combo_tree`'s `output_bscore` arm, types.py; the
+  `output_bscore` constructor argument of `metapop_printer`,
+  moses_main.py) was already ported and already wired from the flag.
 * `_params.do_boosting` -- now REAL (P2 metapopulation task, `ensemble.py`):
   `merge_demes`'s `_ensemble.add_candidates(...)` call (merging.cc:344) is
   reached, not separately guarded, and now actually drives AdaBoost/expert
@@ -510,26 +511,33 @@ def merge_demes(
     `_filter_params.n_subsample_demes` are all gates that default OFF --
     see module docstring's own Gates section for the full table and each
     one's exact citation. All four are now real (P2 metapopulation task:
-    `domination.py`/`diversity.py`, then `subsample.py`/`ensemble.py`);
-    only `_params.keep_bscore` remains unported.
+    `domination.py`/`diversity.py`, then `subsample.py`/`ensemble.py`),
+    and so, since the S13-CLI `-t` slice, is `_params.keep_bscore`.
 
     The behavioural-score recompute block (merging.cc:258-296) gates on
     `diversity_enabled() or do_boosting or discard_dominated or
-    keep_bscore` as ONE `if` in C++ (merging.cc:264-265). This port
-    DECOMPOSES that single condition into two Python `if`s: the first
-    (`keep_bscore` alone) still raises -- it has no other unported
-    dependency but was never asked for by anything real. The second,
-    entered only once the first has NOT raised, is `if discard_dominated
-    or diversity_enabled() or do_boosting: <run the real recompute>` --
-    all three real now (P2 metapopulation task added `do_boosting` to
-    this condition once `ensemble.py` went real: boosting needs real
-    bscores on every candidate exactly as much as diversity/domination
-    do, since `_ensemble.add_candidates`, reached further down this same
-    function, calls `_bscorer.get_error(sct.get_bscore())` on each one).
-    This has no observable effect on the one still-raising flag:
-    whether `keep_bscore` is combined with any of the three real ones
-    changes only WHETHER the (side-effect-free, purely local) recompute
-    happens to run before the raise fires, never WHETHER it raises.
+    keep_bscore` as ONE `if` in C++ (merging.cc:264-265), and is now
+    transcribed as exactly that: one `if`, same four terms, same order.
+    It used to be DECOMPOSED into two Python `if`s, the first of which
+    (`keep_bscore` alone) raised `NotImplementedError`. Nothing else was
+    missing: `-t` reaches this block, the block's own body was already
+    the real recompute the other three flags drive, and the printing side
+    (`ostream_scored_combo_tree`'s `output_bscore` arm, types.py) was
+    already ported. Measured after the change: `moses -i dataset.csv
+    -m300 -t1` is byte-identical to
+    `$CLASSIC/build/moses/moses/main/moses` across boolean, contin, `pa`,
+    `mux` and `sr` problems and four seeds.
+
+    Note that entering this block is not observably free: it rebuilds
+    `candidates` by inserting every member into a FRESH
+    `scored_combo_tree_set` (merging.cc:274-288's `new_pot` swap), so any
+    reordering or deduplication that set's comparator performs happens
+    again on the rebuilt sequence. MEASURED, not assumed: on
+    `tests/fixtures/table_data/dataset.csv -m1000`, classic's printed
+    tree list is character-for-character identical with and without
+    `-t1` apart from the appended bscores, and this port matches classic
+    on both. Stated as a measurement because the opposite claim is the
+    plausible one.
 
     "Behavioral scores are needed only if domination-based merging is
     asked for, or if the uniformity penalty is in use ... Note that the
@@ -611,17 +619,12 @@ def merge_demes(
         len(pot_candidates) - len(candidates),
     )
 
-    if self._params.keep_bscore:
-        raise NotImplementedError(
-            "metapopulation::merge_demes's behavioural-score recompute "
-            "block (merging.cc:258-296), gated (along with "
-            "discard_dominated/diversity_enabled()/do_boosting, all of "
-            "which ARE ported -- domination.py/diversity.py/subsample.py/"
-            "ensemble.py) on keep_bscore, is not ported for that one "
-            "flag; leave keep_bscore=False"
-        )
-
-    if self._params.discard_dominated or self.diversity_enabled() or self._params.do_boosting:
+    if (
+        self.diversity_enabled()
+        or self._params.do_boosting
+        or self._params.discard_dominated
+        or self._params.keep_bscore
+    ):
         # C++: merging.cc:266. `%d` fed an unsigned `size()` is classic's own.
         logger().debug("Compute behavioral score of %d selected candidates", len(candidates))
         new_pot = scored_combo_tree_set()

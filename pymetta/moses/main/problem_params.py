@@ -65,20 +65,22 @@ through a problem selector (`-H`) or output path this task does not
 dispatch through, so a wrong value cannot diverge from classic via this
 file alone (this mirrors `-j host:N`'s reasoning below almost exactly).
 
-**Two fields of that same `output_*` group are the deliberate exception,
-gated below like any other subsystem's master switch**: `output_bscore`
-(`-t`) and `output_deme_id` (`--output-deme-id`) each drive an ALREADY-
-WIRED consumer (`meta_params.keep_bscore` below; `metapop_printer`'s own
-`output_bscore`/`output_demeID` constructor arguments, `moses_exec.py`)
-that reaches genuinely unported C++ machinery the instant it is engaged
-(`metapopulation.merge_demes`'s `keep_bscore` recompute block, `merging.cc
-:258-296`; `ostream_scored_combo_tree`'s `output_demeID` branch, `types.cc
-:175`) -- not merely a printer that has not been built yet. Both used to
-reach that unported machinery only after `-m` evaluations had already run,
-several stack frames into a real search, surfacing as an unhandled
-traceback with empty stdout instead of a clean option-parse-time failure
--- see each gate's own `# DIVERGENCE` marker below for the measurement
-against the real compiled binary.
+**Two fields of that same `output_*` group used to be the deliberate
+exception, gated here like any other subsystem's master switch**:
+`output_bscore` (`-t`) and `output_deme_id` (`--output-deme-id`) each drive
+an ALREADY-WIRED consumer (`meta_params.keep_bscore` below;
+`metapop_printer`'s own `output_bscore`/`output_demeID` constructor
+arguments, `moses_exec.py`) that reached genuinely unported C++ machinery
+the instant it was engaged. NEITHER IS GATED ANY MORE: `--output-deme-id`
+was ungated once `scored_combo_tree` grew a real `demeID_t`, and `-t` once
+`metapopulation.merge_demes`'s `keep_bscore` arm (`merging.cc:258-296`)
+stopped raising -- it turned out to be the same behavioural-score recompute
+three other flags already drove. This paragraph is kept, rather than
+deleted, because the SHAPE of the trap it describes recurs: a flag whose
+consumer is wired but whose consumer's consumer is not fails several stack
+frames into a live run, as an unhandled traceback with empty stdout, rather
+than at option-parse time. Gate at parse time when that is the situation;
+do not gate at parse time merely because a flag is unusual.
 
 ## Design rule: gate-then-raise for unported SUBSYSTEMS, not for every field
 
@@ -186,6 +188,7 @@ flagged prominently in this task's report for whoever next touches
 from __future__ import annotations
 
 import argparse
+import sys
 
 from pymetta.comboreduct.combo.iostream_combo import _builtin_str_to_vertex, str_to_combo_tree
 from pymetta.comboreduct.combo.vertex import builtin
@@ -198,6 +201,7 @@ from pymetta.moses.metapopulation.metapop_params import (
     metapop_parameters,
     subsample_deme_filter_parameters,
 )
+from pymetta.moses.moses.moses_main import version_string
 from pymetta.moses.moses.moses_params import moses_parameters
 from pymetta.moses.moses.optimization.hill_climbing import hc_parameters
 from pymetta.moses.moses.optimization.optimization import optim_parameters
@@ -569,13 +573,37 @@ class problem_params:
         listed in the module docstring.
         """
         # C++: problem-params.cc:2059-2067 -- checked first, exits(0)
-        # before touching anything else. `version_string` itself is NOT
-        # ported (`moses_main.py`'s own docstring: "no runtime effect on
-        # the search... nothing in this port has an equivalent build step
-        # to source it from"), so nothing is printed; the exit-0 contract
-        # is what matters and is preserved. Never fires on the default
+        # before touching anything else. Never fires on the default
         # (`False`).
+        #
+        #     cout << "moses " << version_string << std::endl;
+        #     #ifdef HAVE_MPI
+        #       cout << "\tMPI support enabled." << std::endl;
+        #     #else
+        #       cout << "\tNo MPI support." << std::endl;
+        #     #endif
+        #     exit(0);
+        #
+        # This used to print NOTHING and only `raise SystemExit(0)`, on the
+        # grounds that `version_string` is build-sourced and unportable.
+        # Wrong on both lines. The second line is not build-sourced at all:
+        # `HAVE_MPI` is chosen at COMPILE time, `FIND_PACKAGE(MPI)` is
+        # commented out of $CLASSIC/CMakeLists.txt so no build this checkout
+        # produces can define it (CLAUDE.md's own "Known sharp edges" says
+        # so, and the compiled binary prints the `#else` line), and this port
+        # excludes MPI entirely -- so "\tNo MPI support." is a CONSTANT here,
+        # not a variable. The first line is build-sourced only in the weakest
+        # sense: 3/7/0 are literal constants in $CLASSIC/CMakeLists.txt:13-15.
+        # See `version_string`'s own comment in moses_main.py for why it
+        # carries embedded quotes.
+        #
+        # Printed with `sys.stdout.write`, not `print`, to keep the exact
+        # bytes visible at the call site: "moses " + version + "\n", then a
+        # literal TAB, then "No MPI support." + "\n" -- 35 bytes total,
+        # matching the hexdump of the compiled binary's own stdout.
         if args.version:
+            sys.stdout.write(f"moses {version_string}\n")
+            sys.stdout.write("\tNo MPI support.\n")
             raise SystemExit(0)
 
         # -- flat, unwired fields (see module docstring's scope section) --
@@ -1073,27 +1101,16 @@ class problem_params:
         # is inert for in classic, which is what this file's own gating rule
         # asks: gate a field only where the C++ source shows it is the
         # subsystem's actual master switch on a path this port can reach.
-        # DIVERGENCE(C++ moses/moses/metapopulation/merging.cc:258-296): classic's
-        # own -t/--output-bscore (keep_bscore, :717 below) succeeds and prints an
-        # extra " behavioral score: [...]" per result line, rc 0 (measured
-        # directly: $CLASSIC/build/moses/moses/main/moses -i
-        # tests/fixtures/table_data/dataset.csv -m1000 -t1 -> 10 lines, exit 0 --
-        # corrected from an earlier version of this marker that cited a path,
-        # tests/moses/dataset.csv, which exists under $CLASSIC but not in this
-        # port's own repo, and an unmeasured "9 lines"). This port's own gate for keep_bscore
-        # (metapopulation.merge_demes, merging.py, mirroring this exact block) already
-        # raises NotImplementedError -- but only after -m evaluations have already
-        # run, several stack frames into a live run (local_moses -> expand_deme ->
-        # merge_demes), as an unhandled traceback with empty stdout rather than the
-        # clean, immediate failure every other unported subsystem gets here. Gated
-        # at option-parse time instead, before any evaluation happens, matching
-        # every other Phase-2 gate in this file.
-        if self.output_bscore:
-            raise NotImplementedError(
-                "-t/--output-bscore: metapopulation.merge_demes's keep_bscore-gated "
-                "behavioural-score recompute block (merging.cc:258-296) is not "
-                "ported; leave -t/--output-bscore unset."
-            )
+        # `-t/--output-bscore` was gated here until the S13-CLI `-t` slice,
+        # because `metapopulation.merge_demes`'s own `keep_bscore` arm
+        # (merging.cc:258-296) raised. It no longer does -- that arm is the
+        # SAME behavioural-score recompute `--discard-dominated`/
+        # `--diversity-pressure`/`--boost` already drove, and the printing
+        # side (`ostream_scored_combo_tree`'s `output_bscore` branch,
+        # types.cc:175 / types.py) was already ported and already wired from
+        # this field, so nothing beyond deleting the two gates was needed.
+        # Measured byte-identical to classic afterwards across boolean,
+        # contin, `pa`, `mux` and `sr` problems and four seeds.
         # DIVERGENCE(C++ moses/moses/moses/types.cc:175): classic's own
         # --output-deme-id succeeds and prints an extra " demeID: N" per result
         # line, rc 0 (measured directly: $CLASSIC/build/moses/moses/main/moses -i

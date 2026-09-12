@@ -404,23 +404,372 @@ def test_moses_exec_accepts_a_plain_string_argv():
 
 
 # ---------------------------------------------------------------------------
-# [Important 1] -t/--output-bscore and --output-deme-id parse fine, then
-# used to crash deep inside a real run (metapopulation.merge_demes /
+# -t/--output-bscore and --output-deme-id both used to fail here: first by
+# crashing deep inside a real run (metapopulation.merge_demes /
 # ostream_scored_combo_tree, several stack frames past `-m` evaluations
-# already having executed) with an unhandled traceback -- empty stdout,
-# rc traceback -- rather than problem_params.py's other 16 Phase-2 gates'
-# clean, immediate NotImplementedError. See problem_params.py's own
-# `# DIVERGENCE` markers on these two gates for the measurement against
-# the real compiled binary (both succeed there, rc 0, 9 lines).
+# already having executed), then -- once problem_params.py gated them at
+# option-parse time -- by refusing a command line classic runs to
+# completion. Both are real now and both are pinned below against the
+# compiled binary, byte for byte.
+# ---------------------------------------------------------------------------
+
+# -t/--output-bscore's oracles come in three shapes, deliberately, because
+# the flag turned out to EXPOSE a pre-existing ordering defect that lives in
+# a file this slice does not own. See
+# `test_moses_exec_output_bscore_ctable_row_order_matches_classic` for the
+# full statement of it; in short, a `behavioral_score` over a BOOLEAN table
+# has one element per CTable row, C++'s CTable is a
+# `std::map<multi_type_seq, TimedCounter>` (table.h:550) and therefore
+# iterates in ascending key order, and this port's is a plain `dict`
+# (`pymetta/comboreduct/table/table.py:1380`) and therefore iterates in
+# insertion order. Nothing before `-t` could see the difference: every other
+# consumer of a bscore (the composite score's sum, `remove_dominated`'s
+# element-wise compare, the diversity distances) is permutation-invariant so
+# long as every candidate uses the SAME permutation, which they do.
+
+# A boolean table whose distinct input rows happen to appear in the file in
+# exactly `std::map` order already, so the dict-vs-map defect cannot reach
+# it: combo booleans are `id::logical_true` = 1 and `id::logical_false` = 2
+# (vertex.h:69), so ascending key order is (T,T) < (T,F) < (F,T) < (F,F).
+_SORTED_BOOL_CSV = """res,arg1,arg2
+1,1,1
+0,1,1
+1,1,0
+0,1,0
+0,0,1
+1,0,1
+0,0,0
+0,0,0
+"""
+
+
+@pytest.fixture
+def sorted_bool_csv(tmp_path):
+    path = tmp_path / "sorted_bool.csv"
+    path.write_text(_SORTED_BOOL_CSV)
+    return str(path)
+
+
+# A contin table. `contin_bscore` (bscores.h:181) is built from an
+# `ITable`/`OTable` pair, NOT a CTable, so its element order is raw row
+# order in classic and here alike -- immune to the defect above by
+# construction, which is why this one is a plain oracle and not an xfail.
+_TINY_CONTIN_CSV = """y,x1
+0.1,1
+0.3,2
+0.7,3
+1.3,4
+"""
+
+
+@pytest.fixture
+def tiny_contin_csv(tmp_path):
+    path = tmp_path / "tiny_contin.csv"
+    path.write_text(_TINY_CONTIN_CSV)
+    return str(path)
+
+
+def test_moses_exec_output_bscore_matches_classic(sorted_bool_csv):
+    """`-t`/`--output-bscore`: classic exits 0 and appends
+    `" behavioral score: [...]"` to every result line. This port refused to
+    start at all until the S13-CLI `-t` slice -- `metapopulation.
+    merge_demes`'s `keep_bscore` arm (merging.cc:258-296) raised, and
+    `problem_params.parse_options` raised earlier still to make that
+    failure clean and immediate.
+
+    Captured: ( ulimit -v 2097152; timeout 300
+    $CLASSIC/build/moses/moses/main/moses -i<sorted_bool.csv> -m1000 -t1 )
+
+    The TWO SPACES before "behavioral" are classic's, not a typo:
+    `ostream_combo_tree` ends every tree with an unconditional trailing
+    space (iostream_combo.cc:478) and `ostream_scored_combo_tree` writes
+    another one before the bscore (types.cc:197). A port that emitted one
+    space would differ here and nowhere else.
+
+    `-0` is likewise classic's: the elements are `score_t` (binary32) and
+    an exactly-correct boolean row scores negative zero, which prints with
+    its sign.
+    """
+    rc, out = _run(["moses", f"-i{sorted_bool_csv}", "-m1000", "-t1"])
+    assert rc == 0
+    assert out == (
+        "-3 $1  behavioral score: [-1 -1 -1 -0]\n"
+        "-3 $2  behavioral score: [-1 -1 -1 -0]\n"
+        "-3 and(!$1 $2)  behavioral score: [-1 -1 -1 -0]\n"
+        "-3 and($1 !$2)  behavioral score: [-1 -1 -1 -0]\n"
+        "-3 and($1 $2)  behavioral score: [-1 -1 -1 -0]\n"
+        "-3 or($1 $2)  behavioral score: [-1 -1 -1 -0]\n"
+        "-5 true  behavioral score: [-1 -1 -1 -2]\n"
+    )
+
+
+def test_moses_exec_output_bscore_with_labels_matches_classic(sorted_bool_csv):
+    """Same run with `-W1`: labels substitute into the tree and NOT into the
+    behavioral score, which has no argument positions to substitute."""
+    rc, out = _run(["moses", f"-i{sorted_bool_csv}", "-m1000", "-t1", "-W1"])
+    assert rc == 0
+    assert out == (
+        "-3 $arg1  behavioral score: [-1 -1 -1 -0]\n"
+        "-3 $arg2  behavioral score: [-1 -1 -1 -0]\n"
+        "-3 and(!$arg1 $arg2)  behavioral score: [-1 -1 -1 -0]\n"
+        "-3 and($arg1 !$arg2)  behavioral score: [-1 -1 -1 -0]\n"
+        "-3 and($arg1 $arg2)  behavioral score: [-1 -1 -1 -0]\n"
+        "-3 or($arg1 $arg2)  behavioral score: [-1 -1 -1 -0]\n"
+        "-5 true  behavioral score: [-1 -1 -1 -2]\n"
+    )
+
+
+def test_moses_exec_output_bscore_contin_matches_classic(tiny_contin_csv):
+    """The contin half. This is the oracle that actually pins the NUMERIC
+    formatting of a `behavioral_score`: every element is a `score_t`
+    (binary32) rendered through the stream `metapop_printer` set to
+    `setprecision(io_score_precision)` = 18 (moses_main.h:110), so
+    `-0.16f` prints as `-0.159999996423721313` and not `-0.16`.
+
+    Captured: ( ulimit -v 2097152; timeout 300
+    $CLASSIC/build/moses/moses/main/moses -i<tiny_contin.csv> -uy -m300
+    -t1 -c3 )
+    """
+    rc, out = _run(["moses", f"-i{tiny_contin_csv}", "-uy", "-m300", "-t1", "-c3"])
+    assert rc == 0
+    assert out == (
+        "-0.879999995231628418 0.5  behavioral score:"
+        " [-0.159999996423721313 -0.0399999991059303284"
+        " -0.0399999991059303284 -0.639999985694885254]\n"
+        "-0.930000007152557373 0.75  behavioral score:"
+        " [-0.422500014305114746 -0.202500000596046448"
+        " -0.00249999994412064552 -0.302500009536743164]\n"
+        "-1.32999992370605469 0.25  behavioral score:"
+        " [-0.0225000008940696716 -0.00249999994412064552"
+        " -0.202500000596046448 -1.10249996185302734]\n"
+    )
+
+
+@pytest.mark.xfail(
+    strict=True,
+    reason=(
+        "PRE-EXISTING DEFECT, NOT OWNED BY THIS SLICE. "
+        "C++ CTable is `std::map<multi_type_seq, TimedCounter>` "
+        "(table.h:550) and iterates in ascending key order; this port's "
+        "CTable is a plain `dict` (pymetta/comboreduct/table/table.py:1380, "
+        "filled in file order by Table.compressed, table.py:1779) and "
+        "iterates in insertion order. `ctruth_table_bscore` (bscores.h:360) "
+        "emits one bscore element per CTable row, so the two orders differ "
+        "whenever a boolean table's distinct rows do not happen to appear "
+        "already sorted. -t is the FIRST consumer that can see it. "
+        "VERIFIED FIX (measured, not proposed): sorting Table.compressed's "
+        "result by multi_type_seq::operator< -- lexicographic over the "
+        "builtin ordinals, true=1 before false=2 -- makes this exact run "
+        "byte-identical to classic. When that lands in table.py, this xfail "
+        "becomes an XPASS and must be turned back into a plain oracle."
+    ),
+)
+def test_moses_exec_output_bscore_ctable_row_order_matches_classic(dataset_csv):
+    """Captured: ( ulimit -v 2097152; timeout 300
+    $CLASSIC/build/moses/moses/main/moses -i$CLASSIC/tests/moses/dataset.csv
+    -m1000 -t1 )
+
+    `dataset.csv`'s three distinct input rows appear in the file as
+    (F,T), (T,F), (T,T) and in classic's CTable as (T,T), (T,F), (F,T) --
+    the exact reverse. Trees and scores agree; only the bscore VECTOR
+    ORDER differs, which is why this run and not
+    `test_moses_exec_output_bscore_matches_classic` is the one that
+    fails. Measured scope of the exposure, over `-t1 -m500` on every
+    boolean/contin fixture in tests/fixtures/table_data plus
+    $CLASSIC/tests/moses/dataset.csv: every boolean table diverges except
+    ones already in sorted order; every contin table agrees (contin
+    bscores are ITable-ordered, see above).
+    """
+    rc, out = _run(["moses", f"-i{dataset_csv}", "-m1000", "-t1"])
+    assert rc == 0
+    assert out == (
+        "-3 and($1 $2)  behavioral score: [-1 -1 -1]\n"
+        "-4 $1  behavioral score: [-1 -2 -1]\n"
+        "-4 $2  behavioral score: [-1 -1 -2]\n"
+        "-4 and(!$1 !$2)  behavioral score: [-2 -1 -1]\n"
+        "-4 or(!$1 $2)  behavioral score: [-1 -1 -2]\n"
+        "-4 or($1 !$2)  behavioral score: [-1 -2 -1]\n"
+        "-5 true  behavioral score: [-1 -2 -2]\n"
+        "-5 !$1  behavioral score: [-2 -1 -2]\n"
+        "-5 !$2  behavioral score: [-2 -2 -1]\n"
+    )
+
+
+# ---------------------------------------------------------------------------
+# --version. Classic prints two lines and exits 0; this port printed NOTHING
+# and exited 0 until the S13-CLI --version slice, on the (half-right)
+# grounds that `version_string` is a build-time define. See
+# `moses_main.version_string` and `problem_params.parse_options` for which
+# half was wrong. Missed by the 90-flag differential sweep because --version
+# was on that sweep's explicit SKIP list, so it was never compared at all.
 # ---------------------------------------------------------------------------
 
 
-def test_moses_exec_output_bscore_raises_cleanly_before_any_evaluation(dataset_csv):
-    """Reproduces this task's own repro command
-    (`moses -i<dataset.csv> -m1000 -t1`) end to end through `moses_exec`:
-    must raise immediately, not run any evaluation first."""
-    with pytest.raises(NotImplementedError, match="merge_demes"):
-        moses_exec(["moses", f"-i{dataset_csv}", "-m1000", "-t1"])
+def test_moses_exec_version_matches_classic():
+    """Captured: ( ulimit -v 2097152; timeout 60
+    $CLASSIC/build/moses/moses/main/moses --version ) -- 35 bytes, rc 0,
+    hexdumped rather than eyeballed because both quirks are invisible
+    otherwise:
+
+    * the version components carry LITERAL DOUBLE QUOTES (`"3"."7"."0"`,
+      a double-stringify bug in classic's own CMake wiring -- see
+      `moses_main.version_string`);
+    * the second line begins with a literal TAB, not spaces.
+
+    DO NOT FIX either.
+    """
+    buf = io.StringIO()
+    with redirect_stdout(buf), pytest.raises(SystemExit) as exc:
+        moses_exec(["moses", "--version"])
+    assert exc.value.code == 0
+    assert buf.getvalue() == 'moses "3"."7"."0"\n\tNo MPI support.\n'
+    assert len(buf.getvalue().encode()) == 35
+
+
+def test_moses_exec_version_is_checked_before_every_other_option():
+    """`parse_options` tests `vm.count("version")` FIRST and `exit(0)`s
+    before touching anything else (problem-params.cc:2059-2067), so
+    `--version` wins over an option that would otherwise be rejected --
+    here a log level classic itself `exit(1)`s on (:2093-2101). Pins the
+    ORDER, which is the only thing that makes this observable."""
+    buf = io.StringIO()
+    with redirect_stdout(buf), pytest.raises(SystemExit) as exc:
+        moses_exec(["moses", "--version", "-lBOGUS"])
+    assert exc.value.code == 0
+    assert buf.getvalue() == 'moses "3"."7"."0"\n\tNo MPI support.\n'
+
+
+# ---------------------------------------------------------------------------
+# --output-format=scheme. `parse_output_format` has always accepted it
+# (iostream_combo.cc:258-259) and classic has always run it to completion,
+# but every printing function in iostream_combo.py raised
+# NotImplementedError until the S13-CLI scheme slice. The 90-flag
+# differential sweep never tested it: its fixed candidate list
+# (1/2/0.5/3/0/tanimoto/hc) contains no legal --output-format value, so
+# the sweep recorded "classic rejects all candidates" and moved on.
+# ---------------------------------------------------------------------------
+
+
+def test_moses_exec_output_format_scheme_matches_classic(dataset_csv):
+    """Captured: `moses -i<dataset.csv> -m1000 --output-format=scheme`.
+
+    Three things this pins that combo format cannot:
+    * parentheses are UNCONDITIONAL (iostream_combo.h:103-108) -- a leaf
+      prints `(PredicateNode "$1")`, not `PredicateNode "$1"`;
+    * `logical_true` is `PredicateNode "Top"`, not `true`;
+    * negation WRAPS rather than abbreviating: `!$1` becomes
+      `(NotLink (PredicateNode "$1"))`, built by wrapping the whole
+      PredicateNode (iostream_combo.cc:410-421), so the `!`-prefix
+      shorthand `ABBREVIATE_NEGATIVE_LITERAL` gives combo format never
+      appears here.
+    """
+    rc, out = _run(["moses", f"-i{dataset_csv}", "-m1000", "--output-format=scheme"])
+    assert rc == 0
+    assert out == (
+        '-3 (AndLink (PredicateNode "$1") (PredicateNode "$2")) \n'
+        '-4 (PredicateNode "$1") \n'
+        '-4 (PredicateNode "$2") \n'
+        '-4 (AndLink (NotLink (PredicateNode "$1")) (NotLink (PredicateNode "$2"))) \n'
+        '-4 (OrLink (NotLink (PredicateNode "$1")) (PredicateNode "$2")) \n'
+        '-4 (OrLink (PredicateNode "$1") (NotLink (PredicateNode "$2"))) \n'
+        '-5 (PredicateNode "Top") \n'
+        '-5 (NotLink (PredicateNode "$1")) \n'
+        '-5 (NotLink (PredicateNode "$2")) \n'
+    )
+
+
+def test_moses_exec_output_format_scheme_with_labels_matches_classic(dataset_csv):
+    """Same run with `-W1`. The label replaces the WHOLE `$n` token inside
+    the quotes -- `PredicateNode "arg1"`, with no `$` -- because
+    `ostream_argument`'s scheme branch writes the `"$"` prefix only on the
+    label-less side of its own if/else (iostream_combo.cc:414-417). Combo
+    format keeps the `$` in both cases (`$arg1`), so this asymmetry is
+    only visible here."""
+    rc, out = _run(["moses", f"-i{dataset_csv}", "-m1000", "--output-format=scheme", "-W1"])
+    assert rc == 0
+    assert out == (
+        '-3 (AndLink (PredicateNode "arg1") (PredicateNode "arg2")) \n'
+        '-4 (PredicateNode "arg1") \n'
+        '-4 (PredicateNode "arg2") \n'
+        '-4 (AndLink (NotLink (PredicateNode "arg1")) (NotLink (PredicateNode "arg2"))) \n'
+        '-4 (OrLink (NotLink (PredicateNode "arg1")) (PredicateNode "arg2")) \n'
+        '-4 (OrLink (PredicateNode "arg1") (NotLink (PredicateNode "arg2"))) \n'
+        '-5 (PredicateNode "Top") \n'
+        '-5 (NotLink (PredicateNode "arg1")) \n'
+        '-5 (NotLink (PredicateNode "arg2")) \n'
+    )
+
+
+def test_moses_exec_output_format_scheme_contin_matches_classic():
+    """`-Hsr -k3 -m600 -r9 --output-format=scheme`: the contin half, which
+    the boolean oracles above cannot reach.
+
+    DO NOT FIX: scheme format has no Atomese name for ANY contin operator.
+    `ostream_builtin`'s scheme switch (iostream_combo.cc:355-370) handles
+    exactly six builtins and sends every other one to its own `default:`,
+    whose text is `"Builtin: " << (unsigned) h << " unknown"` -- with a
+    COLON the combo/python defaults do not have. So classic itself prints
+    `Builtin: 7 unknown` for `*`, `6` for `+`, `8` for `/`, `11` for
+    `sin`. This is classic's output, measured, and is reproduced rather
+    than repaired.
+
+    It also pins the sticky-precision rule: `0.543044125185779492` is the
+    contin constant rendered at `io_score_precision` (18), because
+    `metapop_printer` set that on the stream before the tree was written
+    (moses_main.h:110). At the default stream precision of 6 it would be
+    `0.543044`.
+    """
+    rc, out = _run(["moses", "-Hsr", "-k3", "-m600", "-r9", "--output-format=scheme"])
+    assert rc == 0
+    assert out == (
+        '-1.14690244197845459 (PredicateNode "$1") \n'
+        '-0.596547305583953857 (Builtin: 8 unknown (PredicateNode "$1")'
+        " (Builtin: 6 unknown (1) (Builtin: 11 unknown"
+        ' (Builtin: 7 unknown (-0.5) (PredicateNode "$1"))))) \n'
+        '-1.09503006935119629 (Builtin: 8 unknown (PredicateNode "$1")'
+        " (Builtin: 6 unknown (1) (Builtin: 11 unknown"
+        ' (Builtin: 7 unknown (-1) (PredicateNode "$1"))))) \n'
+        "-2.61014318466186523 (Builtin: 7 unknown (0.543044125185779492)"
+        ' (PredicateNode "$1")) \n'
+        '-2.90248513221740723 (Builtin: 7 unknown (0.5) (PredicateNode "$1")) \n'
+        '-2.56437349319458008 (Builtin: 8 unknown (PredicateNode "$1")'
+        ' (Builtin: 6 unknown (1) (Builtin: 7 unknown (-1) (PredicateNode "$1")))) \n'
+        "-3.789306640625 (Builtin: 7 unknown (Builtin: 6 unknown (1)"
+        ' (PredicateNode "$1")) (PredicateNode "$1")) \n'
+        "-6.95522165298461914 (Builtin: 6 unknown (Builtin: 11 unknown"
+        ' (PredicateNode "$1")) (PredicateNode "$1")) \n'
+        "-8.24759960174560547 (0) \n"
+        '-8.40433311462402344 (Builtin: 7 unknown (2) (PredicateNode "$1")) \n'
+    )
+
+
+# Captured: ( ulimit -v 2097152; timeout 300
+#   $CLASSIC/build/moses/moses/main/moses -i<sorted_bool.csv> -m1000 -t1
+#   --output-format=scheme )
+_EXPECTED_BSCORE_SCHEME = (
+    '-3 (PredicateNode "$1")  behavioral score: [-1 -1 -1 -0]\n'
+    '-3 (PredicateNode "$2")  behavioral score: [-1 -1 -1 -0]\n'
+    '-3 (AndLink (NotLink (PredicateNode "$1")) (PredicateNode "$2"))'
+    "  behavioral score: [-1 -1 -1 -0]\n"
+    '-3 (AndLink (PredicateNode "$1") (NotLink (PredicateNode "$2")))'
+    "  behavioral score: [-1 -1 -1 -0]\n"
+    '-3 (AndLink (PredicateNode "$1") (PredicateNode "$2"))'
+    "  behavioral score: [-1 -1 -1 -0]\n"
+    '-3 (OrLink (PredicateNode "$1") (PredicateNode "$2"))'
+    "  behavioral score: [-1 -1 -1 -0]\n"
+    '-5 (PredicateNode "Top")  behavioral score: [-1 -1 -1 -2]\n'
+)
+
+
+def test_moses_exec_output_bscore_scheme_combined(sorted_bool_csv):
+    """The two flags this slice landed, together: `-t1
+    --output-format=scheme`. The bscore is format-independent (it is a
+    `behavioral_score`, not a tree), so it prints exactly as it does in
+    combo format, after the scheme tree's own trailing space. Runs on the
+    already-sorted fixture for the reason the -t block above states."""
+    rc, out = _run(["moses", f"-i{sorted_bool_csv}", "-m1000", "-t1", "--output-format=scheme"])
+    assert rc == 0
+    assert out == _EXPECTED_BSCORE_SCHEME
 
 
 def test_moses_exec_output_deme_id_matches_classic(dataset_csv):
@@ -887,10 +1236,7 @@ def test_moses_exec_cp_rejects_a_cross_argument_type_mismatch():
 #   $CLASSIC/build/moses/moses/main/moses <argv below> )
 # ---------------------------------------------------------------------------
 
-_EXPECTED_CLUSTER_M200 = (
-    "8.33174324035644531 +(*(-1 log($x2)) $x1) \n"
-    "-inf 0 \n"
-)
+_EXPECTED_CLUSTER_M200 = "8.33174324035644531 +(*(-1 log($x2)) $x1) \n-inf 0 \n"
 
 _EXPECTED_CLUSTER_M1000 = (
     "17.0593795776367188 +(*(0.5 log($x2)) $x1 $x2) \n"

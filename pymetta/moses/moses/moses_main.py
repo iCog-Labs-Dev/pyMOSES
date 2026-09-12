@@ -12,12 +12,19 @@ NOT ported, all confirmed by `git grep` to have zero references from
 `moses_main.cc`/`local_moses.cc` (the plan's own "Verified: ... zero
 references" note):
 
-* `version_string` (moses_main.h:49, moses_main.cc:39-52) -- a
-  compile-time git-describe/version string with no runtime effect on the
-  search; nothing in this port has an equivalent build step to source it
-  from.
+* (nothing, since the S13-CLI `--version` slice.)
 
-That list has exactly one entry. `ps_parameters` used to be its second
+That list used to have exactly one entry, `version_string` (moses_main.h:
+49, moses_main.cc:39-52), on the grounds that it is "a compile-time
+git-describe/version string ... nothing in this port has an equivalent
+build step to source it from". Half of that was right and half was wrong,
+and the wrong half was user-visible: `moses --version` printed NOTHING
+here where classic prints two lines. `MOSES_GIT_DESCRIBE` is not defined
+in any build this checkout can produce, so the git-describe arm is dead;
+the `#else` arm reduces to three literal integers set in
+$CLASSIC/CMakeLists.txt:13-15. It is ported below, quirks and all.
+
+`ps_parameters` used to be that list's second entry
 and no longer is: both signatures below carry `ps_params`, in C++'s own
 position -- `..., opt_params, hc_params, ps_params, deme_params,
 filter_params, meta_params, moses_params, printer`
@@ -240,7 +247,39 @@ __all__ = [
     "metapop_moses_results_b",
     "metapop_printer",
     "run_moses",
+    "version_string",
 ]
+
+# C++: moses/moses/moses/moses_main.cc:47 version_string
+#
+# The `#else` arm -- `MOSES_GIT_DESCRIBE` is not defined by any build this
+# checkout produces (nothing in any CMakeLists.txt or .cmake file under
+# $CLASSIC defines it; `git grep MOSES_GIT_DESCRIBE` finds only
+# moses_main.cc's own `#ifdef`/`stringify`), and the compiled binary's own
+# output confirms it: no "(git-describe ...)" suffix appears.
+#
+#     const char * version_string =
+#         stringify(MOSES_VERSION_MAJOR) "."
+#         stringify(MOSES_VERSION_MINOR) "."
+#         stringify(MOSES_VERSION_PATCH);
+#
+# DO NOT FIX -- the embedded double quotes are classic's, and they are a
+# double-stringify bug in classic's own build wiring, not a transcription
+# slip here. `CMakeLists.txt:13-15` sets `MOSES_VERSION_MAJOR` to the bare
+# token `3`, but `moses/moses/CMakeLists.txt:1-3` passes it to the compiler
+# as `-DMOSES_VERSION_MAJOR="3"` -- so the macro's replacement list is the
+# three-character token `"3"`, and `stringify` then wraps THAT in quotes
+# again, yielding the five characters `"3"` at runtime. Measured, not
+# reasoned: `$CLASSIC/build/moses/moses/main/moses --version` prints
+# `moses "3"."7"."0"` (35 bytes with the MPI line, hexdumped).
+#
+# This is the one part of `--version` that is genuinely build-sourced, and
+# it is sourced honestly: 3/7/0 are literal constants in
+# $CLASSIC/CMakeLists.txt:13-15, not a git description, not a timestamp,
+# and not anything a rebuild of that checkout would change. If this port is
+# ever re-based onto a different classic version, this constant moves with
+# it.
+version_string = '"3"."7"."0"'
 
 
 def run_moses(

@@ -599,9 +599,15 @@ def test_contin_depth_reaches_representations_module_static():
         # test_supported_non_default_option_applies_and_does_not_raise's own
         # two rows, and tests/moses/main/test_time_bscore_cli.py for the
         # byte-for-byte oracle.
+        # NOTE: -t / --output-bscore is DELIBERATELY ABSENT -- the S13-CLI
+        # `-t` slice removed that gate once `metapopulation.merge_demes`'s
+        # `keep_bscore` arm stopped raising (it turned out to be the SAME
+        # behavioural-score recompute --discard-dominated/--boost/
+        # --diversity-pressure already drove). See
+        # test_output_bscore_no_longer_raises_at_parse_time above, and
+        # tests/moses/main/test_moses_exec.py's four -t oracles for the
+        # byte-for-byte proof against classic's own binary.
         ["--jobs", "2:otherhost"],
-        ["-t", "1"],
-        ["--output-bscore", "1"],
     ],
 )
 def test_unsupported_option_raises(argv):
@@ -634,16 +640,15 @@ def test_still_gated_option_message_names_what_is_actually_ported(argv, must_con
         _parse(*argv)
 
 
-def test_output_bscore_raises_at_parse_time_naming_merge_demes():
-    """[Important 1] `-t`/`--output-bscore` used to parse fine and only
-    crash deep inside a real run (`metapopulation.merge_demes`, several
-    stack frames past `-m` evaluations having already executed) with an
-    unhandled traceback. Pins that it now fails immediately, at
-    `parse_options` time, naming the blocking subsystem -- the same
-    contract every other Phase-2 gate in this file already gives.
-    """
-    with pytest.raises(NotImplementedError, match="merge_demes"):
-        _parse("-t", "1")
+def test_output_bscore_no_longer_raises_at_parse_time():
+    """`-t`/`--output-bscore` was gated here (and, before that, crashed
+    deep inside a real run) while `metapopulation.merge_demes`'s
+    `keep_bscore` arm raised. That arm is real now, so the flag must parse
+    AND reach `meta_params.keep_bscore` -- see `test_moses_exec.py`'s
+    byte-for-byte oracle for the end-to-end proof."""
+    pp = _parse("-t", "1")
+    assert pp.output_bscore is True
+    assert pp.meta_params.keep_bscore is True  # C++: problem-params.cc:2288
 
 
 def test_output_deme_id_no_longer_raises_at_parse_time():

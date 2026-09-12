@@ -1220,11 +1220,19 @@ def test_merge_demes_discard_dominated_recompute_and_remove_dominated_end_to_end
     assert trees_in_pool == {"$2", "$4"}  # $1 evicted, $3 trimmed, $2/$4 survive
 
 
-def test_merge_demes_keep_bscore_gate_raises():
+def test_merge_demes_keep_bscore_no_longer_raises():
+    """S13-CLI `-t` slice: `keep_bscore` was the last of the four terms in
+    `merge_demes`'s behavioural-score recompute condition (merging.cc:
+    264-265) still gated. It is not any more -- the block it enables is
+    the SAME recompute `discard_dominated`/`diversity_enabled()`/
+    `do_boosting` already drove, so nothing had to be written, only
+    ungated. With an empty `all_demes`/`reps` this reaches the same
+    `candidates.empty(): return False` exit the all-defaults case does;
+    the real end-to-end behaviour is pinned byte-for-byte against classic
+    in `tests/moses/main/test_moses_exec.py`."""
     mp = _mp()
     mp._params.keep_bscore = True
-    with pytest.raises(NotImplementedError):
-        mp.merge_demes([], [])
+    assert mp.merge_demes([], []) is False
 
 
 def test_merge_demes_diversity_enabled_no_longer_raises_on_empty_demes():

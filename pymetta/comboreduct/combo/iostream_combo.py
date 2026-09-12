@@ -38,13 +38,18 @@ land here now: `output_format` (iostream_combo.h:42), `parse_output_format`
 `_vertex_to_str`/`_argument_to_str`/`_builtin_to_str`/`_combo_it_to_str`/
 `combo_tree_to_str`, mirroring `ostream_vertex`/`ostream_argument`/
 `ostream_builtin`/`ostream_combo_it`/`ostream_combo_tree`'s own `labels`/
-`fmt` parameters exactly. `output_format::scheme` printing is NOT ported
-(no test in this port's scope needs it): `parse_output_format("scheme")`
-still succeeds, matching C++ (the enum value is real and the string parses),
-but every printing function raises `NotImplementedError` the moment it is
-actually asked to render a `scheme`-format vertex or tree -- gate-then-raise
-for an engaged-but-unported format, not a silent no-op, per this whole S13
-slice's design rule. `output_format::python3` has NO string form in C++
+`fmt` parameters exactly. `output_format::scheme` printing IS now ported
+too -- it used to raise `NotImplementedError` from every printing function,
+which made `moses --output-format=scheme` (a value `parse_output_format`
+accepts, and classic runs to completion) the one enumerated CLI value this
+module could not serve. The three scheme branches (`ostream_argument`
+iostream_combo.cc:410-421, `ostream_builtin` :355-370, `ostream_combo_it`
+iostream_combo.h:103-108) are ported verbatim, quirks included: builtins
+outside the six Atomese-mapped ones print `Builtin: <n> unknown` -- with a
+colon the other two formats' defaults lack -- so classic's own scheme
+output cannot render `+`/`*`/`/`/`log`/`sin` at all.
+
+`output_format::python3` has NO string form in C++
 itself: `parse_output_format` (iostream_combo.cc:252-263) is a plain
 if/else-if chain over `"combo"`/`"python"`/`"scheme"` that never tests for
 `"python3"`, so a CLI user cannot reach it that way in classic either --
@@ -250,6 +255,29 @@ _BUILTIN_TO_PYTHON_STR: dict[builtin, str] = {
     builtin.impulse: "impulse",
 }
 
+# C++: moses/comboreduct/combo/iostream_combo.cc:266 ostream_builtin
+#
+# The `case output_format::scheme:` branch (iostream_combo.cc:355-370)
+# only. Six members, and only six: every other builtin falls to that
+# branch's own `default:` (iostream_combo.cc:368-369), whose text is
+# `"Builtin: " << (unsigned) h << " unknown"` -- note the COLON after
+# "Builtin", which the `combo` and `python` branches' otherwise identical
+# defaults do NOT have (iostream_combo.cc:323-324, :352-353). Measured, not
+# inferred: `moses -Hsr -k3 -m600 -r9 --output-format=scheme` prints
+# `(Builtin: 7 unknown (0.5) (PredicateNode "$1"))` for `times`, and
+# `Builtin: 6/8/10/11 unknown` for `plus`/`div`/`log`/`sin` -- i.e. the
+# scheme format cannot render any contin operator at all, in classic
+# itself. Reproduced verbatim; see `_builtin_to_str`'s `.get(b, ...)`
+# fallback below.
+_BUILTIN_TO_SCHEME_STR: dict[builtin, str] = {
+    builtin.null_vertex: "null_vertex",
+    builtin.logical_and: "AndLink",
+    builtin.logical_or: "OrLink",
+    builtin.logical_not: "NotLink",
+    builtin.logical_true: 'PredicateNode "Top"',
+    builtin.logical_false: 'PredicateNode "Bottom"',
+}
+
 
 def _builtin_str_to_vertex(token: str) -> builtin | None:
     """C++: moses/comboreduct/combo/iostream_combo.cc:36 builtin_str_to_vertex
@@ -432,11 +460,22 @@ def _argument_to_str(
             return f"not(i[{-a.idx - 1}])"
         return f"i[{a.idx - 1}]"
     if fmt == output_format.scheme:
-        raise NotImplementedError(
-            "ostream_argument: output_format.scheme printing is not ported "
-            "(iostream_combo.cc:410-421); no test in this port's scope "
-            "needs scheme-format output"
-        )
+        # `case output_format::scheme:` (iostream_combo.cc:410-421). The
+        # local `var_ss` stringstream is built first and only then wrapped,
+        # so the NotLink wrapper is applied to the WHOLE PredicateNode, not
+        # spliced into it. Without labels the index printed is
+        # `to_string(a.is_negated()? -a.idx : a.idx)` -- the SIGN-FLIPPED
+        # raw member when negated, which for a negated argument (idx < 0)
+        # is the positive absolute index; equal to `abs_idx()` for every
+        # value `argument` can hold, but transcribed in C++'s own form
+        # rather than collapsed to `abs_idx()`, because the two are the
+        # same only by virtue of the `idx != 0` invariant.
+        idx = -a.idx if a.is_negated() else a.idx
+        name = labels[a.abs_idx_from_zero()] if labels else f"${idx}"
+        var = f'PredicateNode "{name}"'
+        if a.is_negated():
+            return f"NotLink ({var})"
+        return var
     return f"Format {_output_format_to_int(fmt)}unknown"
 
 
@@ -464,11 +503,8 @@ def _builtin_to_str(b: builtin, fmt: output_format = output_format.combo) -> str
     if fmt == output_format.python:
         return _BUILTIN_TO_PYTHON_STR.get(b, f"Builtin {int(b)} unknown")
     if fmt == output_format.scheme:
-        raise NotImplementedError(
-            "ostream_builtin: output_format.scheme printing is not ported "
-            "(iostream_combo.cc:355-370); no test in this port's scope "
-            "needs scheme-format output"
-        )
+        # "Builtin: ", with the colon -- see `_BUILTIN_TO_SCHEME_STR`.
+        return _BUILTIN_TO_SCHEME_STR.get(b, f"Builtin: {int(b)} unknown")
     return f"Format {_output_format_to_int(fmt)} unknown"
 
 
@@ -556,11 +592,17 @@ def _combo_it_to_str(
             )
         return s
     if fmt == output_format.scheme:
-        raise NotImplementedError(
-            "ostream_combo_it: output_format.scheme printing is not ported "
-            "(iostream_combo.h:103-108); no test in this port's scope needs "
-            "scheme-format output"
-        )
+        # `case(output_format::scheme):` (iostream_combo.h:103-108). The
+        # ONLY branch of the three whose parens are UNCONDITIONAL: they are
+        # written before and after the vertex with no
+        # `if (it.number_of_children() > 0)` guard at all, so a leaf prints
+        # as `(PredicateNode "$1")`, not `PredicateNode "$1"`. Each child is
+        # preceded by a space (`ostream_combo_it(out << " ", sib, ...)`),
+        # and there is no separator stream -- so `(AndLink (x) (y))`.
+        s = "(" + _vertex_to_str(node.data, labels, fmt, precision)
+        for child in t.children(node):
+            s += " " + _combo_it_to_str(t, child, labels, fmt, precision)
+        return s + ")"
     raise ValueError(f"Unsupported case: {fmt!r}")
 
 
