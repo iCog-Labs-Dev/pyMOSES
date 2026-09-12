@@ -1,7 +1,7 @@
 // tools/cpp_probe/contin_mixed_reduct_probe.cc
 //
 // S14 Task 4's end-to-end oracle probe: full-pipeline `contin_reduce`/
-// `mixed_reduce` output, byte-identical comparison against pymetta's own
+// `mixed_reduce` output, byte-identical comparison against pymoses's own
 // contin_reduction.py/mixed_reduction.py.
 //
 // $CLASSIC's own tests/comboreduct/reduct/test_reduct.cc (the pre-existing,

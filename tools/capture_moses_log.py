@@ -13,9 +13,9 @@ runs where classic is built is a differential nobody runs.
 
 Usage::
 
-    PYMETTA_CLASSIC_DIR=/path/to/Moses python3 tools/capture_moses_log.py
+    PYMOSES_CLASSIC_DIR=/path/to/Moses python3 tools/capture_moses_log.py
 
-The classic binary is `$PYMETTA_CLASSIC_DIR/build/moses/moses/main/moses`;
+The classic binary is `$PYMOSES_CLASSIC_DIR/build/moses/moses/main/moses`;
 it must already be built (`scripts/rebuild-moses-local.sh`). Every run is
 bounded by `ulimit -v` and a timeout, per CLAUDE.md.
 
@@ -154,7 +154,7 @@ def main() -> int:
                 "elapsed-seconds column replaced by placeholders)"
             ),
             "configs": {name: argv for name, argv in CONFIGS.items()},
-            "cwd": "$PYMETTA_CLASSIC_DIR",
+            "cwd": "$PYMOSES_CLASSIC_DIR",
         },
     )
     write_sidecar(FIXTURE, manifest)

@@ -1,6 +1,6 @@
 """Build tools/cpp_probe/scorers_probe.cc and capture its JSON output into
 tests/fixtures/scorers.json -- the differential oracle for
-pymetta/moses/scoring/{discriminating_bscore,select_bscore,precision_bscore,
+pymoses/moses/scoring/{discriminating_bscore,select_bscore,precision_bscore,
 time_dispersion}.py.
 
 The committed tests/fixtures/scorers.json is what the default test suite

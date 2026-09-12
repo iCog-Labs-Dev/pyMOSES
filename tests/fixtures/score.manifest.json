@@ -17,7 +17,7 @@
   "prefix_dir": "/home/yab/opt/moses-legacy",
   "probe_kind": "cpp_probe",
   "probe_source": "tools/cpp_probe/score_probe.cc",
-  "probe_source_sha256": "09e64505e3db12fbe2338ff07bc5f850bd9e09b248dd50a36440011d3729ca4c",
+  "probe_source_sha256": "ca4675903f3dfd53852b4b2a4f37285c8763ff44591277ab61f54430c07b899a",
   "repo_commit": "5fc5e659ec8aa87102a8e36c938fe7b84baf1c6a",
   "schema_version": 1
 }

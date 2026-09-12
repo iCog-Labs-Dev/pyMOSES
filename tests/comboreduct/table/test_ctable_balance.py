@@ -19,15 +19,15 @@ from pathlib import Path
 
 import pytest
 
-from pymetta.comboreduct.combo.vertex import builtin
-from pymetta.comboreduct.table.table import (
+from pymoses.comboreduct.combo.vertex import builtin
+from pymoses.comboreduct.table.table import (
     TARGET_DISCRETIZED_BINS_NUM,
     discretize_contin_feature,
     get_discrete_bin,
 )
-from pymetta.comboreduct.table.table_io import loadTable
-from pymetta.comboreduct.type_checker.type_signature import type_node
-from pymetta.util.logger import logger
+from pymoses.comboreduct.table.table_io import loadTable
+from pymoses.comboreduct.type_checker.type_signature import type_node
+from pymoses.util.logger import logger
 
 _FIXTURE_DIR = Path(__file__).resolve().parents[2] / "fixtures"
 _GOLDEN = json.loads((_FIXTURE_DIR / "ctable_balance.json").read_text())
@@ -199,7 +199,7 @@ def test_balance_on_an_empty_ctable_is_a_no_op():
     are no rows. Guards against a port that hoists `usize / n` out of the
     loop and raises `ZeroDivisionError` where classic does nothing.
     """
-    from pymetta.comboreduct.table.table import CTable, Signature
+    from pymoses.comboreduct.table.table import CTable, Signature
 
     ctable = CTable("y", ["i1"], Signature([type_node.boolean_type], type_node.boolean_type))
     ctable.balance()

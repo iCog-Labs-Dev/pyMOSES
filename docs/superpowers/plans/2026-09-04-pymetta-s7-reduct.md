@@ -1,10 +1,10 @@
-# pyMeTTa S7 — Reduct Implementation Plan
+# pyMoses S7 — Reduct Implementation Plan
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Port classic MOSES's boolean reduction engine so that pyMeTTa produces byte-identical reduced combo trees to the C++ `test_reduct` binary at reduction effort levels 1, 2 and 3 across the full corpus.
+**Goal:** Port classic MOSES's boolean reduction engine so that pyMoses produces byte-identical reduced combo trees to the C++ `test_reduct` binary at reduction effort levels 1, 2 and 3 across the full corpus.
 
-**Architecture:** Mirror the C++ file-for-file under `pymetta/comboreduct/reduct/`, plus the two dependencies the coverage inventory identified (`interpreter/eval.py`, `combo/assumption.py`). The rule *combinators* (`meta_rules`) are ported before any individual rule, because they control traversal order and fixpoint iteration — porting rules first invites an engine that is "morally equivalent" but converges differently.
+**Architecture:** Mirror the C++ file-for-file under `pymoses/comboreduct/reduct/`, plus the two dependencies the coverage inventory identified (`interpreter/eval.py`, `combo/assumption.py`). The rule *combinators* (`meta_rules`) are ported before any individual rule, because they control traversal order and fixpoint iteration — porting rules first invites an engine that is "morally equivalent" but converges differently.
 
 **Tech Stack:** Python 3.14, stdlib only. pytest 9.1. C++ oracle: `$CLASSIC/build/tests/comboreduct/reduct/test_reduct` (already exists).
 
@@ -33,21 +33,21 @@ Identical to the S0–S6 cycle. Restated because they bind every task:
 
 | File | Responsibility |
 |---|---|
-| `pymetta/comboreduct/interpreter/eval.py` | `eval_binding` / `eval_throws_tree` — the general (non-boolean) evaluator `general_rules` calls |
-| `pymetta/comboreduct/combo/assumption.py` | Assumption set used by the meta and logical rules |
-| `pymetta/comboreduct/reduct/reduct.py` | `rule` base class and the reduction entry points |
-| `pymetta/comboreduct/reduct/meta_rules.py` | `downwards`, `upwards`, `sequential`, `iterative` — traversal and fixpoint combinators |
-| `pymetta/comboreduct/reduct/general_rules.py` | Type-independent rules |
-| `pymetta/comboreduct/reduct/flat_normal_form.py` | Flat clause-set representation the logical rules operate on |
-| `pymetta/comboreduct/reduct/logical_rules.py` | Boolean rules, including `subtree_to_enf::reduce_to_enf` |
-| `pymetta/comboreduct/reduct/logical_reduction.py` | Assembles the rule set per effort level |
-| `pymetta/comboreduct/reduct/clean_reduction.py` | `clean_reduce` — removes `null_vertex` sentinels |
+| `pymoses/comboreduct/interpreter/eval.py` | `eval_binding` / `eval_throws_tree` — the general (non-boolean) evaluator `general_rules` calls |
+| `pymoses/comboreduct/combo/assumption.py` | Assumption set used by the meta and logical rules |
+| `pymoses/comboreduct/reduct/reduct.py` | `rule` base class and the reduction entry points |
+| `pymoses/comboreduct/reduct/meta_rules.py` | `downwards`, `upwards`, `sequential`, `iterative` — traversal and fixpoint combinators |
+| `pymoses/comboreduct/reduct/general_rules.py` | Type-independent rules |
+| `pymoses/comboreduct/reduct/flat_normal_form.py` | Flat clause-set representation the logical rules operate on |
+| `pymoses/comboreduct/reduct/logical_rules.py` | Boolean rules, including `subtree_to_enf::reduce_to_enf` |
+| `pymoses/comboreduct/reduct/logical_reduction.py` | Assembles the rule set per effort level |
+| `pymoses/comboreduct/reduct/clean_reduction.py` | `clean_reduce` — removes `null_vertex` sentinels |
 
 ---
 
 ### Task 0: Pre-work — the three carry-forward items S7/S8 depend on
 
-**Files:** Modify `pymetta/comboreduct/table/table.py`, `table_io.py`, `pymetta/util/tree.py`; tests alongside.
+**Files:** Modify `pymoses/comboreduct/table/table.py`, `table_io.py`, `pymoses/util/tree.py`; tests alongside.
 
 These are from `docs/CARRY-FORWARD.md` §1. They are done first because later tasks build on them.
 
@@ -77,7 +77,7 @@ Run `bash tools/ci.sh`; expect 0. Commit as `fix(foundation): pre-work for S7 �
 
 ### Task 1: `interpreter/eval.py` and `combo/assumption.py`
 
-**Files:** Create `pymetta/comboreduct/interpreter/eval.py`, `pymetta/comboreduct/combo/assumption.py`; tests alongside.
+**Files:** Create `pymoses/comboreduct/interpreter/eval.py`, `pymoses/comboreduct/combo/assumption.py`; tests alongside.
 
 **Interfaces produced:** `eval_binding(bmap, tr)`, `eval_throws_binding(bmap, tr)`, `eval_throws_tree(tr)` mirroring `$CLASSIC/moses/comboreduct/interpreter/eval.h`; an assumption-set type mirroring `combo/assumption.h`.
 
@@ -94,7 +94,7 @@ Run `bash tools/ci.sh`; expect 0. Commit as `fix(foundation): pre-work for S7 �
 
 ### Task 2: `reduct.py` and `meta_rules.py` — the combinators, before any rule
 
-**Files:** Create `pymetta/comboreduct/reduct/reduct.py`, `meta_rules.py`; tests alongside.
+**Files:** Create `pymoses/comboreduct/reduct/reduct.py`, `meta_rules.py`; tests alongside.
 
 **Interfaces produced:** `rule` base class with the C++ call signature; combinators `downwards`, `upwards`, `sequential`, `iterative` from `meta_rules.h:177`/`meta_rules.cc:156`.
 
@@ -111,7 +111,7 @@ Run `bash tools/ci.sh`; expect 0. Commit as `fix(foundation): pre-work for S7 �
 
 ### Task 3: `general_rules.py` and `flat_normal_form.py`
 
-**Files:** Create both under `pymetta/comboreduct/reduct/`; tests alongside.
+**Files:** Create both under `pymoses/comboreduct/reduct/`; tests alongside.
 
 `flat_normal_form` is the clause-set representation the logical rules operate on; `general_rules` are the type-independent rules. **`argument`'s ordering is by absolute value** (`docs/CARRY-FORWARD.md` §4.4) and `flat_normal_form`'s clause ordering depends on it — do not substitute a natural sort.
 
@@ -124,7 +124,7 @@ Run `bash tools/ci.sh`; expect 0. Commit as `fix(foundation): pre-work for S7 �
 
 ### Task 4: `logical_rules.py`
 
-**Files:** Create `pymetta/comboreduct/reduct/logical_rules.py`; tests alongside.
+**Files:** Create `pymoses/comboreduct/reduct/logical_rules.py`; tests alongside.
 
 The largest and highest-risk file in the slice (860 lines), containing `subtree_to_enf::reduce_to_enf` — a single ~250-line function implementing 0-subsumption, 1-subsumption, complement subtraction and iterative constraint promotion, with a three-valued `Delete`/`Disconnect`/`Keep` result.
 
@@ -141,7 +141,7 @@ The largest and highest-risk file in the slice (860 lines), containing `subtree_
 
 ### Task 5: `logical_reduction.py` and `clean_reduction.py`
 
-**Files:** Create both under `pymetta/comboreduct/reduct/`; tests alongside.
+**Files:** Create both under `pymoses/comboreduct/reduct/`; tests alongside.
 
 `logical_reduction` assembles the rule set per effort level (1/2/3) — this is what `problem-params.cc:2385-2389` calls to build `bool_reduct`/`bool_reduct_rep`. `clean_reduce` removes `null_vertex` sentinels and is called from `logical_rules.cc:848` and, later, S8's `representation.cc:264`.
 
@@ -160,7 +160,7 @@ This is the slice's exit criterion.
 
 - [x] **Step 1: Build the oracle binary.** `$CLASSIC/tests/comboreduct/reduct/test_reduct.cc` already exists; build it via `cd $CLASSIC/build && make test_reduct`. It reduces one tree and prints before/after size plus a truth-table equivalence check. Run it **bounded**.
 - [x] **Step 2: Assemble the corpus.** Three sources: the 29 trees in `$CLASSIC/testTrees.sh`; every tree literal in `BooleanReductUTest`, `BooleanFullUTest` and `FullReductUTest`; and the **44 curated expressions** in `MOSES/elegant-normal-forms-python/Tests/GeneralTestCases.py` (which include the Holman p.19 and Moshe Looks examples). Capture C++ output at effort levels **1, 2 and 3** for every runnable tree; retain S14-dependent literals as explicit skipped cases.
-- [x] **Step 3: Lift the ENF verification assets.** Port `Tests/TestHelpers.py`'s truth-table generation and comparison, and `Tests/EnfRuleCheckers.py`'s seven ENF axiom checkers, rewritten against pyMeTTa's `combo_tree`. These compare semantic outcomes to C++ and verify the structural ENF result without assuming classic always preserves truth tables.
+- [x] **Step 3: Lift the ENF verification assets.** Port `Tests/TestHelpers.py`'s truth-table generation and comparison, and `Tests/EnfRuleCheckers.py`'s seven ENF axiom checkers, rewritten against pyMoses's `combo_tree`. These compare semantic outcomes to C++ and verify the structural ENF result without assuming classic always preserves truth tables.
 - [x] **Step 4: Assert exact equality.** Python's reduced tree must match C++'s byte-for-byte at each effort level. Add a fixture-shape guard asserting the corpus is non-empty and holds the expected number of cases, per the vacuous-test lesson in `docs/CARRY-FORWARD.md` §6.
 - [x] **Step 5:** `ci.sh` to 0. **Step 6:** Commit as `test(reduct): differential oracle against test_reduct at effort 1/2/3`.
 
@@ -171,7 +171,7 @@ This is the slice's exit criterion.
 All verified by running the command and reading the output:
 
 1. `bash tools/ci.sh` exits 0.
-2. For every tree in the corpus, at effort levels 1, 2 and 3, pyMeTTa's reduced tree is **byte-identical** to `test_reduct`'s.
+2. For every tree in the corpus, at effort levels 1, 2 and 3, pyMoses's reduced tree is **byte-identical** to `test_reduct`'s.
 3. Python's truth-table outcome matches C++'s measured
    `tt_computed`/`tt_preserved` result for every runnable row, and effort-3
    output satisfies all seven ENF axioms. Classic itself is semantically lossy;

@@ -5,10 +5,10 @@ import struct
 
 import pytest
 
-from pymetta.moses.moses.types import composite_score, demeID_t, very_worst_score
-from pymetta.moses.representation.field_set import field_set
-from pymetta.moses.representation.instance import instance
-from pymetta.moses.representation.instance_set import instance_set
+from pymoses.moses.moses.types import composite_score, demeID_t, very_worst_score
+from pymoses.moses.representation.field_set import field_set
+from pymoses.moses.representation.instance import instance
+from pymoses.moses.representation.instance_set import instance_set
 
 
 def _hex(x: float) -> str:

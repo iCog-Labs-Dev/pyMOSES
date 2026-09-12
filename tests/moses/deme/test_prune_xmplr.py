@@ -32,7 +32,7 @@ loop above passes only an integer index: every exemplar contains `$1`/`$2`/
 in this project caused by a shell expanding exactly those tokens.
 
 The results are embedded here as a literal rather than written to
-`tests/fixtures/`: this task's editable scope is `pymetta/moses/deme/
+`tests/fixtures/`: this task's editable scope is `pymoses/moses/deme/
 deme_expander.py` plus NEW files under `tests/moses/deme/` and `tools/`,
 and a fixture + schema-2 manifest under `tests/fixtures/` is neither.
 Everything needed to regenerate and re-check it is in the two commands
@@ -69,21 +69,21 @@ from pathlib import Path
 
 import pytest
 
-from pymetta.comboreduct.combo.iostream_combo import combo_tree_to_str, str_to_combo_tree
-from pymetta.comboreduct.combo.vertex import builtin, combo_tree
-from pymetta.comboreduct.reduct.logical_reduction import logical_reduction
-from pymetta.comboreduct.table.table_io import loadTable
-from pymetta.comboreduct.type_checker.type_signature import gen_signature, type_node
-from pymetta.moses.deme.deme_expander import _type_to_exemplar, deme_expander
-from pymetta.moses.deme.deme_params import deme_parameters
-from pymetta.moses.deme.feature_selector import feature_selector, feature_selector_parameters
-from pymetta.moses.metapopulation.metapop_params import subsample_deme_filter_parameters
-from pymetta.moses.moses.optimization.hill_climbing import hc_parameters, hill_climbing
-from pymetta.moses.moses.optimization.optimization import optim_parameters
-from pymetta.moses.scoring.behave_cscore import behave_cscore
-from pymetta.moses.scoring.bscores import ctruth_table_bscore
-from pymetta.util.logger import Logger, logger
-from pymetta.util.rng import randGen
+from pymoses.comboreduct.combo.iostream_combo import combo_tree_to_str, str_to_combo_tree
+from pymoses.comboreduct.combo.vertex import builtin, combo_tree
+from pymoses.comboreduct.reduct.logical_reduction import logical_reduction
+from pymoses.comboreduct.table.table_io import loadTable
+from pymoses.comboreduct.type_checker.type_signature import gen_signature, type_node
+from pymoses.moses.deme.deme_expander import _type_to_exemplar, deme_expander
+from pymoses.moses.deme.deme_params import deme_parameters
+from pymoses.moses.deme.feature_selector import feature_selector, feature_selector_parameters
+from pymoses.moses.metapopulation.metapop_params import subsample_deme_filter_parameters
+from pymoses.moses.moses.optimization.hill_climbing import hc_parameters, hill_climbing
+from pymoses.moses.moses.optimization.optimization import optim_parameters
+from pymoses.moses.scoring.behave_cscore import behave_cscore
+from pymoses.moses.scoring.bscores import ctruth_table_bscore
+from pymoses.util.logger import Logger, logger
+from pymoses.util.rng import randGen
 
 _TABLE_DATA_DIR = Path(__file__).resolve().parents[2] / "fixtures" / "table_data"
 _DATASET = "trainingBoolean.dat"
@@ -229,7 +229,7 @@ def test_prune_xmplr_does_not_mutate_the_caller_s_exemplar():
 def test_prune_xmplr_result_is_independent_of_the_exemplar():
     """The copy is DEEP: mutating the returned tree must not reach back
     into the caller's exemplar. `tree(iterator_base)` copies descendants
-    (pymetta/util/tree.py), but a shallower "share the root node" copy
+    (pymoses/util/tree.py), but a shallower "share the root node" copy
     would still pass every rendering assertion above.
     """
     dex = _dex()

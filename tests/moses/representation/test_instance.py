@@ -2,7 +2,7 @@
 
 import pytest
 
-from pymetta.moses.representation.instance import bits_per_packed_t, instance
+from pymoses.moses.representation.instance import bits_per_packed_t, instance
 
 
 def test_instance_width_constructs_zero_words():

@@ -1,4 +1,4 @@
-"""Tests for pymetta/comboreduct/reduct/meta_rules.py -- the traversal and
+"""Tests for pymoses/comboreduct/reduct/meta_rules.py -- the traversal and
 fixpoint combinators (`downwards`, `upwards`, `sequential`, `iterative`,
 `assum_iterative`).
 
@@ -13,19 +13,19 @@ $CLASSIC's compiled `libcomboreduct.so` (bounded:
 and meta_rules.py's own module docstring for the full transcript.
 """
 
-from pymetta.comboreduct.combo.argument import argument
-from pymetta.comboreduct.combo.assumption import insert_assumption
-from pymetta.comboreduct.combo.iostream_combo import combo_tree_to_str, str_to_combo_tree
-from pymetta.comboreduct.combo.vertex import builtin, combo_tree
-from pymetta.comboreduct.reduct.meta_rules import (
+from pymoses.comboreduct.combo.argument import argument
+from pymoses.comboreduct.combo.assumption import insert_assumption
+from pymoses.comboreduct.combo.iostream_combo import combo_tree_to_str, str_to_combo_tree
+from pymoses.comboreduct.combo.vertex import builtin, combo_tree
+from pymoses.comboreduct.reduct.meta_rules import (
     assum_iterative,
     downwards,
     iterative,
     sequential,
     upwards,
 )
-from pymetta.comboreduct.reduct.reduct import rule
-from pymetta.comboreduct.table.table import type_node
+from pymoses.comboreduct.reduct.reduct import rule
+from pymoses.comboreduct.table.table import type_node
 
 
 class _RecordVisit(rule):
@@ -237,7 +237,7 @@ def test_downwards_is_a_live_walk_a_mutation_mid_pass_is_visited():
 # ---------------------------------------------------------------------------
 # downwards: the typed-dispatch branch (Task 2 review, Important 2; the
 # real slice of type_checker/type_tree landed by Task 5 -- see meta_rules.py's
-# own module docstring and pymetta.comboreduct.type_checker.type_tree's).
+# own module docstring and pymoses.comboreduct.type_checker.type_tree's).
 # ---------------------------------------------------------------------------
 
 

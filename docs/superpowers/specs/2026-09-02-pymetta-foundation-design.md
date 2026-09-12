@@ -1,4 +1,4 @@
-# pyMeTTa — Foundation and First Runnable Slice
+# pyMoses — Foundation and First Runnable Slice
 
 **Date:** 2026-09-02
 **Status:** Approved design, pending implementation plan
@@ -14,7 +14,7 @@ implementation is ~58k lines of C++ at
 `/home/yab/Documents/Projects/iCog/HyperonRelated/MOSES/OpenCog/Moses` (referred to
 throughout as **classic**).
 
-pyMeTTa is a Python port of classic MOSES whose purpose is experimentation: making it
+pyMoses is a Python port of classic MOSES whose purpose is experimentation: making it
 cheap to change one part of the algorithm and observe the effect on search behaviour.
 That purpose only holds if the baseline is trustworthy, so fidelity to classic is the
 governing constraint, not a nice-to-have.
@@ -25,7 +25,7 @@ Four sibling projects were analysed before this design:
 
 | Project | Verdict |
 |---|---|
-| `MOSES/metta-moses` | MeTTa/PeTTa port, ~27k lines. Real coverage of hill climbing, boolean knob building, boolean reduct, feature selection. Not reused: pyMeTTa aligns to C++ structure, not to metta-moses's. |
+| `MOSES/metta-moses` | MeTTa/PeTTa port, ~27k lines. Real coverage of hill climbing, boolean knob building, boolean reduct, feature selection. Not reused: pyMoses aligns to C++ structure, not to metta-moses's. |
 | `MOSES/MOSES-MORK` | 10.8k lines Python, but a from-scratch Boolean-only re-imagining: `Instance.value` is a program *string*, no `field_set`, no bit-packed instance, PLN factor-graph EDA in place of hill climbing. |
 | `MOSES/NMOSES` | ~1.1k lines MeTTa + 261 lines disconnected Python GP/EDA tutorial scripts. No knob/instance encoding, no outer loop. |
 | `MOSES/elegant-normal-forms-python` | 4.6k lines; implements Holman ENF only, on a bespoke binary tree type. Code unusable (wrong tree type), **test assets valuable**. |
@@ -37,7 +37,7 @@ across MOSES-MORK and NMOSES, confirming neither mirrors classic's architecture.
 `elegant-normal-forms-python/Tests/` contributes 44 curated boolean expressions
 (including Holman p.19 and Moshe Looks examples), a truth-table equivalence harness
 (`TestHelpers.py`), and seven ENF axiom checkers (`EnfRuleCheckers.py`) — 89 tests that
-pass today. These are rewritten against pyMeTTa's tree type when reduct is ported.
+pass today. These are rewritten against pyMoses's tree type when reduct is ported.
 
 ## 2. Decisions
 
@@ -57,7 +57,7 @@ during implementation:
 
 ## 3. Non-goals
 
-- Any MeTTa/Hyperon integration. pyMeTTa has no `hyperon` dependency.
+- Any MeTTa/Hyperon integration. pyMoses has no `hyperon` dependency.
 - Performance parity with C++. Correctness first; a parallel-scoring pass is S-late.
 - Porting classic's dead or legacy paths: `#ifdef HAVE_MPI` (`mpi_moses.cc` — MPI
   detection is commented out of classic's CMake, so it compiles to nothing),
@@ -74,8 +74,8 @@ during implementation:
 Mirrors classic's source tree so that a C++ path maps to a Python path by inspection.
 
 ```
-pyMeTTa/
-  pymetta/
+pyMoses/
+  pymoses/
     util/
       tree.py                 # cogutil opencog/util/tree.h  -> tree<T>
       rng.py                  # cogutil mt19937ar.cc         -> MT19937RandGen
@@ -98,7 +98,7 @@ pyMeTTa/
       deme/                   deme_expander.py deme_params.py
       main/                   moses_exec.py problem_params.py table_problems.py
   tests/
-    <mirrors pymetta/ 1:1>    one test module per source module
+    <mirrors pymoses/ 1:1>    one test module per source module
     oracle/                   differential tests against the C++ binaries
     fixtures/                 golden data captured from C++, committed
   tools/
@@ -114,7 +114,7 @@ pyMeTTa/
 
 Note two path flattenings, both deliberate: classic's `moses/comboreduct/...` and
 `moses/moses/...` lose their redundant top `moses/` segment, and `cogutil`'s two
-MOSES-relevant headers are collected under `pymetta/util/`. Every other directory name
+MOSES-relevant headers are collected under `pymoses/util/`. Every other directory name
 matches classic exactly.
 
 ## 5. Fidelity conventions
@@ -145,7 +145,7 @@ def build_logical(self, subtree, it):
 
 Format: `C++: <path relative to a source root>:<line> <C++ qualified symbol>`.
 
-**Two source roots, not one** (amended 2026-09-03, during Task 1). `pymetta/util/`
+**Two source roots, not one** (amended 2026-09-03, during Task 1). `pymoses/util/`
 ports CogUtil, not Moses, so a breadcrumb path resolves against either:
 
 | Root | Path prefix | Example |
@@ -275,7 +275,7 @@ single-seed initialisation:
 
 **Critical implementation note:** Python's `random` module cannot be used. `random.seed(int)`
 routes through MT19937's `init_by_array` seeding, whereas C++ `std::mt19937::seed(unsigned)`
-uses `init_genrand`. The streams diverge from the first draw. `pymetta/util/rng.py` must
+uses `init_genrand`. The streams diverge from the first draw. `pymoses/util/rng.py` must
 implement MT19937 directly.
 
 `randfloat()` carries one deferred caveat: it divides by `(float)max()`, producing a
@@ -367,7 +367,7 @@ Each slice is one commit, and must be green before the next begins.
 a CI entry point runnable as a single command.
 **Exit:** `pytest` runs green on an empty suite; `check_alignment.py` runs clean.
 
-### S1 — `pymetta/util/tree.py`
+### S1 — `pymoses/util/tree.py`
 Port of `tree<T>` (cogutil `opencog/util/tree.h`, Kasper Peeters' `tree.hh` v2.3). Nodes
 are `parent / first_child / last_child / prev_sibling / next_sibling / data`. Built as a
 real linked object graph, not a flat array — `insert_above` / `flatten` / `wrap` /
@@ -397,7 +397,7 @@ hazard. Iterators must be re-derived after any `insert_above` / `append_child` /
 
 **Exit:** `tree_probe` differential tests pass for every splice operation.
 
-### S2 — `pymetta/util/rng.py`
+### S2 — `pymoses/util/rng.py`
 MT19937 with `init_genrand` seeding, plus the `RandGen` surface: `randint()`,
 `randint(n)`, `randdouble()`, `randbool()`. Per section 6, `randint()` is `raw >> 1`.
 `randfloat()`, `randdouble_one_excluded()`, and `rand_discrete()` raise

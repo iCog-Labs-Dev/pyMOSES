@@ -23,8 +23,8 @@ from pathlib import Path
 
 import pytest
 
-from pymetta.comboreduct.combo.iostream_combo import combo_tree_to_str, str_to_combo_tree
-from pymetta.comboreduct.reduct.full_reduction import _reset_cache_for_testing, full_reduce
+from pymoses.comboreduct.combo.iostream_combo import combo_tree_to_str, str_to_combo_tree
+from pymoses.comboreduct.reduct.full_reduction import _reset_cache_for_testing, full_reduce
 
 _FIXTURES_DIR = Path(__file__).resolve().parent.parent.parent / "fixtures"
 FIXTURE_PATH = _FIXTURES_DIR / "full_reduction.json"
@@ -60,10 +60,10 @@ def test_full_reduction_diverges_from_mixed_reduction_on_junction_sum_constant()
     omissions) produce a genuinely DIFFERENT result than mixed_reduction
     on the exact same input.
     """
-    from pymetta.comboreduct.reduct.mixed_reduction import (
+    from pymoses.comboreduct.reduct.mixed_reduction import (
         _reset_cache_for_testing as _reset_mixed,
     )
-    from pymetta.comboreduct.reduct.mixed_reduction import mixed_reduce
+    from pymoses.comboreduct.reduct.mixed_reduction import mixed_reduce
 
     tree_str = "and(0<(+($1 1.0)) 0<(+($1 2.0)))"
 

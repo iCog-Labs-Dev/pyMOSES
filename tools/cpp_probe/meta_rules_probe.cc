@@ -2,7 +2,7 @@
 //
 // Measures the REAL node-visit order and fixpoint termination of
 // opencog::reduct's meta-rule combinators (downwards, upwards, sequential,
-// iterative, assum_iterative) for pymetta's comboreduct/reduct/meta_rules.py
+// iterative, assum_iterative) for pymoses's comboreduct/reduct/meta_rules.py
 // port (task-2). Ground truth, not inference.
 //
 // Build:

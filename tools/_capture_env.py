@@ -52,7 +52,7 @@ def _require_dir(env_var: str, purpose: str) -> Path:
 def classic_dir() -> Path:
     """The classic OpenCog MOSES checkout (`$CLASSIC` in CLAUDE.md)."""
     return _require_dir(
-        "PYMETTA_CLASSIC_DIR",
+        "PYMOSES_CLASSIC_DIR",
         "it must point at the classic OpenCog MOSES checkout ($CLASSIC).",
     )
 
@@ -64,7 +64,7 @@ def moses_prefix() -> Path:
     but this function does not assume that or any other default.
     """
     return _require_dir(
-        "PYMETTA_MOSES_PREFIX",
+        "PYMOSES_MOSES_PREFIX",
         "it must point at the installed moses-legacy prefix produced by "
         "$CLASSIC/scripts/rebuild-moses-local.sh.",
     )
@@ -78,6 +78,6 @@ def cogutil_dir() -> Path:
     -- see that probe's own header comment).
     """
     return _require_dir(
-        "PYMETTA_COGUTIL_DIR",
+        "PYMOSES_COGUTIL_DIR",
         "it must point at a raw CogUtil source checkout ($COGUTIL).",
     )

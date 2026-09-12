@@ -5,9 +5,9 @@ import struct
 
 import pytest
 
-from pymetta.moses.moses.types import composite_score, very_worst_score
-from pymetta.moses.representation.instance import instance
-from pymetta.moses.representation.scored_instance import scored_instance
+from pymoses.moses.moses.types import composite_score, very_worst_score
+from pymoses.moses.representation.instance import instance
+from pymoses.moses.representation.scored_instance import scored_instance
 
 
 def _hex(x: float) -> str:

@@ -1,7 +1,7 @@
 import pytest
 
-from pymetta.comboreduct.combo.argument import argument
-from pymetta.comboreduct.combo.vertex import (
+from pymoses.comboreduct.combo.argument import argument
+from pymoses.comboreduct.combo.vertex import (
     builtin,
     combo_tree,
     enum_t,
@@ -101,7 +101,7 @@ def test_combo_tree_is_tree_subscripted_with_vertex():
     # C++: vertex.h:527 `typedef tree<vertex> combo_tree;` -- this port's
     # tree carries no runtime type parameter (see tree.__class_getitem__),
     # so `tree[vertex]` is accepted syntax that resolves to `tree` itself.
-    from pymetta.util.tree import tree
+    from pymoses.util.tree import tree
 
     assert combo_tree is tree
 
@@ -232,8 +232,8 @@ def test_is_contin_expr_is_immune_to_the_intenum_value_collision():
     outcome, not the mechanism. Two agents disagreed about whether this
     function was safe; measured, it is.
     """
-    from pymetta.comboreduct.combo.common_def import contin_t
-    from pymetta.comboreduct.combo.vertex import builtin, is_contin, is_contin_expr
+    from pymoses.comboreduct.combo.common_def import contin_t
+    from pymoses.comboreduct.combo.vertex import builtin, is_contin, is_contin_expr
 
     assert int(builtin.div) == 8
     colliding = contin_t(8.0)

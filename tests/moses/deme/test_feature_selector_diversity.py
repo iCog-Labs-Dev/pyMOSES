@@ -53,17 +53,17 @@ from pathlib import Path
 
 import pytest
 
-from pymetta.comboreduct.combo.iostream_combo import str_to_combo_tree
-from pymetta.comboreduct.combo.vertex import builtin
-from pymetta.comboreduct.table.table import CTable
-from pymetta.comboreduct.table.table_io import loadTable
-from pymetta.moses.deme.feature_selector import (
+from pymoses.comboreduct.combo.iostream_combo import str_to_combo_tree
+from pymoses.comboreduct.combo.vertex import builtin
+from pymoses.comboreduct.table.table import CTable
+from pymoses.comboreduct.table.table_io import loadTable
+from pymoses.moses.deme.feature_selector import (
     feature_selector,
     feature_selector_parameters,
     jaccard_index,
     powerset,
 )
-from pymetta.util.rng import randGen
+from pymoses.util.rng import randGen
 
 _FIXTURE_PATH = Path(__file__).resolve().parents[2] / "fixtures" / "fs_diversity.json"
 _TABLE_DATA_DIR = Path(__file__).resolve().parents[2] / "fixtures" / "table_data"

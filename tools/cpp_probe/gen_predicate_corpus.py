@@ -23,7 +23,7 @@ def contin_expr(depth):
     # `0<(+(log(-1) 1))` all run past 60s with zero output, while the same
     # `log(-1)` NOT under a predicate reduces in about a second. See
     # `simplify_predicates`' own docstring in
-    # pymetta/comboreduct/reduct/logical_rules.py. A generator that can emit
+    # pymoses/comboreduct/reduct/logical_rules.py. A generator that can emit
     # `log` of a negative constant therefore cannot be used to build a
     # bounded oracle corpus; the two `log`-over-an-argument cases in the
     # curated block cover the operator instead.

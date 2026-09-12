@@ -21,9 +21,9 @@ import math
 
 import pytest
 
-from pymetta.comboreduct.combo.argument import argument
-from pymetta.comboreduct.combo.vertex import builtin
-from pymetta.moses.moses.types import (
+from pymoses.comboreduct.combo.argument import argument
+from pymoses.comboreduct.combo.vertex import builtin
+from pymoses.moses.moses.types import (
     _combo_tree_structural_eq,
     _sct_comparator_set,
     composite_score,
@@ -37,8 +37,8 @@ from pymetta.moses.moses.types import (
     sct_score_greater,
     sct_tree_greater,
 )
-from pymetta.moses.representation import instance_set as instance_set_module
-from pymetta.util.tree import tree
+from pymoses.moses.representation import instance_set as instance_set_module
+from pymoses.util.tree import tree
 
 # ---------------------------------------------------------------------------
 # demeID_t: exactly one definition, reached two different ways.
@@ -402,7 +402,7 @@ def test_cpp_unordered_set_dedup_matches(fixture_dir):
 
 
 def _sct(combo_str: str, score: float = 0.0, complexity: int = 0) -> scored_combo_tree:
-    from pymetta.comboreduct.combo.iostream_combo import str_to_combo_tree
+    from pymoses.comboreduct.combo.iostream_combo import str_to_combo_tree
 
     return scored_combo_tree(str_to_combo_tree(combo_str), cs=composite_score(score, complexity))
 
@@ -425,7 +425,7 @@ def test_weight_is_not_a_constructor_parameter():
     """C++'s constructor takes `(tr, id, cs, bs)` (types.h:262-265) -- no
     weight argument in either language; only `set_weight` changes it.
     """
-    from pymetta.comboreduct.combo.iostream_combo import str_to_combo_tree
+    from pymoses.comboreduct.combo.iostream_combo import str_to_combo_tree
 
     with pytest.raises(TypeError):
         # FIVE positionals: the ctor now takes (tr, id, cs, bs), so a
@@ -443,7 +443,7 @@ def test_set_weight_round_trips_at_double_precision_not_score_t():
     routed `set_weight` (or the field) through `_to_score_t` would be
     invisible to a round-trip on, say, 0.5 -- this one kills it.
     """
-    from pymetta.moses.moses.types import _to_score_t
+    from pymoses.moses.moses.types import _to_score_t
 
     assert _to_score_t(0.1) != 0.1  # the witness is a real witness
 
@@ -504,7 +504,7 @@ def test_copy_sct_carries_the_weight():
     the package), and pinned precisely because an inert dropped field is
     the shape of bug docs/CARRY-FORWARD.md Sec 5.2/5.4 both record.
     """
-    from pymetta.moses.metapopulation.metapopulation import _copy_sct
+    from pymoses.moses.metapopulation.metapopulation import _copy_sct
 
     original = _sct("$1", -1.0, 1)
     original.set_weight(0.375)

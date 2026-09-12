@@ -1,8 +1,8 @@
-"""Unit tests for pymetta.moses.deme.deme_params.deme_parameters."""
+"""Unit tests for pymoses.moses.deme.deme_params.deme_parameters."""
 
 import pytest
 
-from pymetta.moses.deme.deme_params import deme_parameters
+from pymoses.moses.deme.deme_params import deme_parameters
 
 
 def test_defaults_match_cpp_initializer_list():

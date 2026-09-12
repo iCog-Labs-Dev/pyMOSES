@@ -1,6 +1,6 @@
 """Task 6 (S7 cycle) oracle support -- test-only helpers, not part of
-`pymetta` itself. Three independent verification layers laid over
-`pymetta.comboreduct.reduct.logical_reduction.logical_reduce`, none of
+`pymoses` itself. Three independent verification layers laid over
+`pymoses.comboreduct.reduct.logical_reduction.logical_reduce`, none of
 them the byte-comparison against tests/fixtures/reduct.json (that lives
 directly in test_reduct_oracle.py):
 
@@ -46,10 +46,10 @@ directly in test_reduct_oracle.py):
 
 from __future__ import annotations
 
-from pymetta.comboreduct.combo.vertex import builtin, combo_tree, is_argument
-from pymetta.comboreduct.interpreter.eval import arity as _tree_arity
-from pymetta.comboreduct.table.table import complete_truth_table
-from pymetta.util.tree import tree_node
+from pymoses.comboreduct.combo.vertex import builtin, combo_tree, is_argument
+from pymoses.comboreduct.interpreter.eval import arity as _tree_arity
+from pymoses.comboreduct.table.table import complete_truth_table
+from pymoses.util.tree import tree_node
 
 # ---------------------------------------------------------------------------
 # 1. The truth-table-unsoundness predicate (CARRY-FORWARD.md Β§3)

@@ -1,4 +1,4 @@
-"""Tests for pymetta/comboreduct/reduct/general_rules.py -- the
+"""Tests for pymoses/comboreduct/reduct/general_rules.py -- the
 type-independent reduction rules (`level`, `eval_constants`,
 `reorder_commutative`, `remove_null_vertices`, `remove_all_assumptions`)
 and the vertex.h algebraic-property predicates they need.
@@ -18,10 +18,10 @@ task-3-report.md for the annotated derivation of each non-obvious case
 
 import pytest
 
-from pymetta.comboreduct.combo.assumption import insert_assumption
-from pymetta.comboreduct.combo.iostream_combo import combo_tree_to_str, str_to_combo_tree
-from pymetta.comboreduct.combo.vertex import builtin
-from pymetta.comboreduct.reduct.general_rules import (
+from pymoses.comboreduct.combo.assumption import insert_assumption
+from pymoses.comboreduct.combo.iostream_combo import combo_tree_to_str, str_to_combo_tree
+from pymoses.comboreduct.combo.vertex import builtin
+from pymoses.comboreduct.reduct.general_rules import (
     eval_constants,
     is_associative,
     is_boolean,
@@ -85,7 +85,7 @@ def test_is_constant_true_for_booleans_and_contin():
 
 
 def test_is_constant_false_for_an_argument_or_operator():
-    from pymetta.comboreduct.combo.argument import argument
+    from pymoses.comboreduct.combo.argument import argument
 
     assert not is_constant(argument(1))
     assert not is_constant(builtin.logical_and)
@@ -246,8 +246,8 @@ def test_reorder_commutative_does_not_touch_a_non_commutative_operator():
     # the same way general_rules_probe.cc's own
     # "reorder_commutative_multi_child_non_commutative" case does, since
     # the guard itself (`is_commutative(*it)`) is arity-blind.
-    from pymetta.comboreduct.combo.argument import argument
-    from pymetta.comboreduct.combo.vertex import combo_tree
+    from pymoses.comboreduct.combo.argument import argument
+    from pymoses.comboreduct.combo.vertex import combo_tree
 
     tr = combo_tree(builtin.logical_not)
     root = tr.begin()
@@ -263,8 +263,8 @@ def test_reorder_commutative_does_not_touch_a_non_commutative_operator():
 
 
 def test_remove_null_vertices_plain_operator():
-    from pymetta.comboreduct.combo.argument import argument
-    from pymetta.comboreduct.combo.vertex import combo_tree
+    from pymoses.comboreduct.combo.argument import argument
+    from pymoses.comboreduct.combo.vertex import combo_tree
 
     tr = combo_tree(builtin.logical_and)
     root = tr.begin()
@@ -279,8 +279,8 @@ def test_remove_null_vertices_cond_removes_condition_and_consequent_together():
     # C++: general_rules_probe.cc "remove_null_vertices_cond" -- cond
     # takes (condition, consequent) PAIRS plus a final else clause; a
     # null_vertex condition drops BOTH it and its paired consequent.
-    from pymetta.comboreduct.combo.argument import argument
-    from pymetta.comboreduct.combo.vertex import combo_tree
+    from pymoses.comboreduct.combo.argument import argument
+    from pymoses.comboreduct.combo.vertex import combo_tree
 
     tr = combo_tree(builtin.cond)
     root = tr.begin()
@@ -294,7 +294,7 @@ def test_remove_null_vertices_cond_removes_condition_and_consequent_together():
 
 
 def _build_cond(*vals):
-    from pymetta.comboreduct.combo.vertex import combo_tree
+    from pymoses.comboreduct.combo.vertex import combo_tree
 
     tr = combo_tree(builtin.cond)
     root = tr.begin()
@@ -308,7 +308,7 @@ def test_remove_null_vertices_cond_null_as_a_plain_consequent_is_never_inspected
     # CONSEQUENT is skipped over by the pair-stride walk, never even
     # dereferenced as a candidate for removal, so it's left completely
     # untouched -- matches C++ byte-for-byte (measured).
-    from pymetta.comboreduct.combo.argument import argument
+    from pymoses.comboreduct.combo.argument import argument
 
     tr, root = _build_cond(argument(1), builtin.null_vertex, argument(2))
     remove_null_vertices()(tr, root)
@@ -320,7 +320,7 @@ def test_remove_null_vertices_cond_null_in_a_safe_trailing_position_is_untouched
     # particular child count makes the pair-stride walk land on the
     # trailing null as a skipped CONSEQUENT position, not a condition --
     # matches C++ byte-for-byte (measured).
-    from pymetta.comboreduct.combo.argument import argument
+    from pymoses.comboreduct.combo.argument import argument
 
     tr, root = _build_cond(argument(1), argument(2), argument(3), builtin.null_vertex)
     remove_null_vertices()(tr, root)
@@ -342,7 +342,7 @@ def test_remove_null_vertices_cond_null_in_the_trailing_else_slot_raises():
     instead -- safer, but a genuinely different KIND of failure, not
     something to silently paper over as "close enough".
     """
-    from pymetta.comboreduct.combo.argument import argument
+    from pymoses.comboreduct.combo.argument import argument
 
     tr, root = _build_cond(argument(1), argument(2), builtin.null_vertex)
     with pytest.raises(AttributeError):
@@ -354,7 +354,7 @@ def test_remove_null_vertices_cond_two_nulls_one_trailing_also_raises():
     # null CONDITION (correctly paired, handled fine on its own) followed
     # by a SECOND null occupying the trailing else slot -- also segfaults
     # real C++ (measured, exit 139), for the same reason as "bad1" above.
-    from pymetta.comboreduct.combo.argument import argument
+    from pymoses.comboreduct.combo.argument import argument
 
     tr, root = _build_cond(builtin.null_vertex, argument(1), builtin.null_vertex)
     with pytest.raises(AttributeError):

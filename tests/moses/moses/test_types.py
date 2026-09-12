@@ -13,7 +13,7 @@ tests construct `composite_score` directly with plain, unnarrowed Python
 doubles and assert every field comes back float32-narrowed.
 """
 
-from pymetta.moses.moses.types import _EQ_EPSILON, _is_approx_eq, _to_score_t, composite_score
+from pymoses.moses.moses.types import _EQ_EPSILON, _is_approx_eq, _to_score_t, composite_score
 
 # 1/3.5 is not exactly representable in binary32 (the fix round 1 review's
 # own witness value: |1/3.5 - to_score_t(1/3.5)| ~= 1.28e-8) -- a passthrough

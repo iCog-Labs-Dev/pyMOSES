@@ -1,4 +1,4 @@
-"""Unit + oracle tests for pymetta.moses.moses.local_moses.
+"""Unit + oracle tests for pymoses.moses.moses.local_moses.
 
 ## Oracle: `tools/cpp_probe/local_moses_probe.cc`
 
@@ -45,25 +45,25 @@ itself has no equivalent seam for).
 
 from __future__ import annotations
 
-import pymetta.moses.moses.local_moses as lm
-from pymetta.comboreduct.combo.iostream_combo import combo_tree_to_str, str_to_combo_tree
-from pymetta.comboreduct.table.table_io import loadTable
-from pymetta.comboreduct.type_checker.type_signature import gen_signature, type_node
-from pymetta.moses.deme.deme_expander import deme_expander
-from pymetta.moses.deme.deme_params import deme_parameters
-from pymetta.moses.metapopulation.metapop_params import (
+import pymoses.moses.moses.local_moses as lm
+from pymoses.comboreduct.combo.iostream_combo import combo_tree_to_str, str_to_combo_tree
+from pymoses.comboreduct.table.table_io import loadTable
+from pymoses.comboreduct.type_checker.type_signature import gen_signature, type_node
+from pymoses.moses.deme.deme_expander import deme_expander
+from pymoses.moses.deme.deme_params import deme_parameters
+from pymoses.moses.metapopulation.metapop_params import (
     metapop_parameters,
     subsample_deme_filter_parameters,
 )
-from pymetta.moses.metapopulation.metapopulation import metapopulation
-from pymetta.moses.moses.local_moses import expand_deme, local_moses
-from pymetta.moses.moses.moses_params import moses_parameters, moses_statistics
-from pymetta.moses.moses.optimization.hill_climbing import hc_parameters, hill_climbing
-from pymetta.moses.moses.optimization.optimization import optim_parameters, optim_stats
-from pymetta.moses.moses.types import composite_score
-from pymetta.moses.scoring.behave_cscore import behave_cscore
-from pymetta.moses.scoring.bscores import ctruth_table_bscore
-from pymetta.util.rng import randGen
+from pymoses.moses.metapopulation.metapopulation import metapopulation
+from pymoses.moses.moses.local_moses import expand_deme, local_moses
+from pymoses.moses.moses.moses_params import moses_parameters, moses_statistics
+from pymoses.moses.moses.optimization.hill_climbing import hc_parameters, hill_climbing
+from pymoses.moses.moses.optimization.optimization import optim_parameters, optim_stats
+from pymoses.moses.moses.types import composite_score
+from pymoses.moses.scoring.behave_cscore import behave_cscore
+from pymoses.moses.scoring.bscores import ctruth_table_bscore
+from pymoses.util.rng import randGen
 
 # ===========================================================================
 # Oracle: tools/cpp_probe/local_moses_probe.cc, measured 2026-09-08.
@@ -155,7 +155,7 @@ def _build_pipeline() -> tuple[metapopulation, deme_expander]:
     cscorer = behave_cscore(bsc)
 
     exemplar = "$1"
-    from pymetta.comboreduct.combo.iostream_combo import str_to_combo_tree
+    from pymoses.comboreduct.combo.iostream_combo import str_to_combo_tree
 
     mp = metapopulation(
         str_to_combo_tree(exemplar),
@@ -166,7 +166,7 @@ def _build_pipeline() -> tuple[metapopulation, deme_expander]:
 
     sig = gen_signature(type_node.boolean_type, _ARITY)
 
-    from pymetta.comboreduct.reduct.logical_reduction import logical_reduction
+    from pymoses.comboreduct.reduct.logical_reduction import logical_reduction
 
     rule = logical_reduction(())(2)
 
@@ -209,7 +209,7 @@ def test_local_moses_matches_cpp_probe_step_for_step():
         )
 
 
-_PROBE_SOURCE_SHA256 = "1f670f30492a4a5331c0ec8135364c9a49547d37d3104dbd6fdf50290f15d3d8"
+_PROBE_SOURCE_SHA256 = "75ee65744ba5bf1ef8c4b4e475cbf46f1512b9a224aeecf365538e9581341c42"
 # Measured directly (`sha256sum tools/cpp_probe/local_moses_probe.cc`)
 # against the EXACT probe binary that produced `_EXPECTED_GENERATIONS`
 # above -- if this ever mismatches, the probe was edited without being

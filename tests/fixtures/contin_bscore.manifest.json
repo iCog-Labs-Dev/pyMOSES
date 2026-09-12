@@ -12,7 +12,7 @@
   "prefix_dir": "/home/yab/opt/moses-legacy",
   "probe_kind": "cpp_probe",
   "probe_source": "tools/cpp_probe/contin_bscore_probe.cc",
-  "probe_source_sha256": "a35508f9fecd26bfe1fb8a8faff234065eea509edcbc76cef742a5a4de520284",
+  "probe_source_sha256": "52d457b5ff34a84feb0bfeb5debcb7aae18e348198a30ad3cc82f26a21ae960e",
   "repo_commit": "d43971123e56e131abe60cbc2d05d85c7aa9827a",
   "schema_version": 1
 }

@@ -3,7 +3,7 @@
 // S14 Task 4 oracle probe: apply exactly ONE named contin_rules.cc /
 // branch_rules.cc rule, in isolation, pre-order (`downwards(rule())`)
 // over a parsed combo tree, and print the resulting tree text. Used to
-// validate pymetta's own per-rule unit tests against the real compiled
+// validate pymoses's own per-rule unit tests against the real compiled
 // libcomboreduct.so, one rule at a time -- NOT a substitute for the
 // full contin_reduction/mixed_reduction end-to-end oracle (see
 // contin_mixed_reduct_probe.cc for that).

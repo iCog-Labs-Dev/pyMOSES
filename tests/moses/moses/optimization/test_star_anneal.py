@@ -1,4 +1,4 @@
-"""Unit and oracle-shaped tests for pymetta.moses.moses.optimization.star_anneal.
+"""Unit and oracle-shaped tests for pymoses.moses.moses.optimization.star_anneal.
 
 Oracle: `$CLASSIC/build/tests/moses/MOSESUTest`'s `test_sa_2_parity`
 (`-Hpa -k2 -asa`) and `test_sa_1_mux` (`-Hmux -k1 -asa`) both PASS in
@@ -23,13 +23,13 @@ import math
 
 import pytest
 
-from pymetta.moses.moses.optimization.optimization import optim_parameters
-from pymetta.moses.moses.optimization.star_anneal import sa_parameters, simulated_annealing
-from pymetta.moses.representation.field_set import disc_spec, field_set
-from pymetta.moses.representation.instance import instance
-from pymetta.moses.representation.instance_scorer import distance_based_scorer
-from pymetta.moses.representation.instance_set import instance_set
-from pymetta.util.rng import randGen
+from pymoses.moses.moses.optimization.optimization import optim_parameters
+from pymoses.moses.moses.optimization.star_anneal import sa_parameters, simulated_annealing
+from pymoses.moses.representation.field_set import disc_spec, field_set
+from pymoses.moses.representation.instance import instance
+from pymoses.moses.representation.instance_scorer import distance_based_scorer
+from pymoses.moses.representation.instance_set import instance_set
+from pymoses.util.rng import randGen
 
 
 def _sa(sa_params: sa_parameters | None = None) -> simulated_annealing:

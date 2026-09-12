@@ -1,4 +1,4 @@
-"""Unit + mutation-provable tests for pymetta.moses.metapopulation.ensemble.
+"""Unit + mutation-provable tests for pymoses.moses.metapopulation.ensemble.
 
 P2 metapopulation task: `ensemble.py` went from a deliberately minimal
 non-boosting stub to the full AdaBoost/experts port (`ensemble.py`'s own
@@ -33,13 +33,13 @@ import math
 
 import pytest
 
-from pymetta.comboreduct.combo.iostream_combo import combo_tree_to_str, str_to_combo_tree
-from pymetta.comboreduct.combo.vertex import builtin
-from pymetta.moses.metapopulation.ensemble import ensemble
-from pymetta.moses.metapopulation.ensemble_params import ensemble_parameters
-from pymetta.moses.moses.types import composite_score, scored_combo_tree, scored_combo_tree_set
-from pymetta.moses.scoring.behave_cscore import behave_cscore
-from pymetta.moses.scoring.scoring_base import bscore_base
+from pymoses.comboreduct.combo.iostream_combo import combo_tree_to_str, str_to_combo_tree
+from pymoses.comboreduct.combo.vertex import builtin
+from pymoses.moses.metapopulation.ensemble import ensemble
+from pymoses.moses.metapopulation.ensemble_params import ensemble_parameters
+from pymoses.moses.moses.types import composite_score, scored_combo_tree, scored_combo_tree_set
+from pymoses.moses.scoring.behave_cscore import behave_cscore
+from pymoses.moses.scoring.scoring_base import bscore_base
 
 
 class _DummyBscore(bscore_base):

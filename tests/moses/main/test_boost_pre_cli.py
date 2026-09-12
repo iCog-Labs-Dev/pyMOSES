@@ -60,7 +60,7 @@ from contextlib import redirect_stdout
 
 import pytest
 
-from pymetta.moses.main.moses_exec import moses_exec
+from pymoses.moses.main.moses_exec import moses_exec
 
 
 def _table(fn, arity: int) -> str:

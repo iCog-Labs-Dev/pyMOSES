@@ -3,7 +3,7 @@ oracle (Task 4 review, Important: "land the differential harness in-repo").
 
 Generates a deterministic (seeded), reproducible corpus of `and`/`or`/`not`/
 `$n`/`!$n` combo-tree text-format strings -- the same grammar
-`pymetta.comboreduct.combo.iostream_combo.str_to_combo_tree` and $CLASSIC's
+`pymoses.comboreduct.combo.iostream_combo.str_to_combo_tree` and $CLASSIC's
 `str2combo_tree` both parse -- one per line, written to a file both
 `run_differential.py` (the Python side) and
 `logical_rules_differential_probe.cc` (the C++ side, reading the SAME file)

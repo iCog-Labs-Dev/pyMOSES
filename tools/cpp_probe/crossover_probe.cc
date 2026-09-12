@@ -1,6 +1,6 @@
 // tools/cpp_probe/crossover_probe.cc
 //
-// Oracle for pyMeTTa S12 (moses/moses/optimization/hill-climbing.cc's
+// Oracle for pyMoses S12 (moses/moses/optimization/hill-climbing.cc's
 // cross_top_one :593, cross_top_two :624, cross_top_three :664 and
 // crossover :701, plus the crossover gate at :139-152 and the last_chance
 // block at :434-458).

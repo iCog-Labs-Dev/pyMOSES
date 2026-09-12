@@ -7,20 +7,20 @@ call below (reduct.h:116 is a DIFFERENT, 4-arg overload additionally
 taking a `combo_tree::iterator`; not used here), moses/comboreduct/
 reduct/logical_rules.h:169 subtree_to_enf.
 
-Verifies `pymetta.comboreduct.reduct.logical_reduction.logical_reduce`
+Verifies `pymoses.comboreduct.reduct.logical_reduction.logical_reduce`
 against `tests/fixtures/reduct.json` (the committed 103-tree corpus + real
 `test_reduct`/`logical_reduce` capture -- see `tools/cpp_probe/
 reduct_corpus.py`, `tools/capture_reduct.py`,
 `tests/fixtures/test_reduct_shape.py` (this fixture's own shape guard,
 which this module does not repeat), and `.superpowers/sdd/
-2026-09-04-pymetta-s7-reduct/task6-corpus-report.md` for how it was
+2026-09-04-pymoses-s7-reduct/task6-corpus-report.md` for how it was
 built) across four independent layers:
 
 1. BYTE-IDENTICAL (`test_byte_identical_*`): for every one of the 237 (79
-   runnable trees x effort 1/2/3) captured cases, pyMeTTa's own
+   runnable trees x effort 1/2/3) captured cases, pyMoses's own
    `logical_reduce` output matches classic's real `logical_reduce` output
    character-for-character. This is the cycle's PRIMARY exit criterion
-   (docs/superpowers/plans/2026-09-04-pymetta-s7-reduct.md's own "Cycle
+   (docs/superpowers/plans/2026-09-04-pymoses-s7-reduct.md's own "Cycle
    exit criterion" #2).
 
 2. SEMANTIC (truth-table preservation), amended 2026-09-07 per docs/
@@ -89,8 +89,8 @@ from enf_checkers import (
     tt_unsound_by_construction,
 )
 
-from pymetta.comboreduct.combo.iostream_combo import combo_tree_to_str, str_to_combo_tree
-from pymetta.comboreduct.reduct.logical_reduction import logical_reduce
+from pymoses.comboreduct.combo.iostream_combo import combo_tree_to_str, str_to_combo_tree
+from pymoses.comboreduct.reduct.logical_reduction import logical_reduce
 
 _FIXTURE_DIR = Path(__file__).resolve().parents[2] / "fixtures"
 _FIXTURE = json.loads((_FIXTURE_DIR / "reduct.json").read_text())

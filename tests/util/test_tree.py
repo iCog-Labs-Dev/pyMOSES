@@ -2,7 +2,7 @@ import json
 
 import pytest
 
-from pymetta.util.tree import tree
+from pymoses.util.tree import tree
 
 
 @pytest.fixture(scope="module")
@@ -1452,8 +1452,8 @@ def test_reparent_omitted_third_arg_is_not_confused_with_a_range_call():
 
 
 def test_combo_tree_copy_constructor_value_copies_a_mutable_argument():
-    from pymetta.comboreduct.combo.argument import argument
-    from pymetta.comboreduct.combo.vertex import combo_tree
+    from pymoses.comboreduct.combo.argument import argument
+    from pymoses.comboreduct.combo.vertex import combo_tree
 
     original = combo_tree(argument(1))
     copy_tr = combo_tree(original.begin())  # tree(const iterator_base&)
@@ -1464,8 +1464,8 @@ def test_combo_tree_copy_constructor_value_copies_a_mutable_argument():
 
 
 def test_append_child_subtree_copy_value_copies_a_mutable_argument():
-    from pymetta.comboreduct.combo.argument import argument
-    from pymetta.comboreduct.combo.vertex import combo_tree
+    from pymoses.comboreduct.combo.argument import argument
+    from pymoses.comboreduct.combo.vertex import combo_tree
 
     src = combo_tree(argument(1))
     dst = combo_tree("root")
@@ -1486,8 +1486,8 @@ def test_push_back_negated_arguments_shaped_copy_then_negate_leaves_source_untou
     child, copied and negated this way, used to also flip the ORIGINAL
     `$1` to `!$1` in place, corrupting `and($1 $2)` into `and(!$1 $2)`.
     """
-    from pymetta.comboreduct.combo.argument import argument
-    from pymetta.comboreduct.combo.vertex import builtin, combo_tree
+    from pymoses.comboreduct.combo.argument import argument
+    from pymoses.comboreduct.combo.vertex import builtin, combo_tree
 
     live = combo_tree(builtin.logical_and)
     root = live.begin()

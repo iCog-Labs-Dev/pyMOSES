@@ -1,4 +1,4 @@
-"""Tests for pymetta.comboreduct.reduct.contin_reduction (S14 Task 4).
+"""Tests for pymoses.comboreduct.reduct.contin_reduction (S14 Task 4).
 
 Full end-to-end pipeline against the real compiled `libcomboreduct.so`
 (via `contin_reduce`) lands in `test_contin_mixed_reduction_oracle.py`
@@ -16,9 +16,9 @@ from __future__ import annotations
 
 import pytest
 
-from pymetta.comboreduct.combo.iostream_combo import combo_tree_to_str, str_to_combo_tree
-from pymetta.comboreduct.combo.vertex import builtin
-from pymetta.comboreduct.reduct.contin_reduction import (
+from pymoses.comboreduct.combo.iostream_combo import combo_tree_to_str, str_to_combo_tree
+from pymoses.comboreduct.combo.vertex import builtin
+from pymoses.comboreduct.reduct.contin_reduction import (
     _reset_cache_for_testing,
     contin_reduce,
     contin_reduction,

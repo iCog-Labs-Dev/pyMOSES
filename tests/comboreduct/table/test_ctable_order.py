@@ -34,9 +34,9 @@ from pathlib import Path
 
 import pytest
 
-from pymetta.comboreduct.combo.vertex import builtin, contin_t, enum_t
-from pymetta.comboreduct.table.table import CTable, TimedCounter, ctable_row_key
-from pymetta.comboreduct.table.table_io import loadTable
+from pymoses.comboreduct.combo.vertex import builtin, contin_t, enum_t
+from pymoses.comboreduct.table.table import CTable, TimedCounter, ctable_row_key
+from pymoses.comboreduct.table.table_io import loadTable
 
 _TABLE_DATA_DIR = Path(__file__).resolve().parents[2] / "fixtures" / "table_data"
 _FS_DIVERSITY = json.loads(

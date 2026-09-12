@@ -305,7 +305,7 @@ class Sweeper:
         self.runner.write_text(
             "import sys\n"
             "sys.path.insert(0, sys.argv[1])\n"
-            "from pymetta.moses.main.moses_exec import moses_exec\n"
+            "from pymoses.moses.main.moses_exec import moses_exec\n"
             "sys.exit(moses_exec(sys.argv[1:]))\n"
         )
 

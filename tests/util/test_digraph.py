@@ -1,4 +1,4 @@
-"""Oracle and guard tests for pymetta.util.digraph.
+"""Oracle and guard tests for pymoses.util.digraph.
 
 The oracle fixture (tests/fixtures/univariate_rng.json) is produced by
 tools/cpp_probe/univariate_rng_probe.cc against the REAL
@@ -29,14 +29,14 @@ from pathlib import Path
 
 import pytest
 
-from pymetta.util.digraph import (
+from pymoses.util.digraph import (
     _cstdlib_rand,
     _CStdlibRand,
     _random_shuffle,
     digraph,
     randomized_topological_sort,
 )
-from pymetta.util.rng import randGen
+from pymoses.util.rng import randGen
 
 _FIXTURE_PATH = Path(__file__).resolve().parents[1] / "fixtures" / "univariate_rng.json"
 _GOLDEN = json.loads(_FIXTURE_PATH.read_text())

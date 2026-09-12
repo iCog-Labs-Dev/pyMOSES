@@ -1,4 +1,4 @@
-"""Oracle and guard tests for pymetta.feature_selection.scorers.mutual_info.
+"""Oracle and guard tests for pymoses.feature_selection.scorers.mutual_info.
 
 ## Oracle: tools/cpp_probe/feature_selector_probe.cc -> tests/fixtures/feature_selection.json
 
@@ -21,10 +21,10 @@ from pathlib import Path
 
 import pytest
 
-from pymetta.comboreduct.table.table import CTable
-from pymetta.comboreduct.table.table_io import loadTable
-from pymetta.comboreduct.type_checker.type_signature import TypeSignature, type_node
-from pymetta.feature_selection.scorers.mutual_info import (
+from pymoses.comboreduct.table.table import CTable
+from pymoses.comboreduct.table.table_io import loadTable
+from pymoses.comboreduct.type_checker.type_signature import TypeSignature, type_node
+from pymoses.feature_selection.scorers.mutual_info import (
     MICScorer,
     MICScorerCTable,
     MutualInformation,

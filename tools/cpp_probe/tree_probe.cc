@@ -1,7 +1,7 @@
 // tools/cpp_probe/tree_probe.cc
 //
 // Dumps opencog::tree<std::string> splice-operation and traversal-order
-// results as JSON, for differential testing against pymetta/util/tree.py.
+// results as JSON, for differential testing against pymoses/util/tree.py.
 //
 // tree.h declares a few OC_ASSERT call sites but is otherwise header-only;
 // IGNORE_OC_ASSERT avoids pulling in opencog::cassert() from libcogutil,

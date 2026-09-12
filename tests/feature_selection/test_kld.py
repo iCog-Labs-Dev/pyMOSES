@@ -1,4 +1,4 @@
-"""Oracle and guard tests for pymetta.feature_selection.scorers.kld.
+"""Oracle and guard tests for pymoses.feature_selection.scorers.kld.
 
 ## Oracle: tools/cpp_probe/mi_contin_probe.cc -> tests/fixtures/mi_contin.json
 
@@ -33,7 +33,7 @@ from pathlib import Path
 
 import pytest
 
-from pymetta.feature_selection.scorers.kld import (
+from pymoses.feature_selection.scorers.kld import (
     KLD,
     KLDS,
     _accumulate_with_int_init,
@@ -187,7 +187,7 @@ def test_x_very_first_and_last_come_from_the_extremes_not_the_insertion_order():
 def test_next_asserts_once_p_is_exhausted():
     """``OC_ASSERT(cit_p != p_pdf.end())`` (KLD.h:136) is live in release
     builds, so it is an ``AssertionError`` and not a bare ``assert``."""
-    from pymetta.feature_selection.scorers.kld import _kld_iters
+    from pymoses.feature_selection.scorers.kld import _kld_iters
 
     klds = KLDS([1.0, 2.0])
     q_items = sorted(_counter([1.5, 2.5]).items())

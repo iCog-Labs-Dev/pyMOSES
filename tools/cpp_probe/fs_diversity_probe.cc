@@ -1,7 +1,7 @@
 // tools/cpp_probe/fs_diversity_probe.cc
 //
 // Oracle for the two gates this slice closes in
-// pymetta/moses/deme/feature_selector.py:
+// pymoses/moses/deme/feature_selector.py:
 //
 //   (a) --fs-diversity-pressure > 0  -- feature_selector::rank_feature_sets
 //       (feature_selector.cc:343), feature_selector::mi (cc:434) and the

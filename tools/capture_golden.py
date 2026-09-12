@@ -41,7 +41,7 @@ def build_probe(source: Path, binary: Path) -> None:
     """Compile one probe. Every probe but `rng_probe.cc` gets a plain,
     dependency-free g++ invocation; `rng_probe.cc` additionally links
     against the installed cogutil (see this module's own docstring) --
-    resolved via PYMETTA_MOSES_PREFIX (tools/_capture_env.py), only when
+    resolved via PYMOSES_MOSES_PREFIX (tools/_capture_env.py), only when
     actually needed, so this function does not require that variable for
     every other probe in PROBES.
     """

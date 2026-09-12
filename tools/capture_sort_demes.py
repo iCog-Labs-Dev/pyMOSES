@@ -1,7 +1,7 @@
 """Build and capture the sort_demes oracle fixture.
 
 Settles the question S12 raised but left open (docs/CARRY-FORWARD.md
-Sec 5b.1, `.superpowers/sdd/2026-09-08-pymetta-s12-crossover/task-report.md`
+Sec 5b.1, `.superpowers/sdd/2026-09-08-pymoses-s12-crossover/task-report.md`
 Sec 9 item 1): does `metapopulation::sort_demes`'s
 `boost::sort(deme, std::greater<scored_instance<composite_score>>())`
 (merging.cc:507) reorder ties the way `std::partial_sort` measurably does?

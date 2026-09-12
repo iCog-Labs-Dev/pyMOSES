@@ -1,4 +1,4 @@
-"""Oracle and guard tests for pymetta.feature_selection.ctable_subsample.
+"""Oracle and guard tests for pymoses.feature_selection.ctable_subsample.
 
 ## Oracle: tools/cpp_probe/fs_diversity_probe.cc -> tests/fixtures/fs_diversity.json
 
@@ -32,16 +32,16 @@ from pathlib import Path
 
 import pytest
 
-from pymetta.comboreduct.combo.vertex import builtin
-from pymetta.comboreduct.table.table import CTable
-from pymetta.comboreduct.table.table_io import loadTable
-from pymetta.feature_selection.ctable_subsample import (
+from pymoses.comboreduct.combo.vertex import builtin
+from pymoses.comboreduct.table.table import CTable
+from pymoses.comboreduct.table.table_io import loadTable
+from pymoses.feature_selection.ctable_subsample import (
     _replace_cell,
     ctable_remove_rows,
     subsampleCTable,
 )
-from pymetta.util.lazy_random_selector import lazy_random_selector
-from pymetta.util.rng import randGen
+from pymoses.util.lazy_random_selector import lazy_random_selector
+from pymoses.util.rng import randGen
 
 _FIXTURE_PATH = Path(__file__).resolve().parents[1] / "fixtures" / "fs_diversity.json"
 _TABLE_DATA_DIR = Path(__file__).resolve().parents[1] / "fixtures" / "table_data"
@@ -108,7 +108,7 @@ def test_fixture_actually_discriminates_iteration_order(golden, unsorted_ctable)
     The row half of that used to read `for row in unsorted_ctable`, back
     when `CTable` was an insertion-ordered `dict`. `CTable` now iterates in
     `std::map` key order itself (`ctable_row_key` / `CTable._order`,
-    pymetta/comboreduct/table/table.py), so the *public* walk agrees with
+    pymoses/comboreduct/table/table.py), so the *public* walk agrees with
     the fixture by construction and proves nothing -- the discriminating
     fact is that `Table.compressed` still APPENDS in file order, which the
     unbound `dict.__iter__` still shows. Both claims are asserted below:

@@ -40,7 +40,7 @@
   "prefix_dir": "/home/yab/opt/moses-legacy",
   "probe_kind": "cpp_probe",
   "probe_source": "tools/cpp_probe/cluster_bscore_probe.cc",
-  "probe_source_sha256": "0e62819f16faec3b7dc69f0725db2f45f52ce10da06b6e51148c420d410d996d",
+  "probe_source_sha256": "139ed9c5c96e8e89f3209fbda2adf289a08d25c885126d87a8622ca240ab652e",
   "repo_commit": "964107717fde0657babe58ef2fc52c7cd8400a82",
   "schema_version": 2,
   "toolchain": {

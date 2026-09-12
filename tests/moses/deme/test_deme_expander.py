@@ -1,4 +1,4 @@
-"""Oracle and guard tests for pymetta.moses.deme.deme_expander/deme_params.
+"""Oracle and guard tests for pymoses.moses.deme.deme_expander/deme_params.
 
 The oracle fixture (tests/fixtures/deme_expander.json) is produced by
 tools/cpp_probe/deme_expander_probe.cc against the real classic
@@ -34,19 +34,19 @@ from pathlib import Path
 
 import pytest
 
-from pymetta.comboreduct.combo.iostream_combo import combo_tree_to_str, str_to_combo_tree
-from pymetta.comboreduct.reduct.logical_reduction import logical_reduction
-from pymetta.comboreduct.table.table_io import loadTable
-from pymetta.comboreduct.type_checker.type_signature import gen_signature, type_node
-from pymetta.moses.deme.deme_expander import deme_expander
-from pymetta.moses.deme.deme_params import deme_parameters
-from pymetta.moses.deme.feature_selector import feature_selector, feature_selector_parameters
-from pymetta.moses.metapopulation.metapop_params import subsample_deme_filter_parameters
-from pymetta.moses.moses.optimization.hill_climbing import hc_parameters, hill_climbing
-from pymetta.moses.moses.optimization.optimization import optim_parameters
-from pymetta.moses.scoring.behave_cscore import behave_cscore
-from pymetta.moses.scoring.bscores import ctruth_table_bscore
-from pymetta.util.rng import randGen
+from pymoses.comboreduct.combo.iostream_combo import combo_tree_to_str, str_to_combo_tree
+from pymoses.comboreduct.reduct.logical_reduction import logical_reduction
+from pymoses.comboreduct.table.table_io import loadTable
+from pymoses.comboreduct.type_checker.type_signature import gen_signature, type_node
+from pymoses.moses.deme.deme_expander import deme_expander
+from pymoses.moses.deme.deme_params import deme_parameters
+from pymoses.moses.deme.feature_selector import feature_selector, feature_selector_parameters
+from pymoses.moses.metapopulation.metapop_params import subsample_deme_filter_parameters
+from pymoses.moses.moses.optimization.hill_climbing import hc_parameters, hill_climbing
+from pymoses.moses.moses.optimization.optimization import optim_parameters
+from pymoses.moses.scoring.behave_cscore import behave_cscore
+from pymoses.moses.scoring.bscores import ctruth_table_bscore
+from pymoses.util.rng import randGen
 from tools.check_fixture_manifests import SUPPORTED_SCHEMA_VERSIONS
 
 _FIXTURE_PATH = Path(__file__).resolve().parents[2] / "fixtures" / "deme_expander.json"
@@ -273,7 +273,7 @@ def test_total_evals_sums_across_demes_and_ss_demes():
 
 # ---------------------------------------------------------------------------
 # fstor: on-the-fly feature selection is now REAL (P2 feature-selection
-# port, pymetta.moses.deme.feature_selector). create_demeIDs/
+# port, pymoses.moses.deme.feature_selector). create_demeIDs/
 # create_representations both honour a real feature_selector; only
 # fstor.params.prune_xmplr=True and driving a real fstor through
 # optimize_demes's own search loop remain gated -- see deme_expander.py's
@@ -593,7 +593,7 @@ def test_subsample_by_row_draw_order_is_the_std_random_shuffle_one():
     same seed pins that this function draws from `randGen()` the same
     number of times, in the same order, with nothing else in between.
     """
-    from pymetta.moses.scoring.ss_bscore import _shuffle_with_gen
+    from pymoses.moses.scoring.ss_bscore import _shuffle_with_gen
 
     dex = _dex_with(None, subsample_deme_filter_parameters(n_subsample_demes=2))
     usize = dex._cscorer.get_ctable_usize()
@@ -645,7 +645,7 @@ def test_subsample_by_time_non_contiguous_shuffles_the_ascending_sequence():
     SAME `random_shuffle_gen` `subsample_by_row` uses, over the sorted
     timestamp vector.
     """
-    from pymetta.moses.scoring.ss_bscore import _shuffle_with_gen
+    from pymoses.moses.scoring.ss_bscore import _shuffle_with_gen
 
     dex = _dex_with(None, subsample_deme_filter_parameters(n_subsample_demes=2))
     dex._filter_params.contiguous_time = False

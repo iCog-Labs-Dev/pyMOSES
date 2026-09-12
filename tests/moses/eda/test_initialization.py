@@ -1,4 +1,4 @@
-"""Oracle and guard tests for pymetta.moses.eda.initialization.
+"""Oracle and guard tests for pymoses.moses.eda.initialization.
 
 The oracle fixture (tests/fixtures/eda_initialization.json) is produced by
 tools/cpp_probe/eda_initialization_probe.cc against the real classic
@@ -16,15 +16,15 @@ from pathlib import Path
 
 import pytest
 
-from pymetta.moses.eda.initialization import (
+from pymoses.moses.eda.initialization import (
     occam_randomize_contin,
     randomize,
     uniform_randomize_bit,
     uniform_randomize_disc,
 )
-from pymetta.moses.representation.field_set import contin_spec, disc_spec, field_set
-from pymetta.moses.representation.instance import instance
-from pymetta.util.rng import randGen
+from pymoses.moses.representation.field_set import contin_spec, disc_spec, field_set
+from pymoses.moses.representation.instance import instance
+from pymoses.util.rng import randGen
 
 _FIXTURE_PATH = Path(__file__).resolve().parents[2] / "fixtures" / "eda_initialization.json"
 _GOLDEN = json.loads(_FIXTURE_PATH.read_text())
@@ -253,7 +253,7 @@ def test_occam_randomize_term_has_no_equivalent_and_is_not_exported():
     guards against a future re-import silently reappearing without the
     same review this port gave it.
     """
-    import pymetta.moses.eda.initialization as mod
+    import pymoses.moses.eda.initialization as mod
 
     assert not hasattr(mod, "occam_randomize_term")
     assert "occam_randomize_term" not in mod.__all__

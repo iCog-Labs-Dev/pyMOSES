@@ -55,7 +55,7 @@ offer. The private `_postorder_step` in `tree.py` makes this cheap to add.
 (including Holman p.19 and Moshe Looks examples), a truth-table equivalence
 harness (`Tests/TestHelpers.py`), and seven ENF axiom checkers
 (`Tests/EnfRuleCheckers.py`) — 89 tests that pass today. Its tree type is
-unusable here, but the assets rewrite cleanly against `pymetta`'s.
+unusable here, but the assets rewrite cleanly against `pymoses`'s.
 
 `test_reduct` (`$CLASSIC/tests/comboreduct/reduct/test_reduct.cc`) is already
 built and is the oracle for S7.
@@ -466,7 +466,7 @@ faithfully reproduce a segfault. Each has a reproducer recorded.
   `tools/check_fixture_manifests.py` runs in `ci.sh`, in pure Python with no
   compiler, and **a new fixture without a manifest turns CI red** — deliberate
   enforcement. Capture scripts are now path-independent
-  (`PYMETTA_CLASSIC_DIR` / `PYMETTA_COGUTIL_DIR` / `PYMETTA_MOSES_PREFIX`), so
+  (`PYMOSES_CLASSIC_DIR` / `PYMOSES_COGUTIL_DIR` / `PYMOSES_MOSES_PREFIX`), so
   a fixture can actually be regenerated; `tree.json` finally has one and
   rebuilds byte-identically.
   Rot detection was proven in **both** directions, not merely the passing one:
@@ -703,7 +703,7 @@ compare, and it is upstream of every optimizer decision.
 
 Fixed 2026-09-08; full trajectory diff, the ruled-out list and the mutation
 table are in
-`.superpowers/sdd/2026-09-08-pymetta-s13-cli/parity-divergence-report.md`.
+`.superpowers/sdd/2026-09-08-pymoses-s13-cli/parity-divergence-report.md`.
 
 **Concurrency hazard, seen live on this branch (2026-09-08).** This fix is
 commit `1ddb097` -- but it first landed, twice, inside a concurrent agent's

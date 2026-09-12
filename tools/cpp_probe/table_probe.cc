@@ -1,7 +1,7 @@
 // tools/cpp_probe/table_probe.cc
 //
 // Dumps loadTable()/Table::compressed("") output as JSON, for
-// differential testing against pymetta/comboreduct/table/{table,
+// differential testing against pymoses/comboreduct/table/{table,
 // table_io}.py.
 //
 // Build (see task-5-brief.md / CLAUDE.md's verified probe recipe --

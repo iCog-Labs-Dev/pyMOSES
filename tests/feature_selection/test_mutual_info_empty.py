@@ -2,7 +2,7 @@
 
 ## Oracle: tools/cpp_probe/mi_empty_probe.cc -> tests/fixtures/mi_empty.json
 
-`pymetta.feature_selection.scorers.mutual_info` used to short-circuit all
+`pymoses.feature_selection.scorers.mutual_info` used to short-circuit all
 three of its counter-based functions with `if total == 0.0: return NaN`,
 under a comment claiming C++ "divides by `total` unconditionally". It does
 not. C++ sizes every probability vector from its counter
@@ -44,10 +44,10 @@ from pathlib import Path
 
 import pytest
 
-from pymetta.comboreduct.table.table import CTable
-from pymetta.comboreduct.table.table_io import loadTable
-from pymetta.feature_selection.ctable_subsample import ctable_remove_rows
-from pymetta.feature_selection.scorers.mutual_info import (
+from pymoses.comboreduct.table.table import CTable
+from pymoses.comboreduct.table.table_io import loadTable
+from pymoses.feature_selection.ctable_subsample import ctable_remove_rows
+from pymoses.feature_selection.scorers.mutual_info import (
     _ot_entropy,
     mutual_information,
     mutual_information_between_sets,

@@ -1,4 +1,4 @@
-"""Unit tests for pymetta.moses.eda.termination.
+"""Unit tests for pymoses.moses.eda.termination.
 
 No C++ probe: `terminate_if_gte_or_no_improv` is exercised end-to-end by
 `test_univariate.py`'s own oracle-shaped tests, but its edge behaviour
@@ -6,10 +6,10 @@ No C++ probe: `terminate_if_gte_or_no_improv` is exercised end-to-end by
 easiest to pin directly against hand-built `scored_instance` populations.
 """
 
-from pymetta.moses.eda.termination import terminate_if_gte, terminate_if_gte_or_no_improv
-from pymetta.moses.moses.types import composite_score
-from pymetta.moses.representation.instance import instance
-from pymetta.moses.representation.scored_instance import scored_instance
+from pymoses.moses.eda.termination import terminate_if_gte, terminate_if_gte_or_no_improv
+from pymoses.moses.moses.types import composite_score
+from pymoses.moses.representation.instance import instance
+from pymoses.moses.representation.scored_instance import scored_instance
 
 
 def _si(score: float) -> scored_instance:

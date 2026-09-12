@@ -3,7 +3,7 @@
 // Oracle for what `mutualInformation` / `mutualInformationBtwSets`
 // (moses/comboreduct/table/table.h:1132 / :1311) and `OTEntropy`
 // (table.cc:916) return when the table they are given has NOTHING TO
-// DIVIDE BY -- the case `pymetta/feature_selection/scorers/mutual_info.py`
+// DIVIDE BY -- the case `pymoses/feature_selection/scorers/mutual_info.py`
 // used to short-circuit with `if total == 0.0: return NaN`.
 //
 // That short-circuit was a guess, and it was wrong in the direction that

@@ -1,4 +1,4 @@
-"""S14 Task 4 differential oracle: pymetta's contin_rules.py/branch_rules.py
+"""S14 Task 4 differential oracle: pymoses's contin_rules.py/branch_rules.py
 rule classes against `tests/fixtures/contin_branch_rules.json` (62 cases,
 captured from the real compiled `libcomboreduct.so` via
 `tools/cpp_probe/contin_rule_probe.cc` -- see `tools/
@@ -25,9 +25,9 @@ from pathlib import Path
 
 import pytest
 
-from pymetta.comboreduct.combo.iostream_combo import combo_tree_to_str, str_to_combo_tree
-from pymetta.comboreduct.reduct import branch_rules, contin_rules
-from pymetta.comboreduct.reduct.meta_rules import downwards
+from pymoses.comboreduct.combo.iostream_combo import combo_tree_to_str, str_to_combo_tree
+from pymoses.comboreduct.reduct import branch_rules, contin_rules
+from pymoses.comboreduct.reduct.meta_rules import downwards
 
 _FIXTURES_DIR = Path(__file__).resolve().parent.parent.parent / "fixtures"
 FIXTURE_PATH = _FIXTURES_DIR / "contin_branch_rules.json"

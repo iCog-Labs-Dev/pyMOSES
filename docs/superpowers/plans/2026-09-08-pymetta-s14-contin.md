@@ -1,4 +1,4 @@
-# pyMeTTa S14: continuous and mixed domains
+# pyMoses S14: continuous and mixed domains
 
 **Date:** 2026-09-08
 **Status:** Proposed
@@ -28,7 +28,7 @@ machinery.
 
 ## A hard prerequisite, verified still open
 
-`pymetta/comboreduct/reduct/logical_rules.py:1288` calls
+`pymoses/comboreduct/reduct/logical_rules.py:1288` calls
 `tr.equal_subtree(sib1, sib2)` **bare**, while `equal_subtree_vertex_safe`
 exists and is used in `meta_rules.py` and `assumption.py`.
 

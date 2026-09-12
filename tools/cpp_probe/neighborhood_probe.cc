@@ -1,6 +1,6 @@
 // tools/cpp_probe/neighborhood_probe.cc
 //
-// Oracle for pyMeTTa S9 Task 1 (moses/moses/moses/neighborhood_sampling.{h,cc}).
+// Oracle for pyMoses S9 Task 1 (moses/moses/moses/neighborhood_sampling.{h,cc}).
 // Dumps, as JSON:
 //   - "deterministic": count_neighborhood_size (both overloads) and
 //     generate_all_in_neighborhood (both overloads) over small disc-only
@@ -21,7 +21,7 @@
 // process-wide opencog::randGen() singleton directly (no RNG parameter in
 // either signature) -- so determinism here comes from reseeding that
 // singleton with randGen().seed(seed) immediately before each case, exactly
-// mirroring what a Python oracle test does to pymetta.util.rng.randGen().
+// mirroring what a Python oracle test does to pymoses.util.rng.randGen().
 //
 // Build (see tools/capture_neighborhood.py, which runs exactly this):
 //

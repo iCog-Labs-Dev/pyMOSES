@@ -1,4 +1,4 @@
-"""Guard tests for pymetta.feature_selection.scorers.moses_optim
+"""Guard tests for pymoses.feature_selection.scorers.moses_optim
 (get_feature_set, deme_based_scorer).
 
 No dedicated C++ oracle: both functions are pure, small bridging code
@@ -13,10 +13,10 @@ rest of the "hc" algorithm.
 
 import pytest
 
-from pymetta.feature_selection.scorers.moses_optim import deme_based_scorer, get_feature_set
-from pymetta.moses.moses.types import composite_score
-from pymetta.moses.representation.field_set import contin_spec, field_set
-from pymetta.moses.representation.instance import instance
+from pymoses.feature_selection.scorers.moses_optim import deme_based_scorer, get_feature_set
+from pymoses.moses.moses.types import composite_score
+from pymoses.moses.representation.field_set import contin_spec, field_set
+from pymoses.moses.representation.instance import instance
 
 
 @pytest.fixture()

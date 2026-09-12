@@ -9,8 +9,8 @@ this session's standing OOM caution -- both datasets involved
 (trainingBooleanXor.dat, trainingBoolean.dat) and every exemplar are small
 by construction (arity 2-3), so deme sizes stay in the tens.
 
-`CLASSIC`/`PREFIX` are resolved via `PYMETTA_CLASSIC_DIR`/
-`PYMETTA_MOSES_PREFIX` (tools/_capture_env.py) -- REQUIRED, with a clear
+`CLASSIC`/`PREFIX` are resolved via `PYMOSES_CLASSIC_DIR`/
+`PYMOSES_MOSES_PREFIX` (tools/_capture_env.py) -- REQUIRED, with a clear
 error if unset -- and the written fixture carries a top-level `_manifest`
 (schema from tools/_manifest.py: probe source path + its sha256, this
 script's own path + sha256, the commit this repo was at, a UTC timestamp,

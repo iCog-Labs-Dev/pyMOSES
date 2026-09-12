@@ -34,7 +34,7 @@ def test_accepts_symbol_within_drift_tolerance(tmp_path, classic_root):
     assert validate(parse_breadcrumbs(f), [classic_root]) == []
 
 def test_validates_cogutil_rooted_breadcrumb(tmp_path, classic_root, cogutil_root):
-    # Regression: pymetta/util/rng.py ports CogUtil (opencog/util/...), not Moses.
+    # Regression: pymoses/util/rng.py ports CogUtil (opencog/util/...), not Moses.
     # A single classic_root can never see this file; this is the exact gap that let
     # 11 accurate breadcrumbs in rng.py go unverified.
     f = tmp_path / "m.py"
@@ -241,11 +241,11 @@ def test_the_repo_has_no_unparsed_divergence_markers():
     # from docs/ALIGNMENT.md. (tools/check_alignment.py enforces the same
     # thing in ci.sh; this states it as a test so the reason is discoverable
     # from the test suite too.)
-    from tools.check_alignment import PYMETTA_ROOT, unparsed_divergence_markers
+    from tools.check_alignment import PYMOSES_ROOT, unparsed_divergence_markers
 
     offenders = {
         str(py_file): lines
-        for py_file in sorted(PYMETTA_ROOT.rglob("*.py"))
+        for py_file in sorted(PYMOSES_ROOT.rglob("*.py"))
         if (lines := unparsed_divergence_markers(py_file))
     }
     assert offenders == {}

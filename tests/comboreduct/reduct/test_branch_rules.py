@@ -1,4 +1,4 @@
-"""Tests for pymetta.comboreduct.reduct.branch_rules (S14 Task 4).
+"""Tests for pymoses.comboreduct.reduct.branch_rules (S14 Task 4).
 
 `reduce_cond_arg`/`reduce_cond_else`/`reduce_cond_adjacent`/
 `reduce_cond_const` operate on `cond`, and (for the two shared with
@@ -13,8 +13,8 @@ from __future__ import annotations
 
 import copy
 
-from pymetta.comboreduct.combo.iostream_combo import combo_tree_to_str, str_to_combo_tree
-from pymetta.comboreduct.reduct.branch_rules import (
+from pymoses.comboreduct.combo.iostream_combo import combo_tree_to_str, str_to_combo_tree
+from pymoses.comboreduct.reduct.branch_rules import (
     _zap_one,
     reduce_cond_adjacent,
     reduce_cond_arg,

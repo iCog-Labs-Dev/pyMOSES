@@ -1,4 +1,4 @@
-# pyMeTTa S11: `local_moses` — first end-to-end run
+# pyMoses S11: `local_moses` — first end-to-end run
 
 **Date:** 2026-09-08
 **Status:** Proposed

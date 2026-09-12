@@ -1,4 +1,4 @@
-"""Guard tests for pymetta.moses.main.problem (S13 Task 0).
+"""Guard tests for pymoses.moses.main.problem (S13 Task 0).
 
 No C++ oracle/fixture is built for this module: `register_problem`'s
 duplicate-key behaviour is `std::map::insert`'s textbook, unambiguous
@@ -18,7 +18,7 @@ from __future__ import annotations
 
 import pytest
 
-from pymetta.moses.main.problem import (
+from pymoses.moses.main.problem import (
     _register_unported_table_problems,
     _unported_table_problem,
     _unported_table_problems,

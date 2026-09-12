@@ -1,7 +1,7 @@
 // tools/cpp_probe/logical_rules_probe.cc
 //
 // Measures the REAL output of opencog::reduct's logical_rules.{h,cc} rules
-// -- above all subtree_to_enf::reduce_to_enf -- for pymetta's
+// -- above all subtree_to_enf::reduce_to_enf -- for pymoses's
 // comboreduct/reduct/logical_rules.py port (task-4). Ground truth, not
 // inference.
 //

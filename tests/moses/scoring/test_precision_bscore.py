@@ -22,15 +22,15 @@ from pathlib import Path
 
 import pytest
 
-from pymetta.comboreduct.combo.iostream_combo import str_to_combo_tree
-from pymetta.comboreduct.table.table_io import loadTable
-from pymetta.moses.moses.types import (
+from pymoses.comboreduct.combo.iostream_combo import str_to_combo_tree
+from pymoses.comboreduct.table.table_io import loadTable
+from pymoses.moses.moses.types import (
     _to_score_t,
     scored_combo_tree,
     scored_combo_tree_set,
 )
-from pymetta.moses.scoring.precision_bscore import precision_bscore, precision_conj_bscore
-from pymetta.moses.scoring.time_dispersion import TemporalGranularity
+from pymoses.moses.scoring.precision_bscore import precision_bscore, precision_conj_bscore
+from pymoses.moses.scoring.time_dispersion import TemporalGranularity
 
 _FIXTURE_DIR = Path(__file__).resolve().parents[2] / "fixtures"
 _CASES = json.loads((_FIXTURE_DIR / "scorers.json").read_text())["precision"]
@@ -227,7 +227,7 @@ def test_time_bscore_components_are_in_ascending_date_order_not_encounter_order(
 
     The encounter list is `(3/9, 1/5, 2/7)` rather than the exact reverse
     `(3/9, 2/7, 1/5)` it read before `CTable` was given `std::map` key order
-    (`ctable_row_key`, pymetta/comboreduct/table/table.py): the row walk
+    (`ctable_row_key`, pymoses/comboreduct/table/table.py): the row walk
     itself changed, the property this test needs -- encounter order is NOT
     date order -- did not. Both halves are asserted, so a corpus or an
     ordering change that made them coincide fails loudly here.
@@ -738,8 +738,8 @@ def test_bias_selection_narrows_the_ensemble_weight_to_float32(weighted_ctable):
 def test_rejects_non_boolean_ctable():
     from collections import Counter
 
-    from pymetta.comboreduct.table.table import CTable, type_node
-    from pymetta.comboreduct.type_checker.type_signature import TypeSignature
+    from pymoses.comboreduct.table.table import CTable, type_node
+    from pymoses.comboreduct.type_checker.type_signature import TypeSignature
 
     ct = CTable("y", ["x1"])
     ct[(1.0,)] = Counter({1.0: 1.0})

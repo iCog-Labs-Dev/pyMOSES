@@ -1,6 +1,6 @@
 // tools/cpp_probe/metapop_core_probe.cc
 //
-// Oracle probe for pyMeTTa S10 Task 2 (metapopulation core: init,
+// Oracle probe for pyMoses S10 Task 2 (metapopulation core: init,
 // best_candidates, best_tree, best_composite_score, get_trees, size,
 // update_best_candidates).
 //

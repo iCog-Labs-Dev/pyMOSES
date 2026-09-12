@@ -1,7 +1,7 @@
 // tools/cpp_probe/assumption_probe.cc
 //
 // Measures insert_assumption's REAL behaviour (not its header comment)
-// for review of pymetta/comboreduct/combo/assumption.py.
+// for review of pymoses/comboreduct/combo/assumption.py.
 //
 // Build:
 //   P=$HOME/opt/moses-legacy

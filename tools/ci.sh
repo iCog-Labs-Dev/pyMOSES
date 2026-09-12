@@ -17,7 +17,7 @@ if [ ! -x "$VENV/bin/ruff" ] || [ ! -x "$VENV/bin/pytest" ]; then
 fi
 
 PY="$VENV/bin/python3"
-"$PY" -m ruff check pymetta tools tests
+"$PY" -m ruff check pymoses tools tests
 "$PY" -m pytest
 "$PY" tools/check_alignment.py
 "$PY" tools/coverage_totals.py --check

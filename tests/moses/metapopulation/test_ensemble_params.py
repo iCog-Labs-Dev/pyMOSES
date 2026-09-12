@@ -1,11 +1,11 @@
-"""Unit tests for pymetta.moses.metapopulation.ensemble_params.
+"""Unit tests for pymoses.moses.metapopulation.ensemble_params.
 
 No C++ probe backs this module -- it is a plain six-field parameter
 struct. Every field's default is asserted individually so a change to any
 one of them fails a test, per the task's testing bar.
 """
 
-from pymetta.moses.metapopulation.ensemble_params import ensemble_parameters
+from pymoses.moses.metapopulation.ensemble_params import ensemble_parameters
 
 
 def test_ensemble_parameters_defaults_match_cpp_constructor():

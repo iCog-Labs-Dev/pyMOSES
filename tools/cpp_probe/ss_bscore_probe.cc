@@ -1,7 +1,7 @@
 // tools/cpp_probe/ss_bscore_probe.cc
 //
-// Oracle for pyMeTTa's port of moses/moses/scoring/ss_bscore.{h,cc}
-// (pymetta/moses/scoring/ss_bscore.py). ss_bscore's own class cannot be
+// Oracle for pyMoses's port of moses/moses/scoring/ss_bscore.{h,cc}
+// (pymoses/moses/scoring/ss_bscore.py). ss_bscore's own class cannot be
 // exercised end to end in this port (its constructor needs
 // CTable::get_timestamps(), which does not exist -- see ss_bscore.py's own
 // module docstring), so this probe targets the THREE self-contained,

@@ -1,6 +1,6 @@
 {
   "capture_script": "tools/capture_moses_log.py",
-  "capture_script_sha256": "5e361661ba974c4ca60f04bcb8c0fd86b98694f2782b84bb13cae24e38a117bd",
+  "capture_script_sha256": "581030bb75b6d4a696a510ef243af68de5fdde70f851397e6c7a7934976ac07b",
   "classic_dir": "/home/yab/Documents/Projects/iCog/HyperonRelated/MOSES/OpenCog/Moses",
   "cli_tool": "build/moses/moses/main/moses",
   "generated_at_utc": "2026-09-09T20:41:05+00:00",
@@ -22,7 +22,7 @@
         "-w1.0"
       ]
     },
-    "cwd": "$PYMETTA_CLASSIC_DIR",
+    "cwd": "$PYMOSES_CLASSIC_DIR",
     "description": "classic's own -l DEBUG log for each configuration, reduced to normalised LEVEL<TAB>MESSAGE records by tools/normalize_log.py (timestamp dropped; hostname, paths, log file name, argv[0], the two DemesHill microsecond columns, its RAM column and Stats' elapsed-seconds column replaced by placeholders)"
   },
   "prefix_dir": null,

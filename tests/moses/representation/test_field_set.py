@@ -5,13 +5,13 @@ import struct
 
 import pytest
 
-from pymetta.moses.representation.field_set import (
+from pymoses.moses.representation.field_set import (
     contin_spec,
     disc_spec,
     field_set,
     nbits_to_pack,
 )
-from pymetta.moses.representation.instance import instance
+from pymoses.moses.representation.instance import instance
 
 
 def _layout(fs: field_set) -> dict[str, object]:

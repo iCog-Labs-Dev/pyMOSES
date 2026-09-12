@@ -1,7 +1,7 @@
 // tools/cpp_probe/fs_standalone_probe.cc
 //
 // Oracle for the P2 feature-selection STANDALONE port: the four
-// algorithms `pymetta.feature_selection.main.feature_selection.
+// algorithms `pymoses.feature_selection.main.feature_selection.
 // select_feature_sets` newly dispatches to beyond "simple" (already
 // covered by feature_selector_probe.cc/feature_selection.json) --
 // "random" (algo/random.{h,cc}), "smd" (algo/stochastic_max_dependency.
@@ -16,7 +16,7 @@
 //               pass over a plain {0,...,n-1} vector, isolated from any
 //               scorer, for a few (seed, n) pairs -- an element-for-
 //               element draw-order oracle for
-//               pymetta.feature_selection.algo.stochastic_max_dependency.
+//               pymoses.feature_selection.algo.stochastic_max_dependency.
 //               _random_shuffle, independent of the "smd" group below
 //               (which only checks the shuffle's downstream EFFECT on
 //               selected feature sets, not its own output sequence).
@@ -45,7 +45,7 @@
 //               moses/moses/scoring/precision_bscore.h), reachable
 //               because "smd" (unlike "hc") never touches hill_climbing/
 //               get_rep() at all. Ground truth for
-//               pymetta.feature_selection.scorers.moses_matrix.
+//               pymoses.feature_selection.scorers.moses_matrix.
 //               CRITICAL: `feature_selection_parameters`'s own
 //               `pre_penalty`/`pre_min_activation`/`pre_max_activation`/
 //               `pre_positive` fields are OMITTED from its struct ctor's
@@ -94,7 +94,7 @@
 //               representation::get_candidate() [this=0x0]`. There is
 //               therefore no live classic output to compare the ported
 //               "hc" algorithm against -- see
-//               pymetta.feature_selection.algo.deme_optimize's own
+//               pymoses.feature_selection.algo.deme_optimize's own
 //               module docstring for how the Python port's "hc" runs
 //               to completion anyway (an already-established, PRE-
 //               EXISTING project-wide convention of dropping every
@@ -224,7 +224,7 @@ static void dump_smd_pre(const char *name, const CTable &ctable, unsigned seed,
     // via the "smd" algorithm (which never touches hill_climbing/
     // get_rep(), unlike "hc" -- see this file's header comment for why
     // "hc" itself cannot be captured at all). Ground truth for
-    // pymetta.feature_selection.scorers.moses_matrix.pre_scorer.
+    // pymoses.feature_selection.scorers.moses_matrix.pre_scorer.
     printf("\"%s\":{", name);
     bool first_ts = true;
     for (unsigned ts : target_sizes) {

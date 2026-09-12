@@ -175,7 +175,7 @@ def _build_manifest() -> dict:
 
 
 def capture_fixture() -> None:
-    with tempfile.TemporaryDirectory(prefix="pymetta-crossover-") as logdir:
+    with tempfile.TemporaryDirectory(prefix="pymoses-crossover-") as logdir:
         try:
             result = subprocess.run(
                 [str(PROBE_BIN), logdir],

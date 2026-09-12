@@ -11,14 +11,14 @@ These are deliberately kept separate from `test_hill_climbing.py` (owned by
 another agent in this fix round) rather than added there.
 """
 
-import pymetta.moses.moses.optimization.hill_climbing as hill_climbing_mod
-from pymetta.moses.moses.optimization.hill_climbing import hc_parameters, hill_climbing
-from pymetta.moses.moses.optimization.optimization import optim_parameters
-from pymetta.moses.representation.field_set import disc_spec, field_set
-from pymetta.moses.representation.instance import instance
-from pymetta.moses.representation.instance_scorer import distance_based_scorer
-from pymetta.moses.representation.instance_set import instance_set
-from pymetta.util.rng import randGen
+import pymoses.moses.moses.optimization.hill_climbing as hill_climbing_mod
+from pymoses.moses.moses.optimization.hill_climbing import hc_parameters, hill_climbing
+from pymoses.moses.moses.optimization.optimization import optim_parameters
+from pymoses.moses.representation.field_set import disc_spec, field_set
+from pymoses.moses.representation.instance import instance
+from pymoses.moses.representation.instance_scorer import distance_based_scorer
+from pymoses.moses.representation.instance_set import instance_set
+from pymoses.util.rng import randGen
 
 
 def _hc() -> hill_climbing:

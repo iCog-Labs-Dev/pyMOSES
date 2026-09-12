@@ -1,4 +1,4 @@
-"""Unit tests for pymetta.moses.eda.optimize.optimize.
+"""Unit tests for pymoses.moses.eda.optimize.optimize.
 
 Exercised end-to-end (all seven real policies) by `test_univariate.py`;
 this file isolates `optimize()`'s own contract -- the return-value formula,
@@ -8,12 +8,12 @@ full univariate/local_structure stack, so a failure here points at
 `optimize()` itself rather than at `local_structure`.
 """
 
-from pymetta.moses.eda.optimize import optimize
-from pymetta.moses.moses.types import composite_score
-from pymetta.moses.representation.field_set import disc_spec, field_set
-from pymetta.moses.representation.instance import instance
-from pymetta.moses.representation.instance_set import instance_set
-from pymetta.moses.representation.scored_instance import scored_instance
+from pymoses.moses.eda.optimize import optimize
+from pymoses.moses.moses.types import composite_score
+from pymoses.moses.representation.field_set import disc_spec, field_set
+from pymoses.moses.representation.instance import instance
+from pymoses.moses.representation.instance_set import instance_set
+from pymoses.moses.representation.scored_instance import scored_instance
 
 
 class _CountingScorer:

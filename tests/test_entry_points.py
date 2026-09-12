@@ -1,6 +1,6 @@
 """The port's installed command names and `python -m` entry points.
 
-`pymetta` had no `[project.scripts]` and no `__main__.py`, so the only way
+`pymoses` had no `[project.scripts]` and no `__main__.py`, so the only way
 to run it was to hand-write a wrapper that called `moses_exec(sys.argv)`.
 These pin the three entry points that replaced that.
 
@@ -28,9 +28,9 @@ _REPO = Path(__file__).resolve().parents[1]
 _DATASET = _REPO / "tests" / "fixtures" / "table_data" / "contin_regression_sample.csv"
 
 _EXPECTED_SCRIPTS = {
-    "moses": "pymetta.moses.main.moses_exec:_console_main",
-    "feature-selection": "pymetta.feature_selection.main.fs_main:_console_main",
-    "eval-features": "pymetta.feature_selection.main.eval_features:_console_main",
+    "moses": "pymoses.moses.main.moses_exec:_console_main",
+    "feature-selection": "pymoses.feature_selection.main.fs_main:_console_main",
+    "eval-features": "pymoses.feature_selection.main.eval_features:_console_main",
 }
 
 
@@ -50,7 +50,7 @@ def test_every_declared_console_entry_point_is_importable(target):
 
 
 def test_python_m_runs_moses_end_to_end():
-    """`python -m pymetta.moses.main` on a contin table -- the same
+    """`python -m pymoses.moses.main` on a contin table -- the same
     invocation shape a user would type, through the real module entry
     rather than an in-process call.
     """
@@ -60,7 +60,7 @@ def test_python_m_runs_moses_end_to_end():
             "-W",
             "ignore",
             "-m",
-            "pymetta.moses.main",
+            "pymoses.moses.main",
             f"-i{_DATASET}",
             "-u",
             "y",
@@ -83,7 +83,7 @@ def test_console_main_passes_argv0_through(monkeypatch):
     mode is silent: drop `argv[0]` and every option binds one position
     early, which looks like a parsing bug anywhere but here.
     """
-    import pymetta.moses.main.moses_exec as me
+    import pymoses.moses.main.moses_exec as me
 
     seen = []
     monkeypatch.setattr(me, "moses_exec", lambda argv: seen.append(list(argv)) or 0)

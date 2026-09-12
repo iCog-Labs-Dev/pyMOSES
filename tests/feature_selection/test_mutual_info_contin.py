@@ -1,5 +1,5 @@
 """Oracle tests for the CONTINUOUS branches of
-pymetta.feature_selection.scorers.mutual_info.
+pymoses.feature_selection.scorers.mutual_info.
 
 ## Oracle: tools/cpp_probe/mi_contin_probe.cc -> tests/fixtures/mi_contin.json
 
@@ -46,11 +46,11 @@ from pathlib import Path
 
 import pytest
 
-from pymetta.comboreduct.combo.vertex import builtin
-from pymetta.comboreduct.table.table import CTable
-from pymetta.comboreduct.table.table_io import loadTable
-from pymetta.comboreduct.type_checker.type_signature import TypeSignature, type_node
-from pymetta.feature_selection.scorers.mutual_info import (
+from pymoses.comboreduct.combo.vertex import builtin
+from pymoses.comboreduct.table.table import CTable
+from pymoses.comboreduct.table.table_io import loadTable
+from pymoses.comboreduct.type_checker.type_signature import TypeSignature, type_node
+from pymoses.feature_selection.scorers.mutual_info import (
     TARGET_DISCRETIZED_BINS_NUM,
     discretize_contin_feature,
     get_discrete_bin,

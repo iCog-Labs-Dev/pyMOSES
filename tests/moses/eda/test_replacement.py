@@ -1,4 +1,4 @@
-"""Oracle and guard tests for pymetta.moses.eda.replacement.
+"""Oracle and guard tests for pymoses.moses.eda.replacement.
 
 `replace_the_worst`'s only real call site in this port's scope is
 `univariate_optimization` (`test_univariate.py`'s own tests), and its
@@ -19,10 +19,10 @@ from pathlib import Path
 
 import pytest
 
-from pymetta.moses.eda.replacement import _nth_element, replace_the_worst
-from pymetta.moses.moses.types import composite_score
-from pymetta.moses.representation.instance import instance
-from pymetta.moses.representation.scored_instance import scored_instance
+from pymoses.moses.eda.replacement import _nth_element, replace_the_worst
+from pymoses.moses.moses.types import composite_score
+from pymoses.moses.representation.instance import instance
+from pymoses.moses.representation.scored_instance import scored_instance
 
 _FIXTURE_PATH = Path(__file__).resolve().parents[2] / "fixtures" / "nth_element.json"
 _GOLDEN = json.loads(_FIXTURE_PATH.read_text())

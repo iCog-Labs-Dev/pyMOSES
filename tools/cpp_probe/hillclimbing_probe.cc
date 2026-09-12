@@ -1,6 +1,6 @@
 // tools/cpp_probe/hillclimbing_probe.cc
 //
-// Oracle for pyMeTTa S9 Task 2 (moses/moses/optimization/{hill-climbing,
+// Oracle for pyMoses S9 Task 2 (moses/moses/optimization/{hill-climbing,
 // optimization}.{h,cc} and moses/moses/moses/neighborhood_sampling.cc's
 // sample_new_instances, both overloads).
 //

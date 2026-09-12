@@ -1,6 +1,6 @@
 {
   "capture_script": "tools/capture_similarity.py",
-  "capture_script_sha256": "073b1f91b19bdfb6a5b7c3b67ab1621fdd1d8b40817a6b4f0a183492811a9bfb",
+  "capture_script_sha256": "4d121dfe17c102eb8d67b9fd0cde0a9870a1af732b1e8f8ca9dd7106db1f293e",
   "classic_dir": "/home/yab/Documents/Projects/iCog/HyperonRelated/MOSES/OpenCog/Moses",
   "cli_tool": null,
   "generated_at_utc": "2026-09-09T09:57:26+00:00",
@@ -10,7 +10,7 @@
   "prefix_dir": "/home/yab/opt/moses-legacy",
   "probe_kind": "cpp_probe",
   "probe_source": "tools/cpp_probe/similarity_probe.cc",
-  "probe_source_sha256": "ff4142aac24d6b141ec12acccb2190b9496aadb752c7fbea5d1b4b013b8be4e8",
+  "probe_source_sha256": "0f94dbe30e1685db6d93b5ff3b81a218e1de7d6430b4dabf6faac7bdb04e35d4",
   "repo_commit": "7a980031e1886d80d714197f798986e545ef96dc",
   "schema_version": 1
 }

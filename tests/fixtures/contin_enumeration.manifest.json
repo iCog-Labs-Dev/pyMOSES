@@ -10,7 +10,7 @@
   "prefix_dir": "/home/yab/opt/moses-legacy",
   "probe_kind": "cpp_probe",
   "probe_source": "tools/cpp_probe/contin_enumeration_probe.cc",
-  "probe_source_sha256": "2eb7717bdff1026fb173ce0ca73a81d7c97fcd3456979cc4a8cebafd8702fba9",
+  "probe_source_sha256": "86bfd952b6f88424ff43d59f598391a6ea05acba2ce2dbb9e76ffe77944827e8",
   "repo_commit": "74fff6ca4e13d0cf8af8db5dab8859d38ba5751a",
   "schema_version": 2,
   "toolchain": {

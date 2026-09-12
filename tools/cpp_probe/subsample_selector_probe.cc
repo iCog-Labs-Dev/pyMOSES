@@ -15,7 +15,7 @@
 //       }
 //   }
 //
-// `pymetta/util/lazy_random_selector.py`'s own Floyd's-algorithm
+// `pymoses/util/lazy_random_selector.py`'s own Floyd's-algorithm
 // bookkeeping is already covered by hand-traced fixed-candidate tests
 // (tests/util/test_lazy_random_selector.py), and `MT19937RandGen.randint_n`
 // is already covered by rng_probe.cc/rng.json (12000 draws / 6 seeds,

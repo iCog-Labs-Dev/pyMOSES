@@ -60,7 +60,7 @@ from contextlib import redirect_stdout
 
 import pytest
 
-from pymetta.moses.main.moses_exec import moses_exec
+from pymoses.moses.main.moses_exec import moses_exec
 
 # Cases where classic's score IS reproducible -- see the module docstring
 # on why the others are not. Measured: of 18 boosting runs (6 problem

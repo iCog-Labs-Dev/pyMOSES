@@ -1,4 +1,4 @@
-"""Tests for pymetta/comboreduct/reduct/flat_normal_form.py -- the flat
+"""Tests for pymoses/comboreduct/reduct/flat_normal_form.py -- the flat
 clause-set representation (`clause`, `nf`), its free functions
 (`tautology`, `subset_eq`, `subset`, `number_of_literals`, `implications`,
 `pairwise_erase_if`), and `nf_mapper` (converts between combo's tree-shaped
@@ -17,9 +17,9 @@ non-obvious cases (`add_item`'s sign-folding, the `extract_cnf`/
 `extract_dnf` asymmetry over an empty clause).
 """
 
-from pymetta.comboreduct.combo.iostream_combo import combo_tree_to_str, str_to_combo_tree
-from pymetta.comboreduct.combo.vertex import builtin, combo_tree
-from pymetta.comboreduct.reduct.flat_normal_form import (
+from pymoses.comboreduct.combo.iostream_combo import combo_tree_to_str, str_to_combo_tree
+from pymoses.comboreduct.combo.vertex import builtin, combo_tree
+from pymoses.comboreduct.reduct.flat_normal_form import (
     clause,
     implications,
     nf_mapper,

@@ -1,6 +1,6 @@
 // tools/cpp_probe/local_moses_probe.cc
 //
-// Oracle for pyMeTTa S11 Task 1 (moses/moses/moses/local_moses.{h,cc}:
+// Oracle for pyMoses S11 Task 1 (moses/moses/moses/local_moses.{h,cc}:
 // expand_deme + local_moses). Drives the REAL exported
 // opencog::moses::local_moses() function directly -- not a
 // reimplementation of its loop -- over a real Table/CTable/

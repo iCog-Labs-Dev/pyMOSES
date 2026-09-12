@@ -36,7 +36,7 @@ using namespace std;
 
 // Prints ONLY the main conclusion (tr's own root subtree), never the
 // assumption siblings real C++ attaches as extra top-level roots under
-// head/feet -- pymetta's own combo_tree_to_str has nothing analogous to
+// head/feet -- pymoses's own combo_tree_to_str has nothing analogous to
 // print (assumption.py's own module docstring: "no forests -> plain
 // list", assumptions kept in a side list, never printed as tree
 // content), so a fair byte-identical comparison needs the SAME

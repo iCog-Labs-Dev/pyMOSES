@@ -1,4 +1,4 @@
-"""Unit tests for pymetta.moses.main.problem_params (S13 Task 1).
+"""Unit tests for pymoses.moses.main.problem_params (S13 Task 1).
 
 No single C++ oracle binary run backs this file the way a fixture/probe
 does elsewhere in this project: fidelity here means "every default
@@ -29,8 +29,8 @@ import importlib
 
 import pytest
 
-from pymetta.moses.main.problem_params import _bool_opt, parse_args, problem_params
-from pymetta.moses.metapopulation.metapop_params import diversity_parameters
+from pymoses.moses.main.problem_params import _bool_opt, parse_args, problem_params
+from pymoses.moses.metapopulation.metapop_params import diversity_parameters
 
 
 def _parse(*argv: str) -> problem_params:
@@ -400,7 +400,7 @@ def test_contin_reduct_is_wired_for_real():
     bool_reduct_rep's two separate efforts -- so this pins that this port
     does the same, not two independently-built rule objects.
     """
-    from pymetta.comboreduct.reduct.reduct import rule
+    from pymoses.comboreduct.reduct.reduct import rule
 
     pp = _parse()
     assert pp.contin_reduct is not None
@@ -524,12 +524,12 @@ def test_contin_depth_reaches_representations_module_static():
     An earlier RNG test in this project leaked exactly this way.
     """
     # `importlib` rather than an `import` statement: the package
-    # `pymetta.moses.representation` re-exports a CLASS also named
+    # `pymoses.moses.representation` re-exports a CLASS also named
     # `representation`, which shadows the submodule for BOTH
     # `from ... import representation` and `import ....representation as x`
     # (the latter rebinds by attribute lookup after loading). Going through
     # `import_module` returns the module out of `sys.modules` by name.
-    rep = importlib.import_module("pymetta.moses.representation.representation")
+    rep = importlib.import_module("pymoses.moses.representation.representation")
 
     before = rep._depth
     try:
@@ -753,14 +753,14 @@ def test_version_flag_exits_zero():
 
 
 def test_ignore_operator_adds_to_the_ignore_set():
-    from pymetta.comboreduct.combo.vertex import builtin
+    from pymoses.comboreduct.combo.vertex import builtin
 
     pp = _parse("--ignore-operator", "div", "--ignore-operator", "sin")
     assert pp.deme_params.ignore_ops == {builtin.div, builtin.sin}
 
 
 def test_include_only_operator_starts_from_full_set_minus_named():
-    from pymetta.comboreduct.combo.vertex import builtin
+    from pymoses.comboreduct.combo.vertex import builtin
 
     pp = _parse("--include-only-operator", "plus")
     expected = {builtin.times, builtin.div, builtin.exp, builtin.log, builtin.sin, builtin.impulse}
@@ -768,7 +768,7 @@ def test_include_only_operator_starts_from_full_set_minus_named():
 
 
 def test_linear_regression_adds_div_exp_log_sin_to_ignore_ops():
-    from pymetta.comboreduct.combo.vertex import builtin
+    from pymoses.comboreduct.combo.vertex import builtin
 
     pp = _parse("--linear-regression", "1")
     assert pp.deme_params.ignore_ops == {builtin.div, builtin.exp, builtin.log, builtin.sin}
@@ -776,7 +776,7 @@ def test_linear_regression_adds_div_exp_log_sin_to_ignore_ops():
 
 
 def test_ignore_operator_and_linear_regression_combine():
-    from pymetta.comboreduct.combo.vertex import builtin
+    from pymoses.comboreduct.combo.vertex import builtin
 
     pp = _parse("--linear-regression", "1", "--ignore-operator", "plus")
     expected = {builtin.div, builtin.exp, builtin.log, builtin.sin, builtin.plus}
@@ -816,7 +816,7 @@ def test_jobs_host_spec_is_not_local_and_raises():
 
 
 def test_score_t_options_are_narrowed_to_binary32():
-    from pymetta.moses.moses.types import _to_score_t
+    from pymoses.moses.moses.types import _to_score_t
 
     raw = 0.1 + 0.2  # a value whose float64 and float32 nearest reps differ
     pp = _parse("--complexity-temperature", repr(raw))
@@ -825,7 +825,7 @@ def test_score_t_options_are_narrowed_to_binary32():
 
 
 def test_ss_float_fields_are_narrowed_to_binary32():
-    from pymetta.moses.moses.types import _to_score_t
+    from pymoses.moses.moses.types import _to_score_t
 
     raw = 0.1 + 0.2
     pp = _parse("--ss-std-dev-threshold", repr(raw))
@@ -955,7 +955,7 @@ def test_enforce_features_weight_is_narrowed_to_binary32():
     `biased_randbool(float b)` ($COGUTIL/opencog/util/random.h:127)."""
     import tempfile
 
-    from pymetta.moses.moses.types import _to_score_t
+    from pymoses.moses.moses.types import _to_score_t
 
     with tempfile.NamedTemporaryFile("w", suffix=".txt", delete=False) as handle:
         handle.write("x1 0.1\n")
@@ -994,10 +994,10 @@ def test_festor_and_fs_params_are_the_real_ported_classes():
     on every dataset. C++ has exactly one type for each
     (`feature_selector_parameters`, `feature_selection_parameters`), so
     the port now uses the ported ones."""
-    from pymetta.feature_selection.main.feature_selection_params import (
+    from pymoses.feature_selection.main.feature_selection_params import (
         feature_selection_parameters,
     )
-    from pymetta.moses.deme.feature_selector import feature_selector_parameters
+    from pymoses.moses.deme.feature_selector import feature_selector_parameters
 
     pp = problem_params()
     assert isinstance(pp.festor_params, feature_selector_parameters)

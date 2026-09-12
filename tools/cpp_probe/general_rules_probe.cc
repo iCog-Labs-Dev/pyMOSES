@@ -2,7 +2,7 @@
 //
 // Measures the REAL output of opencog::reduct's general_rules.cc rules
 // (level, eval_constants, reorder_commutative, remove_null_vertices) for
-// pymetta's comboreduct/reduct/general_rules.py port (task-3). Ground
+// pymoses's comboreduct/reduct/general_rules.py port (task-3). Ground
 // truth, not inference -- particularly for eval_constants's
 // partition+reparent dance, which tree.h's `partition` was separately
 // confirmed (partition_probe.cc) to NOT be a stable partition.

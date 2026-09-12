@@ -1,4 +1,4 @@
-"""Oracle and guard tests for pymetta.moses.deme.feature_selector -- the
+"""Oracle and guard tests for pymoses.moses.deme.feature_selector -- the
 in-loop `--enable-fs` entry point.
 
 ## Oracle: tools/cpp_probe/feature_selector_probe.cc -> tests/fixtures/feature_selection.json
@@ -36,17 +36,17 @@ from pathlib import Path
 
 import pytest
 
-from pymetta.comboreduct.combo.iostream_combo import str_to_combo_tree
-from pymetta.comboreduct.combo.vertex import builtin
-from pymetta.comboreduct.table.table import CTable
-from pymetta.comboreduct.table.table_io import loadTable
-from pymetta.comboreduct.type_checker.type_signature import TypeSignature, type_node
-from pymetta.moses.deme.feature_selector import (
+from pymoses.comboreduct.combo.iostream_combo import str_to_combo_tree
+from pymoses.comboreduct.combo.vertex import builtin
+from pymoses.comboreduct.table.table import CTable
+from pymoses.comboreduct.table.table_io import loadTable
+from pymoses.comboreduct.type_checker.type_signature import TypeSignature, type_node
+from pymoses.moses.deme.feature_selector import (
     feature_selector,
     feature_selector_parameters,
     get_argument_abs_idx_from_zero_set,
 )
-from pymetta.util.rng import randGen
+from pymoses.util.rng import randGen
 
 _FIXTURE_PATH = Path(__file__).resolve().parents[2] / "fixtures" / "feature_selection.json"
 _TABLE_DATA_DIR = Path(__file__).resolve().parents[2] / "fixtures" / "table_data"
@@ -442,7 +442,7 @@ def test_biased_randbool_fixture_contains_a_narrowing_discriminator():
 
 
 def test_timed_counter_mode_quirk_returns_last_entry_exceeding_the_first(boolean_ctable):
-    from pymetta.moses.deme.feature_selector import _timed_counter_mode
+    from pymoses.moses.deme.feature_selector import _timed_counter_mode
 
     # Ascending key order (Counter::mode iterates a std::map, sorted by
     # key): logical_true(1) < logical_false(2). First entry's count is 2.
@@ -471,7 +471,7 @@ def test_timed_counter_mode_quirk_is_not_a_true_argmax():
     keys exercise the algorithm without needing a third real `vertex`
     value the boolean domain cannot supply.
     """
-    from pymetta.moses.deme.feature_selector import _timed_counter_mode
+    from pymoses.moses.deme.feature_selector import _timed_counter_mode
 
     counter = Counter({1: 1.0, 2: 5.0, 3: 3.0})  # keys already ascending
     assert _timed_counter_mode(counter) == 3
@@ -481,13 +481,13 @@ def test_timed_counter_mode_quirk_keeps_first_entry_when_nothing_exceeds_it(bool
     # First entry (logical_true, ascending order) already has the max
     # count -- nothing in the loop ever satisfies `cnt < v.second`.
     counter = Counter({builtin.logical_true: 5.0, builtin.logical_false: 2.0})
-    from pymetta.moses.deme.feature_selector import _timed_counter_mode
+    from pymoses.moses.deme.feature_selector import _timed_counter_mode
 
     assert _timed_counter_mode(counter) == builtin.logical_true
 
 
 def test_timed_counter_mode_single_entry_is_that_entrys_key(boolean_ctable):
-    from pymetta.moses.deme.feature_selector import _timed_counter_mode
+    from pymoses.moses.deme.feature_selector import _timed_counter_mode
 
     counter = Counter({builtin.logical_true: 1.0})
     assert _timed_counter_mode(counter) == builtin.logical_true

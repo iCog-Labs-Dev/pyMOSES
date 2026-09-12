@@ -12,11 +12,11 @@ import math
 
 import pytest
 
-from pymetta.comboreduct.combo.vertex import builtin
-from pymetta.comboreduct.table.table import ITable, OTable, Table, type_node
-from pymetta.moses.moses.types import scored_combo_tree_set
-from pymetta.moses.scoring.bscores import ctruth_table_bscore
-from pymetta.moses.scoring.scoring_base import bscore_base, discrete_complexity_coef
+from pymoses.comboreduct.combo.vertex import builtin
+from pymoses.comboreduct.table.table import ITable, OTable, Table, type_node
+from pymoses.moses.moses.types import scored_combo_tree_set
+from pymoses.moses.scoring.bscores import ctruth_table_bscore
+from pymoses.moses.scoring.scoring_base import bscore_base, discrete_complexity_coef
 
 
 def test_bscore_base_cannot_be_instantiated_directly():
@@ -236,8 +236,8 @@ def test_ignore_rows_at_times_drops_only_the_named_dates():
     """C++: scoring_base.cc:290-305, over `CTable::remove_rows_at_times`
     (table.cc:707).
     """
-    from pymetta.comboreduct.table.table import CTable, TimedCounter
-    from pymetta.comboreduct.type_checker.type_signature import gen_signature
+    from pymoses.comboreduct.table.table import CTable, TimedCounter
+    from pymoses.comboreduct.type_checker.type_signature import gen_signature
 
     T, F = builtin.logical_true, builtin.logical_false
     ct = CTable(olabel="y", ilabels=["x1"], signature=gen_signature(type_node.boolean_type, 1))

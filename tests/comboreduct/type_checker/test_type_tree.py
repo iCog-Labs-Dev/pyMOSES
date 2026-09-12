@@ -1,8 +1,8 @@
 """Oracle tests for the combo type-inference engine.
 
-Every assertion here compares `pymetta.comboreduct.type_checker.type_tree`
+Every assertion here compares `pymoses.comboreduct.type_checker.type_tree`
 (and the `builtins_properties` table in
-`pymetta.comboreduct.combo.descriptions`) against
+`pymoses.comboreduct.combo.descriptions`) against
 `tests/fixtures/type_tree.json`, produced by
 `tools/capture_type_tree.py` from `tools/cpp_probe/type_tree_probe.cc` --
 classic's own `type_tree.cc` and `type_tree_def.cc`, linked out of
@@ -51,17 +51,17 @@ from pathlib import Path
 
 import pytest
 
-from pymetta.comboreduct.combo import vertex as vertex_module
-from pymetta.comboreduct.combo.descriptions import builtins_properties
-from pymetta.comboreduct.combo.iostream_combo import str_to_combo_tree, tree_to_stream_str
-from pymetta.comboreduct.combo.vertex import builtin
-from pymetta.comboreduct.type_checker.type_signature import (
+from pymoses.comboreduct.combo import vertex as vertex_module
+from pymoses.comboreduct.combo.descriptions import builtins_properties
+from pymoses.comboreduct.combo.iostream_combo import str_to_combo_tree, tree_to_stream_str
+from pymoses.comboreduct.combo.vertex import builtin
+from pymoses.comboreduct.type_checker.type_signature import (
     arg_to_idx,
     is_argument_type,
     ostream_type_node,
     type_node,
 )
-from pymetta.comboreduct.type_checker.type_tree import (
+from pymoses.comboreduct.type_checker.type_tree import (
     abs_min_arity,
     action_result_arity,
     argument_type_list_input_type,

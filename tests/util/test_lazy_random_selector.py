@@ -1,11 +1,11 @@
-"""Tests for pymetta.util.lazy_random_selector -- the Floyd-style lazy
+"""Tests for pymoses.util.lazy_random_selector -- the Floyd-style lazy
 selector `sample_from_neighborhood` draws its knob indices through.
 """
 
 import pytest
 
-from pymetta.util.lazy_random_selector import lazy_random_selector, lazy_selector
-from pymetta.util.rng import MT19937RandGen, randGen
+from pymoses.util.lazy_random_selector import lazy_random_selector, lazy_selector
+from pymoses.util.rng import MT19937RandGen, randGen
 
 
 class _FixedSelector(lazy_selector):

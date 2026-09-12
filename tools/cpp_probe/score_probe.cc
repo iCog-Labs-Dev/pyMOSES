@@ -1,8 +1,8 @@
 // tools/cpp_probe/score_probe.cc
 //
 // Dumps ctruth_table_bscore/behave_cscore/composite_score/tree_complexity
-// output as JSON, for differential testing against pymetta/moses/scoring/
-// {scoring_base,bscores,behave_cscore}.py and pymetta/moses/moses/
+// output as JSON, for differential testing against pymoses/moses/scoring/
+// {scoring_base,bscores,behave_cscore}.py and pymoses/moses/moses/
 // {types,complexity}.py.
 //
 // Build (see task-6-brief.md / CLAUDE.md's verified probe recipe --

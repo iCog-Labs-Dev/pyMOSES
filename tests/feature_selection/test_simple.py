@@ -1,4 +1,4 @@
-"""Oracle and guard tests for pymetta.feature_selection.algo.simple.
+"""Oracle and guard tests for pymoses.feature_selection.algo.simple.
 
 ## Oracle: tools/cpp_probe/feature_selector_probe.cc -> tests/fixtures/feature_selection.json
 
@@ -20,11 +20,11 @@ from pathlib import Path
 
 import pytest
 
-from pymetta.comboreduct.table.table import CTable
-from pymetta.comboreduct.table.table_io import loadTable
-from pymetta.feature_selection.algo.simple import simple_select_feature_sets, simple_selection
-from pymetta.feature_selection.main.feature_selection_params import feature_selection_parameters
-from pymetta.util.rng import randGen
+from pymoses.comboreduct.table.table import CTable
+from pymoses.comboreduct.table.table_io import loadTable
+from pymoses.feature_selection.algo.simple import simple_select_feature_sets, simple_selection
+from pymoses.feature_selection.main.feature_selection_params import feature_selection_parameters
+from pymoses.util.rng import randGen
 
 _FIXTURE_PATH = Path(__file__).resolve().parents[1] / "fixtures" / "feature_selection.json"
 _TABLE_DATA_DIR = Path(__file__).resolve().parents[1] / "fixtures" / "table_data"
@@ -113,7 +113,7 @@ def test_tie_break_genuinely_uses_the_rng_not_just_descending_index(boolean_ctab
     `0^seed(1182829493) > 1^seed(1182829492)` -- x1 (index 0) wins the
     tie over x2 (index 1), the OPPOSITE of the naive fallback's answer.
     This is not itself run against classic (no captured fixture at
-    seed=3), but `pymetta.util.rng.MT19937RandGen.randint` is
+    seed=3), but `pymoses.util.rng.MT19937RandGen.randint` is
     independently verified bit-identical to `opencog::MT19937RandGen::
     randint()` (see rng.py's own docstring: "Verified against a C++
     probe over 12000 draws / 6 seeds"), and the XOR formula here is a

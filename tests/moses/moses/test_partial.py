@@ -1,4 +1,4 @@
-"""Guard tests for pymetta.moses.moses.partial.partial_solver.
+"""Guard tests for pymoses.moses.moses.partial.partial_solver.
 
 No C++ probe/oracle: `partial_solver.solve()` is blocked end to end by two
 independent, pre-existing gaps outside this task's owned tree (see
@@ -16,20 +16,20 @@ from collections import Counter
 
 import pytest
 
-from pymetta.comboreduct.combo.argument import argument
-from pymetta.comboreduct.combo.vertex import builtin, combo_tree, enum_t
-from pymetta.comboreduct.table.table import CTable
-from pymetta.moses.deme.deme_params import deme_parameters
-from pymetta.moses.metapopulation.metapop_params import (
+from pymoses.comboreduct.combo.argument import argument
+from pymoses.comboreduct.combo.vertex import builtin, combo_tree, enum_t
+from pymoses.comboreduct.table.table import CTable
+from pymoses.moses.deme.deme_params import deme_parameters
+from pymoses.moses.metapopulation.metapop_params import (
     metapop_parameters,
     subsample_deme_filter_parameters,
 )
-from pymetta.moses.moses.moses_params import moses_parameters, moses_statistics
-from pymetta.moses.moses.optimization.hill_climbing import hc_parameters
-from pymetta.moses.moses.optimization.optimization import optim_parameters
-from pymetta.moses.moses.optimization.particle_swarm import ps_parameters
-from pymetta.moses.moses.partial import partial_solver
-from pymetta.moses.moses.types import (
+from pymoses.moses.moses.moses_params import moses_parameters, moses_statistics
+from pymoses.moses.moses.optimization.hill_climbing import hc_parameters
+from pymoses.moses.moses.optimization.optimization import optim_parameters
+from pymoses.moses.moses.optimization.particle_swarm import ps_parameters
+from pymoses.moses.moses.partial import partial_solver
+from pymoses.moses.moses.types import (
     scored_combo_tree,
     scored_combo_tree_ptr_set,
     scored_combo_tree_set,

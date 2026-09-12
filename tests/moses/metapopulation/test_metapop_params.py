@@ -1,4 +1,4 @@
-"""Unit tests for pymetta.moses.metapopulation.metapop_params.
+"""Unit tests for pymoses.moses.metapopulation.metapop_params.
 
 No C++ probe/fixture backs this module -- `metapopulationUTest` (the S10
 oracle) never constructs `metapop_parameters`/`diversity_parameters`
@@ -13,8 +13,8 @@ import math
 
 import pytest
 
-from pymetta.moses.metapopulation.ensemble_params import ensemble_parameters
-from pymetta.moses.metapopulation.metapop_params import (
+from pymoses.moses.metapopulation.ensemble_params import ensemble_parameters
+from pymoses.moses.metapopulation.metapop_params import (
     angular_distance,
     diversity_parameters,
     metapop_parameters,

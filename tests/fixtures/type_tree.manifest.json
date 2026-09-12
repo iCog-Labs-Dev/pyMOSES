@@ -1,17 +1,17 @@
 {
   "capture_script": "tools/capture_type_tree.py",
-  "capture_script_sha256": "ddd90503c610cc2d5b38f639547e23e8d25645b13002f917ecda39aa16f4de22",
+  "capture_script_sha256": "3fb93892e7c8cf610b74f20de9936f157f8fb100ad527ccf1673de61bcb33ce9",
   "classic_dir": "/home/yab/Documents/Projects/iCog/HyperonRelated/MOSES/OpenCog/Moses",
   "cli_tool": null,
-  "generated_at_utc": "2026-09-10T06:11:53+00:00",
+  "generated_at_utc": "2026-09-12T12:14:05+00:00",
   "inputs": {
     "description": "fixed corpora hardcoded in type_tree_probe.cc; no external dataset and no RNG. All 26 id::builtin and all 14 id::action values through builtins_properties/actions_properties; 35 single-vertex cases; 62 combo programs (roughly half of them deliberately ILL-TYPED, covering the arity, operand-type and cross-argument mismatch families separately); 39 type-tree pairs for inherit/equal/intersection; 32 reduce_type_tree cases with and without an arg_types vector; the full type_node stream round trip; and convert_index / abs_min_arity / get_type_node / default_vertex_value / is_argument_type / arg_to_idx tables"
   },
   "prefix_dir": "/home/yab/opt/moses-legacy",
   "probe_kind": "cpp_probe",
   "probe_source": "tools/cpp_probe/type_tree_probe.cc",
-  "probe_source_sha256": "5a9b46e243d8f434854ad29a7a853b747d6279a3268244d5965b2dcda322a294",
-  "repo_commit": "0ab8ab46631d410cdae3e58e67f13d52298a0694",
+  "probe_source_sha256": "7eadc3ff535b35a8dde5ba7017dbf2f6e17e675147951caf09f79e0399b5e4a6",
+  "repo_commit": "5d718671e986fe6b4d90d72ad330731ee999068c",
   "schema_version": 2,
   "toolchain": {
     "boost_lib_version": "1_92",

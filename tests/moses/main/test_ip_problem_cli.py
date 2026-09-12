@@ -33,7 +33,7 @@ from pathlib import Path
 
 import pytest
 
-from pymetta.moses.main.moses_exec import moses_exec
+from pymoses.moses.main.moses_exec import moses_exec
 
 _TABLE_DATA = Path(__file__).resolve().parents[2] / "fixtures" / "table_data"
 _SWEEP_CSV = str(_TABLE_DATA / "ip_sweep.csv")

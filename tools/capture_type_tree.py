@@ -15,8 +15,8 @@ row, which is this project's most-repeated defect.
 
 Run it as:
 
-    PYMETTA_CLASSIC_DIR=/path/to/OpenCog/Moses \\
-    PYMETTA_MOSES_PREFIX=$HOME/opt/moses-legacy \\
+    PYMOSES_CLASSIC_DIR=/path/to/OpenCog/Moses \\
+    PYMOSES_MOSES_PREFIX=$HOME/opt/moses-legacy \\
     .venv/bin/python3 tools/capture_type_tree.py
 """
 

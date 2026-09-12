@@ -135,7 +135,7 @@ assert len(TEST_TREES_SH) == 29
 # reduced form for Task 6 to match against), but each captured case in
 # reduct.json carries the oracle's own `tt_preserved` bit; Task 6 should
 # treat `tt_preserved: false` here as "matches the known-divergent
-# oracle", not as grounds to suspect a pyMeTTa bug.
+# oracle", not as grounds to suspect a pyMoses bug.
 TEST_TREES_SH_KNOWN_TT_DIVERGENT = {
     "or(and(or()) or(!$1 !$3) and())",
     "or(and(or()) and($1 $3) and())",

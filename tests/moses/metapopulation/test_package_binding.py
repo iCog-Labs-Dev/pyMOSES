@@ -5,7 +5,7 @@ Classic splits `metapopulation`'s methods across `metapopulation.cc` and
 mirrors that file split and attaches the second half with `setattr` at import
 time, which Python performs only if something actually imports `merging`.
 
-Before `pymetta/moses/metapopulation/__init__.py` imported it for that side
+Before `pymoses/moses/metapopulation/__init__.py` imported it for that side
 effect, importing `metapopulation` alone yielded a class MISSING `merge_demes`
 and `merge_candidates` while `select_exemplar` -- defined in
 `metapopulation.py` itself -- was present. An S11 agent blocked on exactly
@@ -51,7 +51,7 @@ def test_merging_methods_are_attached_without_importing_merging(name):
     pass for the wrong reason -- the exact vacuity this suite keeps hitting.
     """
     source = (
-        "from pymetta.moses.metapopulation.metapopulation import metapopulation\n"
+        "from pymoses.moses.metapopulation.metapopulation import metapopulation\n"
         f"raise SystemExit(0 if hasattr(metapopulation, {name!r}) else 1)\n"
     )
     result = subprocess.run(
@@ -64,6 +64,6 @@ def test_merging_methods_are_attached_without_importing_merging(name):
     )
     assert result.returncode == 0, (
         f"metapopulation.{name} missing on a bare import of metapopulation.py. "
-        "pymetta/moses/metapopulation/__init__.py must import merging for its "
+        "pymoses/moses/metapopulation/__init__.py must import merging for its "
         f"setattr side effect. stderr: {result.stderr}"
     )

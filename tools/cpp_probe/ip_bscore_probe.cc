@@ -1,6 +1,6 @@
 // tools/cpp_probe/ip_bscore_probe.cc
 //
-// Oracle for pyMeTTa's `interesting_predicate_bscore`
+// Oracle for pyMoses's `interesting_predicate_bscore`
 // (moses/moses/scoring/bscores.h:553, bscores.cc:726/761/880/886/896) --
 // the `-H ip` ("find interesting patterns") scorer -- and for the two
 // cogutil helpers it needs that nothing in this port had yet:

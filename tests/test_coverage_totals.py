@@ -20,7 +20,7 @@ def _doc(rows: str) -> str:
     FULL_ROW_RE and never touch the summary tables, so a table-free stub is a
     faithful input for them (`_aggregate` is exercised separately, against the
     real document)."""
-    return "| File | Lines | Status | pyMeTTa path / Slice / Reason |\n|---|---:|---|---|\n" + rows
+    return "| File | Lines | Status | pyMoses path / Slice / Reason |\n|---|---:|---|---|\n" + rows
 
 
 # ---------------------------------------------------------------------------
@@ -29,18 +29,18 @@ def _doc(rows: str) -> str:
 
 def test_named_modules_exist_flags_a_ported_row_naming_a_missing_module(monkeypatch, tmp_path):
     monkeypatch.setattr(ct, "REPO_ROOT", tmp_path)
-    text = _doc("| `moses/x/y.cc` | 10 | PORTED | `pymetta/x/y.py` -- ported in S3. |\n")
+    text = _doc("| `moses/x/y.cc` | 10 | PORTED | `pymoses/x/y.py` -- ported in S3. |\n")
     problems = ct.check_named_modules_exist(text)
     assert len(problems) == 1
-    assert "pymetta/x/y.py" in problems[0]
+    assert "pymoses/x/y.py" in problems[0]
     assert "does not exist" in problems[0]
 
 
 def test_named_modules_exist_accepts_a_module_that_is_there(monkeypatch, tmp_path):
     monkeypatch.setattr(ct, "REPO_ROOT", tmp_path)
-    (tmp_path / "pymetta" / "x").mkdir(parents=True)
-    (tmp_path / "pymetta" / "x" / "y.py").write_text("")
-    text = _doc("| `moses/x/y.cc` | 10 | PORTED | `pymetta/x/y.py` -- ported in S3. |\n")
+    (tmp_path / "pymoses" / "x").mkdir(parents=True)
+    (tmp_path / "pymoses" / "x" / "y.py").write_text("")
+    text = _doc("| `moses/x/y.cc` | 10 | PORTED | `pymoses/x/y.py` -- ported in S3. |\n")
     assert ct.check_named_modules_exist(text) == []
 
 
@@ -48,7 +48,7 @@ def test_named_modules_exist_leaves_planned_rows_to_the_forward_check(monkeypatc
     # A PLANNED row's module is a PREDICTION -- it is SUPPOSED not to exist
     # yet. Flagging it here would make every correct PLANNED row red.
     monkeypatch.setattr(ct, "REPO_ROOT", tmp_path)
-    text = _doc("| `moses/x/y.cc` | 10 | PLANNED: P2 | `pymetta/x/y.py` -- not started. |\n")
+    text = _doc("| `moses/x/y.cc` | 10 | PLANNED: P2 | `pymoses/x/y.py` -- not started. |\n")
     assert ct.check_named_modules_exist(text) == []
 
 
@@ -62,10 +62,10 @@ def test_named_modules_exist_is_clean_on_the_real_document():
 
 def test_planned_row_whose_awaited_module_landed_is_flagged(monkeypatch, tmp_path):
     monkeypatch.setattr(ct, "REPO_ROOT", tmp_path)
-    (tmp_path / "pymetta").mkdir()
-    (tmp_path / "pymetta" / "z.py").write_text("")
+    (tmp_path / "pymoses").mkdir()
+    (tmp_path / "pymoses" / "z.py").write_text("")
     text = _doc(
-        "| `moses/x/z.cc` | 10 | PLANNED: P2 | AWAITING `pymetta/z.py` -- deferred tail. |\n"
+        "| `moses/x/z.cc` | 10 | PLANNED: P2 | AWAITING `pymoses/z.py` -- deferred tail. |\n"
     )
     problems = ct.check_planned_rows_against_reality(text)
     assert len(problems) == 1
@@ -75,7 +75,7 @@ def test_planned_row_whose_awaited_module_landed_is_flagged(monkeypatch, tmp_pat
 def test_planned_row_awaiting_a_module_that_is_absent_is_correct(monkeypatch, tmp_path):
     monkeypatch.setattr(ct, "REPO_ROOT", tmp_path)
     text = _doc(
-        "| `moses/x/z.cc` | 10 | PLANNED: P2 | AWAITING `pymetta/z.py` -- deferred tail. |\n"
+        "| `moses/x/z.cc` | 10 | PLANNED: P2 | AWAITING `pymoses/z.py` -- deferred tail. |\n"
     )
     assert ct.check_planned_rows_against_reality(text) == []
 
@@ -87,11 +87,11 @@ def test_a_bare_module_mention_in_a_planned_row_is_context_not_a_declaration(
     # ported module ("see the mutual_info.py row"). Treating that as the awaited
     # module made the row report itself stale against a file it merely cites.
     monkeypatch.setattr(ct, "REPO_ROOT", tmp_path)
-    (tmp_path / "pymetta").mkdir()
-    (tmp_path / "pymetta" / "neighbour.py").write_text("")
+    (tmp_path / "pymoses").mkdir()
+    (tmp_path / "pymoses" / "neighbour.py").write_text("")
     text = _doc(
-        "| `moses/x/z.cc` | 10 | PLANNED: P2 | AWAITING `pymetta/z.py`; the only oracle for "
-        "`pymetta/neighbour.py` is this binary. |\n"
+        "| `moses/x/z.cc` | 10 | PLANNED: P2 | AWAITING `pymoses/z.py`; the only oracle for "
+        "`pymoses/neighbour.py` is this binary. |\n"
     )
     assert ct.check_planned_rows_against_reality(text) == []
 
@@ -102,14 +102,14 @@ def test_folds_into_inverts_the_existence_test(monkeypatch, tmp_path):
     # declares FOLDS INTO and the test flips: the host must be there.
     monkeypatch.setattr(ct, "REPO_ROOT", tmp_path)
     text = _doc(
-        "| `moses/x/z.cc` | 10 | PLANNED: P2 | FOLDS INTO `pymetta/host.py` -- 11 lines. |\n"
+        "| `moses/x/z.cc` | 10 | PLANNED: P2 | FOLDS INTO `pymoses/host.py` -- 11 lines. |\n"
     )
     problems = ct.check_planned_rows_against_reality(text)
     assert len(problems) == 1
     assert "which does not exist" in problems[0]
 
-    (tmp_path / "pymetta").mkdir()
-    (tmp_path / "pymetta" / "host.py").write_text("")
+    (tmp_path / "pymoses").mkdir()
+    (tmp_path / "pymoses" / "host.py").write_text("")
     assert ct.check_planned_rows_against_reality(text) == []
 
 
@@ -125,13 +125,13 @@ def test_planned_row_without_a_declaration_is_flagged_as_unfalsifiable():
 def test_a_bare_module_mention_does_not_satisfy_the_convention():
     # Without a marker the checker cannot tell "the module I am waiting for"
     # from "a module I am pointing at", so a bare path is not a declaration.
-    text = _doc("| `moses/x/z.cc` | 10 | PLANNED: P2 | `pymetta/z.py` -- deferred tail. |\n")
+    text = _doc("| `moses/x/z.cc` | 10 | PLANNED: P2 | `pymoses/z.py` -- deferred tail. |\n")
     assert len(ct.check_planned_rows_name_a_module(text)) == 1
 
 
 @pytest.mark.parametrize("marker", ["AWAITING", "FOLDS INTO"])
 def test_either_declaration_satisfies_the_convention(marker):
-    text = _doc(f"| `moses/x/z.cc` | 10 | PLANNED: P2 | {marker} `pymetta/z.py` -- tail. |\n")
+    text = _doc(f"| `moses/x/z.cc` | 10 | PLANNED: P2 | {marker} `pymoses/z.py` -- tail. |\n")
     assert ct.check_planned_rows_name_a_module(text) == []
 
 
@@ -254,15 +254,15 @@ def test_gates_in_survives_an_unparsable_or_absent_module(tmp_path):
 
 def test_ported_row_whose_own_symbol_raises_is_flagged(monkeypatch, tmp_path):
     monkeypatch.setattr(ct, "REPO_ROOT", tmp_path)
-    (tmp_path / "pymetta").mkdir()
-    (tmp_path / "pymetta" / "rng.py").write_text(
+    (tmp_path / "pymoses").mkdir()
+    (tmp_path / "pymoses" / "rng.py").write_text(
         'class R:\n'
         '    def randfloat(self):\n'
         '        """C++: opencog/util/mt19937ar.cc:50 R::randfloat"""\n'
         '        raise NotImplementedError\n'
     )
     text = _doc(
-        "| `opencog/util/mt19937ar.cc` | 94 | PORTED | `pymetta/rng.py` -- bit-identical. |\n"
+        "| `opencog/util/mt19937ar.cc` | 94 | PORTED | `pymoses/rng.py` -- bit-identical. |\n"
     )
     problems = ct.check_ported_rows_do_not_gate(text)
     assert len(problems) == 1
@@ -273,15 +273,15 @@ def test_ported_row_whose_own_symbol_raises_is_flagged(monkeypatch, tmp_path):
 def test_partial_row_with_the_same_raise_is_not_flagged(monkeypatch, tmp_path):
     # PARTIAL is the correct home for a named gap; only PORTED is a false claim.
     monkeypatch.setattr(ct, "REPO_ROOT", tmp_path)
-    (tmp_path / "pymetta").mkdir()
-    (tmp_path / "pymetta" / "rng.py").write_text(
+    (tmp_path / "pymoses").mkdir()
+    (tmp_path / "pymoses" / "rng.py").write_text(
         'class R:\n'
         '    def randfloat(self):\n'
         '        """C++: opencog/util/mt19937ar.cc:50 R::randfloat"""\n'
         '        raise NotImplementedError\n'
     )
     text = _doc(
-        "| `opencog/util/mt19937ar.cc` | 94 | PARTIAL | `pymetta/rng.py` -- GAP: randfloat. |\n"
+        "| `opencog/util/mt19937ar.cc` | 94 | PARTIAL | `pymoses/rng.py` -- GAP: randfloat. |\n"
     )
     assert ct.check_ported_rows_do_not_gate(text) == []
 
@@ -291,15 +291,15 @@ def test_ported_row_is_not_flagged_by_a_raise_belonging_to_another_cpp_file(monk
     # PORTED and two PARTIAL, with all eleven raises breadcrumbed to the
     # PARTIAL pair's C++ file. A module-level grep blames the wrong row here.
     monkeypatch.setattr(ct, "REPO_ROOT", tmp_path)
-    (tmp_path / "pymetta").mkdir()
-    (tmp_path / "pymetta" / "pp.py").write_text(
+    (tmp_path / "pymoses").mkdir()
+    (tmp_path / "pymoses" / "pp.py").write_text(
         'def parse_options():\n'
         '    """C++: moses/moses/main/problem-params.cc:300 problem_params::parse_options"""\n'
         '    raise NotImplementedError("--enable-fs is unported")\n'
     )
     text = _doc(
-        "| `moses/moses/main/moses_exec_def.cc` | 20 | PORTED | `pymetta/pp.py` -- folded in. |\n"
-        "| `moses/moses/main/problem-params.cc` | 2,407 | PARTIAL | `pymetta/pp.py` -- GAP: fs. |\n"
+        "| `moses/moses/main/moses_exec_def.cc` | 20 | PORTED | `pymoses/pp.py` -- folded in. |\n"
+        "| `moses/moses/main/problem-params.cc` | 2,407 | PARTIAL | `pymoses/pp.py` -- GAP: fs. |\n"
     )
     assert ct.check_ported_rows_do_not_gate(text) == []
 
@@ -309,8 +309,8 @@ def test_ported_row_is_not_flagged_by_an_abstractmethod(monkeypatch, tmp_path):
     # raises is its faithful port, not a gap. Without this exemption
     # `moses/moses/main/problem.h` -- a complete port -- goes red.
     monkeypatch.setattr(ct, "REPO_ROOT", tmp_path)
-    (tmp_path / "pymetta").mkdir()
-    (tmp_path / "pymetta" / "problem.py").write_text(
+    (tmp_path / "pymoses").mkdir()
+    (tmp_path / "pymoses" / "problem.py").write_text(
         'class problem_base:\n'
         '    @abstractmethod\n'
         '    def name(self):\n'
@@ -318,7 +318,7 @@ def test_ported_row_is_not_flagged_by_an_abstractmethod(monkeypatch, tmp_path):
         '        raise NotImplementedError\n'
     )
     text = _doc(
-        "| `moses/moses/main/problem.h` | 80 | PORTED | `pymetta/problem.py` -- registry. |\n"
+        "| `moses/moses/main/problem.h` | 80 | PORTED | `pymoses/problem.py` -- registry. |\n"
     )
     assert ct.check_ported_rows_do_not_gate(text) == []
 
@@ -428,8 +428,8 @@ def test_an_unknown_row_status_is_still_fatal():
     # a row whose status no table line accounts for must still abort, or the
     # table under-sums while the printed Total does not.
     rows = _doc(
-        "| `a.cc` | 10 | PORTED | pymetta/x.py |\n"
-        "| `b.cc` | 20 | WIBBLE | pymetta/y.py |\n"
+        "| `a.cc` | 10 | PORTED | pymoses/x.py |\n"
+        "| `b.cc` | 20 | WIBBLE | pymoses/y.py |\n"
     )
     with pytest.raises(SystemExit) as exc:
         ct._aggregate(rows)

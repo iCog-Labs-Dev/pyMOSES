@@ -32,7 +32,7 @@ _COMPILE_TIMEOUT_S = 300
 _RUN_TIMEOUT_S = 20
 
 # (rule_name, input tree text) -- see the corresponding class docstrings
-# in pymetta/comboreduct/reduct/{contin_rules,branch_rules}.py for what
+# in pymoses/comboreduct/reduct/{contin_rules,branch_rules}.py for what
 # each case is meant to exercise.
 CASES: list[tuple[str, str]] = [
     ("reduce_plus_zero", "+(0.0 $1 0.0)"),

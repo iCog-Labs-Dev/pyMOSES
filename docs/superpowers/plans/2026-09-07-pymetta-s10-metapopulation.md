@@ -1,4 +1,4 @@
-# pyMeTTa S10: Metapopulation and Deme Expansion Plan
+# pyMoses S10: Metapopulation and Deme Expansion Plan
 
 **Date:** 2026-09-07
 **Status:** Proposed
@@ -74,7 +74,7 @@ half-implemented.
 
 ## Task 0: Container plumbing `types.py` deliberately skipped
 
-`pymetta/moses/moses/types.py`'s module docstring names exactly what S0–S6 left
+`pymoses/moses/moses/types.py`'s module docstring names exactly what S0–S6 left
 out as "metapopulation container plumbing", and it is exactly what S10 needs:
 
 - `scored_combo_tree_set`, `scored_combo_tree_tset`, `scored_combo_tree_ptr_set`

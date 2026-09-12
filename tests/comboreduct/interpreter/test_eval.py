@@ -14,11 +14,11 @@ import math
 
 import pytest
 
-from pymetta.comboreduct.combo.argument import argument
-from pymetta.comboreduct.combo.iostream_combo import str_to_combo_tree
-from pymetta.comboreduct.combo.vertex import builtin, combo_tree
-from pymetta.comboreduct.crutil.exception import EvalException, OverflowException
-from pymetta.comboreduct.interpreter.eval import (
+from pymoses.comboreduct.combo.argument import argument
+from pymoses.comboreduct.combo.iostream_combo import str_to_combo_tree
+from pymoses.comboreduct.combo.vertex import builtin, combo_tree
+from pymoses.comboreduct.crutil.exception import EvalException, OverflowException
+from pymoses.comboreduct.interpreter.eval import (
     arity,
     eval_binding,
     eval_procedure_tree,
@@ -27,7 +27,7 @@ from pymetta.comboreduct.interpreter.eval import (
     eval_throws_vertex,
     is_procedure_call,
 )
-from pymetta.util.rng import MT19937RandGen, randGen
+from pymoses.util.rng import MT19937RandGen, randGen
 
 F = builtin.logical_false
 T = builtin.logical_true

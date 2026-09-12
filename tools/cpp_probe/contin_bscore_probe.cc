@@ -1,6 +1,6 @@
 // tools/cpp_probe/contin_bscore_probe.cc
 //
-// Oracle for pyMeTTa S14 Task 3's `contin_bscore` (moses/moses/scoring/
+// Oracle for pyMoses S14 Task 3's `contin_bscore` (moses/moses/scoring/
 // bscores.h:181, bscores.cc:140-190) -- extends the scorers_probe.cc/
 // capture_scorers.py JSON-dump pattern (tiny local JSON helpers, one
 // probe binary with subcommand "modes", one capture_*.py driving it) in

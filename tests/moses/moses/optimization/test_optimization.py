@@ -1,4 +1,4 @@
-"""Unit tests for pymetta.moses.moses.optimization.optimization.
+"""Unit tests for pymoses.moses.moses.optimization.optimization.
 
 No C++ probe/fixture backs this module (it is pure arithmetic over an
 already-oracle-tested field_set, plus one abstract-base contract) -- every
@@ -14,7 +14,7 @@ import math
 
 import pytest
 
-from pymetta.moses.moses.optimization.optimization import (
+from pymoses.moses.moses.optimization.optimization import (
     deme_inst_t,
     deme_t,
     information_theoretic_bits,
@@ -22,14 +22,14 @@ from pymetta.moses.moses.optimization.optimization import (
     optim_stats,
     optimizer_base,
 )
-from pymetta.moses.moses.types import demeID_t
-from pymetta.moses.representation.field_set import contin_spec, disc_spec, field_set
-from pymetta.moses.representation.scored_instance import scored_instance
+from pymoses.moses.moses.types import demeID_t
+from pymoses.moses.representation.field_set import contin_spec, disc_spec, field_set
+from pymoses.moses.representation.scored_instance import scored_instance
 
 
 def test_deme_aliases_are_the_bridge_containers():
     assert deme_t is __import__(
-        "pymetta.moses.representation.instance_set", fromlist=["instance_set"]
+        "pymoses.moses.representation.instance_set", fromlist=["instance_set"]
     ).instance_set
     assert deme_inst_t is scored_instance
 

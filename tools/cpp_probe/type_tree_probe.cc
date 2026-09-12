@@ -123,8 +123,8 @@
 //
 // Build (see tools/capture_type_tree.py, which runs exactly this):
 //
-//   P=$PYMETTA_MOSES_PREFIX
-//   C=$PYMETTA_CLASSIC_DIR
+//   P=$PYMOSES_MOSES_PREFIX
+//   C=$PYMOSES_CLASSIC_DIR
 //   g++ -O2 -std=c++17 -I $C -I $P/include \
 //       -o tools/cpp_probe/build/type_tree_probe \
 //       tools/cpp_probe/type_tree_probe.cc \

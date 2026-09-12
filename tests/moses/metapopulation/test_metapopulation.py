@@ -1,4 +1,4 @@
-"""Unit + oracle tests for pymetta.moses.metapopulation.metapopulation.
+"""Unit + oracle tests for pymoses.moses.metapopulation.metapopulation.
 
 `metapopulationUTest.cxxtest` (the S10 slice's registered cxxtest oracle) is
 built and passes (2 tests) but exercises only `remove_dominated`/
@@ -35,18 +35,18 @@ below: mutate the object on one side, assert the other side is unaffected.
 
 import pytest
 
-from pymetta.comboreduct.combo.iostream_combo import combo_tree_to_str, str_to_combo_tree
-from pymetta.moses.metapopulation.metapop_params import metapop_parameters
-from pymetta.moses.metapopulation.metapopulation import metapopulation
-from pymetta.moses.moses.types import (
+from pymoses.comboreduct.combo.iostream_combo import combo_tree_to_str, str_to_combo_tree
+from pymoses.moses.metapopulation.metapop_params import metapop_parameters
+from pymoses.moses.metapopulation.metapopulation import metapopulation
+from pymoses.moses.moses.types import (
     composite_score,
     scored_combo_tree,
     scored_combo_tree_set,
     worst_composite_score,
 )
-from pymetta.moses.scoring.behave_cscore import behave_cscore
-from pymetta.moses.scoring.scoring_base import bscore_base
-from pymetta.util.rng import randGen
+from pymoses.moses.scoring.behave_cscore import behave_cscore
+from pymoses.moses.scoring.scoring_base import bscore_base
+from pymoses.util.rng import randGen
 
 # --------------------------------------------------------------------------
 # Shared fixtures: the same 4 trees / scores tools/cpp_probe/metapop_core_
@@ -94,7 +94,7 @@ def _cscorer() -> behave_cscore:
 # probe's own measured values, or every oracle assertion below would be
 # comparing against the wrong baseline without ever noticing.
 def test_fixture_complexities_match_the_cpp_probe():
-    from pymetta.moses.moses.complexity import tree_complexity
+    from pymoses.moses.moses.complexity import tree_complexity
 
     assert tree_complexity(T1) == 1
     assert tree_complexity(T2) == 2
@@ -377,7 +377,7 @@ def test_constructor_does_not_alias_worst_composite_score_singleton():
     # exercise the aliasing risk at its actual origin point instead: the
     # SEED value itself, via a metapopulation whose single exemplar can
     # never beat very_worst_score.
-    from pymetta.moses.moses.types import very_worst_score
+    from pymoses.moses.moses.types import very_worst_score
 
     losing_scorer = behave_cscore(_ProbeBscore({combo_tree_to_str(T1).strip(): very_worst_score}))
     mp_never_beats = metapopulation(T1, losing_scorer)
@@ -672,7 +672,7 @@ def test_select_exemplar_empty_metapopulation_raises():
 # narrowing -- the same method the reviewer used for selection.py's pair
 # (module docstring there), derived fresh for this pair per that review's
 # instruction. Each was verified against this module's real `_to_score_t`
-# and `pymetta.util.selection.roulette_select` before being pinned here.
+# and `pymoses.util.selection.roulette_select` before being pinned here.
 # ---------------------------------------------------------------------------
 
 
@@ -731,7 +731,7 @@ def test_select_exemplar_narrows_boltzmann_weight_running_total(monkeypatch):
 
 
 def test_visited_exemplars_counter_get_inserts_zero_and_increment_starts_at_one():
-    from pymetta.moses.metapopulation.metapopulation import _visited_exemplars_counter
+    from pymoses.moses.metapopulation.metapopulation import _visited_exemplars_counter
 
     sct1 = scored_combo_tree(T1)
     sct2 = scored_combo_tree(T2)
@@ -750,7 +750,7 @@ def test_visited_exemplars_counter_keys_on_tree_structure_not_identity():
     object identity or score -- an independently-built but structurally
     identical `scored_combo_tree` must hash to the same counter entry.
     """
-    from pymetta.moses.metapopulation.metapopulation import (
+    from pymoses.moses.metapopulation.metapopulation import (
         _copy_sct,
         _visited_exemplars_counter,
     )

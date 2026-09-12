@@ -1,7 +1,7 @@
 # Crossover inventory (input for S12)
 
 **STATUS: IMPLEMENTED (S12, 2026-09-08).** Everything below is now ported in
-`pymetta/moses/moses/optimization/hill_climbing.py` -- `cross_top_one`,
+`pymoses/moses/moses/optimization/hill_climbing.py` -- `cross_top_one`,
 `cross_top_two`, `cross_top_three`, `crossover`, the five-conjunct gate and
 the `last_chance` block -- and `hc_parameters(cross=True)`, classic's own
 default, is the configuration the port runs. The oracle is

@@ -1,7 +1,7 @@
 // tools/cpp_probe/rng_probe.cc
 //
 // Dumps real cogutil MT19937RandGen draw sequences as JSON, for
-// differential/bit-identity testing against pymetta/util/rng.py.
+// differential/bit-identity testing against pymoses/util/rng.py.
 //
 // FIX WAVE (final review, Important): this probe used to re-implement
 // MT19937RandGen's algorithm from scratch against a bare <random>
@@ -33,7 +33,7 @@
 // RandGen.h and libcogutil alone are enough to construct MT19937RandGen
 // and call its public methods directly.
 //
-// 2026-09-12: a "randfloat" series was added (pymetta/util/rng.py's
+// 2026-09-12: a "randfloat" series was added (pymoses/util/rng.py's
 // randfloat() stopped raising NotImplementedError and needed an oracle --
 // it is reached from the CLI by --fs-enforce-features-filename, via
 // biased_randbool, $COGUTIL/opencog/util/random.h:127). The rebuild that
@@ -62,7 +62,7 @@ int main() {
 
         // Each field below calls the real MT19937RandGen method it is
         // named for, on its own freshly-seeded generator (matching the
-        // fixture's own per-field independence: pymetta/util/rng.py's
+        // fixture's own per-field independence: pymoses/util/rng.py's
         // oracle test draws each field from an independently-seeded
         // generator too, not one shared stream split across fields).
 
@@ -94,7 +94,7 @@ int main() {
         // randfloat() returns a C `float` (binary32); it is printed with
         // %.17g as a double so the fixture carries the EXACT binary32
         // value -- a shorter format would round it and silently loosen the
-        // bit-identity claim pymetta/util/rng.py's randfloat() makes.
+        // bit-identity claim pymoses/util/rng.py's randfloat() makes.
         MT19937RandGen g_rf(s);
         printf("      \"randfloat\": [");
         for (int i = 0; i < N; ++i) printf(i ? ",%.17g" : "%.17g", (double) g_rf.randfloat());

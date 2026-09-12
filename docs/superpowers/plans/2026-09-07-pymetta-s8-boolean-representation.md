@@ -1,4 +1,4 @@
-# pyMeTTa S8: Boolean Representation Plan
+# pyMoses S8: Boolean Representation Plan
 
 **Date:** 2026-09-07
 **Status:** Proposed; implementation starts after approval
@@ -39,14 +39,14 @@ type. Port only the helpers S8 calls: `gen_signature`, `get_signature_inputs`,
 `get_signature_output`, `type_tree_arity`, `boolean_arity`, `contin_arity`, and
 `action_result_arity`.
 
-Do not broaden `pymetta/comboreduct/type_checker/type_tree.py` into the classic
+Do not broaden `pymoses/comboreduct/type_checker/type_tree.py` into the classic
 1,468-line inference engine. Reconcile the existing `table.Signature` so the port
 has one signature model, by migration or a compatibility re-export.
 
 **Likely files:**
 
-- `pymetta/comboreduct/type_checker/type_signature.py`
-- `pymetta/comboreduct/table/table.py`
+- `pymoses/comboreduct/type_checker/type_signature.py`
+- `pymoses/comboreduct/table/table.py`
 - `tests/comboreduct/type_checker/test_type_signature.py`
 - `tools/cpp_probe/type_signature_probe.cc`
 
@@ -66,8 +66,8 @@ offset calculation, iteration, and Hamming distance.
 
 **Likely files:**
 
-- `pymetta/moses/representation/instance.py`
-- `pymetta/moses/representation/field_set.py`
+- `pymoses/moses/representation/instance.py`
+- `pymoses/moses/representation/field_set.py`
 - `tests/moses/representation/test_instance.py`
 - `tests/moses/representation/test_field_set.py`
 - `tools/cpp_probe/field_set_probe.cc`
@@ -84,8 +84,8 @@ handle checks reject mappings to removed nodes.
 
 **Likely files:**
 
-- `pymetta/moses/representation/knobs.py`
-- `pymetta/moses/representation/knob_mapper.py`
+- `pymoses/moses/representation/knobs.py`
+- `pymoses/moses/representation/knob_mapper.py`
 - `tests/moses/representation/test_knobs.py`
 - `tools/cpp_probe/logical_knob_probe.cc`
 
@@ -103,7 +103,7 @@ clear exception.
 
 **Likely files:**
 
-- `pymetta/moses/representation/build_knobs.py`
+- `pymoses/moses/representation/build_knobs.py`
 - `tests/moses/representation/test_build_knobs.py`
 - `tools/cpp_probe/representation_probe.cc`
 
@@ -122,7 +122,7 @@ vertical slice; they become the bridge from representation to S9 optimization.
 
 **Likely files:**
 
-- `pymetta/moses/representation/representation.py`
+- `pymoses/moses/representation/representation.py`
 - `tests/moses/representation/test_representation.py`
 - `tests/fixtures/representation.json`
 - `tools/capture_representation.py`

@@ -6,7 +6,7 @@ tables, and saves its JSON stdout as tests/fixtures/fs_diversity.json,
 with an fs_diversity.manifest.json sidecar (tools/_manifest.py).
 
 Ground truth for the two gates
-``pymetta/moses/deme/feature_selector.py`` used to raise on:
+``pymoses/moses/deme/feature_selector.py`` used to raise on:
 
 * ``--fs-diversity-pressure > 0`` -- ``feature_selector::
   rank_feature_sets`` (feature_selector.cc:343), ``feature_selector::mi``
@@ -15,7 +15,7 @@ Ground truth for the two gates
 * ``--fs-subsampling-ratio < 1.0`` -- ``subsampleCTable``
   (moses/comboreduct/table/table.cc:899) and the ``CTable::remove_rows``
   it drives (table.cc:646), ported at
-  ``pymetta/feature_selection/ctable_subsample.py``.
+  ``pymoses/feature_selection/ctable_subsample.py``.
 
 Mirrors tools/capture_feature_selection.py's shape, including the
 ``-lfeature_selection`` link (feature_selector.cc, in libmoses, calls into

@@ -37,9 +37,9 @@ from pathlib import Path
 
 import pytest
 
-from pymetta.comboreduct.combo.vertex import builtin
-from pymetta.comboreduct.table.table import CTable, ITable, OTable, Table, type_node
-from pymetta.comboreduct.table.table_io import loadTable
+from pymoses.comboreduct.combo.vertex import builtin
+from pymoses.comboreduct.table.table import CTable, ITable, OTable, Table, type_node
+from pymoses.comboreduct.table.table_io import loadTable
 
 olabel = "happiness"
 label1 = "price"
@@ -609,7 +609,7 @@ _F = builtin.logical_false
 
 
 def _sig(spec, otype=type_node.contin_type):
-    from pymetta.comboreduct.type_checker.type_signature import TypeSignature
+    from pymoses.comboreduct.type_checker.type_signature import TypeSignature
 
     m = {
         "b": type_node.boolean_type,
@@ -622,7 +622,7 @@ def _sig(spec, otype=type_node.contin_type):
 
 
 def _seeded(seed):
-    from pymetta.util.rng import randGen
+    from pymoses.util.rng import randGen
 
     g = randGen()
     g.seed(seed)
@@ -688,7 +688,7 @@ def test_itable_random_ctor_enumerates_booleans_when_nsamples_is_pow2_barity():
         [_T, _T, _T],
     ]
     # ...and it really did not touch the RNG.
-    from pymetta.util.rng import randGen
+    from pymoses.util.rng import randGen
 
     g = randGen()
     fresh = ITable(_sig("c"), 1)[0][0]
@@ -751,7 +751,7 @@ def test_itable_random_ctor_unknown_column_is_a_contin_zero():
     assert all(isinstance(v, float) and not isinstance(v, builtin) for v in it[0])
 
     # ...and it consumed no draws either.
-    from pymetta.util.rng import randGen
+    from pymoses.util.rng import randGen
 
     g = randGen()
     g.seed(4)
@@ -798,7 +798,7 @@ def test_otable_from_combo_tree_evaluates_every_row():
     constructor arguments. Both the inputs and the outputs are the
     probe's `cp 1 "+(6 *(6 $1))" 5 -12 12` output.
     """
-    from pymetta.comboreduct.combo.iostream_combo import str_to_combo_tree
+    from pymoses.comboreduct.combo.iostream_combo import str_to_combo_tree
 
     _seeded(1)
     it = ITable(_sig("c"), 5, 12.0, -12.0)
@@ -823,7 +823,7 @@ def test_otable_from_combo_tree_evaluates_every_row():
 
 
 def test_otable_from_combo_tree_rejects_a_non_itable_second_argument():
-    from pymetta.comboreduct.combo.iostream_combo import str_to_combo_tree
+    from pymoses.comboreduct.combo.iostream_combo import str_to_combo_tree
 
     with pytest.raises(TypeError, match="must be an ITable"):
         OTable(str_to_combo_tree("+(6 $1)"), "not an itable")
@@ -845,7 +845,7 @@ def test_timed_items_of_a_real_cell_yields_every_observation_with_its_date():
     two dated observations of the same vertex into one entry -- so a
     faithful reading has to go through this function.
     """
-    from pymetta.comboreduct.table.table import TimedCounter, timed_items_of
+    from pymoses.comboreduct.table.table import TimedCounter, timed_items_of
 
     cell = TimedCounter()
     cell.add(T, date(2012, 1, 3), 1.0)
@@ -870,7 +870,7 @@ def test_timed_items_of_tolerates_a_plain_counter_cell():
     untimestamped table (table.cc:513) -- so it is presented as one rather
     than raising `AttributeError`.
     """
-    from pymetta.comboreduct.table.table import timed_items_of
+    from pymoses.comboreduct.table.table import timed_items_of
 
     items = list(timed_items_of(Counter({T: 2.0, F: 5.0})))
     assert [(tv.value, tv.timestamp, c) for tv, c in items] == [
@@ -886,7 +886,7 @@ def test_ctable_cell_copy_keeps_every_observation():
     untimed view instead (`Counter(cell)`, which is what it used to do)
     silently drops every timestamp.
     """
-    from pymetta.comboreduct.table.table import TimedCounter
+    from pymoses.comboreduct.table.table import TimedCounter
 
     cell = TimedCounter()
     cell.add(T, date(2012, 1, 3), 1.0)

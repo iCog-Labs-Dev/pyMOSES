@@ -23,7 +23,7 @@
   "prefix_dir": "/home/yab/opt/moses-legacy",
   "probe_kind": "cpp_probe",
   "probe_source": "tools/cpp_probe/ip_bscore_probe.cc",
-  "probe_source_sha256": "8d3c5129ac86d80fc24502f32a764b6ba7817880e56f21c78f55d19d0240bb87",
+  "probe_source_sha256": "c593f5abb724f06a957eb935f0e33896ee9da104cfc0379e13016d9adac9e827",
   "repo_commit": "49c01c7341264a1d98fe48c476333843928a0b00",
   "schema_version": 2,
   "toolchain": {

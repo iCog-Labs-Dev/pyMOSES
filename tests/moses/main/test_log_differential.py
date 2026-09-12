@@ -56,12 +56,12 @@ BUILD_KNOBS = (
     "build_knobs.cc's own `logger().debug()` calls (cc:535, :584, :589, :590, "
     ":625, :626, :635, :642, :671, :683, :684, :686). Their enclosing "
     "functions -- `add_logical_knobs` and `build_logical` -- ARE ported, so "
-    "these are portable; `pymetta/moses/representation/build_knobs.py` is "
+    "these are portable; `pymoses/moses/representation/build_knobs.py` is "
     "owned by a different task and was not to be edited."
 )
 MOSES_MAIN_CC = (
     "moses_main.cc:82-94 `adjust_termination_criteria`. The function IS "
-    "ported (`pymetta/moses/moses/moses_main.py`), so these are portable; "
+    "ported (`pymoses/moses/moses/moses_main.py`), so these are portable; "
     "that file is owned by a different task and was not to be edited."
 )
 MOSES_MAIN_H = (
@@ -182,7 +182,7 @@ def port_records(tmp_path_factory, golden) -> dict[str, list[str]]:
     tmp = tmp_path_factory.mktemp("logdiff")
     code = (
         "import sys\n"
-        "from pymetta.moses.main.moses_exec import moses_exec\n"
+        "from pymoses.moses.main.moses_exec import moses_exec\n"
         "sys.exit(moses_exec(['moses'] + sys.argv[1:]))\n"
     )
     out = {}
@@ -279,7 +279,7 @@ def test_record_prefix_uses_a_colon_before_milliseconds(tmp_path):
     Reads the port's own raw log rather than a synthesised string, so the
     assertion covers the real `Logger.log` path.
     """
-    from pymetta.util.logger import Logger
+    from pymoses.util.logger import Logger
 
     log = tmp_path / "fmt.log"
     lg = Logger(str(log), Logger.Level.DEBUG)
@@ -291,7 +291,7 @@ def test_record_prefix_uses_a_colon_before_milliseconds(tmp_path):
 
 def test_level_filtering_drops_more_verbose_records(tmp_path):
     """`if (level > currentLevel) return;` (Logger.cc:496)."""
-    from pymetta.util.logger import Logger
+    from pymoses.util.logger import Logger
 
     log = tmp_path / "lvl.log"
     lg = Logger(str(log), Logger.Level.INFO)
@@ -313,7 +313,7 @@ def test_a_run_that_logs_nothing_leaves_no_file(tmp_path):
     filename". `problem_params` depends on it, since the singleton is built
     pointing at `opencog.log` long before `-f` is parsed.
     """
-    from pymetta.util.logger import Logger
+    from pymoses.util.logger import Logger
 
     log = tmp_path / "never.log"
     lg = Logger(str(log), Logger.Level.NONE)
@@ -328,7 +328,7 @@ def test_a_negative_nan_prints_with_its_sign(tmp_path):
     measured with a compiled probe, and visible in classic's own `-Hprerec`
     log. This is the port's own rendering of both signs.
     """
-    from pymetta.util.logger import ostream_double
+    from pymoses.util.logger import ostream_double
 
     assert ostream_double(-abs(float("nan"))) == "-nan"
     assert ostream_double(abs(float("nan"))) == "nan"
@@ -349,7 +349,7 @@ def test_a_level_guard_is_false_for_a_more_verbose_level(tmp_path):
     "no trap", not "no coverage" -- what a guard changes is whether its
     ARGUMENTS are evaluated, which the next test measures directly.
     """
-    from pymetta.util.logger import Logger
+    from pymoses.util.logger import Logger
 
     lg = Logger(str(tmp_path / "g.log"), Logger.Level.DEBUG)
     assert lg.is_debug_enabled()
@@ -368,8 +368,8 @@ def test_log_candidate_bscore_does_not_render_the_tree_below_fine(tmp_path, monk
     A tree whose rendering raises proves the guard, since a missing guard
     would let the exception out.
     """
-    import pymetta.moses.scoring.scoring_base as sb
-    from pymetta.util.logger import Logger, logger
+    import pymoses.moses.scoring.scoring_base as sb
+    from pymoses.util.logger import Logger, logger
 
     class _Explodes:
         def begin(self):

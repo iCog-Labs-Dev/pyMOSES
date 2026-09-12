@@ -1,4 +1,4 @@
-"""Unit tests for pymetta.moses.metapopulation.diversity.
+"""Unit tests for pymoses.moses.metapopulation.diversity.
 
 No cxxtest oracle covers this file (`metapopulationUTest.cxxtest`'s two
 tests are `domination.cc`'s own -- see test_domination.py's module
@@ -22,14 +22,14 @@ from __future__ import annotations
 import math
 import sys
 
-from pymetta.comboreduct.combo.iostream_combo import str_to_combo_tree
-from pymetta.moses.metapopulation import merging  # noqa: F401 (binds diversity onto metapopulation)
-from pymetta.moses.metapopulation.diversity import _gather_stats_over
-from pymetta.moses.metapopulation.metapop_params import diversity_parameters, metapop_parameters
-from pymetta.moses.metapopulation.metapopulation import cached_dst, metapopulation
-from pymetta.moses.moses.types import _to_score_t, composite_score, scored_combo_tree
-from pymetta.moses.scoring.behave_cscore import behave_cscore
-from pymetta.moses.scoring.scoring_base import bscore_base
+from pymoses.comboreduct.combo.iostream_combo import str_to_combo_tree
+from pymoses.moses.metapopulation import merging  # noqa: F401 (binds diversity onto metapopulation)
+from pymoses.moses.metapopulation.diversity import _gather_stats_over
+from pymoses.moses.metapopulation.metapop_params import diversity_parameters, metapop_parameters
+from pymoses.moses.metapopulation.metapopulation import cached_dst, metapopulation
+from pymoses.moses.moses.types import _to_score_t, composite_score, scored_combo_tree
+from pymoses.moses.scoring.behave_cscore import behave_cscore
+from pymoses.moses.scoring.scoring_base import bscore_base
 
 
 class _FixedBscore(bscore_base):
@@ -42,7 +42,7 @@ class _FixedBscore(bscore_base):
         self._scores = scores
 
     def __call__(self, tr):
-        from pymetta.comboreduct.combo.iostream_combo import combo_tree_to_str
+        from pymoses.comboreduct.combo.iostream_combo import combo_tree_to_str
 
         return list(self._scores.get(combo_tree_to_str(tr).strip(), []))
 
@@ -204,7 +204,7 @@ def test_set_diversity_matches_classics_own_defaults():
 
     mp.set_diversity()
 
-    from pymetta.comboreduct.combo.iostream_combo import combo_tree_to_str
+    from pymoses.comboreduct.combo.iostream_combo import combo_tree_to_str
 
     by_label = {combo_tree_to_str(sct.get_tree()).strip(): sct for sct in mp.get_trees()}
 
@@ -257,7 +257,7 @@ def test_set_diversity_generalized_mean_branch_when_exponent_is_positive():
 
     mp.set_diversity()
 
-    from pymetta.comboreduct.combo.iostream_combo import combo_tree_to_str
+    from pymoses.comboreduct.combo.iostream_combo import combo_tree_to_str
 
     by_label = {combo_tree_to_str(sct.get_tree()).strip(): sct for sct in mp.get_trees()}
 
@@ -290,7 +290,7 @@ def test_set_diversity_pthpower_multiplies_the_penalized_score():
 
     mp.set_diversity()
 
-    from pymetta.comboreduct.combo.iostream_combo import combo_tree_to_str
+    from pymoses.comboreduct.combo.iostream_combo import combo_tree_to_str
 
     by_label = {combo_tree_to_str(sct.get_tree()).strip(): sct for sct in mp.get_trees()}
 

@@ -1,4 +1,4 @@
-"""Tests for pymetta.comboreduct.reduct.full_reduction (S14 Task 4) that
+"""Tests for pymoses.comboreduct.reduct.full_reduction (S14 Task 4) that
 are not covered by the byte-identical oracle in
 test_full_reduction_oracle.py: the caching behaviour itself, and
 `clean_and_full_reduce`'s two-call shape.
@@ -6,8 +6,8 @@ test_full_reduction_oracle.py: the caching behaviour itself, and
 
 from __future__ import annotations
 
-from pymetta.comboreduct.combo.iostream_combo import combo_tree_to_str, str_to_combo_tree
-from pymetta.comboreduct.reduct.full_reduction import (
+from pymoses.comboreduct.combo.iostream_combo import combo_tree_to_str, str_to_combo_tree
+from pymoses.comboreduct.reduct.full_reduction import (
     _reset_cache_for_testing,
     clean_and_full_reduce,
     full_reduce,

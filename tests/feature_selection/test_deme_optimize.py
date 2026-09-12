@@ -1,4 +1,4 @@
-"""Guard tests for pymetta.feature_selection.algo.deme_optimize (the "hc"
+"""Guard tests for pymoses.feature_selection.algo.deme_optimize (the "hc"
 feature-selection algorithm).
 
 ## No C++ oracle is possible here -- and that is itself a documented finding
@@ -39,23 +39,23 @@ construction and by mutation.
 
 import pytest
 
-from pymetta.comboreduct.table.table import CTable
-from pymetta.comboreduct.table.table_io import loadTable
-from pymetta.feature_selection.algo.deme_optimize import (
+from pymoses.comboreduct.table.table import CTable
+from pymoses.comboreduct.table.table_io import loadTable
+from pymoses.feature_selection.algo.deme_optimize import (
     create_deme_select_feature_sets,
     initial_instance,
     iscorer_cache,
     moses_select_feature_sets,
     optimize_deme_select_feature_sets,
 )
-from pymetta.feature_selection.main.feature_selection import select_feature_sets
-from pymetta.feature_selection.main.feature_selection_params import feature_selection_parameters
-from pymetta.moses.moses.optimization.hill_climbing import hc_parameters, hill_climbing
-from pymetta.moses.moses.optimization.optimization import optim_parameters
-from pymetta.moses.representation.field_set import field_set
-from pymetta.moses.representation.instance import instance
-from pymetta.moses.representation.instance_set import instance_set
-from pymetta.util.rng import randGen
+from pymoses.feature_selection.main.feature_selection import select_feature_sets
+from pymoses.feature_selection.main.feature_selection_params import feature_selection_parameters
+from pymoses.moses.moses.optimization.hill_climbing import hc_parameters, hill_climbing
+from pymoses.moses.moses.optimization.optimization import optim_parameters
+from pymoses.moses.representation.field_set import field_set
+from pymoses.moses.representation.instance import instance
+from pymoses.moses.representation.instance_set import instance_set
+from pymoses.util.rng import randGen
 
 _TABLE_DATA_DIR = None
 
@@ -89,7 +89,7 @@ def test_initial_instance_sets_only_the_forced_features(boolean_ctable):
     fields = field_set(field_set.disc_spec(2), boolean_ctable.get_arity())
     params = feature_selection_parameters(initial_features=["x1", "x3"])
     inst = initial_instance(params, fields, boolean_ctable.get_input_labels())
-    from pymetta.feature_selection.scorers.moses_optim import get_feature_set
+    from pymoses.feature_selection.scorers.moses_optim import get_feature_set
 
     assert get_feature_set(fields, inst) == {0, 2}
 
@@ -106,7 +106,7 @@ def test_iscorer_cache_returns_same_value_and_counts_hits_misses():
 
     def base_scorer(inst):
         calls.append(tuple(inst))
-        from pymetta.moses.moses.types import composite_score
+        from pymoses.moses.moses.types import composite_score
 
         return composite_score(1.0, len(inst), 0)
 
@@ -155,7 +155,7 @@ def test_create_deme_select_feature_sets_hc_cache_size_gate(monkeypatch, boolean
     the `iscorer_cache`-wrapping branch: monkeypatch `iscorer_cache` to a
     spy and confirm it is constructed exactly when `hc_cache_size > 0`.
     """
-    import pymetta.feature_selection.algo.deme_optimize as mod
+    import pymoses.feature_selection.algo.deme_optimize as mod
 
     built = []
     real_cache = mod.iscorer_cache
@@ -194,8 +194,8 @@ def test_optimize_deme_select_feature_sets_deduplicates_exact_pairs():
     inst_b = instance(fields.packed_width())
     fields.set_raw(inst_b, fields.begin_bit_raw_idx() + 1, 1)  # {1}
 
-    from pymetta.moses.moses.types import composite_score
-    from pymetta.moses.representation.scored_instance import scored_instance
+    from pymoses.moses.moses.types import composite_score
+    from pymoses.moses.representation.scored_instance import scored_instance
 
     # score_t is float32-narrowed (composite_score's own convention); 0.5
     # and 0.75 both round-trip exactly, avoiding a spurious float32 vs.

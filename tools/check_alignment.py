@@ -1,4 +1,4 @@
-"""Alignment checker for pyMeTTa's C++ breadcrumbs and DIVERGENCE markers.
+"""Alignment checker for pyMoses's C++ breadcrumbs and DIVERGENCE markers.
 
 Every ported symbol carries a docstring breadcrumb of the form
 `C++: <path relative to a classic repo root>:<line> <C++ qualified symbol>` as
@@ -51,13 +51,13 @@ DIVERGENCE_CONTINUATION_STRIP_RE = re.compile(r"^[#\s]+")
 IDENTIFIER_RE = re.compile(r"^[A-Za-z_]\w*$")
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
-PYMETTA_ROOT = REPO_ROOT / "pymetta"
+PYMOSES_ROOT = REPO_ROOT / "pymoses"
 ALIGNMENT_DOC = REPO_ROOT / "docs" / "ALIGNMENT.md"
 
 # The classic checkouts that every breadcrumb is validated against, tried in
 # order. Hardcoded for the same reason tests/conftest.py hardcodes them: this
 # is a single-machine fork used to build one specific port, not a
-# general-purpose tool. pymetta/ ports two upstream repos -- Moses proper
+# general-purpose tool. pymoses/ ports two upstream repos -- Moses proper
 # (breadcrumb paths starting `moses/`) and its CogUtil dependency (paths
 # starting `opencog/`) -- so a breadcrumb resolves under whichever root
 # actually contains its cited file. The prefixes are disjoint, so there is
@@ -441,19 +441,19 @@ def _render_alignment_doc(
 
 
 def main(argv: list[str]) -> int:
-    """Walk pymetta/, validate every breadcrumb against CLASSIC_ROOTS, write
+    """Walk pymoses/, validate every breadcrumb against CLASSIC_ROOTS, write
     docs/ALIGNMENT.md, print any problems, and return 1 if any were found.
     """
     del argv  # no CLI options yet; the classic checkout paths are fixed constants
 
     crumbs: list[Breadcrumb] = []
     divergences: list[Divergence] = []
-    for py_file in sorted(PYMETTA_ROOT.rglob("*.py")):
+    for py_file in sorted(PYMOSES_ROOT.rglob("*.py")):
         crumbs.extend(parse_breadcrumbs(py_file))
         divergences.extend(parse_divergences(py_file))
 
     problems = validate(crumbs, CLASSIC_ROOTS)
-    for py_file in sorted(PYMETTA_ROOT.rglob("*.py")):
+    for py_file in sorted(PYMOSES_ROOT.rglob("*.py")):
         for line_no in unparsed_divergence_markers(py_file):
             problems.append(
                 f"{py_file}:{line_no}: DIVERGENCE marker is not parseable and would be "
@@ -465,7 +465,7 @@ def main(argv: list[str]) -> int:
         print(problem)
 
     ALIGNMENT_DOC.parent.mkdir(parents=True, exist_ok=True)
-    ALIGNMENT_DOC.write_text(_render_alignment_doc(crumbs, divergences, coverage(PYMETTA_ROOT)))
+    ALIGNMENT_DOC.write_text(_render_alignment_doc(crumbs, divergences, coverage(PYMOSES_ROOT)))
 
     return 1 if problems else 0
 

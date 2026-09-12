@@ -3,17 +3,17 @@ import json
 
 import pytest
 
-from pymetta.comboreduct.combo.argument import argument
-from pymetta.comboreduct.combo.iostream_combo import (
+from pymoses.comboreduct.combo.argument import argument
+from pymoses.comboreduct.combo.iostream_combo import (
     combo_tree_to_str,
     str_to_combo_tree,
 )
-from pymetta.comboreduct.combo.vertex import builtin, combo_tree, vertex_equal
-from pymetta.comboreduct.reduct.clean_reduction import clean_reduce
-from pymetta.comboreduct.reduct.logical_reduction import logical_reduction
-from pymetta.moses.representation.field_set import contin_spec
-from pymetta.moses.representation.knobs import contin_knob, logical_subtree_knob
-from pymetta.util.tree import tree
+from pymoses.comboreduct.combo.vertex import builtin, combo_tree, vertex_equal
+from pymoses.comboreduct.reduct.clean_reduction import clean_reduce
+from pymoses.comboreduct.reduct.logical_reduction import logical_reduction
+from pymoses.moses.representation.field_set import contin_spec
+from pymoses.moses.representation.knobs import contin_knob, logical_subtree_knob
+from pymoses.util.tree import tree
 
 
 @pytest.fixture(scope="module")

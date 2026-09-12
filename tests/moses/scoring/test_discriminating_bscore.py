@@ -13,12 +13,12 @@ from pathlib import Path
 
 import pytest
 
-from pymetta.comboreduct.combo.iostream_combo import str_to_combo_tree
-from pymetta.comboreduct.combo.vertex import builtin
-from pymetta.comboreduct.table.table import CTable, ITable, OTable, Table, type_node
-from pymetta.comboreduct.table.table_io import loadTable
-from pymetta.comboreduct.type_checker.type_signature import TypeSignature
-from pymetta.moses.scoring.discriminating_bscore import (
+from pymoses.comboreduct.combo.iostream_combo import str_to_combo_tree
+from pymoses.comboreduct.combo.vertex import builtin
+from pymoses.comboreduct.table.table import CTable, ITable, OTable, Table, type_node
+from pymoses.comboreduct.table.table_io import loadTable
+from pymoses.comboreduct.type_checker.type_signature import TypeSignature
+from pymoses.moses.scoring.discriminating_bscore import (
     bep_bscore,
     discriminating_bscore,
     discriminator,

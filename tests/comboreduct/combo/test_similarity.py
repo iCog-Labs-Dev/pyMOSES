@@ -1,4 +1,4 @@
-"""Oracle and guard tests for pymetta.comboreduct.combo.similarity.
+"""Oracle and guard tests for pymoses.comboreduct.combo.similarity.
 
 The oracle fixture (tests/fixtures/similarity.json) is produced by
 tools/cpp_probe/similarity_probe.cc, which links the REAL exported
@@ -18,7 +18,7 @@ from pathlib import Path
 
 import pytest
 
-from pymetta.comboreduct.combo.similarity import (
+from pymoses.comboreduct.combo.similarity import (
     _cvttsd2si_signed,
     _double_to_uint64,
     _first_loop_distance,

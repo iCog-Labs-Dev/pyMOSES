@@ -11,7 +11,7 @@ added.
 Usage (see subsample_selector_probe.cc's own header comment for the
 equivalent manual g++ invocation):
 
-    export PYMETTA_MOSES_PREFIX=$HOME/opt/moses-legacy
+    export PYMOSES_MOSES_PREFIX=$HOME/opt/moses-legacy
     python3 tools/capture_subsample_selector.py
 """
 

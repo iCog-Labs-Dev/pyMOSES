@@ -1,4 +1,4 @@
-"""Tests for pymetta.comboreduct.reduct.contin_rules (S14 Task 4).
+"""Tests for pymoses.comboreduct.reduct.contin_rules (S14 Task 4).
 
 Expected outputs are hand-derived directly from `contin_rules.cc`'s own
 algorithm (traced line by line). The highest-risk rules (`reduce_factorize`,
@@ -14,9 +14,9 @@ import math
 
 import pytest
 
-from pymetta.comboreduct.combo.iostream_combo import combo_tree_to_str, str_to_combo_tree
-from pymetta.comboreduct.combo.vertex import builtin
-from pymetta.comboreduct.reduct.contin_rules import (
+from pymoses.comboreduct.combo.iostream_combo import combo_tree_to_str, str_to_combo_tree
+from pymoses.comboreduct.combo.vertex import builtin
+from pymoses.comboreduct.reduct.contin_rules import (
     _LexicographicSubtreeMap,
     _LexicographicSubtreeSet,
     reduce_exp_div,

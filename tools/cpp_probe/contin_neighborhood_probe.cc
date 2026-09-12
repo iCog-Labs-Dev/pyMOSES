@@ -1,6 +1,6 @@
 // tools/cpp_probe/contin_neighborhood_probe.cc
 //
-// Oracle for pyMeTTa S14 Task 3 (moses/moses/moses/neighborhood_sampling.cc's
+// Oracle for pyMoses S14 Task 3 (moses/moses/moses/neighborhood_sampling.cc's
 // three continuous sampling helpers -- flip_LR:32, twiddle_contin_bit:38,
 // generate_contin_neighbor:55 -- plus sample_from_neighborhood's own
 // "modify contin" branch, neighborhood_sampling.h:172-178, that calls the
@@ -23,7 +23,7 @@
 // generate_contin_neighbor/twiddle_contin_bit/sample_from_neighborhood all
 // draw from the process-wide opencog::randGen() singleton (no RNG
 // parameter passed explicitly below, matching how a real caller in this
-// port's own code resolves the same singleton via pymetta.util.rng.
+// port's own code resolves the same singleton via pymoses.util.rng.
 // randGen()) -- determinism comes from reseeding immediately before each
 // case, exactly mirroring the Python oracle tests.
 //

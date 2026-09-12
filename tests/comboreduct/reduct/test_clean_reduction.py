@@ -1,4 +1,4 @@
-"""Tests for pymetta/comboreduct/reduct/clean_reduction.py -- `clean_reduce`,
+"""Tests for pymoses/comboreduct/reduct/clean_reduction.py -- `clean_reduce`,
 which removes `null_vertex` sentinels.
 
 C++: moses/comboreduct/reduct/clean_reduction.cc.
@@ -20,10 +20,10 @@ from __future__ import annotations
 
 import pytest
 
-from pymetta.comboreduct.combo.iostream_combo import combo_tree_to_str, str_to_combo_tree
-from pymetta.comboreduct.combo.vertex import builtin
-from pymetta.comboreduct.reduct.clean_reduction import clean_reduce, clean_reduction
-from pymetta.comboreduct.reduct.general_rules import remove_null_vertices
+from pymoses.comboreduct.combo.iostream_combo import combo_tree_to_str, str_to_combo_tree
+from pymoses.comboreduct.combo.vertex import builtin
+from pymoses.comboreduct.reduct.clean_reduction import clean_reduce, clean_reduction
+from pymoses.comboreduct.reduct.general_rules import remove_null_vertices
 
 
 def test_clean_reduce_removes_a_null_vertex_leaf():
@@ -80,7 +80,7 @@ def test_remove_null_vertices_alone_does_not_cascade():
     `clean_reduce`'s own two-step composition is what does the cascading,
     not `remove_null_vertices` alone.
     """
-    from pymetta.comboreduct.reduct.meta_rules import downwards
+    from pymoses.comboreduct.reduct.meta_rules import downwards
 
     tr = str_to_combo_tree("and(and(and(null_vertex($1))))")
     downwards(remove_null_vertices())(tr)
@@ -125,7 +125,7 @@ def test_clean_reduce_explicit_none_it_raises():
 
 
 def test_clean_reduce_on_an_empty_tree_is_a_noop():
-    from pymetta.comboreduct.combo.vertex import combo_tree
+    from pymoses.comboreduct.combo.vertex import combo_tree
 
     tr = combo_tree()
     clean_reduce(tr)  # must not raise

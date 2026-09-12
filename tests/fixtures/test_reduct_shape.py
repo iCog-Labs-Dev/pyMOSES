@@ -3,7 +3,7 @@ built by tools/capture_reduct.py from the corpus assembled by
 tools/cpp_probe/reduct_corpus.py -- see that module's docstring for where
 the 103-tree corpus and the 44-vs-46-raw-entries count come from).
 
-This module deliberately does NOT import anything from `pymetta` and does
+This module deliberately does NOT import anything from `pymoses` and does
 NOT exercise reduction logic itself -- that is Task 6's job, wired up
 against this same fixture. What lives here is purely a guard against the
 fixture JSON silently becoming empty, truncated, or reshaped: this
@@ -143,7 +143,7 @@ def test_case_entries_have_expected_fields():
             else:
                 assert "tt_preserved" not in case
                 assert isinstance(case.get("tt_error"), str) and case["tt_error"]
-            # ostream_combo_tree (and pymetta's combo_tree_to_str) always
+            # ostream_combo_tree (and pymoses's combo_tree_to_str) always
             # appends exactly one trailing space per top-level tree -- see
             # tests/fixtures/combo_roundtrip.json's own committed entries.
             # This fixture preserves that verbatim for byte-identical

@@ -40,16 +40,16 @@ from contextlib import redirect_stdout
 
 import pytest
 
-from pymetta.comboreduct.combo.argument import argument
-from pymetta.comboreduct.combo.iostream_combo import combo_tree_to_str, str_to_combo_tree
-from pymetta.comboreduct.combo.vertex import builtin, combo_tree
-from pymetta.comboreduct.reduct.logical_reduction import logical_reduce, logical_reduction
-from pymetta.comboreduct.reduct.mixed_reduction import mixed_reduction
-from pymetta.comboreduct.type_checker.type_signature import gen_signature, type_node
-from pymetta.moses.representation.build_knobs import build_knobs
-from pymetta.moses.representation.knob_mapper import knob_mapper
-from pymetta.moses.representation.representation import representation
-from pymetta.util.rng import randGen
+from pymoses.comboreduct.combo.argument import argument
+from pymoses.comboreduct.combo.iostream_combo import combo_tree_to_str, str_to_combo_tree
+from pymoses.comboreduct.combo.vertex import builtin, combo_tree
+from pymoses.comboreduct.reduct.logical_reduction import logical_reduce, logical_reduction
+from pymoses.comboreduct.reduct.mixed_reduction import mixed_reduction
+from pymoses.comboreduct.type_checker.type_signature import gen_signature, type_node
+from pymoses.moses.representation.build_knobs import build_knobs
+from pymoses.moses.representation.knob_mapper import knob_mapper
+from pymoses.moses.representation.representation import representation
+from pymoses.util.rng import randGen
 
 _TYPE_NAME = {
     "boolean": type_node.boolean_type,
@@ -319,7 +319,7 @@ _MIX2_CSV = """x1,x2,y
 
 
 def _run_cli(argv):
-    from pymetta.moses.main.moses_exec import moses_exec
+    from pymoses.moses.main.moses_exec import moses_exec
 
     buffer = io.StringIO()
     with redirect_stdout(buffer):

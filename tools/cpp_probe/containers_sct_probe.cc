@@ -3,7 +3,7 @@
 // Measures REAL classic ordering/deduplication behaviour of
 // scored_combo_tree_set/_tset/_ptr_set and their four functors
 // (sct_score_greater, sct_tree_greater, scored_combo_tree_hash,
-// scored_combo_tree_equal) for pyMeTTa's S10 Task 0 port (types.py).
+// scored_combo_tree_equal) for pyMoses's S10 Task 0 port (types.py).
 //
 // The interesting case this probe exists to measure, not infer: whether
 // boost::ptr_set really DISCARDS a candidate when score, raw score, tree

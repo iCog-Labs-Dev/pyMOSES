@@ -1,6 +1,6 @@
 {
   "capture_script": "tools/capture_tree.py",
-  "capture_script_sha256": "fb4c163b5c498037b05aebc91f5c9ff7ec5cefe8659b941c731577ada6ec4c9d",
+  "capture_script_sha256": "ea3f95260e6e2c0e9e2f72f508610d212fab54bb1264b995afc50ab91f37036c",
   "classic_dir": null,
   "cli_tool": null,
   "generated_at_utc": "2026-09-03T11:00:33+03:00",
@@ -10,7 +10,7 @@
   "prefix_dir": null,
   "probe_kind": "cpp_probe",
   "probe_source": "tools/cpp_probe/tree_probe.cc",
-  "probe_source_sha256": "76124e0dee74e6cfb116e1448e330f28ffe1231aba1116f8b69cd85318bd9f3b",
+  "probe_source_sha256": "09eeb9ff03aa71577ad62bdffb53a3c0b9be7e439e831ac40d458f698784c711",
   "repo_commit": "dfd2f13cae826aa668c859feafffc6490b1732e1",
   "schema_version": 1
 }

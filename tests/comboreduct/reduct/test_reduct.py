@@ -1,13 +1,13 @@
-"""Tests for pymetta/comboreduct/reduct/reduct.py -- the `rule` base class.
+"""Tests for pymoses/comboreduct/reduct/reduct.py -- the `rule` base class.
 
 C++: moses/comboreduct/reduct/reduct.h:35 rule.
 """
 
 import pytest
 
-from pymetta.comboreduct.combo.iostream_combo import str_to_combo_tree
-from pymetta.comboreduct.combo.vertex import combo_tree
-from pymetta.comboreduct.reduct.reduct import rule
+from pymoses.comboreduct.combo.iostream_combo import str_to_combo_tree
+from pymoses.comboreduct.combo.vertex import combo_tree
+from pymoses.comboreduct.reduct.reduct import rule
 
 
 class _RecordApply(rule):

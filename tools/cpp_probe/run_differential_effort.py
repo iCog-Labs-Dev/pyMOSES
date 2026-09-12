@@ -93,8 +93,8 @@ def run_python_side(tree_str: str, effort: int) -> dict:
     records `tt_computed: false` separately. The throw comes from
     `vertex.h:708-713`'s `OC_ASSERT`, matching this project's own
     `enf_checkers.ROOT_TOKEN` design."""
-    from pymetta.comboreduct.combo.iostream_combo import combo_tree_to_str, str_to_combo_tree
-    from pymetta.comboreduct.reduct.logical_reduction import logical_reduce
+    from pymoses.comboreduct.combo.iostream_combo import combo_tree_to_str, str_to_combo_tree
+    from pymoses.comboreduct.reduct.logical_reduction import logical_reduce
 
     try:
         original = str_to_combo_tree(tree_str)

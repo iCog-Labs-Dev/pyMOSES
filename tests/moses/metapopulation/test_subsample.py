@@ -1,4 +1,4 @@
-"""Unit + RNG-order-oracle tests for pymetta.moses.metapopulation.subsample.
+"""Unit + RNG-order-oracle tests for pymoses.moses.metapopulation.subsample.
 
 `metapopulationUTest.cxxtest` has no coverage of `subsample.cc` at all
 (CARRY-FORWARD.md/p2-metapop-report.md: its two tests are both
@@ -16,7 +16,7 @@ Real classic `ctruth_table_bscore` extends `bscore_ctable_base`
 (`bscores.h:360`, `struct ctruth_table_bscore : public bscore_ctable_base`),
 which is where `get_ctable()`/`get_ctable_usize()`'s real bodies live
 (`scoring_base.cc:318,323`). THIS port's `bscores.py` (owned by a
-different task/agent, `pymetta/moses/scoring/`, not touched here) ports
+different task/agent, `pymoses/moses/scoring/`, not touched here) ports
 `ctruth_table_bscore` as extending `bscore_base` DIRECTLY instead (that
 module's own docstring: "NOT `bscore_ctable_base`") -- a disclosed
 divergence from an earlier task, but one with a real consequence THIS
@@ -34,7 +34,7 @@ cannot supply what it needs. Reported in the task's own final report as a
 required follow-up for whoever next touches `bscores.py`
 (a one-line fix: either have `ctruth_table_bscore` extend
 `bscore_ctable_base`, matching classic, or add its own thin `get_ctable`/
-`get_ctable_usize` override) -- not fixed here, since `pymetta/moses/
+`get_ctable_usize` override) -- not fixed here, since `pymoses/moses/
 scoring/` is outside this task's owned scope.
 """
 
@@ -47,29 +47,29 @@ from pathlib import Path
 
 import pytest
 
-from pymetta.comboreduct.combo.iostream_combo import str_to_combo_tree
-from pymetta.comboreduct.combo.vertex import builtin
-from pymetta.comboreduct.table.table import CTable
-from pymetta.moses.metapopulation import merging  # noqa: F401 (binds subsample.* et al.)
-from pymetta.moses.metapopulation.metapop_params import (
+from pymoses.comboreduct.combo.iostream_combo import str_to_combo_tree
+from pymoses.comboreduct.combo.vertex import builtin
+from pymoses.comboreduct.table.table import CTable
+from pymoses.moses.metapopulation import merging  # noqa: F401 (binds subsample.* et al.)
+from pymoses.moses.metapopulation.metapop_params import (
     metapop_parameters,
     subsample_deme_filter_parameters,
 )
-from pymetta.moses.metapopulation.metapopulation import metapopulation
-from pymetta.moses.metapopulation.subsample import (
+from pymoses.moses.metapopulation.metapopulation import metapopulation
+from pymoses.moses.metapopulation.subsample import (
     _decompose_tuple,
     _pow_to_unsigned,
     _score_mean,
     _score_variance_stat,
     _TanimotoAcc,
 )
-from pymetta.moses.moses.types import composite_score
-from pymetta.moses.representation.instance import instance
-from pymetta.moses.representation.scored_instance import scored_instance
-from pymetta.moses.scoring.behave_cscore import behave_cscore
-from pymetta.moses.scoring.scoring_base import bscore_base
-from pymetta.util.lazy_random_selector import lazy_random_selector
-from pymetta.util.rng import MT19937RandGen
+from pymoses.moses.moses.types import composite_score
+from pymoses.moses.representation.instance import instance
+from pymoses.moses.representation.scored_instance import scored_instance
+from pymoses.moses.scoring.behave_cscore import behave_cscore
+from pymoses.moses.scoring.scoring_base import bscore_base
+from pymoses.util.lazy_random_selector import lazy_random_selector
+from pymoses.util.rng import MT19937RandGen
 
 _REPO_ROOT = Path(__file__).resolve().parents[3]
 _FIXTURE_PATH = _REPO_ROOT / "tests" / "fixtures" / "subsample_selector.json"

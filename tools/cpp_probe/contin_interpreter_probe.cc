@@ -1,7 +1,7 @@
 // tools/cpp_probe/contin_interpreter_probe.cc
 //
 // Measures the REAL output of contin_interpreter/mixed_interpreter
-// (moses/comboreduct/interpreter/interpreter.{h,cc}) for pyMeTTa's S14
+// (moses/comboreduct/interpreter/interpreter.{h,cc}) for pyMoses's S14
 // Task 1 port (interpreter.py), for edge cases interpreterUTest.cxxtest's
 // own three tests (already reproduced byte-for-byte in
 // tests/comboreduct/interpreter/test_interpreter.py) do NOT reach:

@@ -12,8 +12,8 @@ full mutation list and results.
 
 import pytest
 
-from pymetta.moses.moses.moses_params import _INT32_MAX, moses_parameters, moses_statistics
-from pymetta.moses.moses.types import _to_score_t
+from pymoses.moses.moses.moses_params import _INT32_MAX, moses_parameters, moses_statistics
+from pymoses.moses.moses.types import _to_score_t
 
 # 1/3.5 is not exactly representable in binary32 -- the same fixture
 # `test_types.py` uses to prove a `score_t` narrowing site is not a

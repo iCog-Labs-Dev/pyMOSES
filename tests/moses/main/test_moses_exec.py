@@ -1,4 +1,4 @@
-"""Oracle and guard tests for pymetta.moses.main.moses_exec (S13 Task 3).
+"""Oracle and guard tests for pymoses.moses.main.moses_exec (S13 Task 3).
 
 This is the layer a user actually invokes: `moses_exec(argv)` end to end,
 argv-to-stdout, with NO configuration supplied by this test beyond the
@@ -41,7 +41,7 @@ from pathlib import Path
 
 import pytest
 
-from pymetta.moses.main.moses_exec import moses_exec
+from pymoses.moses.main.moses_exec import moses_exec
 
 # ---------------------------------------------------------------------------
 # dataset.csv -- byte-for-byte $CLASSIC/tests/moses/dataset.csv
@@ -448,7 +448,7 @@ def test_moses_exec_accepts_a_plain_string_argv():
 # every candidate uses the SAME permutation, which they do.
 #
 # CLOSED: `CTable` now iterates in `std::map` key order
-# (`pymetta/comboreduct/table/table.py`, `ctable_row_key` / `CTable._order`;
+# (`pymoses/comboreduct/table/table.py`, `ctable_row_key` / `CTable._order`;
 # regression coverage in `tests/comboreduct/table/test_ctable_order.py`), so
 # `test_moses_exec_output_bscore_ctable_row_order_matches_classic` below is
 # a plain oracle again rather than a strict xfail. The three shapes are kept
@@ -704,7 +704,7 @@ def test_hc_parameters_constructor_still_asserts():
     """The other half of the same fix: `hc_parameters.__init__` KEEPS
     `OC_ASSERT(0.0 < fraction_of_nn)`, because it is faithful to the
     constructor. Only the CLI stopped going through it."""
-    from pymetta.moses.moses.optimization.hill_climbing import hc_parameters
+    from pymoses.moses.moses.optimization.hill_climbing import hc_parameters
 
     with pytest.raises(ValueError, match="fraction_of_nn"):
         hc_parameters(fraction_of_nn=0.0)
@@ -752,7 +752,7 @@ def test_ip_problem_params_parse_and_store(argv, field, expected):
     contin-output/boolean-input. Gating the weights would reject command
     lines classic accepts.
     """
-    from pymetta.moses.main.table_problems import ip_problem_params
+    from pymoses.moses.main.table_problems import ip_problem_params
 
     parser = argparse.ArgumentParser(add_help=False)
     ippp = ip_problem_params()
@@ -766,7 +766,7 @@ def test_ip_problem_params_defaults(dataset_csv):
     table-problems.cc:211/215/219/223) and passing them changes nothing
     about an ordinary `-H it` run -- measured against classic, which also
     prints the same output with and without them."""
-    from pymetta.moses.main.table_problems import ip_problem_params
+    from pymoses.moses.main.table_problems import ip_problem_params
 
     ippp = ip_problem_params()
     assert (
@@ -1014,11 +1014,11 @@ def test_help_lists_exactly_classics_options():
     """
     import argparse
 
-    from pymetta.moses.main.demo_problems import register_demo_problems
-    from pymetta.moses.main.moses_exec import _add_demo_options
-    from pymetta.moses.main.problem import problem_manager
-    from pymetta.moses.main.problem_params import problem_params
-    from pymetta.moses.main.table_problems import ip_problem_params, register_table_problems
+    from pymoses.moses.main.demo_problems import register_demo_problems
+    from pymoses.moses.main.moses_exec import _add_demo_options
+    from pymoses.moses.main.problem import problem_manager
+    from pymoses.moses.main.problem_params import problem_params
+    from pymoses.moses.main.table_problems import ip_problem_params, register_table_problems
 
     pmr = problem_manager()
     tpp = register_table_problems(pmr)

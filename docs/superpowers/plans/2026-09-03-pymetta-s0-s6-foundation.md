@@ -1,10 +1,10 @@
-# pyMeTTa S0–S6 Foundation Implementation Plan
+# pyMoses S0–S6 Foundation Implementation Plan
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Build the pyMeTTa foundation and first runnable slice — a Python port of classic OpenCog MOSES that reproduces the C++ implementation's RNG stream bit-for-bit and produces identical behavioral, complexity, and composite scores for a corpus of (CSV, combo tree) pairs.
+**Goal:** Build the pyMoses foundation and first runnable slice — a Python port of classic OpenCog MOSES that reproduces the C++ implementation's RNG stream bit-for-bit and produces identical behavioral, complexity, and composite scores for a corpus of (CSV, combo tree) pairs.
 
-**Architecture:** Mirror classic's C++ source tree file-for-file under `pymetta/`. Every ported symbol carries a `C++: <path>:<line> <symbol>` breadcrumb that CI validates. Correctness is established by differential testing against small C++ probe binaries linked to the real MOSES libraries, with golden outputs committed as fixtures so the suite runs with no C++ toolchain present.
+**Architecture:** Mirror classic's C++ source tree file-for-file under `pymoses/`. Every ported symbol carries a `C++: <path>:<line> <symbol>` breadcrumb that CI validates. Correctness is established by differential testing against small C++ probe binaries linked to the real MOSES libraries, with golden outputs committed as fixtures so the suite runs with no C++ toolchain present.
 
 **Tech Stack:** Python 3.14 (stdlib only for the runtime package), pytest 9.1, ruff for lint. C++ probes built with the local g++ 16.2.1 against `$HOME/opt/moses-legacy`.
 
@@ -13,7 +13,7 @@
 - **Runtime dependencies: Python standard library only.** No numpy, no hyperon, nothing. Dev dependencies are `pytest` and `ruff` only.
 - **Python 3.14.** `match` statements are used for `vertex` dispatch.
 - **C++ identifiers are preserved verbatim, including class names.** `field_set` not `FieldSet`, `combo_tree` not `ComboTree`, `build_logical` not `buildLogical`. ruff naming rules N801/N802/N803/N806 are disabled repo-wide for this reason.
-- **Every ported symbol carries a breadcrumb** as the first line of its docstring: `C++: <path relative to a source root>:<line> <C++ qualified symbol>`. There are **two** source roots and `check_alignment.py` tries each: `$CLASSIC` for paths beginning `moses/`, and `$COGUTIL` for paths beginning `opencog/` (`pymetta/util/rng.py` and `tree.py` port CogUtil, not Moses). The prefixes are disjoint, so there is no ambiguity.
+- **Every ported symbol carries a breadcrumb** as the first line of its docstring: `C++: <path relative to a source root>:<line> <C++ qualified symbol>`. There are **two** source roots and `check_alignment.py` tries each: `$CLASSIC` for paths beginning `moses/`, and `$COGUTIL` for paths beginning `opencog/` (`pymoses/util/rng.py` and `tree.py` port CogUtil, not Moses). The prefixes are disjoint, so there is no ambiguity.
 - **Every deliberate deviation carries a marker:** `# DIVERGENCE(C++ <path>:<line>): <reason and observable impact>`. A divergence is legitimate only when it has no observable effect on results. "It was easier" is not a reason — raise it for a decision instead.
 - **Classic repo root** (referred to as `$CLASSIC`): `/home/yab/Documents/Projects/iCog/HyperonRelated/MOSES/OpenCog/Moses`
 - **CogUtil root** (`$COGUTIL`): `/home/yab/Documents/Projects/iCog/HyperonRelated/MOSES/OpenCog/CogUtil`
@@ -29,25 +29,25 @@
 | `tools/cpp_probe/CMakeLists.txt` | Build the C++ oracle probes against `$HOME/opt/moses-legacy` |
 | `tools/cpp_probe/*.cc` | One probe per slice; each dumps internal state as JSON to stdout |
 | `tools/capture_golden.py` | Run probes, write `tests/fixtures/*.json` |
-| `pymetta/util/rng.py` | MT19937 + the `RandGen` method surface |
-| `pymetta/util/tree.py` | `tree<T>` — n-ary linked tree with the splice operations MOSES uses |
-| `pymetta/comboreduct/combo/vertex.py` | `builtin` enum, `argument`, `vertex` union, `combo_tree` alias |
-| `pymetta/comboreduct/combo/iostream_combo.py` | Combo tree parse and print |
-| `pymetta/comboreduct/interpreter/interpreter.py` | `boolean_interpreter`, `interpreter_visitor` |
-| `pymetta/comboreduct/table/table.py` | `ITable`, `OTable`, `Table`, `CTable` |
-| `pymetta/comboreduct/table/table_io.py` | `loadTable` — CSV parsing and type inference |
-| `pymetta/moses/moses/types.py` | `composite_score`, `behavioral_score`, `scored_combo_tree` |
-| `pymetta/moses/moses/complexity.py` | `tree_complexity` |
-| `pymetta/moses/scoring/scoring_base.py` | `bscore_base` |
-| `pymetta/moses/scoring/bscores.py` | `ctruth_table_bscore` |
-| `pymetta/moses/scoring/behave_cscore.py` | `behave_cscore` |
+| `pymoses/util/rng.py` | MT19937 + the `RandGen` method surface |
+| `pymoses/util/tree.py` | `tree<T>` — n-ary linked tree with the splice operations MOSES uses |
+| `pymoses/comboreduct/combo/vertex.py` | `builtin` enum, `argument`, `vertex` union, `combo_tree` alias |
+| `pymoses/comboreduct/combo/iostream_combo.py` | Combo tree parse and print |
+| `pymoses/comboreduct/interpreter/interpreter.py` | `boolean_interpreter`, `interpreter_visitor` |
+| `pymoses/comboreduct/table/table.py` | `ITable`, `OTable`, `Table`, `CTable` |
+| `pymoses/comboreduct/table/table_io.py` | `loadTable` — CSV parsing and type inference |
+| `pymoses/moses/moses/types.py` | `composite_score`, `behavioral_score`, `scored_combo_tree` |
+| `pymoses/moses/moses/complexity.py` | `tree_complexity` |
+| `pymoses/moses/scoring/scoring_base.py` | `bscore_base` |
+| `pymoses/moses/scoring/bscores.py` | `ctruth_table_bscore` |
+| `pymoses/moses/scoring/behave_cscore.py` | `behave_cscore` |
 
 ---
 
 ### Task 0: Scaffold, conventions, and the alignment checker
 
 **Files:**
-- Create: `pyproject.toml`, `README.md`, `pymetta/__init__.py`, `tools/check_alignment.py`, `tests/test_scaffold.py`, `tests/conftest.py`
+- Create: `pyproject.toml`, `README.md`, `pymoses/__init__.py`, `tools/check_alignment.py`, `tests/test_scaffold.py`, `tests/conftest.py`
 
 **Interfaces:**
 - Consumes: nothing
@@ -58,7 +58,7 @@
 ```toml
 # pyproject.toml
 [project]
-name = "pymetta"
+name = "pymoses"
 version = "0.0.1"
 description = "Python port of classic OpenCog MOSES, aligned to the C++ source"
 requires-python = ">=3.14"
@@ -82,12 +82,12 @@ target-version = "py314"
 [tool.ruff.lint]
 select = ["E", "F", "W", "I", "N", "UP", "B"]
 # C++ identifiers are preserved verbatim so the Python can be diffed against the
-# C++ by eye. See docs/superpowers/specs/2026-09-02-pymetta-foundation-design.md
+# C++ by eye. See docs/superpowers/specs/2026-09-02-pymoses-foundation-design.md
 # section 5.1. This is the single most load-bearing convention in the project.
 ignore = ["N801", "N802", "N803", "N806", "N815", "N818"]
 ```
 
-Create empty `pymetta/__init__.py` and package `__init__.py` files for every directory in the File Structure table.
+Create empty `pymoses/__init__.py` and package `__init__.py` files for every directory in the File Structure table.
 
 - [ ] **Step 2: Write the failing test for the alignment checker**
 
@@ -142,7 +142,7 @@ Requirements, precisely:
 - `validate(crumbs, classic_root) -> list[str]` returns a human-readable problem per breadcrumb where either the C++ file does not exist, or the **last** `::`-separated component of `cpp_symbol` does not appear as a whole word within ±25 lines of `cpp_line`. Tolerance constant `DRIFT_TOLERANCE = 25`.
 - `parse_divergences(path) -> list[Divergence]` scans source lines for `# DIVERGENCE\((?P<ref>C\+\+ [^)]+)\): (?P<reason>.+)`.
 - `coverage(pkg_root) -> dict[str, tuple[int,int]]` maps module path to (symbols with breadcrumbs, total public symbols).
-- `main(argv)` walks `pymetta/`, runs `validate`, writes `docs/ALIGNMENT.md` (a table of every breadcrumb plus every divergence plus per-module coverage), prints problems, and returns `1` if any problem was found else `0`.
+- `main(argv)` walks `pymoses/`, runs `validate`, writes `docs/ALIGNMENT.md` (a table of every breadcrumb plus every divergence plus per-module coverage), prints problems, and returns `1` if any problem was found else `0`.
 
 - [ ] **Step 5: Run the tests**
 
@@ -186,7 +186,7 @@ Create `tools/ci.sh`:
 #!/usr/bin/env bash
 set -euo pipefail
 cd "$(dirname "${BASH_SOURCE[0]}")/.."
-python3 -m ruff check pymetta tools tests
+python3 -m ruff check pymoses tools tests
 python3 -m pytest
 python3 tools/check_alignment.py
 ```
@@ -212,12 +212,12 @@ EOF
 
 ---
 
-### Task 1: `pymetta/util/rng.py` — MT19937 and the RandGen surface
+### Task 1: `pymoses/util/rng.py` — MT19937 and the RandGen surface
 
 This task is the gate on the project's bit-identity guarantee. Do it before anything that consumes randomness.
 
 **Files:**
-- Create: `pymetta/util/rng.py`, `tools/cpp_probe/rng_probe.cc`, `tests/util/test_rng.py`, `tests/fixtures/rng.json`
+- Create: `pymoses/util/rng.py`, `tools/cpp_probe/rng_probe.cc`, `tests/util/test_rng.py`, `tests/fixtures/rng.json`
 - Modify: `tools/capture_golden.py`
 
 **Interfaces:**
@@ -309,7 +309,7 @@ Expected: six seeds listed, `2000` draws each. If the JSON fails to parse, fix t
 # tests/util/test_rng.py
 import json
 import pytest
-from pymetta.util.rng import MT19937RandGen, randGen
+from pymoses.util.rng import MT19937RandGen, randGen
 
 @pytest.fixture(scope="module")
 def golden(fixture_dir):
@@ -370,9 +370,9 @@ def test_randgen_singleton_is_stable_and_reseedable():
 - [ ] **Step 4: Run to confirm it fails**
 
 Run: `python3 -m pytest tests/util/test_rng.py -v`
-Expected: FAIL — `ModuleNotFoundError: No module named 'pymetta.util.rng'`
+Expected: FAIL — `ModuleNotFoundError: No module named 'pymoses.util.rng'`
 
-- [ ] **Step 5: Implement `pymetta/util/rng.py`**
+- [ ] **Step 5: Implement `pymoses/util/rng.py`**
 
 ```python
 """MT19937 random generator, bit-compatible with cogutil's RandGen.
@@ -517,10 +517,10 @@ EOF
 
 ---
 
-### Task 2: `pymetta/util/tree.py` — the `tree<T>` container
+### Task 2: `pymoses/util/tree.py` — the `tree<T>` container
 
 **Files:**
-- Create: `pymetta/util/tree.py`, `tools/cpp_probe/tree_probe.cc`, `tests/util/test_tree.py`, `tests/fixtures/tree.json`
+- Create: `pymoses/util/tree.py`, `tools/cpp_probe/tree_probe.cc`, `tests/util/test_tree.py`, `tests/fixtures/tree.json`
 
 **Interfaces:**
 - Consumes: nothing
@@ -567,7 +567,7 @@ Plus non-oracle unit tests for each method's edge cases: erasing the root, flatt
 Run: `python3 -m pytest tests/util/test_tree.py -v`
 Expected: FAIL — module not found.
 
-- [ ] **Step 5: Implement `pymetta/util/tree.py`**
+- [ ] **Step 5: Implement `pymoses/util/tree.py`**
 
 Build it as a real linked object graph — `parent` / `first_child` / `last_child` / `prev_sibling` / `next_sibling` — matching `tree.h:102-108`. Do **not** use a Python list of children: `insert_above`, `flatten`, `wrap` and `reparent` are pointer-splicing operations that are natural on links and error-prone on arrays, and matching classic's exact relinking is the whole point.
 
@@ -595,13 +595,13 @@ and traversal order."
 
 ---
 
-### Task 3: `pymetta/comboreduct/combo/` — vertex, argument, combo_tree, I/O
+### Task 3: `pymoses/comboreduct/combo/` — vertex, argument, combo_tree, I/O
 
 **Files:**
-- Create: `pymetta/comboreduct/combo/vertex.py`, `argument.py`, `common_def.py`, `iostream_combo.py`, `tests/comboreduct/combo/test_vertex.py`, `test_argument.py`, `test_iostream_combo.py`, `tests/fixtures/combo_roundtrip.json`
+- Create: `pymoses/comboreduct/combo/vertex.py`, `argument.py`, `common_def.py`, `iostream_combo.py`, `tests/comboreduct/combo/test_vertex.py`, `test_argument.py`, `test_iostream_combo.py`, `tests/fixtures/combo_roundtrip.json`
 
 **Interfaces:**
-- Consumes: `pymetta.util.tree.tree`
+- Consumes: `pymoses.util.tree.tree`
 - Produces:
   - `common_def.py`: `arity_t = int`, `contin_t = float`.
   - `argument.py`: `class argument` with `idx: int`, `negate()`, `is_negated()`, `abs_idx()`, `abs_idx_from_zero()`, `__lt__`, `__eq__`, `__hash__`.
@@ -617,7 +617,7 @@ and traversal order."
 
 ```python
 # tests/comboreduct/combo/test_argument.py
-from pymetta.comboreduct.combo.argument import argument
+from pymoses.comboreduct.combo.argument import argument
 
 def test_sign_encodes_negation():
     a = argument(3)
@@ -673,10 +673,10 @@ iostream_comboUTest corpus."
 
 ---
 
-### Task 4: `pymetta/comboreduct/interpreter/` — boolean evaluation
+### Task 4: `pymoses/comboreduct/interpreter/` — boolean evaluation
 
 **Files:**
-- Create: `pymetta/comboreduct/interpreter/interpreter.py`, `tests/comboreduct/interpreter/test_interpreter.py`
+- Create: `pymoses/comboreduct/interpreter/interpreter.py`, `tests/comboreduct/interpreter/test_interpreter.py`
 
 **Interfaces:**
 - Consumes: `combo_tree`, `builtin`, `argument`, `tree`
@@ -709,10 +709,10 @@ eval-table over the testTrees corpus and trainingBoolean.dat."
 
 ---
 
-### Task 5: `pymetta/comboreduct/table/` — Table, CTable, loadTable
+### Task 5: `pymoses/comboreduct/table/` — Table, CTable, loadTable
 
 **Files:**
-- Create: `pymetta/comboreduct/table/table.py`, `table_io.py`, `tools/cpp_probe/table_probe.cc`, `tests/comboreduct/table/test_table.py`, `test_table_io.py`, `tests/fixtures/table.json`
+- Create: `pymoses/comboreduct/table/table.py`, `table_io.py`, `tools/cpp_probe/table_probe.cc`, `tests/comboreduct/table/test_table.py`, `test_table_io.py`, `tests/fixtures/table.json`
 
 **Interfaces:**
 - Consumes: `builtin`, `contin_t`
@@ -765,7 +765,7 @@ over the classic table fixtures and the local training datasets."
 ### Task 6: scoring — types, complexity, ctruth_table_bscore, behave_cscore
 
 **Files:**
-- Create: `pymetta/moses/moses/types.py`, `complexity.py`, `pymetta/moses/scoring/scoring_base.py`, `bscores.py`, `behave_cscore.py`, `tools/cpp_probe/score_probe.cc`, `tests/moses/scoring/test_bscores.py`, `test_behave_cscore.py`, `tests/moses/moses/test_complexity.py`, `tests/fixtures/score.json`
+- Create: `pymoses/moses/moses/types.py`, `complexity.py`, `pymoses/moses/scoring/scoring_base.py`, `bscores.py`, `behave_cscore.py`, `tools/cpp_probe/score_probe.cc`, `tests/moses/scoring/test_bscores.py`, `test_behave_cscore.py`, `tests/moses/moses/test_complexity.py`, `tests/fixtures/score.json`
 
 **Interfaces:**
 - Consumes: `CTable`, `combo_tree`, `boolean_interpreter`

@@ -1,4 +1,4 @@
-# pyMeTTa S12: Hill-climbing crossover
+# pyMoses S12: Hill-climbing crossover
 
 **Date:** 2026-09-08
 **Status:** Proposed

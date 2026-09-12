@@ -5,18 +5,18 @@ import struct
 
 import pytest
 
-from pymetta.comboreduct.combo.iostream_combo import combo_tree_to_str, str_to_combo_tree
-from pymetta.comboreduct.reduct.logical_reduction import logical_reduction
-from pymetta.comboreduct.type_checker.type_signature import gen_signature, type_node
-from pymetta.moses.moses.types import composite_score, worst_composite_score
-from pymetta.moses.representation.field_set import field_set
-from pymetta.moses.representation.instance import instance
-from pymetta.moses.representation.instance_scorer import (
+from pymoses.comboreduct.combo.iostream_combo import combo_tree_to_str, str_to_combo_tree
+from pymoses.comboreduct.reduct.logical_reduction import logical_reduction
+from pymoses.comboreduct.type_checker.type_signature import gen_signature, type_node
+from pymoses.moses.moses.types import composite_score, worst_composite_score
+from pymoses.moses.representation.field_set import field_set
+from pymoses.moses.representation.instance import instance
+from pymoses.moses.representation.instance_scorer import (
     complexity_based_scorer,
     distance_based_scorer,
     iscorer_base,
 )
-from pymetta.moses.representation.representation import representation
+from pymoses.moses.representation.representation import representation
 
 
 def _hex(x: float) -> str:

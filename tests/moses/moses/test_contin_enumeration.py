@@ -61,17 +61,17 @@ from pathlib import Path
 
 import pytest
 
-from pymetta.moses.eda.initialization import randomize
-from pymetta.moses.moses.neighborhood_sampling import (
+from pymoses.moses.eda.initialization import randomize
+from pymoses.moses.moses.neighborhood_sampling import (
     _boost_binomial_coefficient_double,
     _double_to_unsigned,
     count_neighborhood_size_from_index,
     generate_initial_sample,
     vary_n_knobs,
 )
-from pymetta.moses.representation.field_set import contin_spec, disc_spec, field_set
-from pymetta.moses.representation.instance import instance
-from pymetta.util.rng import randGen
+from pymoses.moses.representation.field_set import contin_spec, disc_spec, field_set
+from pymoses.moses.representation.instance import instance
+from pymoses.util.rng import randGen
 
 _FIXTURE_PATH = Path(__file__).resolve().parents[2] / "fixtures" / "contin_enumeration.json"
 _GOLDEN = json.loads(_FIXTURE_PATH.read_text())

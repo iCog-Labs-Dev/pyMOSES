@@ -22,7 +22,7 @@
   "prefix_dir": "/home/yab/opt/moses-legacy",
   "probe_kind": "cpp_probe",
   "probe_source": "tools/cpp_probe/reduct_effort_probe.cc",
-  "probe_source_sha256": "f221f45ee0217e3d0bffcd72502b0140df601c9e0d45af3905e3adcb21863ce3",
+  "probe_source_sha256": "6ade0191d3f431e5e628a8d99ef7aa3cc58f25cdd4178e557d459648482d4de6",
   "repo_commit": "b816f05500e9993353b017bbbff993177b6b3bd7",
   "schema_version": 1
 }

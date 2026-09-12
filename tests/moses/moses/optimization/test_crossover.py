@@ -1,4 +1,4 @@
-"""Oracle and guard tests for hill-climbing crossover (pyMeTTa S12).
+"""Oracle and guard tests for hill-climbing crossover (pyMoses S12).
 
 ## Oracle: `tools/cpp_probe/crossover_probe.cc` -> `tests/fixtures/crossover.json`
 
@@ -77,20 +77,20 @@ from pathlib import Path
 
 import pytest
 
-from pymetta.comboreduct.combo.iostream_combo import combo_tree_to_str, str_to_combo_tree
-from pymetta.comboreduct.reduct.logical_reduction import logical_reduction
-from pymetta.comboreduct.table.table_io import loadTable
-from pymetta.comboreduct.type_checker.type_signature import gen_signature, type_node
-from pymetta.moses.deme.deme_expander import deme_expander
-from pymetta.moses.deme.deme_params import deme_parameters
-from pymetta.moses.metapopulation.metapop_params import (
+from pymoses.comboreduct.combo.iostream_combo import combo_tree_to_str, str_to_combo_tree
+from pymoses.comboreduct.reduct.logical_reduction import logical_reduction
+from pymoses.comboreduct.table.table_io import loadTable
+from pymoses.comboreduct.type_checker.type_signature import gen_signature, type_node
+from pymoses.moses.deme.deme_expander import deme_expander
+from pymoses.moses.deme.deme_params import deme_parameters
+from pymoses.moses.metapopulation.metapop_params import (
     metapop_parameters,
     subsample_deme_filter_parameters,
 )
-from pymetta.moses.metapopulation.metapopulation import metapopulation
-from pymetta.moses.moses.local_moses import local_moses
-from pymetta.moses.moses.moses_params import moses_parameters, moses_statistics
-from pymetta.moses.moses.optimization.hill_climbing import (
+from pymoses.moses.metapopulation.metapopulation import metapopulation
+from pymoses.moses.moses.local_moses import local_moses
+from pymoses.moses.moses.moses_params import moses_parameters, moses_statistics
+from pymoses.moses.moses.optimization.hill_climbing import (
     _c_div2,
     _cbrtf_plus_3,
     _partial_sort,
@@ -98,16 +98,16 @@ from pymetta.moses.moses.optimization.hill_climbing import (
     hc_parameters,
     hill_climbing,
 )
-from pymetta.moses.moses.optimization.optimization import optim_parameters
-from pymetta.moses.moses.types import composite_score
-from pymetta.moses.representation.field_set import disc_spec, field_set
-from pymetta.moses.representation.instance import instance
-from pymetta.moses.representation.instance_scorer import distance_based_scorer
-from pymetta.moses.representation.instance_set import instance_set
-from pymetta.moses.representation.scored_instance import scored_instance
-from pymetta.moses.scoring.behave_cscore import behave_cscore
-from pymetta.moses.scoring.bscores import ctruth_table_bscore
-from pymetta.util.rng import randGen
+from pymoses.moses.moses.optimization.optimization import optim_parameters
+from pymoses.moses.moses.types import composite_score
+from pymoses.moses.representation.field_set import disc_spec, field_set
+from pymoses.moses.representation.instance import instance
+from pymoses.moses.representation.instance_scorer import distance_based_scorer
+from pymoses.moses.representation.instance_set import instance_set
+from pymoses.moses.representation.scored_instance import scored_instance
+from pymoses.moses.scoring.behave_cscore import behave_cscore
+from pymoses.moses.scoring.bscores import ctruth_table_bscore
+from pymoses.util.rng import randGen
 from tools.check_fixture_manifests import SUPPORTED_SCHEMA_VERSIONS
 
 _REPO_ROOT = Path(__file__).resolve().parents[4]

@@ -1,4 +1,4 @@
-"""Tests for pymetta/comboreduct/reduct/logical_rules.py -- the boolean
+"""Tests for pymoses/comboreduct/reduct/logical_rules.py -- the boolean
 logic reduction rules, culminating in `subtree_to_enf`.
 
 C++: moses/comboreduct/reduct/logical_rules.{h,cc}.
@@ -37,17 +37,17 @@ import itertools
 
 import pytest
 
-from pymetta.comboreduct.combo.argument import argument
-from pymetta.comboreduct.combo.iostream_combo import combo_tree_to_str, str_to_combo_tree
-from pymetta.comboreduct.combo.vertex import (
+from pymoses.comboreduct.combo.argument import argument
+from pymoses.comboreduct.combo.iostream_combo import combo_tree_to_str, str_to_combo_tree
+from pymoses.comboreduct.combo.vertex import (
     builtin,
     combo_tree,
     equal_subtree_vertex_safe,
     vertex_equal,
 )
-from pymetta.comboreduct.interpreter.interpreter import boolean_interpreter
-from pymetta.comboreduct.reduct.general_rules import level
-from pymetta.comboreduct.reduct.logical_rules import (
+from pymoses.comboreduct.interpreter.interpreter import boolean_interpreter
+from pymoses.comboreduct.reduct.general_rules import level
+from pymoses.comboreduct.reduct.logical_rules import (
     erase_set_intersection,
     eval_logical_identities,
     has_empty_intersection,
@@ -69,8 +69,8 @@ from pymetta.comboreduct.reduct.logical_rules import (
     subtree_set,
     subtree_to_enf,
 )
-from pymetta.comboreduct.reduct.meta_rules import downwards, iterative, upwards
-from pymetta.comboreduct.reduct.reduct import rule
+from pymoses.comboreduct.reduct.meta_rules import downwards, iterative, upwards
+from pymoses.comboreduct.reduct.reduct import rule
 
 # ---------------------------------------------------------------------------
 # Test-local helpers
@@ -776,7 +776,7 @@ def _leaf(idx: int):
 
 
 def test_subtree_set_dedups_structurally_equal_nodes():
-    from pymetta.comboreduct.combo.vertex import lexicographic_subtree_less
+    from pymoses.comboreduct.combo.vertex import lexicographic_subtree_less
 
     s = subtree_set(lexicographic_subtree_less)
     a = _leaf(1)
@@ -790,7 +790,7 @@ def test_subtree_set_dedups_structurally_equal_nodes():
 
 
 def test_subtree_set_erase_and_contains():
-    from pymetta.comboreduct.combo.vertex import lexicographic_subtree_less
+    from pymoses.comboreduct.combo.vertex import lexicographic_subtree_less
 
     s = subtree_set(lexicographic_subtree_less)
     a, b = _leaf(1), _leaf(2)
@@ -805,7 +805,7 @@ def test_subtree_set_erase_and_contains():
 
 
 def test_is_sorted_matches_std_is_sorted_semantics():
-    from pymetta.comboreduct.combo.vertex import lexicographic_subtree_less as comp
+    from pymoses.comboreduct.combo.vertex import lexicographic_subtree_less as comp
 
     a, b, c = _leaf(1), _leaf(2), _leaf(3)
     assert is_sorted([a, b, c], comp) or is_sorted([c, b, a], comp)
@@ -813,7 +813,7 @@ def test_is_sorted_matches_std_is_sorted_semantics():
 
 
 def test_erase_set_intersection_erases_common_elements_only():
-    from pymetta.comboreduct.combo.vertex import lexicographic_subtree_less as comp
+    from pymoses.comboreduct.combo.vertex import lexicographic_subtree_less as comp
 
     a, b, c = _leaf(1), _leaf(2), _leaf(3)
     seq1 = sorted([a, b, c], key=lambda n: n.data.idx)
@@ -824,7 +824,7 @@ def test_erase_set_intersection_erases_common_elements_only():
 
 
 def test_insert_set_complement_appends_missing_elements():
-    from pymetta.comboreduct.combo.vertex import lexicographic_subtree_less as comp
+    from pymoses.comboreduct.combo.vertex import lexicographic_subtree_less as comp
 
     a, b = _leaf(1), _leaf(2)
     seq1 = [a]
@@ -835,7 +835,7 @@ def test_insert_set_complement_appends_missing_elements():
 
 
 def test_has_empty_intersection():
-    from pymetta.comboreduct.combo.vertex import lexicographic_subtree_less as comp
+    from pymoses.comboreduct.combo.vertex import lexicographic_subtree_less as comp
 
     a, b, c = _leaf(1), _leaf(2), _leaf(3)
     assert has_empty_intersection([a], [b], comp)

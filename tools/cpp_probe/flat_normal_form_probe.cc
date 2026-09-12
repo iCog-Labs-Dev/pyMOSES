@@ -1,7 +1,7 @@
 // tools/cpp_probe/flat_normal_form_probe.cc
 //
 // Measures the REAL behaviour of opencog::reduct::nf_mapper<vertex> and its
-// free functions (tautology, subset_eq, subset, implications) for pymetta's
+// free functions (tautology, subset_eq, subset, implications) for pymoses's
 // comboreduct/reduct/flat_normal_form.py port (task-3). Ground truth, not
 // inference -- particularly clause ORDERING (std::set<int,
 // absolute_value_order<int>>) for a clause containing both a literal and

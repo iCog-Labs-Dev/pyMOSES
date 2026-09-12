@@ -1,4 +1,4 @@
-"""Unit tests for pymetta.moses.eda.local_structure.
+"""Unit tests for pymoses.moses.eda.local_structure.
 
 No C++ probe of its own (BOA/`local_structure` is P2, not built as a
 standalone `test_*` tool anywhere in classic's own tree): pinned by hand
@@ -10,16 +10,16 @@ oracle (`test_un_3_pa_multi_thread`) does.
 
 import pytest
 
-from pymetta.moses.eda.local_structure import (
+from pymoses.moses.eda.local_structure import (
     local_structure_model,
     local_structure_probs_learning,
     univariate,
 )
-from pymetta.moses.moses.types import composite_score
-from pymetta.moses.representation.field_set import contin_spec, disc_spec, field_set
-from pymetta.moses.representation.instance import instance
-from pymetta.moses.representation.scored_instance import scored_instance
-from pymetta.util.rng import randGen
+from pymoses.moses.moses.types import composite_score
+from pymoses.moses.representation.field_set import contin_spec, disc_spec, field_set
+from pymoses.moses.representation.instance import instance
+from pymoses.moses.representation.scored_instance import scored_instance
+from pymoses.util.rng import randGen
 
 
 def _pop(fs: field_set, raw_values: list[list[int]]) -> list[scored_instance]:

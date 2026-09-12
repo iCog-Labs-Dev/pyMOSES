@@ -1,6 +1,6 @@
 import pytest
 
-from pymetta.comboreduct.combo.argument import argument
+from pymoses.comboreduct.combo.argument import argument
 
 
 def test_sign_encodes_negation():

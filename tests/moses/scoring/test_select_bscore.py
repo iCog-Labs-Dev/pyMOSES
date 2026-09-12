@@ -7,7 +7,7 @@ plus direct unit/boundary/mutation-proof tests.
 inputs, boolean output). Whether that is available is decided at
 COLLECTION TIME by `_MIXED_INTERPRETER_AVAILABLE` (probed directly,
 below -- not hardcoded), because this file does not own
-`pymetta/comboreduct/` and cannot assume which side of a concurrent
+`pymoses/comboreduct/` and cannot assume which side of a concurrent
 mixed-interpreter port landed first:
 
 * Unavailable: `test_call_raises_on_the_missing_mixed_interpreter` runs,
@@ -37,11 +37,11 @@ from pathlib import Path
 
 import pytest
 
-from pymetta.comboreduct.combo.iostream_combo import str_to_combo_tree
-from pymetta.comboreduct.table.table import CTable, type_node
-from pymetta.comboreduct.table.table_io import loadTable
-from pymetta.comboreduct.type_checker.type_signature import TypeSignature
-from pymetta.moses.scoring.select_bscore import select_bscore
+from pymoses.comboreduct.combo.iostream_combo import str_to_combo_tree
+from pymoses.comboreduct.table.table import CTable, type_node
+from pymoses.comboreduct.table.table_io import loadTable
+from pymoses.comboreduct.type_checker.type_signature import TypeSignature
+from pymoses.moses.scoring.select_bscore import select_bscore
 
 _FIXTURE_DIR = Path(__file__).resolve().parents[2] / "fixtures"
 _CASES = json.loads((_FIXTURE_DIR / "scorers.json").read_text())["select"]
@@ -105,7 +105,7 @@ def test_select_bscore_matches_cpp_probe(case_name):
 def _mixed_interpreter_available() -> bool:
     """Probes the EXACT call both tests below care about -- a genuinely
     contin-input row through `select_bscore.__call__` -- rather than
-    inspecting `pymetta.comboreduct.interpreter` internals this file does
+    inspecting `pymoses.comboreduct.interpreter` internals this file does
     not own. Evaluated once, at collection time, and cached in
     `_MIXED_INTERPRETER_AVAILABLE` below, so
     `test_call_raises_on_the_missing_mixed_interpreter` and
@@ -197,7 +197,7 @@ def test_call_matches_recorded_cpp_bscore_rows(case_name):
 
 
 def test_select_bscore_rejects_a_boolean_ctable():
-    from pymetta.comboreduct.combo.vertex import builtin
+    from pymoses.comboreduct.combo.vertex import builtin
 
     ct = CTable("y", ["x1"])
     ct[(builtin.logical_true,)] = Counter({builtin.logical_true: 1.0})
@@ -327,7 +327,7 @@ def _ensemble(*pairs):
     port's `scored_combo_tree_set` iterates, and the order two of the
     tests below deliberately pin (see their docstrings).
     """
-    from pymetta.moses.moses.types import scored_combo_tree, scored_combo_tree_set
+    from pymoses.moses.moses.types import scored_combo_tree, scored_combo_tree_set
 
     members = []
     out = scored_combo_tree_set()

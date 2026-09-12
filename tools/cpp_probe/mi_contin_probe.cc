@@ -3,7 +3,7 @@
 // Oracle for the TWO CONTINUOUS branches of
 // `mutualInformation(const CTable&, const FeatureSet&)`
 // (moses/comboreduct/table/table.h:1132) that
-// `pymetta/feature_selection/scorers/mutual_info.py` previously gated with
+// `pymoses/feature_selection/scorers/mutual_info.py` previously gated with
 // `NotImplementedError`, plus the cogutil machinery each branch needs:
 //
 //   * contin OUTPUT with all-discrete inputs -- table.h:1170-1189 (the

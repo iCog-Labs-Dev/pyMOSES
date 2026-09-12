@@ -1,4 +1,4 @@
-"""Tests for pymetta/comboreduct/reduct/logical_reduction.py -- the
+"""Tests for pymoses/comboreduct/reduct/logical_reduction.py -- the
 per-effort-level rule-set assembly (0 "extra_simple" .. 3 "complexe").
 
 C++: moses/comboreduct/reduct/logical_reduction.cc.
@@ -53,9 +53,9 @@ from __future__ import annotations
 
 import pytest
 
-from pymetta.comboreduct.combo.iostream_combo import combo_tree_to_str, str_to_combo_tree
-from pymetta.comboreduct.reduct.logical_reduction import logical_reduce, logical_reduction
-from pymetta.comboreduct.table.table import complete_truth_table
+from pymoses.comboreduct.combo.iostream_combo import combo_tree_to_str, str_to_combo_tree
+from pymoses.comboreduct.reduct.logical_reduction import logical_reduce, logical_reduction
+from pymoses.comboreduct.table.table import complete_truth_table
 
 # ---------------------------------------------------------------------------
 # BooleanReductUTest's own 6 trees (logical_rules_probe.cc's own corpus,

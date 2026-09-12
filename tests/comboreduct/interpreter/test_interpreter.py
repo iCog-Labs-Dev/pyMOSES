@@ -22,16 +22,16 @@ from pathlib import Path
 
 import pytest
 
-from pymetta.comboreduct.combo.iostream_combo import _contin_to_str, str_to_combo_tree
-from pymetta.comboreduct.combo.vertex import builtin, combo_tree, enum_t, is_boolean, vertex_to_bool
-from pymetta.comboreduct.crutil.exception import OverflowException
-from pymetta.comboreduct.interpreter.interpreter import (
+from pymoses.comboreduct.combo.iostream_combo import _contin_to_str, str_to_combo_tree
+from pymoses.comboreduct.combo.vertex import builtin, combo_tree, enum_t, is_boolean, vertex_to_bool
+from pymoses.comboreduct.crutil.exception import OverflowException
+from pymoses.comboreduct.interpreter.interpreter import (
     boolean_interpreter,
     contin_interpreter,
     interpreter_visitor,
     mixed_interpreter,
 )
-from pymetta.util.rng import MT19937RandGen, randGen
+from pymoses.util.rng import MT19937RandGen, randGen
 
 # tests/fixtures/, computed directly (not via the `fixture_dir` fixture)
 # because @pytest.mark.parametrize below needs the corpus at collection
@@ -909,7 +909,7 @@ def test_interpreter_visitor_matches_eval_table_over_training_regression(case):
 
 
 def test_loadtable_itable_rows_feed_interpreter_visitor_matching_eval_table(fixture_dir):
-    from pymetta.comboreduct.table.table_io import loadTable
+    from pymoses.comboreduct.table.table_io import loadTable
 
     csv_path = fixture_dir / "table_data" / "regression_sample.csv"
     table = loadTable(str(csv_path), "y")

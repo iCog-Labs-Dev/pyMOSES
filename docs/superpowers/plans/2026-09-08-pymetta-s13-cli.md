@@ -1,4 +1,4 @@
-# pyMeTTa S13: CLI parity and output formatting
+# pyMoses S13: CLI parity and output formatting
 
 **Date:** 2026-09-08
 **Status:** Proposed

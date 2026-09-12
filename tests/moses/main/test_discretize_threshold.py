@@ -30,7 +30,7 @@ from pathlib import Path
 
 import pytest
 
-from pymetta.moses.main.moses_exec import moses_exec
+from pymoses.moses.main.moses_exec import moses_exec
 
 _CONTIN_CSV = (
     Path(__file__).resolve().parents[2] / "fixtures" / "table_data" / "contin_regression_sample.csv"

@@ -29,7 +29,7 @@ Regenerate with `python3 tools/coverage_totals.py`; never hand-edit.
 
 **The PLANNED bucket is empty. Every non-EXCLUDED file in the inventory now has
 Python behind it.** The last PLANNED row, `type_tree_def.cc` (41 lines), was found
-already ported at `pymetta/comboreduct/type_checker/type_signature.py:115,:126`.
+already ported at `pymoses/comboreduct/type_checker/type_signature.py:115,:126`.
 `tools/coverage_totals.py` keeps rendering the bucket at zero rather than dropping
 it -- see its `MAY_BE_EMPTY` note -- so the milestone stays visible in the table.
 
@@ -244,7 +244,7 @@ only that condition is unsatisfiable.
 
 ### 3. What is actually left — the definitive inventory, 2026-09-11
 
-Every `raise NotImplementedError` in `pymetta/` was located by AST walk (not
+Every `raise NotImplementedError` in `pymoses/` was located by AST walk (not
 grep) and attributed to a C++ file using `tools/coverage_totals.py::_gates_in`,
 which reads the enclosing symbol's `C++:` breadcrumb. **70 raises**, classified
 into exactly four kinds. The counts partition: 21 + 20 + 28 + 1 = 70.
@@ -375,7 +375,7 @@ so every timestamped `CTable` is UB upstream.
 `CTable.get_timestamps` now exists at `table.py:1595`, so **the branch is dead
 code**: `ss_bscore(precision_bscore(ct), 2, 0.5, True)` constructs successfully
 with `_timestamps == set()`. The raise should be deleted by whoever owns
-`pymetta/**`; it is reported, not fixed.
+`pymoses/**`; it is reported, not fixed.
 
 ### 4. Cross-cutting gaps that no single row owns
 
@@ -445,13 +445,13 @@ with `_timestamps == set()`. The raise should be deleted by whoever owns
    (`vertex.{cc,h}`, `knobs.{cc,h}`) are PARTIAL solely on the stated reading
    and would be PORTED under the other. **Settle it in prose before anyone
    ports `is_action`/`get_action`.**
-2. **Does pyMeTTa ship a standalone `feature-selection` CLI?** `fs-main.cc`
+2. **Does pyMoses ship a standalone `feature-selection` CLI?** `fs-main.cc`
    (453 lines) and `eval-features.{cc,h}` (273) are verified unported — zero
    lines of Python, no `[project.scripts]` in `pyproject.toml`, no
    `__main__.py`. They were left `PLANNED: P2` rather than EXCLUDED because the
    boilerplate used to exclude `moses/comboreduct/main/*` ("the spec's layout
    lists no Python equivalent") is **factually false** here — a
-   `pymetta/feature_selection/main/` package exists with two ported modules —
+   `pymoses/feature_selection/main/` package exists with two ported modules —
    and because the analogous C++ `main()`, `moses/moses/main/moses-exec.cc`,
    IS ported. Note `eval-features` is the only oracle for `MICScorer`, which
    currently has zero test coverage.
@@ -467,7 +467,7 @@ with `_timestamps == set()`. The raise should be deleted by whoever owns
 ### 6. Port defects found during the audit, reported and NOT fixed
 
 Logged here because each is a live behavioural difference, not a missing
-feature. None was fixed — that work belongs to whoever owns `pymetta/**`.
+feature. None was fixed — that work belongs to whoever owns `pymoses/**`.
 
 #### Found by the 2026-09-11 re-audit (new)
 
@@ -505,7 +505,7 @@ first case both sides exit 0 and print different answers.
 - **`float32` narrowing still missing in `counts()`** (`discriminating_bscore.py:277-284`):
   `2.66` where C++ gives `2.6600000858306885`. `count()` itself is now exact.
 
-**Stale in-source claims found in `pymetta/**` and NOT fixed** (the defect class
+**Stale in-source claims found in `pymoses/**` and NOT fixed** (the defect class
 CARRY-FORWARD §6 names as the worst kind, because a confident false claim stops
 the next reader looking):
 
@@ -563,7 +563,7 @@ the next reader looking):
   builds a fresh tree where `eval.cc:462-503` mutates in place (and thereby
   avoids classic's use-after-free at `cc:479-481`).
 
-**Stale claims in `pymetta/**` source** — each is a confident, checkable, false
+**Stale claims in `pymoses/**` source** — each is a confident, checkable, false
 statement of the kind CARRY-FORWARD §6 names as this project's worst defect:
 `feature_selection/__init__.py:9-13`, `algo/simple.py:4-5`,
 `main/feature_selection_params.py:67-69,159-161`,
@@ -596,7 +596,7 @@ statement of the kind CARRY-FORWARD §6 names as this project's worst defect:
   see them. A row above any of those could be promoted to PORTED while the module
   still gates, and the tool would stay green. This is the one mechanical hole
   left in the guard; closing it means adding breadcrumbs to those three symbols,
-  which is a `pymetta/**` edit.
+  which is a `pymoses/**` edit.
 - **Section intros in `MODULE-COVERAGE.md` went stale for the SECOND consecutive
   pass.** Rewritten for fourteen sections on 2026-09-09, nine of them were wrong
   again by 2026-09-11 and were rewritten for twelve sections. `coverage_totals.py

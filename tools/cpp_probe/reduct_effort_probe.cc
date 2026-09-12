@@ -1,7 +1,7 @@
 // tools/cpp_probe/reduct_effort_probe.cc
 //
 // Oracle probe for Task 6's exit criterion: at logical-reduction efforts
-// 1 (simple), 2 (medium) and 3 (complexe), pyMeTTa's reduced tree must be
+// 1 (simple), 2 (medium) and 3 (complexe), pyMoses's reduced tree must be
 // byte-identical to classic MOSES's own `logical_reduce()` output. The
 // before/after truth-table result is diagnostic data to reproduce, not a
 // universal preservation requirement: classic itself has known lossy cases.
@@ -83,7 +83,7 @@ using namespace opencog::combo;
 using namespace std;
 
 // Preserve ostream_combo_tree's own trailing space verbatim -- this
-// fixture is meant to be byte-compared against pymetta's
+// fixture is meant to be byte-compared against pymoses's
 // combo_tree_to_str, which reproduces that exact trailing space (see
 // tests/fixtures/combo_roundtrip.json's committed entries). Do NOT
 // `.strip()` here, unlike logical_rules_differential_probe.cc's `show()`

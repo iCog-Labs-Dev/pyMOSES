@@ -1,4 +1,4 @@
-"""Unit + oracle tests for pymetta.moses.metapopulation.domination.
+"""Unit + oracle tests for pymoses.moses.metapopulation.domination.
 
 `metapopulationUTest.cxxtest` (`tests/moses/metapopulationUTest.cxxtest`
 in `$CLASSIC`) is THE real oracle for this whole module -- its two tests,
@@ -28,14 +28,14 @@ below reproduces that exact case.
 
 from __future__ import annotations
 
-from pymetta.comboreduct.combo.iostream_combo import combo_tree_to_str, str_to_combo_tree
-from pymetta.moses.metapopulation import merging  # noqa: F401  (binds merge_candidates et al.)
-from pymetta.moses.metapopulation.domination import dominates, get_nondominated_iter
-from pymetta.moses.metapopulation.metapop_params import metapop_parameters
-from pymetta.moses.metapopulation.metapopulation import metapopulation
-from pymetta.moses.moses.types import composite_score, scored_combo_tree, scored_combo_tree_set
-from pymetta.moses.scoring.behave_cscore import behave_cscore
-from pymetta.moses.scoring.scoring_base import bscore_base
+from pymoses.comboreduct.combo.iostream_combo import combo_tree_to_str, str_to_combo_tree
+from pymoses.moses.metapopulation import merging  # noqa: F401  (binds merge_candidates et al.)
+from pymoses.moses.metapopulation.domination import dominates, get_nondominated_iter
+from pymoses.moses.metapopulation.metapop_params import metapop_parameters
+from pymoses.moses.metapopulation.metapopulation import metapopulation
+from pymoses.moses.moses.types import composite_score, scored_combo_tree, scored_combo_tree_set
+from pymoses.moses.scoring.behave_cscore import behave_cscore
+from pymoses.moses.scoring.scoring_base import bscore_base
 
 # ---------------------------------------------------------------------------
 # dominates() -- direct unit tests on the tribool logic itself

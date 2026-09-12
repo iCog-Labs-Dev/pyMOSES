@@ -1,4 +1,4 @@
-"""Tests for ``pymetta.feature_selection.main.fs_main`` (the standalone
+"""Tests for ``pymoses.feature_selection.main.fs_main`` (the standalone
 ``feature-selection`` binary's ``main()``) and for the four
 feature-selection.cc orchestration functions it drives
 (``feature_selection``/``write_results``/``log_selected_features``/
@@ -19,7 +19,7 @@ The harness compared stdout, stderr, the ``-o`` output file, the produced
 log FILE NAME and the log CONTENT (through ``tools/normalize_log.py``) for
 every case. 29 of 30 stdout comparisons were byte-identical; the one
 exception is ``--subsampling-ratio``, which needs
-``pymetta.feature_selection.ctable_subsample`` (see the module docstring of
+``pymoses.feature_selection.ctable_subsample`` (see the module docstring of
 ``feature_selection.py``).
 
 Representative invocations, with what classic printed:
@@ -53,12 +53,12 @@ from pathlib import Path
 
 import pytest
 
-from pymetta.comboreduct.table.table_io import loadTable
-from pymetta.feature_selection.main.feature_selection_params import feature_selection_parameters
-from pymetta.feature_selection.main.fs_main import fs_main, subsampleTable
-from pymetta.feature_selection.main.table_output import ostreamTable, ostreamTableHeader
-from pymetta.util.logger import logger
-from pymetta.util.rng import randGen
+from pymoses.comboreduct.table.table_io import loadTable
+from pymoses.feature_selection.main.feature_selection_params import feature_selection_parameters
+from pymoses.feature_selection.main.fs_main import fs_main, subsampleTable
+from pymoses.feature_selection.main.table_output import ostreamTable, ostreamTableHeader
+from pymoses.util.logger import logger
+from pymoses.util.rng import randGen
 
 _TABLE_DATA_DIR = Path(__file__).resolve().parents[1] / "fixtures" / "table_data"
 _BOOL = str(_TABLE_DATA_DIR / "trainingBoolean.dat")
@@ -329,7 +329,7 @@ def test_fs_scorer_parameters_carry_the_standalone_cli_defaults():
     """
     import argparse
 
-    from pymetta.feature_selection.main.fs_main import _add_options
+    from pymoses.feature_selection.main.fs_main import _add_options
 
     parser = argparse.ArgumentParser(prog="feature-selection", add_help=False)
     _add_options(parser)

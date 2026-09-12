@@ -1,6 +1,6 @@
 // tools/cpp_probe/deme_expander_probe.cc
 //
-// Oracle for pyMeTTa S10 Task 4 (moses/moses/deme/deme_expander.{h,cc} and
+// Oracle for pyMoses S10 Task 4 (moses/moses/deme/deme_expander.{h,cc} and
 // deme/deme_params.h, single-deme path).
 //
 // Drives the REAL opencog::moses::deme_expander end to end: loads a small
@@ -21,8 +21,8 @@
 //     and fstor==nullptr -- deme_expander.py's own scope) -- same shape as
 //     hillclimbing_probe.cc's print_deme_trajectory.
 //
-// This is what a Python port (pymetta.moses.deme.deme_expander, driven by
-// pymetta's own ctruth_table_bscore/behave_cscore/hill_climbing) must
+// This is what a Python port (pymoses.moses.deme.deme_expander, driven by
+// pymoses's own ctruth_table_bscore/behave_cscore/hill_climbing) must
 // reproduce field-for-field, knob-for-knob, instance-for-instance, for a
 // FIXED randGen() seed.
 //

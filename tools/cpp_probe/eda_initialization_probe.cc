@@ -1,7 +1,7 @@
 // tools/cpp_probe/eda_initialization_probe.cc
 //
-// Oracle for pyMeTTa's port of moses/moses/eda/initialization.{h,cc}
-// (pymetta/moses/eda/initialization.py): uniform_randomize_bit:80,
+// Oracle for pyMoses's port of moses/moses/eda/initialization.{h,cc}
+// (pymoses/moses/eda/initialization.py): uniform_randomize_bit:80,
 // uniform_randomize_disc:88, occam_randomize_contin (single-field overload,
 // initialization.cc:30, and the all-fields overload, initialization.cc:69),
 // and randomize:96 (the combining wrapper). occam_randomize_term is NOT
@@ -13,7 +13,7 @@
 // All four functions draw from the process-wide opencog::randGen()
 // singleton (no RNG parameter passed explicitly below, matching how a real
 // caller in this port's own code resolves the same singleton via
-// pymetta.util.rng.randGen()) -- determinism comes from reseeding
+// pymoses.util.rng.randGen()) -- determinism comes from reseeding
 // immediately before each case. Every case brackets the call with a
 // pre/post randbool() marker (seeded, then re-seeded before the real call)
 // to catch an extra or missing draw independent of the resulting value --

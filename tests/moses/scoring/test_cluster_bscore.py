@@ -1,4 +1,4 @@
-"""Oracle and guard tests for pymetta.moses.scoring.bscores.cluster_bscore
+"""Oracle and guard tests for pymoses.moses.scoring.bscores.cluster_bscore
 -- the `-H cluster` scorer (C++ bscores.h:613, bscores.cc:937).
 
 The oracle fixture (tests/fixtures/cluster_bscore.json) is produced by
@@ -28,10 +28,10 @@ from pathlib import Path
 
 import pytest
 
-from pymetta.comboreduct.combo.iostream_combo import str_to_combo_tree
-from pymetta.comboreduct.table.table import ITable
-from pymetta.comboreduct.table.table_io import loadTable
-from pymetta.moses.scoring.bscores import cluster_bscore
+from pymoses.comboreduct.combo.iostream_combo import str_to_combo_tree
+from pymoses.comboreduct.table.table import ITable
+from pymoses.comboreduct.table.table_io import loadTable
+from pymoses.moses.scoring.bscores import cluster_bscore
 
 _FIXTURE_DIR = Path(__file__).resolve().parents[2] / "fixtures"
 _GOLDEN = json.loads((_FIXTURE_DIR / "cluster_bscore.json").read_text())
@@ -146,7 +146,7 @@ def test_multi_pass_really_needs_more_than_one_pass():
     other synthetic cases, all of which converge in one.
     """
     column = _nums(_GOLDEN["synthetic"]["multi_pass"]["column"])
-    from pymetta.moses.moses.types import _to_score_t
+    from pymoses.moses.moses.types import _to_score_t
 
     vals = sorted(_to_score_t(v) for v in column)
     centers = sorted(_to_score_t(v) for v in column[:3])

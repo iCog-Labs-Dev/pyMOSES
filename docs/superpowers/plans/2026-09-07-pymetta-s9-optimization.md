@@ -1,4 +1,4 @@
-# pyMeTTa S9: Serial Hill-Climbing Plan
+# pyMoses S9: Serial Hill-Climbing Plan
 
 **Date:** 2026-09-07
 **Status:** Proposed; awaiting approval

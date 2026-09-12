@@ -1,4 +1,4 @@
-"""S14 Task 4's PRIMARY exit-criterion oracle: pymetta's full-pipeline
+"""S14 Task 4's PRIMARY exit-criterion oracle: pymoses's full-pipeline
 `contin_reduce` (contin_reduction.py) and `mixed_reduce`
 (mixed_reduction.py) against `tests/fixtures/contin_mixed_reduction.json`
 -- 53 trees x 2 modes (contin effort 2, mixed) plus 4 assumption-bearing
@@ -28,16 +28,16 @@ from pathlib import Path
 
 import pytest
 
-from pymetta.comboreduct.combo.assumption import insert_assumption
-from pymetta.comboreduct.combo.iostream_combo import combo_tree_to_str, str_to_combo_tree
-from pymetta.comboreduct.reduct.contin_reduction import (
+from pymoses.comboreduct.combo.assumption import insert_assumption
+from pymoses.comboreduct.combo.iostream_combo import combo_tree_to_str, str_to_combo_tree
+from pymoses.comboreduct.reduct.contin_reduction import (
     _reset_cache_for_testing as _reset_contin_cache,
 )
-from pymetta.comboreduct.reduct.contin_reduction import contin_reduce
-from pymetta.comboreduct.reduct.mixed_reduction import (
+from pymoses.comboreduct.reduct.contin_reduction import contin_reduce
+from pymoses.comboreduct.reduct.mixed_reduction import (
     _reset_cache_for_testing as _reset_mixed_cache,
 )
-from pymetta.comboreduct.reduct.mixed_reduction import mixed_reduce
+from pymoses.comboreduct.reduct.mixed_reduction import mixed_reduce
 
 _FIXTURES_DIR = Path(__file__).resolve().parent.parent.parent / "fixtures"
 FIXTURE_PATH = _FIXTURES_DIR / "contin_mixed_reduction.json"

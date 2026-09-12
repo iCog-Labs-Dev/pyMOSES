@@ -1,6 +1,6 @@
 // tools/cpp_probe/logical_rules_differential_probe.cc
 //
-// Differential oracle for pymetta's comboreduct/reduct/logical_rules.py
+// Differential oracle for pymoses's comboreduct/reduct/logical_rules.py
 // (Task 4 review, Important: "land the differential harness in-repo" --
 // both Criticals in that review were found by randomized differential
 // testing, neither reachable from the hand-picked ENF corpus, and the

@@ -1,4 +1,4 @@
-"""Unit tests for pymetta.util.selection.roulette_select and
+"""Unit tests for pymoses.util.selection.roulette_select and
 tournament_selection.
 
 No C++ probe of its own: `roulette_select`'s only real call site anywhere
@@ -15,7 +15,7 @@ object shaped like `MT19937RandGen` (duck typing, matching every other
 `rng: RandGen = randGen()` parameter in this port).
 
 `tournament_selection` was added by the P2 optimizer-port task
-(star-anneal/univariate/particle-swarm; see `pymetta/util/selection.py`'s
+(star-anneal/univariate/particle-swarm; see `pymoses/util/selection.py`'s
 own module docstring) for `univariate.cc:81`'s one reachable call site.
 Its own tests pin draw ORDER against a scripted RNG -- `t_size` draws per
 tournament, `n_select` tournaments -- the property this task's fidelity
@@ -27,9 +27,9 @@ from pathlib import Path
 
 import pytest
 
-from pymetta.moses.moses.types import _to_score_t, composite_score
-from pymetta.util.rng import randGen
-from pymetta.util.selection import roulette_select, tournament_selection
+from pymoses.moses.moses.types import _to_score_t, composite_score
+from pymoses.util.rng import randGen
+from pymoses.util.selection import roulette_select, tournament_selection
 
 
 class _FixedRng:
@@ -82,12 +82,12 @@ def test_all_weight_on_one_item_is_always_selected_regardless_of_rand():
 
 
 # ---------------------------------------------------------------------------
-# Default RNG plumbing (rng=None -> pymetta.util.rng.randGen())
+# Default RNG plumbing (rng=None -> pymoses.util.rng.randGen())
 # ---------------------------------------------------------------------------
 
 
 def test_default_rng_is_reproducible_for_a_fixed_seed():
-    from pymetta.util.rng import randGen
+    from pymoses.util.rng import randGen
 
     items = [1.0, 2.0, 3.0]
     randGen().seed(7)
@@ -221,7 +221,7 @@ def test_narrows_each_loop_subtraction_not_only_the_final_sum():
     never picks up, and that residue is what keeps `remaining > 0` one
     iteration longer.
     """
-    from pymetta.util.rng import randGen
+    from pymoses.util.rng import randGen
 
     items = [0.6] * 20 + [99999992.0, 1.0]
     total = 266994096.0
@@ -237,10 +237,10 @@ def test_narrows_each_loop_subtraction_not_only_the_final_sum():
 def test_module_exports_roulette_select_and_tournament_selection():
     """Updated by the P2 optimizer-port task (star-anneal/univariate/
     particle-swarm): `tournament_selection` was added alongside
-    `roulette_select` -- see `pymetta/util/selection.py`'s own module
+    `roulette_select` -- see `pymoses/util/selection.py`'s own module
     docstring for why (`univariate.cc:81`'s one reachable call site).
     """
-    import pymetta.util.selection as mod
+    import pymoses.util.selection as mod
 
     assert mod.__all__ == ["roulette_select", "tournament_selection"]
 

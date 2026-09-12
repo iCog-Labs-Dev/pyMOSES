@@ -1,6 +1,6 @@
 {
   "capture_script": "tools/capture_golden.py",
-  "capture_script_sha256": "872fa739300fbaddec5915793747a27aee3a3b847d62bc1ad448c001bdb17188",
+  "capture_script_sha256": "0eaa541139fa517bf16191534d863a2da1880020b328e8ab415fcb223fd6082f",
   "classic_dir": null,
   "cli_tool": null,
   "generated_at_utc": "2026-09-12T06:28:01+00:00",
@@ -31,7 +31,7 @@
   "prefix_dir": "/home/yab/opt/moses-legacy",
   "probe_kind": "cpp_probe",
   "probe_source": "tools/cpp_probe/rng_probe.cc",
-  "probe_source_sha256": "90eefed353519cc75e3bf35727aabffdb0481fd5143f510fc0b1204700234f9d",
+  "probe_source_sha256": "7632d6c4a3ea4d6a5fc590dd7ae0cae9ef24732d572c4bb4e9dd740ffdcef34f",
   "repo_commit": "0552389e084d25bd36a7e44676d6560e6210f5ac",
   "schema_version": 2,
   "toolchain": {

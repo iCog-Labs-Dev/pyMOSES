@@ -1,5 +1,5 @@
-"""Oracle and guard tests for pymetta.feature_selection.scorers.moses_matrix
-(pre_scorer) and pymetta.feature_selection.scorers.fs_scorer_base.
+"""Oracle and guard tests for pymoses.feature_selection.scorers.moses_matrix
+(pre_scorer) and pymoses.feature_selection.scorers.fs_scorer_base.
 
 ## Oracle: tools/cpp_probe/fs_standalone_probe.cc -> tests/fixtures/fs_standalone.json
 
@@ -23,13 +23,13 @@ from pathlib import Path
 
 import pytest
 
-from pymetta.comboreduct.table.table import CTable
-from pymetta.comboreduct.table.table_io import loadTable
-from pymetta.feature_selection.algo.stochastic_max_dependency import smd_select_feature_sets
-from pymetta.feature_selection.main.feature_selection_params import feature_selection_parameters
-from pymetta.feature_selection.scorers.fs_scorer_base import fs_scorer_base
-from pymetta.feature_selection.scorers.moses_matrix import pre_scorer
-from pymetta.util.rng import randGen
+from pymoses.comboreduct.table.table import CTable
+from pymoses.comboreduct.table.table_io import loadTable
+from pymoses.feature_selection.algo.stochastic_max_dependency import smd_select_feature_sets
+from pymoses.feature_selection.main.feature_selection_params import feature_selection_parameters
+from pymoses.feature_selection.scorers.fs_scorer_base import fs_scorer_base
+from pymoses.feature_selection.scorers.moses_matrix import pre_scorer
+from pymoses.util.rng import randGen
 
 _FIXTURE_PATH = Path(__file__).resolve().parents[1] / "fixtures" / "fs_standalone.json"
 _TABLE_DATA_DIR = Path(__file__).resolve().parents[1] / "fixtures" / "table_data"

@@ -13,7 +13,7 @@
   "prefix_dir": "/home/yab/opt/moses-legacy",
   "probe_kind": "cpp_probe",
   "probe_source": "tools/cpp_probe/contin_mixed_reduct_probe.cc",
-  "probe_source_sha256": "7635861e03a9f3e30d3afd7af0b713588e46d019dfd2b021412e06cc49f16050",
+  "probe_source_sha256": "78ef4a32a0259ac9df755fd322505d08402275e6aaf87b4670ed475ae5db00a2",
   "repo_commit": "6a021678f98c6a50a3255edf6740019f00ded7dc",
   "schema_version": 1
 }

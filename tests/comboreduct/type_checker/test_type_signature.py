@@ -9,8 +9,8 @@ from dataclasses import FrozenInstanceError
 
 import pytest
 
-from pymetta.comboreduct.combo.vertex import builtin
-from pymetta.comboreduct.table.table import (
+from pymoses.comboreduct.combo.vertex import builtin
+from pymoses.comboreduct.table.table import (
     CTable,
     ITable,
     OTable,
@@ -18,7 +18,7 @@ from pymetta.comboreduct.table.table import (
     Table,
     TimedCounter,
 )
-from pymetta.comboreduct.type_checker.type_signature import (
+from pymoses.comboreduct.type_checker.type_signature import (
     TypeSignature,
     action_result_arity,
     boolean_arity,
@@ -30,7 +30,7 @@ from pymetta.comboreduct.type_checker.type_signature import (
     type_node,
     type_tree_arity,
 )
-from pymetta.comboreduct.type_checker.type_tree import type_tree
+from pymoses.comboreduct.type_checker.type_tree import type_tree
 
 _NAME_TO_NODE = {
     "boolean": type_node.boolean_type,

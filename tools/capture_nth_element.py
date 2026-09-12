@@ -131,7 +131,7 @@ def capture_fixture() -> None:
                 ),
                 "host_dependency": (
                     "libstdc++'s std::__introselect (median-of-3 introselect); "
-                    "see pymetta/moses/eda/replacement.py's module docstring"
+                    "see pymoses/moses/eda/replacement.py's module docstring"
                 ),
             },
         ),

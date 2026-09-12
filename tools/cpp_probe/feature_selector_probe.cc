@@ -12,7 +12,7 @@
 //   "mi"      -- mutualInformation(ctable, {single feature}) for every
 //                input column of trainingBoolean.dat and
 //                trainingBooleanXor.dat. Ground truth for
-//                pymetta.feature_selection.scorers.mutual_info.
+//                pymoses.feature_selection.scorers.mutual_info.
 //
 //   "simple"  -- simple_select_feature_sets(ctable, fs_params) for a range
 //                of target_size values on both tables, with the DEFAULT
@@ -21,7 +21,7 @@
 //                (ScoredFeatureSetGreater's one randGen().randint() draw)
 //                whenever two features tie on MI -- both fixture tables do
 //                this at target_size=2/1 respectively. Ground truth for
-//                pymetta.feature_selection.algo.simple.
+//                pymoses.feature_selection.algo.simple.
 //
 //   "in_loop" -- feature_selector::operator()(exemplar), the actual
 //                --enable-fs entry point, for a handful of
@@ -32,10 +32,10 @@
 //                build_fs_ctable so the fixture also records the POST-
 //                preprocessing target_size, the ignored-feature set, and
 //                the filtered ctable's uncompressed_size() -- everything
-//                pymetta.moses.deme.feature_selector's own
+//                pymoses.moses.deme.feature_selector's own
 //                preprocess_params/build_fs_ctable must reproduce, not just
 //                the final selected set. Ground truth for
-//                pymetta.moses.deme.feature_selector.
+//                pymoses.moses.deme.feature_selector.
 //
 // randGen() is (re)seeded to a fixed value immediately before every case
 // that can draw from it (every "simple" and "in_loop" case), matching a

@@ -1,4 +1,4 @@
-"""Oracle and guard tests for pymetta.moses.scoring.bscores.contin_bscore
+"""Oracle and guard tests for pymoses.moses.scoring.bscores.contin_bscore
 (S14 Task 3).
 
 The oracle fixture (tests/fixtures/contin_bscore.json) is produced by
@@ -24,12 +24,12 @@ from pathlib import Path
 
 import pytest
 
-from pymetta.comboreduct.combo.iostream_combo import str_to_combo_tree
-from pymetta.comboreduct.table.table import ITable, OTable, Table
-from pymetta.comboreduct.table.table_io import loadTable
-from pymetta.moses.moses.types import _to_score_t
-from pymetta.moses.scoring.bscores import _contin_complexity_coef, _sq, contin_bscore
-from pymetta.moses.scoring.scoring_base import discrete_complexity_coef
+from pymoses.comboreduct.combo.iostream_combo import str_to_combo_tree
+from pymoses.comboreduct.table.table import ITable, OTable, Table
+from pymoses.comboreduct.table.table_io import loadTable
+from pymoses.moses.moses.types import _to_score_t
+from pymoses.moses.scoring.bscores import _contin_complexity_coef, _sq, contin_bscore
+from pymoses.moses.scoring.scoring_base import discrete_complexity_coef
 
 _FIXTURE_DIR = Path(__file__).resolve().parents[2] / "fixtures"
 _GOLDEN = json.loads((_FIXTURE_DIR / "contin_bscore.json").read_text())
@@ -224,7 +224,7 @@ def test_scoring_functor_overload():
     """The templated `contin_bscore(const Scoring&, const ITable&, eft)`
     overload (bscores.h:203-209) has ZERO real callers within this port's
     scope (only `demo-problems.cc`'s `sr` problem uses it in classic, and
-    `pymetta/moses/main/` is out of this task's scope) -- see the module
+    `pymoses/moses/main/` is out of this task's scope) -- see the module
     docstring on bscores.py. Direct, non-oracle proof that it builds the
     same `target` a manually-scored `(OTable, ITable)` construction would.
     """

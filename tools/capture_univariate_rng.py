@@ -137,7 +137,7 @@ def capture_fixture() -> None:
                 "host_dependency": (
                     "glibc's rand() (TYPE_3 additive feedback) and libstdc++'s "
                     "two-argument std::random_shuffle; see "
-                    "pymetta/util/digraph.py's module docstring"
+                    "pymoses/util/digraph.py's module docstring"
                 ),
             },
         ),

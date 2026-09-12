@@ -32,10 +32,10 @@ from pathlib import Path
 
 import pytest
 
-from pymetta.comboreduct.combo.iostream_combo import str_to_combo_tree
-from pymetta.comboreduct.combo.vertex import builtin
-from pymetta.comboreduct.table.table_io import loadTable
-from pymetta.moses.scoring.bscores import ctruth_table_bscore
+from pymoses.comboreduct.combo.iostream_combo import str_to_combo_tree
+from pymoses.comboreduct.combo.vertex import builtin
+from pymoses.comboreduct.table.table_io import loadTable
+from pymoses.moses.scoring.bscores import ctruth_table_bscore
 
 _FIXTURE_DIR = Path(__file__).resolve().parents[2] / "fixtures"
 _SCORE_CASES = json.loads((_FIXTURE_DIR / "score.json").read_text())

@@ -1,11 +1,11 @@
 import pytest
 
-from pymetta.comboreduct.combo.argument import argument
-from pymetta.comboreduct.combo.iostream_combo import str_to_combo_tree
-from pymetta.comboreduct.combo.vertex import combo_tree
-from pymetta.moses.representation.field_set import field_set
-from pymetta.moses.representation.knob_mapper import knob_mapper
-from pymetta.moses.representation.knobs import contin_knob, logical_subtree_knob
+from pymoses.comboreduct.combo.argument import argument
+from pymoses.comboreduct.combo.iostream_combo import str_to_combo_tree
+from pymoses.comboreduct.combo.vertex import combo_tree
+from pymoses.moses.representation.field_set import field_set
+from pymoses.moses.representation.knob_mapper import knob_mapper
+from pymoses.moses.representation.knobs import contin_knob, logical_subtree_knob
 
 
 def _knob(tr, idx):

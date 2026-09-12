@@ -6,7 +6,7 @@ and libraries, run it, and save its JSON stdout as
 tests/fixtures/ss_bscore.json. Every subprocess is resource-bounded
 (RLIMIT_AS + a wall-clock timeout) per this session's standing OOM caution.
 
-This fixture is the oracle for `pymetta.moses.scoring.ss_bscore`'s port of
+This fixture is the oracle for `pymoses.moses.scoring.ss_bscore`'s port of
 moses/moses/scoring/ss_bscore.{h,cc}'s three self-contained, RNG-drawing
 computations (the accumulator variance recurrence, the low-deviation
 penalty, and the two subsample-partitioning branches) -- see the probe's

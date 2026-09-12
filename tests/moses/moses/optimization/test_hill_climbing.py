@@ -1,4 +1,4 @@
-"""Oracle and guard tests for pymetta.moses.moses.optimization.hill_climbing.
+"""Oracle and guard tests for pymoses.moses.moses.optimization.hill_climbing.
 
 The oracle fixture (tests/fixtures/hillclimbing.json) is produced by
 tools/cpp_probe/hillclimbing_probe.cc against the real classic library (see
@@ -35,7 +35,7 @@ already-faithful algorithm that 69 independent mutation-testing runs found
 were reachable by zero test in the repo (27 of those 69 mutants survived).
 Each one is verified, by hand, to fail under the exact mutation it is
 named for and pass once reverted -- see
-`.superpowers/sdd/2026-09-07-pymetta-s10-metapopulation/s9-fix-coverage-report.md`
+`.superpowers/sdd/2026-09-07-pymoses-s10-metapopulation/s9-fix-coverage-report.md`
 for the full mutation-by-mutation ledger.
 """
 
@@ -45,15 +45,15 @@ from pathlib import Path
 
 import pytest
 
-from pymetta.moses.moses.optimization.hill_climbing import hc_parameters, hill_climbing
-from pymetta.moses.moses.optimization.optimization import optim_parameters
-from pymetta.moses.moses.types import composite_score
-from pymetta.moses.representation.field_set import disc_spec, field_set
-from pymetta.moses.representation.instance import instance
-from pymetta.moses.representation.instance_scorer import distance_based_scorer
-from pymetta.moses.representation.instance_set import instance_set
-from pymetta.moses.representation.scored_instance import scored_instance
-from pymetta.util.rng import randGen
+from pymoses.moses.moses.optimization.hill_climbing import hc_parameters, hill_climbing
+from pymoses.moses.moses.optimization.optimization import optim_parameters
+from pymoses.moses.moses.types import composite_score
+from pymoses.moses.representation.field_set import disc_spec, field_set
+from pymoses.moses.representation.instance import instance
+from pymoses.moses.representation.instance_scorer import distance_based_scorer
+from pymoses.moses.representation.instance_set import instance_set
+from pymoses.moses.representation.scored_instance import scored_instance
+from pymoses.util.rng import randGen
 from tools.check_fixture_manifests import SUPPORTED_SCHEMA_VERSIONS
 
 _FIXTURE_PATH = Path(__file__).resolve().parents[3] / "fixtures" / "hillclimbing.json"
@@ -364,10 +364,10 @@ def test_resize_by_score_removes_everything_when_deme_stays_above_min_to_keep():
 # `hill_climbing`/`neighborhood_sampling` machinery the fixture tests above
 # already establish is faithful to classic. Each assertion below was
 # confirmed, by temporarily applying the exact mutation named in its
-# docstring to pymetta/moses/moses/optimization/hill_climbing.py, that the
+# docstring to pymoses/moses/moses/optimization/hill_climbing.py, that the
 # test fails, then reverting and confirming it passes again -- see the
 # coverage report this task writes to
-# .superpowers/sdd/2026-09-07-pymetta-s10-metapopulation/s9-fix-coverage-report.md.
+# .superpowers/sdd/2026-09-07-pymoses-s10-metapopulation/s9-fix-coverage-report.md.
 
 
 class _ConstScorer:

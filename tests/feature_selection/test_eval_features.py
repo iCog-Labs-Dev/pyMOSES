@@ -1,4 +1,4 @@
-"""Tests for ``pymetta.feature_selection.main.eval_features`` (the
+"""Tests for ``pymoses.feature_selection.main.eval_features`` (the
 standalone ``eval-features`` binary).
 
 ## Oracle
@@ -46,7 +46,7 @@ from pathlib import Path
 
 import pytest
 
-from pymetta.feature_selection.main.eval_features import (
+from pymoses.feature_selection.main.eval_features import (
     eval_features_main,
     eval_features_parameters,
     get_features_idx,

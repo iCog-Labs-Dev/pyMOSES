@@ -7,7 +7,7 @@ tests/fixtures/eda_initialization.json. Every subprocess is
 resource-bounded (RLIMIT_AS + a wall-clock timeout) per this session's
 standing OOM caution.
 
-This fixture is the oracle for `pymetta.moses.eda.initialization`'s port of
+This fixture is the oracle for `pymoses.moses.eda.initialization`'s port of
 moses/moses/eda/initialization.{h,cc}: uniform_randomize_bit,
 uniform_randomize_disc, occam_randomize_contin (both overloads), and
 randomize (the combining wrapper) -- see the probe's own module comment for

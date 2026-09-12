@@ -8,10 +8,10 @@ with a ``mi_contin.manifest.json`` sidecar (``tools/_manifest.py``).
 What it is ground truth for
 ---------------------------
 
-``pymetta/feature_selection/scorers/mutual_info.py``'s two formerly-gated
+``pymoses/feature_selection/scorers/mutual_info.py``'s two formerly-gated
 continuous branches of ``mutualInformation(const CTable&, const
 FeatureSet&)`` (``moses/comboreduct/table/table.h:1132``), and the new
-``pymetta/feature_selection/scorers/kld.py``:
+``pymoses/feature_selection/scorers/kld.py``:
 
 * ``discretize_contin_feature`` / ``get_discrete_bin``
   (``table.cc:573`` / ``:583``), including the two degenerate interval
@@ -34,7 +34,7 @@ project's standing OOM caution.
 
 Run it as::
 
-    PYMETTA_CLASSIC_DIR=... PYMETTA_MOSES_PREFIX=... \\
+    PYMOSES_CLASSIC_DIR=... PYMOSES_MOSES_PREFIX=... \\
         .venv/bin/python3 tools/capture_mi_contin.py
 """
 

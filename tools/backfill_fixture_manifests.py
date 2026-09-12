@@ -31,7 +31,7 @@ its manifest instead records repo_commit=HEAD (at backfill time) and
 `generated_at_utc`=the verification's own timestamp, honestly describing
 "verified consistent as of now" rather than misattributing a stale commit
 to hashes that postdate it. See this task's own
-.superpowers/sdd/2026-09-08-pymetta-s11-local-moses/fixture-integrity-report.md
+.superpowers/sdd/2026-09-08-pymoses-s11-local-moses/fixture-integrity-report.md
 for the full per-fixture ledger (git commands run, hashes compared).
 
 This script is idempotent and safe to re-run; it only ever writes
@@ -57,7 +57,7 @@ CPP_PROBE = REPO_ROOT / "tools" / "cpp_probe"
 # refactor) -- recorded here as plain informational strings, matching
 # tools/_manifest.py's own "classic_dir/prefix_dir" field semantics
 # ("as resolved when captured", not re-checked). Deliberately NOT read
-# from PYMETTA_CLASSIC_DIR/PYMETTA_MOSES_PREFIX: this script must stay
+# from PYMOSES_CLASSIC_DIR/PYMOSES_MOSES_PREFIX: this script must stay
 # runnable with no environment variables and no checkouts present at all.
 _CLASSIC_DIR = "/home/yab/Documents/Projects/iCog/HyperonRelated/MOSES/OpenCog/Moses"
 _PREFIX_DIR = "/home/yab/opt/moses-legacy"

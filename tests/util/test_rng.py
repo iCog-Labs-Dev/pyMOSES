@@ -2,7 +2,7 @@ import json  # noqa: I001
 import struct
 
 import pytest
-from pymetta.util.rng import MT19937RandGen, randGen
+from pymoses.util.rng import MT19937RandGen, randGen
 
 @pytest.fixture(scope="module")
 def golden(fixture_dir):

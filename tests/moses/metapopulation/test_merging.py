@@ -1,4 +1,4 @@
-"""Unit + oracle tests for pymetta.moses.metapopulation.merging.
+"""Unit + oracle tests for pymoses.moses.metapopulation.merging.
 
 `metapopulationUTest.cxxtest` covers none of this file's scope (see
 CARRY-FORWARD.md: its two tests exercise `remove_dominated`/
@@ -82,21 +82,21 @@ from pathlib import Path
 
 import pytest
 
-from pymetta.comboreduct.combo.iostream_combo import combo_tree_to_str, str_to_combo_tree
-from pymetta.comboreduct.reduct.logical_reduction import logical_reduction
-from pymetta.comboreduct.table.table_io import loadTable
-from pymetta.comboreduct.type_checker.type_signature import gen_signature, type_node
-from pymetta.moses.deme.deme_expander import deme_expander
-from pymetta.moses.deme.deme_params import deme_parameters
-from pymetta.moses.metapopulation import merging  # noqa: F401  (binds merge_demes et al.)
-from pymetta.moses.metapopulation.metapop_params import (
+from pymoses.comboreduct.combo.iostream_combo import combo_tree_to_str, str_to_combo_tree
+from pymoses.comboreduct.reduct.logical_reduction import logical_reduction
+from pymoses.comboreduct.table.table_io import loadTable
+from pymoses.comboreduct.type_checker.type_signature import gen_signature, type_node
+from pymoses.moses.deme.deme_expander import deme_expander
+from pymoses.moses.deme.deme_params import deme_parameters
+from pymoses.moses.metapopulation import merging  # noqa: F401  (binds merge_demes et al.)
+from pymoses.moses.metapopulation.metapop_params import (
     metapop_parameters,
     subsample_deme_filter_parameters,
 )
-from pymetta.moses.metapopulation.metapopulation import metapopulation
-from pymetta.moses.moses.optimization.hill_climbing import hc_parameters, hill_climbing
-from pymetta.moses.moses.optimization.optimization import optim_parameters
-from pymetta.moses.moses.types import (
+from pymoses.moses.metapopulation.metapopulation import metapopulation
+from pymoses.moses.moses.optimization.hill_climbing import hc_parameters, hill_climbing
+from pymoses.moses.moses.optimization.optimization import optim_parameters
+from pymoses.moses.moses.types import (
     _to_score_t,
     composite_score,
     demeID_t,
@@ -104,13 +104,13 @@ from pymetta.moses.moses.types import (
     scored_combo_tree_set,
     very_worst_score,
 )
-from pymetta.moses.representation.field_set import disc_spec, field_set
-from pymetta.moses.representation.instance import instance
-from pymetta.moses.representation.scored_instance import scored_instance
-from pymetta.moses.scoring.behave_cscore import behave_cscore
-from pymetta.moses.scoring.bscores import ctruth_table_bscore
-from pymetta.moses.scoring.scoring_base import bscore_base
-from pymetta.util.rng import randGen
+from pymoses.moses.representation.field_set import disc_spec, field_set
+from pymoses.moses.representation.instance import instance
+from pymoses.moses.representation.scored_instance import scored_instance
+from pymoses.moses.scoring.behave_cscore import behave_cscore
+from pymoses.moses.scoring.bscores import ctruth_table_bscore
+from pymoses.moses.scoring.scoring_base import bscore_base
+from pymoses.util.rng import randGen
 from tools.check_fixture_manifests import SUPPORTED_SCHEMA_VERSIONS
 
 _XOR_DATA = "tests/fixtures/table_data/trainingBooleanXor.dat"

@@ -1,7 +1,7 @@
 // tools/cpp_probe/partition_probe.cc
 //
 // Measures the REAL child-reordering behaviour of opencog::tree<T>::partition
-// and ::sort_on_subtrees for pymetta's util/tree.py port (task-3, needed by
+// and ::sort_on_subtrees for pymoses's util/tree.py port (task-3, needed by
 // general_rules.py's eval_constants and reorder_commutative). Ground truth,
 // not inference from reading tree.h alone -- partition's two-pointer swap
 // scan is not a textbook stable partition (verified below).

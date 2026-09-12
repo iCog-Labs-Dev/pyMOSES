@@ -53,7 +53,7 @@ from pathlib import Path
 DOC = Path(__file__).resolve().parent.parent / "docs" / "MODULE-COVERAGE.md"
 
 # The inventory's own invariant: every file under $CLASSIC/moses/ (240, by
-# `git ls-files`) plus the CogUtil files pyMeTTa ports. That CogUtil set GROWS
+# `git ls-files`) plus the CogUtil files pyMoses ports. That CogUtil set GROWS
 # as slices reach new dependencies -- S9 added lazy_random_selector.{h,cc}
 # (+2 files, +97 lines), taking the total from 243/62,047 to 245/62,144. S11
 # Task 1 added selection.h (+1 file, +155 lines), taking the total to
@@ -98,7 +98,7 @@ STATUS_ORDER = [
 #
 # `PLANNED: P2` emptied on 2026-09-11: the last PLANNED row -- `type_tree_def.cc`,
 # 41 lines, `is_argument_type` and `arg_to_idx` -- was found already ported at
-# `pymetta/comboreduct/type_checker/type_signature.py:115,:126`. Rendering the
+# `pymoses/comboreduct/type_checker/type_signature.py:115,:126`. Rendering the
 # bucket at zero states that milestone in the table instead of hiding it, and
 # leaves the PLANNED machinery (AWAITING_RE / FOLDS_INTO_RE and
 # `check_planned_rows_against_reality`) armed for the next PLANNED row anyone
@@ -118,27 +118,27 @@ FULL_ROW_RE = re.compile(
 
 # A row names its Python module by path, in the reason column. Backticks are
 # optional because ~40 rows predate the convention and write the path bare.
-MODULE_RE = re.compile(r"`?(pymetta/[\w/]+\.py)`?")
+MODULE_RE = re.compile(r"`?(pymoses/[\w/]+\.py)`?")
 
 # A PLANNED row must declare which module it is waiting for, with one of two
-# explicit markers. Bare `pymetta/...py` mentions elsewhere in the reason are
+# explicit markers. Bare `pymoses/...py` mentions elsewhere in the reason are
 # CONTEXT, not the declaration -- a PLANNED row routinely points at a
 # neighbouring ported module ("see the mutual_info.py row"), and treating those
 # as the awaited module made `eval-features.h` report itself stale against a
 # module it merely cites.
 #
-#   AWAITING `pymetta/x.py`    -- a module that does not exist yet. Flagged the
+#   AWAITING `pymoses/x.py`    -- a module that does not exist yet. Flagged the
 #                                 day it appears: that is the closeout the
 #                                 forward check exists to catch.
-#   FOLDS INTO `pymetta/x.py`  -- the C++ file's symbols would land INSIDE a
+#   FOLDS INTO `pymoses/x.py`  -- the C++ file's symbols would land INSIDE a
 #                                 module that already exists (e.g.
 #                                 `type_tree_def.cc`'s two functions belong in
 #                                 `type_tree.py`). Existence proves nothing
 #                                 here, so the test inverts: the host module
 #                                 must be there, and staleness has to be found
 #                                 by reading.
-AWAITING_RE = re.compile(r"AWAITING `?(pymetta/[\w/]+\.py)`?")
-FOLDS_INTO_RE = re.compile(r"FOLDS INTO `?(pymetta/[\w/]+\.py)`?")
+AWAITING_RE = re.compile(r"AWAITING `?(pymoses/[\w/]+\.py)`?")
+FOLDS_INTO_RE = re.compile(r"FOLDS INTO `?(pymoses/[\w/]+\.py)`?")
 
 # The project-wide breadcrumb convention (see tools/check_alignment.py): the
 # FIRST line of a ported symbol's docstring is
@@ -323,17 +323,17 @@ def check_planned_rows_against_reality(text: str) -> list[str]:
     branch review caught. Three times, and `--check` was green each time.
 
     This closes the loop cheaply. A PLANNED row names its intended Python
-    module in backticks (`pymetta/...py`); if that file exists on disk, the row
+    module in backticks (`pymoses/...py`); if that file exists on disk, the row
     is stale. The reverse directions are now covered too, by
     `check_named_modules_exist` and `check_ported_rows_do_not_gate`.
 
     Sharp edge, measured 2026-09-09: this check was VACUOUS for its whole first
-    life. Not one PLANNED row named a `pymetta/...py` module -- PLANNED reasons
+    life. Not one PLANNED row named a `pymoses/...py` module -- PLANNED reasons
     were written as prose ("PLANNED: P2 -- combo-tree similarity metric ..."),
     so the loop below never had a path to test, and 20 rows whose modules had
     landed sailed through green. The fix is a convention, enforced by
     `check_planned_rows_name_a_module` below: a PLANNED row MUST name the
-    `pymetta/...py` module it is waiting for. Without that, this function is a
+    `pymoses/...py` module it is waiting for. Without that, this function is a
     guard over an empty set.
     """
     problems: list[str] = []
@@ -361,7 +361,7 @@ def check_planned_rows_against_reality(text: str) -> list[str]:
 
 
 def check_planned_rows_name_a_module(text: str) -> list[str]:
-    """Require every PLANNED row to name the `pymetta/...py` it is waiting for.
+    """Require every PLANNED row to name the `pymoses/...py` it is waiting for.
 
     Exists only to keep `check_planned_rows_against_reality` from being
     vacuous, which is what it was until 2026-09-09 (see that function). A
@@ -380,8 +380,8 @@ def check_planned_rows_name_a_module(text: str) -> list[str]:
         if not (AWAITING_RE.search(reason) or FOLDS_INTO_RE.search(reason)):
             problems.append(
                 f"{DOC.name}: `{m.group('cpp')}` is {m.group('status').strip()} but its "
-                f"reason declares neither AWAITING `pymetta/...py` (a module still to be "
-                f"created) nor FOLDS INTO `pymetta/...py` (an existing module the symbols "
+                f"reason declares neither AWAITING `pymoses/...py` (a module still to be "
+                f"created) nor FOLDS INTO `pymoses/...py` (an existing module the symbols "
                 f"belong in). Without one, check_planned_rows_against_reality can never "
                 f"fire for this row."
             )
@@ -389,7 +389,7 @@ def check_planned_rows_name_a_module(text: str) -> list[str]:
 
 
 def check_named_modules_exist(text: str) -> list[str]:
-    """Flag a non-PLANNED row naming a `pymetta/...py` that is NOT on disk.
+    """Flag a non-PLANNED row naming a `pymoses/...py` that is NOT on disk.
 
     The first of the two INVERSE checks -- the direction
     `check_planned_rows_against_reality` explicitly declines to cover. Its
@@ -435,11 +435,11 @@ def _gates_in(module: Path) -> list[tuple[int, str | None, bool, str]]:
     test therefore blames the wrong row. Two measured examples from the tree
     this was written against:
 
-    * `pymetta/moses/main/problem_params.py` is named by four rows -- two
+    * `pymoses/moses/main/problem_params.py` is named by four rows -- two
       PORTED (`moses_exec_def.{cc,h}`) and two PARTIAL (`problem-params.{cc,h}`).
       All eleven of its raises breadcrumb to `problem-params.cc`, so the PORTED
       rows are correctly left alone.
-    * `pymetta/moses/main/problem.py` is named only by PORTED rows and does
+    * `pymoses/moses/main/problem.py` is named only by PORTED rows and does
       contain a non-abstract raise -- but it sits in `_unported_table_problem`,
       a port-invented stand-in with no breadcrumb, so it attributes to nothing
       and blames no row.

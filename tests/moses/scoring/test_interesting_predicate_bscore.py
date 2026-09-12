@@ -31,11 +31,11 @@ from pathlib import Path
 
 import pytest
 
-from pymetta.comboreduct.combo.iostream_combo import str_to_combo_tree
-from pymetta.comboreduct.combo.vertex import builtin
-from pymetta.comboreduct.table.table_io import loadTable
-from pymetta.moses.moses.types import very_best_score
-from pymetta.moses.scoring.bscores import (
+from pymoses.comboreduct.combo.iostream_combo import str_to_combo_tree
+from pymoses.comboreduct.combo.vertex import builtin
+from pymoses.comboreduct.table.table_io import loadTable
+from pymoses.moses.moses.types import very_best_score
+from pymoses.moses.scoring.bscores import (
     _ctable_rows_in_map_order,
     _mann_whitney_u,
     _ranking,
@@ -407,12 +407,12 @@ def test_pred_counter_assignment_defect_is_actually_exercised():
     """
     table = loadTable(str(_TABLE_DATA / "ip_boolean_contin.csv"), "y")
     ctable = table.compressed("")
-    from pymetta.comboreduct.table.table import timed_items_of
+    from pymoses.comboreduct.table.table import timed_items_of
 
     seen: dict[float, int] = {}
     for _row, cell in ctable.items():
         for tv, _count in timed_items_of(cell):
-            from pymetta.comboreduct.combo.vertex import get_contin
+            from pymoses.comboreduct.combo.vertex import get_contin
 
             value = get_contin(tv.value)
             seen[value] = seen.get(value, 0) + 1

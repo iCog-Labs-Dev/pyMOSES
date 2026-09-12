@@ -15,8 +15,8 @@ from pathlib import Path
 
 import pytest
 
-from pymetta.comboreduct.combo.iostream_combo import str_to_combo_tree
-from pymetta.moses.moses.complexity import tree_complexity
+from pymoses.comboreduct.combo.iostream_combo import str_to_combo_tree
+from pymoses.moses.moses.complexity import tree_complexity
 
 _FIXTURE_DIR = Path(__file__).resolve().parents[2] / "fixtures"
 _SCORE_CASES = json.loads((_FIXTURE_DIR / "score.json").read_text())

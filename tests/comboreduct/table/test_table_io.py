@@ -20,9 +20,9 @@ from pathlib import Path
 
 import pytest
 
-from pymetta.comboreduct.combo.vertex import builtin, enum_t
-from pymetta.comboreduct.table.table import get_indices, type_node
-from pymetta.comboreduct.table.table_io import (
+from pymoses.comboreduct.combo.vertex import builtin, enum_t
+from pymoses.comboreduct.table.table import get_indices, type_node
+from pymoses.comboreduct.table.table_io import (
     infer_type_from_token,
     infer_type_from_token2,
     is_header,

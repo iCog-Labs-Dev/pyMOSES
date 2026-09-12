@@ -1,4 +1,4 @@
-# pyMeTTa
+# pyMoses
 
 Python port of classic OpenCog MOSES (a C++ evolutionary program learner),
 aligned line-for-line to the C++ source it is ported from.
@@ -12,7 +12,7 @@ points at a real, nearby line in the classic checkout.
 
 ## Layout
 
-- `pymetta/` — the port itself, mirroring the classic C++ source tree
+- `pymoses/` — the port itself, mirroring the classic C++ source tree
   (`comboreduct/...`, `moses/...`) file-for-file.
 - `tools/` — the alignment checker, the C++ oracle probes, and the golden
   fixture capture script.
@@ -35,6 +35,6 @@ and installs the pinned dev tools (`pytest`, `ruff`) into it; later runs
 reuse that `.venv` and skip installation entirely. No manual venv creation
 or activation, and no `PATH`/`pip install` step, is required first.
 
-See `docs/superpowers/specs/2026-09-02-pymetta-foundation-design.md` for the
-full design and `docs/superpowers/plans/2026-09-03-pymetta-s0-s6-foundation.md`
+See `docs/superpowers/specs/2026-09-02-pymoses-foundation-design.md` for the
+full design and `docs/superpowers/plans/2026-09-03-pymoses-s0-s6-foundation.md`
 for the task-by-task implementation plan.

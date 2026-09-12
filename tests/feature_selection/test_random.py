@@ -1,4 +1,4 @@
-"""Oracle and guard tests for pymetta.feature_selection.algo.random.
+"""Oracle and guard tests for pymoses.feature_selection.algo.random.
 
 ## Oracle: tools/cpp_probe/fs_standalone_probe.cc -> tests/fixtures/fs_standalone.json
 
@@ -17,11 +17,11 @@ from pathlib import Path
 
 import pytest
 
-from pymetta.comboreduct.table.table import CTable
-from pymetta.comboreduct.table.table_io import loadTable
-from pymetta.feature_selection.algo.random import random_select_feature_sets, random_selection
-from pymetta.feature_selection.main.feature_selection_params import feature_selection_parameters
-from pymetta.util.rng import randGen
+from pymoses.comboreduct.table.table import CTable
+from pymoses.comboreduct.table.table_io import loadTable
+from pymoses.feature_selection.algo.random import random_select_feature_sets, random_selection
+from pymoses.feature_selection.main.feature_selection_params import feature_selection_parameters
+from pymoses.util.rng import randGen
 
 _FIXTURE_PATH = Path(__file__).resolve().parents[1] / "fixtures" / "fs_standalone.json"
 _TABLE_DATA_DIR = Path(__file__).resolve().parents[1] / "fixtures" / "table_data"

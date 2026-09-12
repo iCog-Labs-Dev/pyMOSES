@@ -1,6 +1,6 @@
 // tools/cpp_probe/cluster_bscore_probe.cc
 //
-// Oracle for pyMeTTa's `cluster_bscore` (moses/moses/scoring/bscores.h:613,
+// Oracle for pyMoses's `cluster_bscore` (moses/moses/scoring/bscores.h:613,
 // bscores.cc:932/937/1074/1079) -- the `-H cluster` scorer.
 //
 // Follows contin_bscore_probe.cc's shape exactly (tiny local JSON

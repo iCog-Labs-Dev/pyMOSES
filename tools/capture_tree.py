@@ -4,21 +4,21 @@ tests/fixtures/tree.json.
 docs/CARRY-FORWARD.md Sec 5 named this fixture's missing capture script as
 a standing gap: "tree.json has no capture script in-repo -- the recipe
 lives only in the plan document" (docs/superpowers/plans/
-2026-09-03-pymetta-s0-s6-foundation.md:538-547). This script is that
+2026-09-03-pymoses-s0-s6-foundation.md:538-547). This script is that
 recipe, made runnable and path-independent.
 
 tree_probe.cc is deliberately header-only (`#define IGNORE_OC_ASSERT`
 before `#include <opencog/util/tree.h>`, per that file's own header
 comment) so it needs only a raw CogUtil source checkout on the include
 path -- no libcogutil link, no installed moses-legacy prefix, no classic
-MOSES checkout at all. That is resolved via PYMETTA_COGUTIL_DIR
+MOSES checkout at all. That is resolved via PYMOSES_COGUTIL_DIR
 (tools/_capture_env.py's `cogutil_dir()`), matching the plan document's
 own recipe (`g++ ... -I"$COGUTIL" ... tree_probe.cc`).
 
 Usage (from the repo root, with `.venv` already bootstrapped by
 tools/ci.sh):
 
-    PYMETTA_COGUTIL_DIR=/path/to/CogUtil .venv/bin/python3 tools/capture_tree.py
+    PYMOSES_COGUTIL_DIR=/path/to/CogUtil .venv/bin/python3 tools/capture_tree.py
 """
 
 import resource

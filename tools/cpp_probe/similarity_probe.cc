@@ -1,7 +1,7 @@
 // tools/cpp_probe/similarity_probe.cc
 //
-// Oracle for pyMeTTa's port of moses/comboreduct/combo/similarity.{h,cc}
-// (pymetta/comboreduct/combo/similarity.py). Links directly against the
+// Oracle for pyMoses's port of moses/comboreduct/combo/similarity.{h,cc}
+// (pymoses/comboreduct/combo/similarity.py). Links directly against the
 // real, exported opencog::combo::tree_flatten/tree_similarity symbols in
 // libcomboreduct.so -- not reimplemented here.
 //

@@ -23,13 +23,13 @@ from pathlib import Path
 
 import pytest
 
-from pymetta.comboreduct.combo.iostream_combo import combo_tree_to_str, str_to_combo_tree
-from pymetta.comboreduct.combo.vertex import get_contin, is_contin
-from pymetta.comboreduct.table.table_io import loadTable
-from pymetta.moses.moses.types import _to_score_t
-from pymetta.moses.scoring.behave_cscore import _cache_key, behave_cscore
-from pymetta.moses.scoring.bscores import ctruth_table_bscore
-from pymetta.moses.scoring.scoring_base import bscore_base, bscore_ctable_base
+from pymoses.comboreduct.combo.iostream_combo import combo_tree_to_str, str_to_combo_tree
+from pymoses.comboreduct.combo.vertex import get_contin, is_contin
+from pymoses.comboreduct.table.table_io import loadTable
+from pymoses.moses.moses.types import _to_score_t
+from pymoses.moses.scoring.behave_cscore import _cache_key, behave_cscore
+from pymoses.moses.scoring.bscores import ctruth_table_bscore
+from pymoses.moses.scoring.scoring_base import bscore_base, bscore_ctable_base
 
 _FIXTURE_DIR = Path(__file__).resolve().parents[2] / "fixtures"
 _SCORE_CASES = json.loads((_FIXTURE_DIR / "score.json").read_text())

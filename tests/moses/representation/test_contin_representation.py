@@ -23,22 +23,22 @@ import sys
 
 import pytest
 
-from pymetta.comboreduct.combo.iostream_combo import combo_tree_to_str, str_to_combo_tree
-from pymetta.comboreduct.combo.vertex import combo_tree
-from pymetta.comboreduct.interpreter.interpreter import contin_interpreter
-from pymetta.comboreduct.type_checker.type_signature import gen_signature, type_node
-from pymetta.moses.representation.field_set import field_set
-from pymetta.moses.representation.instance import instance
-from pymetta.moses.representation.knob_mapper import knob_mapper
-from pymetta.moses.representation.knobs import contin_knob
-from pymetta.moses.representation.representation import representation
+from pymoses.comboreduct.combo.iostream_combo import combo_tree_to_str, str_to_combo_tree
+from pymoses.comboreduct.combo.vertex import combo_tree
+from pymoses.comboreduct.interpreter.interpreter import contin_interpreter
+from pymoses.comboreduct.type_checker.type_signature import gen_signature, type_node
+from pymoses.moses.representation.field_set import field_set
+from pymoses.moses.representation.instance import instance
+from pymoses.moses.representation.knob_mapper import knob_mapper
+from pymoses.moses.representation.knobs import contin_knob
+from pymoses.moses.representation.representation import representation
 
-# DIVERGENCE(no C++ symbol): `pymetta/moses/representation/__init__.py` does
+# DIVERGENCE(no C++ symbol): `pymoses/moses/representation/__init__.py` does
 # `from .representation import representation`, which -- as a side effect of
 # how `from X import Y` binds names -- overwrites the package's own
 # `representation` ATTRIBUTE (normally the submodule, set by the import
 # machinery) with the CLASS of the same name. So
-# `import pymetta.moses.representation.representation as m` silently binds
+# `import pymoses.moses.representation.representation as m` silently binds
 # `m` to the CLASS, not the submodule (`import a.b.c as x` resolves via
 # attribute access on `a.b`, not a direct `sys.modules` lookup) -- this is
 # NOT this test file's own bug, it is Python's own attribute-shadowing rule
@@ -46,7 +46,7 @@ from pymetta.moses.representation.representation import representation
 # the shadowing, so this looks the real submodule up there instead, to reach
 # its `set_stepsize`/`set_expansion`/`set_depth`/`_stepsize`/`_expansion`/
 # `_depth` module-level state.
-representation_module = sys.modules["pymetta.moses.representation.representation"]
+representation_module = sys.modules["pymoses.moses.representation.representation"]
 
 _TYPE_NAME = {
     "boolean": type_node.boolean_type,

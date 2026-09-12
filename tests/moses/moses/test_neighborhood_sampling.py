@@ -1,4 +1,4 @@
-"""Oracle and guard tests for pymetta.moses.moses.neighborhood_sampling.
+"""Oracle and guard tests for pymoses.moses.moses.neighborhood_sampling.
 
 The oracle fixture (tests/fixtures/neighborhood.json) is produced by
 tools/cpp_probe/neighborhood_probe.cc against the real classic library (see
@@ -27,7 +27,7 @@ from pathlib import Path
 
 import pytest
 
-from pymetta.moses.moses.neighborhood_sampling import (
+from pymoses.moses.moses.neighborhood_sampling import (
     _SIZE_T_MAX,
     _randomize,
     count_neighborhood_size,
@@ -42,11 +42,11 @@ from pymetta.moses.moses.neighborhood_sampling import (
     twiddle_contin_bit,
     vary_n_knobs,
 )
-from pymetta.moses.moses.types import worst_composite_score
-from pymetta.moses.representation.field_set import contin_spec, disc_spec, field_set
-from pymetta.moses.representation.instance import instance
-from pymetta.moses.representation.instance_set import instance_set
-from pymetta.util.rng import randGen
+from pymoses.moses.moses.types import worst_composite_score
+from pymoses.moses.representation.field_set import contin_spec, disc_spec, field_set
+from pymoses.moses.representation.instance import instance
+from pymoses.moses.representation.instance_set import instance_set
+from pymoses.util.rng import randGen
 
 _FIXTURE_PATH = Path(__file__).resolve().parents[2] / "fixtures" / "neighborhood.json"
 _GOLDEN = json.loads(_FIXTURE_PATH.read_text())
@@ -651,7 +651,7 @@ def test_randomize_delegates_to_the_eda_port():
     this test protects is that the forwarding still happens, so the two
     cannot silently drift back into being separate implementations.
     """
-    import pymetta.moses.eda.initialization as eda_init
+    import pymoses.moses.eda.initialization as eda_init
 
     fs = _fs_with_contin()
     seen = []

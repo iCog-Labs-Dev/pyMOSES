@@ -1,7 +1,7 @@
 // tools/cpp_probe/contin_enumeration_probe.cc
 //
 // Oracle for the last three continuous-domain gaps in
-// pymetta/moses/moses/neighborhood_sampling.py:
+// pymoses/moses/moses/neighborhood_sampling.py:
 //
 //   1. count_neighborhood_size_from_index's contin branch
 //      ($CLASSIC/moses/moses/moses/neighborhood_sampling.cc:117-160)
@@ -61,8 +61,8 @@
 //
 // Build (see tools/capture_contin_enumeration.py, which runs exactly this):
 //
-//   P=$PYMETTA_MOSES_PREFIX
-//   C=$PYMETTA_CLASSIC_DIR
+//   P=$PYMOSES_MOSES_PREFIX
+//   C=$PYMOSES_CLASSIC_DIR
 //   g++ -O2 -std=c++17 -I $C -I $P/include \
 //       -o tools/cpp_probe/build/contin_enumeration_probe \
 //       tools/cpp_probe/contin_enumeration_probe.cc \

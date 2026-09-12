@@ -1,6 +1,6 @@
 // tools/cpp_probe/merging_probe.cc
 //
-// Oracle probe for pyMeTTa S10 Task 3 (moses/moses/metapopulation/merging.cc:
+// Oracle probe for pyMoses S10 Task 3 (moses/moses/metapopulation/merging.cc:
 // merge_candidates, merge_demes, and every private helper merge_demes calls
 // that lives in merging.cc itself -- trim_down_deme, deme_to_trees,
 // get_new_candidates, sort_demes, keep_top_unique_candidates, resize_metapop).

@@ -2,7 +2,7 @@
 //
 // Dumps discriminating_bscore/{recall,prerec,bep,f_one}_bscore,
 // select_bscore, precision_bscore, and bscore_ctable_time_dispersion
-// output as JSON, for differential testing against pymetta/moses/scoring/
+// output as JSON, for differential testing against pymoses/moses/scoring/
 // {discriminating_bscore,select_bscore,precision_bscore,time_dispersion}.py.
 //
 // Build (see score_probe.cc's own comment for the verified recipe --

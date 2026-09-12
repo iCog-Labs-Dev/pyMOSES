@@ -12,8 +12,8 @@ tools/check_fixture_manifests.py) for docs/CARRY-FORWARD.md Sec 5 ("No
 fixture carries a checksum, version, or input manifest", "ci.sh cannot
 rebuild the probes"):
 
-1. `CLASSIC`/`PREFIX` are resolved via `PYMETTA_CLASSIC_DIR`/
-   `PYMETTA_MOSES_PREFIX` (tools/_capture_env.py) -- REQUIRED, with a
+1. `CLASSIC`/`PREFIX` are resolved via `PYMOSES_CLASSIC_DIR`/
+   `PYMOSES_MOSES_PREFIX` (tools/_capture_env.py) -- REQUIRED, with a
    clear error if unset, not a personal-machine fallback -- so this
    script (and now every capture_*.py sibling) is not permanently tied to
    one developer's home directory.

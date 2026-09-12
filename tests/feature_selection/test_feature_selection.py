@@ -1,4 +1,4 @@
-"""Tests for pymetta.feature_selection.main.feature_selection (the
+"""Tests for pymoses.feature_selection.main.feature_selection (the
 algorithm dispatcher, select_feature_sets/select_features, and the two
 library helpers initial_features/score_individual_features).
 
@@ -24,16 +24,16 @@ from pathlib import Path
 
 import pytest
 
-from pymetta.comboreduct.table.table import CTable
-from pymetta.comboreduct.table.table_io import loadTable
-from pymetta.feature_selection.main.feature_selection import (
+from pymoses.comboreduct.table.table import CTable
+from pymoses.comboreduct.table.table_io import loadTable
+from pymoses.feature_selection.main.feature_selection import (
     initial_features,
     score_individual_features,
     select_feature_sets,
     select_features,
 )
-from pymetta.feature_selection.main.feature_selection_params import feature_selection_parameters
-from pymetta.util.rng import randGen
+from pymoses.feature_selection.main.feature_selection_params import feature_selection_parameters
+from pymoses.util.rng import randGen
 
 _FIXTURE_PATH = (
     Path(__file__).resolve().parents[1] / "fixtures" / "feature_selection.json"
@@ -104,7 +104,7 @@ def test_select_feature_sets_dispatches_to_every_ported_algorithm(
 
 def test_select_feature_sets_hc_dispatch_reaches_deme_optimize(boolean_ctable):
     """Classic's OWN "hc" path segfaults unconditionally (see
-    ``pymetta.feature_selection.algo.deme_optimize``'s module docstring
+    ``pymoses.feature_selection.algo.deme_optimize``'s module docstring
     and ``tools/cpp_probe/fs_standalone_probe.cc``'s header comment for
     the confirmed upstream bug) -- there is no golden value to compare
     against, so this only proves the dispatcher builds a real

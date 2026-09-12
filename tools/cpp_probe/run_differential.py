@@ -1,4 +1,4 @@
-"""Differential oracle runner for pymetta's comboreduct/reduct/
+"""Differential oracle runner for pymoses's comboreduct/reduct/
 logical_rules.py (Task 4 review, Important: "land the differential harness
 in-repo").
 
@@ -103,10 +103,10 @@ def run_probe(corpus_path: Path) -> list[dict]:
 
 def run_python_side(tree_str: str) -> dict:
     """Mirrors the C++ probe's own two pipelines exactly."""
-    from pymetta.comboreduct.combo.iostream_combo import combo_tree_to_str, str_to_combo_tree
-    from pymetta.comboreduct.reduct.general_rules import level
-    from pymetta.comboreduct.reduct.logical_rules import eval_logical_identities, subtree_to_enf
-    from pymetta.comboreduct.reduct.meta_rules import downwards, upwards
+    from pymoses.comboreduct.combo.iostream_combo import combo_tree_to_str, str_to_combo_tree
+    from pymoses.comboreduct.reduct.general_rules import level
+    from pymoses.comboreduct.reduct.logical_rules import eval_logical_identities, subtree_to_enf
+    from pymoses.comboreduct.reduct.meta_rules import downwards, upwards
 
     out: dict = {}
     try:

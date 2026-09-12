@@ -13,7 +13,7 @@ problem in the corpus that cannot be reached from single-literal knobs
 alone, which is why nothing else noticed.
 
 Full write-up, including the per-iteration trajectory diff against classic:
-`.superpowers/sdd/2026-09-08-pymetta-s13-cli/parity-divergence-report.md`.
+`.superpowers/sdd/2026-09-08-pymoses-s13-cli/parity-divergence-report.md`.
 
 This file deliberately drives the WHOLE stack -- problem registry, knob
 building, hill climbing with crossover, metapopulation merging -- because
@@ -24,21 +24,21 @@ from __future__ import annotations
 
 import pytest
 
-from pymetta.comboreduct.combo.iostream_combo import combo_tree_to_str
-from pymetta.comboreduct.combo.vertex import combo_tree
-from pymetta.comboreduct.reduct.logical_reduction import logical_reduction
-from pymetta.moses.deme.deme_params import deme_parameters
-from pymetta.moses.main.demo_problems import register_demo_problems
-from pymetta.moses.main.problem import problem_manager
-from pymetta.moses.metapopulation.metapop_params import (
+from pymoses.comboreduct.combo.iostream_combo import combo_tree_to_str
+from pymoses.comboreduct.combo.vertex import combo_tree
+from pymoses.comboreduct.reduct.logical_reduction import logical_reduction
+from pymoses.moses.deme.deme_params import deme_parameters
+from pymoses.moses.main.demo_problems import register_demo_problems
+from pymoses.moses.main.problem import problem_manager
+from pymoses.moses.metapopulation.metapop_params import (
     metapop_parameters,
     subsample_deme_filter_parameters,
 )
-from pymetta.moses.moses.moses_params import moses_parameters
-from pymetta.moses.moses.optimization.hill_climbing import hc_parameters
-from pymetta.moses.moses.optimization.optimization import optim_parameters
-from pymetta.moses.moses.optimization.particle_swarm import ps_parameters
-from pymetta.util.rng import randGen
+from pymoses.moses.moses.moses_params import moses_parameters
+from pymoses.moses.moses.optimization.hill_climbing import hc_parameters
+from pymoses.moses.moses.optimization.optimization import optim_parameters
+from pymoses.moses.moses.optimization.particle_swarm import ps_parameters
+from pymoses.util.rng import randGen
 
 # Classic's own default, `problem-params.cc:299`
 # (`po::value<double>(&perm_ratio)->default_value(0.0)`), forwarded to

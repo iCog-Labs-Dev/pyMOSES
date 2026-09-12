@@ -1,4 +1,4 @@
-"""Unit and mutation tests for pymetta.moses.moses.optimization.particle_swarm.
+"""Unit and mutation tests for pymoses.moses.moses.optimization.particle_swarm.
 
 **`test_ps_2_parity` FAILS IN CLASSIC ITSELF** -- confirmed directly
 (`$CLASSIC/build/tests/moses/MOSESUTest`, 2026-09-09: "Failed 1 and
@@ -18,19 +18,19 @@ import math
 
 import pytest
 
-from pymetta.moses.moses.optimization.optimization import optim_parameters
-from pymetta.moses.moses.optimization.particle_swarm import (
+from pymoses.moses.moses.optimization.optimization import optim_parameters
+from pymoses.moses.moses.optimization.particle_swarm import (
     _clamp,
     _DiscreteParticles,
     _std_round,
     particle_swarm,
     ps_parameters,
 )
-from pymetta.moses.representation.field_set import contin_spec, disc_spec, field_set
-from pymetta.moses.representation.instance import instance
-from pymetta.moses.representation.instance_scorer import distance_based_scorer
-from pymetta.moses.representation.instance_set import instance_set
-from pymetta.util.rng import randGen
+from pymoses.moses.representation.field_set import contin_spec, disc_spec, field_set
+from pymoses.moses.representation.instance import instance
+from pymoses.moses.representation.instance_scorer import distance_based_scorer
+from pymoses.moses.representation.instance_set import instance_set
+from pymoses.util.rng import randGen
 
 
 def _ps(ps_params: ps_parameters | None = None) -> particle_swarm:
@@ -265,7 +265,7 @@ def test_gen_cont_value_uses_velocity_params_not_value_params():
         def randdouble(self):
             return 0.25
 
-    import pymetta.moses.moses.optimization.particle_swarm as ps_mod
+    import pymoses.moses.moses.optimization.particle_swarm as ps_mod
 
     original = ps_mod.randGen
     ps_mod.randGen = lambda: _FixedRng()
@@ -296,7 +296,7 @@ def test_gen_cont_value_bug_is_near_inert_for_stepper_direction():
         def randdouble(self):
             return 0.1  # a small draw -> a hugely negative target either way
 
-    import pymetta.moses.moses.optimization.particle_swarm as ps_mod
+    import pymoses.moses.moses.optimization.particle_swarm as ps_mod
 
     original = ps_mod.randGen
     ps_mod.randGen = lambda: _FixedRng()

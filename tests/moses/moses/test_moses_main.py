@@ -1,4 +1,4 @@
-"""Unit, gate and live-oracle tests for pymetta.moses.moses.moses_main.
+"""Unit, gate and live-oracle tests for pymoses.moses.moses.moses_main.
 
 Three layers, in order:
 
@@ -40,35 +40,35 @@ from collections import Counter
 
 import pytest
 
-from pymetta.comboreduct.combo.iostream_combo import (
+from pymoses.comboreduct.combo.iostream_combo import (
     combo_tree_to_str,
     output_format,
     str_to_combo_tree,
 )
-from pymetta.comboreduct.combo.vertex import builtin, combo_tree
-from pymetta.comboreduct.reduct.logical_reduction import logical_reduction
-from pymetta.comboreduct.table.table import CTable, TimedCounter
-from pymetta.comboreduct.table.table_io import loadTable
-from pymetta.comboreduct.type_checker.type_signature import gen_signature, type_node
-from pymetta.moses.deme.deme_expander import deme_expander
-from pymetta.moses.deme.deme_params import deme_parameters
-from pymetta.moses.metapopulation.metapop_params import (
+from pymoses.comboreduct.combo.vertex import builtin, combo_tree
+from pymoses.comboreduct.reduct.logical_reduction import logical_reduction
+from pymoses.comboreduct.table.table import CTable, TimedCounter
+from pymoses.comboreduct.table.table_io import loadTable
+from pymoses.comboreduct.type_checker.type_signature import gen_signature, type_node
+from pymoses.moses.deme.deme_expander import deme_expander
+from pymoses.moses.deme.deme_params import deme_parameters
+from pymoses.moses.metapopulation.metapop_params import (
     metapop_parameters,
     subsample_deme_filter_parameters,
 )
-from pymetta.moses.metapopulation.metapopulation import metapopulation
-from pymetta.moses.moses import moses_main
-from pymetta.moses.moses.moses_main import metapop_printer
-from pymetta.moses.moses.moses_params import moses_parameters, moses_statistics
-from pymetta.moses.moses.optimization.hill_climbing import hc_parameters, hill_climbing
-from pymetta.moses.moses.optimization.optimization import optim_parameters
-from pymetta.moses.moses.optimization.particle_swarm import (
+from pymoses.moses.metapopulation.metapopulation import metapopulation
+from pymoses.moses.moses import moses_main
+from pymoses.moses.moses.moses_main import metapop_printer
+from pymoses.moses.moses.moses_params import moses_parameters, moses_statistics
+from pymoses.moses.moses.optimization.hill_climbing import hc_parameters, hill_climbing
+from pymoses.moses.moses.optimization.optimization import optim_parameters
+from pymoses.moses.moses.optimization.particle_swarm import (
     particle_swarm,
     ps_parameters,
 )
-from pymetta.moses.moses.optimization.star_anneal import simulated_annealing
-from pymetta.moses.moses.optimization.univariate import univariate_optimization
-from pymetta.moses.moses.types import (
+from pymoses.moses.moses.optimization.star_anneal import simulated_annealing
+from pymoses.moses.moses.optimization.univariate import univariate_optimization
+from pymoses.moses.moses.types import (
     _to_score_t,
     composite_score,
     demeID_t,
@@ -76,9 +76,9 @@ from pymetta.moses.moses.types import (
     scored_combo_tree,
     very_best_score,
 )
-from pymetta.moses.scoring.behave_cscore import behave_cscore
-from pymetta.moses.scoring.bscores import ctruth_table_bscore
-from pymetta.moses.scoring.ss_bscore import ss_bscore
+from pymoses.moses.scoring.behave_cscore import behave_cscore
+from pymoses.moses.scoring.bscores import ctruth_table_bscore
+from pymoses.moses.scoring.ss_bscore import ss_bscore
 
 T, F = builtin.logical_true, builtin.logical_false
 
@@ -163,9 +163,9 @@ def test_run_moses_dispatches_to_local_moses(monkeypatch):
     def fake_local_moses(mp, dex, pa, stats):
         calls.append((mp, dex, pa, stats))
 
-    fake_module = types.ModuleType("pymetta.moses.moses.local_moses")
+    fake_module = types.ModuleType("pymoses.moses.moses.local_moses")
     fake_module.local_moses = fake_local_moses
-    monkeypatch.setitem(sys.modules, "pymetta.moses.moses.local_moses", fake_module)
+    monkeypatch.setitem(sys.modules, "pymoses.moses.moses.local_moses", fake_module)
 
     pa = moses_parameters(local=True)
     stats = moses_statistics()
@@ -472,9 +472,9 @@ def test_metapop_moses_results_b_accepts_hc_optimizer(monkeypatch):
     same fake-`local_moses` injection `test_run_moses_dispatches_to_
     local_moses` uses.
     """
-    fake_module = types.ModuleType("pymetta.moses.moses.local_moses")
+    fake_module = types.ModuleType("pymoses.moses.moses.local_moses")
     fake_module.local_moses = lambda mp, dex, pa, stats: None
-    monkeypatch.setitem(sys.modules, "pymetta.moses.moses.local_moses", fake_module)
+    monkeypatch.setitem(sys.modules, "pymoses.moses.moses.local_moses", fake_module)
 
     printed = []
     moses_main.metapop_moses_results_b(
@@ -503,9 +503,9 @@ def test_metapop_moses_results_b_does_not_mutate_caller_bases(monkeypatch):
     `true` (verified directly: `logical_reduction(())(2)` folds a
     childless `and()` to `true`).
     """
-    fake_module = types.ModuleType("pymetta.moses.moses.local_moses")
+    fake_module = types.ModuleType("pymoses.moses.moses.local_moses")
     fake_module.local_moses = lambda mp, dex, pa, stats: None
-    monkeypatch.setitem(sys.modules, "pymetta.moses.moses.local_moses", fake_module)
+    monkeypatch.setitem(sys.modules, "pymoses.moses.moses.local_moses", fake_module)
 
     exemplar = combo_tree(builtin.logical_and)
     bases = [exemplar]
@@ -545,13 +545,13 @@ def test_metapop_moses_results_b_does_not_mutate_caller_bases(monkeypatch):
 def _wire_with_fake_local_moses(
     monkeypatch, *, filter_params=None, meta_params=None, printer=None, c_scorer=None
 ):
-    fake_module = types.ModuleType("pymetta.moses.moses.local_moses")
+    fake_module = types.ModuleType("pymoses.moses.moses.local_moses")
 
     def fake_local_moses(mp, dex, pa, stats):
         stats.n_evals = 42
 
     fake_module.local_moses = fake_local_moses
-    monkeypatch.setitem(sys.modules, "pymetta.moses.moses.local_moses", fake_module)
+    monkeypatch.setitem(sys.modules, "pymoses.moses.moses.local_moses", fake_module)
 
     opt_params = optim_parameters()
     moses_params = moses_parameters(max_evals=1, max_score=very_best_score)
@@ -852,7 +852,7 @@ def test_it_target_ignore_reproduces_mosesutest(tmp_path):
 
 class _FakeEnsemble:
     """Not a ported C++ symbol -- a duck-typed stand-in for
-    `pymetta.moses.metapopulation.ensemble.ensemble` whose `flat_score`/
+    `pymoses.moses.metapopulation.ensemble.ensemble` whose `flat_score`/
     `get_weighted_tree` raise, so a test can assert
     `metapop_printer.__call__` propagates that failure unmodified rather
     than masking or mis-handling it.
@@ -1164,7 +1164,7 @@ def test_metapop_printer_output_ensemble_flat_score_dies_in_call_ensemble_for_re
     from "gated in metapop_printer" (what this module's docstring used to
     claim).
     """
-    from pymetta.moses.metapopulation.ensemble import ensemble
+    from pymoses.moses.metapopulation.ensemble import ensemble
 
     ensm = ensemble(_tiny_cscorer())
     with pytest.raises(NotImplementedError, match="Ensemble scoring not implemented"):

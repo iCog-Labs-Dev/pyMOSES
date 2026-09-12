@@ -6,27 +6,27 @@ import json
 
 import pytest
 
-from pymetta.comboreduct.combo.argument import argument
-from pymetta.comboreduct.combo.iostream_combo import (
+from pymoses.comboreduct.combo.argument import argument
+from pymoses.comboreduct.combo.iostream_combo import (
     combo_tree_to_str,
     str_to_combo_tree,
 )
-from pymetta.comboreduct.combo.vertex import (
+from pymoses.comboreduct.combo.vertex import (
     builtin,
     combo_tree,
     swap_and_or,
     vertex_equal,
 )
-from pymetta.comboreduct.reduct.logical_reduction import logical_reduction
-from pymetta.comboreduct.type_checker.type_signature import (
+from pymoses.comboreduct.reduct.logical_reduction import logical_reduction
+from pymoses.comboreduct.type_checker.type_signature import (
     TypeSignature,
     gen_signature,
     type_node,
 )
-from pymetta.moses.representation.build_knobs import build_knobs
-from pymetta.moses.representation.knob_mapper import knob_mapper
-from pymetta.moses.representation.representation import representation
-from pymetta.util.rng import randGen
+from pymoses.moses.representation.build_knobs import build_knobs
+from pymoses.moses.representation.knob_mapper import knob_mapper
+from pymoses.moses.representation.representation import representation
+from pymoses.util.rng import randGen
 
 _CASE_KEYS = {
     "name",

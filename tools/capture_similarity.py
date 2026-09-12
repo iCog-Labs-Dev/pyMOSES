@@ -8,7 +8,7 @@ save its JSON stdout as tests/fixtures/similarity.json. Every subprocess
 is resource-bounded (RLIMIT_AS + a wall-clock timeout) per this session's
 standing OOM caution.
 
-This fixture is the oracle for `pymetta.comboreduct.combo.similarity`'s
+This fixture is the oracle for `pymoses.comboreduct.combo.similarity`'s
 port of moses/comboreduct/combo/similarity.{h,cc} -- see the probe's own
 module comment for the "flatten"/"similarity" case breakdown, including
 the adversarial size_t-wraparound cases that pin the genuine, measured bug

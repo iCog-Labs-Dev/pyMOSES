@@ -17,11 +17,11 @@ from pathlib import Path
 
 import pytest
 
-from pymetta.comboreduct.combo.vertex import builtin
-from pymetta.comboreduct.table.table_io import loadTable
-from pymetta.moses.moses.types import _to_score_t
-from pymetta.moses.scoring.scoring_base import _ieee_div
-from pymetta.moses.scoring.time_dispersion import (
+from pymoses.comboreduct.combo.vertex import builtin
+from pymoses.comboreduct.table.table_io import loadTable
+from pymoses.moses.moses.types import _to_score_t
+from pymoses.moses.scoring.scoring_base import _ieee_div
+from pymoses.moses.scoring.time_dispersion import (
     TemporalGranularity,
     _powf,
     bscore_ctable_time_dispersion,
@@ -97,7 +97,7 @@ def test_hmax_is_negative_infinity_for_an_empty_ctable():
     `timestamp_classes.size() == 0` only when the table has zero
     observations at all.
     """
-    from pymetta.comboreduct.table.table import CTable
+    from pymoses.comboreduct.table.table import CTable
 
     ct = CTable("y", ["x1"])
     assert _ConcreteTD(ct)._Hmax == -math.inf
@@ -156,7 +156,7 @@ def test_month_granularity_on_an_EMPTY_ctable_does_not_raise():
     A gate written as an unconditional `if granularity == month: raise`
     fails here.
     """
-    from pymetta.comboreduct.table.table import CTable
+    from pymoses.comboreduct.table.table import CTable
 
     ct = CTable("y", ["x1"])
     assert _ConcreteTD(ct, granularity=TemporalGranularity.month)._Hmax == -math.inf

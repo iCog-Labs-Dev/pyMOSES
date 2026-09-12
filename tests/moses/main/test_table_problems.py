@@ -1,4 +1,4 @@
-"""Unit, gate and live-oracle tests for pymetta.moses.main.table_problems.
+"""Unit, gate and live-oracle tests for pymoses.moses.main.table_problems.
 
 Four layers, in order:
 
@@ -30,12 +30,12 @@ from pathlib import Path
 
 import pytest
 
-from pymetta.comboreduct.combo.iostream_combo import combo_tree_to_str
-from pymetta.comboreduct.combo.vertex import builtin, combo_tree
-from pymetta.comboreduct.type_checker.type_signature import gen_signature, type_node
-from pymetta.moses.main import table_problems as tp
-from pymetta.moses.main.problem import _unported_table_problem, problem_manager
-from pymetta.moses.main.table_problems import (
+from pymoses.comboreduct.combo.iostream_combo import combo_tree_to_str
+from pymoses.comboreduct.combo.vertex import builtin, combo_tree
+from pymoses.comboreduct.type_checker.type_signature import gen_signature, type_node
+from pymoses.moses.main import table_problems as tp
+from pymoses.moses.main.problem import _unported_table_problem, problem_manager
+from pymoses.moses.main.table_problems import (
     bep_table_problem,
     cluster_table_problem,
     f_one_table_problem,
@@ -1127,7 +1127,7 @@ def test_pre_conj_builds_precision_conj_bscore_with_hardness_and_positive(tmp_pa
     `pms.pre_positive` so the default `positive=True` applies) makes one
     of these two parametrized cases fail.
     """
-    from pymetta.moses.scoring.precision_bscore import precision_conj_bscore
+    from pymoses.moses.scoring.precision_bscore import precision_conj_bscore
 
     csv_path = _write_dataset(tmp_path)
     pmr, tpp, pms = _fresh_pms_and_tpp(["-i", csv_path, "-Q", "3", "--pre-positive", "0"])

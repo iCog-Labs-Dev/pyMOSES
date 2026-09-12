@@ -1,5 +1,5 @@
 """C++: tests/moses/MOSESUTest.cxxtest, transliterated (plus unit coverage
-for pymetta/moses/main/demo_problems.py that has no direct C++ oracle).
+for pymoses/moses/main/demo_problems.py that has no direct C++ oracle).
 
 This is the ONLY new file this task's own brief authorizes touching under
 `tests/moses/main/` (that directory is shared with a concurrent agent
@@ -36,7 +36,7 @@ inferred from `docs/CARRY-FORWARD.md`'s summary that classic's own
   (`build_knobs.cc:435-518`) plus this port's then-default
   `perm_ratio = -1` -- see
   `tests/moses/test_pa_parity_regression.py` and
-  `.superpowers/sdd/2026-09-08-pymetta-s13-cli/parity-divergence-report.md`.
+  `.superpowers/sdd/2026-09-08-pymoses-s13-cli/parity-divergence-report.md`.
   `-W1` only changes what classic PRINTS (labelled vs `$n` argument
   names), not what it searches for or finds, so `test_2_parity_with_labels`
   is covered by the identical assertion as `test_2_parity`.
@@ -62,19 +62,19 @@ from __future__ import annotations
 
 import pytest
 
-from pymetta.comboreduct.combo.argument import argument
-from pymetta.comboreduct.combo.iostream_combo import combo_tree_to_str, str_to_combo_tree
-from pymetta.comboreduct.combo.vertex import builtin, combo_tree
-from pymetta.comboreduct.reduct.contin_reduction import contin_reduction
-from pymetta.comboreduct.reduct.logical_reduction import logical_reduction
-from pymetta.comboreduct.type_checker.type_signature import (
+from pymoses.comboreduct.combo.argument import argument
+from pymoses.comboreduct.combo.iostream_combo import combo_tree_to_str, str_to_combo_tree
+from pymoses.comboreduct.combo.vertex import builtin, combo_tree
+from pymoses.comboreduct.reduct.contin_reduction import contin_reduction
+from pymoses.comboreduct.reduct.logical_reduction import logical_reduction
+from pymoses.comboreduct.type_checker.type_signature import (
     TypeSignature,
     type_node,
     type_tree_arity,
 )
-from pymetta.moses.deme.deme_params import deme_parameters
-from pymetta.moses.main import demo_problems
-from pymetta.moses.main.demo_problems import (
+from pymoses.moses.deme.deme_params import deme_parameters
+from pymoses.moses.main import demo_problems
+from pymoses.moses.main.demo_problems import (
     combo_problem,
     demo_params,
     disjunction,
@@ -89,23 +89,23 @@ from pymetta.moses.main.demo_problems import (
     register_demo_problems,
     simple_symbolic_regression,
 )
-from pymetta.moses.main.problem import problem_manager
-from pymetta.moses.metapopulation.metapop_params import (
+from pymoses.moses.main.problem import problem_manager
+from pymoses.moses.metapopulation.metapop_params import (
     metapop_parameters,
     subsample_deme_filter_parameters,
 )
-from pymetta.moses.moses.moses_params import moses_parameters
-from pymetta.moses.moses.optimization.hill_climbing import hc_parameters
-from pymetta.moses.moses.optimization.optimization import optim_parameters
-from pymetta.moses.moses.optimization.particle_swarm import ps_parameters
-from pymetta.moses.moses.types import (
+from pymoses.moses.moses.moses_params import moses_parameters
+from pymoses.moses.moses.optimization.hill_climbing import hc_parameters
+from pymoses.moses.moses.optimization.optimization import optim_parameters
+from pymoses.moses.moses.optimization.particle_swarm import ps_parameters
+from pymoses.moses.moses.types import (
     composite_score,
     demeID_t,
     scored_combo_tree,
 )
-from pymetta.moses.scoring.bscores import ctruth_table_bscore
-from pymetta.moses.scoring.scoring_base import bscore_base
-from pymetta.util.rng import randGen
+from pymoses.moses.scoring.bscores import ctruth_table_bscore
+from pymoses.moses.scoring.scoring_base import bscore_base
+from pymoses.util.rng import randGen
 
 # ---------------------------------------------------------------------------
 # Shared fixtures. `_rule`/`_fresh_deme_parameters` mirror
@@ -967,7 +967,7 @@ def test_ann_combo_problem_raises_without_validating_combo_str():
     would reject with `ValueError` -- proving `check_args` is never
     called.
     """
-    from pymetta.moses.main.demo_problems import ann_combo_problem
+    from pymoses.moses.main.demo_problems import ann_combo_problem
 
     dp = demo_params(combo_str="")
     prob = ann_combo_problem(dp)

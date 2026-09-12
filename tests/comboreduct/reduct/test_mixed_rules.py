@@ -1,4 +1,4 @@
-"""Direct unit tests for pymetta.comboreduct.reduct.mixed_rules (S14
+"""Direct unit tests for pymoses.comboreduct.reduct.mixed_rules (S14
 Task 4), covering the SIMPLE (no recursive `rule` argument) classes in
 isolation. The recursive/assumption-based classes (`reduce_from_
 assumptions`, `reduce_contin_if_not`, `reduce_gt_zero_sum`, `reduce_gt_
@@ -20,8 +20,8 @@ coverage; these are additional isolated-rule spot checks).
 
 from __future__ import annotations
 
-from pymetta.comboreduct.combo.iostream_combo import combo_tree_to_str, str_to_combo_tree
-from pymetta.comboreduct.reduct.mixed_rules import (
+from pymoses.comboreduct.combo.iostream_combo import combo_tree_to_str, str_to_combo_tree
+from pymoses.comboreduct.reduct.mixed_rules import (
     _LexicographicSubtreeSet,
     _tree_swap,
     may_have_side_effects,

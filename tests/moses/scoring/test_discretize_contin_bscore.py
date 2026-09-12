@@ -13,8 +13,8 @@ import struct
 
 import pytest
 
-from pymetta.comboreduct.table.table import ITable, OTable, type_node
-from pymetta.moses.scoring.bscores import discretize_contin_bscore
+from pymoses.comboreduct.table.table import ITable, OTable, type_node
+from pymoses.moses.scoring.bscores import discretize_contin_bscore
 
 
 def _f32(x: float) -> float:

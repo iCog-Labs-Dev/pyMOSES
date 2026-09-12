@@ -12,7 +12,7 @@ What ``mutualInformation`` (``moses/comboreduct/table/table.h:1132`` and the
 ITable/OTable overload at ``:1074``), ``mutualInformationBtwSets``
 (``:1311``) and ``OTEntropy`` (``table.cc:916``) return when there is
 nothing to divide by -- the case
-``pymetta/feature_selection/scorers/mutual_info.py`` used to short-circuit
+``pymoses/feature_selection/scorers/mutual_info.py`` used to short-circuit
 with ``if total == 0.0: return NaN``.
 
 Three groups, so no single constant answer can satisfy the fixture:
@@ -40,7 +40,7 @@ project's standing OOM caution.
 
 Run it as::
 
-    PYMETTA_CLASSIC_DIR=... PYMETTA_MOSES_PREFIX=... \\
+    PYMOSES_CLASSIC_DIR=... PYMOSES_MOSES_PREFIX=... \\
         .venv/bin/python3 tools/capture_mi_empty.py
 """
 

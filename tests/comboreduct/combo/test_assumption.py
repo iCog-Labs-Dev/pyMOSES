@@ -10,7 +10,7 @@ DIVERGENCE(C++ moses/comboreduct/combo/assumption.cc, whole file): classic
 stores a combo_tree's assumption set as top-level SIBLINGS of tr.begin()
 within the very same combo_tree (a forest: multiple top-level roots
 sharing one tree, held together by tree<T>'s head/feet sentinels).
-pymetta's util/tree.py deliberately does not support forests -- a decision
+pymoses's util/tree.py deliberately does not support forests -- a decision
 already made and regression-tested in the prior (S0-S6) cycle
 (tree.py's own module docstring DIVERGENCE marker;
 test_insert_after_on_the_tree_root_is_rejected in test_tree.py) -- and
@@ -27,16 +27,16 @@ assumptions along with it.
 
 import pytest
 
-from pymetta.comboreduct.combo.argument import argument
-from pymetta.comboreduct.combo.assumption import (
+from pymoses.comboreduct.combo.argument import argument
+from pymoses.comboreduct.combo.assumption import (
     copy_all_assumptions,
     delete_all_assumptions,
     equal_assumptions,
     find_vertices_in_assumptions,
     insert_assumption,
 )
-from pymetta.comboreduct.combo.iostream_combo import str_to_combo_tree
-from pymetta.comboreduct.combo.vertex import builtin, combo_tree
+from pymoses.comboreduct.combo.iostream_combo import str_to_combo_tree
+from pymoses.comboreduct.combo.vertex import builtin, combo_tree
 
 T = builtin.logical_true
 F = builtin.logical_false

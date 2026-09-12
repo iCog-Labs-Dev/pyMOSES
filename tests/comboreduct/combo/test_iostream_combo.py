@@ -3,9 +3,9 @@ from pathlib import Path
 
 import pytest
 
-from pymetta.comboreduct.combo.argument import argument
-from pymetta.comboreduct.combo.iostream_combo import combo_tree_to_str, str_to_combo_tree
-from pymetta.comboreduct.combo.vertex import builtin, combo_tree
+from pymoses.comboreduct.combo.argument import argument
+from pymoses.comboreduct.combo.iostream_combo import combo_tree_to_str, str_to_combo_tree
+from pymoses.comboreduct.combo.vertex import builtin, combo_tree
 
 # tests/fixtures/, computed directly (not via the `fixture_dir` fixture)
 # because @pytest.mark.parametrize below needs the corpus at collection
@@ -136,7 +136,7 @@ def test_unterminated_paren_raises_value_error():
 
 
 def test_trailing_content_after_root_raises_value_error():
-    # A combo_tree is single-rooted (pymetta/util/tree.py's module
+    # A combo_tree is single-rooted (pymoses/util/tree.py's module
     # docstring); classic's own strtree_to_combo_tree folds multiple
     # top-level trees under an implicit forest root, which this port does
     # not support (see iostream_combo.py's module docstring).

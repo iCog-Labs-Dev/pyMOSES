@@ -1,4 +1,4 @@
-"""Unit and oracle-shaped tests for pymetta.moses.moses.optimization.univariate.
+"""Unit and oracle-shaped tests for pymoses.moses.moses.optimization.univariate.
 
 Oracle: `$CLASSIC/build/tests/moses/MOSESUTest`'s `test_un_3_pa_multi_thread`
 (`-r3 -Hpa -k3 -aun -m500000 -j4 -c3000`) PASSES in classic -- confirmed
@@ -12,8 +12,8 @@ directly against a `distance_based_scorer`, matching
 `local_structure_model`'s constructor draws an EXTRA `randGen()` batch
 (the dependency-order Fisher-Yates shuffle) that classic's own trace does
 not show at the corresponding point -- see
-`pymetta/moses/eda/local_structure.py`'s and
-`pymetta/util/digraph.py`'s own module docstrings for the full
+`pymoses/moses/eda/local_structure.py`'s and
+`pymoses/util/digraph.py`'s own module docstrings for the full
 DIVERGENCE. Consequence for THIS file: tests here check CONVERGENCE
 (matching what `test_un_3_pa_multi_thread` itself actually asserts -- the
 final score, not a specific trajectory), not a bit-for-bit `randGen()`
@@ -24,14 +24,14 @@ for `tournament_selection`, which consumes no extra draws of its own kind.
 
 import pytest
 
-from pymetta.moses.moses.optimization.optimization import optim_parameters
-from pymetta.moses.moses.optimization.univariate import eda_parameters, univariate_optimization
-from pymetta.moses.representation.field_set import disc_spec, field_set
-from pymetta.moses.representation.instance import instance
-from pymetta.moses.representation.instance_scorer import distance_based_scorer
-from pymetta.moses.representation.instance_set import instance_set
-from pymetta.util.rng import randGen
-from pymetta.util.selection import tournament_selection
+from pymoses.moses.moses.optimization.optimization import optim_parameters
+from pymoses.moses.moses.optimization.univariate import eda_parameters, univariate_optimization
+from pymoses.moses.representation.field_set import disc_spec, field_set
+from pymoses.moses.representation.instance import instance
+from pymoses.moses.representation.instance_scorer import distance_based_scorer
+from pymoses.moses.representation.instance_set import instance_set
+from pymoses.util.rng import randGen
+from pymoses.util.selection import tournament_selection
 
 
 def _un(ep: eda_parameters | None = None) -> univariate_optimization:
@@ -143,7 +143,7 @@ def test_tournament_selection_draw_order_is_exact():
     """Fidelity requirement: verify DRAW ORDER, not just the resulting
     set. `eda_params.selection == 2` (classic's default) means
     `tournament_selection(2)` -- 2 draws per tournament, `n_select`
-    tournaments -- reused directly from `pymetta.util.selection`
+    tournaments -- reused directly from `pymoses.util.selection`
     (already unit-tested for draw order in `test_selection.py`); this
     test instead confirms `univariate_optimization` constructs it with
     the RIGHT `t_size`, by observing the exact draw count through a real
@@ -174,7 +174,7 @@ def test_tournament_selection_draw_order_is_exact():
         calls.append(n)
         return real_randint_n(self, n)
 
-    import pymetta.util.rng as rng_mod
+    import pymoses.util.rng as rng_mod
 
     original = rng_mod.MT19937RandGen.randint_n
     rng_mod.MT19937RandGen.randint_n = spy

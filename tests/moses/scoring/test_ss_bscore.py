@@ -1,4 +1,4 @@
-"""Oracle and guard tests for pymetta.moses.scoring.ss_bscore.
+"""Oracle and guard tests for pymoses.moses.scoring.ss_bscore.
 
 The oracle fixture (tests/fixtures/ss_bscore.json) is produced by
 tools/cpp_probe/ss_bscore_probe.cc against real `boost::accumulators` and
@@ -27,8 +27,8 @@ from pathlib import Path
 
 import pytest
 
-from pymetta.moses.scoring.scoring_base import bscore_base
-from pymetta.moses.scoring.ss_bscore import (
+from pymoses.moses.scoring.scoring_base import bscore_base
+from pymoses.moses.scoring.ss_bscore import (
     _boost_accumulate,
     _low_dev_penalty,
     _partition_by_row,
@@ -37,7 +37,7 @@ from pymetta.moses.scoring.ss_bscore import (
     _VarAcc,
     ss_bscore,
 )
-from pymetta.util.rng import randGen
+from pymoses.util.rng import randGen
 
 _FIXTURE_PATH = Path(__file__).resolve().parents[2] / "fixtures" / "ss_bscore.json"
 _GOLDEN = json.loads(_FIXTURE_PATH.read_text())
