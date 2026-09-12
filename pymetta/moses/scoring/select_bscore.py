@@ -271,6 +271,71 @@ class select_bscore(bscore_ctable_base):
             bs[i] = _to_score_t(bs[i] - self._best_possible_score[i])
         return bs
 
+    def call_ensemble(self, ensemble) -> behavioral_score:
+        """C++: moses/moses/scoring/select_bscore.cc:191 select_bscore
+        (the `operator()(const scored_combo_tree_set&)` overload)
+
+        "Scorer, suitable for use with boosting." (select_bscore.cc:190's
+        own comment.) Reached from `-H select --boost=1`, via
+        `ensemble.add_adaboost` -> `behave_cscore.get_bscore_ensemble` ->
+        here; `select_bscore` is NOT an experts scorer (`table-problems.
+        cc` never sets `ensemble_params.experts` for it), so AdaBoost is
+        the path, and `sct.get_weight()` really does vary per member.
+
+        `behavioral_score hypoth(_size, 0.0);` (select_bscore.cc:195) is a
+        `std::vector<score_t>` -- **float32**, not the `std::vector<double>`
+        that `precision_bscore::bias_selection` uses for its own `hypoth`.
+        So every `+=` narrows here, and `score_t trweight = sct.get_
+        weight();` (:198) narrows the double weight first.  `2.0 * ((score_t)
+        select) - 1.0` is computed in DOUBLE (both literals are double),
+        then multiplied by the float `trweight` -- so exactly one rounding
+        per addend plus one per store, reproduced term by term.
+
+        Step 2 is `__call__`'s own loop with `predict_inside` taken from
+        `hypoth` instead of from interpreting one tree; C++ duplicates the
+        loop rather than factoring it, and so does this.
+        """
+        # Step 1: accumulate the weighted prediction of each tree in
+        # the ensemble.
+        hypoth: behavioral_score = [0.0] * self._size
+        for sct in ensemble:
+            tr = sct.get_tree()
+            trweight = _to_score_t(sct.get_weight())
+
+            iv = interpreter_visitor(tr)
+
+            i = 0
+            for row in self._wrk_ctable:
+                select = vertex_equal(iv(list(row)), builtin.logical_true)
+                hypoth[i] = _to_score_t(hypoth[i] + trweight * (2.0 * _to_score_t(select) - 1.0))
+                i += 1
+
+        # Step 2: compare the prediction of the ensemble to the desired
+        # result. The array "hypoth" is positive to predict true, and
+        # negative to predict false.  The resulting score is 0 if correct,
+        # and -1 if incorrect.
+        bs: behavioral_score = []
+        i = 0
+        for _row, orow in self._wrk_ctable.items():
+            predict_inside = 0 < hypoth[i]
+            fail: score_t = 0.0
+            for v, raw_weight in orow.items():
+                val = _to_score_t(get_contin(v))
+                if not self._positive:
+                    val = -val
+                weight = _to_score_t(raw_weight)
+                inside = self._lower_bound <= val <= self._upper_bound
+                if (predict_inside and not inside) or (not predict_inside and inside):
+                    fail = _to_score_t(fail + weight)
+            bs.append(-fail)
+            i += 1
+
+        # Report the score only relative to the best-possible score.
+        for j in range(len(bs)):
+            bs[j] = _to_score_t(bs[j] - self._best_possible_score[j])
+
+        return bs
+
     def best_possible_bscore(self) -> behavioral_score:
         """C++: moses/moses/scoring/select_bscore.cc:243 select_bscore::best_possible_bscore"""
         return [0.0] * self._size

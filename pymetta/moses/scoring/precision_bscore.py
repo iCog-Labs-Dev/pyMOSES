@@ -5,8 +5,8 @@ Ports `precision_bscore` (the `-H pre` problem's scorer) and
 registered name has a HYPHEN, table-problems.h:134; `-Hpre_conj` names
 nothing in classic's registry and is refused there and here alike).
 
-## Scope: the boolean, non-boosting path -- exactly what the registered
-## `-H pre` problem actually constructs
+## Scope: the boolean path -- exactly what the registered `-H pre`
+## problem actually constructs
 
 `table-problems.cc`'s `pre_table_problem::run()` calls `common_type_setup
 (pms, id::boolean_type)` UNCONDITIONALLY before constructing
@@ -29,16 +29,26 @@ for the rest:
   a `ctable_res` whose single cell is keyed by `TimedValue`, so it inherits
   classic's `TimedValue::operator<` UB in full; see `do_score`'s own
   DIVERGENCE marker for what a user observes.
-* Ensemble/boosting scoring (`operator()(const scored_combo_tree_set&)`,
-  `exact_selection`, `bias_selection`, `get_error(const combo_tree&)`,
-  `reset_weights`/`update_weights`): all boosting-only, out of scope for
-  the whole port cycle (scoring_base.py's module docstring) -- NOT
-  overridden here, so they inherit `bscore_base.call_ensemble`'s raising
-  gate. `_return_weighted_score` is consequently NEVER `True` for this
-  class in this port (nothing calls `use_weighted_scores()` on a
-  `precision_bscore`), so `do_score`'s own `if (_return_weighted_score)`
-  branch (precision_bscore.cc:283-289) is a raising gate too, kept for
-  structural fidelity though it is provably unreachable.
+* Ensemble/boosting scoring IS ported now: `call_ensemble` (the
+  `operator()(const scored_combo_tree_set&)` overload,
+  precision_bscore.cc:368), `exact_selection` (:391), `bias_selection`
+  (:453), `get_error(const combo_tree&)` (:501) and the
+  `reset_weights`/`update_weights` overrides (:698, :707). `table-
+  problems.cc:385` calls `bscore.use_weighted_scores()` whenever
+  `--boost=1`, so `_return_weighted_score` IS `True` for every boosted
+  `-H pre` run and `do_score`'s own `if (_return_weighted_score)` branch
+  (precision_bscore.cc:283-289) is on the hot path, not a gate.
+* `bias_selection` (the `exact_experts == false` arm of `call_ensemble`)
+  is ported but is UNREACHABLE from classic's own CLI: `ensemble::
+  add_expert` (ensemble.cc:184) calls `_bscorer.get_error(tree)` BEFORE
+  it branches on `exact_experts`, and `precision_bscore::get_error`
+  opens with `OC_ASSERT(exact_experts, "Precision scorer: inexact
+  experts not yet supported!")` (precision_bscore.cc:503). So
+  `--boost=1 --boost-exact=0` aborts in classic (SIGABRT) and raises
+  `AssertionError` here, in `get_error`, before any ensemble scorer
+  runs. `--boost-bias` therefore only ever changes `bias_scale`, which
+  only `bias_selection` reads. Ported for structural fidelity and
+  covered by a direct unit test rather than by the CLI.
 """
 
 import math
@@ -313,15 +323,27 @@ class precision_bscore(bscore_ctable_time_dispersion):
                 bs.append(_to_score_t(0.5 * (tp - fp)))
                 ac.append(_to_score_t(tp + fp))
 
-        if self._return_weighted_score:
-            # Unreachable in this port -- see module docstring.
-            raise NotImplementedError(
-                "precision_bscore.do_score: the weighted-score branch is "
-                "boosting-only and out of scope for this port"
-            )
-
         if 0.0 < active:
+            # normalization is the inverse of activity
             iac = _to_score_t(_ieee_div(1.0, active))
+
+            # C++: precision_bscore.cc:283-289. "For the boosted scorer,
+            # the active rows are weighted too.  Its still tp+fp, except
+            # that the bscore for fp are negative..." (:281-282's own
+            # comment.)  `wactive` is a **double** accumulator
+            # (`double wactive = 0.0;`), and `_weights[i]` is a double, so
+            # the product is computed at full precision and NOTHING is
+            # narrowed inside the loop -- unlike `active`/`sao` above,
+            # which are real `score_t` members and narrow on every `+=`.
+            # Only the final `iac = 1.0 / wactive;` narrows, once, because
+            # `iac` is the `score_t` declared two lines up.
+            if self._return_weighted_score:
+                wactive = 0.0
+                for i in range(self._size):
+                    wactive += self._weights[i] * ac[i]
+                iac = _to_score_t(_ieee_div(1.0, wactive))
+
+            # Normalize all components by active, where active = tp+fp
             bs = [_to_score_t(v * iac) for v in bs]
             bs.append(0.5)
         else:
@@ -349,14 +371,162 @@ class precision_bscore(bscore_ctable_time_dispersion):
 
         return self.do_score(selector)
 
+    def call_ensemble(self, ensemble) -> behavioral_score:
+        """C++: moses/moses/scoring/precision_bscore.cc:368 precision_bscore
+        (the `operator()(const scored_combo_tree_set&)` overload)
+
+        "The ensemble score must not use weights, but must be give the
+        result that the ensemble would give on regular data.  Thus,
+        disable weighting while we compute the ensemble score."
+        (precision_bscore.cc:370-372's own comment.)
+
+        `_return_weighted_score` is `mutable` in C++ (scoring_base.h:230)
+        precisely so this `const` method can toggle it off and back on
+        around the call.  The toggle is NOT exception-safe in C++ either
+        (no RAII guard, no try/catch), so a raise out of
+        `exact_selection`/`bias_selection` leaves the flag `False` in both
+        languages -- reproduced rather than "fixed" with `try/finally`.
+
+        `OC_ASSERT(_return_weighted_score, "Unexpected call to ensemble
+        scorer!")` (precision_bscore.cc:373) -- this method is only ever
+        reachable when boosting, because `table-problems.cc:385` is the
+        only thing that sets the flag on a `precision_bscore`.
+        """
+        if not self._return_weighted_score:
+            raise AssertionError("Unexpected call to ensemble scorer!")
+        if self.exact_experts:
+            self._return_weighted_score = False
+            bs = self.exact_selection(ensemble)
+            self._return_weighted_score = True
+            return bs
+        else:
+            self._return_weighted_score = False
+            bs = self.bias_selection(ensemble)
+            self._return_weighted_score = True
+            return bs
+
+    def exact_selection(self, ensemble) -> behavioral_score:
+        """C++: moses/moses/scoring/precision_bscore.cc:391 precision_bscore::exact_selection
+
+        "scorer, suitable for use with boosting, where the members of the
+        boosted ensemble are always correct in their selections. That is,
+        they are 'exact' scorers." (precision_bscore.cc:386-389's own doc
+        comment.)
+
+        Only the `#else` arm is ported: `SCORE_MANY_TREES`
+        (precision_bscore.cc:396-427) is `#define`d out in classic's own
+        source (the `// #define SCORE_MANY_TREES` at :397 is commented
+        out), so it never compiles -- the same "port only the branch the
+        preprocessor actually builds" convention `bscore_base.update_
+        weights` already applies to its `#else`.  C++'s own comment says
+        "either way, the two scorers here should be functionally
+        equivalent".
+
+        The `or`-of-all-members tree is built in whatever order
+        `scored_combo_tree_set` iterates, which neither language
+        specifies -- but unlike `ensemble.add_adaboost`'s `min_element`,
+        that order is NOT observable here: `logical_or` is commutative
+        and the tree is only ever interpreted, never printed, so every
+        permutation selects exactly the same rows and yields the same
+        bscore.
+        """
+        # For large tables, it is much more efficient to convert the
+        # ensemble into a single tree, so that we iterate over the table
+        # just once, instead of once-per-tree.
+        if len(ensemble) == 1:
+            return self(next(iter(ensemble)).get_tree())
+
+        tr = combo_tree()
+        head = tr.set_head(builtin.logical_or)
+
+        for sct in ensemble:
+            tr.append_child(head, sct.get_tree().begin())
+
+        return self(tr)
+
+    def bias_selection(self, ensemble) -> behavioral_score:
+        """C++: moses/moses/scoring/precision_bscore.cc:453 precision_bscore::bias_selection
+
+        "scorer, suitable for use with boosting, where the members of the
+        ensemble sometimes make mistakes. The mistakes are avoided by
+        requiring the ensemble to cast a minimum vote, before a row is
+        truely considered to be selected.  The minimum vote is called the
+        'bias' in the code below." (precision_bscore.cc:447-451's own doc
+        comment, typo in the original not corrected.)
+
+        UNREACHABLE from classic's CLI -- see this module's docstring for
+        the `get_error` assertion that fires first.  Ported and unit-
+        tested directly.
+
+        `score_t trweight = sct.get_weight();` (precision_bscore.cc:459)
+        NARROWS the `double` ensemble weight to binary32 before it is
+        accumulated -- `hypoth` itself is a `std::vector<double>`, so the
+        accumulation is in double but each addend has already been
+        rounded to float.  `double sumo = sum_outputs(orow);`
+        (precision_bscore.cc:484) is the mirror image: `sum_outputs`
+        returns a `score_t` which is then widened, so the comparison
+        `0.0 > sumo` is made on the float32 value.
+
+        The selector is stateful: `hypoth[i++]` (precision_bscore.cc:496)
+        walks the table in the SAME order `do_score` will, which is what
+        makes the index line up.  That is `_wrk_ctable`'s own iteration
+        order in both languages.
+
+        The `logger().info() << "Precision ensemble bias: "` line
+        (precision_bscore.cc:491) is not reproduced: this module emits no
+        log output at all (it imports no logger), unlike select_bscore.py.
+        """
+        # Step 1: If any tree in the ensemble picks a row, that row is
+        # picked with appropriate weight.
+        hypoth = [0.0] * self._size
+        for sct in ensemble:
+            tr = sct.get_tree()
+            trweight = _to_score_t(sct.get_weight())
+
+            iv = interpreter_visitor(tr)
+
+            i = 0
+            for row in self._wrk_ctable:
+                if vertex_equal(iv(list(row)), builtin.logical_true):
+                    hypoth[i] += trweight
+                i += 1
+
+        # Step 2: find the worst wrong answer; that is our bias.
+        i = 0
+        bias = 0.0
+        for _row, orow in self._wrk_ctable.items():
+            # sumo will be negative if it should not be selected.
+            # We look at the negative ones, because they are wrong...
+            sumo = self.sum_outputs(orow)
+            if 0.0 > sumo and bias < hypoth[i]:
+                bias = hypoth[i]
+            i += 1
+
+        # Step 3: tot up the active rows.
+        state = {"i": 0}
+
+        def selector(_row):
+            idx = state["i"]
+            state["i"] = idx + 1
+            return self.bias_scale * bias < hypoth[idx]
+
+        return self.do_score(selector)
+
     def get_error(self, tr: combo_tree) -> score_t:
         """C++: moses/moses/scoring/precision_bscore.cc:501 precision_bscore::get_error
 
         `OC_ASSERT(exact_experts, "Precision scorer: inexact experts not
         yet supported!");` (precision_bscore.cc:503-504) -- ported
-        verbatim. The `_return_weighted_score` toggle around the
-        `operator()` call (precision_bscore.cc:507-509) is meaningless in
-        this port (always `False`) but kept for structural fidelity.
+        verbatim, and it is what makes `--boost-exact=0` abort before
+        `bias_selection` can ever run (see this module's docstring).
+
+        The `_return_weighted_score` toggle around the `operator()` call
+        (precision_bscore.cc:507-509) is load-bearing, not decorative:
+        `ensemble::add_expert` (ensemble.cc:184) calls this on every
+        candidate while the flag is `True`, and it is the toggle that
+        makes `do_score` normalise by the FLAT activity (`1.0 / active`)
+        rather than the weighted one. Without it the "perfect expert"
+        test `err <= _tolerance` would drift with the row weights.
         """
         if not self.exact_experts:
             raise AssertionError("Precision scorer: inexact experts not yet supported!")

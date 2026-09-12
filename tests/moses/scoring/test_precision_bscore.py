@@ -24,7 +24,11 @@ import pytest
 
 from pymetta.comboreduct.combo.iostream_combo import str_to_combo_tree
 from pymetta.comboreduct.table.table_io import loadTable
-from pymetta.moses.moses.types import _to_score_t, scored_combo_tree_set
+from pymetta.moses.moses.types import (
+    _to_score_t,
+    scored_combo_tree,
+    scored_combo_tree_set,
+)
 from pymetta.moses.scoring.precision_bscore import precision_bscore, precision_conj_bscore
 from pymetta.moses.scoring.time_dispersion import TemporalGranularity
 
@@ -369,12 +373,323 @@ def test_time_bscore_ignores_the_granularity_flag():
     assert len(day) == 4 + 2
 
 
-def test_ensemble_scoring_raises():
+def test_ensemble_scoring_on_an_unboosted_scorer_raises():
+    """`OC_ASSERT(_return_weighted_score, "Unexpected call to ensemble
+    scorer!")` (precision_bscore.cc:373). Before the weighted path was
+    ported this raised `NotImplementedError` from the inherited
+    `bscore_base.call_ensemble`; now the class overrides it and the guard
+    is classic's own assertion, which only lets a BOOSTED scorer through.
+    """
     table = loadTable(str(_PRECISION_CSV), "target")
     ct = table.compressed()
     bsc = precision_bscore(ct)
-    with pytest.raises(NotImplementedError, match="Ensemble scoring not implemented"):
+    assert bsc._return_weighted_score is False
+    with pytest.raises(AssertionError, match="Unexpected call to ensemble scorer"):
         bsc.call_ensemble(scored_combo_tree_set())
+
+
+# ---------------------------------------------------------------------------
+# The weighted (boosting) score path: do_score's `_return_weighted_score`
+# branch, call_ensemble, exact_selection, bias_selection.
+#
+# Every table below is built so that the four compressed rows land in a
+# KNOWN order and carry a KNOWN true/false split, because both the row
+# order and the per-row `sum_outputs` decide every number asserted here:
+#
+#   key      counter        sum_outputs = (T-F)/2   total_count
+#   (T, T)   {T: 3, F: 1}   +1.0                    4
+#   (T, F)   {T: 1, F: 1}    0.0                    2
+#   (F, T)   {F: 2}         -1.0                    2
+#   (F, F)   {F: 1}         -0.5                    1
+#
+# `uncompressed_size()` is 9, so `_ctable_weight == 9.0`.
+# ---------------------------------------------------------------------------
+
+_WEIGHTED_CSV = "target,x1,x2\n1,1,1\n1,1,1\n1,1,1\n0,1,1\n1,1,0\n0,1,0\n0,0,1\n0,0,1\n0,0,0\n"
+
+
+@pytest.fixture
+def weighted_ctable(tmp_path):
+    csv = tmp_path / "weighted.csv"
+    csv.write_text(_WEIGHTED_CSV)
+    ct = loadTable(str(csv), "target").compressed()
+    # Pin the shape every assertion below depends on.
+    assert len(ct) == 4
+    assert ct.uncompressed_size() == 9.0
+    return ct
+
+
+def _boosted(ct, **kwargs):
+    """A scorer in exactly the state `table-problems.cc:385` leaves it in
+    for `--boost=1`: constructed, then `use_weighted_scores()`, then
+    `ensemble::ensemble` (ensemble.cc:47) calls `reset_weights()`.
+    """
+    bsc = precision_bscore(ct, **kwargs)
+    bsc.use_weighted_scores()
+    bsc.reset_weights()
+    return bsc
+
+
+def test_reset_weights_only_populates_once_weighted(weighted_ctable):
+    """`precision_bscore::reset_weights` (precision_bscore.cc:698) leaves
+    `_weights` EMPTY while `_return_weighted_score` is false, and that is
+    what makes `sum_bscore`'s unweighted branch keep working before
+    boosting is switched on.
+    """
+    plain = precision_bscore(weighted_ctable)
+    assert plain._weights == []
+    assert plain.wnorm == 1.0
+    boosted = _boosted(weighted_ctable)
+    assert boosted._weights == [1.0, 1.0, 1.0, 1.0]
+
+
+def test_weighted_do_score_normalises_by_the_WEIGHTED_activity(weighted_ctable):
+    """The whole point of precision_bscore.cc:283-289.
+
+    Tree `$1` selects rows (T,T) and (T,F): `active = 4 + 2 = 6`, so the
+    flat normalisation is `1/6`.  With weights `[2.0, 0.5, 1.0, 1.0]` the
+    boosted normalisation is `1 / (2*4 + 0.5*2) = 1/9` -- a different
+    number reached through a different denominator, which is what a
+    mutation back to `1.0 / active` cannot fake.
+    """
+    tr = str_to_combo_tree("$1")
+
+    flat = precision_bscore(weighted_ctable)(tr)
+    assert flat[:4] == [_to_score_t(1.0 / 6.0), 0.0, 0.0, 0.0]
+
+    bsc = _boosted(weighted_ctable)
+    bsc._weights = [2.0, 0.5, 1.0, 1.0]
+    weighted = bsc(tr)
+    assert weighted[:4] == [_to_score_t(1.0 / 9.0), 0.0, 0.0, 0.0]
+    assert weighted[4] == 0.5
+
+
+def test_weighted_do_score_omits_the_activation_penalty(weighted_ctable):
+    """ "the boosted scorer only wants those selectors that are exactly
+    correct, even if they have a terrible activation" (precision_bscore.cc
+    :312-317).  `min_activation=0.9` makes the penalty non-zero, so the
+    omission is visible in the VALUES and not only in the length.
+    """
+    tr = str_to_combo_tree("$1")
+
+    flat = precision_bscore(weighted_ctable, min_activation=0.9)(tr)
+    assert len(flat) == 6
+    assert flat[5] < 0.0  # activation 6/9 is below min_activation
+
+    bsc = _boosted(weighted_ctable, min_activation=0.9)
+    weighted = bsc(tr)
+    assert len(weighted) == 5
+    assert weighted[4] == 0.5
+
+
+def test_uniform_weights_reproduce_the_flat_normalisation(weighted_ctable):
+    """`reset_weights()` sets every weight to 1.0, and then `wactive ==
+    active` -- so this case CANNOT tell the weighted branch from the flat
+    one.  It is pinned deliberately, as the boundary condition the other
+    tests are measured against, and is never the only coverage.
+    """
+    tr = str_to_combo_tree("$1")
+    bsc = _boosted(weighted_ctable)
+    assert bsc(tr)[:4] == precision_bscore(weighted_ctable)(tr)[:4]
+
+
+def test_update_weights_renormalises_through_wnorm(weighted_ctable):
+    """`precision_bscore::update_weights` (precision_bscore.cc:707) is NOT
+    the base class's plain rescale: it re-applies the previous
+    normalisation (`_weights[i] *= wnorm`), only lets a REWARD BELOW 1.0
+    through (`if (rew[i] < 1.0)`), and renormalises so the weights sum to
+    `_size`.
+    """
+    bsc = _boosted(weighted_ctable)
+    # expalpha = 2.0: selected rows get 1/2, unselected rows get 2.0.
+    bsc.update_weights([0.5, 2.0, 2.0, 2.0])
+    # Only the sub-1.0 reward is applied, then everything is renormalised
+    # to sum to _size == 4.
+    assert sum(bsc._weights) == pytest.approx(4.0)
+    assert bsc._weights[0] < bsc._weights[1]
+    assert bsc._weights[1] == bsc._weights[2] == bsc._weights[3]
+    assert bsc.wnorm != 1.0
+
+
+def test_update_weights_rejects_a_wrong_sized_reward(weighted_ctable):
+    bsc = _boosted(weighted_ctable)
+    with pytest.raises(AssertionError, match="Unexpected size of weight array"):
+        bsc.update_weights([1.0, 1.0])
+
+
+def test_update_weights_rejects_an_unboosted_scorer(weighted_ctable):
+    bsc = precision_bscore(weighted_ctable)
+    with pytest.raises(AssertionError, match="Unexpected use of weights"):
+        bsc.update_weights([1.0, 1.0, 1.0, 1.0])
+
+
+# ---- exact_selection ------------------------------------------------------
+
+
+def test_exact_selection_of_one_member_is_that_member_s_FLAT_bscore(weighted_ctable):
+    """`call_ensemble` toggles `_return_weighted_score` off for the whole
+    call (precision_bscore.cc:374-378), so a one-member ensemble must
+    reproduce the UNWEIGHTED per-tree bscore -- activation penalty and
+    all -- even though the scorer is boosted and carries lop-sided
+    weights.  Dropping the toggle changes both the normalisation AND the
+    length.
+    """
+    tr = str_to_combo_tree("$1")
+    bsc = _boosted(weighted_ctable)
+    bsc._weights = [2.0, 0.5, 1.0, 1.0]
+
+    ens = scored_combo_tree_set()
+    ens.insert(scored_combo_tree(tr))
+
+    got = bsc.call_ensemble(ens)
+    assert got == precision_bscore(weighted_ctable)(tr)
+    assert len(got) == 6
+    assert bsc._return_weighted_score is True  # restored
+
+
+def test_exact_selection_of_two_members_is_the_OR_of_them(weighted_ctable):
+    """`tr.set_head(logical_or); append_child(...)` (precision_bscore.cc
+    :417-424).  `$1` alone selects (T,T),(T,F); `$2` alone selects
+    (T,T),(F,T); the union adds the (F,T) row, whose `sum_outputs` is
+    NEGATIVE -- so an `and` there, or a scorer that only looked at the
+    first member, gives a visibly different bscore.
+    """
+    bsc = _boosted(weighted_ctable)
+    ens = scored_combo_tree_set()
+    ens.insert(scored_combo_tree(str_to_combo_tree("$1")))
+    ens.insert(scored_combo_tree(str_to_combo_tree("$2")))
+
+    got = bsc.call_ensemble(ens)
+    assert got == precision_bscore(weighted_ctable)(str_to_combo_tree("or($1 $2)"))
+    assert got[:4] == [0.125, 0.0, -0.125, 0.0]
+    assert got != precision_bscore(weighted_ctable)(str_to_combo_tree("and($1 $2)"))
+
+
+def test_exact_selection_is_insensitive_to_ensemble_iteration_order(weighted_ctable):
+    """The `or` tree is built in `scored_combo_tree_set` order, which
+    neither language specifies -- but `logical_or` is commutative and the
+    tree is only interpreted, never printed, so the SCORE is order-free.
+    This is what lets the CLI-level tests assert a score across an
+    ordering classic does not fix.
+    """
+    bsc = _boosted(weighted_ctable)
+    a = scored_combo_tree(str_to_combo_tree("$1"))
+    b = scored_combo_tree(str_to_combo_tree("$2"))
+
+    fwd = scored_combo_tree_set()
+    fwd.insert(a)
+    fwd.insert(b)
+    rev = scored_combo_tree_set()
+    rev.insert(b)
+    rev.insert(a)
+
+    assert bsc.call_ensemble(fwd) == bsc.call_ensemble(rev)
+
+
+def test_get_error_is_one_minus_precision_and_leaves_the_flag_set(weighted_ctable):
+    """`0.5 - sum(bs[:_size])` (precision_bscore.cc:512-517).  `$1` has
+    precision `sao/active + 0.5 = 1/6 + 0.5`, so the error is `1/3`.
+    `ensemble::add_expert` admits a tree only when this is ~0, which is
+    why the toggle inside `get_error` has to disable weighting.
+    """
+    bsc = _boosted(weighted_ctable)
+    bsc._weights = [2.0, 0.5, 1.0, 1.0]
+    err = bsc.get_error(str_to_combo_tree("$1"))
+    assert err == _to_score_t(0.5 - _to_score_t(1.0 / 6.0))
+    assert bsc._return_weighted_score is True
+
+
+def test_get_error_refuses_inexact_experts(weighted_ctable):
+    bsc = _boosted(weighted_ctable, exact_experts=False)
+    with pytest.raises(AssertionError, match="inexact experts not yet supported"):
+        bsc.get_error(str_to_combo_tree("$1"))
+
+
+# ---- bias_selection -------------------------------------------------------
+#
+# Unreachable from the CLI (`get_error` asserts first -- see the module
+# docstring of precision_bscore.py), so it is driven directly here.
+#
+# Tree A = `and(!$1 $2)` selects ONLY row (F,T), whose sum_outputs is -1.0
+#          -- so A's weight alone becomes the bias.
+# Tree B = `and($1 $2)`  selects ONLY row (T,T), whose sum_outputs is +1.0.
+# Every other row has hypoth == 0.0 and can never clear a positive bias.
+
+
+def _bias_ensemble(ct, *, bias_scale, wa, wb, **kwargs):
+    bsc = _boosted(ct, exact_experts=False, bias_scale=bias_scale, **kwargs)
+    a = scored_combo_tree(str_to_combo_tree("and(!$1 $2)"))
+    a.set_weight(wa)
+    b = scored_combo_tree(str_to_combo_tree("and($1 $2)"))
+    b.set_weight(wb)
+    ens = scored_combo_tree_set()
+    ens.insert(a)
+    ens.insert(b)
+    return bsc, ens
+
+
+def test_bias_selection_is_reached_only_for_inexact_experts(weighted_ctable):
+    bsc, ens = _bias_ensemble(weighted_ctable, bias_scale=0.5, wa=1.0, wb=4.0)
+    assert bsc.exact_experts is False
+    got = bsc.call_ensemble(ens)
+    # bias == 1.0 (row (F,T)); 0.5*1.0 clears both hypoth 4.0 and hypoth 1.0,
+    # so rows (T,T) and (F,T) are both selected.
+    assert got[:4] == [_to_score_t(1.0 / 6.0), 0.0, _to_score_t(-1.0 / 6.0), 0.0]
+    assert bsc._return_weighted_score is True
+
+
+def test_bias_scale_decides_which_rows_clear_the_bias(weighted_ctable):
+    """`bias_scale * bias < hypoth[i++]` (precision_bscore.cc:496) -- the
+    ONLY place `--boost-bias` is read.  Three regimes, three answers.
+    """
+    lo, ens = _bias_ensemble(weighted_ctable, bias_scale=0.5, wa=1.0, wb=4.0)
+    mid, ens_mid = _bias_ensemble(weighted_ctable, bias_scale=2.0, wa=1.0, wb=4.0)
+    hi, ens_hi = _bias_ensemble(weighted_ctable, bias_scale=5.0, wa=1.0, wb=4.0)
+
+    # 0.5: both the +1.0 row and the -1.0 row are selected.
+    assert lo.call_ensemble(ens)[:4] == [
+        _to_score_t(1.0 / 6.0),
+        0.0,
+        _to_score_t(-1.0 / 6.0),
+        0.0,
+    ]
+    # 2.0: only the (T,T) row clears 2.0 -- precision is perfect.
+    assert mid.call_ensemble(ens_mid)[:4] == [0.25, 0.0, 0.0, 0.0]
+    # 5.0: nothing clears it; `active == 0`, so the 0.5 offset collapses to
+    # 0.0 and the activation penalty is -inf.
+    out = hi.call_ensemble(ens_hi)
+    assert out[:5] == [0.0, 0.0, 0.0, 0.0, 0.0]
+    assert out[5] == -math.inf
+
+
+def test_bias_comes_only_from_rows_that_should_NOT_be_selected(weighted_ctable):
+    """`if (0.0 > sumo and bias < hypoth[i]) bias = hypoth[i];`
+    (precision_bscore.cc:487).  Drop the `0.0 > sumo` guard and the bias
+    becomes 4.0 (the (T,T) row's own weight) instead of 1.0, which at
+    `bias_scale=0.5` loses the (F,T) row -- a different bscore.
+    """
+    bsc, ens = _bias_ensemble(weighted_ctable, bias_scale=0.5, wa=1.0, wb=4.0)
+    got = bsc.call_ensemble(ens)
+    assert got[2] == _to_score_t(-1.0 / 6.0), "the negative row must be selected"
+
+
+def test_bias_selection_narrows_the_ensemble_weight_to_float32(weighted_ctable):
+    """`score_t trweight = sct.get_weight();` (precision_bscore.cc:459)
+    rounds the `double` weight to binary32 BEFORE it reaches `hypoth`,
+    which is itself a `std::vector<double>`.  So this is the one place
+    where the narrowing is the ONLY rounding in play, and it is
+    order-independent: each row here is claimed by exactly one tree.
+
+    `0.1` and `0.100000001` are DISTINCT doubles that share one float32
+    value, so after narrowing `bias == hypoth[(T,T)]` exactly and the
+    strict `<` rejects the row; without narrowing `0.1 < 0.100000001` and
+    the row is selected.  The two answers are maximally far apart: nothing
+    selected (activation penalty -inf) versus perfect precision.
+    """
+    bsc, ens = _bias_ensemble(weighted_ctable, bias_scale=1.0, wa=0.1, wb=0.100000001)
+    got = bsc.call_ensemble(ens)
+    assert got[:5] == [0.0, 0.0, 0.0, 0.0, 0.0]
+    assert got[5] == -math.inf
 
 
 # ---------------------------------------------------------------------------
