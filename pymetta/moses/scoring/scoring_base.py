@@ -12,15 +12,25 @@ docstring for its C++ line.
 
 NOT ported, all deliberately out of scope for this task:
 
-* `ignore_cols`/`ignore_rows`/`ignore_rows_at_times` -- the feature/row
-  subsetting infrastructure `bscore_ctable_base` (below) uses to compress
-  a CTable during feature selection. `filtered_preserve_idxs`, the CTable
-  method the real C++ bodies call, does not exist in this port's `CTable`
-  (table.py) -- feature selection itself is an unscheduled subsystem
-  (REMAINING-WORK.md Sec 3d). Ported as raising gates on
-  `bscore_ctable_base` (below), not silently inherited as bscore_base's
-  own harmless no-op default -- silently doing nothing would misrepresent
-  a base class whose whole point is to actually compress the table.
+* `ignore_cols` -- the FEATURE-subsetting half of the infrastructure
+  `bscore_ctable_base` (below) uses to compress a CTable during feature
+  selection. `filtered_preserve_idxs`, the CTable method its real C++
+  body calls, does not exist in this port's `CTable` (table.py). Ported
+  as a raising gate on `bscore_ctable_base` (below), not silently
+  inherited as bscore_base's own harmless no-op default -- silently doing
+  nothing would misrepresent a base class whose whole point is to
+  actually compress the table. Its only CLI-reachable caller is the
+  `if (_params.fstor)` arm of `deme_expander::optimize_demes`
+  (deme_expander.cc:435), which `deme_expander.py` documents and skips.
+
+  `ignore_rows`/`ignore_rows_at_times` -- the ROW-subsetting half -- used
+  to be listed here alongside it, on the same "out of scope" grounds.
+  They are REAL now (the `ss-*` subsample task): both are reached on
+  every `--ss-n-subsample-demes>1` / `--ss-n-subsample-fitnesses>1` run,
+  from `deme_expander.optimize_demes` and `ss_bscore.__call__`
+  respectively. See each method's own docstring below; neither needs
+  `filtered_preserve_idxs`, which is why the feature half stays gated and
+  the row half no longer is.
 * `get_complexity(const scored_combo_tree_set&)` (scoring_base.h:204) --
   it averages `sct.get_weight()` (scoring_base.cc:96-107), for ensembles.
   CORRECTED: this bullet used to justify the omission with "the boosting
@@ -75,6 +85,7 @@ from abc import ABC, abstractmethod
 from pymetta.comboreduct.combo.iostream_combo import tree_to_stream_str
 from pymetta.comboreduct.combo.vertex import combo_tree
 from pymetta.comboreduct.table.table import CTable
+from pymetta.feature_selection.ctable_subsample import ctable_remove_rows
 from pymetta.moses.moses.complexity import complexity_t, tree_complexity
 from pymetta.moses.moses.types import (
     _to_score_t,
@@ -557,16 +568,18 @@ class bscore_ctable_base(bscore_base):
 
     "Base class for fitness functions that use a ctable. Provides useful
     table compression." (scoring_base.h:234-235's own doc comment.) The
-    table-COMPRESSION half of that promise (`ignore_cols`/`ignore_rows`/
-    `ignore_rows_at_times`, driving `_wrk_ctable`/`_all_rows_wrk_ctable`
-    down to a genuinely smaller table) is NOT ported -- see this module's
-    own docstring's "NOT ported" list -- so those three methods are raising
-    gates here, not the real, functional C++ bodies. Every OTHER member
-    (`_orig_ctable`/`_wrk_ctable` themselves, `get_ctable_usize`,
-    `get_ctable`, `recompute_weight`/`_ctable_weight`) IS ported, because
-    `discriminating_bscore`/`select_bscore`/`bscore_ctable_time_dispersion`
-    all genuinely need them for their own (non-compression) constructors
-    and formulas.
+    ROW half of that promise (`ignore_rows`/`ignore_rows_at_times`,
+    driving `_wrk_ctable` down from `_all_rows_wrk_ctable` to a genuinely
+    smaller table) IS ported now, by the `ss-*` subsample task -- it is
+    what every SS-deme and every SS-fitness subsample actually runs on.
+    Only `ignore_cols`, the FEATURE half, is still a raising gate, and
+    only because `CTable.filtered_preserve_idxs` does not exist in this
+    port; see this module's own docstring's "NOT ported" list. Every
+    OTHER member (`_orig_ctable`/`_wrk_ctable` themselves,
+    `get_ctable_usize`, `get_ctable`, `recompute_weight`/`_ctable_weight`)
+    was already ported, because `discriminating_bscore`/`select_bscore`/
+    `bscore_ctable_time_dispersion` all genuinely need them for their own
+    (non-compression) constructors and formulas.
     """
 
     def __init__(self, ctable: CTable) -> None:
@@ -635,25 +648,77 @@ class bscore_ctable_base(bscore_base):
     def ignore_rows(self, idxs: set) -> None:
         """C++: moses/moses/scoring/scoring_base.cc:267 bscore_ctable_base::ignore_rows
 
-        NOT functionally ported -- see `ignore_cols` above.
+        "In case one wants to evaluate the fitness on a subset of the
+        data, one can provide a set of row indexes to ignore."
+        (scoring_base.h:264-265's own comment.) Statement for statement:
+        the `_return_weighted_score` early return (whose comment, cc:269-
+        271, is "Must not compress if boosting: the booster keeps track of
+        a weight for each row, and so altering the number of rows will
+        just confuse the mechanisn"), then restore `_wrk_ctable` from
+        `_all_rows_wrk_ctable` (cc:274, "to include all rows in
+        _wrk_ctable" -- which is what makes `ignore_rows` idempotent and
+        re-callable with a DIFFERENT subset, as both the SS-deme loop
+        (deme_expander.cc:487) and `ss_bscore::operator()`
+        (ss_bscore.cc:110) do), remove the rows, then recompute
+        `_ctable_usize` / `_size` / `_ctable_weight` (cc:277-280).
+
+        `_wrk_ctable = _all_rows_wrk_ctable` is a C++ VALUE copy of a
+        `std::map`, so `_copy_ctable` (this module), not an alias -- the
+        same reason the constructor uses it, docs/CARRY-FORWARD.md Sec 1.2.
+        Aliasing here would let `ctable_remove_rows` eat the pristine
+        all-rows table on the first call and leave every later call
+        subsetting an already-subset table.
+
+        # DIVERGENCE(C++ moses/comboreduct/table/table.cc:646): PLACEMENT
+        # ONLY. `_wrk_ctable.remove_rows(idxs)` (cc:276) calls a `CTable`
+        # MEMBER whose Python home would be
+        # `pymetta/comboreduct/table/table.py` -- off limits to this
+        # task's partition -- so it is reached here as the free function
+        # `ctable_remove_rows` that `pymetta.feature_selection.
+        # ctable_subsample` already ports it as, for exactly the same
+        # ownership reason (see that module's own PLACEMENT divergence).
+        # Same algorithm, same two `std::map` iteration orders restored,
+        # same reproduced `OC_ASSERT(0.0 == (total_row_weights -
+        # truncate), "This algo is broken!")`; nothing is re-implemented
+        # here.
         """
-        raise NotImplementedError(
-            "bscore_ctable_base.ignore_rows: row-subsetting is out of "
-            "scope for this port; see scoring_base.py's module docstring"
-        )
+        if self._return_weighted_score:
+            return
+
+        self._wrk_ctable = _copy_ctable(self._all_rows_wrk_ctable)
+        ctable_remove_rows(self._wrk_ctable, idxs)
+        self._ctable_usize = _to_usize(self._wrk_ctable.uncompressed_size())
+        self._size = len(self._wrk_ctable)
+        self.recompute_weight()
 
     def ignore_rows_at_times(self, timestamps: set) -> None:
         """C++: moses/moses/scoring/scoring_base.cc:290 bscore_ctable_base::ignore_rows_at_times
 
-        NOT functionally ported -- see `ignore_cols` above. Also blocked
-        on there being no `TTable`/timestamp representation at all in
-        this port (table.py's own module docstring).
+        "Like ignore_rows but consider timestamps instead of indexes"
+        (scoring_base.h:267's own comment.) Same five statements as
+        `ignore_rows` above, with `remove_rows_at_times` (table.cc:707) in
+        place of `remove_rows` -- and that one IS a real method on this
+        port's `CTable` (table.py), so no placement divergence is needed
+        for it.
+
+        A table loaded WITHOUT `--timestamp-feature` carries the
+        not-a-date sentinel on every observation, so `get_timestamps()`
+        returns the empty set and every caller reaches here with an EMPTY
+        `timestamps`: `remove_rows_at_times` then drops nothing and this
+        degenerates to "restore all rows, recompute". That is classic's
+        behaviour too, not a stub -- it is exactly why
+        `--ss-n-subsample-demes=2 --ss-by-time=1` on a table with no
+        timestamp column scores every ss-deme over the whole table in both
+        languages.
         """
-        raise NotImplementedError(
-            "bscore_ctable_base.ignore_rows_at_times: out of scope for "
-            "this port (no TTable/timestamp representation; see "
-            "scoring_base.py's and table.py's module docstrings)"
-        )
+        if self._return_weighted_score:
+            return
+
+        self._wrk_ctable = _copy_ctable(self._all_rows_wrk_ctable)
+        self._wrk_ctable.remove_rows_at_times(timestamps)
+        self._ctable_usize = _to_usize(self._wrk_ctable.uncompressed_size())
+        self._size = len(self._wrk_ctable)
+        self.recompute_weight()
 
     def get_ctable_usize(self) -> int:
         """C++: moses/moses/scoring/scoring_base.cc:318 bscore_ctable_base::get_ctable_usize"""

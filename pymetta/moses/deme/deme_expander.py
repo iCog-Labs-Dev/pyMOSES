@@ -53,18 +53,41 @@ selection (``deme_parameters.fstor``, ``--enable-fs``) is now REAL:
   no output this port can produce.
 
 * **Subsample-deme filtering**
-  (``subsample_deme_filter_parameters.n_subsample_demes``, S10 Task 1's
-  ``metapop_params.py``) -- would subdivide EACH representation's single
-  deme into ``n_subsample_demes`` "ss-demes" over disjoint row/timestamp
-  subsets (the header's own comment on ``_demes``: "a deme can be further
-  subdivided into multiple demes using a subsampled dataset"). Gated in
-  ``create_demes`` and ``optimize_demes``: ``n_subsample_demes > 1`` raises.
-  The plan's own scope table lists this as one of the whole S10 slice's
-  default-off P2 subsystems, alongside boosting/domination/diversity.
+  (``subsample_deme_filter_parameters.n_subsample_demes``, ``--ss-n-
+  subsample-demes``) -- subdivides EACH representation's single deme into
+  ``n_subsample_demes`` "ss-demes" over disjoint row/timestamp subsets
+  (the header's own comment on ``_demes``: "a deme can be further
+  subdivided into multiple demes using a subsampled dataset"). This was
+  GATED in ``create_demes``/``optimize_demes``/``subsample_by_row``/
+  ``subsample_by_time`` -- all four raised ``NotImplementedError`` --
+  until the ``ss-*`` subsample task. All four are real now:
+
+  - ``subsample_by_row`` (cc:120) shuffles ``[0, get_ctable_usize())``
+    with ``random_shuffle_gen`` and cuts it into ``n_ss_demes``
+    consecutive segments;
+  - ``subsample_by_time`` (cc:83) does the same over the ASCENDING
+    timestamp set, skipping the shuffle when ``contiguous_time``;
+  - ``create_demes`` (cc:388) builds ``n_subsample_demes``
+    ``instance_set``s per representation, with ``demeID_t(n_expansions,
+    i, j)`` ids;
+  - ``optimize_demes`` (cc:476,508) restricts ``_cscorer`` to each
+    ss-deme's own subsample via ``behave_cscore.ignore_rows``/
+    ``ignore_rows_at_times`` -- which needed
+    ``bscore_ctable_base.ignore_rows`` (scoring_base.py) to stop being a
+    gate, and ``ctruth_table_bscore`` to be re-parented onto
+    ``bscore_ctable_base`` (bscores.py) so the *it* problem's boolean
+    scorer actually has a ``_wrk_ctable`` to subset -- and then restores
+    the whole table after the loop, which is what
+    ``metapopulation.recompute_scores_over_whole_dataset``
+    (subsample.py) depends on.
+
+  Byte-for-byte against classic on every previously-gated ``ss-*`` CLI
+  row: tests/moses/main/test_ss_cli.py.
 
 Both ``fstor=None`` and ``n_subsample_demes=0`` are still the defaults, so
 the fully-ported DEFAULT path is unchanged: exactly one representation,
-exactly one deme, per ``create_demes`` call.
+exactly one deme, per ``create_demes`` call -- and, as its own test pins,
+not one ``ignore_rows`` call on the scorer.
 
 ``fs_to_names`` (deme_expander.h:115, deme_expander.cc:48) IS ported now.
 It used to be listed here as deliberately dropped, on the grounds that
@@ -111,6 +134,7 @@ from pymetta.moses.representation.instance_scorer import complexity_based_scorer
 from pymetta.moses.representation.instance_set import instance_set
 from pymetta.moses.representation.representation import representation
 from pymetta.moses.scoring.behave_cscore import behave_cscore
+from pymetta.moses.scoring.ss_bscore import _shuffle_with_gen
 from pymetta.util.logger import logger
 from pymetta.util.rng import randGen
 
@@ -192,12 +216,24 @@ class deme_expander:
         ``random_shuffle_gen`` (deme_expander.cc:45, ``[&](ptrdiff_t i) {
         return randGen().randint(i); }``) is ``randGen().randint_n(i)``
         here -- ``rng.py``'s own ``randint_n`` is the direct port of
-        ``opencog::RandGen::randint(int)`` this lambda calls. Stored for
-        fidelity to the constructor body; its only consumers,
-        ``subsample_by_time``/``subsample_by_row``'s ``boost::
-        random_shuffle`` calls, are inside the subsample-deme-filtering
-        gate (see module docstring) and are therefore never actually
-        invoked by this port's own methods below.
+        ``opencog::RandGen::randint(int)`` this lambda calls. It is LIVE:
+        ``subsample_by_time``/``subsample_by_row`` below hand it to
+        ``_shuffle_with_gen`` on every ``n_subsample_demes > 1`` run.
+
+        Which shuffle that is, measured rather than assumed:
+        ``boost::random_shuffle(rng, gen)``
+        (``boost/range/algorithm/random_shuffle.hpp``) dispatches on
+        ``BOOST_NO_CXX98_RANDOM_SHUFFLE``, and the two arms are NOT the
+        same algorithm -- the defect arm wraps ``gen`` as a
+        UniformRandomBitGenerator and calls ``std::shuffle``, which draws
+        a completely different number of RNG values in a different order.
+        That macro is defined only by ``boost/config/stdlib/
+        dinkumware.hpp`` (MSVC) and ``libcpp.hpp`` (libc++); classic is
+        built here against libstdc++, which defines neither, so the arm
+        actually compiled is ``using std::random_shuffle;`` -- byte for
+        byte the same three-argument ``std::random_shuffle`` overload
+        ``ss_bscore.cc:97`` calls, hence the shared ``_shuffle_with_gen``
+        import above rather than a second transliteration.
         """
         self._optimize = opt
         self._type_sig = type_signature
@@ -353,19 +389,64 @@ class deme_expander:
 
         "Subsample by time. Return a vector (of size n_ss_demes) of sets of
         timestamps to be discarded during subsampling." (deme_expander.h:
-        87-89's own comment.) Gated: see module docstring. The disabled
-        (``n_subsample_demes <= 1``) branch is the only one ported --
+        87-89's own comment.) BOTH arms are ported now; the disabled one
+        (``n_subsample_demes <= 1``) is still
         ``ignore_timestamps_per_ss_deme.emplace_back();`` (cc:115), a
         single EMPTY set, matching classic's own "subsampling deme is
         disabled" comment (cc:114) exactly.
+
+        The enabled arm, statement for statement (cc:88-113):
+
+        * ``_cscorer.get_ctable().get_timestamps()`` -- the ORIGINAL
+          table's timestamps (``bscore_ctable_base::get_ctable`` returns
+          ``_orig_ctable``, scoring_base.cc:323), so repeated calls across
+          expansions see the same set regardless of what ``ignore_rows``
+          did to ``_wrk_ctable``.
+        * ``std::vector<...> timestamps_vec(timestamps.begin(),
+          timestamps.end())`` (cc:92) -- a ``std::set``, so ASCENDING;
+          ``sorted()`` here, not the port's own hash order. This is the
+          one place the order is observable even WITHOUT the shuffle,
+          because ``contiguous_time`` skips the shuffle entirely.
+        * ``if (!contiguous_time) boost::random_shuffle(timestamps_vec,
+          random_shuffle_gen)`` (cc:95-98) -- see ``__init__``'s docstring
+          for the measurement that says this is plain
+          ``std::random_shuffle``.
+        * split into ``n_ss_demes`` CONSECUTIVE segments of
+          ``tt_size / n_ss_demes`` each (cc:101-112), dropping the
+          remainder. Note the returned list has ``n_ss_demes`` entries
+          only when ``seg_size > 0``; C++'s own loop produces fewer (zero)
+          when ``tt_size < n_ss_demes``, and ``optimize_demes``'s
+          ``OC_ASSERT(ignore_timestamps_per_ss_deme.size() == n_ss_demes,
+          ...)`` (cc:479) is what catches that -- ported at that call
+          site, where classic puts it, not here.
+
+        The ``logger().debug() << "Discard segment from ..."`` line
+        (cc:107-111) is not reproduced: it prints a
+        ``boost::gregorian::date`` through ``operator<<`` and lands only
+        in the log file, never on stdout.
         """
-        if self._filter_params.n_subsample_demes > 1:
-            raise NotImplementedError(
-                "deme_expander: subsample-by-time deme filtering is P2, not "
-                "ported; leave subsample_deme_filter_parameters."
-                "n_subsample_demes at its default (0)."
-            )
-        return [set()]
+        ignore_timestamps_per_ss_deme: list[set] = []
+        n_ss_demes = self._filter_params.n_subsample_demes
+
+        if n_ss_demes > 1:  # subsampling deme is enabled
+            timestamps = self._cscorer.get_ctable().get_timestamps()
+            tt_size = len(timestamps)
+            timestamps_vec = sorted(timestamps)
+
+            if not self._filter_params.contiguous_time:
+                logger().debug("Random subsampling by time")
+                _shuffle_with_gen(timestamps_vec, self.random_shuffle_gen)
+
+            # Divide the vector into n_ss_demes equal parts (cc:100).
+            seg_size = tt_size // n_ss_demes
+            if seg_size > 0:
+                for start in range(0, n_ss_demes * seg_size, seg_size):
+                    ignore_timestamps_per_ss_deme.append(
+                        set(timestamps_vec[start : start + seg_size])
+                    )
+        else:  # subsampling deme is disabled
+            ignore_timestamps_per_ss_deme.append(set())
+        return ignore_timestamps_per_ss_deme
 
     def subsample_by_row(self) -> list[set]:
         """C++: moses/moses/deme/deme_expander.cc:120 deme_expander::subsample_by_row
@@ -373,16 +454,50 @@ class deme_expander:
         "Subsample by row. return a vector (of size n_ss_demes) of sets of
         indexes (of a corresponding uncompressed table) to be discarded
         during subsampling." (deme_expander.h:92-95's own comment.) Same
-        gate and same disabled-branch-only porting as ``subsample_by_time``
-        above (cc:141-143, ``ignore_row_idxs_per_ss_deme.emplace_back();``).
+        two arms as ``subsample_by_time`` above, both ported; the disabled
+        one is cc:141-143, ``ignore_row_idxs_per_ss_deme.emplace_back();``.
+
+        The enabled arm (cc:125-140) builds ``[0, usize)`` from
+        ``_cscorer.get_ctable_usize()`` -- the UNCOMPRESSED row count, so
+        these indexes address the uncompressed table, which is exactly
+        what ``CTable::remove_rows`` (reached via
+        ``bscore_ctable_base.ignore_rows``) expects -- shuffles it with
+        the same ``random_shuffle_gen``, and cuts it into ``n_ss_demes``
+        consecutive segments of ``usize / n_ss_demes``, dropping the
+        remainder.
+
+        Deliberately NOT shared with ``ss_bscore._partition_by_row``
+        (ss_bscore.py), which is the same five statements for a DIFFERENT
+        caller: that one reads ``_bscorer.get_ctable_usize()`` and splits
+        into ``n_subsample_fitnesses`` parts, this one reads the cscorer
+        and splits into ``n_subsample_demes``. Both draw from the same
+        global ``randGen()``, and on a ``--ss-n-subsample-demes=2
+        --ss-n-subsample-fitnesses=2`` run both run, interleaved -- so
+        collapsing them into one helper would be a refactor of two
+        distinct C++ functions (ss_bscore.cc:82 and deme_expander.cc:120)
+        into one, which this port does not do.
         """
-        if self._filter_params.n_subsample_demes > 1:
-            raise NotImplementedError(
-                "deme_expander: subsample-by-row deme filtering is P2, not "
-                "ported; leave subsample_deme_filter_parameters."
-                "n_subsample_demes at its default (0)."
-            )
-        return [set()]
+        ignore_row_idxs_per_ss_deme: list[set] = []
+        n_ss_demes = self._filter_params.n_subsample_demes
+
+        if n_ss_demes > 1:  # subsampling deme is enabled
+            usize = self._cscorer.get_ctable_usize()
+
+            # Create a vector [0, usize) (cc:128).
+            row_idxs = list(range(usize))
+
+            # Randomly shuffle the order (cc:132).
+            _shuffle_with_gen(row_idxs, self.random_shuffle_gen)
+
+            # Divide the vector into n_ss_demes equal parts (cc:135).
+            seg_size = usize // n_ss_demes
+            if seg_size > 0:
+                for start in range(0, n_ss_demes * seg_size, seg_size):
+                    ignore_row_idxs_per_ss_deme.append(set(row_idxs[start : start + seg_size]))
+        else:
+            ignore_row_idxs_per_ss_deme.append(set())
+
+        return ignore_row_idxs_per_ss_deme
 
     # ------------------------------------------------------------ building
 
@@ -830,32 +945,33 @@ class deme_expander:
         self.create_demeIDs(n_expansions)
         self.create_representations(exemplar)
 
-        # DIVERGENCE(C++ moses/moses/deme/deme_expander.cc:388-397): classic
-        # builds a NESTED ss-deme structure in the `if (_filter_params.
-        # n_subsample_demes > 1)` arm. Gated -- see module docstring; only
-        # the `else` arm (cc:394-396, one deme per representation) is
-        # ported. CORRECTED (S10 branch review, Minor): the gate check
-        # itself must stay INSIDE the `for i in range(len(self._reps))`
-        # loop below, exactly as C++'s own `if` sits inside its `for
-        # (unsigned i = 0; i < _reps.size(); i++)` (cc:388-397) -- it used
-        # to be hoisted out, before this loop and unconditional. That
-        # differs from C++ exactly when `self._reps` is EMPTY (no viable
-        # representation -- `create_representations` returned `False`):
-        # C++'s loop then runs ZERO iterations, so its `n_subsample_demes
-        # > 1` check is never even evaluated, and `create_demes` simply
-        # returns `not _demes.empty()` == `False` -- a normal "no demes,
-        # caller should try another exemplar" signal, no exception. The
-        # hoisted version raised `NotImplementedError` in that same
-        # zero-rep case whenever the flag was on, which C++ never does.
+        # Create empty demes with their IDs (cc:387). BOTH arms of
+        # `if (_filter_params.n_subsample_demes > 1)` (cc:388-397) are
+        # ported now; the `> 1` arm used to raise. Note the ss-deme arm
+        # builds its own `demeID_t(n_expansions, i, j)` per ss-deme
+        # (cc:392-393) rather than reusing `self._demeIDs[i]` -- and with
+        # `n_expansions`, NOT `n_expansions + 1`, which is what
+        # `create_demeIDs` uses one line up (cc:154,156). That asymmetry
+        # is classic's, reproduced: an SS run's deme IDs read
+        # `0.0.SS-0`/`0.0.SS-1` on the first expansion where a non-SS run's
+        # read `1`. It is visible in the log file (deme IDs are printed by
+        # `optimize_demes` and by `merging.py`'s own debug lines) and in
+        # `scored_combo_tree`'s deme id, which this port does not carry
+        # anyway (types.py).
+        #
+        # The check sits INSIDE the `for i in range(len(self._reps))` loop,
+        # exactly as C++'s own `if` sits inside its `for (unsigned i = 0;
+        # i < _reps.size(); i++)` (cc:388-397).
         for i in range(len(self._reps)):
             if self._filter_params.n_subsample_demes > 1:
-                raise NotImplementedError(
-                    "deme_expander: subsample-deme filtering "
-                    "(subsample_deme_filter_parameters.n_subsample_demes "
-                    "> 1) is P2, not ported; leave n_subsample_demes at "
-                    "its default (0)."
-                )
-            self._demes.append([instance_set(self._reps[i].fields(), self._demeIDs[i])])
+                ss_demes: list[instance_set] = []
+                for j in range(self._filter_params.n_subsample_demes):
+                    ss_demes.append(
+                        instance_set(self._reps[i].fields(), demeID_t(n_expansions, i, j))
+                    )
+                self._demes.append(ss_demes)
+            else:
+                self._demes.append([instance_set(self._reps[i].fields(), self._demeIDs[i])])
 
         return len(self._demes) > 0
 
@@ -871,28 +987,12 @@ class deme_expander:
         for byte. See that DIVERGENCE for what is skipped and the
         measurement that says it costs nothing observable.
 
-        # DIVERGENCE(C++ moses/moses/deme/deme_expander.cc:477,508): classic
-        # checks `if (n_ss_demes > 1)` at two points in this function
-        # (cc:477, `_cscorer.ignore_rows_at_times`/`ignore_rows`, and the
-        # post-loop reset at cc:508). Neither is ported.
-        #
-        # The `n_subsample_demes` half of the original four checks is
-        # UNCHANGED and still consolidated into the second guard below, at
-        # entry: `_filter_params.n_subsample_demes > 1` cannot be true here
-        # without `create_demes` already having raised first -- the only
-        # path that ever builds `_reps`/`_demes` -- UNLESS a caller mutates
-        # `_filter_params` directly between `create_demes()` and this call
-        # (no real caller in classic does this; `moses_main.h:318`'s single
-        # real construction site passes it by reference and never mutates
-        # it mid-search). That consolidated check is ALSO, independently,
-        # backed by `subsample_by_row`/`subsample_by_time`'s own gates a
-        # few lines below (both are still called, unconditionally, matching
-        # cc:416-421's own structure) -- measured directly (mutation
-        # testing, see the task report): with ONLY this top-level check
-        # disabled, a caller that reaches the loop still hits one of those
-        # two gates on the very first iteration and gets the same
-        # `NotImplementedError`.
-        #
+        Every `if (n_ss_demes > 1)` check in this function IS ported now
+        (cc:411, cc:477-488 and the post-loop whole-table reset at
+        cc:508-513); the entry gate that used to raise for
+        `n_subsample_demes > 1` is gone, and `subsample_by_row`/
+        `subsample_by_time` return real partitions.
+
         # `size_t nleft = ...`-style unsigned-wrap risk, checked and found
         # INERT here (not measured via a probe -- verified analytically):
         # `max_evals_per_deme = max_evals / _demes.size()` (cc:405) promotes
@@ -913,35 +1013,40 @@ class deme_expander:
         # by 1 is the identity on any bit pattern, signed or unsigned, so
         # `max_evals_per_deme == max_evals` bit-for-bit for every possible
         # `int` value, positive or negative -- there is no wrap to
-        # reproduce. `n_ss_demes = max(n_subsample_demes, 1)` is likewise
-        # always exactly 1 here (the `> 1` case already raised above), so
-        # the second `/=` is the same identity. Division by 0 (`_demes`
+        # reproduce. `n_ss_demes = max(n_subsample_demes, 1)` is NO LONGER
+        # always 1 (that was true only while the `> 1` case raised): the
+        # second `//=` is a real division now, and `max_evals //
+        # n_demes // n_ss_demes` on non-negative operands is the same
+        # truncation C++'s two `/=` on `size_t` perform. `max_evals` can
+        # still be negative in principle (`-m` takes a signed `int`), and
+        # Python's `//` FLOORS where C++ truncates toward zero -- inert
+        # here because `problem-params.cc` never lets a negative reach
+        # this function (`--max-evals` is `unsigned` at the CLI), which is
+        # the same reasoning the `_demes.size()` note above already rests
+        # on. Division by 0 (`_demes`
         # empty) is UB in C++ too (integer division by zero) and unguarded
         # there -- ported the same way: a caller MUST check `create_demes
         # ()`'s return value before calling this, exactly as C++ requires;
         # this port does not add a check C++ does not have (DO NOT FIX).
         """
-        if self._filter_params.n_subsample_demes > 1:
-            raise NotImplementedError(
-                "deme_expander: subsample-deme filtering (subsample_deme_"
-                "filter_parameters.n_subsample_demes > 1) is P2, not "
-                "ported; leave n_subsample_demes at its default (0)."
-            )
-
         n_demes = len(self._demes)
         max_evals_per_deme = max_evals // n_demes
         n_ss_demes = max(self._filter_params.n_subsample_demes, 1)
         max_evals_per_deme //= n_ss_demes
 
         for i in range(n_demes):
-            # Results intentionally unused: both are provably `[set()]` (a
-            # single empty set) given `n_ss_demes == 1` is the only value
-            # reachable past the guards above, and that value is only ever
-            # consumed inside the `if (n_ss_demes > 1)` arm this port does
-            # not reach. Still called, matching cc:416-421's own
-            # unconditional calls, structurally.
-            _ = self.subsample_by_row()
-            _ = self.subsample_by_time()
+            if n_ss_demes > 1:
+                logger().debug("Subsample data and optimize SS-demes")
+
+            # For each subsample-deme hold set of row indexes to remove
+            # (cc:415-417) and set of timestamps to remove (cc:419-421).
+            # BOTH are called unconditionally, in this order, exactly as
+            # C++ does -- and that order is load-bearing whenever both
+            # actually draw from the RNG: with `contiguous_time` false,
+            # `subsample_by_row`'s shuffle consumes `randGen()` before
+            # `subsample_by_time`'s does.
+            ignore_row_idxs_per_ss_deme = self.subsample_by_row()
+            ignore_timestamps_per_ss_deme = self.subsample_by_time()
 
             for j in range(n_ss_demes):
                 if logger().is_debug_enabled():
@@ -1000,10 +1105,39 @@ class deme_expander:
                 # The post-loop reset (cc:499-506, `_cscorer.ignore_cols(
                 # std::set<arity_t>())`) is skipped for the same reason and
                 # is a no-op given the above.
+
+                # C++: deme_expander.cc:476-489. Restrict the scorer to
+                # this ss-deme's own subsample.
+                if n_ss_demes > 1:
+                    if self._filter_params.by_time:
+                        if len(ignore_timestamps_per_ss_deme) != n_ss_demes:
+                            # `OC_ASSERT` (cc:479-482), verbatim message.
+                            raise AssertionError(
+                                "Apparently subsample_by_time() was not able to "
+                                "work properly. Are you sure your data has "
+                                "timestamps, and those are properly loaded (see "
+                                "option --timestamp-feature)"
+                            )
+                        self._cscorer.ignore_rows_at_times(ignore_timestamps_per_ss_deme[j])
+                    else:
+                        self._cscorer.ignore_rows(ignore_row_idxs_per_ss_deme[j])
+
                 cpx_scorer = complexity_based_scorer(
                     self._cscorer, self._reps[i], self._params.reduce_all
                 )
                 self._optimize(self._demes[i][j], cpx_scorer, max_evals_per_deme, max_time)
+
+            if n_ss_demes > 1:
+                logger().debug("Done optimizing SS-demes")
+
+        # C++: deme_expander.cc:508-513. "reset scorer to use all rows
+        # (important so that the ss_filter and the behavioral score is
+        # calculated over the whole data set)" (cc:509-511's own comment)
+        # -- this is what makes `metapopulation.recompute_scores_over_
+        # whole_dataset` (subsample.py) see the WHOLE table, and it must
+        # happen after the ss-deme loop, not inside it.
+        if n_ss_demes > 1:
+            self._cscorer.ignore_rows(set())
 
     def free_demes(self) -> None:
         """C++: moses/moses/deme/deme_expander.cc:516 deme_expander::free_demes"""

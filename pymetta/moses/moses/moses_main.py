@@ -236,6 +236,7 @@ from pymetta.moses.moses.types import (
     very_best_score,
 )
 from pymetta.moses.scoring.behave_cscore import behave_cscore
+from pymetta.moses.scoring.ss_bscore import ss_bscore
 
 Printer = Callable[[metapopulation, deme_expander, moses_statistics], None]
 
@@ -802,26 +803,53 @@ def metapop_moses_results(
     n_subsample_fitnesses = getattr(filter_params, "n_subsample_fitnesses", 0)
     low_dev_pressure = getattr(filter_params, "low_dev_pressure", 0.0)
     if n_subsample_fitnesses > 1 and low_dev_pressure > 0.0:
-        raise NotImplementedError(
-            "metapop_moses_results: SS-fitness (moses/moses/scoring/"
-            "ss_bscore.{h,cc}) is P2, not ported. Leave "
-            "subsample_deme_filter_parameters.n_subsample_fitnesses/"
-            ".low_dev_pressure unset (the default) so this branch is "
-            "never taken."
+        # Enable SS-fitness (moses_main.h:366-378). `get_bscorer()`
+        # (behave_cscore.py) hands back the very `bscore_base` the caller's
+        # cscorer wraps -- "weird hack for subsample scoring...",
+        # behave_cscore.h:127's own words -- and the fresh `behave_cscore`
+        # built around `ss_bscorer` has its OWN (default, size-0) cache,
+        # which is why `problem-params.cc:2266` forces `--cache-size` to 0
+        # for any `ss-*` run in the first place.
+        #
+        # `filter_params.by_time` is read from the ORIGINAL
+        # `filter_params`, not from a tweaked copy -- there is no
+        # `twk_filter_params` in classic (moses_main.h:372).
+        bscorer = c_scorer.get_bscorer()
+        ss_bscorer = ss_bscore(
+            bscorer,
+            n_subsample_fitnesses,
+            low_dev_pressure,
+            filter_params.by_time,
         )
-
-    metapop_moses_results_b(
-        bases,
-        type_sig,
-        si_ca,
-        si_kb,
-        c_scorer,
-        twk_opt_params,
-        hc_params,
-        ps_params,
-        deme_params,
-        filter_params,
-        twk_meta_params,
-        twk_moses_params,
-        printer,
-    )
+        ss_cscorer = behave_cscore(ss_bscorer)
+        metapop_moses_results_b(
+            bases,
+            type_sig,
+            si_ca,
+            si_kb,
+            ss_cscorer,
+            twk_opt_params,
+            hc_params,
+            ps_params,
+            deme_params,
+            filter_params,
+            twk_meta_params,
+            twk_moses_params,
+            printer,
+        )
+    else:
+        metapop_moses_results_b(
+            bases,
+            type_sig,
+            si_ca,
+            si_kb,
+            c_scorer,
+            twk_opt_params,
+            hc_params,
+            ps_params,
+            deme_params,
+            filter_params,
+            twk_meta_params,
+            twk_moses_params,
+            printer,
+        )

@@ -113,3 +113,158 @@ def _boolean_ctable():
     it.push_back((F, F))
     ot = OTable([T, F])
     return Table(ot, it).compressed()
+
+
+# ---------------------------------------------------------------------------
+# bscore_ctable_base.ignore_rows / ignore_rows_at_times
+#
+# Both were raising gates until the `ss-*` subsample task; both are on the
+# real search path now (deme_expander.cc:483,487,508 and ss_bscore.cc:
+# 82,109,117). `CTable::remove_rows` itself (table.cc:646) has its own C++
+# oracle -- tests/feature_selection/test_ctable_subsample.py against
+# tests/fixtures/fs_diversity.json -- so what is tested HERE is the five
+# statements of scoring_base.cc:267-281 around it, and above all the
+# restore-from-`_all_rows_wrk_ctable` that makes repeated calls with
+# DIFFERENT subsets work.
+# ---------------------------------------------------------------------------
+
+
+def _eight_row_ctable():
+    """Eight uncompressed rows over two boolean inputs, compressing to four
+    distinct input rows of two observations each -- so a row-index subset
+    can straddle a compressed row and actually exercise the per-observation
+    count arithmetic, not just whole-row deletion.
+    """
+    T, F = builtin.logical_true, builtin.logical_false
+    it = ITable(types=[type_node.boolean_type, type_node.boolean_type])
+    outs = []
+    for a in (F, T):
+        for b in (F, T):
+            for out in (T, F):
+                it.push_back((a, b))
+                outs.append(out)
+    return Table(OTable(outs), it).compressed()
+
+
+def test_ignore_rows_shrinks_the_working_table_and_recomputes():
+    """C++: scoring_base.cc:267-281."""
+    bsc = ctruth_table_bscore(_eight_row_ctable())
+    assert bsc.get_ctable_usize() == 8
+    assert bsc.size() == 4
+    assert bsc._ctable_weight == 8.0
+
+    bsc.ignore_rows({0, 1, 2, 3})
+
+    assert bsc.get_ctable_usize() == 4
+    assert bsc._ctable_weight == 4.0
+    assert bsc.size() == len(bsc._wrk_ctable)
+    # `_orig_ctable` is the caller's own table and is never touched
+    # (scoring_base.cc:323 returns it verbatim).
+    assert bsc.get_ctable().uncompressed_size() == 8.0
+
+
+def test_ignore_rows_restores_all_rows_before_each_removal():
+    """`_wrk_ctable = _all_rows_wrk_ctable;` (scoring_cc:274) is the whole
+    reason `ignore_rows` can be called once per ss-deme with a DIFFERENT
+    subset each time (deme_expander.cc:487) and once more with the empty
+    set to restore the whole table (cc:512). Without it the second call
+    would subset an already-subset table.
+    """
+    bsc = ctruth_table_bscore(_eight_row_ctable())
+
+    bsc.ignore_rows({0, 1, 2, 3})
+    assert bsc.get_ctable_usize() == 4
+    bsc.ignore_rows({4, 5, 6, 7})
+    assert bsc.get_ctable_usize() == 4, "second call must start from the FULL table"
+    bsc.ignore_rows(set())
+    assert bsc.get_ctable_usize() == 8
+    assert bsc._ctable_weight == 8.0
+
+
+def test_ignore_rows_disjoint_subsets_keep_disjoint_data():
+    """The two halves an `--ss-n-subsample-demes=2` run discards are
+    complementary, so what SURVIVES them must be complementary too.
+    """
+    bsc = ctruth_table_bscore(_eight_row_ctable())
+
+    bsc.ignore_rows({0, 1, 2, 3})
+    first = {row: dict(c) for row, c in bsc._wrk_ctable.items()}
+    bsc.ignore_rows({4, 5, 6, 7})
+    second = {row: dict(c) for row, c in bsc._wrk_ctable.items()}
+
+    assert first != second
+    total = 0.0
+    for counts in (first, second):
+        for c in counts.values():
+            total += sum(c.values())
+    assert total == 8.0
+
+
+def test_ignore_rows_is_a_no_op_when_returning_weighted_scores():
+    """`if (_return_weighted_score) return;` (scoring_base.cc:272) -- "Must
+    not compress if boosting: the booster keeps track of a weight for each
+    row, and so altering the number of rows will just confuse the
+    mechanisn" (cc:269-271's own comment, typo included).
+    """
+    bsc = ctruth_table_bscore(_eight_row_ctable())
+    bsc.use_weighted_scores()
+
+    bsc.ignore_rows({0, 1, 2, 3})
+
+    assert bsc.get_ctable_usize() == 8
+    assert bsc._ctable_weight == 8.0
+
+
+def test_ignore_rows_at_times_with_the_empty_set_restores_everything():
+    """An untimestamped table yields `get_timestamps() == set()`, so every
+    ss-deme on it gets the EMPTY set and this degenerates to "restore all
+    rows, recompute" -- classic's behaviour too, which is why
+    `--ss-by-time=1` on such a table scores every ss-deme over the whole
+    table in both languages.
+    """
+    bsc = ctruth_table_bscore(_eight_row_ctable())
+    bsc.ignore_rows({0, 1, 2, 3})
+    assert bsc.get_ctable_usize() == 4
+
+    bsc.ignore_rows_at_times(set())
+
+    assert bsc.get_ctable_usize() == 8
+    assert bsc._ctable_weight == 8.0
+
+
+def test_ignore_rows_at_times_drops_only_the_named_dates():
+    """C++: scoring_base.cc:290-305, over `CTable::remove_rows_at_times`
+    (table.cc:707).
+    """
+    from pymetta.comboreduct.table.table import CTable, TimedCounter
+    from pymetta.comboreduct.type_checker.type_signature import gen_signature
+
+    T, F = builtin.logical_true, builtin.logical_false
+    ct = CTable(olabel="y", ilabels=["x1"], signature=gen_signature(type_node.boolean_type, 1))
+    for row, obs in (((T,), ((T, "d1", 2.0), (F, "d2", 1.0))), ((F,), ((T, "d2", 3.0),))):
+        cell = TimedCounter()
+        for value, date, count in obs:
+            cell.add(value, date, count)
+        ct[row] = cell
+
+    bsc = ctruth_table_bscore(ct)
+    assert bsc.get_ctable_usize() == 6
+
+    bsc.ignore_rows_at_times({"d2"})
+
+    assert bsc.get_ctable_usize() == 2  # only (T,)'s two d1 observations survive
+    assert bsc.size() == 1
+    assert bsc._ctable_weight == 2.0
+
+    bsc.ignore_rows_at_times(set())
+    assert bsc.get_ctable_usize() == 6
+
+
+def test_ignore_cols_is_still_a_gate():
+    """The FEATURE half is still unported -- `CTable.filtered_preserve_idxs`
+    does not exist (scoring_base.py's module docstring). Pinned so that
+    lifting the row gates is not mistaken for lifting this one.
+    """
+    bsc = ctruth_table_bscore(_eight_row_ctable())
+    with pytest.raises(NotImplementedError, match="filtered_preserve_idxs"):
+        bsc.ignore_cols({0})

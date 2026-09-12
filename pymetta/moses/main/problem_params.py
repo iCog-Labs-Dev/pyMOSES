@@ -122,11 +122,14 @@ Two-phase `parse_options`:
 
 A field belonging to an unported subsystem is gated ONLY when the C++
 source shows it is the subsystem's actual master switch
-(`filter_params.n_subsample_demes|n_subsample_fitnesses > 1` -- straight
-from the header's own "if 0 or 1 remains disactivated"/"Ignored is 0 r 1"
-comments, `enable_feature_selection`, `boosting`, `opt_algo != "hc"`,
+(`enable_feature_selection`, `boosting`, `opt_algo != "hc"`,
 `discretize_thresholds` non-empty, and non-local `--jobs`/`-j host:N`).
-Seven options have come OFF this list:
+Nine options have come OFF this list:
+`ss_n_subsample_demes > 1` and `ss_n_subsample_fitnesses > 1` -- the two
+`ss-*` master switches, straight from the header's own "if 0 or 1 remains
+disactivated"/"Ignored is 0 r 1" comments -- when the `ss-*` subsample
+task gave both a real consumer (`deme_expander.py`'s ss-deme branch and
+`ss_bscore.py`, see the gate section's own comment);
 `diversity_pressure > 0` and `discard_dominated` when the P2
 metapopulation task ported `diversity.cc`/`domination.cc` for real
 (`0c1beda`/`f1c439f`); `contin_depth != 5` and `it_abs_err` when
@@ -1044,34 +1047,27 @@ class problem_params:
         #
         # Neither is gated here any more -- see the module docstring's own
         # "gated ONLY when" paragraph, updated alongside this change.
-        # DIVERGENCE(C++ moses/moses/deme/deme_expander.cc, moses/moses/
-        # scoring/ss_bscore.{h,cc}): `subsample.py` -- merging.py's own
-        # `ss_filter`/`ss_score_dev_filter`/tanimoto-stats family -- IS
-        # ported (`283b9e7`). What is NOT ported is EITHER of `ss-*`'s two
-        # actual master switches' real consumers: `deme_expander.py`'s own
-        # separate branch that would split one exemplar into
-        # `n_subsample_demes` disjoint-row "ss-demes" still raises
-        # unconditionally when `n_subsample_demes > 1` (outside this
-        # task's owned scope); and the SS-fitness scorer itself
-        # (`moses/moses/scoring/ss_bscore.{h,cc}`) has no `ss_bscore.py`
-        # port at all yet in this working tree (owned by a concurrently
-        # running task per this task's own brief -- `pymetta/moses/scoring/
-        # ss_bscore.py` did not exist when this was measured), so
-        # `n_subsample_fitnesses > 1` cannot be wired regardless. Measured
-        # directly: with this gate removed, `--ss-n-subsample-demes=2`
-        # raises from `deme_expander.py` ("subsample-deme filtering ... is
-        # P2, not ported"); `--ss-n-subsample-fitnesses=2` raises from
-        # `moses_main.py`'s `metapop_moses_results` citing the same missing
-        # `ss_bscore.py`. Both are real, current gaps -- not stale claims
-        # -- reported as follow-ups for whoever owns those two files next.
-        if self.ss_n_subsample_demes > 1 or self.ss_n_subsample_fitnesses > 1:
-            raise NotImplementedError(
-                "ss-* options: merging.py's own subsample.cc port (ss_filter "
-                "and friends) IS wired (283b9e7), but deme_expander.py's "
-                "n_subsample_demes-splitting branch and the ss_bscore.py "
-                "SS-fitness scorer are not -- leave both ss-n-subsample-demes "
-                "and ss-n-subsample-fitnesses at their default (0/1)."
-            )
+        # The whole `ss-*` family was gated here until the `ss-*`
+        # subsample task, on the grounds that neither master switch had a
+        # real consumer. Both do now:
+        # `deme_expander.py`'s `n_subsample_demes`-splitting branch
+        # (create_demes/optimize_demes/subsample_by_row/subsample_by_time)
+        # and the SS-fitness scorer `ss_bscore.py`, wired in
+        # `moses_main.metapop_moses_results` exactly where moses_main.h:364
+        # wires it. `subsample.py` (merging.py's `ss_filter`/
+        # `ss_score_dev_filter`/tanimoto-stats family) was already ported
+        # (`283b9e7`) and is what those two feed. Measured end to end
+        # against classic's own binary on all 27 previously-gated sweep
+        # rows -- see tests/moses/main/test_ss_cli.py for the byte-for-byte
+        # oracles. Two `ss-*` options remain UNVERIFIABLE against this
+        # oracle build rather than ungated: every tanimoto-based option
+        # (`--ss-tanimoto-*`, `--ss-n-best-bfdemes`) makes classic
+        # SIGABRT, because `HAVE_BOOST` is defined nowhere in this
+        # checkout and cogutil's `tanimoto_distance` throws
+        # "Compiled without boost support" (numeric.h:378) in that case.
+        # That is a property of the oracle binary, not of this port, and
+        # it predates this task -- `--diversity-dst=tanimoto` aborts
+        # classic identically at HEAD.
         # `--discretize-threshold` was gated here until 2026-09-10, on the
         # accurate grounds that `discretize_contin_bscore` did not exist.
         # It is ported now (`bscores.py`) and wired into

@@ -3,40 +3,37 @@
 "Subsampling behavioral score. Takes a bscore and turn it into subsampling
 bscore." (the header's own comment.)
 
-PARTIALLY PORTED -- read this before using `ss_bscore`. Its constructor is
-UNCONSTRUCTABLE in this port today, for a reason entirely outside this
-task's owned tree, not a defect introduced here:
+FULLY PORTED AND LIVE. This module used to open with a long note saying
+that no `ss_bscore` instance could be constructed in this port, because
 
     ss_bscore::ss_bscore(...) { _timestamps = _bscorer.get_ctable().
     get_timestamps(); }  (ss_bscore.cc:44-48)
 
-runs UNCONDITIONALLY, regardless of `n_subsamples`/`by_time`. `get_ctable()`
-genuinely works in this port for any real `bscore_ctable_base` subclass
-(`select_bscore`, `bscore_ctable_time_dispersion`, `discriminating_bscore`
--- see scoring_base.py's own `bscore_ctable_base.get_ctable`), but the
-CTable it returns (`pymetta/comboreduct/table/table.py`) has no
-`get_timestamps()` method at all: this port has "no TTable/timestamp
-representation at all" (scoring_base.py's own module docstring, echoed by
-`bscore_ctable_base.ignore_rows_at_times`'s own `NotImplementedError`).
-`__init__` below reproduces the unconditional call and raises a clear,
-explicit `NotImplementedError` at that exact point rather than letting a
-bare `AttributeError` leak out of a duck-typed CTable -- matching this
-port's established "port the gate, raise inside it" convention (see e.g.
-`bscore_ctable_base.ignore_cols`/`ignore_rows`/`ignore_rows_at_times`).
+runs UNCONDITIONALLY and `CTable` had no `get_timestamps()`. BOTH halves
+of that were stale by the time the `ss-*` task read them, and the second
+one was stale when it was written:
 
-Consequence: **no `ss_bscore` instance can be constructed in this port
-today.** This is a real, stated gap, not a silently-swallowed one: fixing
-it needs `CTable.get_timestamps()` (table.py, out of this task's owned
-tree -- reported as a follow-up) plus a real timestamp/date representation
-this port has never had. Follow-up detail: `bscore_ctable_base.ignore_rows`/
-`ignore_rows_at_times` (scoring_base.py) ALSO always raise
-`NotImplementedError` for the same reason, so even with `get_timestamps()`
-added, `operator()`'s actual subsampling branches could not run against a
-real bscorer until row/timestamp subsetting is implemented there too --
-`ss_bscore` is blocked on two separate, already-disclosed upstream gaps in
-`scoring_base.py`/`table.py`, not one.
+* `CTable.get_timestamps()` exists (table.py:1595) and is a real port of
+  table.cc:735 -- it returns the empty set for a table loaded without
+  `--timestamp-feature` precisely because C++ filters the not-a-date
+  sentinel out too (table.cc:740), so the empty result is the CORRECT
+  answer for such a table rather than a stub. The `hasattr` guard in
+  `__init__` was therefore dead code; it is gone.
+* `bscore_ctable_base.ignore_rows`/`ignore_rows_at_times`
+  (scoring_base.py) are real now, so `operator()`'s two subsampling
+  branches genuinely run against a real bscorer.
 
-What IS ported, faithfully, and independently testable against a real
+`ss_bscore` also now actually SUBCLASSES `bscore_base`, as
+ss_bscore.h:38 does -- without that, `behave_cscore ss_cscorer(
+ss_bscorer)` (moses_main.h:373) had nothing to bind. See the class
+docstring for the two inherited `bscore_base` defaults that turn out to
+be load-bearing (`get_complexity_coef()` == 0.0, `size()` == 0).
+
+It is reached from exactly one place, the same one as in classic:
+`metapop_moses_results` (moses_main.py / moses_main.h:364), when
+`--ss-n-subsample-fitnesses > 1` AND `--ss-low-dev-pressure > 0`.
+
+What is ported, faithfully, and independently testable against a real
 `boost::accumulators`/`opencog::RandGen` C++ oracle
 (tools/cpp_probe/ss_bscore_probe.cc, tests/fixtures/ss_bscore.json):
 
@@ -61,17 +58,10 @@ What IS ported, faithfully, and independently testable against a real
   `std::next(c.begin(), rng.randint(c.size()))`), assigning to subsample
   `i % n_subsamples` in draw order.
 
-`ss_bscore.__call__`'s full body (both `by_time` branches) IS written below
-using these three pieces, faithfully -- it is simply unreachable through
-`ss_bscore` itself pending the constructor gap above. It is reachable
-directly, in isolation, by calling `operator()`'s helpers on an `ss_bscore`
-instance built by bypassing `__init__` (see test_ss_bscore.py's own
-`_make_uninitialized` helper) with a plain test double standing in for
-`_bscorer` -- exercised there for `operator()`'s fast path (`n_subsamples
-== 0 or low_dev_pressure == 0.0`, which needs no timestamps at all) and for
-every other delegating method (`ignore_cols`, `best_possible_bscore`,
-`min_improv`, `get_ctable`, `get_ctable_usize`), all of which genuinely
-work once a real `_bscorer` is supplied.
+`ss_bscore.__call__`'s full body (both `by_time` branches) is below, and
+both are now reachable end to end from the CLI. `--ss-by-time` defaults to
+FALSE (problem-params.cc), so the DEFAULT SS-fitness run takes the
+`_partition_by_row` branch, not the timestamp one.
 
 `ignore_rows`/`ignore_rows_at_times` on `ss_bscore` ITSELF (not the ones it
 delegates to on `_bscorer`) are a SEPARATE thing: classic's own
@@ -83,14 +73,11 @@ verbatim as an unconditional raise.
 from __future__ import annotations
 
 import math
-from typing import TYPE_CHECKING
 
 from pymetta.comboreduct.combo.vertex import combo_tree
 from pymetta.moses.moses.types import _to_score_t, behavioral_score, score_t
+from pymetta.moses.scoring.scoring_base import bscore_base
 from pymetta.util.rng import MT19937RandGen, randGen
-
-if TYPE_CHECKING:
-    from pymetta.moses.scoring.scoring_base import bscore_base
 
 __all__ = ["ss_bscore"]
 
@@ -330,13 +317,34 @@ def _partition_by_time(
     return groups
 
 
-class ss_bscore:
+class ss_bscore(bscore_base):
     """C++: moses/moses/scoring/ss_bscore.h:38 ss_bscore
 
-    See this module's own docstring for why NO instance of this class can
-    be constructed in this port today, and for what is nonetheless real,
-    ported, and independently tested (`_VarAcc`, `_low_dev_penalty`,
-    `_partition_by_row`, `_partition_by_time`).
+    `struct ss_bscore : public bscore_base` (ss_bscore.h:38) -- so the
+    Python class subclasses `bscore_base` too. It did NOT, until the
+    `ss-*` subsample task, which made the class "implemented but
+    unconstructible": every method below existed and was tested in
+    isolation, but nothing could put an instance where classic puts one
+    (`behave_cscore ss_cscorer(ss_bscorer);`, moses_main.h:373, takes a
+    `bscore_base&`).
+
+    Inheriting the base matters for more than typing. `ss_bscore`
+    overrides only what ss_bscore.cc overrides; everything else is
+    `bscore_base`'s own body, and two of those inherited defaults are
+    load-bearing and counter-intuitive:
+
+    * `get_complexity_coef()` returns `bscore_base`'s OWN
+      `_complexity_coef`, which its constructor sets to `0.0`
+      (scoring_base.h:59) and which nothing ever sets on an `ss_bscore`
+      -- NOT the wrapped `_bscorer`'s coefficient, which the CLI did set
+      (`problem-params.cc`). So turning on `--ss-n-subsample-fitnesses>1
+      --ss-low-dev-pressure>0` silently drops the complexity penalty from
+      every composite score for the whole run. Classic's, reproduced, not
+      repaired.
+    * `size()` returns `_size`, likewise never assigned here, so `0`.
+
+    See this module's own docstring for what is ported and how each piece
+    was verified against a real C++ oracle.
     """
 
     def __init__(
@@ -353,23 +361,28 @@ class ss_bscore:
 
         `_timestamps = _bscorer.get_ctable().get_timestamps();` runs
         UNCONDITIONALLY, exactly as C++ does regardless of `by_time`/
-        `n_subsamples` -- see this module's own docstring for why that
-        raises `NotImplementedError` unconditionally in this port today.
+        `n_subsamples`. A `NotImplementedError` used to be raised right
+        here, guarded by `hasattr(ctable, "get_timestamps")`, on the
+        stated grounds that this port's `CTable` had no such method. That
+        guard was already DEAD when the `ss-*` task inherited it:
+        `CTable.get_timestamps` exists (table.py) and returns the empty
+        set for a table loaded without `--timestamp-feature` -- which is
+        the CORRECT answer, not a stub, since every observation then
+        carries the not-a-date sentinel the C++ original also filters out
+        (table.cc:740). Removed, so the constructor is a plain four-line
+        transliteration again.
+
+        `get_ctable()` is `bscore_ctable_base.get_ctable` (scoring_base.py)
+        on every real bscorer this reaches, and returns `_orig_ctable` --
+        the WHOLE table, never a subsample -- so `_timestamps` is fixed
+        for the run, matching C++.
         """
+        super().__init__()
         self._bscorer = bscorer
         self._n_subsamples = n_subsamples
         self._low_dev_pressure: score_t = _to_score_t(low_dev_pressure)
         self._by_time = by_time
-        ctable = self._bscorer.get_ctable()
-        if not hasattr(ctable, "get_timestamps"):
-            raise NotImplementedError(
-                "ss_bscore: CTable.get_timestamps() does not exist in this "
-                "port -- no TTable/timestamp representation at all (see "
-                "table.py's and scoring_base.py's own module docstrings, "
-                "and this module's own docstring for the full account). "
-                "ss_bscore cannot be constructed until that lands."
-            )
-        self._timestamps = ctable.get_timestamps()  # pragma: no cover (unreachable today)
+        self._timestamps = self._bscorer.get_ctable().get_timestamps()
 
     def __call__(self, tr: combo_tree) -> behavioral_score:
         """C++: moses/moses/scoring/ss_bscore.cc:52 ss_bscore::operator()

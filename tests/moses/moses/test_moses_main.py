@@ -47,7 +47,7 @@ from pymetta.comboreduct.combo.iostream_combo import (
 )
 from pymetta.comboreduct.combo.vertex import builtin, combo_tree
 from pymetta.comboreduct.reduct.logical_reduction import logical_reduction
-from pymetta.comboreduct.table.table import CTable
+from pymetta.comboreduct.table.table import CTable, TimedCounter
 from pymetta.comboreduct.table.table_io import loadTable
 from pymetta.comboreduct.type_checker.type_signature import gen_signature, type_node
 from pymetta.moses.deme.deme_expander import deme_expander
@@ -78,12 +78,25 @@ from pymetta.moses.moses.types import (
 )
 from pymetta.moses.scoring.behave_cscore import behave_cscore
 from pymetta.moses.scoring.bscores import ctruth_table_bscore
+from pymetta.moses.scoring.ss_bscore import ss_bscore
 
 T, F = builtin.logical_true, builtin.logical_false
 
 # ---------------------------------------------------------------------------
 # Small, in-memory scorer builders (no file I/O) for the unit-test layer.
 # ---------------------------------------------------------------------------
+
+
+def _timed(counts: dict) -> TimedCounter:
+    """A `TimedCounter` cell with every observation at the not-a-date
+    sentinel -- exactly what `Table.compressed` produces for a table
+    loaded WITHOUT `--timestamp-feature` (table.cc:512's `++res[*in_it]
+    [TimedValue(*out_it)]` branch).
+    """
+    tc = TimedCounter()
+    for value, count in counts.items():
+        tc.add(value, None, count)
+    return tc
 
 
 def _tiny_cscorer() -> behave_cscore:
@@ -95,8 +108,13 @@ def _tiny_cscorer() -> behave_cscore:
     hardcoded twice.
     """
     ct = CTable(olabel="y", ilabels=["x1"], signature=gen_signature(type_node.boolean_type, 1))
-    ct[(F,)] = Counter({T: 3.0, F: 0.0})
-    ct[(T,)] = Counter({T: 3.0, F: 3.0})
+    # `TimedCounter`, not a plain `collections.Counter`: that is what
+    # `Table.compressed` builds for every real table, and `ss_bscore`'s
+    # constructor calls `CTable.get_timestamps()`, which walks
+    # `TimedCounter.timed_keys()`. A hand-built plain `Counter` cell has no
+    # such view and makes this helper unusable by the SS-fitness tests.
+    ct[(F,)] = _timed({T: 3.0, F: 0.0})
+    ct[(T,)] = _timed({T: 3.0, F: 3.0})
     bsc = ctruth_table_bscore(ct)
     bsc.set_complexity_coef(3.5)
     return behave_cscore(bsc)
@@ -524,7 +542,9 @@ def test_metapop_moses_results_b_does_not_mutate_caller_bases(monkeypatch):
 # ---------------------------------------------------------------------------
 
 
-def _wire_with_fake_local_moses(monkeypatch, *, filter_params=None, meta_params=None, printer=None):
+def _wire_with_fake_local_moses(
+    monkeypatch, *, filter_params=None, meta_params=None, printer=None, c_scorer=None
+):
     fake_module = types.ModuleType("pymetta.moses.moses.local_moses")
 
     def fake_local_moses(mp, dex, pa, stats):
@@ -553,7 +573,7 @@ def _wire_with_fake_local_moses(monkeypatch, *, filter_params=None, meta_params=
         gen_signature(type_node.boolean_type, 1),
         _rule(),
         _rule(),
-        _tiny_cscorer(),
+        _tiny_cscorer() if c_scorer is None else c_scorer,
         opt_params,
         hc_parameters(),
         ps_parameters(),
@@ -611,13 +631,72 @@ def test_metapop_moses_results_copies_diversity_params(monkeypatch):
     assert mp._params is not meta_params_after
 
 
-def test_metapop_moses_results_ss_bscore_gate_raises_when_configured(monkeypatch):
+def test_metapop_moses_results_wraps_in_ss_bscore_when_configured(monkeypatch):
+    """C++: moses_main.h:364-378. `n_subsample_fitnesses > 1 and
+    low_dev_pressure > 0.0` must hand `metapop_moses_results_b` a DIFFERENT
+    `behave_cscore`, built around an `ss_bscore` wrapping the caller's own
+    bscorer -- not the caller's cscorer. This used to be a
+    `NotImplementedError` gate.
+    """
     filter_params = subsample_deme_filter_parameters()
     filter_params.n_subsample_fitnesses = 2
     filter_params.low_dev_pressure = 0.1
+    filter_params.by_time = False
 
-    with pytest.raises(NotImplementedError, match="SS-fitness"):
-        _wire_with_fake_local_moses(monkeypatch, filter_params=filter_params)
+    c_scorer = _tiny_cscorer()
+    calls = _wire_with_fake_local_moses(
+        monkeypatch, filter_params=filter_params, c_scorer=c_scorer
+    )[3]
+
+    assert len(calls) == 1
+    mp, _dex, _stats = calls[0]
+    used = mp._cscorer
+    assert used is not c_scorer, "the SS branch must build its own behave_cscore"
+    assert isinstance(used._bscorer, ss_bscore)
+    # `get_bscorer()` hands back the very object, not a copy
+    # (behave_cscore.h:128 returns `bscore_base&`).
+    assert used._bscorer._bscorer is c_scorer._bscorer
+    assert used._bscorer._n_subsamples == 2
+    assert used._bscorer._by_time is False
+
+
+def test_metapop_moses_results_ss_bscore_reads_by_time_from_filter_params(monkeypatch):
+    """`filter_params.by_time` is the FOURTH constructor argument
+    (moses_main.h:372) and is read from the caller's own `filter_params`,
+    not from any tweaked copy.
+    """
+    filter_params = subsample_deme_filter_parameters()
+    filter_params.n_subsample_fitnesses = 3
+    filter_params.low_dev_pressure = 0.25
+    filter_params.by_time = True
+
+    calls = _wire_with_fake_local_moses(monkeypatch, filter_params=filter_params)[3]
+    ssb = calls[0][0]._cscorer._bscorer
+    assert ssb._by_time is True
+    assert ssb._n_subsamples == 3
+    assert ssb._low_dev_pressure == _to_score_t(0.25)
+
+
+def test_metapop_moses_results_ss_bscore_inherits_zero_complexity_coef(monkeypatch):
+    """The counter-intuitive consequence of `ss_bscore : public
+    bscore_base` (ss_bscore.h:38): `get_complexity_coef()` is
+    `bscore_base`'s own `_complexity_coef`, `0.0` (scoring_base.h:59), NOT
+    the wrapped bscorer's -- so an SS-fitness run silently loses the
+    complexity penalty. Classic's, reproduced.
+    """
+    filter_params = subsample_deme_filter_parameters()
+    filter_params.n_subsample_fitnesses = 2
+    filter_params.low_dev_pressure = 1.0
+    filter_params.by_time = False
+
+    c_scorer = _tiny_cscorer()
+    # `set_complexity_coef(3.5)` stores the RECIPROCAL (scoring_base.cc:50).
+    assert c_scorer._bscorer.get_complexity_coef() != 0.0
+
+    calls = _wire_with_fake_local_moses(
+        monkeypatch, filter_params=filter_params, c_scorer=c_scorer
+    )[3]
+    assert calls[0][0]._cscorer._bscorer.get_complexity_coef() == 0.0
 
 
 @pytest.mark.parametrize(

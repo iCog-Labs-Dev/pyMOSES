@@ -8,13 +8,18 @@ sections: "accumulator" (the `_VarAcc` float32 mean/variance recurrence),
 "low_dev_penalty" (`sqrtf`-based penalty), "partition_by_row" (shuffle then
 split), and "partition_by_time" (`rand_element_erase` round robin).
 
-`ss_bscore` itself CANNOT be constructed in this port today -- see that
-module's own docstring for why (`CTable.get_timestamps()` does not exist,
-a pre-existing gap entirely outside this task's owned tree). `_make_
-uninitialized` below builds an instance by bypassing `__init__` (`object.
-__new__`), documented at every use, to exercise the rest of the class
-(`__call__`'s fast path, and every delegating method) against a plain
-in-repo test double standing in for `_bscorer`.
+`ss_bscore` is constructed NORMALLY here. It could not be, until the
+`ss-*` subsample task: `__init__` carried a `hasattr(ctable,
+"get_timestamps")` guard that raised unconditionally, and this file's two
+`test_construction_raises_*` tests asserted exactly that. The guard was
+already dead when it was written (`CTable.get_timestamps` exists,
+table.py:1595), so both tests were asserting a fiction; they are replaced
+below by tests of what the constructor actually does.
+
+`_make_ss_bscore` builds an instance through the real `__init__` against a
+plain in-repo test double standing in for `_bscorer` -- the double's
+`get_ctable()` returns a `_CTableDouble`, which supplies the
+`get_timestamps()` the constructor calls unconditionally.
 """
 
 import json
@@ -22,6 +27,7 @@ from pathlib import Path
 
 import pytest
 
+from pymetta.moses.scoring.scoring_base import bscore_base
 from pymetta.moses.scoring.ss_bscore import (
     _boost_accumulate,
     _low_dev_penalty,
@@ -41,9 +47,7 @@ _GOLDEN = json.loads(_FIXTURE_PATH.read_text())
 
 
 @pytest.mark.oracle
-@pytest.mark.parametrize(
-    "case", _GOLDEN["accumulator"], ids=lambda c: f"samples{c['samples']}"
-)
+@pytest.mark.parametrize("case", _GOLDEN["accumulator"], ids=lambda c: f"samples{c['samples']}")
 def test_var_acc_matches_cpp(case):
     acc = _VarAcc()
     for i, x in enumerate(case["samples"]):
@@ -266,10 +270,18 @@ def test_boost_accumulate_is_naive_fold_not_builtin_sum():
 
 
 class _CTableDouble:
-    """A minimal stand-in for a real CTable, deliberately WITHOUT
-    `get_timestamps` -- matching this port's real `CTable` (table.py),
-    which has no such method at all (see ss_bscore.py's own docstring).
+    """A minimal stand-in for a real CTable. It supplies exactly one
+    method, `get_timestamps()` -- the only one `ss_bscore.__init__` calls
+    (ss_bscore.cc:47) -- returning a caller-settable set, so a test can
+    drive the `by_time` branch with real timestamps or with the empty set a
+    table loaded without `--timestamp-feature` genuinely yields.
     """
+
+    def __init__(self, timestamps=None):
+        self.timestamps = set() if timestamps is None else set(timestamps)
+
+    def get_timestamps(self):
+        return self.timestamps
 
 
 class _BscoreDouble:
@@ -310,44 +322,65 @@ class _BscoreDouble:
         return self._ctable
 
 
-def _make_uninitialized(bscorer, n_subsamples=0, low_dev_pressure=0.0, by_time=True):
-    """Bypasses `ss_bscore.__init__` (`object.__new__`), documented here as
-    the ONLY way to obtain an `ss_bscore` instance in this port today --
-    see ss_bscore.py's own module docstring for why real construction
-    always raises. Sets exactly the attributes `__init__` would have set
-    apart from the blocked `self._timestamps` line.
+def _make_ss_bscore(bscorer, n_subsamples=0, low_dev_pressure=0.0, by_time=True):
+    """The real constructor. Kept as a helper only to pin the argument
+    order (ss_bscore.cc:44) in one place.
     """
-    from pymetta.moses.moses.types import _to_score_t
-
-    inst = object.__new__(ss_bscore)
-    inst._bscorer = bscorer
-    inst._n_subsamples = n_subsamples
-    inst._low_dev_pressure = _to_score_t(low_dev_pressure)
-    inst._by_time = by_time
-    inst._timestamps = set()
-    return inst
+    return ss_bscore(bscorer, n_subsamples, low_dev_pressure, by_time)
 
 
-def test_construction_raises_because_get_timestamps_is_missing():
-    bscorer = _BscoreDouble()
-    with pytest.raises(NotImplementedError, match="get_timestamps"):
-        ss_bscore(bscorer, n_subsamples=2, low_dev_pressure=0.5)
+def test_ss_bscore_is_a_bscore_base():
+    """`struct ss_bscore : public bscore_base` (ss_bscore.h:38). Without
+    this, `behave_cscore ss_cscorer(ss_bscorer)` (moses_main.h:373) has
+    nothing to bind -- the class was "implemented but unconstructible".
+    """
+    assert issubclass(ss_bscore, bscore_base)
+    assert isinstance(_make_ss_bscore(_BscoreDouble()), bscore_base)
 
 
-def test_construction_raises_even_with_default_zero_subsamples():
-    """C++'s constructor calls get_ctable().get_timestamps() UNCONDITIONALLY
-    -- even the harmless-looking default construction fails in this port.
+def test_construction_reads_timestamps_unconditionally():
+    """`_timestamps = _bscorer.get_ctable().get_timestamps();`
+    (ss_bscore.cc:47) runs regardless of `n_subsamples`/`by_time` -- even
+    the harmless-looking default construction calls it.
     """
     bscorer = _BscoreDouble()
-    with pytest.raises(NotImplementedError, match="get_timestamps"):
-        ss_bscore(bscorer)
+    bscorer._ctable.timestamps = {"2012-01-03", "2012-01-11"}
+
+    assert _make_ss_bscore(bscorer)._timestamps == {"2012-01-03", "2012-01-11"}
+    assert _make_ss_bscore(bscorer, 2, 0.5, False)._timestamps == {
+        "2012-01-03",
+        "2012-01-11",
+    }
+
+
+def test_construction_accepts_the_empty_timestamp_set():
+    """A table loaded without `--timestamp-feature` yields the EMPTY set
+    (`CTable.get_timestamps` filters the not-a-date sentinel,
+    table.cc:740) -- which is a correct answer, not a missing feature. The
+    `hasattr(ctable, "get_timestamps")` guard that used to raise here was
+    dead code asserting the opposite.
+    """
+    assert _make_ss_bscore(_BscoreDouble())._timestamps == set()
+
+
+def test_inherited_bscore_base_defaults_are_the_counter_intuitive_ones():
+    """`ss_bscore` overrides only what ss_bscore.cc overrides. Two
+    inherited `bscore_base` defaults (scoring_base.h:59) are load-bearing
+    and surprising, and an SS-fitness run is measurably different because
+    of the first: `_complexity_coef` is 0.0 -- NOT the wrapped bscorer's --
+    so the complexity penalty vanishes; `_size` is 0.
+    """
+    bscorer = _BscoreDouble()
+    ssb = _make_ss_bscore(bscorer, 2, 1.0, False)
+    assert ssb.get_complexity_coef() == 0.0
+    assert ssb.size() == 0
 
 
 def test_call_fast_path_when_n_subsamples_is_zero():
     bscorer = _BscoreDouble()
     tr = "tree-a"
     bscorer._score_map[tr] = [1.0, 2.0]
-    ssb = _make_uninitialized(bscorer, n_subsamples=0, low_dev_pressure=0.5)
+    ssb = _make_ss_bscore(bscorer, n_subsamples=0, low_dev_pressure=0.5)
     result = ssb(tr)
     assert result == [1.0, 2.0]
     assert bscorer.calls == [("call", tr)]
@@ -357,7 +390,7 @@ def test_call_fast_path_when_low_dev_pressure_is_zero():
     bscorer = _BscoreDouble()
     tr = "tree-b"
     bscorer._score_map[tr] = [5.0]
-    ssb = _make_uninitialized(bscorer, n_subsamples=3, low_dev_pressure=0.0)
+    ssb = _make_ss_bscore(bscorer, n_subsamples=3, low_dev_pressure=0.0)
     result = ssb(tr)
     assert result == [5.0]
     assert bscorer.calls == [("call", tr)]
@@ -366,7 +399,7 @@ def test_call_fast_path_when_low_dev_pressure_is_zero():
 def test_call_slow_path_by_row_appends_low_dev_penalty():
     bscorer = _BscoreDouble()
     tr = "tree-c"
-    ssb = _make_uninitialized(bscorer, n_subsamples=2, low_dev_pressure=1.0, by_time=False)
+    ssb = _make_ss_bscore(bscorer, n_subsamples=2, low_dev_pressure=1.0, by_time=False)
     randGen().seed(0)
     result = ssb(tr)
     # 2 subsample calls + 1 final recompute call = 3 total.
@@ -383,7 +416,7 @@ def test_call_slow_path_by_row_appends_low_dev_penalty():
 def test_call_slow_path_by_time_appends_low_dev_penalty():
     bscorer = _BscoreDouble()
     tr = "tree-d"
-    ssb = _make_uninitialized(bscorer, n_subsamples=2, low_dev_pressure=1.0, by_time=True)
+    ssb = _make_ss_bscore(bscorer, n_subsamples=2, low_dev_pressure=1.0, by_time=True)
     ssb._timestamps = {1, 2, 3, 4}
     randGen().seed(0)
     result = ssb(tr)
@@ -401,7 +434,7 @@ def test_call_slow_path_zero_variance_when_bscorer_is_constant():
     regardless of low_dev_pressure (`-p * sqrt(0) == -0.0` or `0.0`).
     """
     bscorer = _BscoreDouble()
-    ssb = _make_uninitialized(bscorer, n_subsamples=3, low_dev_pressure=2.0, by_time=False)
+    ssb = _make_ss_bscore(bscorer, n_subsamples=3, low_dev_pressure=2.0, by_time=False)
     randGen().seed(1)
     result = ssb("tree-e")
     assert result[-1] == 0.0 or result[-1] == -0.0
@@ -409,32 +442,32 @@ def test_call_slow_path_zero_variance_when_bscorer_is_constant():
 
 def test_ignore_cols_delegates():
     bscorer = _BscoreDouble()
-    ssb = _make_uninitialized(bscorer)
+    ssb = _make_ss_bscore(bscorer)
     ssb.ignore_cols({1, 2})
     assert bscorer.calls == [("ignore_cols", frozenset({1, 2}))]
 
 
 def test_best_possible_bscore_delegates():
     bscorer = _BscoreDouble()
-    ssb = _make_uninitialized(bscorer)
+    ssb = _make_ss_bscore(bscorer)
     assert ssb.best_possible_bscore() == [10.0]
 
 
 def test_min_improv_delegates():
     bscorer = _BscoreDouble()
-    ssb = _make_uninitialized(bscorer)
+    ssb = _make_ss_bscore(bscorer)
     assert ssb.min_improv() == 0.5
 
 
 def test_get_ctable_usize_delegates():
     bscorer = _BscoreDouble()
-    ssb = _make_uninitialized(bscorer)
+    ssb = _make_ss_bscore(bscorer)
     assert ssb.get_ctable_usize() == 10
 
 
 def test_get_ctable_delegates():
     bscorer = _BscoreDouble()
-    ssb = _make_uninitialized(bscorer)
+    ssb = _make_ss_bscore(bscorer)
     assert ssb.get_ctable() is bscorer._ctable
 
 
@@ -444,7 +477,7 @@ def test_ignore_rows_on_ss_bscore_itself_always_raises():
     docstring distinguishing this from `_bscorer.ignore_rows`.
     """
     bscorer = _BscoreDouble()
-    ssb = _make_uninitialized(bscorer)
+    ssb = _make_ss_bscore(bscorer)
     with pytest.raises(NotImplementedError, match="Not implemented yet"):
         ssb.ignore_rows({1, 2})
     assert bscorer.calls == []  # never reaches _bscorer at all
@@ -452,7 +485,7 @@ def test_ignore_rows_on_ss_bscore_itself_always_raises():
 
 def test_ignore_rows_at_times_on_ss_bscore_itself_always_raises():
     bscorer = _BscoreDouble()
-    ssb = _make_uninitialized(bscorer)
+    ssb = _make_ss_bscore(bscorer)
     with pytest.raises(NotImplementedError, match="Not implemented yet"):
         ssb.ignore_rows_at_times({1, 2})
     assert bscorer.calls == []
@@ -466,7 +499,7 @@ def test_mutation_swapping_call_order_in_slow_path_changes_ignore_call_count():
     accidental deletion of that block).
     """
     bscorer = _BscoreDouble()
-    ssb = _make_uninitialized(bscorer, n_subsamples=4, low_dev_pressure=1.0, by_time=False)
+    ssb = _make_ss_bscore(bscorer, n_subsamples=4, low_dev_pressure=1.0, by_time=False)
     randGen().seed(2)
     ssb("tree-f")
     call_count = len([c for c in bscorer.calls if c[0] == "call"])

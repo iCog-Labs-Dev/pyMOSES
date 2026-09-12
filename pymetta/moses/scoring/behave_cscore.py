@@ -26,18 +26,26 @@ NOT ported, all deliberately out of scope for this task:
   collision-free structural key over the tree's own nodes -- see that
   function's docstring for why it is NOT keyed on the tree's printed
   form) stands in for the real cache -- see `__init__`'s docstring.
-* `best_possible_score`/`worst_possible_score`/`min_improv`/`ignore_cols`/
-  `ignore_rows`/`ignore_rows_at_times`/`get_bscorer` -- thin one-line
+* `best_possible_score`/`worst_possible_score`/`min_improv` -- thin
   delegations to the underlying `bscore_base`, not named in
   task-6-brief.md's interface line for this class. Call `.get_bscorer()`
-  (i.e. the `behave_cscore` instance's own `_bscorer` attribute) directly
-  instead; every one of these was a single delegating call in C++ too.
-  (Two exceptions to the "thin delegation" description, both already
-  recorded at moses_main.py's own module-level DIVERGENCE marker:
-  `best_possible_score`/`worst_possible_score` are NOT one-line forwards
-  -- they are defined out-of-line at behave_cscore.cc:123-131 as
-  `boost::accumulate(_bscorer.best_possible_bscore(), 0.0)`, a SUM over a
-  vector-valued result.)
+  (below) and go through the bscorer instead. (These three are not even
+  quite "thin", and it is already recorded at moses_main.py's own
+  module-level DIVERGENCE marker: `best_possible_score`/
+  `worst_possible_score` are defined out-of-line at behave_cscore.cc:
+  123-131 as `boost::accumulate(_bscorer.best_possible_bscore(), 0.0)`, a
+  SUM over a vector-valued result.)
+
+  `ignore_cols`/`ignore_rows`/`ignore_rows_at_times`/`get_bscorer` were on
+  that list until the `ss-*` subsample task and have come OFF it -- they
+  are ported below. `deme_expander::optimize_demes` calls the two
+  row-ignoring ones on every `--ss-n-subsample-demes>1` run
+  (deme_expander.cc:483,487,508) and `metapop_moses_results` calls
+  `get_bscorer()` on every `--ss-n-subsample-fitnesses>1` run
+  (moses_main.h:368), so none of them is reachable "by going through
+  `_bscorer` at the call site" any more: they are on the real search
+  path. `ignore_cols` is ported alongside them for symmetry and still
+  forwards to a raising gate in `bscore_ctable_base` (scoring_base.py).
 
 `get_ctable_usize` (behave_cscore.h:98) and `get_ctable` (behave_cscore.h:
 104) were on that list until now and have come OFF it -- see their own
@@ -224,6 +232,57 @@ class behave_cscore:
         cpxy = self._bscorer.get_complexity_ensemble(ensemble)
         cpxy_coef = self._bscorer.get_complexity_coef()
         return composite_score(res, cpxy, cpxy * cpxy_coef, 0.0)
+
+    def ignore_cols(self, idxs: set) -> None:
+        """C++: moses/moses/scoring/behave_cscore.h:79 behave_cscore::ignore_cols
+
+        "In table-based scorers, fitness function evaluation can be sped
+        up when unused features are ignored. The unused features must not
+        subsequently appear in the combo tree to be scored. Calling this
+        with the empty set restores all features. The features are
+        indicated as set of indices (from 0)." (behave_cscore.h:74-78's
+        own comment.) A bare forward, ported as one -- the underlying
+        `bscore_ctable_base.ignore_cols` (scoring_base.py) is still a
+        raising gate, so this forwards to a raise; that gap is
+        scoring_base.py's to close, not this method's. Its only
+        CLI-reachable caller is `deme_expander::optimize_demes`'s
+        `if (_params.fstor)` arm (deme_expander.cc:435), which
+        `deme_expander.py` documents and skips.
+        """
+        self._bscorer.ignore_cols(idxs)
+
+    def ignore_rows(self, idxs: set) -> None:
+        """C++: moses/moses/scoring/behave_cscore.h:86 behave_cscore::ignore_rows
+
+        "In case one wants to evaluate the fitness on a subset of the
+        data, one can provide a set of row indexes to ignore"
+        (behave_cscore.h:84-85's own comment.) A bare forward, ported as
+        one. Live on every `--ss-n-subsample-demes>1` run
+        (deme_expander.cc:487 and the whole-table reset at cc:508).
+        """
+        self._bscorer.ignore_rows(idxs)
+
+    def ignore_rows_at_times(self, timestamps: set) -> None:
+        """C++: moses/moses/scoring/behave_cscore.h:92 behave_cscore::ignore_rows_at_times
+
+        "Like ignore_rows but consider timestamps instead of indexes"
+        (behave_cscore.h:91's own comment.) A bare forward, ported as one.
+        Live on `--ss-n-subsample-demes>1 --ss-by-time=1`
+        (deme_expander.cc:483).
+        """
+        self._bscorer.ignore_rows_at_times(timestamps)
+
+    def get_bscorer(self):
+        """C++: moses/moses/scoring/behave_cscore.h:128 behave_cscore::get_bscorer
+
+        "weird hack for subsample scoring..." (behave_cscore.h:127's own
+        comment, verbatim -- classic's own assessment of it). Returns the
+        wrapped `bscore_base` BY REFERENCE in C++, i.e. the very object,
+        which is what `metapop_moses_results` (moses_main.h:368) then
+        wraps in an `ss_bscore`; returning `self._bscorer` here is the
+        same object identity.
+        """
+        return self._bscorer
 
     def get_ctable_usize(self) -> int:
         """C++: moses/moses/scoring/behave_cscore.h:98 behave_cscore::get_ctable_usize

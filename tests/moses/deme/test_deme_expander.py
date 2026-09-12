@@ -283,6 +283,20 @@ def test_total_evals_sums_across_demes_and_ss_demes():
 # ---------------------------------------------------------------------------
 
 
+class _StampedCTable:
+    """Stands in for the `CTable` `_cscorer.get_ctable()` returns, supplying
+    only `get_timestamps()` -- the single method `subsample_by_time` calls
+    on it (deme_expander.cc:89-90). Lets these tests drive a timestamp set
+    of a chosen size without committing another CSV fixture.
+    """
+
+    def __init__(self, timestamps):
+        self._timestamps = set(timestamps)
+
+    def get_timestamps(self):
+        return self._timestamps
+
+
 def _dex_with(params: deme_parameters | None = None, filter_params=None) -> deme_expander:
     case = _GOLDEN["cases"]["xor_empty_and"]
     table = loadTable(str(_TABLE_DATA_DIR / case["dataset"]), case["target_feature"])
@@ -506,67 +520,287 @@ def test_optimize_demes_with_an_fstor_set_after_create_demes_is_not_special_case
     assert dex.total_evals() > 0
 
 
-def test_create_demes_raises_when_n_subsample_demes_greater_than_one():
-    params = deme_parameters()
-    params.perm_ratio = -1.0
-    filter_params = subsample_deme_filter_parameters(n_subsample_demes=2)
-    dex = _dex_with(params, filter_params)
-    with pytest.raises(NotImplementedError):
-        dex.create_demes(str_to_combo_tree("and()"), 0)
+# ---------------------------------------------------------------------------
+# Subsample-deme filtering (n_subsample_demes > 1). Every one of these
+# raised NotImplementedError until the `ss-*` task. The end-to-end oracle
+# for the whole family is tests/moses/main/test_ss_cli.py (classic's own
+# stdout, byte for byte); what is checked here is the per-function shape
+# and the RNG draw ORDER, which a whole-run comparison would only detect
+# indirectly.
+# ---------------------------------------------------------------------------
 
 
-def test_optimize_demes_raises_when_n_subsample_demes_greater_than_one_after_create_demes():
-    """Isolates optimize_demes' OWN top-of-function guard from
-    subsample_by_row/subsample_by_time's independent gate on the exact
-    same condition (both are called, unconditionally, inside this same
-    function's loop body -- see its own module-docstring DIVERGENCE note).
-    Without neutralizing those two first, this scenario is NOT a clean
-    isolation: measured directly -- disabling ONLY optimize_demes' own
-    check (via mutation, see the task report's mutation log) still leaves
-    this exact test passing, because execution falls through into the
-    loop and subsample_by_row's OWN `if n_ss_demes > 1: raise` fires
-    first, for a different (if equally correct) reason. Monkeypatching
-    both to no-ops here makes optimize_demes' own check the ONLY thing
-    that can raise, so a future mutation of exactly IT is what this test
-    actually detects.
+def test_create_demes_builds_n_subsample_demes_ss_demes_per_representation():
+    """C++: deme_expander.cc:388-393. One `_demes` entry per
+    representation, each holding `n_subsample_demes` ss-demes.
     """
     params = deme_parameters()
     params.perm_ratio = -1.0
-    filter_params = subsample_deme_filter_parameters()
+    filter_params = subsample_deme_filter_parameters(n_subsample_demes=3)
     dex = _dex_with(params, filter_params)
     randGen().seed(1)
+
+    assert dex.create_demes(str_to_combo_tree("and()"), 0) is True
+    assert len(dex._demes) == len(dex._reps) == 1
+    assert len(dex._demes[0]) == 3
+
+
+def test_create_demes_ss_deme_ids_use_n_expansions_not_n_expansions_plus_one():
+    """C++: deme_expander.cc:392-393, `demeID_t(n_expansions, i, j)` --
+    where `create_demeIDs` one line up uses `n_expansions + 1` (cc:154,
+    156). Classic's own asymmetry, reproduced: an SS run's first
+    expansion is `0.0.SS-j` where a non-SS run's is `1`.
+    """
+    params = deme_parameters()
+    params.perm_ratio = -1.0
+    dex = _dex_with(params, subsample_deme_filter_parameters(n_subsample_demes=2))
+    randGen().seed(1)
     dex.create_demes(str_to_combo_tree("and()"), 0)
+    assert [d.getID() for d in dex._demes[0]] == ["0.0.SS-0", "0.0.SS-1"]
 
-    dex.subsample_by_row = lambda: [set()]
-    dex.subsample_by_time = lambda: [set()]
-
-    dex._filter_params.n_subsample_demes = 2
-    with pytest.raises(NotImplementedError):
-        dex.optimize_demes(200, 86400)
-
-
-def test_subsample_by_time_raises_when_n_subsample_demes_greater_than_one():
-    filter_params = subsample_deme_filter_parameters(n_subsample_demes=2)
-    dex = _dex_with(None, filter_params)
-    with pytest.raises(NotImplementedError):
-        dex.subsample_by_time()
+    plain = _dex_with(params, subsample_deme_filter_parameters())
+    randGen().seed(1)
+    plain.create_demes(str_to_combo_tree("and()"), 0)
+    assert [d.getID() for d in plain._demes[0]] == ["1"]
 
 
-def test_subsample_by_time_returns_one_empty_set_by_default():
+def test_subsample_by_row_partitions_the_uncompressed_indexes():
+    """C++: deme_expander.cc:120-146. `n_ss_demes` DISJOINT sets of
+    `usize // n_ss_demes` uncompressed row indexes each, all drawn from
+    `[0, usize)`.
+    """
+    dex = _dex_with(None, subsample_deme_filter_parameters(n_subsample_demes=3))
+    usize = dex._cscorer.get_ctable_usize()
+    randGen().seed(1)
+
+    groups = dex.subsample_by_row()
+
+    assert len(groups) == 3
+    assert all(len(g) == usize // 3 for g in groups)
+    union = set().union(*groups)
+    assert len(union) == 3 * (usize // 3), "segments must be disjoint"
+    assert union <= set(range(usize))
+
+
+def test_subsample_by_row_draw_order_is_the_std_random_shuffle_one():
+    """The partition is a SLICING of the shuffled sequence, so reproducing
+    the shuffle is reproducing the partition. `boost::random_shuffle(rng,
+    gen)` compiles to `std::random_shuffle` on libstdc++ (see
+    `deme_expander.__init__`'s own docstring for the
+    `BOOST_NO_CXX98_RANDOM_SHUFFLE` measurement), i.e. exactly
+    `_shuffle_with_gen` -- which has its own C++ oracle in
+    tests/moses/scoring/test_ss_bscore.py. Recomputing it here from the
+    same seed pins that this function draws from `randGen()` the same
+    number of times, in the same order, with nothing else in between.
+    """
+    from pymetta.moses.scoring.ss_bscore import _shuffle_with_gen
+
+    dex = _dex_with(None, subsample_deme_filter_parameters(n_subsample_demes=2))
+    usize = dex._cscorer.get_ctable_usize()
+
+    randGen().seed(7)
+    groups = dex.subsample_by_row()
+
+    randGen().seed(7)
+    expected_idxs = list(range(usize))
+    _shuffle_with_gen(expected_idxs, lambda i: randGen().randint_n(i))
+    seg = usize // 2
+    assert groups == [set(expected_idxs[:seg]), set(expected_idxs[seg : 2 * seg])]
+
+
+def test_subsample_by_row_returns_one_empty_set_when_disabled():
+    """C++: deme_expander.cc:141-143, the "subsampling deme is disabled"
+    arm -- a single EMPTY set, and NO RNG draw at all.
+    """
+    dex = _dex_with()
+    randGen().seed(3)
+    before = randGen().randint()
+    randGen().seed(3)
+    assert dex.subsample_by_row() == [set()]
+    assert randGen().randint() == before, "the disabled arm must not touch the RNG"
+
+
+def test_subsample_by_time_contiguous_keeps_ascending_segments_and_draws_nothing():
+    """C++: deme_expander.cc:95-98. `contiguous_time` (the DEFAULT) SKIPS
+    the shuffle, so the segments are consecutive runs of the ASCENDING
+    timestamp order -- `std::set`'s, which is why this port sorts rather
+    than trusting its own `set`.
+    """
+    dex = _dex_with(None, subsample_deme_filter_parameters(n_subsample_demes=2))
+    dex._filter_params.contiguous_time = True
+    stamps = {"d5", "d1", "d4", "d2", "d3", "d6"}
+    dex._cscorer.get_ctable = lambda: _StampedCTable(stamps)
+
+    randGen().seed(11)
+    before = randGen().randint()
+    randGen().seed(11)
+    groups = dex.subsample_by_time()
+
+    assert groups == [{"d1", "d2", "d3"}, {"d4", "d5", "d6"}]
+    assert randGen().randint() == before, "contiguous_time must not touch the RNG"
+
+
+def test_subsample_by_time_non_contiguous_shuffles_the_ascending_sequence():
+    """C++: deme_expander.cc:95-98's `if (!contiguous_time)` arm -- the
+    SAME `random_shuffle_gen` `subsample_by_row` uses, over the sorted
+    timestamp vector.
+    """
+    from pymetta.moses.scoring.ss_bscore import _shuffle_with_gen
+
+    dex = _dex_with(None, subsample_deme_filter_parameters(n_subsample_demes=2))
+    dex._filter_params.contiguous_time = False
+    stamps = {"d5", "d1", "d4", "d2", "d3", "d6"}
+    dex._cscorer.get_ctable = lambda: _StampedCTable(stamps)
+
+    randGen().seed(11)
+    groups = dex.subsample_by_time()
+
+    randGen().seed(11)
+    expected = sorted(stamps)
+    _shuffle_with_gen(expected, lambda i: randGen().randint_n(i))
+    assert groups == [set(expected[:3]), set(expected[3:6])]
+    assert groups != [{"d1", "d2", "d3"}, {"d4", "d5", "d6"}], (
+        "this seed must actually reorder, or the test proves nothing"
+    )
+
+
+def test_subsample_by_time_drops_the_remainder_segment():
+    """`seg_size = tt_size / n_ss_demes` truncates and the loop stops at
+    `n_ss_demes * seg_size` (cc:101-104), so timestamps beyond that are
+    kept by EVERY ss-deme.
+    """
+    dex = _dex_with(None, subsample_deme_filter_parameters(n_subsample_demes=3))
+    dex._filter_params.contiguous_time = True
+    dex._cscorer.get_ctable = lambda: _StampedCTable({f"d{i}" for i in range(8)})
+
+    groups = dex.subsample_by_time()
+
+    assert [len(g) for g in groups] == [2, 2, 2]
+    assert "d6" not in set().union(*groups)
+    assert "d7" not in set().union(*groups)
+
+
+def test_subsample_by_time_returns_one_empty_set_when_disabled():
     dex = _dex_with()
     assert dex.subsample_by_time() == [set()]
 
 
-def test_subsample_by_row_raises_when_n_subsample_demes_greater_than_one():
+def test_optimize_demes_restricts_the_scorer_per_ss_deme_then_restores_it():
+    """C++: deme_expander.cc:476-489 and the post-loop reset at cc:508-513.
+    The reset is what makes `metapopulation.recompute_scores_over_whole_
+    dataset` (subsample.py) see the whole table, so it must be the LAST
+    `ignore_rows` call and it must carry the EMPTY set.
+    """
+    params = deme_parameters()
+    params.perm_ratio = -1.0
+    dex = _dex_with(params, subsample_deme_filter_parameters(n_subsample_demes=2))
+    dex._filter_params.by_time = False  # the CLI's own default (--ss-by-time=0)
+    randGen().seed(1)
+    dex.create_demes(str_to_combo_tree("and()"), 0)
+
+    seen: list[tuple[str, frozenset]] = []
+    real_rows = dex._cscorer.ignore_rows
+
+    def spy_rows(idxs):
+        seen.append(("rows", frozenset(idxs)))
+        real_rows(idxs)
+
+    dex._cscorer.ignore_rows = spy_rows
+    dex.optimize_demes(200, 86400)
+
+    assert len(seen) == 3, "one call per ss-deme, plus the whole-table reset"
+    assert seen[-1] == ("rows", frozenset()), "the reset must come last and be empty"
+    assert seen[0][1] and seen[1][1] and not (seen[0][1] & seen[1][1])
+
+
+def test_optimize_demes_uses_ignore_rows_at_times_when_by_time_is_set():
+    """C++: deme_expander.cc:478-484 picks `ignore_rows_at_times` over
+    `ignore_rows` on `_filter_params.by_time`. The final whole-table reset
+    (cc:512) is `ignore_rows` in BOTH cases.
+    """
+    params = deme_parameters()
+    params.perm_ratio = -1.0
     filter_params = subsample_deme_filter_parameters(n_subsample_demes=2)
-    dex = _dex_with(None, filter_params)
-    with pytest.raises(NotImplementedError):
-        dex.subsample_by_row()
+    filter_params.by_time = True
+    dex = _dex_with(params, filter_params)
+    randGen().seed(1)
+    dex.create_demes(str_to_combo_tree("and()"), 0)
+
+    # The fixture table is untimestamped, so the REAL `subsample_by_time`
+    # would return zero groups here and trip the cc:479 OC_ASSERT (its own
+    # test, below). Substituting two empty groups isolates the ONE thing
+    # this test is about: which of the two scorer methods cc:478-488
+    # picks. The by-time path over a genuinely timestamped table is
+    # covered end to end, byte for byte against classic, in
+    # tests/moses/main/test_ss_cli.py.
+    dex.subsample_by_time = lambda: [set(), set()]
+
+    seen: list[str] = []
+    real_rows, real_times = dex._cscorer.ignore_rows, dex._cscorer.ignore_rows_at_times
+    dex._cscorer.ignore_rows = lambda idxs: (seen.append("rows"), real_rows(idxs))[1]
+    dex._cscorer.ignore_rows_at_times = lambda ts: (seen.append("times"), real_times(ts))[1]
+
+    dex.optimize_demes(200, 86400)
+
+    assert seen == ["times", "times", "rows"]
 
 
-def test_subsample_by_row_returns_one_empty_set_by_default():
-    dex = _dex_with()
-    assert dex.subsample_by_row() == [set()]
+def test_optimize_demes_asserts_when_subsample_by_time_cannot_partition():
+    """C++: deme_expander.cc:479-482's `OC_ASSERT` -- an untimestamped
+    table gives `subsample_by_time()` nothing to split, so it returns
+    FEWER than `n_ss_demes` groups and classic aborts with its own
+    "Are you sure your data has timestamps" message rather than indexing
+    out of bounds. That is exactly what `--ss-by-time=1` on a table
+    without `--timestamp-feature` does.
+    """
+    params = deme_parameters()
+    params.perm_ratio = -1.0
+    filter_params = subsample_deme_filter_parameters(n_subsample_demes=2)
+    filter_params.by_time = True
+    dex = _dex_with(params, filter_params)
+    randGen().seed(1)
+    dex.create_demes(str_to_combo_tree("and()"), 0)
+
+    assert dex._cscorer.get_ctable().get_timestamps() == set()
+    with pytest.raises(AssertionError, match="timestamps"):
+        dex.optimize_demes(200, 86400)
+
+
+def test_optimize_demes_leaves_the_scorer_alone_when_subsampling_is_off():
+    """The `n_ss_demes > 1` guards mean a default run never calls
+    `ignore_rows` at all -- not even with the empty set.
+    """
+    params = deme_parameters()
+    params.perm_ratio = -1.0
+    dex = _dex_with(params, subsample_deme_filter_parameters())
+    randGen().seed(1)
+    dex.create_demes(str_to_combo_tree("and()"), 0)
+
+    seen: list = []
+    dex._cscorer.ignore_rows = lambda idxs: seen.append(idxs)
+    dex._cscorer.ignore_rows_at_times = lambda ts: seen.append(ts)
+    dex.optimize_demes(200, 86400)
+
+    assert seen == []
+
+
+def test_optimize_demes_divides_the_eval_budget_by_n_ss_demes():
+    """C++: deme_expander.cc:405-408, `max_evals /= _demes.size()` then
+    `/= n_ss_demes`. With one representation and three ss-demes each gets
+    a third.
+    """
+    params = deme_parameters()
+    params.perm_ratio = -1.0
+    dex = _dex_with(params, subsample_deme_filter_parameters(n_subsample_demes=3))
+    dex._filter_params.by_time = False  # the CLI's own default (--ss-by-time=0)
+    randGen().seed(1)
+    dex.create_demes(str_to_combo_tree("and()"), 0)
+
+    budgets: list[int] = []
+    dex._optimize = lambda deme, scorer, max_evals, max_time: budgets.append(max_evals)
+    dex.optimize_demes(200, 86400)
+
+    assert budgets == [66, 66, 66]
 
 
 # ---------------------------------------------------------------------------

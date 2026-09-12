@@ -277,12 +277,12 @@ class _MinimalCTableBscore(bscore_ctable_base):
     318,323) rather than against a stub that could agree with a broken
     delegation by accident.
 
-    `ctruth_table_bscore` (bscores.py) cannot be used for this: it extends
-    `bscore_base` DIRECTLY in this port, a disclosed divergence from
-    classic's `struct ctruth_table_bscore : public bscore_ctable_base`
-    (bscores.h:360) -- see
-    `test_get_ctable_against_non_ctable_bscorer_raises_attributeerror`
-    below, which pins exactly that.
+    `ctruth_table_bscore` (bscores.py) could not be used for this while it
+    extended `bscore_base` DIRECTLY in this port. It extends
+    `bscore_ctable_base` now, matching bscores.h:360 -- see
+    `test_get_ctable_through_ctruth_table_bscore` below -- so this minimal
+    class is kept only because it is still the smallest thing that can
+    reach those two bodies without a dataset.
     """
 
     def __call__(self, tr):
@@ -353,31 +353,57 @@ def test_get_ctable_usize_is_the_truncated_uncompressed_weight():
     assert behsc.get_ctable_usize() != len(ctable)
 
 
-def test_get_ctable_against_non_ctable_bscorer_raises_attributeerror():
-    """Pins the caveat both new docstrings state, so it cannot rot
-    silently.
+def test_get_ctable_through_ctruth_table_bscore():
+    """This test used to assert the OPPOSITE, and said so: "When bscores.py
+    is eventually corrected to extend `bscore_ctable_base` the way classic
+    does, this test must be UPDATED (to assert the two accessors now work)
+    rather than deleted." That happened -- the `ss-*` subsample task
+    re-parented `ctruth_table_bscore` onto `bscore_ctable_base`
+    (bscores.h:360), because `--ss-n-subsample-demes>1` drives
+    `ignore_rows` on exactly this scorer -- so here is the updated
+    assertion.
 
     C++'s `bscore_base` declares `get_ctable`/`get_ctable_usize` as
     virtuals with `OC_ASSERT(false, "You must implement me in the derived
-    class")` bodies (scoring_base.h:185,191); this port's `bscore_base`
-    (scoring_base.py) declares neither. So against a bscorer that is not a
-    `bscore_ctable_base` -- `ctruth_table_bscore` being the one that
-    matters, since it extends `bscore_base` directly here where classic's
-    extends `bscore_ctable_base` (bscores.h:360) -- the port raises
-    `AttributeError` where classic raises `opencog::AssertionException`.
-    Both fail; the exception TYPE differs.
-
-    When bscores.py is eventually corrected to extend `bscore_ctable_base`
-    the way classic does, this test must be UPDATED (to assert the two
-    accessors now work) rather than deleted, and the two docstrings in
-    behave_cscore.py updated with it.
+    class")` bodies (scoring_base.h:185,191) and this port's declares
+    neither, so the caveat still applies to any bscorer that is NOT a
+    `bscore_ctable_base` (`_NoCTableBscore` below) -- just no longer to
+    this one.
     """
     table = loadTable(str(_TABLE_DATA_DIR / "weighted.csv"), "r")
-    bsc = ctruth_table_bscore(table.compressed("wgt"))
-    assert not isinstance(bsc, bscore_ctable_base)
+    ctable = table.compressed("wgt")
+    bsc = ctruth_table_bscore(ctable)
+    assert isinstance(bsc, bscore_ctable_base)
     behsc = behave_cscore(bsc)
+
+    assert behsc.get_ctable() is ctable
+    assert behsc.get_ctable_usize() == 9
+
+
+class _NoCTableBscore(bscore_base):
+    """A `bscore_base` that is NOT a `bscore_ctable_base` -- the case the
+    caveat in `get_ctable`/`get_ctable_usize`'s docstrings is about.
+    """
+
+    def __call__(self, tr):
+        return [0.0]
+
+    def best_possible_bscore(self):
+        return [0.0]
+
+
+def test_get_ctable_against_non_ctable_bscorer_raises_attributeerror():
+    """C++ would raise `opencog::AssertionException` from
+    `bscore_base::get_ctable`'s `OC_ASSERT(false, ...)` (scoring_base.h:191);
+    this port's `bscore_base` declares no such method, so it is
+    `AttributeError`. Both fail; the exception TYPE differs, and that is
+    what this pins.
+    """
+    behsc = behave_cscore(_NoCTableBscore())
 
     with pytest.raises(AttributeError):
         behsc.get_ctable()
+    with pytest.raises(AttributeError):
+        behsc.get_ctable_usize()
     with pytest.raises(AttributeError):
         behsc.get_ctable_usize()
