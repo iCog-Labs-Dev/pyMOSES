@@ -417,6 +417,43 @@ that pins the function's VALUES, not the breadcrumb.
 
 ---
 
+### 4.6 Rejection EXIT CODES differ uniformly, and that is deliberate
+
+Classic validates input with `OC_ASSERT`, which calls `abort()`. The port raises
+a Python exception. So for a rejected command line the two agree on the
+*decision* and differ on the *convention*.
+
+**Measured** (value-aware sweep, 682 cases):
+
+| | classic | port | n |
+|---|---|---|---:|
+| both reject | `-6` SIGABRT | rc 1 | 51 |
+| both reject | `-11` SIGSEGV | rc 1 | 24 |
+| both reject | `255` | rc 1 | 3 |
+| both reject | `-6` SIGABRT | rc 2 (argparse) | 2 |
+
+That is **one difference, not 80 findings**, and the sweep's
+`BOTH-FAIL-DIFF-RC` bucket should be read that way.
+
+**Settled: do not "fix" this.** Reproducing `abort()` from Python means
+`os.abort()` — it dumps core, loses the exception message, and would make the
+package hostile to import as a library, which it also is. The port's behaviour
+is strictly more useful, and the difference is invisible to `cmd || handler`;
+only an exact `$? == 134` check could see it, and nothing in this project's
+tooling does that.
+
+What a reader should NOT conclude from the bucket: that 80 command lines behave
+differently. They do not. Every one of them is rejected by both binaries, for
+the same reason, at the same point.
+
+**The neighbouring bucket is different and worth attention.**
+`PORT-OK-CLASSIC-FAILS` (54 cases: 43 SIGSEGV, 11 SIGABRT) is classic
+*crashing* where the port runs to completion — `--fs-algo=hc`,
+`--diversity-dst=tanimoto` with a live pressure, `--max-candidates-per-deme=0`,
+`--nsamples`, `--fs-seed=xmplr`, `-E0`. Those are upstream defects, reproduced
+in spirit (the port refuses or completes) but not in kind, because a port cannot
+faithfully reproduce a segfault. Each has a reproducer recorded.
+
 ## 5. Known weaknesses in our own harness
 
 - ~~**No fixture carries a checksum, version, or input manifest**, and `ci.sh`
