@@ -956,9 +956,40 @@ the same summary block as the real results, in the same neutral tone, and I read
 past it three times. A harness that cannot test something must say so **loudly**,
 in the failure channel, not as a tidy row in the success report.
 
+**Now quantified.** The replacement sweep (`tools/flag_sweep.py`, value-aware)
+measured exactly what the old one had skipped:
+
+|  | old | new |
+|---|---:|---:|
+| options in `moses --help` | 139 | 139 |
+| options actually run | 82 | 138 |
+| flag/value pairs run | 82 | 458 |
+| combination cases | 0 | 223 |
+
+**599 cases had never been run once.** Of the 376 untested single-flag pairs:
+192 because the option was never in the list at all (49 options, every one with
+a short form — `-i -u -H -a -m -r -W -t -q -w -l -f …`), 161 because only one
+value per option was ever tried, and 23 from the silent bucket.
+
+It found two flags where both binaries succeed and DISAGREE (`--version`, and
+`--fs-subsampling-ratio=0` where classic finds `-20 $a1` and the port `-36
+true`, losing the winning candidate), plus 8 distinct causes behind 66
+classic-OK/port-fails rows — including four CLI options the port simply does
+not have.
+
+A second lesson sits inside that table: **59 of 138 options are INERT** on a
+given table and budget — their value never changes classic's own output, so an
+`IDENTICAL` verdict for them is agreement about something the option never
+influenced. The new sweep prints that count every run. `--diversity-dst=tanimoto`
+is the worked example: the old sweep scored it `IDENTICAL`, and it is only
+reachable at all with `--diversity-pressure > 0`, which the old sweep never set.
+
 **Rules.**
 - Enumerate a flag's real legal values from `--help` and the option
   declarations. Never sweep an enumerated flag with a generic numeric list.
+- **Sweep a flag in the context that makes it live.** A flag behind a master
+  switch is inert until the switch is on, and an inert flag agrees trivially.
+  Report how many options were inert; it is the honest denominator.
 - Any "skipped"/"could not test"/"rejected" bucket in a harness must be
   impossible to confuse with a pass. Make it exit non-zero, or print it under a
   heading that says UNTESTED.
