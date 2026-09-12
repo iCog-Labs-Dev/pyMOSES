@@ -923,6 +923,50 @@ run as much as the current one. The differential sweeps in this project all
 use a fresh subprocess per run and are unaffected — which is precisely why
 this went unnoticed until someone built an in-process one.
 
+### 5.12 A sweep that silently skipped the flags most likely to break
+
+The 90-flag differential sweep reported, for three consecutive runs across two
+days, "**0 flags where both binaries succeed and disagree**" and "0 flags
+classic accepts that the port refuses". I reported both to the user as
+established. **Both were false.**
+
+The sweep tried each flag against one fixed candidate list —
+`1`, `2`, `0.5`, `3`, `0`, `tanimoto`, `hc` — and took the first value classic
+accepted. Six flags take **enumerated** values, and none of those candidates is
+legal for any of them:
+
+    --output-format            combo | python | python3 | scheme
+    --time-bscore-granularity  day | month | ...
+    --fs-focus                 incorrect | ...
+    --fs-seed                  add | xmplr | ...
+    --fs-algo                  simple | inc | smd | random | hc
+    --fs-scorer                mi | ...
+
+So all six landed in a bucket the summary printed as
+"classic-rejects-all-candidates: 6" and **were never tested at all**. The count
+6 in that line was not "6 flags classic dislikes" — it was "6 flags this sweep
+gave up on", and it read as the former.
+
+`--output-format=scheme` was hiding there: classic exits 0, the port raises
+`NotImplementedError`. Measured directly once the hole was known.
+
+**What makes this worth recording is not the missing values — it is the shape of
+the bug.** The sweep had a category for "I could not test this", printed it in
+the same summary block as the real results, in the same neutral tone, and I read
+past it three times. A harness that cannot test something must say so **loudly**,
+in the failure channel, not as a tidy row in the success report.
+
+**Rules.**
+- Enumerate a flag's real legal values from `--help` and the option
+  declarations. Never sweep an enumerated flag with a generic numeric list.
+- Any "skipped"/"could not test"/"rejected" bucket in a harness must be
+  impossible to confuse with a pass. Make it exit non-zero, or print it under a
+  heading that says UNTESTED.
+- Before believing "no differences found", ask what the harness *could* have
+  found. This is the same rule §5.10 states for two empty files comparing equal;
+  this is its structural cousin, and it survived three runs because the summary
+  line looked like a result rather than an omission.
+
 ## 6. Process notes that paid for themselves
 
 - **Prove a guard fires.** Requiring "revert it and show the test fail" caught a
