@@ -287,3 +287,168 @@ def test_reset_weights_effective_length_is_the_measured_value():
     bsc = select_bscore(ct, 0.2, 0.8, 1.0, True)
     assert bsc._effective_length == len(ct)
     assert bsc._weights == [1.0] * len(ct)
+
+
+# ---------------------------------------------------------------------------
+# call_ensemble: the `operator()(const scored_combo_tree_set&)` overload
+# (select_bscore.cc:191). Reached by `-H select --boost=1`, which exits 0 in
+# classic and used to raise `NotImplementedError` here.
+#
+# Two tables are used below:
+#   `_contin_ctable([1..5])`   -- five single-observation rows, window [2, 4]
+#   `_straddling_ctable()`     -- the same shape but with row `3.0` carrying
+#                                 THREE observations at 9.0 and one at 3.0,
+#                                 which moves the window to [4, 9] and gives
+#                                 that row a NON-ZERO best-possible score, so
+#                                 the `bs -= _best_possible_score` step
+#                                 (select_bscore.cc:240) stops being a no-op.
+# ---------------------------------------------------------------------------
+
+_GT2 = "0<(+($1 -2))"  # true for x > 2
+_GT3 = "0<(+($1 -3))"  # true for x > 3
+
+
+def _straddling_ctable() -> CTable:
+    ct = CTable("y", ["x1"])
+    for key, counts in (
+        (1.0, {1.0: 1.0}),
+        (2.0, {2.0: 1.0}),
+        (3.0, {3.0: 1.0, 9.0: 3.0}),
+        (4.0, {4.0: 1.0}),
+        (5.0, {5.0: 1.0}),
+    ):
+        ct[(key,)] = Counter(counts)
+    ct.set_signature(TypeSignature([type_node.contin_type], type_node.contin_type))
+    return ct
+
+
+def _ensemble(*pairs):
+    """An ensemble in the INSERTION order given -- which is the order the
+    port's `scored_combo_tree_set` iterates, and the order two of the
+    tests below deliberately pin (see their docstrings).
+    """
+    from pymetta.moses.moses.types import scored_combo_tree, scored_combo_tree_set
+
+    members = []
+    out = scored_combo_tree_set()
+    for text, weight in pairs:
+        sct = scored_combo_tree(str_to_combo_tree(text))
+        sct.set_weight(weight)
+        out.insert(sct)
+        members.append(sct)
+    return out, members
+
+
+@pytest.mark.skipif(
+    not _MIXED_INTERPRETER_AVAILABLE,
+    reason="ensemble scoring interprets trees over contin inputs",
+)
+def test_call_ensemble_of_one_member_matches_that_tree_s_own_bscore():
+    """One member of any positive weight votes `+weight` on every row it
+    picks, so `0 < hypoth` reduces to that single tree's own prediction.
+    The weight must therefore be invisible here -- and is, at 1.0 and 7.0.
+    """
+    bsc = select_bscore(_contin_ctable([1.0, 2.0, 3.0, 4.0, 5.0]), 0.4, 0.8)
+    expected = bsc(str_to_combo_tree(_GT2))
+    for weight in (1.0, 7.0):
+        ens, _ = _ensemble((_GT2, weight))
+        assert bsc.call_ensemble(ens) == expected
+
+
+@pytest.mark.skipif(
+    not _MIXED_INTERPRETER_AVAILABLE,
+    reason="ensemble scoring interprets trees over contin inputs",
+)
+def test_call_ensemble_weights_decide_the_vote():
+    """`hypoth[i] += trweight * (2.0 * select - 1.0)` (select_bscore.cc:
+    205). On the `x == 3.0` row `0<(x-2)` votes +w1 and `0<(x-3)` votes
+    -w2, so the row's prediction is decided ENTIRELY by which weight is
+    larger -- a scorer that ignored `get_weight()`, or that used the
+    first/last member only, cannot produce all three answers below.
+    """
+    bsc = select_bscore(_contin_ctable([1.0, 2.0, 3.0, 4.0, 5.0]), 0.4, 0.8)
+    assert (bsc._lower_bound, bsc._upper_bound) == (2.0, 4.0)
+
+    tie, _ = _ensemble((_GT2, 1.0), (_GT3, 1.0))
+    first_wins, _ = _ensemble((_GT2, 2.0), (_GT3, 1.0))
+    second_wins, _ = _ensemble((_GT2, 1.0), (_GT3, 2.0))
+
+    # x == 3.0 is INSIDE [2, 4]; predicting "outside" costs that row -1.
+    assert bsc.call_ensemble(tie) == [0.0, -1.0, -1.0, 0.0, -1.0]
+    assert bsc.call_ensemble(first_wins) == [0.0, -1.0, 0.0, 0.0, -1.0]
+    assert bsc.call_ensemble(second_wins) == [0.0, -1.0, -1.0, 0.0, -1.0]
+
+
+@pytest.mark.skipif(
+    not _MIXED_INTERPRETER_AVAILABLE,
+    reason="ensemble scoring interprets trees over contin inputs",
+)
+def test_call_ensemble_breaks_an_exact_tie_towards_OUTSIDE():
+    """`bool predict_inside = (0 < hypoth[i]);` (select_bscore.cc:220) is
+    STRICT. Equal and opposite votes cancel to exactly 0.0, and the row is
+    then predicted "outside" -- relaxing this to `0 <=` flips the `x == 3`
+    row and changes the bscore.
+    """
+    bsc = select_bscore(_contin_ctable([1.0, 2.0, 3.0, 4.0, 5.0]), 0.4, 0.8)
+    tie, _ = _ensemble((_GT2, 1.0), (_GT3, 1.0))
+    assert bsc.call_ensemble(tie)[2] == -1.0
+    # ... and it really is a tie, not an accident of the tree order:
+    reversed_tie, _ = _ensemble((_GT3, 1.0), (_GT2, 1.0))
+    assert bsc.call_ensemble(reversed_tie)[2] == -1.0
+
+
+@pytest.mark.skipif(
+    not _MIXED_INTERPRETER_AVAILABLE,
+    reason="ensemble scoring interprets trees over contin inputs",
+)
+def test_call_ensemble_subtracts_the_best_possible_score():
+    """`bs -= _best_possible_score` (select_bscore.cc:240).
+
+    On `_straddling_ctable` the window is [4, 9] and the `x == 3.0` row
+    holds three observations INSIDE it and one outside, so its
+    best-possible score is -1.0 -- the row cannot be scored better than
+    that by any tree. Predicting "inside" there costs the one outside
+    observation (raw -1.0, reported 0.0); predicting "outside" costs the
+    three inside ones (raw -3.0, reported -2.0). Dropping the subtraction
+    shifts BOTH numbers by 1.0.
+    """
+    bsc = select_bscore(_straddling_ctable(), 0.4, 0.8)
+    assert (bsc._lower_bound, bsc._upper_bound) == (4.0, 9.0)
+    assert bsc._best_possible_score[2] == -1.0
+
+    picks_it, _ = _ensemble((_GT2, 2.0), (_GT3, 1.0))
+    drops_it, _ = _ensemble((_GT2, 1.0), (_GT3, 1.0))
+    assert bsc.call_ensemble(picks_it) == [0.0, 0.0, 0.0, 0.0, 0.0]
+    assert bsc.call_ensemble(drops_it) == [0.0, 0.0, -2.0, 0.0, 0.0]
+
+
+@pytest.mark.skipif(
+    not _MIXED_INTERPRETER_AVAILABLE,
+    reason="ensemble scoring interprets trees over contin inputs",
+)
+def test_call_ensemble_narrows_the_ensemble_weight_to_float32():
+    """`score_t trweight = sct.get_weight();` (select_bscore.cc:198).
+
+    ORDER-SENSITIVE BY CONSTRUCTION, and pinned as such. `hypoth` is
+    itself `std::vector<score_t>`, so the accumulator narrows on every
+    store; the extra narrowing of `trweight` can therefore only be
+    observed on a member that is NOT the first addend, and a permutation
+    that puts the cancelling member first observes the opposite sign.
+    That is a property of the C++ too, not of this port, and it is why
+    this test asserts the container's iteration order before relying on
+    it -- if `scored_combo_tree_set` ever reorders, this goes red rather
+    than silently passing on the other branch.
+
+    With both weights the same double `0.3`: narrowing first makes the
+    two votes cancel EXACTLY, so the tie rule predicts "outside" and the
+    `x == 3.0` row scores -2.0. Without it the running float32 sum keeps
+    `float32(0.3) - 0.3 == 1.19e-8 > 0` and the row is predicted
+    "inside", scoring 0.0.
+    """
+    bsc = select_bscore(_straddling_ctable(), 0.4, 0.8)
+    ens, members = _ensemble((_GT2, 0.3), (_GT3, 0.3))
+    order = list(ens)
+    assert order[0] is members[0] and order[1] is members[1], (
+        "this case only discriminates with the + vote first"
+    )
+    assert bsc.call_ensemble(ens)[2] == -2.0
