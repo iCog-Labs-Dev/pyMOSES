@@ -1237,18 +1237,18 @@ class ip_table_problem(table_problem_base):
         1. `self.cand_type_signature` and `self.output_type` are NEVER
            SET here (they are `common_type_setup`'s job). `run` uses its
            own local `tt`, an ALL-BOOLEAN signature
-           (`gen_signature(id::boolean_type, arity)`, cc:242), for both
+           (`gen_signature(id::boolean_type, arity)`, cc:241), for both
            `alphabet_size` and `metapop_moses_results`. The candidate is
            a Boolean predicate over Boolean inputs even though the
            TABLE's output column is contin.
         2. The default exemplar is `type_to_exemplar(id::boolean_type)`
-           (cc:245-246), chosen from that same Boolean output type rather
+           (cc:244-245), chosen from that same Boolean output type rather
            than from the table's.
         3. `alphabet_size(tt, ...)` therefore always takes the BOOLEAN
            arm (`3 + arity`, problem.cc:141-144), so the contin arm's
            unsigned wrap cannot be reached from here.
 
-        The `OC_ASSERT` at cc:234-237 is the reachability gate this whole
+        The `OC_ASSERT` at cc:236-239 is the reachability gate this whole
         problem lives behind: the table's signature must be exactly
         `->(boolean ... boolean) contin`. Measured against classic on
         three tables -- a Boolean-output one, a contin-input one and a
@@ -1257,12 +1257,12 @@ class ip_table_problem(table_problem_base):
         an `AssertionError` carrying classic's own text, this port's
         convention for a direct `OC_ASSERT(false, ...)`.
 
-        `OC_ASSERT(not pms.meta_params.do_boosting, ...)` (cc:266-267) is
+        `OC_ASSERT(not pms.meta_params.do_boosting, ...)` (cc:263-264) is
         the second gate, with classic's own reason above it: "In order to
         support boosting, the interesting_predicate_bscore would have to
         modified to always return a bscore that is the smae length, and
         so that the same item always refered to the same row in the
-        ctable." (cc:262-265, typos and all.)
+        ctable." (cc:259-262, typos and all.)
 
         Nothing here does feature selection (no `fstor` block), calls
         `use_weighted_scores`, or zeroes `pms.cache_size` -- all three
@@ -1273,7 +1273,7 @@ class ip_table_problem(table_problem_base):
         self.common_setup(pms)
 
         # ip assumes that the inputs are boolean and the output is contin
-        # C++: table-problems.cc:233-237.
+        # C++: table-problems.cc:234-239.
         ettt = gen_signature(type_node.boolean_type, type_node.contin_type, self.arity)
         if ettt != self.table.get_signature():
             raise AssertionError(
@@ -1286,11 +1286,11 @@ class ip_table_problem(table_problem_base):
         tt = gen_signature(type_node.boolean_type, self.arity)
 
         # determine the default exemplar to start with
-        # C++: table-problems.cc:242-244.
+        # C++: table-problems.cc:243-245.
         if not pms.exemplars:
             pms.exemplars.append(_type_to_exemplar(type_node.boolean_type))
 
-        # C++: table-problems.cc:246 `int as = alphabet_size(tt, pms.ignore_ops);`
+        # C++: table-problems.cc:247 `int as = alphabet_size(tt, pms.ignore_ops);`
         # -- note `tt`, the BOOLEAN signature, not `cand_type_signature`.
         as_ = _to_int32(_alphabet_size(tt, pms.ignore_ops))
 
@@ -1310,7 +1310,7 @@ class ip_table_problem(table_problem_base):
         # In order to support boosting, the interesting_predicate_bscore
         # would have to modified to always return a bscore that is the
         # smae length, and so that the same item always refered to the
-        # same row in the ctable. C++: table-problems.cc:262-267.
+        # same row in the ctable. C++: table-problems.cc:259-264.
         if pms.meta_params.do_boosting:
             raise AssertionError("Boosting not supported for the ip problem!")
 

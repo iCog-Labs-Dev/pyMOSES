@@ -39,6 +39,8 @@ from pymetta.moses.main.table_problems import (
     bep_table_problem,
     cluster_table_problem,
     f_one_table_problem,
+    ip_problem_params,
+    ip_table_problem,
     it_table_problem,
     parse_table_args,
     pre_conj_table_problem,
@@ -1210,6 +1212,7 @@ def test_every_table_problem_passes_pms_ps_params_in_C_PLUS_PLUS_position(
 
 
 _REAL_NAMES_AND_CLASSES = {
+    "ip": ip_table_problem,
     "it": it_table_problem,
     "pre": pre_table_problem,
     "pre-conj": pre_conj_table_problem,
@@ -1220,7 +1223,7 @@ _REAL_NAMES_AND_CLASSES = {
     "select": select_table_problem,
     "cluster": cluster_table_problem,
 }
-_STUB_NAMES = ("ip", "ann-it")
+_STUB_NAMES = ("ann-it",)
 
 
 def test_register_table_problems_registers_all_eleven_names():
@@ -1230,7 +1233,7 @@ def test_register_table_problems_registers_all_eleven_names():
         assert pmr.find_problem(name) is not None, name
 
 
-def test_register_table_problems_wires_the_nine_real_classes():
+def test_register_table_problems_wires_the_ten_real_classes():
     pmr = problem_manager()
     tpp = register_table_problems(pmr)
     for name, cls in _REAL_NAMES_AND_CLASSES.items():
@@ -1239,7 +1242,7 @@ def test_register_table_problems_wires_the_nine_real_classes():
         assert prob._tpp is tpp, name
 
 
-def test_register_table_problems_leaves_two_stubs_raising():
+def test_register_table_problems_leaves_the_ann_stub_raising():
     pmr = problem_manager()
     register_table_problems(pmr)
     for name in _STUB_NAMES:
@@ -1255,3 +1258,54 @@ def test_register_table_problems_returns_the_shared_tpp():
     assert isinstance(tpp, table_problem_params)
     for name in _REAL_NAMES_AND_CLASSES:
         assert pmr.find_problem(name)._tpp is tpp
+
+
+def test_register_table_problems_shares_one_ip_problem_params():
+    """`ip_table_problem` is the only table problem with a SECOND params
+    object (`new ip_problem(*tpp, *ippp)`, table-problems.cc:567). The
+    instance it is wired with must be the caller's, so that `-K/-J/-U/-X`
+    parsed later are the values `-H ip` actually scores with.
+
+    MUTATION PROVEN: making `register_table_problems` ignore its `ippp`
+    argument and build its own (`ippp = ip_problem_params()`
+    unconditionally) fails this and
+    `test_ip_weights_reach_the_scorer` in test_ip_problem_cli.py -- the
+    second by producing default-weight output for a non-default `-K`.
+    """
+    pmr = problem_manager()
+    ippp = ip_problem_params()
+    register_table_problems(pmr, ippp)
+    assert pmr.find_problem("ip")._ippp is ippp
+
+
+def test_register_table_problems_builds_its_own_ip_params_when_omitted():
+    """Omitting `ippp` must still produce a runnable `-H ip` at classic's
+    defaults, so every existing caller (and every test above) keeps
+    working unchanged.
+    """
+    pmr = problem_manager()
+    register_table_problems(pmr)
+    ippp = pmr.find_problem("ip")._ippp
+    assert isinstance(ippp, ip_problem_params)
+    assert (
+        ippp.ip_kld_weight,
+        ippp.ip_skewness_weight,
+        ippp.ip_stdU_weight,
+        ippp.ip_skew_U_weight,
+    ) == (1.0, 1.0, 1.0, 1.0)
+
+
+def test_parse_table_args_fills_the_ip_params_it_is_given():
+    """Companion to the above for the other entry point: `parse_table_args`
+    used to build a throwaway `ip_problem_params` and DISCARD the parsed
+    values, which was harmless only while `-H ip` was a stub.
+    """
+    pmr = problem_manager()
+    ippp = ip_problem_params()
+    tpp = register_table_problems(pmr, ippp)
+    csv = str(Path(__file__).resolve().parents[2] / "fixtures" / "table_data" / "ip_sweep.csv")
+    parse_table_args(["-i", csv, "-u", "y", "-K", "2.5", "-X", "-1"], tpp, ippp)
+    assert ippp.ip_kld_weight == 2.5
+    assert ippp.ip_skew_U_weight == -1.0
+    assert ippp.ip_skewness_weight == 1.0
+    assert pmr.find_problem("ip")._ippp is ippp

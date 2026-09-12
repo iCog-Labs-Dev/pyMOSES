@@ -366,18 +366,35 @@ def test_moses_exec_unknown_problem_returns_1_and_writes_stderr(capsys):
     assert captured.err == 'problem type "bogus-problem-name" is currently unsupported.\n'
 
 
-@pytest.mark.parametrize("name", ["ip", "ann-it"])
+@pytest.mark.parametrize("name", ["ann-it"])
 def test_moses_exec_unregistered_stub_problem_raises(name):
-    """The two problems `table_problems.py` still leaves as
-    `problem.py`'s own raising `_unported_table_problem` stub. This test
-    was `-H cluster` alone until `cluster_table_problem` was wired for
-    real (table_problems.py); `-H cluster` now RUNS, and its oracle is
+    """The problems `table_problems.py` still leaves as `problem.py`'s own
+    raising `_unported_table_problem` stub. This test was `-H cluster`
+    alone until `cluster_table_problem` was wired for real
+    (table_problems.py); `-H cluster` now RUNS, and its oracle is
     `test_moses_exec_reproduces_classic_cluster_*` below. `-H pre-conj`
-    was the most recent to leave this list -- its oracle is
-    `test_moses_exec_reproduces_classic_pre_conj_oracle` below.
+    was the next to leave this list -- its oracle is
+    `test_moses_exec_reproduces_classic_pre_conj_oracle` below -- and
+    `-H ip` the most recent, with `tests/moses/main/test_ip_problem_cli.py`
+    as its oracle. `ann-it` is the ANN domain, excluded project-wide
+    rather than unscheduled, so this list is expected to stay at one.
     """
     with pytest.raises(NotImplementedError, match=name):
         moses_exec(["moses", f"-H{name}"])
+
+
+def test_moses_exec_ip_is_wired_not_stubbed():
+    """The complement of the case above, kept as its own test so the
+    parametrize list shrinking to one entry cannot quietly become a
+    parametrize over NOTHING (`empty_parameter_set_mark = "fail_at_collect"`
+    guards that, but only for an EMPTY list).
+
+    `-H ip` with no `-i` must now fail the way every other wired table
+    problem does -- `common_setup`'s "no input data file" ValueError
+    (table-problems.cc:101-106) -- NOT with `NotImplementedError`.
+    """
+    with pytest.raises(ValueError, match="no input data file has been specified"):
+        moses_exec(["moses", "-Hip"])
 
 
 def test_moses_exec_version_flag_exits_zero():
@@ -420,23 +437,29 @@ def test_moses_exec_accepts_a_plain_string_argv():
 # ---------------------------------------------------------------------------
 
 # -t/--output-bscore's oracles come in three shapes, deliberately, because
-# the flag turned out to EXPOSE a pre-existing ordering defect that lives in
-# a file this slice does not own. See
-# `test_moses_exec_output_bscore_ctable_row_order_matches_classic` for the
-# full statement of it; in short, a `behavioral_score` over a BOOLEAN table
-# has one element per CTable row, C++'s CTable is a
-# `std::map<multi_type_seq, TimedCounter>` (table.h:550) and therefore
-# iterates in ascending key order, and this port's is a plain `dict`
-# (`pymetta/comboreduct/table/table.py:1380`) and therefore iterates in
-# insertion order. Nothing before `-t` could see the difference: every other
-# consumer of a bscore (the composite score's sum, `remove_dominated`'s
-# element-wise compare, the diversity distances) is permutation-invariant so
-# long as every candidate uses the SAME permutation, which they do.
+# the flag was the FIRST consumer able to see a CTable ordering defect that
+# lived in a file the -t slice did not own. A `behavioral_score` over a
+# BOOLEAN table has one element per CTable row; C++'s CTable is a
+# `std::map<multi_type_seq, TimedCounter>` (table.h:550) and iterates in
+# ascending key order, while this port's was a plain `dict` filled in file
+# order. Nothing before `-t` could see the difference: every other consumer
+# of a bscore (the composite score's sum, `remove_dominated`'s element-wise
+# compare, the diversity distances) is permutation-invariant so long as
+# every candidate uses the SAME permutation, which they do.
+#
+# CLOSED: `CTable` now iterates in `std::map` key order
+# (`pymetta/comboreduct/table/table.py`, `ctable_row_key` / `CTable._order`;
+# regression coverage in `tests/comboreduct/table/test_ctable_order.py`), so
+# `test_moses_exec_output_bscore_ctable_row_order_matches_classic` below is
+# a plain oracle again rather than a strict xfail. The three shapes are kept
+# as they were: they cover a table already in map order, a table that is
+# not, and a contin table whose bscore never goes through a CTable at all.
 
 # A boolean table whose distinct input rows happen to appear in the file in
-# exactly `std::map` order already, so the dict-vs-map defect cannot reach
-# it: combo booleans are `id::logical_true` = 1 and `id::logical_false` = 2
-# (vertex.h:69), so ascending key order is (T,T) < (T,F) < (F,T) < (F,F).
+# exactly `std::map` order already, so file order and map order coincide
+# here whatever CTable does: combo booleans are `id::logical_true` = 1 and
+# `id::logical_false` = 2 (vertex.h:69), so ascending key order is
+# (T,T) < (T,F) < (F,T) < (F,F).
 _SORTED_BOOL_CSV = """res,arg1,arg2
 1,1,1
 0,1,1
@@ -551,25 +574,6 @@ def test_moses_exec_output_bscore_contin_matches_classic(tiny_contin_csv):
     )
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason=(
-        "PRE-EXISTING DEFECT, NOT OWNED BY THIS SLICE. "
-        "C++ CTable is `std::map<multi_type_seq, TimedCounter>` "
-        "(table.h:550) and iterates in ascending key order; this port's "
-        "CTable is a plain `dict` (pymetta/comboreduct/table/table.py:1380, "
-        "filled in file order by Table.compressed, table.py:1779) and "
-        "iterates in insertion order. `ctruth_table_bscore` (bscores.h:360) "
-        "emits one bscore element per CTable row, so the two orders differ "
-        "whenever a boolean table's distinct rows do not happen to appear "
-        "already sorted. -t is the FIRST consumer that can see it. "
-        "VERIFIED FIX (measured, not proposed): sorting Table.compressed's "
-        "result by multi_type_seq::operator< -- lexicographic over the "
-        "builtin ordinals, true=1 before false=2 -- makes this exact run "
-        "byte-identical to classic. When that lands in table.py, this xfail "
-        "becomes an XPASS and must be turned back into a plain oracle."
-    ),
-)
 def test_moses_exec_output_bscore_ctable_row_order_matches_classic(dataset_csv):
     """Captured: ( ulimit -v 2097152; timeout 300
     $CLASSIC/build/moses/moses/main/moses -i$CLASSIC/tests/moses/dataset.csv
@@ -577,14 +581,20 @@ def test_moses_exec_output_bscore_ctable_row_order_matches_classic(dataset_csv):
 
     `dataset.csv`'s three distinct input rows appear in the file as
     (F,T), (T,F), (T,T) and in classic's CTable as (T,T), (T,F), (F,T) --
-    the exact reverse. Trees and scores agree; only the bscore VECTOR
-    ORDER differs, which is why this run and not
-    `test_moses_exec_output_bscore_matches_classic` is the one that
-    fails. Measured scope of the exposure, over `-t1 -m500` on every
+    the exact reverse. Trees and scores agreed even while the port was
+    wrong, because the composite score is a SUM; only the bscore VECTOR
+    ORDER differed, which is why this run and not
+    `test_moses_exec_output_bscore_matches_classic` was the one that
+    failed. Measured scope of the exposure, over `-t1 -m500` on every
     boolean/contin fixture in tests/fixtures/table_data plus
-    $CLASSIC/tests/moses/dataset.csv: every boolean table diverges except
-    ones already in sorted order; every contin table agrees (contin
+    $CLASSIC/tests/moses/dataset.csv: every boolean table diverged except
+    ones already in sorted order; every contin table agreed (contin
     bscores are ITable-ordered, see above).
+
+    This was a `@pytest.mark.xfail(strict=True)` until `CTable` was made to
+    iterate in `std::map` key order; it is the end-to-end half of
+    `tests/comboreduct/table/test_ctable_order.py`, which pins the rule
+    itself.
     """
     rc, out = _run(["moses", f"-i{dataset_csv}", "-m1000", "-t1"])
     assert rc == 0

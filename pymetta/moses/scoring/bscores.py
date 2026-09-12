@@ -1454,7 +1454,7 @@ def _ctable_rows_in_map_order(ctable: CTable) -> list[tuple[tuple, object]]:
 
     `multi_type_seq::operator<` is `get_variant() < r.get_variant()`
     (table.h:383). `-H ip` admits only all-boolean inputs
-    (`table-problems.cc:233-237`), so every key's variant alternative is
+    (`table-problems.cc:236-239`), so every key's variant alternative is
     the same one -- a `builtin_seq`, i.e. `vector<builtin>`, confirmed by
     measurement: `get_seq<vertex>()` throws `boost::bad_get` on these keys
     -- and the comparison reduces to a lexicographic walk over the
@@ -1500,7 +1500,7 @@ class interesting_predicate_bscore(bscore_base):
 
     `ip_problem::run` (table-problems.cc:229) is the only constructor
     site, and it `OC_ASSERT`s first that the table's signature is exactly
-    `->(boolean ... boolean) contin` (table-problems.cc:233-237), so the
+    `->(boolean ... boolean) contin` (table-problems.cc:236-239), so the
     predicate's inputs are Boolean and the histogram's values are contin.
 
     REACHABILITY, measured rather than assumed. Classic exits 0 on this

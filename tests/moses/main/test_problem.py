@@ -201,7 +201,6 @@ def test_register_same_object_twice_under_same_name_is_a_harmless_noop():
 # its scorer is `cluster_bscore` (bscores.py), not any of the
 # precision/discriminating/select family the old shared message named.
 _EXPECTED_STUBS = {
-    "ip": "Find interesting patterns",
     "ann-it": "ANN-based regression on input table",
 }
 
@@ -210,7 +209,7 @@ def test_unported_table_problems_is_non_vacuous():
     """CARRY-FORWARD.md Sec 5/6: an empty corpus a parametrize walks over
     passes silently. Pin the count directly, independent of `parametrize`.
     """
-    assert len(_unported_table_problems()) == 2 == len(_EXPECTED_STUBS)
+    assert len(_unported_table_problems()) == 1 == len(_EXPECTED_STUBS)
 
 
 def test_unported_table_problems_names_and_descriptions_match_classic():
@@ -221,7 +220,8 @@ def test_unported_table_problems_names_and_descriptions_match_classic():
 
 
 @pytest.mark.parametrize(
-    "name", ["it", "pre", "pre-conj", "prerec", "recall", "bep", "f_one", "select", "cluster"]
+    "name",
+    ["it", "pre", "pre-conj", "prerec", "recall", "bep", "f_one", "select", "cluster", "ip"],
 )
 def test_unported_table_problems_excludes_every_wired_problem(name):
     """The clean seam `table_problems.py` fills in: a problem wired for
@@ -241,7 +241,7 @@ def test_unported_table_problems_excludes_every_wired_problem(name):
     assert name not in {p.name() for p in _unported_table_problems()}
 
 
-def test_unported_table_problem_reasons_are_distinct_and_specific():
+def test_unported_table_problem_reasons_are_specific():
     """MUTATION PROVEN, and the reason `reason` exists at all: the stubs
     used to share ONE message claiming every stubbed problem's scoring was
     "a precision/discriminating/select bscore, the ANN domain, or
@@ -259,12 +259,17 @@ def test_unported_table_problem_reasons_are_distinct_and_specific():
     reasons = [p._reason for p in _unported_table_problems()]
     assert len(set(reasons)) == len(reasons)
     by_name = {p.name(): p._reason for p in _unported_table_problems()}
-    assert "interesting_predicate_bscore" in by_name["ip"]
     assert "ANN" in by_name["ann-it"]
     for reason in reasons:
         assert "precision/discriminating/select" not in reason
-        # No surviving stub may claim a scorer that IS ported.
+        # No surviving stub may claim a scorer that IS ported. Three have
+        # been caught this way now: `precision_conj_bscore` (pre-conj),
+        # `cluster_bscore` (cluster) and `interesting_predicate_bscore`
+        # (ip), the last of which lives in bscores.py since `-H ip` was
+        # wired.
         assert "precision_conj_bscore" not in reason
+        assert "cluster_bscore" not in reason
+        assert "interesting_predicate_bscore" not in reason
 
 
 @pytest.mark.parametrize("name", sorted(_EXPECTED_STUBS))
@@ -291,7 +296,7 @@ def test_unported_table_problem_run_raises_regardless_of_argument():
         prob.run(object())
 
 
-def test_register_unported_table_problems_registers_all_three_and_none_run():
+def test_register_unported_table_problems_registers_every_stub_and_none_run():
     pmr = problem_manager()
     _register_unported_table_problems(pmr)
     for name, description in _EXPECTED_STUBS.items():
@@ -314,4 +319,5 @@ def test_register_unported_table_problems_is_idempotent_shape():
     pmr_b = problem_manager()
     _register_unported_table_problems(pmr_a)
     _register_unported_table_problems(pmr_b)
-    assert pmr_a.find_problem("ip") is not pmr_b.find_problem("ip")
+    assert pmr_a.find_problem("ann-it") is not None
+    assert pmr_a.find_problem("ann-it") is not pmr_b.find_problem("ann-it")
