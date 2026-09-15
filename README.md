@@ -202,6 +202,16 @@ semantics that cost the most to reproduce — `score_t` being `float` while `con
 | `tools/` | alignment checker, fixture-capture scripts, C++ oracle probes |
 | `docs/` | alignment, coverage, and carry-forward notes |
 
+## License
+
+Same as classic MOSES, which is **dual-licensed**: you may use it under the
+**Apache License 2.0** *or* the **GNU Affero General Public License v3**, at your
+option. Classic's three licence files are reproduced here verbatim — `LICENSE`
+(the one-line statement of the dual grant), `LICENSE.Apache`, and `LICENSE.AGPL`.
+
+Note that AGPL-3.0 and Apache-2.0 pull in very different obligations, so which one
+you are taking the code under is worth deciding deliberately rather than by default.
+
 ## Development
 
 Contributors additionally need local checkouts of classic
@@ -236,8 +246,11 @@ Contributors additionally need local checkouts of classic
      matching how tests/conftest.py already skips. `pytest` alone is unaffected and
      passes anywhere; only ci.sh's alignment/coverage/manifest stages are blocked.
 
-     SEPARATE OPEN TASK: this repo has no LICENSE file. Classic MOSES is AGPL-3.0,
-     and a port carries the original terms, so the omission wants settling before
-     anyone treats the repo as redistributable. Not fixed here because picking a
-     licence is the author's call, not a documentation edit.
+     Licensing is settled: classic's LICENSE, LICENSE.AGPL and LICENSE.Apache are
+     copied in verbatim (byte-identical) and declared in pyproject.toml. Note the
+     ported modules carry NO per-file licence header, unlike classic's .cc/.h --
+     deliberately, because check_alignment.py parses the FIRST line of each
+     docstring as the `C++: <path>:<line> <symbol>` breadcrumb. If headers are
+     ever wanted, they must go in `#` comments ABOVE the docstring, never inside
+     it, or every breadcrumb in the repo stops resolving.
 -->

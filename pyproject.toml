@@ -4,6 +4,12 @@ version = "0.0.1"
 description = "Python port of classic OpenCog MOSES, aligned to the C++ source"
 requires-python = ">=3.14"
 dependencies = []
+# Classic MOSES is dual-licensed ("MOSES has a double license, Apache 2.0 and
+# AGPL 3.0." -- its one-line LICENSE), and a port carries the original terms,
+# so this repo ships classic's three licence files verbatim and declares the
+# same disjunction here.
+license = "Apache-2.0 OR AGPL-3.0-only"
+license-files = ["LICENSE", "LICENSE.AGPL", "LICENSE.Apache"]
 
 # Installed command names mirror classic's, where the CMake TARGET names
 # differ from the installed BINARY names: target `moses-exec` installs as
