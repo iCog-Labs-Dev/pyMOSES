@@ -20,12 +20,12 @@ from __future__ import annotations
 import contextlib
 import copy
 import time
-from collections.abc import Iterator
+from collections.abc import Callable, Iterator
 
 from pymoses.moses.moses.types import composite_score
 from pymoses.moses.representation.instance_scorer import complexity_based_scorer
 
-__all__ = ["ScorerTrace", "instrument_scorer"]
+__all__ = ["ScorerTrace", "instrument_scorer", "summarize_events"]
 
 
 class ScorerTrace:
@@ -50,12 +50,20 @@ class ScorerTrace:
     for what MOSES itself actually treats as progress.
     """
 
-    def __init__(self) -> None:
+    def __init__(self, sink: Callable[[dict], None] | None = None) -> None:
+        """`sink`, if given, is called with each event dict right after it
+        is appended to `events` -- `runner.py` uses this to stream every
+        improvement to `trace.jsonl` on disk AS IT HAPPENS (fix round 1,
+        finding 4), so a run killed at the wall cap, or one that crashes
+        outright, still leaves the partial trace behind for the parent to
+        recover `best_raw`/`best_pen`/`best_cpx`/`evals_to_target` from
+        (see `summarize_events` below)."""
         self.n_calls = 0
         self.events: list[dict[str, float]] = []
         self.best_raw: float | None = None
         self.best_composite: composite_score | None = None
         self._start: float = 0.0
+        self._sink = sink
 
     def best_pen(self) -> float | None:
         """The penalized score of the best-by-comparator call so far, or
@@ -112,15 +120,16 @@ class ScorerTrace:
             improved = True
 
         if improved:
-            self.events.append(
-                {
-                    "n": self.n_calls,
-                    "t": time.perf_counter() - self._start,
-                    "raw": raw,
-                    "pen": pen,
-                    "cpx": cpx,
-                }
-            )
+            ev = {
+                "n": self.n_calls,
+                "t": time.perf_counter() - self._start,
+                "raw": raw,
+                "pen": pen,
+                "cpx": cpx,
+            }
+            self.events.append(ev)
+            if self._sink is not None:
+                self._sink(ev)
 
 
 @contextlib.contextmanager
@@ -145,3 +154,57 @@ def instrument_scorer(trace: ScorerTrace) -> Iterator[ScorerTrace]:
         yield trace
     finally:
         complexity_based_scorer.__call__ = original
+
+
+def summarize_events(events: list[dict], target_raw: float) -> dict:
+    """Reconstruct `n_calls`/`best_raw`/`best_pen`/`best_cpx`/
+    `evals_to_target`/`time_to_target` from a list of event dicts read back
+    from a `trace.jsonl` file -- the same schema `ScorerTrace.record`
+    writes. Used by `runner.py` to recover as much as possible from a
+    PARTIAL trace when a run was killed at the wall cap or a child died
+    without writing its own `summary.json` (fix round 1, finding 4): with
+    streaming (`ScorerTrace`'s `sink`), the file on disk holds exactly the
+    events that had already happened at the moment of death, so this
+    recovers the same values `ScorerTrace` itself would report had the run
+    been asked for them at that exact point.
+
+    `n_calls` here is "the last call index seen in the trace" -- a LOWER
+    BOUND on the true total call count, since only improving calls are
+    ever recorded (documented convention, not the true count).
+
+    Returns all-`None` fields for an empty (or all-unparseable) event list.
+    """
+    if not events:
+        return {
+            "n_calls": None,
+            "best_raw": None,
+            "best_pen": None,
+            "best_cpx": None,
+            "evals_to_target": None,
+            "time_to_target": None,
+        }
+    best_raw = max(ev["raw"] for ev in events)
+    best_pen: float | None = None
+    best_cpx: int | None = None
+    for ev in events:
+        # Mirrors `composite_score.__lt__`: higher penalized score is
+        # better, and at an EQUAL penalized score, LOWER complexity is
+        # better (types.py's own tie-break, "decreasing order" of
+        # complexity meaning the more complex one is WORSE).
+        key = (ev["pen"], -ev["cpx"])
+        if best_pen is None or key > (best_pen, -best_cpx):  # type: ignore[operator]
+            best_pen, best_cpx = ev["pen"], ev["cpx"]
+    evals_to_target = None
+    time_to_target = None
+    for ev in events:
+        if ev["raw"] >= target_raw:
+            evals_to_target, time_to_target = ev["n"], ev["t"]
+            break
+    return {
+        "n_calls": events[-1]["n"],
+        "best_raw": best_raw,
+        "best_pen": best_pen,
+        "best_cpx": best_cpx,
+        "evals_to_target": evals_to_target,
+        "time_to_target": time_to_target,
+    }

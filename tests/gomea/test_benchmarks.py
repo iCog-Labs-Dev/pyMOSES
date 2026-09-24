@@ -1,15 +1,19 @@
 """Tests for the GOMEA benchmark harness (Task 9, `benchmarks/gomea/`).
 
-Fast (<20s): pure statistics primitives (hand-computed cases), manifest
-fail-closed validation and run expansion, the scorer instrumentation
-wrapper (against a real `complexity_based_scorer`), one real but tiny
-end-to-end runner invocation (HC arm only -- `-a gomea` is being built by a
-concurrent task and is not exercised here), and svgplot's XML output.
+Fast (<20s despite several real, tiny end-to-end MOSES runs): pure
+statistics primitives (hand-computed cases), manifest fail-closed
+validation and run expansion, the scorer instrumentation wrapper (against a
+real `complexity_based_scorer`), several real end-to-end runner invocations
+(HC and -- now that a concurrent task has landed `-a gomea` in
+`problem_params.py` -- GOMEA arms alike, covering the non-zero-exit,
+timeout/censoring and missing-summary paths from fix round 1), and
+svgplot's XML output.
 """
 
 from __future__ import annotations
 
 import csv
+import io
 import json
 import xml.etree.ElementTree as ET
 from pathlib import Path
@@ -27,6 +31,43 @@ from pymoses.moses.representation.instance import instance
 from pymoses.moses.representation.instance_scorer import complexity_based_scorer
 
 _SVG_NS = {"svg": "http://www.w3.org/2000/svg"}
+
+
+def _gomea_cli_available() -> bool:
+    """Fix round 1: the coordinator's own instruction is to check whether a
+    concurrent task has landed `-a gomea` in `problem_params.py`, and to run
+    one real GOMEA arm end to end if so. Checked once, at collection time,
+    the same way the coordinator's own instructions suggest (`--help`
+    listing `--gomea-fos` et al.), so the test below skips cleanly rather
+    than failing if this ever runs against a checkout where that landing is
+    mid-flight.
+    """
+    import contextlib
+
+    from pymoses.moses.main.moses_exec import moses_exec
+
+    buf = io.StringIO()
+    with contextlib.redirect_stdout(buf):
+        try:
+            moses_exec(["moses", "--help"])
+        except SystemExit:
+            pass
+    return "--gomea-fos" in buf.getvalue()
+
+
+_GOMEA_CLI_AVAILABLE = _gomea_cli_available()
+
+
+def _crash_hard(run: dict) -> None:
+    """A `run_manifest(..., child_target=...)` testing seam (fix round 1,
+    finding 10): a top-level, picklable-by-reference function (required
+    under `multiprocessing.get_context("spawn")`) that exits the child
+    process immediately, WITHOUT writing anything -- exercising the
+    parent's "child died without a summary.json" recovery path (finding 3)
+    deterministically and without needing a real crash."""
+    import os
+
+    os._exit(7)
 
 # ---------------------------------------------------------------------------
 # stats.py
@@ -249,6 +290,58 @@ class TestManifest:
         assert manifest_mod.budget_evals({"argv": ["-m", "20000"], "kind": "evaluations"}) == 20000
         assert manifest_mod.budget_evals({"argv": [], "kind": "evaluations"}) is None
 
+    # -- fix round 1, finding 8: stricter validation --------------------
+
+    def test_rejects_null_argv_element(self, tmp_path):
+        m = _valid_manifest(tmp_path / "out")
+        m["common_argv"] = ["-l", None]
+        p = tmp_path / "manifest.json"
+        p.write_text(json.dumps(m))
+        with pytest.raises(ValueError, match=r"common_argv\[1\] is null"):
+            manifest_mod.load_manifest(p)
+
+    def test_rejects_non_list_argv(self, tmp_path):
+        m = _valid_manifest(tmp_path / "out")
+        m["arms"]["HC"]["argv"] = "not-a-list"
+        p = tmp_path / "manifest.json"
+        p.write_text(json.dumps(m))
+        with pytest.raises(ValueError, match=r"arms\['HC'\]\.argv must be an array"):
+            manifest_mod.load_manifest(p)
+
+    def test_rejects_non_numeric_wall_cap_s_workers_target_raw(self, tmp_path):
+        m = _valid_manifest(tmp_path / "out")
+        m["wall_cap_s"] = "soon"
+        m["workers"] = True  # bool is deliberately rejected too
+        m["tasks"]["pa4"]["target_raw"] = "zero"
+        p = tmp_path / "manifest.json"
+        p.write_text(json.dumps(m))
+        with pytest.raises(ValueError) as excinfo:
+            manifest_mod.load_manifest(p)
+        msg = str(excinfo.value)
+        assert "wall_cap_s" in msg
+        assert "workers" in msg
+        assert "target_raw" in msg
+
+    def test_rejects_duplicate_seeds(self, tmp_path):
+        m = _valid_manifest(tmp_path / "out")
+        m["seeds"] = [1001, 1002, 1001]
+        p = tmp_path / "manifest.json"
+        p.write_text(json.dumps(m))
+        with pytest.raises(ValueError, match="duplicate"):
+            manifest_mod.load_manifest(p)
+
+    # -- fix round 1, finding 9: precise GOMEA-arm detection ------------
+
+    def test_is_gomea_arm_precise(self):
+        assert manifest_mod.is_gomea_arm(["-a", "gomea"])
+        assert manifest_mod.is_gomea_arm(["-a", "gomea", "--gomea-fos", "lt-b"])
+        assert manifest_mod.is_gomea_arm(["--opt-algo", "gomea"])
+        assert manifest_mod.is_gomea_arm(["--opt-algo=gomea"])
+        # A bare substring match must NOT be enough -- the previous bug.
+        assert not manifest_mod.is_gomea_arm(["--gomea-fos", "lt-b"])
+        assert not manifest_mod.is_gomea_arm(["-a", "hc"])
+        assert not manifest_mod.is_gomea_arm([])
+
 
 # ---------------------------------------------------------------------------
 # instrument.py
@@ -417,6 +510,8 @@ class TestRunnerEndToEnd:
         assert (rd / "runs" / "pa2__HC__s1" / "config.json").exists()
         assert (rd / "runs" / "pa2__HC__s1" / "stdout.txt").exists()
         assert (rd / "runs" / "pa2__HC__s1" / "trace.jsonl").exists()
+        # Fix round 1, finding 7: the atomic temp file must never linger.
+        assert not (rd / "runs" / "pa2__HC__s1" / "summary.json.tmp").exists()
 
         mtime_before = summary_path.stat().st_mtime_ns
         rc2 = runner_mod.main([str(manifest_path), "--workers", "1", "--allow-dirty"])
@@ -444,6 +539,200 @@ class TestRunnerEndToEnd:
         rc = runner_mod.main([str(manifest_path), "--workers", "1"])
         assert rc != 0
         assert not (manifest_mod.result_dir(m) / "runs").exists()
+
+    def test_relative_output_root_and_relative_input_path_resolve(self, tmp_path):
+        """Fix round 1, finding 1: a relative `output_root` in the manifest
+        and a relative `-i` task argv both used to break (the former with a
+        `FileNotFoundError` writing the run's own summary, since the
+        previous design chdir'd into the run's own directory first). Both
+        must resolve against the SAME "launch directory" -- `launch_dir`
+        here, standing in for the real repo root so this test never
+        touches the actual checkout."""
+        data_csv = tmp_path / "data.csv"
+        data_csv.write_text(
+            "y,x1,x2\n0,0,1\n0,1,0\n1,1,1\n0,0,1\n0,1,0\n1,1,1\n1,0,1\n1,1,0\n0,1,1\n"
+        )
+        repo_root = Path(__file__).resolve().parents[2]
+        head = manifest_mod.git_head(repo_root)
+        m = {
+            "schema_version": 1,
+            "name": "relpath",
+            "phase": 1,
+            "commit": head,
+            "common_argv": ["-l", "ERROR"],
+            "tasks": {"it": {"argv": ["-H", "it", "-i", "data.csv", "-u", "y"], "target_raw": 0}},
+            "arms": {"HC": {"argv": ["-a", "hc"]}},
+            "seeds": [1],
+            "budget": {"argv": ["-m", "100"], "kind": "evaluations"},
+            "wall_cap_s": 30,
+            "workers": 1,
+            "output_root": "relative_out",  # relative, on purpose
+        }
+        manifest_path = tmp_path / "manifest.json"
+        manifest_path.write_text(json.dumps(m))
+
+        rc = runner_mod.main(
+            [str(manifest_path), "--workers", "1", "--allow-dirty"], launch_dir=tmp_path
+        )
+        assert rc == 0
+
+        rd = manifest_mod.result_dir(m, base=tmp_path)
+        assert rd.is_absolute()
+        assert str(rd).startswith(str(tmp_path.resolve()))
+        summary_path = rd / "runs" / "it__HC__s1" / "summary.json"
+        assert summary_path.exists()
+        summary = json.loads(summary_path.read_text())
+        assert summary["status"] == "ok"
+        assert summary["n_calls"] > 0
+
+    def test_nonzero_exit_without_exception_is_recorded_as_error(self, tmp_path):
+        """Fix round 1, finding 2: `moses_exec` returning 1 in-band (no
+        exception -- its own documented behaviour for an unsupported `-H`)
+        must not be recorded as `status: "ok"`."""
+        repo_root = Path(__file__).resolve().parents[2]
+        head = manifest_mod.git_head(repo_root)
+        output_root = tmp_path / "out"
+        m = {
+            "schema_version": 1,
+            "name": "badproblem",
+            "phase": 1,
+            "commit": head,
+            "common_argv": ["-l", "ERROR"],
+            "tasks": {"nope": {"argv": ["-H", "this_problem_does_not_exist_xyz"], "target_raw": 0}},
+            "arms": {"HC": {"argv": ["-a", "hc"]}},
+            "seeds": [1],
+            "budget": {"argv": ["-m", "100"], "kind": "evaluations"},
+            "wall_cap_s": 30,
+            "workers": 1,
+            "output_root": str(output_root),
+        }
+        manifest_path = tmp_path / "manifest.json"
+        manifest_path.write_text(json.dumps(m))
+
+        rc = runner_mod.main([str(manifest_path), "--workers", "1", "--allow-dirty"])
+        assert rc != 0  # finding 3: any non-"ok" run makes the runner's own exit non-zero
+
+        rd = manifest_mod.result_dir(m)
+        summary = json.loads((rd / "runs" / "nope__HC__s1" / "summary.json").read_text())
+        assert summary["status"] == "error"
+        assert summary["exit_code"] == 1
+        assert summary["censored"] is False
+        assert "non-zero exit code" in summary["error"]
+
+    def test_timeout_recovers_partial_trace_and_is_censored(self, tmp_path):
+        """Fix round 1, finding 4: a killed run must not report an empty
+        `best_raw`/`n_calls` -- both are recovered from the run's own
+        streamed `trace.jsonl`. `-H pa -k 6` with a huge `-m` reliably keeps
+        HC running well past a tiny `wall_cap_s` (measured: still running
+        after 20s uncapped)."""
+        repo_root = Path(__file__).resolve().parents[2]
+        head = manifest_mod.git_head(repo_root)
+        output_root = tmp_path / "out"
+        m = {
+            "schema_version": 1,
+            "name": "timeout-test",
+            "phase": 1,
+            "commit": head,
+            "common_argv": ["-l", "ERROR"],
+            "tasks": {"pa6": {"argv": ["-H", "pa", "-k", "6"], "target_raw": 0}},
+            "arms": {"HC": {"argv": ["-a", "hc"]}},
+            "seeds": [1],
+            "budget": {"argv": ["-m", "2000000"], "kind": "evaluations"},
+            "wall_cap_s": 0.5,
+            "workers": 1,
+            "output_root": str(output_root),
+        }
+        manifest_path = tmp_path / "manifest.json"
+        manifest_path.write_text(json.dumps(m))
+
+        rc = runner_mod.main([str(manifest_path), "--workers", "1", "--allow-dirty"])
+        assert rc != 0
+
+        rd = manifest_mod.result_dir(m)
+        summary = json.loads((rd / "runs" / "pa6__HC__s1" / "summary.json").read_text())
+        assert summary["status"] == "timeout"
+        assert summary["censored"] is True
+        assert summary["success"] is False
+        assert summary["wall_s"] >= 0.5
+        # Recovered from the streamed partial trace, not left empty.
+        assert summary["n_calls"] is not None
+        assert summary["n_calls"] > 0
+        assert summary["best_raw"] is not None
+
+    def test_child_exiting_without_summary_gets_synthesized_error_summary(self, tmp_path):
+        """Fix round 1, finding 3: a child that exits without writing its
+        own `summary.json` (here, `_crash_hard`'s `os._exit(7)`, standing in
+        for a real crash) must not vanish from the results."""
+        output_root = tmp_path / "out"
+        m = {
+            "schema_version": 1,
+            "name": "crash-test",
+            "phase": 1,
+            "commit": "irrelevant-run_manifest-skips-the-commit-check",
+            "common_argv": ["-l", "ERROR"],
+            "tasks": {"pa2": {"argv": ["-H", "pa", "-k", "2"], "target_raw": 0}},
+            "arms": {"HC": {"argv": ["-a", "hc"]}},
+            "seeds": [1],
+            "budget": {"argv": ["-m", "100"], "kind": "evaluations"},
+            "wall_cap_s": 30,
+            "workers": 1,
+            "output_root": str(output_root),
+        }
+        rc = runner_mod.run_manifest(
+            m, workers=1, only=None, wall_cap_s=30, launch_dir=tmp_path, child_target=_crash_hard
+        )
+        assert rc != 0
+
+        rd = manifest_mod.result_dir(m, base=tmp_path)
+        summary_path = rd / "runs" / "pa2__HC__s1" / "summary.json"
+        assert summary_path.exists()
+        summary = json.loads(summary_path.read_text())
+        assert summary["status"] == "error"
+        assert summary["exit_code"] == 7
+        assert summary["censored"] is True
+        assert "without writing summary.json" in summary["error"]
+
+    @pytest.mark.skipif(
+        not _GOMEA_CLI_AVAILABLE, reason="-a gomea not yet wired into problem_params.py"
+    )
+    def test_gomea_arm_end_to_end(self, tmp_path):
+        """Per the coordinator's own instruction: `-a gomea` has landed
+        (checked via `_GOMEA_CLI_AVAILABLE`), so run one real GOMEA arm end
+        to end through the actual runner -- same instrumentation, same
+        summary schema, plus the GOMEA-specific `--gomea-log` events."""
+        repo_root = Path(__file__).resolve().parents[2]
+        head = manifest_mod.git_head(repo_root)
+        output_root = tmp_path / "out"
+        m = {
+            "schema_version": 1,
+            "name": "gomea-e2e",
+            "phase": 1,
+            "commit": head,
+            "common_argv": ["-l", "ERROR"],
+            "tasks": {"pa3": {"argv": ["-H", "pa", "-k", "3"], "target_raw": 0}},
+            "arms": {"LT-B": {"argv": ["-a", "gomea", "--gomea-fos", "lt-b"]}},
+            "seeds": [1],
+            "budget": {"argv": ["-m", "500"], "kind": "evaluations"},
+            "wall_cap_s": 60,
+            "workers": 1,
+            "output_root": str(output_root),
+        }
+        manifest_path = tmp_path / "manifest.json"
+        manifest_path.write_text(json.dumps(m))
+
+        rc = runner_mod.main([str(manifest_path), "--workers", "1", "--allow-dirty"])
+        assert rc == 0
+
+        rd = manifest_mod.result_dir(m)
+        run_dir = rd / "runs" / "pa3__LT-B__s1"
+        summary = json.loads((run_dir / "summary.json").read_text())
+        assert summary["status"] == "ok"
+        assert summary["n_calls"] > 0
+        assert "--gomea-log" in summary["argv"]
+        assert (run_dir / "events.jsonl").exists()
+        assert summary["gomea"] is not None
+        assert summary["gomea"]["event_counts"].get("end", 0) >= 1
+        assert summary["gomea"]["termination_reasons"]
 
 
 # ---------------------------------------------------------------------------
@@ -573,6 +862,118 @@ class TestAnalyze:
     def test_missing_manifest_is_an_error(self, tmp_path):
         rc = analyze_mod.main([str(tmp_path), "--baseline", "HC", "--contrasts", "A:B"])
         assert rc != 0
+
+    def test_ert_and_evals_contrast_blank_when_budget_unknown(self, tmp_path):
+        """Fix round 1, finding 5: no `-m`/`--max-evals` anywhere in the
+        manifest's `budget.argv`, and no `--budget` override -- ERT and the
+        evals-to-target contrast must come out as an explicit "nan"/blank,
+        never a silently biased partial mean, and the error-metric
+        contrast (which does not need a budget) must still be computed."""
+        result_dir = tmp_path / "1" / "smoke-nobudget"
+        runs_dir = result_dir / "runs"
+        manifest = {
+            "schema_version": 1,
+            "name": "smoke",
+            "phase": 1,
+            "commit": "deadbeef",
+            "common_argv": ["-l", "ERROR"],
+            "tasks": {"pa4": {"argv": ["-H", "pa", "-k", "4"], "target_raw": 0}},
+            "arms": {"HC": {"argv": ["-a", "hc"]}, "LT-B": {"argv": ["-a", "gomea"]}},
+            "seeds": [1, 2],
+            "budget": {"argv": ["--max-time", "60"], "kind": "wall_time"},
+            "wall_cap_s": 900,
+            "workers": 2,
+            "output_root": str(tmp_path),
+        }
+        result_dir.mkdir(parents=True)
+        (result_dir / "manifest.json").write_text(json.dumps(manifest))
+
+        _write_summary(
+            runs_dir, "pa4__HC__s1", "pa4", "HC", 1,
+            best_raw=0.0, success=True, evals_to_target=50, wall_s=0.5,
+        )
+        _write_summary(
+            runs_dir, "pa4__HC__s2", "pa4", "HC", 2,
+            best_raw=-2.0, success=False, wall_s=0.9,
+        )
+        _write_summary(
+            runs_dir, "pa4__LT-B__s1", "pa4", "LT-B", 1,
+            best_raw=0.0, success=True, evals_to_target=20, wall_s=0.4,
+        )
+        _write_summary(
+            runs_dir, "pa4__LT-B__s2", "pa4", "LT-B", 2,
+            best_raw=0.0, success=True, evals_to_target=30, wall_s=0.4,
+        )
+
+        rc = analyze_mod.main([str(result_dir), "--baseline", "HC", "--contrasts", "LT-B:HC"])
+        assert rc == 0
+
+        analysis_dir = result_dir / "analysis"
+        with open(analysis_dir / "aggregate_results.csv") as f:
+            agg_rows = list(csv.DictReader(f))
+        hc_row = next(r for r in agg_rows if r["arm"] == "HC")
+        assert hc_row["ert"] == "nan"
+
+        with open(analysis_dir / "contrasts.csv") as f:
+            contrast_rows = list(csv.DictReader(f))
+        row = contrast_rows[0]
+        assert row["p_evals_to_target"] == "nan"
+        assert row["p_evals_to_target_holm"] == "nan"
+        assert row["censor_value_evals"] == ""
+        # The error-metric contrast does NOT need a budget and must still
+        # be computed normally.
+        assert row["p_error"] not in ("", "nan")
+        # No pair is ever dropped: both seeds are paired even though HC's
+        # second seed was unsuccessful.
+        assert row["n_paired"] == "2"
+
+        failures_text = (analysis_dir / "failures.md").read_text()
+        assert "no numeric evaluation budget could be determined" in failures_text
+
+    def test_missing_run_is_synthesized_and_counted_as_a_failure(self, tmp_path):
+        """Fix round 1, finding 3: a run the manifest expects (task x arm x
+        seed) but which never left a `summary.json` at all must not
+        silently vanish -- it is synthesized as `status: "missing"` and
+        shows up in `failures.md` and in the aggregate `n`/`n_no_best`
+        counts."""
+        result_dir = tmp_path / "1" / "smoke-missing"
+        runs_dir = result_dir / "runs"
+        manifest = {
+            "schema_version": 1,
+            "name": "smoke",
+            "phase": 1,
+            "commit": "deadbeef",
+            "common_argv": ["-l", "ERROR"],
+            "tasks": {"pa4": {"argv": ["-H", "pa", "-k", "4"], "target_raw": 0}},
+            "arms": {"HC": {"argv": ["-a", "hc"]}},
+            "seeds": [1, 2],
+            "budget": {"argv": ["-m", "1000"], "kind": "evaluations"},
+            "wall_cap_s": 900,
+            "workers": 2,
+            "output_root": str(tmp_path),
+        }
+        result_dir.mkdir(parents=True)
+        (result_dir / "manifest.json").write_text(json.dumps(manifest))
+
+        # Only seed 1 ever wrote a summary; seed 2 is entirely absent.
+        _write_summary(
+            runs_dir, "pa4__HC__s1", "pa4", "HC", 1,
+            best_raw=0.0, success=True, evals_to_target=50, wall_s=0.5,
+        )
+
+        rc = analyze_mod.main([str(result_dir), "--baseline", "HC", "--contrasts", "HC:HC"])
+        assert rc == 0
+
+        analysis_dir = result_dir / "analysis"
+        failures_text = (analysis_dir / "failures.md").read_text()
+        assert "pa4__HC__s2" in failures_text
+        assert "missing" in failures_text
+
+        with open(analysis_dir / "aggregate_results.csv") as f:
+            agg_rows = list(csv.DictReader(f))
+        hc_row = next(r for r in agg_rows if r["arm"] == "HC")
+        assert hc_row["n"] == "2"  # the missing run is still counted
+        assert hc_row["n_no_best"] == "1"
 
 
 # ---------------------------------------------------------------------------

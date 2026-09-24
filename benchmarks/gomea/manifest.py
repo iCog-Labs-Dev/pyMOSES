@@ -26,6 +26,7 @@ __all__ = [
     "run_dir_for",
     "budget_evals",
     "git_head",
+    "is_gomea_arm",
 ]
 
 _REQUIRED_TOP_KEYS = (
@@ -57,6 +58,46 @@ def _check_present(d: dict, key: str, where: str, errors: list[str]) -> bool:
     return True
 
 
+def _check_argv(value: object, where: str, errors: list[str]) -> None:
+    """Fix round 1, finding 8: an `argv` must be a list, and none of its
+    elements may be `null` -- a null element would reach `moses_exec` as
+    the literal string `"None"` (str-joined into the argv) rather than
+    failing loudly here."""
+    if not isinstance(value, list):
+        errors.append(f"{where} must be an array")
+        return
+    for i, tok in enumerate(value):
+        if tok is None:
+            errors.append(f"{where}[{i}] is null")
+
+
+def _check_numeric(d: dict, key: str, where: str, errors: list[str]) -> None:
+    """Fix round 1, finding 8: `wall_cap_s`/`workers`/`target_raw` must be
+    numbers -- `bool` is deliberately rejected too, even though Python's
+    `bool` is an `int` subclass (`isinstance(True, int)` is `True`), since
+    a manifest `true`/`false` there is never a meaningful value."""
+    if key not in d or d[key] is None:
+        return  # already reported by _check_present
+    v = d[key]
+    if isinstance(v, bool) or not isinstance(v, (int, float)):
+        errors.append(f"{where}: key '{key}' must be numeric, got {type(v).__name__}")
+
+
+def _check_no_duplicate_seeds(seeds: list, errors: list[str]) -> None:
+    seen: set[str] = set()
+    dupes: list = []
+    for s in seeds:
+        # `json.dumps` as the dedupe key handles any JSON-serializable seed
+        # value uniformly (ints are the expected case, but nothing here
+        # requires it) without risking a `TypeError` from an unhashable one.
+        key = json.dumps(s, sort_keys=True)
+        if key in seen:
+            dupes.append(s)
+        seen.add(key)
+    if dupes:
+        errors.append(f"manifest.seeds contains duplicate value(s): {dupes!r}")
+
+
 def _validate(m: object) -> list[str]:
     errors: list[str] = []
     if not isinstance(m, dict):
@@ -64,6 +105,9 @@ def _validate(m: object) -> list[str]:
 
     for key in _REQUIRED_TOP_KEYS:
         _check_present(m, key, "manifest", errors)
+
+    _check_numeric(m, "wall_cap_s", "manifest", errors)
+    _check_numeric(m, "workers", "manifest", errors)
 
     if m.get("tasks") is not None:
         if not isinstance(m["tasks"], dict) or not m["tasks"]:
@@ -79,6 +123,9 @@ def _validate(m: object) -> list[str]:
                     continue
                 for key in _REQUIRED_TASK_KEYS:
                     _check_present(cfg, key, where, errors)
+                if "argv" in cfg and cfg["argv"] is not None:
+                    _check_argv(cfg["argv"], f"{where}.argv", errors)
+                _check_numeric(cfg, "target_raw", where, errors)
 
     if m.get("arms") is not None:
         if not isinstance(m["arms"], dict) or not m["arms"]:
@@ -94,6 +141,8 @@ def _validate(m: object) -> list[str]:
                     continue
                 for key in _REQUIRED_ARM_KEYS:
                     _check_present(cfg, key, where, errors)
+                if "argv" in cfg and cfg["argv"] is not None:
+                    _check_argv(cfg["argv"], f"{where}.argv", errors)
 
     if m.get("seeds") is not None:
         if not isinstance(m["seeds"], list) or not m["seeds"]:
@@ -102,6 +151,7 @@ def _validate(m: object) -> list[str]:
             for i, s in enumerate(m["seeds"]):
                 if s is None:
                     errors.append(f"manifest.seeds[{i}] is null")
+            _check_no_duplicate_seeds(m["seeds"], errors)
 
     if m.get("budget") is not None:
         if not isinstance(m["budget"], dict):
@@ -109,9 +159,11 @@ def _validate(m: object) -> list[str]:
         else:
             for key in _REQUIRED_BUDGET_KEYS:
                 _check_present(m["budget"], key, "manifest.budget", errors)
+            if "argv" in m["budget"] and m["budget"]["argv"] is not None:
+                _check_argv(m["budget"]["argv"], "manifest.budget.argv", errors)
 
-    if m.get("common_argv") is not None and not isinstance(m["common_argv"], list):
-        errors.append("manifest.common_argv must be an array")
+    if m.get("common_argv") is not None:
+        _check_argv(m["common_argv"], "manifest.common_argv", errors)
 
     return errors
 
@@ -141,14 +193,36 @@ def manifest_hash(m: dict) -> str:
     return hashlib.sha256(canonical.encode("utf-8")).hexdigest()[:12]
 
 
-def result_dir(m: dict) -> Path:
+def result_dir(m: dict, base: str | Path | None = None) -> Path:
     """`<output_root>/<phase>/<name>-<hash>` -- the top of one manifest's
-    output tree (03_EXPERIMENT_PROTOCOL.md Sec 9's suggested layout)."""
-    return Path(m["output_root"]) / str(m["phase"]) / f"{m['name']}-{manifest_hash(m)}"
+    output tree (03_EXPERIMENT_PROTOCOL.md Sec 9's suggested layout).
+
+    Always ABSOLUTE. When `output_root` is itself relative, it is resolved
+    against `base` (default: the calling process's cwd) -- joining a
+    `Path` onto a base discards the base entirely when the joined path is
+    already absolute (plain `pathlib` behaviour), so an absolute
+    `output_root` is unaffected by `base` either way.
+
+    Fix round 1, finding 1: a relative `output_root` used to resolve
+    against whatever directory `runner.py`'s per-run `os.chdir` had most
+    recently left the process in -- i.e. a DIFFERENT, run-specific
+    directory for every run -- so every run died with `FileNotFoundError`
+    writing its own summary. `runner.py` no longer chdirs its own process
+    at all; it resolves every run's `run_dir` explicitly against one fixed
+    "launch directory" (via `expand_runs`'s own `base`) before ever
+    spawning a child, and only the CHILD itself (a fresh, short-lived
+    process) chdirs -- to that same launch directory, never to its own
+    `run_dir` -- so relative task argv (`-i tests/fixtures/...`) keep
+    working exactly as before.
+    """
+    root = Path(base) if base is not None else Path.cwd()
+    return (
+        root / m["output_root"] / str(m["phase"]) / f"{m['name']}-{manifest_hash(m)}"
+    ).resolve()
 
 
-def run_dir_for(m: dict, run_id: str) -> Path:
-    return result_dir(m) / "runs" / run_id
+def run_dir_for(m: dict, run_id: str, base: str | Path | None = None) -> Path:
+    return result_dir(m, base=base) / "runs" / run_id
 
 
 def budget_evals(budget: dict) -> int | None:
@@ -170,7 +244,27 @@ def budget_evals(budget: dict) -> int | None:
     return None
 
 
-def expand_runs(m: dict) -> list[dict]:
+def is_gomea_arm(argv: list) -> bool:
+    """True iff `argv` selects the GOMEA inner optimizer: the adjacent pair
+    `-a gomea` / `--opt-algo gomea`, or the single token `--opt-algo=gomea`.
+
+    Fix round 1, finding 9: the previous check was `any("gomea" in str(tok)
+    for tok in argv)`, a bare substring test that also matched, say, a bare
+    `--gomea-fos lt-b` with no `-a`/`--opt-algo` at all, or any token that
+    merely happens to CONTAIN "gomea" (a task or arm name, for instance) --
+    never mind that `--gomea-fos`/`--gomea-log`/etc. only make sense
+    alongside `-a gomea` in the first place. This scans for the actual
+    flag that selects the optimizer.
+    """
+    for i, tok in enumerate(argv):
+        if tok in ("-a", "--opt-algo") and i + 1 < len(argv) and argv[i + 1] == "gomea":
+            return True
+        if tok == "--opt-algo=gomea":
+            return True
+    return False
+
+
+def expand_runs(m: dict, base: str | Path | None = None) -> list[dict]:
     """Expand a validated manifest into one run dict per task x arm x seed.
 
     Iteration order is the manifest's own JSON order -- tasks, then arms,
@@ -178,24 +272,32 @@ def expand_runs(m: dict) -> list[dict]:
     is deterministic (Python `dict`s preserve insertion order, and
     `json.loads` inserts keys in the order they were parsed).
 
+    `base` is forwarded to `run_dir_for`/`result_dir` -- the directory a
+    relative `output_root` resolves against (default: the calling
+    process's cwd). `runner.py` always passes its own resolved "launch
+    directory" explicitly, so every run's `run_dir` is pinned to one
+    unambiguous absolute path regardless of what `output_root` looks like
+    in the manifest (fix round 1, finding 1).
+
     Each run dict:
         run_id     -- f"{task}__{arm}__s{seed}"
         task, arm, seed
         argv       -- common_argv + task argv + arm argv + budget argv +
                       ["-r", str(seed)], plus ["--gomea-log",
                       "<run_dir>/events.jsonl"] appended when the arm's own
-                      argv contains "gomea" anywhere (a `-a gomea` arm, or
-                      any future arm that mentions it). Does NOT include a
+                      argv selects `-a gomea` (`is_gomea_arm`, precise --
+                      not a bare substring match). Does NOT include a
                       leading program-name argv[0] -- these are the raw
                       moses CLI flags, suitable for a human to reproduce
                       with `moses <flags>`; `runner.py` is responsible for
-                      prepending a dummy program name before calling the
-                      in-process moses entry point.
+                      prepending a dummy program name, AND for its own
+                      runner-added `-f <run_dir>/moses.log` suffix, before
+                      calling the in-process moses entry point.
         target_raw -- the task's success threshold, copied through for
                       convenience.
         run_dir    -- str(path) this run's own output directory, computed
-                      from `result_dir(m)` so it stays in sync with
-                      `runner.py`'s own layout.
+                      from `result_dir(m, base)` so it stays in sync with
+                      `runner.py`'s own layout. Always absolute.
     """
     runs: list[dict] = []
     common_argv = list(m["common_argv"])
@@ -205,10 +307,10 @@ def expand_runs(m: dict) -> list[dict]:
         target_raw = task_cfg["target_raw"]
         for arm_name, arm_cfg in m["arms"].items():
             arm_argv = list(arm_cfg["argv"])
-            is_gomea = any("gomea" in str(tok) for tok in arm_argv)
+            is_gomea = is_gomea_arm(arm_argv)
             for seed in m["seeds"]:
                 run_id = f"{task_name}__{arm_name}__s{seed}"
-                rd = run_dir_for(m, run_id)
+                rd = run_dir_for(m, run_id, base=base)
                 argv = common_argv + task_argv + arm_argv + budget_argv + ["-r", str(seed)]
                 if is_gomea:
                     argv = argv + ["--gomea-log", str(rd / "events.jsonl")]
@@ -240,11 +342,21 @@ def _git_status_short(cwd: str | Path) -> str:
     return out.stdout
 
 
-def write_environment(out_dir: str | Path, repo_root: str | Path | None = None) -> None:
-    """Write `environment.json`: python version, platform, cpu, git HEAD
-    and short status. Deliberately carries no process id or other
+def write_environment(
+    out_dir: str | Path,
+    repo_root: str | Path | None = None,
+    launch_dir: str | Path | None = None,
+) -> None:
+    """Write `environment.json`: python version, platform, cpu, git HEAD,
+    short status, and (fix round 1, finding 1) the "launch directory" the
+    runner fixed its process's cwd to for this invocation -- the directory
+    every run's relative task argv (e.g. `-i tests/fixtures/...`) and any
+    relative `output_root` resolve against. `repo_root` is independent of
+    `launch_dir` and always used for the git commands (the repository's own
+    identity is a fixed fact, unrelated to where a test points relative
+    task paths). Deliberately carries no process id or other
     per-invocation noise -- two runs of the same code at the same commit
-    produce the same file."""
+    and the same launch directory produce the same file."""
     root = Path(repo_root) if repo_root is not None else Path(__file__).resolve().parents[2]
     info = {
         "python_version": sys.version,
@@ -252,6 +364,7 @@ def write_environment(out_dir: str | Path, repo_root: str | Path | None = None) 
         "cpu": platform.processor() or platform.machine(),
         "git_head": git_head(root),
         "git_status_short": _git_status_short(root),
+        "launch_dir": str(launch_dir) if launch_dir is not None else None,
     }
     out_path = Path(out_dir) / "environment.json"
     out_path.write_text(json.dumps(info, indent=2, sort_keys=True) + "\n")

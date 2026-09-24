@@ -26,11 +26,29 @@ summary.json`). Writes, under `RESULT_DIR/analysis/`:
                             (empirical CDF of evals_to_target, one line per
                             arm) and a box plot of final error per arm.
 
-The evaluation budget used for right-censoring is `--budget` if given,
-else parsed out of the manifest's own `budget.argv` (`manifest.
-budget_evals`); when neither is available, censored runs are dropped from
-the affected computations rather than silently treated as zero cost (see
-`_task_budget`'s docstring).
+The evaluation budget used for right-censoring evals_to_target is `--budget`
+if given, else parsed out of the manifest's own `budget.argv` (`manifest.
+budget_evals`). Fix round 1, finding 5: when NEITHER is available, ERT and
+the evals-to-target contrast are never computed as a biased partial mean by
+silently dropping unsuccessful runs -- they are written as `nan`/blank for
+the affected task, with an explanation in `failures.md` (see
+`_task_budget`'s docstring). The final-error metric (`= -best_raw`) never
+depends on the budget at all.
+
+Fix round 1, finding 4: a run with no recorded best at all (`best_raw is
+None` -- an error, or a timeout/crash whose trace was empty) is treated as
+the WORST observed final error in its task (`_worst_error_for_task`), not
+silently dropped, in every error-metric computation (aggregate medians,
+paired wins/ties/losses, the Wilcoxon test, the bootstrap CI, and the box
+plots); `aggregate_results.csv`'s `n_no_best` column and `failures.md`'s own
+section document how many runs per task/arm this affected.
+
+Fix round 1, finding 3: `expand_runs(manifest)` (loaded from
+`RESULT_DIR/manifest.json`) is cross-checked against the runs actually
+found under `RESULT_DIR/runs/`; any run the manifest expects but which has
+no `summary.json` at all is synthesized as a `status: "missing"` record --
+listed in `failures.md` and counted as a failure everywhere else, rather
+than silently vanishing from every table and figure.
 """
 
 from __future__ import annotations
@@ -38,11 +56,12 @@ from __future__ import annotations
 import argparse
 import csv
 import json
+import math
 import sys
 from pathlib import Path
 
 from benchmarks.gomea import svgplot
-from benchmarks.gomea.manifest import budget_evals
+from benchmarks.gomea.manifest import budget_evals, expand_runs
 from benchmarks.gomea.stats import (
     bootstrap_median_ci,
     ert,
@@ -79,6 +98,74 @@ def _index(summaries: list[dict]) -> dict[str, dict[str, dict]]:
     for s in summaries:
         idx.setdefault(s["task"], {}).setdefault(s["arm"], {})[s["seed"]] = s
     return idx
+
+
+def _missing_run_summary(run: dict) -> dict:
+    """A synthetic summary for a run `expand_runs(manifest)` expects but
+    which has no `summary.json` on disk at all (fix round 1, finding 3) --
+    shaped exactly like a real summary, `status: "missing"`, so it flows
+    through every downstream table/figure/statistic the same way an
+    `"error"`/`"timeout"` run does (in particular, `best_raw: None` gets the
+    same worst-value treatment as any other run with no recorded best)."""
+    return {
+        "run_id": run["run_id"],
+        "task": run["task"],
+        "arm": run["arm"],
+        "seed": run["seed"],
+        "argv": run["argv"],
+        "status": "missing",
+        "exit_code": None,
+        "wall_s": None,
+        "n_calls": None,
+        "best_raw": None,
+        "best_pen": None,
+        "best_cpx": None,
+        "success": False,
+        "evals_to_target": None,
+        "time_to_target": None,
+        "stdout_best_line": None,
+        "error": "no summary.json found for this run (never launched, or never finished)",
+        "gomea": None,
+        "censored": True,
+    }
+
+
+def add_missing_runs(manifest: dict, summaries: list[dict]) -> list[dict]:
+    """Cross-check `expand_runs(manifest)` against `summaries` (as loaded by
+    `load_summaries`) and append a synthetic `status: "missing"` record for
+    every run_id the manifest expects but which is absent. Returns a NEW
+    list; does not mutate `summaries`."""
+    present = {s["run_id"] for s in summaries}
+    expected = expand_runs(manifest)
+    missing = [r for r in expected if r["run_id"] not in present]
+    return summaries + [_missing_run_summary(r) for r in missing]
+
+
+def _worst_error_for_task(idx: dict, task: str) -> float:
+    """The sentinel "worse than everything observed" final error for one
+    task, used to stand in for a run with no recorded best (fix round 1,
+    finding 4). One value per task (not per arm), shared by every arm in a
+    contrast, so a substituted run is comparably "worse" no matter which
+    arm it belongs to. The margin (`+1.0`) is an arbitrary but documented
+    convention, the same shape as the evals-to-target `budget + 1`
+    right-censoring sentinel used elsewhere in this module. `inf` when NOT
+    A SINGLE run in the task has any recorded best at all.
+    """
+    known = [
+        e
+        for arm_summaries in idx.get(task, {}).values()
+        for e in (_final_error(s) for s in arm_summaries.values())
+        if e is not None
+    ]
+    return (max(known) + 1.0) if known else float("inf")
+
+
+def _final_error_censored(summary: dict | None, worst: float) -> float:
+    """`_final_error`, with a missing best_raw replaced by `worst` instead
+    of `None` -- so this NEVER causes a run to be dropped from a paired
+    comparison, a median/IQR, or a box plot (fix round 1, finding 4)."""
+    e = _final_error(summary)
+    return worst if e is None else e
 
 
 def _task_budget(manifest: dict, budget_override: float | None) -> float | None:
@@ -157,6 +244,19 @@ def write_paired_results_csv(idx: dict, arm_names: list[str], path: Path) -> Non
 # ---------------------------------------------------------------------------
 
 
+def _fmt_extreme(v: float) -> str | float:
+    """`ert` (and nothing else) can be `inf` (zero successes) or `nan`
+    (fix round 1, finding 5: no numeric budget could be determined, so it
+    is refused rather than computed as a biased partial mean) -- write both
+    as their own explicit strings, distinguishable from an ordinary
+    number."""
+    if math.isnan(v):
+        return "nan"
+    if math.isinf(v):
+        return "inf"
+    return v
+
+
 def write_aggregate_results_csv(
     idx: dict, manifest: dict, budget_override: float | None, path: Path
 ) -> None:
@@ -168,6 +268,7 @@ def write_aggregate_results_csv(
         "success_rate",
         "wilson_lo",
         "wilson_hi",
+        "n_no_best",
         "error_median",
         "error_q1",
         "error_q3",
@@ -182,20 +283,30 @@ def write_aggregate_results_csv(
     rows = []
     for task in sorted(idx):
         budget = _task_budget(manifest, budget_override)
+        worst = _worst_error_for_task(idx, task)
         for arm in sorted(idx[task]):
             summaries = list(idx[task][arm].values())
             n = len(summaries)
             successes = [bool(s.get("success")) for s in summaries]
             k = sum(successes)
             wilson_lo, wilson_hi = wilson_ci(k, n)
-            errors = [e for e in (_final_error(s) for s in summaries) if e is not None]
+            n_no_best = sum(1 for s in summaries if s.get("best_raw") is None)
+            # Fix round 1, finding 4: no run is ever dropped here -- one
+            # with no recorded best gets the task's worst-observed error.
+            errors = [_final_error_censored(s, worst) for s in summaries]
             walls = [s["wall_s"] for s in summaries if s.get("wall_s") is not None]
             ncalls = [s["n_calls"] for s in summaries if s.get("n_calls") is not None]
             err_med, err_q1, err_q3 = median_iqr(errors)
             wall_med, wall_q1, wall_q3 = median_iqr(walls)
             n_med, n_q1, n_q3 = median_iqr(ncalls)
-            costs = [c for c in (_evals_for_ert(s, budget) for s in summaries) if c is not None]
-            ert_val = ert(costs, successes) if costs else float("inf")
+            # Fix round 1, finding 5: refuse ERT outright without a real
+            # budget, rather than silently computing it over only the
+            # successful runs' costs (a biased mean, not the true ERT).
+            if budget is None:
+                ert_val = float("nan")
+            else:
+                costs = [_evals_for_ert(s, budget) for s in summaries]
+                ert_val = ert(costs, successes)
             rows.append(
                 {
                     "task": task,
@@ -205,6 +316,7 @@ def write_aggregate_results_csv(
                     "success_rate": (k / n) if n else "",
                     "wilson_lo": wilson_lo,
                     "wilson_hi": wilson_hi,
+                    "n_no_best": n_no_best,
                     "error_median": err_med,
                     "error_q1": err_q1,
                     "error_q3": err_q3,
@@ -214,7 +326,7 @@ def write_aggregate_results_csv(
                     "n_calls_median": n_med,
                     "n_calls_q1": n_q1,
                     "n_calls_q3": n_q3,
-                    "ert": "inf" if ert_val == float("inf") else ert_val,
+                    "ert": _fmt_extreme(ert_val),
                 }
             )
     with open(path, "w", newline="") as f:
@@ -259,18 +371,31 @@ def write_contrasts_csv(
         "boot_ci_evals_lo",
         "boot_ci_evals_hi",
         "censor_value_evals",
+        "worst_error_used",
     ]
     all_rows: list[dict] = []
     for task in sorted(idx):
         budget = _task_budget(manifest, budget_override)
         censor_value = (budget + 1) if budget is not None else None
+        worst = _worst_error_for_task(idx, task)
 
-        task_start = len(all_rows)
+        # (row index within all_rows, fieldname) for every p-value that
+        # actually went into the Holm adjustment below -- a `nan` p-value
+        # (fix round 1, finding 5: evals contrast with no known budget) is
+        # excluded from the adjustment itself, not fed into it as a number.
+        pval_slots: list[tuple[int, str]] = []
         task_pvals: list[float] = []
+
         for contrast in contrasts:
             arm_a, arm_b = contrast.split(":")
 
-            err_pairs = _paired_values(idx, task, arm_a, arm_b, _final_error)
+            # Fix round 1, finding 4: `_final_error_censored` never returns
+            # None, so NO seed pair is ever dropped here for lack of a
+            # recorded best -- `n_paired` below is exactly the seed
+            # intersection of the two arms.
+            err_pairs = _paired_values(
+                idx, task, arm_a, arm_b, lambda s, w=worst: _final_error_censored(s, w)
+            )
             err_diffs = [a - b for _seed, a, b in err_pairs]
             wins = sum(1 for d in err_diffs if d < 0)  # arm_a's error lower = arm_a better
             losses = sum(1 for d in err_diffs if d > 0)
@@ -278,19 +403,31 @@ def write_contrasts_csv(
             _, p_err = wilcoxon_signed_rank(err_diffs)
             ci_err = bootstrap_median_ci(err_diffs) if err_diffs else (float("nan"), float("nan"))
 
-            evals_pairs = _paired_values(
-                idx,
-                task,
-                arm_a,
-                arm_b,
-                lambda s, cv=censor_value: _evals_for_contrast(s, cv),
-            )
-            evals_diffs = [a - b for _seed, a, b in evals_pairs]
-            _, p_evals = wilcoxon_signed_rank(evals_diffs)
-            ci_evals = (
-                bootstrap_median_ci(evals_diffs) if evals_diffs else (float("nan"), float("nan"))
-            )
+            # Fix round 1, finding 5: without a numeric budget there is no
+            # valid right-censoring sentinel, so the evals-to-target
+            # contrast is refused outright (nan/blank) for this task,
+            # rather than silently computed by dropping every unsuccessful
+            # pair (which used to turn it into a biased partial result).
+            if censor_value is not None:
+                evals_pairs = _paired_values(
+                    idx,
+                    task,
+                    arm_a,
+                    arm_b,
+                    lambda s, cv=censor_value: _evals_for_contrast(s, cv),
+                )
+                evals_diffs = [a - b for _seed, a, b in evals_pairs]
+                _, p_evals = wilcoxon_signed_rank(evals_diffs)
+                ci_evals = (
+                    bootstrap_median_ci(evals_diffs)
+                    if evals_diffs
+                    else (float("nan"), float("nan"))
+                )
+            else:
+                p_evals = float("nan")
+                ci_evals = (float("nan"), float("nan"))
 
+            row_idx = len(all_rows)
             all_rows.append(
                 {
                     "task": task,
@@ -300,22 +437,27 @@ def write_contrasts_csv(
                     "ties": ties,
                     "losses": losses,
                     "p_error": p_err,
+                    "p_error_holm": float("nan"),
                     "p_evals_to_target": p_evals,
+                    "p_evals_to_target_holm": float("nan"),
                     "boot_ci_error_lo": ci_err[0],
                     "boot_ci_error_hi": ci_err[1],
                     "boot_ci_evals_lo": ci_evals[0],
                     "boot_ci_evals_hi": ci_evals[1],
                     "censor_value_evals": censor_value if censor_value is not None else "",
+                    "worst_error_used": worst,
                 }
             )
             task_pvals.append(p_err)
-            task_pvals.append(p_evals)
+            pval_slots.append((row_idx, "p_error_holm"))
+            if censor_value is not None:
+                task_pvals.append(p_evals)
+                pval_slots.append((row_idx, "p_evals_to_target_holm"))
 
         # Holm-adjusted across every contrast x metric WITHIN this task.
         holm_adj = holm(task_pvals)
-        for i, row in enumerate(all_rows[task_start:]):
-            row["p_error_holm"] = holm_adj[2 * i]
-            row["p_evals_to_target_holm"] = holm_adj[2 * i + 1]
+        for (row_idx, key), adj in zip(pval_slots, holm_adj, strict=True):
+            all_rows[row_idx][key] = adj
 
     with open(path, "w", newline="") as f:
         w = csv.DictWriter(f, fieldnames=fieldnames)
@@ -328,11 +470,21 @@ def write_contrasts_csv(
 # ---------------------------------------------------------------------------
 
 
-def write_failures_md(summaries: list[dict], path: Path) -> None:
+def write_failures_md(
+    summaries: list[dict],
+    path: Path,
+    notes: list[str] | None = None,
+    worst_value_rows: list[tuple[str, str, int, float]] | None = None,
+) -> None:
+    """`bad` includes every non-"ok" status, `"missing"` included (fix
+    round 1, finding 3: a run `expand_runs(manifest)` expected but that has
+    no `summary.json` at all is synthesized with that status by
+    `add_missing_runs`, before this is ever called, so it shows up here the
+    same way an error or a timeout does)."""
     bad = [s for s in summaries if s.get("status") != "ok"]
     lines = ["# Failures\n", "\n"]
     if not bad:
-        lines.append("No error or timeout runs.\n")
+        lines.append("No error, timeout or missing runs.\n")
     else:
         lines.append("| run_id | task | arm | seed | status | error |\n")
         lines.append("|---|---|---|---|---|---|\n")
@@ -345,6 +497,21 @@ def write_failures_md(summaries: list[dict], path: Path) -> None:
                 f"| {s['run_id']} | {s['task']} | {s['arm']} | {s['seed']} | "
                 f"{s['status']} | {err} |\n"
             )
+
+    if notes:
+        lines.append("\n## Notes\n\n")
+        for note in notes:
+            lines.append(f"- {note}\n")
+
+    if worst_value_rows:
+        lines.append(
+            "\n## Runs with no recorded best "
+            "(worst-value substituted in error metrics)\n\n"
+        )
+        lines.append("| task | arm | count | worst_error_used |\n|---|---|---|---|\n")
+        for task, arm, count, worst in worst_value_rows:
+            lines.append(f"| {task} | {arm} | {count} | {worst} |\n")
+
     Path(path).write_text("".join(lines))
 
 
@@ -357,6 +524,8 @@ def write_figures(idx: dict, manifest: dict, budget_override: float | None, out_
     out_dir = Path(out_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
     for task in sorted(idx):
+        worst = _worst_error_for_task(idx, task)
+
         series = {}
         for arm in sorted(idx[task]):
             summaries = list(idx[task][arm].values())
@@ -378,9 +547,12 @@ def write_figures(idx: dict, manifest: dict, budget_override: float | None, out_
             out_dir / f"{task}_success_cdf.svg",
         )
 
+        # Fix round 1, finding 4: a run with no recorded best still gets a
+        # box (at the task's worst-observed error), instead of silently
+        # thinning out that arm's box.
         groups = {}
         for arm in sorted(idx[task]):
-            errs = [e for e in (_final_error(s) for s in idx[task][arm].values()) if e is not None]
+            errs = [_final_error_censored(s, worst) for s in idx[task][arm].values()]
             groups[arm] = errs
         svgplot.box_chart(
             groups,
@@ -411,7 +583,13 @@ def main(argv: list[str] | None = None) -> int:
     with open(manifest_path) as f:
         manifest = json.load(f)
 
-    summaries = load_summaries(result_dir)
+    # Fix round 1, finding 3: cross-check the manifest's own expected runs
+    # against what actually has a summary.json, before anything downstream
+    # ever sees this list -- a run that never left a summary at all (never
+    # launched, or the runner itself never got to write a missing-summary
+    # fallback for it) is synthesized here as status "missing", so it
+    # cannot silently vanish from every table/figure that follows.
+    summaries = add_missing_runs(manifest, load_summaries(result_dir))
     idx = _index(summaries)
     arm_names = list(manifest.get("arms", {}).keys()) or sorted({s["arm"] for s in summaries})
     if args.baseline not in arm_names:
@@ -422,10 +600,31 @@ def main(argv: list[str] | None = None) -> int:
     analysis_dir.mkdir(parents=True, exist_ok=True)
     figures_dir = analysis_dir / "figures"
 
+    # Fix round 1, finding 5: note, per task, whether ERT/evals-contrast had
+    # to be refused for lack of a numeric budget (one manifest-wide budget,
+    # so this is either true for every task or none of them).
+    notes = []
+    if _task_budget(manifest, args.budget) is None:
+        notes = [
+            f"task {task}: no numeric evaluation budget could be determined "
+            "(neither --budget nor -m/--max-evals in manifest.budget.argv); "
+            "ERT and the evals-to-target contrast are left blank (nan) for this task."
+            for task in sorted(idx)
+        ]
+    # Fix round 1, finding 4: how many runs per task/arm had no recorded
+    # best at all and so were counted at the task's worst-observed error.
+    worst_value_rows = []
+    for task in sorted(idx):
+        worst = _worst_error_for_task(idx, task)
+        for arm in sorted(idx[task]):
+            count = sum(1 for s in idx[task][arm].values() if s.get("best_raw") is None)
+            if count:
+                worst_value_rows.append((task, arm, count, worst))
+
     write_paired_results_csv(idx, arm_names, analysis_dir / "paired_results.csv")
     write_aggregate_results_csv(idx, manifest, args.budget, analysis_dir / "aggregate_results.csv")
     write_contrasts_csv(idx, manifest, contrasts, args.budget, analysis_dir / "contrasts.csv")
-    write_failures_md(summaries, analysis_dir / "failures.md")
+    write_failures_md(summaries, analysis_dir / "failures.md", notes, worst_value_rows)
     write_figures(idx, manifest, args.budget, figures_dir)
 
     print(f"wrote analysis to {analysis_dir}")
