@@ -6,6 +6,13 @@ population-based optimizer. It never modifies ``pymoses.moses`` itself --
 see ``docs/gomea/P1.0-AUDIT.md`` for the seam this package plugs into.
 """
 
+from pymoses.gomea.oracle import BudgetExhausted, EvaluationLedger, EvaluationOracle
 from pymoses.gomea.schema import FrozenSchema, UnsupportedRepresentation
 
-__all__ = ["FrozenSchema", "UnsupportedRepresentation"]
+__all__ = [
+    "BudgetExhausted",
+    "EvaluationLedger",
+    "EvaluationOracle",
+    "FrozenSchema",
+    "UnsupportedRepresentation",
+]
