@@ -208,6 +208,7 @@ from pymoses.comboreduct.combo.iostream_combo import (
 )
 from pymoses.comboreduct.combo.vertex import combo_tree
 from pymoses.comboreduct.type_checker.type_signature import TypeSignature
+from pymoses.gomea import UnsupportedRepresentation, gomea_optimization, gomea_parameters
 from pymoses.moses.deme.deme_expander import Simplifier, deme_expander
 from pymoses.moses.deme.deme_params import deme_parameters
 from pymoses.moses.metapopulation.metapop_params import (
@@ -653,6 +654,7 @@ def metapop_moses_results_b(
     meta_params: metapop_parameters,
     moses_params: moses_parameters,
     printer: Printer,
+    gomea_params: gomea_parameters | None = None,
 ) -> None:
     """C++: moses/moses/moses/moses_main.h:270 metapop_moses_results_b
 
@@ -701,6 +703,10 @@ def metapop_moses_results_b(
         optimizer = univariate_optimization(opt_params)
     elif opt_params.opt_algo == "ps":
         optimizer = particle_swarm(opt_params, ps_params)
+    # GOMEA extension (not in classic MOSES): the population optimizer in
+    # `pymoses.gomea`, with its own settings (`--gomea-*`).
+    elif opt_params.opt_algo == "gomea":
+        optimizer = gomea_optimization(opt_params, gomea_params or gomea_parameters())
     else:
         raise ValueError(
             f"Unknown optimization algo {opt_params.opt_algo}. Supported "
@@ -717,8 +723,44 @@ def metapop_moses_results_b(
     dex = deme_expander(tt, si_ca, si_kb, sc, optimizer, deme_params, filter_params)
     metapop = metapopulation(simple_bases, sc, meta_params, filter_params)
 
-    run_moses(metapop, dex, moses_params, stats)
+    # GOMEA extension (not in classic MOSES): GOMEA searches discrete knobs
+    # only. A representation with contin knobs is refused by the optimizer on
+    # its first deme; restate that refusal in CLI terms, naming the fields.
+    try:
+        run_moses(metapop, dex, moses_params, stats)
+    except UnsupportedRepresentation as exc:
+        if opt_params.opt_algo != "gomea":
+            raise
+        raise UnsupportedRepresentation(_gomea_contin_message(dex)) from exc
     printer(metapop, dex, stats)
+
+
+# GOMEA extension (not in classic MOSES).
+def gomea_kwargs(pms: object) -> dict[str, object]:
+    """The keyword arguments a problem's `run` adds to its
+    `metapop_moses_results` call: `gomea_params` when `-a gomea` is
+    selected, nothing otherwise, so every other optimizer's call is
+    exactly classic's."""
+    if getattr(pms, "opt_algo", None) == "gomea":
+        return {"gomea_params": getattr(pms, "gomea_params", None)}
+    return {}
+
+
+# GOMEA extension (not in classic MOSES).
+def _gomea_contin_message(dex: deme_expander) -> str:
+    """The `-a gomea` error for a representation with contin fields,
+    naming the contin fields of the demes being expanded."""
+    listed = "contin fields"
+    reps = getattr(dex, "_reps", [])
+    if reps:
+        fields = reps[0].fields()
+        n, n_raw = len(fields.contin()), fields.n_contin_fields()
+        listed = f"{n} contin field(s) (numeric constants), raw fields 0-{n_raw - 1}"
+    return (
+        "-a gomea supports only discrete (boolean/enum) knobs, but this "
+        f"problem's representation has continuous knobs: {listed}. "
+        "Use -a hc for problems with contin knobs."
+    )
 
 
 def metapop_moses_results(
@@ -735,6 +777,7 @@ def metapop_moses_results(
     meta_params: metapop_parameters,
     moses_params: moses_parameters,
     printer: Printer,
+    gomea_params: gomea_parameters | None = None,
 ) -> None:
     """C++: moses/moses/moses/moses_main.h:342 metapop_moses_results
 
@@ -836,6 +879,8 @@ def metapop_moses_results(
             twk_meta_params,
             twk_moses_params,
             printer,
+            # GOMEA extension (not in classic MOSES).
+            **({"gomea_params": gomea_params} if gomea_params is not None else {}),
         )
     else:
         metapop_moses_results_b(
@@ -852,4 +897,6 @@ def metapop_moses_results(
             twk_meta_params,
             twk_moses_params,
             printer,
+            # GOMEA extension (not in classic MOSES).
+            **({"gomea_params": gomea_params} if gomea_params is not None else {}),
         )

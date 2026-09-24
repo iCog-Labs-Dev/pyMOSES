@@ -340,6 +340,9 @@ def moses_exec(argv: Sequence[str] | str) -> int:
         tpp.add_options(p)
         ippp.add_options(p)
         _add_demo_options(p)
+        # GOMEA extension (not in classic MOSES): registered last so every
+        # classic `--help` line keeps its position and wrapping.
+        pp.add_gomea_options(p)
         return p
 
     parser = build_parser()

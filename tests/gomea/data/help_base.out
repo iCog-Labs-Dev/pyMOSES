@@ -1,0 +1,233 @@
+usage: moses [-h] [-j JOBS_STR] [--min-pool MIN_POOL] [-e EXEMPLARS_STR]
+             [-H PROBLEM] [--nsamples NSAMPLES] [--balance BALANCE]
+             [-a OPT_ALGO] [-A MAX_SCORE] [-m MAX_EVALS] [--max-time MAX_TIME]
+             [-s CACHE_SIZE] [-n IGNORE_OPS_STR]
+             [--linear-regression LINEAR_REGRESSION]
+             [--logical-perm-ratio PERM_RATIO] [-r RAND_SEED]
+             [-v COMPLEXITY_TEMPERATURE] [-z COMPLEXITY_RATIO]
+             [--cap-coef CAP_COEF] [--hc-max-nn-evals HC_MAX_NN]
+             [--hc-fraction-of-nn HC_FRAC_OF_NN] [-Z HC_CROSSOVER]
+             [--hc-crossover-pop-size HC_CROSSOVER_POP_SIZE]
+             [--hc-crossover-min-neighbors HC_CROSSOVER_MIN_NEIGHBORS]
+             [--hc-resize-to-fit-ram HC_RESIZE_TO_FIT_RAM]
+             [--hc-allow-resize-deme HC_RESIZE_TO_FIT_RAM]
+             [--ps-max-particles PS_MAX_PARTICLES]
+             [--contin-depth CONTIN_DEPTH] [--boost BOOSTING]
+             [--boost-promote NUM_TO_PROMOTE] [--boost-exact EXACT_EXPERTS]
+             [--boost-expalpha EXPALPHA] [--boost-bias BIAS_SCALE]
+             [-B REDUCT_KNOB_BUILDING_EFFORT] [-D MAX_DIST] [-d REDUCE_ALL]
+             [-E REDUCT_CANDIDATE_EFFORT] [-g MAX_GENS]
+             [--discard-dominated DISCARD_DOMINATED] [-L HC_SINGLE_STEP]
+             [-N INCLUDE_ONLY_OPS_STR] [-P POP_SIZE_RATIO] [-p NOISE]
+             [-T HC_WIDEN_SEARCH] [--well-enough USE_WELL_ENOUGH]
+             [--revisit REVISIT] [-c RESULT_COUNT] [-S OUTPUT_SCORE]
+             [-x OUTPUT_CSCORE] [-t OUTPUT_BSCORE] [-C OUTPUT_ONLY_BEST]
+             [-V OUTPUT_EVAL_NUMBER] [-W OUTPUT_WITH_LABELS]
+             [--output-deme-id OUTPUT_DEME_ID]
+             [--output-format OUTPUT_FORMAT_STR] [-o OUTPUT_FILE]
+             [-q MIN_RAND_INPUT] [-w MAX_RAND_INPUT] [-l LOG_LEVEL] [-F]
+             [-f LOG_FILE] [-M MAX_CANDIDATES_PER_DEME] [-G WEIGHTED_ACCURACY]
+             [--diversity-pressure DIVERSITY_PRESSURE]
+             [--diversity-autoscale DIVERSITY_AUTOSCALE]
+             [--diversity-exponent DIVERSITY_EXPONENT]
+             [--diversity-normalize DIVERSITY_NORMALIZE]
+             [--diversity-dst DIVERSITY_DST]
+             [--diversity-p-norm DIVERSITY_P_NORM]
+             [--diversity-dst2dp DIVERSITY_DST2DP] [-R DISCRETIZE_THRESHOLDS]
+             [-Q HARDNESS]
+             [--time-dispersion-pressure TIME_DISPERSION_PRESSURE]
+             [--time-dispersion-exponent TIME_DISPERSION_EXPONENT]
+             [--time-bscore TIME_BSCORE]
+             [--time-bscore-granularity TIME_BSCORE_GRANULARITY_STR]
+             [--gen-best-tree GEN_BEST_TREE] [--it-abs-err IT_ABS_ERR]
+             [--pre-positive PRE_POSITIVE]
+             [--enable-fs ENABLE_FEATURE_SELECTION]
+             [--fs-target-size FS_TARGET_SIZE]
+             [--fs-exp-distrib FS_EXP_DISTRIB] [--fs-focus FS_FOCUS]
+             [--fs-seed FS_SEED] [--fs-prune-exemplar FS_PRUNE_EXEMPLAR]
+             [--fs-subsampling-ratio FS_SUBSAMPLING_RATIO]
+             [--fs-subsampling-by-time FS_SUBSAMPLING_BY_TIME]
+             [--fs-demes FS_DEMES] [--fs-algo FS_ALGO] [--fs-scorer FS_SCORER]
+             [--fs-threshold FS_THRESHOLD]
+             [--fs-enforce-features-filename FS_ENFORCE_FEATURES_FILENAME]
+             [--fs-diversity-pressure FS_DIVERSITY_PRESSURE]
+             [--fs-diversity-cap FS_DIVERSITY_CAP]
+             [--fs-diversity-interaction FS_DIVERSITY_INTERACTION]
+             [--fs-diversity-jaccard FS_DIVERSITY_JACCARD]
+             [--fs-inc-redundant-intensity FS_INC_REDUNDANT_INTENSITY]
+             [--fs-inc-target-size-epsilon FS_INC_TARGET_SIZE_EPSILON]
+             [--fs-inc-interaction-terms FS_INC_INTERACTION_TERMS]
+             [--fs-pre-penalty FS_PRE_PENALTY]
+             [--fs-pre-min-activation FS_PRE_MIN_ACTIVATION]
+             [--fs-pre-max-activation FS_PRE_MAX_ACTIVATION]
+             [--fs-pre-positive FS_PRE_POSITIVE]
+             [--fs-hc-max-score FS_HC_MAX_SCORE]
+             [--fs-hc-max-evals FS_HC_MAX_EVALS]
+             [--fs-hc-fraction-of-remaining FS_HC_FRACTION_OF_REMAINING]
+             [--fs-hc-crossover FS_HC_CROSSOVER]
+             [--fs-hc-crossover-pop-size FS_HC_CROSSOVER_POP_SIZE]
+             [--fs-hc-crossover-min-neighbors FS_HC_CROSSOVER_MIN_NEIGHBORS]
+             [--fs-hc-widen-search FS_HC_WIDEN_SEARCH]
+             [--fs-mi-penalty FS_MI_PENALTY]
+             [--fs-smd-top-size FS_SMD_TOP_SIZE]
+             [--ss-n-subsample-demes SS_N_SUBSAMPLE_DEMES]
+             [--ss-n-top-candidates SS_N_TOP_CANDIDATES]
+             [--ss-n-tuples SS_N_TUPLES]
+             [--ss-std-dev-threshold SS_STD_DEV_THRESHOLD]
+             [--ss-tanimoto-mean-threshold SS_TANIMOTO_MEAN_THRESHOLD]
+             [--ss-tanimoto-geometric-mean-threshold SS_TANIMOTO_GEO_MEAN_THRESHOLD]
+             [--ss-tanimoto-max-threshold SS_TANIMOTO_MAX_THRESHOLD]
+             [--ss-n-best-bfdemes SS_N_BEST_BFDEMES]
+             [--ss-tanimoto-mean-weight SS_TANIMOTO_MEAN_WEIGHT]
+             [--ss-tanimoto-geometric-mean-weight SS_TANIMOTO_GEO_MEAN_WEIGHT]
+             [--ss-tanimoto-max-weight SS_TANIMOTO_MAX_WEIGHT]
+             [--ss-n-subsample-fitnesses SS_N_SUBSAMPLE_FITNESSES]
+             [--ss-low-dev-pressure SS_LOW_DEV_PRESSURE]
+             [--ss-by-time SS_BY_TIME]
+             [--ss-contiguous-time SS_CONTIGUOUS_TIME] [--version]
+             [-i INPUT_DATA_FILES] [-u TARGET_FEATURE]
+             [--score-weight WEIGHTING_FEATURE]
+             [--timestamp-feature TIMESTAMP_FEATURE] [-Y IGNORE_FEATURES_STR]
+             [-K IP_KLD_WEIGHT] [-J IP_SKEWNESS_WEIGHT] [-U IP_STDU_WEIGHT]
+             [-X IP_SKEW_U_WEIGHT] [-y COMBO_STR] [-k PROBLEM_SIZE]
+
+options:
+  -h, --help
+  -j, --jobs JOBS_STR
+  --min-pool MIN_POOL
+  -e, --exemplar EXEMPLARS_STR
+  -H, --problem PROBLEM
+  --nsamples NSAMPLES
+  --balance BALANCE
+  -a, --opt-algo OPT_ALGO
+  -A, --max-score MAX_SCORE
+  -m, --max-evals MAX_EVALS
+  --max-time MAX_TIME
+  -s, --cache-size CACHE_SIZE
+  -n, --ignore-operator IGNORE_OPS_STR
+  --linear-regression LINEAR_REGRESSION
+  --logical-perm-ratio PERM_RATIO
+  -r, --random-seed RAND_SEED
+  -v, --complexity-temperature COMPLEXITY_TEMPERATURE
+  -z, --complexity-ratio COMPLEXITY_RATIO
+  --cap-coef CAP_COEF
+  --hc-max-nn-evals HC_MAX_NN
+  --hc-fraction-of-nn HC_FRAC_OF_NN
+  -Z, --hc-crossover HC_CROSSOVER
+  --hc-crossover-pop-size HC_CROSSOVER_POP_SIZE
+  --hc-crossover-min-neighbors HC_CROSSOVER_MIN_NEIGHBORS
+  --hc-resize-to-fit-ram HC_RESIZE_TO_FIT_RAM
+  --hc-allow-resize-deme HC_RESIZE_TO_FIT_RAM
+  --ps-max-particles PS_MAX_PARTICLES
+  --contin-depth CONTIN_DEPTH
+  --boost BOOSTING
+  --boost-promote NUM_TO_PROMOTE
+  --boost-exact EXACT_EXPERTS
+  --boost-expalpha EXPALPHA
+  --boost-bias BIAS_SCALE
+  -B, --reduct-knob-building-effort REDUCT_KNOB_BUILDING_EFFORT
+  -D, --max-dist MAX_DIST
+  -d, --reduce-all REDUCE_ALL
+  -E, --reduct-candidate-effort REDUCT_CANDIDATE_EFFORT
+  -g, --max-gens MAX_GENS
+  --discard-dominated DISCARD_DOMINATED
+  -L, --hc-single-step HC_SINGLE_STEP
+  -N, --include-only-operator INCLUDE_ONLY_OPS_STR
+  -P, --pop-size-ratio POP_SIZE_RATIO
+  -p, --noise NOISE
+  -T, --hc-widen-search HC_WIDEN_SEARCH
+  --well-enough USE_WELL_ENOUGH
+  --revisit REVISIT
+  -c, --result-count RESULT_COUNT
+  -S, --output-score OUTPUT_SCORE
+  -x, --output-cscore OUTPUT_CSCORE
+  -t, --output-bscore OUTPUT_BSCORE
+  -C, --output-only-best OUTPUT_ONLY_BEST
+  -V, --output-eval-number OUTPUT_EVAL_NUMBER
+  -W, --output-with-labels OUTPUT_WITH_LABELS
+  --output-deme-id OUTPUT_DEME_ID
+  --output-format OUTPUT_FORMAT_STR
+  -o, --output-file OUTPUT_FILE
+  -q, --min-rand-input MIN_RAND_INPUT
+  -w, --max-rand-input MAX_RAND_INPUT
+  -l, --log-level LOG_LEVEL
+  -F, --log-file-dep-opt
+  -f, --log-file LOG_FILE
+  -M, --max-candidates-per-deme MAX_CANDIDATES_PER_DEME
+  -G, --weighted-accuracy WEIGHTED_ACCURACY
+  --diversity-pressure DIVERSITY_PRESSURE
+  --diversity-autoscale DIVERSITY_AUTOSCALE
+  --diversity-exponent DIVERSITY_EXPONENT
+  --diversity-normalize DIVERSITY_NORMALIZE
+  --diversity-dst DIVERSITY_DST
+  --diversity-p-norm DIVERSITY_P_NORM
+  --diversity-dst2dp DIVERSITY_DST2DP
+  -R, --discretize-threshold DISCRETIZE_THRESHOLDS
+  -Q, --alpha HARDNESS
+  --time-dispersion-pressure TIME_DISPERSION_PRESSURE
+  --time-dispersion-exponent TIME_DISPERSION_EXPONENT
+  --time-bscore TIME_BSCORE
+  --time-bscore-granularity TIME_BSCORE_GRANULARITY_STR
+  --gen-best-tree GEN_BEST_TREE
+  --it-abs-err IT_ABS_ERR
+  --pre-positive PRE_POSITIVE
+  --enable-fs ENABLE_FEATURE_SELECTION
+  --fs-target-size FS_TARGET_SIZE
+  --fs-exp-distrib FS_EXP_DISTRIB
+  --fs-focus FS_FOCUS
+  --fs-seed FS_SEED
+  --fs-prune-exemplar FS_PRUNE_EXEMPLAR
+  --fs-subsampling-ratio FS_SUBSAMPLING_RATIO
+  --fs-subsampling-by-time FS_SUBSAMPLING_BY_TIME
+  --fs-demes FS_DEMES
+  --fs-algo FS_ALGO
+  --fs-scorer FS_SCORER
+  --fs-threshold FS_THRESHOLD
+  --fs-enforce-features-filename FS_ENFORCE_FEATURES_FILENAME
+  --fs-diversity-pressure FS_DIVERSITY_PRESSURE
+  --fs-diversity-cap FS_DIVERSITY_CAP
+  --fs-diversity-interaction FS_DIVERSITY_INTERACTION
+  --fs-diversity-jaccard FS_DIVERSITY_JACCARD
+  --fs-inc-redundant-intensity FS_INC_REDUNDANT_INTENSITY
+  --fs-inc-target-size-epsilon FS_INC_TARGET_SIZE_EPSILON
+  --fs-inc-interaction-terms FS_INC_INTERACTION_TERMS
+  --fs-pre-penalty FS_PRE_PENALTY
+  --fs-pre-min-activation FS_PRE_MIN_ACTIVATION
+  --fs-pre-max-activation FS_PRE_MAX_ACTIVATION
+  --fs-pre-positive FS_PRE_POSITIVE
+  --fs-hc-max-score FS_HC_MAX_SCORE
+  --fs-hc-max-evals FS_HC_MAX_EVALS
+  --fs-hc-fraction-of-remaining FS_HC_FRACTION_OF_REMAINING
+  --fs-hc-crossover FS_HC_CROSSOVER
+  --fs-hc-crossover-pop-size FS_HC_CROSSOVER_POP_SIZE
+  --fs-hc-crossover-min-neighbors FS_HC_CROSSOVER_MIN_NEIGHBORS
+  --fs-hc-widen-search FS_HC_WIDEN_SEARCH
+  --fs-mi-penalty FS_MI_PENALTY
+  --fs-smd-top-size FS_SMD_TOP_SIZE
+  --ss-n-subsample-demes SS_N_SUBSAMPLE_DEMES
+  --ss-n-top-candidates SS_N_TOP_CANDIDATES
+  --ss-n-tuples SS_N_TUPLES
+  --ss-std-dev-threshold SS_STD_DEV_THRESHOLD
+  --ss-tanimoto-mean-threshold SS_TANIMOTO_MEAN_THRESHOLD
+  --ss-tanimoto-geometric-mean-threshold SS_TANIMOTO_GEO_MEAN_THRESHOLD
+  --ss-tanimoto-max-threshold SS_TANIMOTO_MAX_THRESHOLD
+  --ss-n-best-bfdemes SS_N_BEST_BFDEMES
+  --ss-tanimoto-mean-weight SS_TANIMOTO_MEAN_WEIGHT
+  --ss-tanimoto-geometric-mean-weight SS_TANIMOTO_GEO_MEAN_WEIGHT
+  --ss-tanimoto-max-weight SS_TANIMOTO_MAX_WEIGHT
+  --ss-n-subsample-fitnesses SS_N_SUBSAMPLE_FITNESSES
+  --ss-low-dev-pressure SS_LOW_DEV_PRESSURE
+  --ss-by-time SS_BY_TIME
+  --ss-contiguous-time SS_CONTIGUOUS_TIME
+  --version
+  -i, --input-file INPUT_DATA_FILES
+  -u, --target-feature TARGET_FEATURE
+  --score-weight WEIGHTING_FEATURE
+  --timestamp-feature TIMESTAMP_FEATURE
+  -Y, --ignore-feature IGNORE_FEATURES_STR
+  -K, --ip_kld_weight IP_KLD_WEIGHT
+  -J, --ip_skewness_weight IP_SKEWNESS_WEIGHT
+  -U, --ip_stdU_weight IP_STDU_WEIGHT
+  -X, --ip_skew_U_weight IP_SKEW_U_WEIGHT
+  -y, --combo-program COMBO_STR
+  -k, --problem-size PROBLEM_SIZE

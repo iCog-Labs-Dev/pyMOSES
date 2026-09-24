@@ -213,7 +213,7 @@ from pymoses.comboreduct.type_checker.type_signature import (
 )
 from pymoses.comboreduct.type_checker.type_tree import get_output_type_tree
 from pymoses.moses.main.problem import problem_base, problem_manager
-from pymoses.moses.moses.moses_main import metapop_moses_results
+from pymoses.moses.moses.moses_main import gomea_kwargs, metapop_moses_results
 from pymoses.moses.moses.types import _to_score_t, behavioral_score, score_t
 from pymoses.moses.scoring.behave_cscore import behave_cscore
 from pymoses.moses.scoring.bscores import contin_bscore
@@ -767,6 +767,8 @@ class bool_problem_base(problem_base):
             pms.meta_params,
             pms.moses_params,
             pms.printer,
+            # GOMEA extension (not in classic MOSES): `-a gomea` settings.
+            **gomea_kwargs(pms),
         )
 
 
@@ -939,6 +941,8 @@ class polynomial_problem(problem_base):
             pms.meta_params,
             pms.moses_params,
             pms.printer,
+            # GOMEA extension (not in classic MOSES): `-a gomea` settings.
+            **gomea_kwargs(pms),
         )
 
 
@@ -1254,6 +1258,8 @@ class combo_problem(combo_problem_base):
                 pms.meta_params,
                 pms.moses_params,
                 pms.printer,
+                # GOMEA extension (not in classic MOSES): `-a gomea` settings.
+                **gomea_kwargs(pms),
             )
         elif output_type == type_node.contin_type:
             # Naive users of the combo regression mode will fail
@@ -1314,6 +1320,8 @@ class combo_problem(combo_problem_base):
                 pms.meta_params,
                 pms.moses_params,
                 pms.printer,
+                # GOMEA extension (not in classic MOSES): `-a gomea` settings.
+                **gomea_kwargs(pms),
             )
         else:
             raise ValueError(f"combo_problem: type {output_type!r} not supported.")

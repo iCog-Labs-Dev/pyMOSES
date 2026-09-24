@@ -1,0 +1,307 @@
+"""End-to-end tests for ``-a gomea`` through the real MOSES CLI.
+
+Every run goes through ``moses_exec(argv)`` in-process with stdout
+captured, the same convention ``tests/moses/main/test_moses_exec.py``
+uses. The ``-a hc`` expectations below were captured at the base commit
+(before any GOMEA code existed) and pin that adding GOMEA leaves the
+default optimizer's output byte-identical.
+"""
+
+from __future__ import annotations
+
+import io
+import json
+import re
+from contextlib import redirect_stdout
+from pathlib import Path
+
+import pytest
+
+from pymoses.comboreduct.combo.iostream_combo import str_to_combo_tree
+from pymoses.comboreduct.type_checker.type_signature import gen_signature, type_node
+from pymoses.gomea.schema import UnsupportedRepresentation
+from pymoses.moses.main.demo_problems import (
+    _alphabet_size,
+    _set_noise_or_ratio,
+    even_parity,
+    logical_bscore,
+)
+from pymoses.moses.main.moses_exec import moses_exec
+from pymoses.moses.main.problem_params import parse_args
+from pymoses.moses.scoring.behave_cscore import behave_cscore
+
+REPO = Path(__file__).resolve().parents[2]
+TABLE_DATA = REPO / "tests" / "fixtures" / "table_data"
+HELP_BASE = Path(__file__).resolve().parent / "data" / "help_base.out"
+
+# ---------------------------------------------------------------------------
+# -a hc stdout captured at the base commit (0410881), before GOMEA existed.
+# ---------------------------------------------------------------------------
+
+# moses -H pa -k 3 -m 2000 -r 1
+_HC_PA3_M2000_R1 = (
+    "-2 and(or(!$1 !$2) or($1 $2) $3) \n"
+    "-2 and(or(and(!$1 !$2) $3) or(!$1 !$2)) \n"
+    "-2 and(or(and(!$1 $3) !$2) or(!$1 $3)) \n"
+    "-2 and(or(and(!$2 $3) !$1) or(!$2 $3)) \n"
+    "-2 or(and(or(!$1 !$2) $3) and(!$1 !$2)) \n"
+    "-2 or(and(or(!$1 $3) !$2) and(!$1 $3)) \n"
+    "-2 or(and(or(!$2 $3) !$1) and(!$2 $3)) \n"
+    "-2 and(or(and(!$1 $3) !$2) or(!$1 $2 $3)) \n"
+    "-2 and(or(and(!$2 $3) !$1) or($1 !$2 $3)) \n"
+    "-2 and(or(!$1 !$2) or(!$1 $3) or(!$2 $3)) \n"
+)
+
+# moses -H maj -k 3 -m 1500 -r 2
+_HC_MAJ3_M1500_R2 = (
+    "0 or(and(or($2 $3) $1) and($2 $3)) \n"
+    "-1 and(or($1 $2) $3) \n"
+    "-1 and(or($1 $3) $2) \n"
+    "-1 and(or($2 $3) $1) \n"
+    "-1 or(and($1 $2) $3) \n"
+    "-1 or(and($1 $3) $2) \n"
+    "-1 or(and($2 $3) $1) \n"
+    "-1 or(and(or($2 $3) $1) $2) \n"
+    "-1 or(and(or($2 $3) $1) $3) \n"
+    "-2 $1 \n"
+)
+
+# moses -i tests/fixtures/table_data/dataset.csv -m 1000
+_HC_DATASET_M1000 = (
+    "-1 $2 \n"
+    "-1 and($1 $2) \n"
+    "-2 $1 \n"
+    "-2 and(!$1 $2) \n"
+    "-2 or(!$1 $2) \n"
+    "-2 or($1 $2) \n"
+    "-3 true \n"
+    "-3 !$1 \n"
+    "-3 and(!$1 !$2) \n"
+    "-3 and($1 !$2) \n"
+)
+
+
+def _run(argv: list[str]) -> tuple[int, str]:
+    buf = io.StringIO()
+    with redirect_stdout(buf):
+        rc = moses_exec(["moses", *argv])
+    return rc, buf.getvalue()
+
+
+def _events(path: Path) -> list[dict]:
+    return [json.loads(line) for line in path.read_text().splitlines() if line.strip()]
+
+
+@pytest.fixture(autouse=True)
+def _isolated_cwd(tmp_path, monkeypatch):
+    """Keep ``moses.log`` out of the repo and help output uncoloured at 80 columns."""
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setenv("COLUMNS", "80")
+    monkeypatch.setenv("PYTHON_COLORS", "0")
+    monkeypatch.setenv("NO_COLOR", "1")
+
+
+# ---------------------------------------------------------------------------
+# The full lifecycle: several expansions, one calibration per schema.
+# ---------------------------------------------------------------------------
+
+# With the default settings one pa -k 3 deme (24 fields) spends a 3000-eval
+# budget on its own in three generations, so the per-deme cap is what leaves
+# room for further expansions here.
+_PA3_GOMEA = [
+    "-H", "pa", "-k", "3", "-a", "gomea", "-m", "3000", "-r", "1",
+    "--gomea-max-evals-per-deme", "1000",
+]  # fmt: skip
+
+
+@pytest.fixture(scope="module")
+def pa3_gomea_runs(tmp_path_factory):
+    """The same ``-a gomea`` command run twice, each with its own log."""
+    out = []
+    for i in range(2):
+        d = tmp_path_factory.mktemp(f"pa3_gomea_{i}")
+        log = d / "gomea.jsonl"
+        with pytest.MonkeyPatch.context() as mp:
+            mp.chdir(d)
+            rc, stdout = _run([*_PA3_GOMEA, "--gomea-log", str(log)])
+        out.append((rc, stdout, log))
+    return out
+
+
+def test_gomea_run_spans_several_expansions_with_independent_calibrations(pa3_gomea_runs):
+    rc, stdout, log = pa3_gomea_runs[0]
+    assert rc == 0
+    assert len(stdout.splitlines()) == 10
+    events = _events(log)
+    starts = [e for e in events if e["type"] == "invocation_start"]
+    assert len(starts) >= 2, "expected at least two deme expansions"
+    assert len({e["schema_id"] for e in starts}) >= 2
+
+    # Every invocation calibrates its own population: an "init" event follows
+    # each "invocation_start", for that invocation's own schema, before any
+    # other invocation starts.
+    current = None
+    inits_per_invocation = []
+    for e in events:
+        if e["type"] == "invocation_start":
+            current = e["schema_id"]
+            inits_per_invocation.append(0)
+        elif e["type"] == "init":
+            assert e["schema_id"] == current
+            inits_per_invocation[-1] += 1
+    assert inits_per_invocation == [1] * len(starts)
+    assert sum(e["type"] == "end" for e in events) == len(starts)
+
+
+def test_gomea_run_is_deterministic(pa3_gomea_runs):
+    (rc1, out1, _), (rc2, out2, _) = pa3_gomea_runs
+    assert rc1 == rc2 == 0
+    assert out1 == out2
+
+
+# ---------------------------------------------------------------------------
+# -a hc is untouched.
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    ("argv", "expected"),
+    [
+        (["-H", "pa", "-k", "3", "-m", "2000", "-r", "1"], _HC_PA3_M2000_R1),
+        (["-H", "maj", "-k", "3", "-m", "1500", "-r", "2"], _HC_MAJ3_M1500_R2),
+        (["-i", str(TABLE_DATA / "dataset.csv"), "-m", "1000"], _HC_DATASET_M1000),
+    ],
+    ids=["pa3", "maj3", "dataset"],
+)
+def test_hc_output_is_byte_identical_to_base(argv, expected):
+    rc, stdout = _run(argv)
+    assert rc == 0
+    assert stdout == expected
+
+
+def _help_text() -> str:
+    buf = io.StringIO()
+    with redirect_stdout(buf), pytest.raises(SystemExit) as exc:
+        moses_exec(["moses", "--help"])
+    assert exc.value.code == 1
+    return buf.getvalue()
+
+
+def test_help_only_adds_gomea_lines():
+    base = HELP_BASE.read_text().splitlines()
+    new = _help_text().splitlines()
+
+    # Every base line survives unchanged and in the same relative order.
+    added = []
+    j = 0
+    for line in new:
+        if j < len(base) and line == base[j]:
+            j += 1
+        else:
+            added.append(line)
+    assert j == len(base), f"base help line missing or reordered: {base[j]!r}"
+
+    assert added, "no --gomea-* options appear in --help"
+    for line in added:
+        assert "gomea" in line.lower(), f"non-GOMEA line added to --help: {line!r}"
+    for flag in (
+        "--gomea-pop-size",
+        "--gomea-fos",
+        "--gomea-fi",
+        "--gomea-radii",
+        "--gomea-skip-inactive",
+        "--gomea-max-gens",
+        "--gomea-stall-gens",
+        "--gomea-max-evals-per-deme",
+        "--gomea-log",
+    ):
+        assert any(line.strip().startswith(flag + " ") for line in added), flag
+
+
+# ---------------------------------------------------------------------------
+# The printed metapopulation agrees with the scorer.
+# ---------------------------------------------------------------------------
+
+_X1_LINE = re.compile(
+    r"^(?P<score>\S+) (?P<prog>.*?)  \[score=(?P<s>[^,]+), penalized score=(?P<p>[^,]+), "
+    r"complexity=(?P<c>[^,]+), complexity penalty=[^,]+, uniformity penalty=[^\]]+\]$"
+)
+
+
+def test_printed_candidates_rescore_to_their_printed_scores():
+    rc, stdout = _run(["-H", "pa", "-k", "3", "-a", "gomea", "-m", "1000", "-r", "1", "-x1"])
+    assert rc == 0
+    lines = stdout.splitlines()
+    assert lines
+
+    pms = parse_args(["-H", "pa"])
+    bscore = logical_bscore(even_parity, 3)
+    sig = gen_signature(type_node.boolean_type, 3)
+    _set_noise_or_ratio(
+        bscore, _alphabet_size(sig, pms.ignore_ops), pms.noise, pms.complexity_ratio
+    )
+    cscore = behave_cscore(bscore)
+
+    for line in lines:
+        m = _X1_LINE.match(line)
+        assert m, line
+        cs = cscore.get_cscore(str_to_combo_tree(m["prog"]))
+        assert float(m["score"]) == float(m["s"]) == cs.get_score()
+        assert float(m["p"]) == cs.get_penalized_score()
+        assert int(m["c"]) == cs.get_complexity()
+
+
+# ---------------------------------------------------------------------------
+# Unsupported problems and targets.
+# ---------------------------------------------------------------------------
+
+
+def test_regression_problem_is_rejected_with_a_clear_message():
+    with pytest.raises(UnsupportedRepresentation) as exc:
+        _run(
+            [
+                "-i",
+                str(TABLE_DATA / "regression_sample.csv"),
+                "-u",
+                "y",
+                "-a",
+                "gomea",
+                "-m",
+                "300",
+            ]
+        )
+    msg = str(exc.value)
+    assert "gomea" in msg
+    assert "contin" in msg
+
+
+def test_reaching_the_target_ends_with_target_reached(tmp_path):
+    log = tmp_path / "gomea.jsonl"
+    rc, stdout = _run(
+        ["-H", "pa", "-k", "2", "-a", "gomea", "-m", "2000", "-r", "1", "--gomea-log", str(log)]
+    )
+    assert rc == 0
+    assert stdout.splitlines()[0].startswith("0 ")
+    reasons = [e["termination_reason"] for e in _events(log) if e["type"] == "end"]
+    assert "target_reached" in reasons
+
+
+# ---------------------------------------------------------------------------
+# Option validation.
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    "bad",
+    [
+        ["--gomea-fos", "xx"],
+        ["--gomea-fi", "2"],
+        ["--gomea-skip-inactive", "-1"],
+        ["--gomea-pop-size", "1"],
+        ["--gomea-max-evals-per-deme", "-3"],
+        ["--gomea-radii", "nonsense"],
+    ],
+)
+def test_bad_gomea_options_are_rejected(bad):
+    with pytest.raises(ValueError):
+        _run(["-H", "pa", "-k", "2", "-a", "gomea", "-m", "10", *bad])

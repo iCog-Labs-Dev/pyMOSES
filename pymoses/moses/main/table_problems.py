@@ -207,7 +207,7 @@ from pymoses.moses.main.problem import (
     problem_manager,
 )
 from pymoses.moses.main.problem_params import problem_params
-from pymoses.moses.moses.moses_main import metapop_moses_results
+from pymoses.moses.moses.moses_main import gomea_kwargs, metapop_moses_results
 from pymoses.moses.scoring.behave_cscore import behave_cscore
 from pymoses.moses.scoring.bscores import (
     cluster_bscore,
@@ -768,6 +768,8 @@ class table_problem_base(problem_base):
             pms.meta_params,
             pms.moses_params,
             pms.printer,
+            # GOMEA extension (not in classic MOSES): `-a gomea` settings.
+            **gomea_kwargs(pms),
         )
 
 
@@ -925,6 +927,8 @@ class pre_table_problem(table_problem_base):
             pms.meta_params,
             pms.moses_params,
             pms.printer,
+            # GOMEA extension (not in classic MOSES): `-a gomea` settings.
+            **gomea_kwargs(pms),
         )
 
 
@@ -1329,6 +1333,8 @@ class ip_table_problem(table_problem_base):
             pms.meta_params,
             pms.moses_params,
             pms.printer,
+            # GOMEA extension (not in classic MOSES): `-a gomea` settings.
+            **gomea_kwargs(pms),
         )
 
 

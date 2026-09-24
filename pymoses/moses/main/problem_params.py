@@ -197,6 +197,7 @@ from pymoses.comboreduct.combo.iostream_combo import _builtin_str_to_vertex, str
 from pymoses.comboreduct.combo.vertex import builtin
 from pymoses.comboreduct.reduct.contin_reduction import contin_reduction
 from pymoses.comboreduct.reduct.logical_reduction import logical_reduction
+from pymoses.gomea import gomea_parameters
 from pymoses.moses.deme.deme_params import deme_parameters
 from pymoses.moses.deme.feature_selector import feature_selector_parameters
 from pymoses.moses.metapopulation.metapop_params import (
@@ -248,7 +249,58 @@ _DAY = "day"  # C++: problem-params.cc:58 day_str
 _MONTH = "month"  # C++: problem-params.cc:59 month_str
 
 _HC = "hc"  # C++: moses/optimization/optimization.h:68 hc
-_SUPPORTED_OPT_ALGOS = frozenset({"hc", "sa", "un", "ps"})
+# GOMEA extension (not in classic MOSES): "gomea" selects the population
+# optimizer in `pymoses.gomea`; the other four are classic's own names.
+_SUPPORTED_OPT_ALGOS = frozenset({"hc", "sa", "un", "ps", "gomea"})
+
+# GOMEA extension (not in classic MOSES): the `--gomea-*` options as
+# (flag, dest, type, default). Registered by `problem_params.add_gomea_options`
+# and read back by `_gomea_params_from_args`, which falls back to these same
+# defaults for a namespace built without them.
+_GOMEA_FOS_CHOICES = ("lt-b", "lt-mi", "rt", "uni")
+_GOMEA_OPTIONS = (
+    ("--gomea-pop-size", "gomea_pop_size", int, 64),
+    ("--gomea-fos", "gomea_fos", str, "lt-b"),
+    ("--gomea-fi", "gomea_fi", int, 0),
+    ("--gomea-radii", "gomea_radii", str, "1:0.4,2:0.3,4:0.2,max:0.1"),
+    ("--gomea-skip-inactive", "gomea_skip_inactive", int, 1),
+    ("--gomea-max-gens", "gomea_max_gens", int, 100),
+    ("--gomea-stall-gens", "gomea_stall_gens", int, 5),
+    ("--gomea-max-evals-per-deme", "gomea_max_evals_per_deme", int, 0),
+    ("--gomea-log", "gomea_log", str, ""),
+)
+
+
+def _gomea_params_from_args(args: argparse.Namespace) -> gomea_parameters:
+    """GOMEA extension (not in classic MOSES): build the `gomea_parameters`
+    the `--gomea-*` options describe. Raises `ValueError` for a malformed
+    value, like the other enumerated options `parse_options` checks."""
+    v = {dest: getattr(args, dest, default) for _, dest, _, default in _GOMEA_OPTIONS}
+    if v["gomea_fos"] not in _GOMEA_FOS_CHOICES:
+        raise ValueError(
+            f"--gomea-fos {v['gomea_fos']} is not recognized. "
+            f"Supported: {', '.join(_GOMEA_FOS_CHOICES)}."
+        )
+    for dest in ("gomea_fi", "gomea_skip_inactive"):
+        if v[dest] not in (0, 1):
+            raise ValueError(f"--{dest.replace('_', '-')} must be 0 or 1, got {v[dest]}")
+    if v["gomea_max_evals_per_deme"] < 0:
+        raise ValueError(
+            f"--gomea-max-evals-per-deme must be >= 0 (0 = no cap), "
+            f"got {v['gomea_max_evals_per_deme']}"
+        )
+    return gomea_parameters(
+        pop_size=v["gomea_pop_size"],
+        fos=v["gomea_fos"],
+        forced_improvement=bool(v["gomea_fi"]),
+        skip_inactive=bool(v["gomea_skip_inactive"]),
+        radii=v["gomea_radii"],
+        max_generations=v["gomea_max_gens"],
+        stall_generations=v["gomea_stall_gens"],
+        max_evals_per_deme=v["gomea_max_evals_per_deme"] or None,
+        telemetry_path=v["gomea_log"] or None,
+    )
+
 
 _DEFAULT_LOG_FILE = "moses.log"  # C++: moses_exec_def.h:56 default_log_file
 _LOCALHOST = "localhost"  # C++: moses_exec_def.h:69 localhost
@@ -561,6 +613,18 @@ class problem_params:
         sopt("--ss-contiguous-time", dest="ss_contiguous_time", default=True)
 
         add("--version", dest="version", action="store_true", default=False)
+
+    # GOMEA extension (not in classic MOSES).
+    def add_gomea_options(self, parser: argparse.ArgumentParser) -> None:
+        """Register the `--gomea-*` options (`_GOMEA_OPTIONS`).
+
+        Kept out of `add_options` so that `add_options` still registers
+        exactly classic's option surface. `moses_exec` calls this after every
+        classic option is registered, so classic's own `--help` lines keep
+        their order and wrapping and the GOMEA lines only follow them.
+        """
+        for flag, dest, type_, default in _GOMEA_OPTIONS:
+            parser.add_argument(flag, dest=dest, type=type_, default=default)
 
     # ------------------------------------------------------------ parse_options
 
@@ -894,6 +958,10 @@ class problem_params:
         ps_params = ps_parameters()
         ps_params.max_parts = self.ps_max_particles
         self.ps_params = ps_params
+
+        # GOMEA extension (not in classic MOSES): the `-a gomea` settings,
+        # handed to `metapop_moses_results` next to `hc_params`/`ps_params`.
+        self.gomea_params = _gomea_params_from_args(args)
 
         # -- Set depth (C++: :2371-2372 `set_depth(contin_depth)`) --
         # `representation.py`'s module-level `_depth` static, exactly as
