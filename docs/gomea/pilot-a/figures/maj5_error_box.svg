@@ -1,0 +1,52 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="720" height="420" viewBox="0 0 720 420" font-family="Helvetica, Arial, sans-serif">
+<rect x="0" y="0" width="720" height="420" fill="#ffffff"/>
+<text x="360.0" y="20" font-size="14" text-anchor="middle" fill="#111111">maj5: final error by arm</text>
+<line x1="70" y1="365" x2="550" y2="365" stroke="#333333" stroke-width="1"/>
+<line x1="70" y1="40" x2="70" y2="365" stroke="#333333" stroke-width="1"/>
+<line x1="66" y1="342.59" x2="70" y2="342.59" stroke="#333333" stroke-width="1"/>
+<text x="62" y="346.59" font-size="11" text-anchor="end" fill="#111111">0</text>
+<line x1="66" y1="272.54" x2="70" y2="272.54" stroke="#333333" stroke-width="1"/>
+<text x="62" y="276.54" font-size="11" text-anchor="end" fill="#111111">0.5</text>
+<line x1="66" y1="202.50" x2="70" y2="202.50" stroke="#333333" stroke-width="1"/>
+<text x="62" y="206.50" font-size="11" text-anchor="end" fill="#111111">1</text>
+<line x1="66" y1="132.46" x2="70" y2="132.46" stroke="#333333" stroke-width="1"/>
+<text x="62" y="136.46" font-size="11" text-anchor="end" fill="#111111">1.5</text>
+<line x1="66" y1="62.41" x2="70" y2="62.41" stroke="#333333" stroke-width="1"/>
+<text x="62" y="66.41" font-size="11" text-anchor="end" fill="#111111">2</text>
+<text x="16" y="202.50" font-size="12" text-anchor="middle" fill="#111111" transform="rotate(-90 16 202.50)">error (-best_raw)</text>
+<line x1="104.29" y1="202.50" x2="104.29" y2="342.59" stroke="#E69F00" stroke-width="1.5"/>
+<line x1="104.29" y1="342.59" x2="104.29" y2="342.59" stroke="#E69F00" stroke-width="1.5"/>
+<rect x="87.14" y="342.59" width="34.29" height="0.50" fill="#E69F00" fill-opacity="0.35" stroke="#E69F00" stroke-width="1.5"/>
+<line x1="87.14" y1="342.59" x2="121.43" y2="342.59" stroke="#E69F00" stroke-width="2"/>
+<text x="104.29" y="383" font-size="11" text-anchor="middle" fill="#111111">HC</text>
+<line x1="172.86" y1="62.41" x2="172.86" y2="202.50" stroke="#56B4E9" stroke-width="1.5"/>
+<line x1="172.86" y1="342.59" x2="172.86" y2="342.59" stroke="#56B4E9" stroke-width="1.5"/>
+<rect x="155.71" y="202.50" width="34.29" height="140.09" fill="#56B4E9" fill-opacity="0.35" stroke="#56B4E9" stroke-width="1.5"/>
+<line x1="155.71" y1="342.59" x2="190.00" y2="342.59" stroke="#56B4E9" stroke-width="2"/>
+<text x="172.86" y="383" font-size="11" text-anchor="middle" fill="#111111">LTB-N16</text>
+<line x1="241.43" y1="62.41" x2="241.43" y2="202.50" stroke="#009E73" stroke-width="1.5"/>
+<line x1="241.43" y1="342.59" x2="241.43" y2="342.59" stroke="#009E73" stroke-width="1.5"/>
+<rect x="224.29" y="202.50" width="34.29" height="140.09" fill="#009E73" fill-opacity="0.35" stroke="#009E73" stroke-width="1.5"/>
+<line x1="224.29" y1="202.50" x2="258.57" y2="202.50" stroke="#009E73" stroke-width="2"/>
+<text x="241.43" y="383" font-size="11" text-anchor="middle" fill="#111111">LTB-N16-C2k</text>
+<line x1="310.00" y1="202.50" x2="310.00" y2="202.50" stroke="#D55E00" stroke-width="1.5"/>
+<line x1="310.00" y1="342.59" x2="310.00" y2="342.59" stroke="#D55E00" stroke-width="1.5"/>
+<rect x="292.86" y="202.50" width="34.29" height="140.09" fill="#D55E00" fill-opacity="0.35" stroke="#D55E00" stroke-width="1.5"/>
+<line x1="292.86" y1="342.59" x2="327.14" y2="342.59" stroke="#D55E00" stroke-width="2"/>
+<text x="310.00" y="383" font-size="11" text-anchor="middle" fill="#111111">LTB-N32</text>
+<line x1="378.57" y1="62.41" x2="378.57" y2="202.50" stroke="#0072B2" stroke-width="1.5"/>
+<line x1="378.57" y1="202.50" x2="378.57" y2="342.59" stroke="#0072B2" stroke-width="1.5"/>
+<rect x="361.43" y="202.50" width="34.29" height="0.50" fill="#0072B2" fill-opacity="0.35" stroke="#0072B2" stroke-width="1.5"/>
+<line x1="361.43" y1="202.50" x2="395.71" y2="202.50" stroke="#0072B2" stroke-width="2"/>
+<text x="378.57" y="383" font-size="11" text-anchor="middle" fill="#111111">LTB-N32-C2k</text>
+<line x1="447.14" y1="62.41" x2="447.14" y2="62.41" stroke="#CC79A7" stroke-width="1.5"/>
+<line x1="447.14" y1="202.50" x2="447.14" y2="202.50" stroke="#CC79A7" stroke-width="1.5"/>
+<rect x="430.00" y="62.41" width="34.29" height="140.09" fill="#CC79A7" fill-opacity="0.35" stroke="#CC79A7" stroke-width="1.5"/>
+<line x1="430.00" y1="202.50" x2="464.29" y2="202.50" stroke="#CC79A7" stroke-width="2"/>
+<text x="447.14" y="383" font-size="11" text-anchor="middle" fill="#111111">LTB-N64</text>
+<line x1="515.71" y1="202.50" x2="515.71" y2="202.50" stroke="#F0E442" stroke-width="1.5"/>
+<line x1="515.71" y1="202.50" x2="515.71" y2="342.59" stroke="#F0E442" stroke-width="1.5"/>
+<rect x="498.57" y="202.50" width="34.29" height="0.50" fill="#F0E442" fill-opacity="0.35" stroke="#F0E442" stroke-width="1.5"/>
+<line x1="498.57" y1="202.50" x2="532.86" y2="202.50" stroke="#F0E442" stroke-width="2"/>
+<text x="515.71" y="383" font-size="11" text-anchor="middle" fill="#111111">LTB-N64-C2k</text>
+</svg>

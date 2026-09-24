@@ -25,3 +25,18 @@ behaves the same (Task 4). No upstream file is vendored, and no native bridge is
 Licence compatibility: Apache-2.0 ([C1]) and MIT ([C2], reference only) can both be
 incorporated into a project distributed as `Apache-2.0 OR AGPL-3.0-only`. The ported
 functions carry an attribution line pointing to [C1]'s Apache-2.0 licence.
+
+## Disclosed behaviours (from the final whole-branch review)
+
+* **Generation-0 LT-B tree.** On the calibration population itself, H = H0, so every
+  off-diagonal biased similarity is 0 up to floating-point residue (measured values
+  {0, 2.2e-16}). The first LT-B tree is therefore decided by 1-ulp rounding noise and the
+  seeded order, not by linkage. This matches upstream: the golden fixtures show bit parity.
+  It is inherent to Eq. 2 of [P1] at g = 0.
+* **The `max` initial-population radius** equals the representation dimension, so it can
+  exceed hill climbing's `-D/--max-dist` search distance. The GOMEA initial population can
+  therefore contain instances HC's neighbourhood search would never visit. This is a
+  design difference between the arms, not a bug.
+* **The score cache is off in both arms for the demo problems** (see the correction in
+  `P1.0-AUDIT.md`). `EvaluationLedger.duplicate_requests` reports how many GOMEA requests
+  re-evaluated an already-seen genotype.

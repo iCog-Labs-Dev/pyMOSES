@@ -1,0 +1,114 @@
+{
+  "schema_version": 1,
+  "phase": 1,
+  "commit": "c6301cbc82f525537f0622f399bc40d2c13d6b6d",
+  "common_argv": [
+    "-l",
+    "WARN"
+  ],
+  "arms": {
+    "HC": {
+      "argv": [
+        "-a",
+        "hc"
+      ]
+    },
+    "UNI": {
+      "argv": [
+        "-a",
+        "gomea",
+        "--gomea-pop-size",
+        "16",
+        "--gomea-skip-inactive",
+        "0",
+        "--gomea-fos",
+        "uni"
+      ]
+    },
+    "RT": {
+      "argv": [
+        "-a",
+        "gomea",
+        "--gomea-pop-size",
+        "16",
+        "--gomea-skip-inactive",
+        "0",
+        "--gomea-fos",
+        "rt"
+      ]
+    },
+    "LT-MI": {
+      "argv": [
+        "-a",
+        "gomea",
+        "--gomea-pop-size",
+        "16",
+        "--gomea-skip-inactive",
+        "0",
+        "--gomea-fos",
+        "lt-mi"
+      ]
+    },
+    "LT-B": {
+      "argv": [
+        "-a",
+        "gomea",
+        "--gomea-pop-size",
+        "16",
+        "--gomea-skip-inactive",
+        "0",
+        "--gomea-fos",
+        "lt-b"
+      ]
+    },
+    "LT-B-FI": {
+      "argv": [
+        "-a",
+        "gomea",
+        "--gomea-pop-size",
+        "16",
+        "--gomea-skip-inactive",
+        "0",
+        "--gomea-fos",
+        "lt-b",
+        "--gomea-fi",
+        "1"
+      ]
+    }
+  },
+  "workers": 16,
+  "output_root": "../gomea-results",
+  "name": "smoke",
+  "tasks": {
+    "pa2": {
+      "argv": [
+        "-H",
+        "pa",
+        "-k",
+        "2"
+      ],
+      "target_raw": 0
+    },
+    "mux6": {
+      "argv": [
+        "-H",
+        "mux",
+        "-k",
+        "2"
+      ],
+      "target_raw": 0
+    }
+  },
+  "seeds": [
+    11,
+    12
+  ],
+  "budget": {
+    "argv": [
+      "-m",
+      "1000"
+    ],
+    "kind": "evaluations"
+  },
+  "wall_cap_s": 900
+}

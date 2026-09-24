@@ -1,0 +1,8 @@
+{
+  "cpu": "x86_64",
+  "git_head": "07ea018c95d0999f53c83e361316a0258ca8d673",
+  "git_status_short": "?? MOSES_GOMEA_LOCAL_AGENT_HANDOFF/\n?? configs/\n",
+  "launch_dir": "/home/yab/Documents/Projects/iCog/HyperonRelated/MOSES/pyMoses",
+  "platform": "Linux-7.2.3-arch1-2-x86_64-with-glibc2.44",
+  "python_version": "3.14.7 (main, Aug 10 2026, 07:46:56) [GCC 16.1.1 20260728]"
+}

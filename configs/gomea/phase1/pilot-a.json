@@ -1,0 +1,142 @@
+{
+  "schema_version": 1,
+  "name": "pilot-a",
+  "phase": 1,
+  "commit": "07ea018c95d0999f53c83e361316a0258ca8d673",
+  "common_argv": [
+    "-l",
+    "WARN"
+  ],
+  "tasks": {
+    "pa4": {
+      "argv": [
+        "-H",
+        "pa",
+        "-k",
+        "4"
+      ],
+      "target_raw": 0
+    },
+    "maj5": {
+      "argv": [
+        "-H",
+        "maj",
+        "-k",
+        "5"
+      ],
+      "target_raw": 0
+    },
+    "mux6": {
+      "argv": [
+        "-H",
+        "mux",
+        "-k",
+        "2"
+      ],
+      "target_raw": 0
+    }
+  },
+  "arms": {
+    "HC": {
+      "argv": [
+        "-a",
+        "hc"
+      ]
+    },
+    "LTB-N16": {
+      "argv": [
+        "-a",
+        "gomea",
+        "--gomea-skip-inactive",
+        "0",
+        "--gomea-fos",
+        "lt-b",
+        "--gomea-pop-size",
+        "16"
+      ]
+    },
+    "LTB-N16-C2k": {
+      "argv": [
+        "-a",
+        "gomea",
+        "--gomea-skip-inactive",
+        "0",
+        "--gomea-fos",
+        "lt-b",
+        "--gomea-pop-size",
+        "16",
+        "--gomea-max-evals-per-deme",
+        "2000"
+      ]
+    },
+    "LTB-N32": {
+      "argv": [
+        "-a",
+        "gomea",
+        "--gomea-skip-inactive",
+        "0",
+        "--gomea-fos",
+        "lt-b",
+        "--gomea-pop-size",
+        "32"
+      ]
+    },
+    "LTB-N32-C2k": {
+      "argv": [
+        "-a",
+        "gomea",
+        "--gomea-skip-inactive",
+        "0",
+        "--gomea-fos",
+        "lt-b",
+        "--gomea-pop-size",
+        "32",
+        "--gomea-max-evals-per-deme",
+        "2000"
+      ]
+    },
+    "LTB-N64": {
+      "argv": [
+        "-a",
+        "gomea",
+        "--gomea-skip-inactive",
+        "0",
+        "--gomea-fos",
+        "lt-b",
+        "--gomea-pop-size",
+        "64"
+      ]
+    },
+    "LTB-N64-C2k": {
+      "argv": [
+        "-a",
+        "gomea",
+        "--gomea-skip-inactive",
+        "0",
+        "--gomea-fos",
+        "lt-b",
+        "--gomea-pop-size",
+        "64",
+        "--gomea-max-evals-per-deme",
+        "2000"
+      ]
+    }
+  },
+  "seeds": [
+    501,
+    502,
+    503,
+    504,
+    505
+  ],
+  "budget": {
+    "argv": [
+      "-m",
+      "20000"
+    ],
+    "kind": "evaluations"
+  },
+  "wall_cap_s": 2400,
+  "workers": 20,
+  "output_root": "/home/yab/Documents/Projects/iCog/HyperonRelated/MOSES/gomea-results"
+}
