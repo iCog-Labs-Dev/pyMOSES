@@ -215,7 +215,8 @@ def test_fi_without_strict_improvement_copies_the_elite():
     assert (out.genotype, out.score, out.pkey) == (elite.genotype, elite.score, elite.pkey)
     assert sorted(ev.calls) == [(0, 1), (1, 0)]  # neutral results are not accepted
     assert stats.fi_events == 1 and stats.fi_elite_copies == 1
-    assert stats.accepted_neutral == 0 and stats.rejected == 2
+    assert stats.fi_evaluated == 2 and stats.fi_improved == 0 and stats.fi_trials == 2
+    assert stats.evaluated == stats.rejected == stats.accepted_neutral == 0
 
 
 def test_fi_accepts_first_strict_improvement_and_stops():
@@ -226,7 +227,8 @@ def test_fi_accepts_first_strict_improvement_and_stops():
     assert len(ev.calls) == 1
     assert out.genotype == ev.calls[0] and out.score == 2.0
     assert stats.fi_events == 1 and stats.fi_elite_copies == 0
-    assert stats.accepted_improving == 1
+    assert stats.fi_improved == 1 and stats.fi_evaluated == 1
+    assert stats.accepted_improving == stats.evaluated == stats.trials == 0
 
 
 def test_fi_skips_noops_and_proven_equal_phenotypes():
@@ -354,17 +356,198 @@ def test_keyboard_interrupt_is_recorded_and_reraised():
 
 def test_forced_improvement_in_engine():
     ev = CountingEvaluator(onemax(2))
-    rng = MT19937RandGen(21)
+    # Seed chosen so that FI fires and strictly improves an offspring.
+    rng = MT19937RandGen(22)
     pop = [ev.individual(tuple(rng.randint_n(3) for _ in range(12))) for _ in range(10)]
     records = []
-    res = _engine(
+    eng = _engine(
         [3] * 12,
         ev,
-        fos_mode="lt-b",
+        fos_mode="uni",
         forced_improvement=True,
         target=lambda s: s == 12.0,
         max_generations=50,
+        stall_generations=20,
         on_generation=lambda rec, p: records.append(rec),
-    ).run(pop)
+    )
+    res = eng.run(pop)
     assert sum(r["stats"]["fi_events"] for r in records) > 0
+    assert sum(r["stats"]["fi_improved"] for r in records) > 0
+    assert res.termination_reason == "target_reached"
     assert res.best.score >= max(i.score for i in pop)
+    assert eng.elite.score == res.best.score
+
+
+# ------------------------------------------------------------------ fix round 1
+
+
+class _StubModel:
+    """A linkage model whose ``learn`` returns a fixed FOS."""
+
+    def __init__(self, fos):
+        self.fos = fos
+
+    def learn(self, pop):
+        return [list(s) for s in self.fos]
+
+
+def test_fi_never_returns_something_worse_than_the_offspring():
+    # The offspring (10) beats the elite (5): no trial improves, and the
+    # result is the offspring unchanged, not an elite copy.
+    ev = ScriptedEvaluator({(0, 0): 10.0, (1, 1): 5.0, (1, 0): 7.0, (0, 1): 7.0})
+    off, elite = ev.ind((0, 0)), ev.ind((1, 1))
+    stats = GomStats()
+    out = forced_improvement(off, elite, [[0], [1]], ev, _rng(), stats)
+    assert out is off
+    assert stats.fi_events == 1 and stats.fi_elite_copies == 0
+
+
+def test_fi_counters_are_separate_from_gom_counters():
+    ev = ScriptedEvaluator({(0, 0): 1.0, (1, 1): 3.0, (1, 0): 1.0, (0, 1): 2.0})
+    off, elite = ev.ind((0, 0)), ev.ind((1, 1))
+    stats = GomStats()
+    forced_improvement(off, elite, [[0], [1], [0, 1]], ev, _rng(), stats)
+    assert stats.trials == stats.evaluated == 0
+    assert stats.accepted_improving == stats.rejected == stats.accepted_neutral == 0
+    assert stats.fi_trials >= 1 and stats.fi_evaluated == len(ev.calls) >= 1
+    assert stats.fi_improved == 1
+
+
+def test_fi_phenotype_skip_is_counted_and_reported():
+    ev = ScriptedEvaluator({(0, 0): 1.0, (0, 1): 3.0}, pkey=lambda g: g[0])
+    off, elite = ev.ind((0, 0)), ev.ind((0, 1))
+    stats = GomStats()
+    forced_improvement(off, elite, [[1]], ev, _rng(), stats)
+    assert ev.calls == [] and stats.phenotype_skips == 1 and ev.phenotype_skips == 1
+    assert stats.fi_trials == 1 and stats.fi_evaluated == 0
+
+
+def _gen_engine(ev, fi=True, target=None):
+    return GomeaEngine(
+        [2, 2],
+        EngineParams(forced_improvement=fi),
+        ev,
+        MT19937RandGen(11),
+        MT19937RandGen(12),
+        target=target,
+    )
+
+
+def _script_gom(monkeypatch, results):
+    """Replace ``engine.gom`` with one returning ``results`` in call order."""
+    it = iter(results)
+    calls = []
+
+    def fake(recipient, donors, fos, ev, rng, stats, skip_inactive):
+        calls.append(recipient)
+        return next(it)
+
+    monkeypatch.setattr(engine_mod, "gom", fake)
+    return calls
+
+
+def _spy_fi(monkeypatch):
+    seen = []
+    real = engine_mod.forced_improvement
+
+    def spy(offspring, elite, fos, ev, rng, stats):
+        seen.append((offspring, elite))
+        return real(offspring, elite, fos, ev, rng, stats)
+
+    monkeypatch.setattr(engine_mod, "forced_improvement", spy)
+    return seen
+
+
+def test_improved_offspring_becomes_the_elite_within_the_generation(monkeypatch):
+    ev = ScriptedEvaluator({(0, 0): 1.0, (1, 1): 2.0, (1, 0): 5.0})
+    a, b = ev.ind((0, 0)), ev.ind((1, 1))
+    better = ev.ind((1, 0))
+    # Recipient 0 strictly improves to (1, 0) = 5, past the start elite (1, 1).
+    # Recipient 1 is unchanged, so FI fires and must use (1, 0) as the elite.
+    _script_gom(monkeypatch, [(better, True, True), (b, False, False)])
+    seen = _spy_fi(monkeypatch)
+    eng = _gen_engine(ev)
+    eng.elite = b
+    new_pop, _, stop = engine_mod.perform_generation(eng, [a, b], _StubModel([[0], [1]]), 0, 0)
+    assert stop is None
+    assert len(seen) == 1 and seen[0][1] is better
+    # FI of (1, 1) with elite (1, 0): subset [1] yields (1, 0) = 5, a strict improvement.
+    assert new_pop[1].genotype == (1, 0) and new_pop[1].score == 5.0
+    assert eng.elite.score == 5.0
+
+
+def test_fi_result_better_than_elite_becomes_the_elite(monkeypatch):
+    ev = ScriptedEvaluator({(0, 0): 1.0, (1, 1): 3.0, (0, 1): 4.0})
+    a, b = ev.ind((0, 0)), ev.ind((1, 1))
+    _script_gom(monkeypatch, [(a, False, False), (b, False, False)])
+    eng = _gen_engine(ev)
+    eng.elite = b
+    new_pop, _, _ = engine_mod.perform_generation(eng, [a, b], _StubModel([[1]]), 0, 0)
+    # FI of (0, 0) with elite (1, 1) over [[1]] gives (0, 1) = 4 > 3.
+    assert new_pop[0].genotype == (0, 1)
+    assert eng.elite.genotype == (0, 1) and eng.elite.score == 4.0
+
+
+def test_engine_initialises_the_elite_from_the_initial_population():
+    ev = CountingEvaluator(onemax(1))
+    pop = [ev.individual(g) for g in ((0, 0), (1, 0), (0, 1))]
+    eng = _engine([2, 2], ev, max_generations=1)
+    eng.run(pop)
+    assert eng.elite.score >= 1.0
+    assert not any(eng.ev.worse(eng.elite.score, ind.score) for ind in eng.last_result.population)
+
+
+@pytest.mark.parametrize(
+    ("changed", "nis", "fires"),
+    [(False, 0, True), (True, 2, True), (True, 1, False), (True, 0, False)],
+)
+def test_fi_trigger(monkeypatch, changed, nis, fires):
+    # N = 2, so the threshold is 1 + floor(log10(2)) = 1: FI fires iff the
+    # offspring did not change or nis > 1.
+    ev = ScriptedEvaluator({(0, 0): 1.0, (1, 1): 3.0, (0, 1): 2.0, (1, 0): 2.0})
+    a, b = ev.ind((0, 0)), ev.ind((1, 1))
+    off = ev.ind((0, 1)) if changed else a
+    _script_gom(monkeypatch, [(off, changed, False), (b, True, False)])
+    seen = _spy_fi(monkeypatch)
+    eng = _gen_engine(ev)
+    eng.elite = b
+    engine_mod.perform_generation(eng, [a, b], _StubModel([[0], [1]]), nis, 0)
+    assert [s[0] for s in seen] == ([off] if fires else [])
+
+
+def test_fi_is_skipped_when_the_offspring_is_the_elite(monkeypatch):
+    ev = ScriptedEvaluator({(0, 0): 1.0, (1, 1): 3.0, (1, 0): 0.5})
+    a, b = ev.ind((0, 0)), ev.ind((1, 1))
+    _script_gom(monkeypatch, [(a, True, False), (b, False, False)])
+    seen = _spy_fi(monkeypatch)
+    eng = _gen_engine(ev)
+    eng.elite = b
+    _, rec, _ = engine_mod.perform_generation(eng, [a, b], _StubModel([[0]]), 5, 0)
+    assert seen[0][0] is a and len(seen) == 1  # b is the elite: no FI for it
+    assert rec["stats"]["fi_events"] == 1
+
+
+def test_target_reached_mid_generation_keeps_untouched_parents(monkeypatch):
+    ev = CountingEvaluator(onemax(1))
+    pop = [ev.individual(g) for g in ((0, 0, 0), (1, 0, 0), (0, 1, 0))]
+    winner = Individual((1, 1, 1), 3.0, None)
+    calls = _script_gom(monkeypatch, [(winner, True, True)])
+    res = _engine([2, 2, 2], ev, target=lambda s: s >= 3.0).run(pop)
+    assert res.termination_reason == "target_reached"
+    assert len(calls) == 1 and res.generations == 1
+    assert res.population[0] is winner
+    assert res.population[1] is pop[1] and res.population[2] is pop[2]
+
+
+def test_empty_fos_stops_with_no_valid_moves(monkeypatch):
+    class EmptyModel(engine_mod.LinkageModel):
+        def learn(self, pop):
+            return []
+
+    monkeypatch.setattr(engine_mod, "LinkageModel", EmptyModel)
+    ev = CountingEvaluator(onemax(1))
+    pop = [ev.individual(g) for g in ((0, 1), (1, 0))]
+    before = ev.calls
+    res = _engine([2, 2], ev).run(pop)
+    assert res.termination_reason == "no_valid_moves"
+    assert res.generations == 0 and ev.calls == before

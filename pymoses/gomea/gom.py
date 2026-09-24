@@ -58,9 +58,14 @@ class Individual:
 class GomStats:
     """Counters for one generation (or one call) of GOM/FI.
 
-    ``trials`` counts every FOS subset visited; ``evaluated`` the scorer
-    calls; a proven phenotype skip counts as both ``accepted_neutral`` and
-    ``phenotype_skips``.
+    ``trials`` counts every FOS subset GOM visits; ``evaluated`` GOM's
+    scorer calls; a proven phenotype skip in GOM counts as both
+    ``accepted_neutral`` and ``phenotype_skips``. Forced improvements have
+    their own counters: ``fi_trials`` (subsets visited), ``fi_evaluated``
+    (scorer calls) and ``fi_improved`` (strict improvements accepted); the
+    GOM counters above never include FI work. ``noop_skips`` and
+    ``phenotype_skips`` are shared by GOM and FI, since they mirror
+    ``ev.record_noop_skip`` / ``ev.record_phenotype_skip``.
     """
 
     trials: int = 0
@@ -72,6 +77,9 @@ class GomStats:
     phenotype_skips: int = 0
     fi_events: int = 0
     fi_elite_copies: int = 0
+    fi_trials: int = 0
+    fi_evaluated: int = 0
+    fi_improved: int = 0
 
     def as_dict(self) -> dict[str, int]:
         return dataclasses.asdict(self)
@@ -183,21 +191,31 @@ def forced_improvement(
     """Forced improvement: a labelled reconstruction.
 
     Neither GP-GOMEA (commit 750220c) nor gpg implements it; this follows
-    the LT-GOMEA convention described in the GOMEA papers (the engine
-    decides when to trigger it). For each subset of a shuffled FOS, copy the
-    elite's values; a subset that changes nothing, or whose trial is proven
-    (via ``ev.phenotype_key``) to share the current phenotype, is skipped
-    without evaluation, since it cannot strictly improve. Accept only a
-    strict improvement, and stop at the first one. If none is found, the
-    offspring becomes a copy of the elite (genotype, score and key).
+    the LT-GOMEA convention described in the GOMEA papers, including its
+    live best-ever elitist: ``elite`` is the best individual found so far,
+    updated by the engine as soon as any offspring strictly beats it (the
+    engine also decides when to trigger FI, and skips it when the offspring
+    already is the elite). For each subset of a shuffled FOS, copy the
+    elite's values. A subset that changes nothing is skipped without
+    evaluation. A trial proven (via ``ev.phenotype_key``) to share the
+    current phenotype is skipped too, whatever ``skip_inactive`` says: FI
+    accepts only strict improvements, and a phenotype-equal trial scores
+    the same, so it can never strictly improve. Accept only a strict
+    improvement, and stop at the first one. If none is found, the offspring
+    becomes a copy of the elite (genotype, score and key) only when the
+    elite is strictly better; otherwise the offspring is returned unchanged,
+    so FI never returns something worse than its input.
 
-    A ``BudgetExhausted`` is re-raised as ``GomInterrupted`` carrying the
-    unchanged ``offspring``.
+    Counts one ``fi_events`` per call, and ``fi_trials``, ``fi_evaluated``,
+    ``fi_improved`` and ``fi_elite_copies`` for its work; the GOM counters
+    ``trials``, ``evaluated``, ``accepted_*`` and ``rejected`` are left
+    alone. A ``BudgetExhausted`` is re-raised as ``GomInterrupted``
+    carrying the unchanged ``offspring``.
     """
     stats.fi_events += 1
     cur_g, cur_s, cur_k = offspring.genotype, offspring.score, offspring.pkey
     for idx in _shuffled_order(len(fos), rng):
-        stats.trials += 1
+        stats.fi_trials += 1
         trial = _mix(cur_g, elite.genotype, fos[idx])
         if trial == cur_g:
             stats.noop_skips += 1
@@ -212,10 +230,11 @@ def forced_improvement(
             trial_s = ev.evaluate(trial)
         except BudgetExhausted as exc:
             raise GomInterrupted(offspring, exc.reason) from exc
-        stats.evaluated += 1
+        stats.fi_evaluated += 1
         if ev.worse(cur_s, trial_s):
-            stats.accepted_improving += 1
+            stats.fi_improved += 1
             return Individual(trial, trial_s, trial_k)
-        stats.rejected += 1
+    if not ev.worse(cur_s, elite.score):
+        return offspring
     stats.fi_elite_copies += 1
     return Individual(elite.genotype, elite.score, elite.pkey)

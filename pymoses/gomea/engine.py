@@ -59,6 +59,18 @@ class GomeaEngine:
     the budget reasons of ``BudgetExhausted`` (``global_budget``,
     ``inner_budget``, ``time_limit``) and ``interrupted`` (recorded on
     ``last_result`` before a ``KeyboardInterrupt`` is re-raised).
+
+    Precedence: a budget interrupt wins over ``target_reached``. When a
+    ``BudgetExhausted`` cuts a generation short, the run ends with the
+    budget reason even if the partial population (for instance the
+    interrupted offspring's last accepted state) meets the target. An
+    offspring that meets the target ends its generation at once, so no
+    later evaluation in that generation can exhaust the budget.
+
+    ``elite`` is the best-ever individual (LT-GOMEA's live elitist). It
+    starts as the best of the initial population and is replaced, within a
+    generation, by any offspring strictly better than it, after GOM or
+    after FI. Forced improvements use the elite current at that moment.
     """
 
     def __init__(
@@ -79,6 +91,7 @@ class GomeaEngine:
         self.target = target
         self.on_generation = on_generation
         self.last_result: EngineResult | None = None
+        self.elite: Individual | None = None
 
     def best_of(self, pop: Sequence[Individual]) -> Individual:
         """The best individual; ties go to the lowest index."""
@@ -91,6 +104,11 @@ class GomeaEngine:
     def target_met(self, ind: Individual) -> bool:
         return self.target is not None and bool(self.target(ind.score))
 
+    def offer_elite(self, ind: Individual) -> None:
+        """Make ``ind`` the elite if it is strictly better (or none is set)."""
+        if self.elite is None or self.ev.worse(self.elite.score, ind.score):
+            self.elite = ind
+
     def run(self, population: list[Individual]) -> EngineResult:
         """Evolve an already-evaluated ``population``."""
         if not population:
@@ -98,6 +116,7 @@ class GomeaEngine:
         self._pop = list(population)
         self._gens = 0
         self._history: list[dict] = []
+        self.elite = self.best_of(self._pop)
         try:
             reason = self._loop()
         except KeyboardInterrupt:
@@ -121,10 +140,10 @@ class GomeaEngine:
             return "target_reached"
         model = LinkageModel(self.params.fos_mode, self.rng_link)
         model.calibrate([ind.genotype for ind in P], self.domains)
+        # N < 2 needs no check of its own: a single individual makes every
+        # position constant, so calibration yields no search fields.
         if not model.search_positions:
             return "no_search_fields"
-        if len(P) < 2:
-            return "no_valid_moves"
         if self.params.max_generations <= 0:
             return "max_generations"
         best = self.best_of(P)
@@ -174,9 +193,15 @@ def perform_generation(
     so elitism is implicit), and a sequential loop instead of OpenMP.
     Optional forced improvements (a reconstruction, see
     ``forced_improvement``) follow each GOM when the offspring did not
-    change or ``nis > 1 + floor(log10(N))``. A budget interruption or a
-    reached target ends the generation at once: the finished offspring
-    plus the untouched parents form the new population.
+    change or ``nis > 1 + floor(log10(N))``, unless the offspring already
+    is the elite. The elite is ``eng.elite``, LT-GOMEA's live best-ever
+    individual: any offspring strictly better than it, after GOM or FI,
+    replaces it at once, so later recipients' FI use it. A budget
+    interruption or a reached target ends the generation at once: the
+    finished offspring plus the untouched parents form the new population.
+    An empty FOS raises ``_Stop('no_valid_moves')``; the real
+    ``LinkageModel`` never returns one after calibration found search
+    fields, so only a substituted model can reach it.
     """
     t0 = time.perf_counter()
     donors = list(P)
@@ -184,7 +209,8 @@ def perform_generation(
     linkage_s = time.perf_counter() - t0
     if not F:
         raise _Stop("no_valid_moves")
-    elite = eng.best_of(donors)
+    if eng.elite is None:
+        eng.elite = eng.best_of(donors)
     fi_threshold = 1 + math.floor(math.log10(len(P)))
     stats = GomStats()
     offspring: list[Individual] = []
@@ -195,9 +221,16 @@ def perform_generation(
             off, changed, _ = gom(
                 parent, donors, F, eng.ev, eng.rng_var, stats, eng.params.skip_inactive
             )
-            if eng.params.forced_improvement and (not changed or nis > fi_threshold):
-                off = forced_improvement(off, elite, F, eng.ev, eng.rng_var, stats)
+            eng.offer_elite(off)
+            if (
+                eng.params.forced_improvement
+                and (not changed or nis > fi_threshold)
+                and off.genotype != eng.elite.genotype
+            ):
+                off = forced_improvement(off, eng.elite, F, eng.ev, eng.rng_var, stats)
+                eng.offer_elite(off)
         except GomInterrupted as exc:
+            eng.offer_elite(exc.offspring)
             offspring.append(exc.offspring)
             stop = exc.reason
             break
