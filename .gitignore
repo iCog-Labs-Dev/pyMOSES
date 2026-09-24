@@ -11,6 +11,7 @@ venv/
 
 # compiled C++ oracle probes (rebuilt on demand from tools/cpp_probe/)
 tools/cpp_probe/build/
+tools/gomea_golden/build/
 
 # SDD scratch workspace (ledger, briefs, review packages)
 .superpowers/

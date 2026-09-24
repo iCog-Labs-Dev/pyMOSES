@@ -1,0 +1,38 @@
+{
+  "capture_script": "tools/gomea_golden/capture.py",
+  "capture_script_sha256": "7b28f00c639624fb111575e02c6ae20af1549dc7e261faed77fa79502648c1c3",
+  "classic_dir": null,
+  "cli_tool": null,
+  "generated_at_utc": "2026-09-24T09:38:43+00:00",
+  "inputs": {
+    "case_names": [
+      "d2_binary",
+      "d3_unequal_alphabets",
+      "d3_dependent_pair",
+      "d12_unequal_alphabets",
+      "d12_dependent_pairs",
+      "d30_independent",
+      "d30_blocks",
+      "d12_second_generation",
+      "d5_negative_biased",
+      "d6_factorial_ties",
+      "d6_factorial_ties_shuffled",
+      "d5_all_identical",
+      "d12_factorial_ties",
+      "d30_second_generation",
+      "d2_negative_biased"
+    ]
+  },
+  "prefix_dir": null,
+  "probe_kind": "cpp_probe",
+  "probe_source": "tools/gomea_golden/golden.cpp",
+  "probe_source_sha256": "66eb6080fc1c9155a5abf254e23ab1c6496eae2d3b55c3aa9fa7fe7b8319584a",
+  "repo_commit": "6ae8f302bbbb5a8d860c81b3d0c76d01b2dba2e2",
+  "schema_version": 2,
+  "toolchain": {
+    "boost_lib_version": "1_92",
+    "cxx": "g++ (GCC) 16.2.1 20260810",
+    "glibcxx_max_symbol": "GLIBCXX_3.4.36",
+    "libstdcxx_soname": "libstdc++.so.6.0.36"
+  }
+}
