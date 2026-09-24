@@ -11,6 +11,7 @@ over a 3-input even-parity (``pa`` -3) truth table.
 
 import itertools
 import json
+import math
 
 import pytest
 
@@ -107,13 +108,35 @@ def test_default_parameters():
     assert gp.pop_size == 64
     assert gp.fos == "lt-b"
     assert gp.forced_improvement is False
-    assert gp.skip_inactive is True
+    assert gp.skip_inactive is False
     assert gp.radii == "1:0.4,2:0.3,4:0.2,max:0.1"
     assert gp.dedupe is True
     assert gp.max_generations == 100
     assert gp.stall_generations == 5
     assert gp.max_evals_per_deme is None
     assert gp.telemetry_path is None
+
+
+def test_cli_skip_inactive_defaults_off_and_stays_available():
+    """F6: ``--gomea-skip-inactive`` defaults to 0 (off), both for a parsed
+    command line without the flag and for a namespace built without it,
+    and ``1`` still turns it on."""
+    import argparse
+
+    from pymoses.moses.main.problem_params import (
+        _GOMEA_OPTIONS,
+        _gomea_params_from_args,
+        problem_params,
+    )
+
+    assert {dest: default for _, dest, _, default in _GOMEA_OPTIONS}["gomea_skip_inactive"] == 0
+    assert _gomea_params_from_args(argparse.Namespace()).skip_inactive is False
+
+    parser = argparse.ArgumentParser()
+    problem_params().add_gomea_options(parser)
+    assert _gomea_params_from_args(parser.parse_args([])).skip_inactive is False
+    on = parser.parse_args(["--gomea-skip-inactive", "1"])
+    assert _gomea_params_from_args(on).skip_inactive is True
 
 
 @pytest.mark.parametrize(
@@ -177,6 +200,97 @@ def test_budget_is_never_exceeded(pa3, max_evals):
     assert deme.n_evals == len(deme) == requests
 
 
+class _CountingScorer:
+    """Wraps a real ``complexity_based_scorer`` and counts its calls. Keeps
+    ``get_rep`` and ``_cscorer`` so the optimizer and oracle see the same
+    interface as the wrapped scorer."""
+
+    def __init__(self, inner):
+        self.inner = inner
+        self._cscorer = inner._cscorer
+        self.calls = 0
+
+    def get_rep(self):
+        return self.inner.get_rep()
+
+    def __call__(self, inst):
+        self.calls += 1
+        return self.inner(inst)
+
+
+def test_contract5_budget_sweep_across_forced_improvement_boundaries(pa3, monkeypatch):
+    """F4(a), Contract 5: with forced improvements on and a small N, sweep
+    budgets from 1 to past the unbudgeted run's own request count, covering
+    every budget that runs out inside a forced improvement. For every
+    budget, scorer calls == deme.n_evals == len(deme) == ledger.requests
+    <= budget; and whenever the budget cut the run short (the unbudgeted
+    run of the same seed made more requests), the reason is the budget's."""
+    import pymoses.gomea.engine as engine_mod
+    from pymoses.gomea.gom import GomInterrupted
+    from pymoses.gomea.optimizer import BUDGET_REASONS
+
+    real_fi = engine_mod.forced_improvement
+    fi_log: list[tuple[int, int, bool]] = []  # (requests before, after, interrupted)
+
+    def spy(off, elite, fos, ev, rng, stats):
+        before = ev.oracle.ledger.requests
+        try:
+            out = real_fi(off, elite, fos, ev, rng, stats)
+        except GomInterrupted:
+            fi_log.append((before, ev.oracle.ledger.requests, True))
+            raise
+        fi_log.append((before, ev.oracle.ledger.requests, False))
+        return out
+
+    monkeypatch.setattr(engine_mod, "forced_improvement", spy)
+    gp = gomea_parameters(
+        pop_size=6, forced_improvement=True, stall_generations=50, max_generations=50
+    )
+
+    def run(budget):
+        rep, isc, deme = pa3()
+        counting = _CountingScorer(isc)
+        randGen().seed(2)
+        opt = gomea_optimization(gp=gp)
+        opt(deme, counting, budget, 10**6)
+        return opt, deme, counting
+
+    ref_opt, _, _ = run(10**6)
+    ref_requests = ref_opt.last_result["ledger"]["requests"]
+    fi_windows = [(a, b) for a, b, _ in fi_log if b > a]
+    assert fi_windows, "the reference run must evaluate inside a forced improvement"
+
+    # Every budget strictly inside an FI evaluation window (and its edges),
+    # plus a stride over the whole run and the budgets around its end.
+    inside = {b for a, e in fi_windows for b in range(a, e)}
+    budgets = sorted(
+        inside
+        | {e for _, e in fi_windows}
+        | set(range(1, ref_requests, 9))
+        | {ref_requests - 1, ref_requests, ref_requests + 1}
+    )
+    interrupted_in_fi = []
+    for budget in budgets:
+        fi_log.clear()
+        opt, deme, counting = run(budget)
+        res = opt.last_result
+        requests = res["ledger"]["requests"]
+        assert counting.calls == deme.n_evals == len(deme) == requests <= budget, budget
+        if ref_requests > budget:
+            assert requests == budget, budget
+            assert res["termination_reason"] in BUDGET_REASONS, (budget, res)
+            assert res["termination_reason"] == "global_budget"
+            assert opt.over_budget is True
+        else:
+            assert res["termination_reason"] == ref_opt.last_result["termination_reason"]
+            assert requests == ref_requests
+        if any(interrupted for _, _, interrupted in fi_log):
+            interrupted_in_fi.append(budget)
+
+    # Every budget strictly inside an FI evaluation window interrupts FI.
+    assert inside and inside <= set(interrupted_in_fi)
+
+
 def test_budget_exhausted_during_initial_evaluation_skips_the_engine(pa3):
     opt, deme = _run(pa3, 5, gomea_parameters(pop_size=32), max_evals=10)
     res = opt.last_result
@@ -215,25 +329,73 @@ def test_deterministic_given_the_global_seed(pa3):
     assert _deme_contents(a_deme) != _deme_contents(c_deme)
 
 
-def test_termination_reasons_are_distinct_strings(pa3):
-    assert all(isinstance(r, str) for r in TERMINATION_REASONS)
+def test_real_runs_produce_distinct_real_termination_reasons(pa3):
+    """F4(c): real runs end for at least three different reasons, and each
+    one is a declared ``TERMINATION_REASONS`` value."""
     assert len(set(TERMINATION_REASONS)) == len(TERMINATION_REASONS)
-    for expected in (
-        "target_reached",
-        "no_search_fields",
-        "no_valid_moves",
-        "converged",
-        "stagnation",
-        "max_generations",
-        "global_budget",
-        "inner_budget",
-        "time_limit",
-        "interrupted",
-    ):
-        assert expected in TERMINATION_REASONS
-    for seed, max_evals in ((1, 10), (2, 300), (3, 5000)):
-        opt, _ = _run(pa3, seed, gomea_parameters(pop_size=16), max_evals=max_evals)
-        assert opt.last_result["termination_reason"] in TERMINATION_REASONS
+
+    reasons = {}
+    opt, _ = _run(pa3, 1, gomea_parameters(pop_size=16), max_evals=10)
+    reasons["budget"] = opt.last_result["termination_reason"]
+
+    rep, isc, deme = pa3()
+    schema = FrozenSchema(rep)
+    exemplar_raw = isc(schema.to_instance(schema.default_genotype())).get_score()
+    randGen().seed(7)
+    opt = gomea_optimization(
+        optim_parameters(terminate_if_gte=exemplar_raw), gomea_parameters(pop_size=16)
+    )
+    opt(deme, isc, 1000, 10**6)
+    reasons["target"] = opt.last_result["termination_reason"]
+
+    opt, _ = _run(pa3, 3, gomea_parameters(pop_size=16, max_generations=1), max_evals=10**6)
+    reasons["max_gens"] = opt.last_result["termination_reason"]
+
+    assert reasons == {
+        "budget": "global_budget",
+        "target": "target_reached",
+        "max_gens": "max_generations",
+    }
+    assert set(reasons.values()) <= set(TERMINATION_REASONS)
+
+
+class _InterruptingScorer(_CountingScorer):
+    """Raises ``KeyboardInterrupt`` on call ``k + 1`` (after ``k`` real calls)."""
+
+    def __init__(self, inner, k):
+        super().__init__(inner)
+        self.k = k
+
+    def __call__(self, inst):
+        if self.calls >= self.k:
+            raise KeyboardInterrupt
+        return super().__call__(inst)
+
+
+@pytest.mark.parametrize("k", [3, 250])  # during the initial evaluation / generation 2
+def test_keyboard_interrupt_finalizes_and_reraises(pa3, tmp_path, k):
+    """F4(c): a ``KeyboardInterrupt`` from the scorer runs ``_finish``: the
+    deme is finalized, ``last_result`` says ``interrupted``, the ``end``
+    event is written, and the exception is re-raised."""
+    path = str(tmp_path / "t.jsonl")
+    rep, isc, deme = pa3()
+    scorer = _InterruptingScorer(isc, k)
+    randGen().seed(5)
+    opt = gomea_optimization(gp=gomea_parameters(pop_size=16, telemetry_path=path))
+    with pytest.raises(KeyboardInterrupt):
+        opt(deme, scorer, 10**6, 10**6)
+    res = opt.last_result
+    assert res is not None
+    assert res["termination_reason"] == "interrupted"
+    assert deme.n_evals == len(deme) == res["ledger"]["requests"] == scorer.calls == k
+    assert opt.total_evals == k
+    assert opt.over_budget is False
+    if k > res["pop_size_effective"]:
+        assert res["generations"] >= 1  # the interrupt came from inside the engine
+    else:
+        assert res["generations"] == 0
+    end = _events(path)[-1]
+    assert end["type"] == "end" and end["termination_reason"] == "interrupted"
 
 
 def test_contin_representation_raises_unsupported():
@@ -360,6 +522,50 @@ def test_telemetry_events_per_call(pa3, tmp_path):
     end = events[-1]
     end.pop("type")
     assert end == json.loads(json.dumps(opt.last_result, default=str, sort_keys=True))
+
+
+def test_population_diversity_hand_computed():
+    """F3: the per-generation diversity numbers on a hand-built population."""
+    from pymoses.gomea.optimizer import population_diversity
+
+    genotypes = [(0, 1, 2), (0, 1, 2), (1, 1, 0), (0, 1, 1)]
+    raws = [-2.0, -1.0, -1.0, -3.0]
+    d = population_diversity(genotypes, raws, positions=(0, 2))
+    assert d["unique_genotypes"] == 3
+    # position 0: {0: 3, 1: 1}; position 2: {2: 2, 0: 1, 1: 1}
+    h0 = -(0.75 * math.log2(0.75) + 0.25 * math.log2(0.25))
+    h2 = -(0.5 * math.log2(0.5) + 2 * 0.25 * math.log2(0.25))
+    assert d["mean_entropy_bits"] == pytest.approx((h0 + h2) / 2)
+    assert d["n_varying_fields"] == 2
+    assert d["best_raw_count"] == 2
+    # No search positions: nothing varies and the mean entropy is 0.
+    empty = population_diversity(genotypes, raws, positions=())
+    assert empty["mean_entropy_bits"] == 0.0 and empty["n_varying_fields"] == 0
+
+
+def test_generation_events_carry_diversity_telemetry(pa3, tmp_path):
+    """F3: every "generation" event reports the population's diversity
+    after that generation, over the model's search positions, and the
+    numbers are consistent on a real representation."""
+    path = str(tmp_path / "t.jsonl")
+    gp = gomea_parameters(pop_size=16, telemetry_path=path)
+    opt, _ = _run(pa3, 21, gp, max_evals=400)
+    res = opt.last_result
+    gens = [e for e in _events(path) if e["type"] == "generation"]
+    assert gens, "the run must reach at least one generation"
+    n = res["pop_size_effective"]
+    n_search = res["n_search_fields"]
+    for g in gens:
+        assert 1 <= g["unique_genotypes"] <= n
+        assert 0 <= g["n_varying_fields"] <= n_search
+        assert 0.0 <= g["mean_entropy_bits"] <= math.log2(3) + 1e-12  # 3-valued knobs
+        assert 1 <= g["best_raw_count"] <= n
+        assert (g["n_varying_fields"] == 0) == (g["mean_entropy_bits"] == 0.0)
+        if g["unique_genotypes"] == 1:
+            assert g["n_varying_fields"] == 0
+    # The initial population is diverse over its search positions.
+    assert gens[0]["n_varying_fields"] > 0
+    assert gens[0]["unique_genotypes"] > 1
 
 
 def test_telemetry_sink_without_path_is_a_noop(tmp_path):

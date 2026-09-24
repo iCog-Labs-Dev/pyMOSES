@@ -237,10 +237,45 @@ def test_calibrate_validates_domains():
         LinkageModel("uni", MT19937RandGen(0)).calibrate([(0, 1)], [2])
 
 
+def _lt_b_case():
+    """A deterministic d>=3 case where LT-B learned on P1 with H0 from P0
+    differs from LT-B calibrated on P1 itself (searched over small seeds)."""
+    domains = [2, 3, 2, 3]
+    for seed in range(200):
+        r = random.Random(seed)
+        pop0 = [tuple(r.randrange(k) for k in domains) for _ in range(12)]
+        pop1 = [tuple(r.randrange(k) for k in domains) for _ in range(12)]
+        if any(len({row[p] for row in pop}) < 2 for pop in (pop0, pop1) for p in range(4)):
+            continue  # keep every position a search position under both
+        cross = LinkageModel("lt-b", MT19937RandGen(0))
+        cross.calibrate(pop0, domains)
+        own = LinkageModel("lt-b", MT19937RandGen(0))
+        own.calibrate(pop1, domains)
+        if cross.learn(pop1) != own.learn(pop1):
+            return seed, domains, pop0, pop1
+    raise AssertionError("no distinguishing LT-B case found")
+
+
 def test_lt_b_uses_calibration_h0():
-    pop0 = [(x, x) for x in (0, 1)] * 10
-    pop1 = [(0, 0), (0, 1), (1, 0), (1, 1)] * 5
+    """F4(b): ``LinkageModel('lt-b')`` scores similarity against the H0 of
+    the CALIBRATION population, not of the population it learns from."""
+    _seed, domains, pop0, pop1 = _lt_b_case()
+    positions = range(len(domains))
+
     model = LinkageModel("lt-b", MT19937RandGen(0))
-    model.calibrate(pop0, [2, 2])
+    model.calibrate(pop0, domains)
     fos = model.learn(pop1)
-    assert sorted(map(sorted, fos)) == [[0], [1]]
+
+    own = LinkageModel("lt-b", MT19937RandGen(0))
+    own.calibrate(pop1, domains)
+    assert fos != own.learn(pop1)  # the chosen case really distinguishes the two
+
+    # The expected FOS, built by hand from H(P1) and H0 = H(P0), with the
+    # same seeded random order LinkageModel draws.
+    order_rng = MT19937RandGen(0)
+    order = list(range(len(domains)))
+    for i in range(len(order) - 1, 0, -1):
+        j = order_rng.randint_n(i + 1)
+        order[i], order[j] = order[j], order[i]
+    S = biased_similarity(entropy_matrix(pop1, positions), entropy_matrix(pop0, positions))
+    assert fos == linkage_tree_fos(S, order)[:-1]

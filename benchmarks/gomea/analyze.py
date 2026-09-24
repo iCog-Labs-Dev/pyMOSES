@@ -8,11 +8,13 @@ as `runner.py` lays it out (`manifest.json` plus `runs/<run_id>/
 summary.json`). Writes, under `RESULT_DIR/analysis/`:
 
   paired_results.csv    -- one row per task x seed, each arm's final
-                            best_raw / success / evals_to_target / wall_s.
+                            best_raw / success / evals_to_target / wall_s /
+                            cpu_s.
   aggregate_results.csv -- one row per task x arm: n, successes, success
                             rate + Wilson 95% CI, median/IQR of final error
-                            (= -best_raw), median/IQR of wall_s and n_calls,
-                            and ERT (right-censored expected running cost).
+                            (= -best_raw), median/IQR of wall_s, cpu_s and
+                            n_calls, max/median of ru_maxrss_kb, and ERT
+                            (right-censored expected running cost).
   contrasts.csv          -- one row per task x contrast ("A:B" in
                             --contrasts): paired n, wins/ties/losses on
                             final error, two-sided Wilcoxon p on final
@@ -24,7 +26,22 @@ summary.json`). Writes, under `RESULT_DIR/analysis/`:
   failures.md             -- every error/timeout run.
   figures/*.svg            -- per task: success probability vs evaluations
                             (empirical CDF of evals_to_target, one line per
-                            arm) and a box plot of final error per arm.
+                            arm), the same against CPU seconds
+                            (cpu_to_target), and a box plot of final error
+                            per arm.
+
+CPU time (`cpu_s`, `cpu_to_target`) is the evidence to read for speed: wall
+time on a hybrid P/E-core host under load depends on where a run landed.
+Caveat: a TIMEOUT run's `cpu_s` is read by the runner from `/proc` just
+before the kill (`cpu_s_source: "proc"`) and so includes interpreter
+start-up and imports (about a second); every other run's `cpu_s` is
+`process_time` around `moses_exec` only. The `cpu_s` median/IQR pools both.
+`cpu_to_target` is measured from the trace start in every case.
+
+`failures.md` also lists every ok run flagged `near_memory_limit` (peak RSS
+at or above 90% of the runner's `--mem-limit-mb`).
+Only paths inside RESULT_DIR are read, so a copied results directory
+analyses the same as the original.
 
 The evaluation budget used for right-censoring evals_to_target is `--budget`
 if given, else parsed out of the manifest's own `budget.argv` (`manifest.
@@ -217,7 +234,7 @@ def write_paired_results_csv(idx: dict, arm_names: list[str], path: Path) -> Non
     fieldnames = ["task", "seed"] + [
         f"{arm}_{field}"
         for arm in arm_names
-        for field in ("best_raw", "success", "evals_to_target", "wall_s")
+        for field in ("best_raw", "success", "evals_to_target", "wall_s", "cpu_s")
     ]
     rows = []
     for task in sorted(idx):
@@ -232,6 +249,8 @@ def write_paired_results_csv(idx: dict, arm_names: list[str], path: Path) -> Non
                     "" if s is None else (s.get("evals_to_target") or "")
                 )
                 row[f"{arm}_wall_s"] = "" if s is None else s.get("wall_s", "")
+                cpu = None if s is None else s.get("cpu_s")
+                row[f"{arm}_cpu_s"] = "" if cpu is None else cpu
             rows.append(row)
     with open(path, "w", newline="") as f:
         w = csv.DictWriter(f, fieldnames=fieldnames)
@@ -275,6 +294,11 @@ def write_aggregate_results_csv(
         "wall_s_median",
         "wall_s_q1",
         "wall_s_q3",
+        "cpu_s_median",
+        "cpu_s_q1",
+        "cpu_s_q3",
+        "ru_maxrss_kb_max",
+        "ru_maxrss_kb_median",
         "n_calls_median",
         "n_calls_q1",
         "n_calls_q3",
@@ -298,6 +322,10 @@ def write_aggregate_results_csv(
             ncalls = [s["n_calls"] for s in summaries if s.get("n_calls") is not None]
             err_med, err_q1, err_q3 = median_iqr(errors)
             wall_med, wall_q1, wall_q3 = median_iqr(walls)
+            cpus = [s["cpu_s"] for s in summaries if s.get("cpu_s") is not None]
+            cpu_med, cpu_q1, cpu_q3 = median_iqr(cpus)
+            rss = [s["ru_maxrss_kb"] for s in summaries if s.get("ru_maxrss_kb") is not None]
+            rss_med = median_iqr(rss)[0]
             n_med, n_q1, n_q3 = median_iqr(ncalls)
             # Fix round 1, finding 5: refuse ERT outright without a real
             # budget, rather than silently computing it over only the
@@ -323,6 +351,11 @@ def write_aggregate_results_csv(
                     "wall_s_median": wall_med,
                     "wall_s_q1": wall_q1,
                     "wall_s_q3": wall_q3,
+                    "cpu_s_median": cpu_med,
+                    "cpu_s_q1": cpu_q1,
+                    "cpu_s_q3": cpu_q3,
+                    "ru_maxrss_kb_max": max(rss) if rss else "",
+                    "ru_maxrss_kb_median": rss_med,
                     "n_calls_median": n_med,
                     "n_calls_q1": n_q1,
                     "n_calls_q3": n_q3,
@@ -498,6 +531,17 @@ def write_failures_md(
                 f"{s['status']} | {err} |\n"
             )
 
+    near = [s for s in summaries if s.get("near_memory_limit")]
+    if near:
+        lines.append("\n## Runs near the memory limit (ru_maxrss_kb >= 90% of the cap)\n\n")
+        lines.append("| run_id | task | arm | seed | ru_maxrss_kb | mem_limit_mb |\n")
+        lines.append("|---|---|---|---|---|---|\n")
+        for s in sorted(near, key=lambda s: s["run_id"]):
+            lines.append(
+                f"| {s['run_id']} | {s['task']} | {s['arm']} | {s['seed']} | "
+                f"{s.get('ru_maxrss_kb')} | {s.get('mem_limit_mb')} |\n"
+            )
+
     if notes:
         lines.append("\n## Notes\n\n")
         for note in notes:
@@ -545,6 +589,30 @@ def write_figures(idx: dict, manifest: dict, budget_override: float | None, out_
             "evaluations",
             "P(success)",
             out_dir / f"{task}_success_cdf.svg",
+        )
+
+        # The same ECDF against CPU seconds to target (F1). A success with
+        # no recorded cpu_to_target (an older trace) is left out of the
+        # curve, so it can only understate P(success), never overstate it.
+        cpu_series = {}
+        for arm in sorted(idx[task]):
+            summaries = list(idx[task][arm].values())
+            n = len(summaries)
+            hits = sorted(
+                s["cpu_to_target"]
+                for s in summaries
+                if s.get("success") and s.get("cpu_to_target") is not None
+            )
+            pts = [(0.0, 0.0)]
+            for i, x in enumerate(hits, start=1):
+                pts.append((x, i / n))
+            cpu_series[arm] = pts
+        svgplot.line_chart(
+            cpu_series,
+            f"{task}: success probability vs CPU seconds",
+            "CPU seconds",
+            "P(success)",
+            out_dir / f"{task}_success_cpu_cdf.svg",
         )
 
         # Fix round 1, finding 4: a run with no recorded best still gets a

@@ -27,6 +27,9 @@ __all__ = [
     "budget_evals",
     "git_head",
     "is_gomea_arm",
+    "check_code_commit",
+    "LAUNCH_KEYS",
+    "CODE_PATHS",
 ]
 
 _REQUIRED_TOP_KEYS = (
@@ -43,6 +46,15 @@ _REQUIRED_TOP_KEYS = (
     "workers",
     "output_root",
 )
+# Launch-time settings, not part of the experiment's identity: excluded
+# from `manifest_hash`, so the same committed manifest names the same
+# `<name>-<hash>` results directory on any machine (`runner.py` can
+# override both at launch: `--output-root`, `--workers`).
+LAUNCH_KEYS = ("output_root", "workers")
+
+# The paths whose content IS the code under test (`check_code_commit`).
+CODE_PATHS = ("pymoses", "benchmarks", "pyproject.toml")
+
 _REQUIRED_TASK_KEYS = ("argv", "target_raw")
 _REQUIRED_ARM_KEYS = ("argv",)
 _REQUIRED_BUDGET_KEYS = ("argv", "kind")
@@ -165,6 +177,11 @@ def _validate(m: object) -> list[str]:
     if m.get("common_argv") is not None:
         _check_argv(m["common_argv"], "manifest.common_argv", errors)
 
+    # Optional, documentation only (no behaviour): e.g. the machine load
+    # the manifest's `workers` was chosen for.
+    if "max_load_note" in m and not isinstance(m["max_load_note"], str):
+        errors.append("manifest: optional key 'max_load_note' must be a string")
+
     return errors
 
 
@@ -188,8 +205,10 @@ def load_manifest(path: str | Path) -> dict:
 
 def manifest_hash(m: dict) -> str:
     """sha256 of the manifest's canonical JSON (sort_keys, no whitespace),
-    truncated to 12 hex characters. Independent of key insertion order."""
-    canonical = json.dumps(m, sort_keys=True, separators=(",", ":"))
+    truncated to 12 hex characters. Independent of key insertion order, and
+    of the launch-time settings `LAUNCH_KEYS` (`output_root`, `workers`)."""
+    identity = {k: v for k, v in m.items() if k not in LAUNCH_KEYS}
+    canonical = json.dumps(identity, sort_keys=True, separators=(",", ":"))
     return hashlib.sha256(canonical.encode("utf-8")).hexdigest()[:12]
 
 
@@ -335,6 +354,53 @@ def git_head(cwd: str | Path) -> str:
     return out.stdout.strip()
 
 
+def check_code_commit(repo_root: str | Path, commit: str) -> dict:
+    """Is the code at HEAD the code the manifest's `commit` names?
+
+    The manifest's `commit` is the CODE commit; the committed manifest
+    itself lives in a later commit. So the check is not "HEAD == commit"
+    but: `commit` is an ancestor of HEAD (`is_ancestor`), nothing under
+    `CODE_PATHS` changed between them (`code_unchanged`, `git diff --quiet
+    <commit> HEAD -- ...`), and the working tree has no local changes
+    under `pymoses`/`benchmarks` (`clean`, `git status --porcelain`,
+    untracked files included; `dirty` lists them). `ok` is all three.
+    Never raises for a bad commit: an unknown commit is simply not an
+    ancestor.
+    """
+    root = str(repo_root)
+
+    def _rc(*args: str) -> int:
+        return subprocess.run(["git", *args], cwd=root, capture_output=True).returncode
+
+    head = git_head(root)
+    is_ancestor = _rc("merge-base", "--is-ancestor", commit, "HEAD") == 0
+    code_unchanged = is_ancestor and _rc("diff", "--quiet", commit, "HEAD", "--", *CODE_PATHS) == 0
+    status = subprocess.run(
+        ["git", "status", "--porcelain", "--", "pymoses", "benchmarks"],
+        cwd=root, capture_output=True, text=True, check=True,
+    ).stdout
+    dirty = [line for line in status.splitlines() if line.strip()]
+    ok = is_ancestor and code_unchanged and not dirty
+    if ok:
+        reason = None
+    elif not is_ancestor:
+        reason = f"manifest commit {commit} is not an ancestor of HEAD {head}"
+    elif not code_unchanged:
+        reason = f"code under {', '.join(CODE_PATHS)} changed between {commit} and HEAD {head}"
+    else:
+        reason = f"local code modifications under pymoses/benchmarks: {dirty}"
+    return {
+        "head": head,
+        "manifest_commit": commit,
+        "is_ancestor": is_ancestor,
+        "code_unchanged": code_unchanged,
+        "clean": not dirty,
+        "dirty": dirty,
+        "ok": ok,
+        "reason": reason,
+    }
+
+
 def _git_status_short(cwd: str | Path) -> str:
     out = subprocess.run(
         ["git", "status", "--short"], cwd=str(cwd), capture_output=True, text=True, check=True
@@ -346,6 +412,7 @@ def write_environment(
     out_dir: str | Path,
     repo_root: str | Path | None = None,
     launch_dir: str | Path | None = None,
+    extra: dict | None = None,
 ) -> None:
     """Write `environment.json`: python version, platform, cpu, git HEAD,
     short status, and (fix round 1, finding 1) the "launch directory" the
@@ -354,7 +421,9 @@ def write_environment(
     relative `output_root` resolve against. `repo_root` is independent of
     `launch_dir` and always used for the git commands (the repository's own
     identity is a fixed fact, unrelated to where a test points relative
-    task paths). Deliberately carries no process id or other
+    task paths). `extra` (the runner's effective `output_root`/`workers`,
+    memory limit and code-commit check) is merged in. Deliberately carries
+    no process id or other
     per-invocation noise -- two runs of the same code at the same commit
     and the same launch directory produce the same file."""
     root = Path(repo_root) if repo_root is not None else Path(__file__).resolve().parents[2]
@@ -366,5 +435,7 @@ def write_environment(
         "git_status_short": _git_status_short(root),
         "launch_dir": str(launch_dir) if launch_dir is not None else None,
     }
+    # `runner.py`'s effective launch settings and the code-commit check.
+    info.update(extra or {})
     out_path = Path(out_dir) / "environment.json"
     out_path.write_text(json.dumps(info, indent=2, sort_keys=True) + "\n")

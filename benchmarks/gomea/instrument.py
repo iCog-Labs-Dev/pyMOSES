@@ -21,11 +21,21 @@ import contextlib
 import copy
 import time
 from collections.abc import Callable, Iterator
+from typing import TYPE_CHECKING
 
-from pymoses.moses.moses.types import composite_score
-from pymoses.moses.representation.instance_scorer import complexity_based_scorer
+# MOSES itself is imported lazily (inside `instrument_scorer`), so that
+# importing this module -- and so `runner.py` -- loads no MOSES code: a
+# runner child can then set its `--mem-limit-mb` cap before MOSES loads.
+if TYPE_CHECKING:
+    from pymoses.moses.moses.types import composite_score
 
-__all__ = ["ScorerTrace", "instrument_scorer", "summarize_events"]
+__all__ = [
+    "MemoryLimitHit",
+    "ScorerTrace",
+    "guard_memory_errors",
+    "instrument_scorer",
+    "summarize_events",
+]
 
 
 class ScorerTrace:
@@ -36,6 +46,8 @@ class ScorerTrace:
     score or the best MOSES-comparator score --
 
         {"n": <1-based call index>, "t": <seconds since the trace started>,
+         "cpu": <seconds of this process's CPU time (`time.process_time`)
+                 since the trace started>,
          "raw": <this call's raw score>, "pen": <this call's penalized
          score>, "cpx": <this call's complexity>}
 
@@ -63,6 +75,7 @@ class ScorerTrace:
         self.best_raw: float | None = None
         self.best_composite: composite_score | None = None
         self._start: float = 0.0
+        self._cpu_start: float = 0.0
         self._sink = sink
 
     def best_pen(self) -> float | None:
@@ -90,9 +103,16 @@ class ScorerTrace:
         without needing to store every call's raw score, only the
         improving ones.
         """
+        ev = self.first_hit_event(target_raw)
+        return None if ev is None else (ev["n"], ev["t"])
+
+    def first_hit_event(self, target_raw: float) -> dict | None:
+        """The whole event (``n``, ``t``, ``cpu``, ...) of the first call
+        whose raw score reached ``target_raw`` (see ``first_hit``), or
+        ``None`` if it never did."""
         for ev in self.events:
             if ev["raw"] >= target_raw:
-                return ev["n"], ev["t"]
+                return ev
         return None
 
     def record(self, score: composite_score) -> None:
@@ -123,6 +143,7 @@ class ScorerTrace:
             ev = {
                 "n": self.n_calls,
                 "t": time.perf_counter() - self._start,
+                "cpu": time.process_time() - self._cpu_start,
                 "raw": raw,
                 "pen": pen,
                 "cpx": cpx,
@@ -130,6 +151,49 @@ class ScorerTrace:
             self.events.append(ev)
             if self._sink is not None:
                 self._sink(ev)
+
+
+class MemoryLimitHit(BaseException):
+    """A ``MemoryError`` raised while building or scoring a candidate.
+
+    Classic's ``complexity_based_scorer.__call__`` catches ``Exception`` and
+    scores a failing candidate as the worst score, which would silently
+    swallow a memory-cap failure. This is a ``BaseException`` so that
+    handler cannot catch it: the run fails instead of being corrupted.
+    """
+
+
+@contextlib.contextmanager
+def guard_memory_errors() -> Iterator[None]:
+    """Re-raise a ``MemoryError`` escaping ``representation.get_candidate``
+    or ``behave_cscore.get_cscore`` as ``MemoryLimitHit``.
+
+    The two calls inside ``complexity_based_scorer.__call__``'s
+    ``except Exception``. Class-level patches, installed identically for
+    every arm and restored on exit, including when the block raises.
+    """
+    from pymoses.moses.representation.representation import representation
+    from pymoses.moses.scoring.behave_cscore import behave_cscore
+
+    patched = [(representation, "get_candidate"), (behave_cscore, "get_cscore")]
+    originals = [(cls, name, getattr(cls, name)) for cls, name in patched]
+
+    def _guard(original):
+        def wrapped(self, *args, **kwargs):
+            try:
+                return original(self, *args, **kwargs)
+            except MemoryError as exc:
+                raise MemoryLimitHit(str(exc)) from exc
+
+        return wrapped
+
+    for cls, name, original in originals:
+        setattr(cls, name, _guard(original))
+    try:
+        yield
+    finally:
+        for cls, name, original in originals:
+            setattr(cls, name, original)
 
 
 @contextlib.contextmanager
@@ -141,8 +205,11 @@ def instrument_scorer(trace: ScorerTrace) -> Iterator[ScorerTrace]:
     measured identically, and restores the original method on exit,
     including when the ``with`` block raises.
     """
+    from pymoses.moses.representation.instance_scorer import complexity_based_scorer
+
     original = complexity_based_scorer.__call__
     trace._start = time.perf_counter()
+    trace._cpu_start = time.process_time()
 
     def wrapped(self, inst):
         score = original(self, inst)
@@ -158,7 +225,7 @@ def instrument_scorer(trace: ScorerTrace) -> Iterator[ScorerTrace]:
 
 def summarize_events(events: list[dict], target_raw: float) -> dict:
     """Reconstruct `n_calls`/`best_raw`/`best_pen`/`best_cpx`/
-    `evals_to_target`/`time_to_target` from a list of event dicts read back
+    `evals_to_target`/`time_to_target`/`cpu_to_target` from a list of event dicts read back
     from a `trace.jsonl` file -- the same schema `ScorerTrace.record`
     writes. Used by `runner.py` to recover as much as possible from a
     PARTIAL trace when a run was killed at the wall cap or a child died
@@ -182,6 +249,7 @@ def summarize_events(events: list[dict], target_raw: float) -> dict:
             "best_cpx": None,
             "evals_to_target": None,
             "time_to_target": None,
+            "cpu_to_target": None,
         }
     best_raw = max(ev["raw"] for ev in events)
     best_pen: float | None = None
@@ -196,9 +264,12 @@ def summarize_events(events: list[dict], target_raw: float) -> dict:
             best_pen, best_cpx = ev["pen"], ev["cpx"]
     evals_to_target = None
     time_to_target = None
+    cpu_to_target = None
     for ev in events:
         if ev["raw"] >= target_raw:
+            # `cpu` is absent from a trace written before it was recorded.
             evals_to_target, time_to_target = ev["n"], ev["t"]
+            cpu_to_target = ev.get("cpu")
             break
     return {
         "n_calls": events[-1]["n"],
@@ -207,4 +278,5 @@ def summarize_events(events: list[dict], target_raw: float) -> dict:
         "best_cpx": best_cpx,
         "evals_to_target": evals_to_target,
         "time_to_target": time_to_target,
+        "cpu_to_target": cpu_to_target,
     }

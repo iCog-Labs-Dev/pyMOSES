@@ -65,6 +65,12 @@ class EvaluationLedger:
     quantity ``check()`` compares against ``max_evals``/``inner_cap``, and
     what ``finalize()`` writes into ``deme.n_evals``. Skips
     (``noop_skips``/``phenotype_skips``) never touch it.
+
+    ``duplicate_requests`` counts the subset of ``requests`` whose genotype
+    this oracle had already evaluated earlier in the same invocation
+    (protocol Sec 94: requests reported separately from actual work, since
+    the demo problems run with the score cache off). A counter only: a
+    duplicate is still scored, archived and charged like any request.
     """
 
     requests: int = 0
@@ -73,6 +79,7 @@ class EvaluationLedger:
     phenotype_skips: int = 0
     cache_hits: int = 0
     cache_misses: int = 0
+    duplicate_requests: int = 0
 
     def as_dict(self) -> dict:
         return {
@@ -82,6 +89,7 @@ class EvaluationLedger:
             "phenotype_skips": self.phenotype_skips,
             "cache_hits": self.cache_hits,
             "cache_misses": self.cache_misses,
+            "duplicate_requests": self.duplicate_requests,
         }
 
 
@@ -118,6 +126,9 @@ class EvaluationOracle:
         self.ledger = EvaluationLedger()
         self._best: composite_score | None = None
         self._best_evals = 0
+        # Every genotype that reached the scorer so far, for
+        # ``ledger.duplicate_requests``.
+        self._seen: set[tuple[int, ...]] = set()
 
     def check(self) -> str | None:
         """The budget reason that would stop evaluation right now, or
@@ -164,6 +175,11 @@ class EvaluationOracle:
         misses_after = getattr(cscorer, "_cache_misses", 0)
 
         self.ledger.requests += 1
+        key = tuple(g)
+        if key in self._seen:
+            self.ledger.duplicate_requests += 1
+        else:
+            self._seen.add(key)
         self.ledger.cache_hits += hits_after - hits_before
         self.ledger.cache_misses += misses_after - misses_before
 

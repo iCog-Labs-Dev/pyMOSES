@@ -257,13 +257,18 @@ _SUPPORTED_OPT_ALGOS = frozenset({"hc", "sa", "un", "ps", "gomea"})
 # (flag, dest, type, default). Registered by `problem_params.add_gomea_options`
 # and read back by `_gomea_params_from_args`, which falls back to these same
 # defaults for a namespace built without them.
+#
+# `--gomea-skip-inactive` defaults to 0 (off): the phenotype-key proof costs
+# about 10% of wall time and was measured at about 0 skips on real MOSES
+# representations (single-field neutral changes 0/210, 0/570, 9/720 and
+# 0/3330). `--gomea-skip-inactive 1` still turns it on.
 _GOMEA_FOS_CHOICES = ("lt-b", "lt-mi", "rt", "uni")
 _GOMEA_OPTIONS = (
     ("--gomea-pop-size", "gomea_pop_size", int, 64),
     ("--gomea-fos", "gomea_fos", str, "lt-b"),
     ("--gomea-fi", "gomea_fi", int, 0),
     ("--gomea-radii", "gomea_radii", str, "1:0.4,2:0.3,4:0.2,max:0.1"),
-    ("--gomea-skip-inactive", "gomea_skip_inactive", int, 1),
+    ("--gomea-skip-inactive", "gomea_skip_inactive", int, 0),
     ("--gomea-max-gens", "gomea_max_gens", int, 100),
     ("--gomea-stall-gens", "gomea_stall_gens", int, 5),
     ("--gomea-max-evals-per-deme", "gomea_max_evals_per_deme", int, 0),

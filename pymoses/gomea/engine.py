@@ -92,6 +92,9 @@ class GomeaEngine:
         self.on_generation = on_generation
         self.last_result: EngineResult | None = None
         self.elite: Individual | None = None
+        # The run's calibrated linkage model (``None`` before ``run``), so
+        # ``on_generation`` can report over its ``search_positions``.
+        self.model: LinkageModel | None = None
 
     def best_of(self, pop: Sequence[Individual]) -> Individual:
         """The best individual; ties go to the lowest index."""
@@ -140,6 +143,7 @@ class GomeaEngine:
             return "target_reached"
         model = LinkageModel(self.params.fos_mode, self.rng_link)
         model.calibrate([ind.genotype for ind in P], self.domains)
+        self.model = model
         # N < 2 needs no check of its own: a single individual makes every
         # position constant, so calibration yields no search fields.
         if not model.search_positions:

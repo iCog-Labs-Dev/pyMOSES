@@ -69,6 +69,32 @@ def _crash_hard(run: dict) -> None:
 
     os._exit(7)
 
+def _child_with_failing_cscore(run: dict) -> None:
+    """A `child_target` (F10): the real `_child_main`, but candidate scoring
+    raises `MemoryError` inside `behave_cscore.get_cscore` (from its
+    `get_cscore_nocache`), as it would at a memory cap -- only when called
+    from within `complexity_based_scorer.__call__`, i.e. exactly where
+    classic's `except Exception` would otherwise swallow it."""
+    import sys
+
+    from benchmarks.gomea import runner
+    from pymoses.moses.representation import instance_scorer
+    from pymoses.moses.scoring.behave_cscore import behave_cscore
+
+    real = behave_cscore.get_cscore_nocache
+
+    def _oom(self, tr):
+        frame = sys._getframe(1)
+        while frame is not None:
+            if frame.f_code is instance_scorer.complexity_based_scorer.__call__.__code__:
+                raise MemoryError
+            frame = frame.f_back
+        return real(self, tr)
+
+    behave_cscore.get_cscore_nocache = _oom
+    runner._child_main(run)
+
+
 # ---------------------------------------------------------------------------
 # stats.py
 # ---------------------------------------------------------------------------
@@ -622,42 +648,54 @@ class TestRunnerEndToEnd:
     def test_timeout_recovers_partial_trace_and_is_censored(self, tmp_path):
         """Fix round 1, finding 4: a killed run must not report an empty
         `best_raw`/`n_calls` -- both are recovered from the run's own
-        streamed `trace.jsonl`. `-H pa -k 6` with a huge `-m` reliably keeps
-        HC running well past a tiny `wall_cap_s` (measured: still running
-        after 20s uncapped)."""
-        repo_root = Path(__file__).resolve().parents[2]
-        head = manifest_mod.git_head(repo_root)
-        output_root = tmp_path / "out"
-        m = {
-            "schema_version": 1,
-            "name": "timeout-test",
-            "phase": 1,
-            "commit": head,
-            "common_argv": ["-l", "ERROR"],
-            "tasks": {"pa6": {"argv": ["-H", "pa", "-k", "6"], "target_raw": 0}},
-            "arms": {"HC": {"argv": ["-a", "hc"]}},
-            "seeds": [1],
-            "budget": {"argv": ["-m", "2000000"], "kind": "evaluations"},
-            "wall_cap_s": 0.5,
-            "workers": 1,
-            "output_root": str(output_root),
-        }
-        manifest_path = tmp_path / "manifest.json"
-        manifest_path.write_text(json.dumps(m))
+        streamed `trace.jsonl`.
 
-        rc = runner_mod.main([str(manifest_path), "--workers", "1", "--allow-dirty"])
-        assert rc != 0
+        F4(d): robust under heavy load. `-H pa -k 6` with an effectively
+        unbounded `-m` keeps HC running far past the cap. The cap is a few
+        seconds, not 0.5 s, so the child gets past interpreter start-up and
+        its first scorer call (the first call is always an improvement, so
+        the trace is then non-empty). Every attempt must be a censored
+        timeout; the recovered fields are asserted only for a non-empty
+        trace, and the cap doubles (4, 8, 16, 32 s) until one attempt has
+        one, so the test always ends up checking them."""
+        head = _repo_head()
+        checked = False
+        for attempt, cap in enumerate((4, 8, 16, 32)):
+            output_root = tmp_path / f"out{attempt}"
+            m = {
+                "schema_version": 1,
+                "name": "timeout-test",
+                "phase": 1,
+                "commit": head,
+                "common_argv": ["-l", "ERROR"],
+                "tasks": {"pa6": {"argv": ["-H", "pa", "-k", "6"], "target_raw": 0}},
+                "arms": {"HC": {"argv": ["-a", "hc"]}},
+                "seeds": [1],
+                "budget": {"argv": ["-m", "1000000000"], "kind": "evaluations"},
+                "wall_cap_s": cap,
+                "workers": 1,
+                "output_root": str(output_root),
+            }
+            rc = runner_mod.main([str(_write_manifest(tmp_path, m)), "--allow-dirty"])
+            assert rc != 0
 
-        rd = manifest_mod.result_dir(m)
-        summary = json.loads((rd / "runs" / "pa6__HC__s1" / "summary.json").read_text())
-        assert summary["status"] == "timeout"
-        assert summary["censored"] is True
-        assert summary["success"] is False
-        assert summary["wall_s"] >= 0.5
-        # Recovered from the streamed partial trace, not left empty.
-        assert summary["n_calls"] is not None
-        assert summary["n_calls"] > 0
-        assert summary["best_raw"] is not None
+            run_dir = manifest_mod.result_dir(m) / "runs" / "pa6__HC__s1"
+            summary = json.loads((run_dir / "summary.json").read_text())
+            assert summary["status"] == "timeout"
+            assert summary["censored"] is True
+            assert summary["wall_s"] >= cap
+            trace_path = run_dir / "trace.jsonl"
+            trace = trace_path.read_text().strip() if trace_path.exists() else ""
+            if not trace:
+                continue  # killed before its first scorer call: retry, longer
+            # Recovered from the streamed partial trace, not left empty.
+            assert summary["n_calls"] is not None and summary["n_calls"] > 0
+            assert summary["best_raw"] is not None
+            # F5: a censored run succeeds iff its trace reached the target.
+            assert summary["success"] is (summary["best_raw"] >= 0)
+            checked = True
+            break
+        assert checked, "no attempt got as far as its first scorer call"
 
     def test_child_exiting_without_summary_gets_synthesized_error_summary(self, tmp_path):
         """Fix round 1, finding 3: a child that exits without writing its
@@ -835,7 +873,8 @@ class TestAnalyze:
         ):
             assert (analysis_dir / name).exists()
         figures = list((analysis_dir / "figures").glob("*.svg"))
-        assert len(figures) == 2  # one CDF + one box plot for the one task
+        # evaluation CDF + CPU-time CDF + box plot, for the one task
+        assert len(figures) == 3
 
         with open(analysis_dir / "aggregate_results.csv") as f:
             agg_rows = list(csv.DictReader(f))
@@ -993,3 +1032,465 @@ class TestFixtures:
         assert len(captured) == 1
         assert isinstance(captured[0], str)
         assert captured[0]  # non-empty combo-tree text
+
+
+# ---------------------------------------------------------------------------
+# Final fix wave (F1, F4d, F5, F7, F8, F9)
+# ---------------------------------------------------------------------------
+
+
+def _repo_head() -> str:
+    return manifest_mod.git_head(Path(__file__).resolve().parents[2])
+
+
+def _tiny_manifest(output_root, name="tiny-ff", **over) -> dict:
+    m = {
+        "schema_version": 1,
+        "name": name,
+        "phase": 1,
+        "commit": _repo_head(),
+        "common_argv": ["-l", "ERROR"],
+        "tasks": {"pa2": {"argv": ["-H", "pa", "-k", "2"], "target_raw": 0}},
+        "arms": {"HC": {"argv": ["-a", "hc"]}},
+        "seeds": [1],
+        "budget": {"argv": ["-m", "200"], "kind": "evaluations"},
+        "wall_cap_s": 60,
+        "workers": 1,
+        "output_root": str(output_root),
+    }
+    m.update(over)
+    return m
+
+
+def _write_manifest(tmp_path, m) -> Path:
+    p = tmp_path / "manifest.json"
+    p.write_text(json.dumps(m))
+    return p
+
+
+class TestCpuTimeEvidence:
+    """F1: CPU time, peak RSS and a deterministic, shuffled run order."""
+
+    def test_trace_events_carry_cpu_and_summary_has_cpu_to_target(self, make_boolean_rep):
+        rep = make_boolean_rep("and($1 $2)", 2)
+        scores = [composite_score(-3.0, 1, 0.0, 0.0), composite_score(0.0, 1, 0.0, 0.0)]
+        scorer = complexity_based_scorer(_sequence_cscore(scores), rep, True)
+        trace = ScorerTrace()
+        inst = instance(rep.fields().packed_width())
+        with instrument_scorer(trace):
+            for _ in scores:
+                scorer(inst)
+        cpus = [ev["cpu"] for ev in trace.events]
+        assert len(cpus) == 2 and all(c >= 0.0 for c in cpus) and cpus == sorted(cpus)
+        hit = trace.first_hit_event(0.0)
+        assert hit is not None and hit["n"] == 2 and hit["cpu"] == cpus[1]
+
+        from benchmarks.gomea.instrument import summarize_events
+
+        rec = summarize_events(
+            [
+                {"n": 1, "t": 0.5, "cpu": 0.25, "raw": -3.0, "pen": -3.0, "cpx": 1},
+                {"n": 7, "t": 1.5, "cpu": 1.25, "raw": 0.0, "pen": 0.0, "cpx": 1},
+            ],
+            0.0,
+        )
+        assert rec["cpu_to_target"] == 1.25
+        assert rec["time_to_target"] == 1.5
+        assert summarize_events([], 0.0)["cpu_to_target"] is None
+
+    def test_ok_summary_records_cpu_rss_and_run_order(self, tmp_path):
+        m = _tiny_manifest(tmp_path / "out", seeds=[1, 2])
+        rc = runner_mod.main([str(_write_manifest(tmp_path, m)), "--allow-dirty"])
+        assert rc == 0
+        rd = manifest_mod.result_dir(m)
+        for seed in (1, 2):
+            s = json.loads((rd / "runs" / f"pa2__HC__s{seed}" / "summary.json").read_text())
+            assert s["status"] == "ok"
+            assert s["cpu_s"] > 0.0
+            assert s["ru_maxrss_kb"] > 0
+            assert "cpu_to_target" in s
+            if s["success"]:
+                assert 0.0 <= s["cpu_to_target"] <= s["cpu_s"]
+        order = json.loads((rd / "run_order.json").read_text())
+        ids = [r["run_id"] for r in manifest_mod.expand_runs(m)]
+        assert sorted(order["order"]) == sorted(ids)
+        assert order["seed"] == int(manifest_mod.manifest_hash(m)[:8], 16)
+
+    def test_run_order_is_a_deterministic_hash_seeded_shuffle(self, tmp_path):
+        import random
+
+        m = _valid_manifest(tmp_path / "out")
+        m["tasks"]["pa5"] = {"argv": ["-H", "pa", "-k", "5"], "target_raw": 0}
+        m["arms"]["UNI"] = {"argv": ["-a", "gomea", "--gomea-fos", "uni"]}
+        m["seeds"] = list(range(1, 9))
+        runs = manifest_mod.expand_runs(m)
+        a = runner_mod.scheduled_order(m, runs)
+        b = runner_mod.scheduled_order(m, list(runs))
+        assert [r["run_id"] for r in a] == [r["run_id"] for r in b]
+        assert sorted(r["run_id"] for r in a) == sorted(r["run_id"] for r in runs)
+        assert [r["run_id"] for r in a] != [r["run_id"] for r in runs]
+        expected = list(runs)
+        random.Random(int(manifest_mod.manifest_hash(m)[:8], 16)).shuffle(expected)
+        assert [r["run_id"] for r in a] == [r["run_id"] for r in expected]
+
+    def test_max_load_note_is_optional_documentation(self, tmp_path):
+        m = _valid_manifest(tmp_path / "out")
+        m["max_load_note"] = "pilot: 20 workers under a load of about 26"
+        loaded = manifest_mod.load_manifest(_write_manifest(tmp_path, m))
+        assert loaded["max_load_note"].startswith("pilot")
+        m["max_load_note"] = 5
+        with pytest.raises(ValueError, match="max_load_note"):
+            manifest_mod.load_manifest(_write_manifest(tmp_path, m))
+
+    def test_analyze_reports_cpu_and_rss_and_cpu_ecdf(self, tmp_path):
+        result_dir = tmp_path / "1" / "smoke-cpu"
+        runs_dir = result_dir / "runs"
+        manifest = _valid_manifest(tmp_path)
+        manifest["arms"] = {"HC": {"argv": ["-a", "hc"]}}
+        manifest["seeds"] = [1, 2, 3]
+        result_dir.mkdir(parents=True)
+        (result_dir / "manifest.json").write_text(json.dumps(manifest))
+        for seed, cpu, rss, hit in ((1, 1.0, 1000, 0.5), (2, 2.0, 3000, None), (3, 4.0, 2000, 1.5)):
+            _write_summary(
+                runs_dir, f"pa4__HC__s{seed}", "pa4", "HC", seed,
+                cpu_s=cpu, ru_maxrss_kb=rss, success=hit is not None,
+                best_raw=0.0 if hit is not None else -1.0,
+                evals_to_target=10 if hit is not None else None, cpu_to_target=hit,
+            )
+        rc = analyze_mod.main([str(result_dir), "--baseline", "HC", "--contrasts", "HC:HC"])
+        assert rc == 0
+        with open(result_dir / "analysis" / "aggregate_results.csv") as f:
+            row = next(csv.DictReader(f))
+        assert float(row["cpu_s_median"]) == pytest.approx(2.0)
+        assert float(row["cpu_s_q1"]) <= 2.0 <= float(row["cpu_s_q3"])
+        assert float(row["ru_maxrss_kb_max"]) == 3000
+        assert float(row["ru_maxrss_kb_median"]) == 2000
+        assert "wall_s_median" in row  # the wall columns stay
+        assert (result_dir / "analysis" / "figures" / "pa4_success_cpu_cdf.svg").exists()
+
+
+class TestTimeoutSuccess:
+    """F5: a timed-out run whose recovered trace reached the target counts
+    as a success; an error never does."""
+
+    def _run_with_trace(self, tmp_path, run_id):
+        run_dir = tmp_path / run_id
+        run_dir.mkdir()
+        events = [
+            {"n": 1, "t": 0.1, "cpu": 0.1, "raw": -2.0, "pen": -2.0, "cpx": 3},
+            {"n": 42, "t": 0.9, "cpu": 0.8, "raw": 0.0, "pen": -0.1, "cpx": 3},
+        ]
+        (run_dir / "trace.jsonl").write_text("".join(json.dumps(e) + "\n" for e in events))
+        return {
+            "run_id": run_id, "task": "pa4", "arm": "HC", "seed": 1, "argv": [],
+            "target_raw": 0.0, "run_dir": str(run_dir),
+        }
+
+    def test_timeout_that_reached_target_is_a_censored_success(self, tmp_path):
+        run = self._run_with_trace(tmp_path, "t")
+        runner_mod._write_timeout_summary(run, 5.0)
+        s = json.loads((Path(run["run_dir"]) / "summary.json").read_text())
+        assert s["status"] == "timeout" and s["censored"] is True
+        assert s["success"] is True
+        assert s["evals_to_target"] == 42
+        assert s["cpu_to_target"] == 0.8
+
+    def test_error_that_reached_target_is_not_a_success(self, tmp_path):
+        run = self._run_with_trace(tmp_path, "e")
+        runner_mod._write_missing_summary(run, 9, 5.0)
+        s = json.loads((Path(run["run_dir"]) / "summary.json").read_text())
+        assert s["status"] == "error"
+        assert s["success"] is False
+
+
+class TestOutputRootAndHash:
+    """F7: output root and workers are launch-time settings."""
+
+    def test_hash_ignores_output_root_and_workers(self, tmp_path):
+        m = _valid_manifest(tmp_path / "a")
+        m2 = _valid_manifest(tmp_path / "b")
+        m2["workers"] = 3
+        assert manifest_mod.manifest_hash(m) == manifest_mod.manifest_hash(m2)
+        assert manifest_mod.result_dir(m).name == manifest_mod.result_dir(m2).name
+
+    def test_output_root_override_and_environment(self, tmp_path):
+        m = _tiny_manifest(tmp_path / "manifest_root")
+        override = tmp_path / "elsewhere"
+        rc = runner_mod.main(
+            [str(_write_manifest(tmp_path, m)), "--allow-dirty", "--output-root", str(override),
+             "--workers", "2"]
+        )
+        assert rc == 0
+        rd = manifest_mod.result_dir({**m, "output_root": str(override)})
+        assert rd.name == manifest_mod.result_dir(m).name
+        s = json.loads((rd / "runs" / "pa2__HC__s1" / "summary.json").read_text())
+        assert s["status"] == "ok"
+        assert not (tmp_path / "manifest_root").exists()
+        env = json.loads((rd / "environment.json").read_text())
+        assert env["output_root"] == str(override.resolve())
+        assert env["workers"] == 2
+        # The committed manifest is what the results directory keeps.
+        assert json.loads((rd / "manifest.json").read_text()) == m
+
+    def test_analyze_works_on_a_copied_results_directory(self, tmp_path):
+        import shutil
+
+        m = _tiny_manifest(tmp_path / "orig")
+        rc = runner_mod.main([str(_write_manifest(tmp_path, m)), "--allow-dirty"])
+        assert rc == 0
+        rd = manifest_mod.result_dir(m)
+        copy_dir = tmp_path / "copied" / rd.name
+        shutil.copytree(rd, copy_dir)
+        shutil.rmtree(tmp_path / "orig")
+        rc = analyze_mod.main([str(copy_dir), "--baseline", "HC", "--contrasts", "HC:HC"])
+        assert rc == 0
+        with open(copy_dir / "analysis" / "aggregate_results.csv") as f:
+            row = next(csv.DictReader(f))
+        assert row["n"] == "1" and row["n_no_best"] == "0"
+        failures = (copy_dir / "analysis" / "failures.md").read_text()
+        assert "No error, timeout or missing runs." in failures
+
+
+def _git(repo, *args):
+    import subprocess
+
+    return subprocess.run(
+        ["git", *args], cwd=repo, check=True, capture_output=True, text=True
+    ).stdout.strip()
+
+
+@pytest.fixture
+def code_repo(tmp_path):
+    """A throwaway git repo with pymoses/, benchmarks/, docs/ and
+    pyproject.toml, one commit."""
+    repo = tmp_path / "repo"
+    for d in ("pymoses", "benchmarks", "docs"):
+        (repo / d).mkdir(parents=True)
+        (repo / d / "f.py").write_text("x = 1\n")
+    (repo / "pyproject.toml").write_text("[project]\n")
+    _git(repo, "init", "-q")
+    _git(repo, "config", "user.email", "t@example.invalid")
+    _git(repo, "config", "user.name", "t")
+    _git(repo, "add", "-A")
+    _git(repo, "commit", "-qm", "code")
+    return repo
+
+
+class TestCodeCommitCheck:
+    """F8: the manifest commit names the CODE; the manifest itself may be
+    committed later."""
+
+    def test_head_itself_passes(self, code_repo):
+        c = manifest_mod.check_code_commit(code_repo, _git(code_repo, "rev-parse", "HEAD"))
+        assert c["ok"] is True and c["is_ancestor"] and c["code_unchanged"] and c["clean"]
+
+    def test_later_non_code_commit_passes(self, code_repo):
+        code = _git(code_repo, "rev-parse", "HEAD")
+        (code_repo / "docs" / "f.py").write_text("x = 2\n")
+        (code_repo / "manifest.json").write_text("{}\n")
+        _git(code_repo, "add", "-A")
+        _git(code_repo, "commit", "-qm", "manifest")
+        c = manifest_mod.check_code_commit(code_repo, code)
+        assert c["ok"] is True
+        assert c["head"] != code and c["manifest_commit"] == code
+
+    @pytest.mark.parametrize("path", ["pymoses/f.py", "benchmarks/f.py", "pyproject.toml"])
+    def test_later_code_commit_fails(self, code_repo, path):
+        code = _git(code_repo, "rev-parse", "HEAD")
+        (code_repo / path).write_text("x = 3\n")
+        _git(code_repo, "commit", "-qam", "code change")
+        c = manifest_mod.check_code_commit(code_repo, code)
+        assert c["ok"] is False and c["is_ancestor"] is True and c["code_unchanged"] is False
+
+    def test_non_ancestor_and_unknown_commit_fail(self, code_repo):
+        base = _git(code_repo, "rev-parse", "HEAD")
+        _git(code_repo, "checkout", "-qb", "side")
+        (code_repo / "docs" / "f.py").write_text("side\n")
+        _git(code_repo, "commit", "-qam", "side")
+        side = _git(code_repo, "rev-parse", "HEAD")
+        _git(code_repo, "checkout", "-q", base)
+        c = manifest_mod.check_code_commit(code_repo, side)
+        assert c["ok"] is False and c["is_ancestor"] is False
+        c2 = manifest_mod.check_code_commit(code_repo, "0" * 40)
+        assert c2["ok"] is False and c2["is_ancestor"] is False
+
+    def test_local_code_modification_fails(self, code_repo):
+        code = _git(code_repo, "rev-parse", "HEAD")
+        (code_repo / "benchmarks" / "f.py").write_text("dirty\n")
+        c = manifest_mod.check_code_commit(code_repo, code)
+        assert c["ok"] is False and c["clean"] is False
+        assert any("benchmarks/f.py" in line for line in c["dirty"])
+        (code_repo / "benchmarks" / "f.py").write_text("x = 1\n")
+        (code_repo / "docs" / "f.py").write_text("dirty docs are fine\n")
+        assert manifest_mod.check_code_commit(code_repo, code)["ok"] is True
+
+    def test_runner_refuses_then_records_the_check(self, code_repo, tmp_path, capsys):
+        code = _git(code_repo, "rev-parse", "HEAD")
+        (code_repo / "pymoses" / "f.py").write_text("x = 9\n")
+        _git(code_repo, "commit", "-qam", "code change")
+        m = _tiny_manifest(tmp_path / "out", commit=code)
+        mp = _write_manifest(tmp_path, m)
+        assert runner_mod.main([str(mp)], repo_root=code_repo) == 1
+        assert not manifest_mod.result_dir(m).exists()
+        assert "code" in capsys.readouterr().err.lower()
+
+        assert runner_mod.main([str(mp), "--allow-dirty"], repo_root=code_repo) == 0
+        env = json.loads((manifest_mod.result_dir(m) / "environment.json").read_text())
+        assert env["manifest_commit"] == code
+        assert env["head"] == _git(code_repo, "rev-parse", "HEAD")
+        assert env["code_check"]["ok"] is False
+        assert env["allow_dirty"] is True
+
+    def test_runner_accepts_a_later_non_code_commit(self, code_repo, tmp_path):
+        code = _git(code_repo, "rev-parse", "HEAD")
+        (code_repo / "manifest.json").write_text("{}\n")
+        _git(code_repo, "add", "-A")
+        _git(code_repo, "commit", "-qm", "manifest")
+        m = _tiny_manifest(tmp_path / "out", commit=code)
+        assert runner_mod.main([str(_write_manifest(tmp_path, m))], repo_root=code_repo) == 0
+        env = json.loads((manifest_mod.result_dir(m) / "environment.json").read_text())
+        assert env["code_check"]["ok"] is True
+
+
+class TestMemorySafety:
+    """F9: a per-child address-space cap, recorded failures, and --dry-run."""
+
+    def test_tiny_memory_limit_is_recorded_as_memory_limit_error(self, tmp_path, capsys):
+        m = _tiny_manifest(tmp_path / "out", workers=3)
+        rc = runner_mod.main(
+            [str(_write_manifest(tmp_path, m)), "--allow-dirty", "--mem-limit-mb", "1"]
+        )
+        assert rc == 1  # the parent survives and reports the failed run
+        s = json.loads(
+            (manifest_mod.result_dir(m) / "runs" / "pa2__HC__s1" / "summary.json").read_text()
+        )
+        assert s["status"] == "error"
+        assert s["error"] == "memory_limit"
+        assert s["mem_limit_mb"] == 1
+        out = capsys.readouterr().out
+        warning = [line for line in out.splitlines() if "estimated peak" in line]
+        assert len(warning) == 1 and "3 MB" in warning[0]
+
+    def test_generous_memory_limit_does_not_change_an_ok_run(self, tmp_path):
+        m = _tiny_manifest(tmp_path / "out")
+        rc = runner_mod.main(
+            [str(_write_manifest(tmp_path, m)), "--allow-dirty", "--mem-limit-mb", "4096"]
+        )
+        assert rc == 0
+        s = json.loads(
+            (manifest_mod.result_dir(m) / "runs" / "pa2__HC__s1" / "summary.json").read_text()
+        )
+        assert s["status"] == "ok" and s["ru_maxrss_kb"] > 0 and s["mem_limit_mb"] == 4096
+
+    def test_runner_module_does_not_import_moses(self):
+        import subprocess
+        import sys
+
+        code = (
+            "import sys, benchmarks.gomea.runner; "
+            "print(any(k.startswith('pymoses') for k in sys.modules))"
+        )
+        out = subprocess.run(
+            [sys.executable, "-c", code], cwd=Path(__file__).resolve().parents[2],
+            capture_output=True, text=True, check=True,
+        ).stdout.strip()
+        assert out == "False"  # so the child sets its limit before MOSES loads
+
+    def test_dry_run_prints_plan_and_runs_nothing(self, tmp_path, capsys):
+        m = _tiny_manifest(tmp_path / "out", seeds=[1, 2])
+        mp = _write_manifest(tmp_path, m)
+        rc = runner_mod.main([str(mp), "--allow-dirty", "--dry-run"])
+        assert rc == 0
+        out = capsys.readouterr().out
+        rd = manifest_mod.result_dir(m)
+        assert str(rd) in out
+        assert "pa2__HC__s1" in out and "pa2__HC__s2" in out
+        assert "already complete: 0/2" in out
+        assert "code check" in out
+        assert not rd.exists()
+
+
+class TestMemoryInsideScoring:
+    """F10: a MemoryError inside candidate scoring fails the run instead of
+    being scored as the worst candidate by classic's `except Exception`."""
+
+    def test_guard_turns_a_swallowed_memory_error_into_memory_limit_hit(
+        self, make_boolean_rep, monkeypatch
+    ):
+        from benchmarks.gomea.instrument import MemoryLimitHit, guard_memory_errors
+        from pymoses.moses.moses.types import worst_composite_score
+        from pymoses.moses.representation.representation import representation
+        from pymoses.moses.scoring.behave_cscore import behave_cscore
+        from pymoses.moses.scoring.bscores import ctruth_table_bscore
+        from tests.gomea.test_optimizer import _parity_ctable
+
+        def _oom(self, tr):
+            raise MemoryError
+
+        monkeypatch.setattr(behave_cscore, "get_cscore_nocache", _oom)
+        rep = make_boolean_rep("and($1 $2)", 2)
+        scorer = complexity_based_scorer(
+            behave_cscore(ctruth_table_bscore(_parity_ctable(2))), rep, True
+        )
+        inst = instance(rep.fields().packed_width())
+        # Unguarded, classic swallows it: the candidate gets the worst score.
+        assert scorer(inst) == worst_composite_score
+        originals = (behave_cscore.get_cscore, representation.get_candidate)
+        with pytest.raises(MemoryLimitHit), guard_memory_errors():
+            scorer(inst)
+        assert (behave_cscore.get_cscore, representation.get_candidate) == originals
+        assert not issubclass(MemoryLimitHit, Exception)
+
+    def test_memory_error_in_get_cscore_is_recorded_and_exits_nonzero(self, tmp_path):
+        import multiprocessing as mp
+
+        m = _tiny_manifest(tmp_path / "out")
+        rc = runner_mod.run_manifest(
+            m, workers=1, only=None, wall_cap_s=60, launch_dir=tmp_path,
+            child_target=_child_with_failing_cscore,
+        )
+        assert rc == 1
+        run_dir = manifest_mod.result_dir(m, base=tmp_path) / "runs" / "pa2__HC__s1"
+        s = json.loads((run_dir / "summary.json").read_text())
+        assert s["status"] == "error"
+        assert s["error"] == "memory_limit"
+        assert s["exit_code"] == 1
+        assert s["success"] is False
+
+        # The child process itself exits non-zero.
+        (run_dir / "summary.json").unlink()
+        run = dict(manifest_mod.expand_runs(m, base=tmp_path)[0], launch_dir=str(tmp_path))
+        p = mp.get_context("spawn").Process(target=_child_with_failing_cscore, args=(run,))
+        p.start()
+        p.join(60)
+        assert p.exitcode == 1
+        assert json.loads((run_dir / "summary.json").read_text())["error"] == "memory_limit"
+
+    def test_near_memory_limit_flag_and_failures_listing(self, tmp_path):
+        assert runner_mod._near_memory_limit(900 * 1024, 1000) is True
+        assert runner_mod._near_memory_limit(899 * 1024, 1000) is False
+        assert runner_mod._near_memory_limit(10**9, None) is False
+
+        m = _tiny_manifest(tmp_path / "out")
+        rc = runner_mod.main([str(_write_manifest(tmp_path, m)), "--allow-dirty"])
+        assert rc == 0
+        s = json.loads(
+            (manifest_mod.result_dir(m) / "runs" / "pa2__HC__s1" / "summary.json").read_text()
+        )
+        assert s["near_memory_limit"] is False
+
+        result_dir = tmp_path / "1" / "smoke-near"
+        manifest = _valid_manifest(tmp_path)
+        manifest["arms"] = {"HC": {"argv": ["-a", "hc"]}}
+        manifest["seeds"] = [1, 2]
+        result_dir.mkdir(parents=True)
+        (result_dir / "manifest.json").write_text(json.dumps(manifest))
+        runs_dir = result_dir / "runs"
+        _write_summary(runs_dir, "pa4__HC__s1", "pa4", "HC", 1,
+                       near_memory_limit=True, ru_maxrss_kb=950_000, mem_limit_mb=1000)
+        _write_summary(runs_dir, "pa4__HC__s2", "pa4", "HC", 2, near_memory_limit=False)
+        rc = analyze_mod.main([str(result_dir), "--baseline", "HC", "--contrasts", "HC:HC"])
+        assert rc == 0
+        text = (result_dir / "analysis" / "failures.md").read_text()
+        assert "near the memory limit" in text
+        assert "pa4__HC__s1" in text and "pa4__HC__s2" not in text

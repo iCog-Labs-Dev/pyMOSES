@@ -16,8 +16,10 @@ hill climbing's.
 
 from __future__ import annotations
 
+import math
 import time
-from collections.abc import Hashable
+from collections import Counter
+from collections.abc import Hashable, Sequence
 
 from pymoses.gomea.engine import EngineParams, GomeaEngine
 from pymoses.gomea.gom import Individual
@@ -33,7 +35,12 @@ from pymoses.moses.moses.optimization.optimization import (
 from pymoses.moses.moses.types import composite_score
 from pymoses.util.rng import MT19937RandGen, randGen
 
-__all__ = ["TERMINATION_REASONS", "gomea_optimization", "gomea_parameters"]
+__all__ = [
+    "TERMINATION_REASONS",
+    "gomea_optimization",
+    "gomea_parameters",
+    "population_diversity",
+]
 
 FOS_MODES = ("lt-b", "lt-mi", "rt", "uni")
 
@@ -58,14 +65,20 @@ TERMINATION_REASONS = (
 
 class gomea_parameters:
     """Settings for ``gomea_optimization`` (the counterpart of
-    ``hc_parameters``). Validated on construction; raises ``ValueError``."""
+    ``hc_parameters``). Validated on construction; raises ``ValueError``.
+
+    ``skip_inactive`` (skip a trial proven, via ``FrozenSchema.
+    phenotype_key``, to decode to the current phenotype) defaults to off:
+    the proof costs about 10% of wall time and was measured at about 0
+    skips on real MOSES representations (single-field neutral changes
+    0/210, 0/570, 9/720 and 0/3330). It stays available as an option."""
 
     def __init__(
         self,
         pop_size: int = 64,
         fos: str = "lt-b",
         forced_improvement: bool = False,
-        skip_inactive: bool = True,
+        skip_inactive: bool = False,
         radii: str = "1:0.4,2:0.3,4:0.2,max:0.1",
         dedupe: bool = True,
         max_generations: int = 100,
@@ -142,6 +155,42 @@ class _OracleEvaluator:
 
     def record_phenotype_skip(self) -> None:
         self.oracle.record_phenotype_skip()
+
+
+def population_diversity(
+    genotypes: Sequence[tuple[int, ...]], raws: Sequence[float], positions: Sequence[int]
+) -> dict:
+    """Diversity/coverage of one population over ``positions`` (the linkage
+    model's search positions), for the per-generation telemetry:
+
+    * ``unique_genotypes`` -- distinct genotypes;
+    * ``mean_entropy_bits`` -- mean per-field Shannon entropy (base 2) over
+      ``positions`` (0.0 when there are none);
+    * ``n_varying_fields`` -- positions with more than one observed value;
+    * ``best_raw_count`` -- individuals whose raw score equals the
+      population's best (highest) raw score.
+
+    One pass with a ``Counter`` per field.
+    """
+    n = len(genotypes)
+    counters = [Counter() for _ in positions]
+    for g in genotypes:
+        for c, p in zip(counters, positions, strict=True):
+            c[g[p]] += 1
+    entropies = []
+    for c in counters:
+        h = 0.0
+        for k in c.values():
+            q = k / n
+            h -= q * math.log2(q)
+        entropies.append(h)
+    best_raw = max(raws) if raws else None
+    return {
+        "unique_genotypes": len(set(genotypes)),
+        "mean_entropy_bits": (sum(entropies) / len(entropies)) if entropies else 0.0,
+        "n_varying_fields": sum(1 for c in counters if len(c) > 1),
+        "best_raw_count": sum(1 for r in raws if r == best_raw),
+    }
 
 
 def _score_fields(score: composite_score) -> dict:
@@ -229,7 +278,14 @@ class gomea_optimization(optimizer_base):
                 terminate_if_gte = self.opt_params.terminate_if_gte
 
                 def on_generation(record: dict, pop: list[Individual]) -> None:
+                    if sink.path is None:
+                        return  # no telemetry file: skip the diversity pass
                     best = engine.best_of(pop)
+                    diversity = population_diversity(
+                        [ind.genotype for ind in pop],
+                        [ind.score.get_score() for ind in pop],
+                        engine.model.search_positions,
+                    )
                     sink.emit(
                         "generation",
                         **record,
@@ -237,6 +293,7 @@ class gomea_optimization(optimizer_base):
                         best_penalized=best.score.get_penalized_score(),
                         best_complexity=best.score.get_complexity(),
                         ledger=oracle.ledger.as_dict(),
+                        **diversity,
                     )
 
                 engine = GomeaEngine(

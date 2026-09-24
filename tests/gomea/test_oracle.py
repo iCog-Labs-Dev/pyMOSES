@@ -122,7 +122,47 @@ def test_ledger_starts_at_all_zeros():
         "phenotype_skips": 0,
         "cache_hits": 0,
         "cache_misses": 0,
+        "duplicate_requests": 0,
     }
+
+
+def test_duplicate_requests_counts_repeat_genotypes_without_changing_charging(
+    make_boolean_rep,
+):
+    """F2: a request for a genotype this oracle already evaluated is counted
+    in ``duplicate_requests`` -- and is still scored, archived and charged
+    exactly like any other request (a counter only)."""
+    rep = make_boolean_rep("and($1 $2)", 2)
+    schema = FrozenSchema(rep)
+    iscorer = _real_iscorer(rep)
+    deme = _make_deme(schema)
+    oracle = EvaluationOracle(schema, iscorer, deme, max_evals=1000, max_time=3600.0)
+
+    a = schema.default_genotype()
+    b = next(
+        g
+        for g in (
+            tuple(random.Random(s).randrange(k) for k in schema.domains) for s in range(100)
+        )
+        if g != a
+    )
+    for g in (a, b, a, a, b):
+        oracle.evaluate(g)
+
+    assert oracle.ledger.duplicate_requests == 3
+    assert oracle.ledger.requests == 5
+    assert len(deme) == 5
+    assert oracle.ledger.as_dict()["duplicate_requests"] == 3
+    # A skip is not a request, so it is never a duplicate request either.
+    oracle.record_noop_skip()
+    oracle.record_phenotype_skip()
+    assert oracle.ledger.duplicate_requests == 3
+    # A request refused by the budget is not counted.
+    capped = EvaluationOracle(schema, iscorer, _make_deme(schema), max_evals=1, max_time=3600.0)
+    capped.evaluate(a)
+    with pytest.raises(BudgetExhausted):
+        capped.evaluate(a)
+    assert capped.ledger.duplicate_requests == 0
 
 
 # ---------------------------------------------------------------------------
