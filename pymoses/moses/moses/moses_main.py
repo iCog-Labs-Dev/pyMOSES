@@ -748,14 +748,16 @@ def gomea_kwargs(pms: object) -> dict[str, object]:
 
 # GOMEA extension (not in classic MOSES).
 def _gomea_contin_message(dex: deme_expander) -> str:
-    """The `-a gomea` error for a representation with contin fields,
-    naming the contin fields of the demes being expanded."""
+    """The `-a gomea` error for a representation with contin fields: how
+    many contin fields the first deme's representation has, and the range
+    of raw field indices they occupy."""
     listed = "contin fields"
     reps = getattr(dex, "_reps", [])
     if reps:
         fields = reps[0].fields()
         n, n_raw = len(fields.contin()), fields.n_contin_fields()
-        listed = f"{n} contin field(s) (numeric constants), raw fields 0-{n_raw - 1}"
+        first = fields.begin_contin_raw_idx()
+        listed = f"{n} contin field(s) (numeric constants), raw fields {first}-{first + n_raw - 1}"
     return (
         "-a gomea supports only discrete (boolean/enum) knobs, but this "
         f"problem's representation has continuous knobs: {listed}. "

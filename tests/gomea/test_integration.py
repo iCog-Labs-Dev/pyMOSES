@@ -2,17 +2,19 @@
 
 Every run goes through ``moses_exec(argv)`` in-process with stdout
 captured, the same convention ``tests/moses/main/test_moses_exec.py``
-uses. The ``-a hc`` expectations below were captured at the base commit
-(before any GOMEA code existed) and pin that adding GOMEA leaves the
-default optimizer's output byte-identical.
+uses. The ``-a hc`` expectations and ``data/help_base.out`` were captured
+at commit 0410881, which predates ALL GOMEA code (no ``pymoses/gomea``
+package, no ``--gomea-*`` option), and pin that adding GOMEA leaves the
+default optimizer's output and classic's option surface byte-identical.
 """
 
 from __future__ import annotations
 
+import argparse
 import io
 import json
 import re
-from contextlib import redirect_stdout
+from contextlib import redirect_stderr, redirect_stdout
 from pathlib import Path
 
 import pytest
@@ -25,9 +27,12 @@ from pymoses.moses.main.demo_problems import (
     _set_noise_or_ratio,
     even_parity,
     logical_bscore,
+    register_demo_problems,
 )
-from pymoses.moses.main.moses_exec import moses_exec
-from pymoses.moses.main.problem_params import parse_args
+from pymoses.moses.main.moses_exec import _add_demo_options, moses_exec
+from pymoses.moses.main.problem import problem_manager
+from pymoses.moses.main.problem_params import parse_args, problem_params
+from pymoses.moses.main.table_problems import ip_problem_params, register_table_problems
 from pymoses.moses.scoring.behave_cscore import behave_cscore
 
 REPO = Path(__file__).resolve().parents[2]
@@ -35,7 +40,7 @@ TABLE_DATA = REPO / "tests" / "fixtures" / "table_data"
 HELP_BASE = Path(__file__).resolve().parent / "data" / "help_base.out"
 
 # ---------------------------------------------------------------------------
-# -a hc stdout captured at the base commit (0410881), before GOMEA existed.
+# -a hc stdout captured at commit 0410881, before any GOMEA code existed.
 # ---------------------------------------------------------------------------
 
 # moses -H pa -k 3 -m 2000 -r 1
@@ -284,6 +289,79 @@ def test_reaching_the_target_ends_with_target_reached(tmp_path):
     assert stdout.splitlines()[0].startswith("0 ")
     reasons = [e["termination_reason"] for e in _events(log) if e["type"] == "end"]
     assert "target_reached" in reasons
+
+
+# ---------------------------------------------------------------------------
+# Abbreviated classic options resolve as they did before GOMEA.
+# ---------------------------------------------------------------------------
+
+
+def _cli_parser(with_gomea: bool) -> argparse.ArgumentParser:
+    """The parser ``moses_exec`` builds, with or without the GOMEA options."""
+    pmr = problem_manager()
+    tpp = register_table_problems(pmr)
+    register_demo_problems(pmr)
+    parser = argparse.ArgumentParser(prog="moses", add_help=False)
+    parser.add_argument("-h", "--help", dest="help", action="store_true", default=False)
+    pp = problem_params()
+    pp.add_options(parser)
+    tpp.add_options(parser)
+    ip_problem_params().add_options(parser)
+    _add_demo_options(parser)
+    if with_gomea:
+        pp.add_gomea_options(parser)
+    return parser
+
+
+def _resolve(parser: argparse.ArgumentParser, token: str) -> dict | None:
+    """What ``token`` (plus a value, if its option takes one) parses to, or
+    None when argparse rejects it (ambiguous or unknown)."""
+    for action in parser._actions:
+        action.default = argparse.SUPPRESS
+    argv = [token]
+    matches = [a for o, a in parser._option_string_actions.items() if o.startswith(token)]
+    if matches and matches[0].nargs != 0:
+        argv.append("1")
+    err = io.StringIO()
+    try:
+        with redirect_stderr(err):
+            return vars(parser.parse_args(argv))
+    except SystemExit:
+        return None
+
+
+def test_base_parser_is_the_captured_classic_surface():
+    longs = {o for o in _cli_parser(False)._option_string_actions if o.startswith("--")}
+    base = set(re.findall(r"(?<![\w-])--[a-zA-Z][\w-]*", HELP_BASE.read_text()))
+    assert longs == base
+
+
+def test_every_classic_abbreviation_still_resolves_to_the_same_option():
+    base, new = _cli_parser(False), _cli_parser(True)
+    longs = [o for o in base._option_string_actions if o.startswith("--")]
+    checked = 0
+    for opt in longs:
+        for end in range(3, len(opt) + 1):
+            prefix = opt[:end]
+            before = _resolve(base, prefix)
+            if before is None:
+                continue
+            checked += 1
+            assert _resolve(new, prefix) == before, prefix
+    assert checked > len(longs)
+
+
+def test_g_still_abbreviates_gen_best_tree():
+    rc, stdout = _run(["-H", "pa", "-k", "2", "-m", "50", "--g", "1"])
+    assert rc == 0
+    assert _resolve(_cli_parser(True), "--g") == {"gen_best_tree": True}
+    ns = _cli_parser(True).parse_args(["--g", "1"])
+    assert ns.gen_best_tree is True
+    assert not any(k.startswith("_classic_prefix_alias") for k in vars(ns))
+
+
+def test_hidden_aliases_do_not_show_in_help():
+    assert "--g " not in _help_text() and "--g]" not in _help_text()
 
 
 # ---------------------------------------------------------------------------

@@ -271,6 +271,50 @@ _GOMEA_OPTIONS = (
 )
 
 
+class _ClassicPrefixAlias(argparse.Action):
+    """GOMEA extension (not in classic MOSES): a hidden option that stores
+    into another option's `dest`, exactly as the abbreviated classic option
+    it stands for would. Its own `dest` never reaches the namespace."""
+
+    def __init__(self, option_strings, dest, target: argparse.Action, **kw) -> None:
+        super().__init__(
+            option_strings,
+            dest,
+            type=target.type,
+            default=argparse.SUPPRESS,
+            help=argparse.SUPPRESS,
+            **kw,
+        )
+        self.target = target
+
+    def __call__(self, parser, namespace, values, option_string=None) -> None:
+        self.target(parser, namespace, values, self.target.option_strings[-1])
+
+
+def _add_classic_prefix_aliases(parser: argparse.ArgumentParser, classic: list[str]) -> None:
+    """GOMEA extension (not in classic MOSES): for every prefix of a classic
+    long option in `classic` that resolved to exactly that option before the
+    `--gomea-*` options were registered and is ambiguous now, register a
+    hidden exact alias for it."""
+    now = [o for o in parser._option_string_actions if o.startswith("--")]
+    for opt in classic:
+        for end in range(3, len(opt)):
+            prefix = opt[:end]
+            if prefix in parser._option_string_actions:
+                continue
+            if [o for o in classic if o.startswith(prefix)] != [opt]:
+                continue
+            if [o for o in now if o.startswith(prefix)] == [opt]:
+                continue
+            target = parser._option_string_actions[opt]
+            parser.add_argument(
+                prefix,
+                action=_ClassicPrefixAlias,
+                dest=f"_classic_prefix_alias_{prefix[2:]}",
+                target=target,
+            )
+
+
 def _gomea_params_from_args(args: argparse.Namespace) -> gomea_parameters:
     """GOMEA extension (not in classic MOSES): build the `gomea_parameters`
     the `--gomea-*` options describe. Raises `ValueError` for a malformed
@@ -623,8 +667,15 @@ class problem_params:
         classic option is registered, so classic's own `--help` lines keep
         their order and wrapping and the GOMEA lines only follow them.
         """
+        classic = [o for o in parser._option_string_actions if o.startswith("--")]
         for flag, dest, type_, default in _GOMEA_OPTIONS:
             parser.add_argument(flag, dest=dest, type=type_, default=default)
+        # GOMEA extension (not in classic MOSES): argparse accepts any unique
+        # prefix of a long option (`allow_abbrev`), so adding `--gomea-*`
+        # would make a prefix such as `--g` (until now `--gen-best-tree`)
+        # ambiguous. Every classic prefix that the new options would steal is
+        # pinned back to its classic option by a hidden exact alias.
+        _add_classic_prefix_aliases(parser, classic)
 
     # ------------------------------------------------------------ parse_options
 
