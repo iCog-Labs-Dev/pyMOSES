@@ -7,7 +7,10 @@ stand-alone GP-GOMEA runs see exactly the truth tables of `-H pa -k 4`, `-H maj 
 space-separated 0/1 values with the target in the last column and no header (the format
 GP-GOMEA's `--train` reader expects). MOSES's input `$i` is column `x(i-1)`.
 
-Usage: .venv/bin/python tools/gomea/make_truth_tables.py OUT_DIR
+Usage: .venv/bin/python tools/gomea/make_truth_tables.py OUT_DIR [SPEC ...]
+
+With no SPEC the Phase 1b set (pa4, maj5, mux6) is written. A SPEC is `pa:K`, `maj:K` or
+`mux:A` (A address bits, so 2**A data bits), e.g. `pa:3 pa:7 maj:9 mux:3`.
 """
 
 from __future__ import annotations
@@ -34,11 +37,24 @@ TASKS = {
 }
 
 
+def _spec(text: str) -> tuple[str, tuple]:
+    fam, k = text.split(":")
+    k = int(k)
+    if fam == "pa":
+        return f"pa{k}", (["-H", "pa", "-k", str(k)], even_parity, k)
+    if fam == "maj":
+        return f"maj{k}", (["-H", "maj", "-k", str(k)], majority(k), k)
+    if fam == "mux":
+        return f"mux{k + 2**k}", (["-H", "mux", "-k", str(k)], multiplex(k), k + 2**k)
+    raise SystemExit(f"unknown task spec {text!r}")
+
+
 def main() -> int:
     out = Path(sys.argv[1])
+    tasks = dict(_spec(t) for t in sys.argv[2:]) if len(sys.argv) > 2 else TASKS
     out.mkdir(parents=True, exist_ok=True)
     meta = {}
-    for name, (flags, func, arity) in TASKS.items():
+    for name, (flags, func, arity) in tasks.items():
         rows = [(bits, bool(func(bits))) for bits in itertools.product([False, True], repeat=arity)]
         # Cross-check against MOSES's own scorer target: same number of rows and the same
         # number of true outputs as logical_bscore builds for this problem.

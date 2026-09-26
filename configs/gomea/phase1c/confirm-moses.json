@@ -1,0 +1,122 @@
+{
+  "name": "phase1c-confirm-moses",
+  "binary": "/home/yab/Documents/Projects/iCog/HyperonRelated/MOSES/OpenCog/Moses/build/moses/moses/main/moses",
+  "binary_sha256": "a3c0f6e528025b3a98527e9eefb87fc12a8e25655cde79da68bf4f5babcc4444",
+  "moses_commit": "5a5bf75f8",
+  "budget": 500000,
+  "wall_cap_s": 1800,
+  "seeds": [
+    1001,
+    1002,
+    1003,
+    1004,
+    1005,
+    1006,
+    1007,
+    1008,
+    1009,
+    1010
+  ],
+  "tasks": {
+    "pa3": {
+      "argv": [
+        "-H",
+        "pa",
+        "-k",
+        "3"
+      ],
+      "rows": 8
+    },
+    "pa4": {
+      "argv": [
+        "-H",
+        "pa",
+        "-k",
+        "4"
+      ],
+      "rows": 16
+    },
+    "pa5": {
+      "argv": [
+        "-H",
+        "pa",
+        "-k",
+        "5"
+      ],
+      "rows": 32
+    },
+    "pa6": {
+      "argv": [
+        "-H",
+        "pa",
+        "-k",
+        "6"
+      ],
+      "rows": 64
+    },
+    "pa7": {
+      "argv": [
+        "-H",
+        "pa",
+        "-k",
+        "7"
+      ],
+      "rows": 128
+    },
+    "maj5": {
+      "argv": [
+        "-H",
+        "maj",
+        "-k",
+        "5"
+      ],
+      "rows": 32
+    },
+    "maj7": {
+      "argv": [
+        "-H",
+        "maj",
+        "-k",
+        "7"
+      ],
+      "rows": 128
+    },
+    "maj9": {
+      "argv": [
+        "-H",
+        "maj",
+        "-k",
+        "9"
+      ],
+      "rows": 512
+    },
+    "mux6": {
+      "argv": [
+        "-H",
+        "mux",
+        "-k",
+        "2"
+      ],
+      "rows": 64
+    },
+    "mux11": {
+      "argv": [
+        "-H",
+        "mux",
+        "-k",
+        "3"
+      ],
+      "rows": 2048
+    }
+  },
+  "arms": {
+    "MOSES-CPP": {
+      "argv": [
+        "-a",
+        "hc",
+        "--max-time",
+        "1500"
+      ]
+    }
+  }
+}

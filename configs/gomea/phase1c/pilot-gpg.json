@@ -1,0 +1,132 @@
+{
+  "name": "phase1c-pilot-gpg",
+  "binary": "/home/yab/Documents/Projects/iCog/HyperonRelated/MOSES/gomea-results/phase1b/gpgomea-build/gpgomea-instr",
+  "binary_sha256": "480a0c899ae3e7929fc3402789629b4b73d62ee6047a545939faeeb042a3b548",
+  "budget": 500000,
+  "wall_cap_s": 1200,
+  "seeds": [
+    601,
+    602,
+    603
+  ],
+  "tasks": {
+    "pa3": {
+      "data": "configs/gomea/phase1c/data/pa3.dat",
+      "rows": 8
+    },
+    "pa4": {
+      "data": "configs/gomea/phase1c/data/pa4.dat",
+      "rows": 16
+    },
+    "pa5": {
+      "data": "configs/gomea/phase1c/data/pa5.dat",
+      "rows": 32
+    },
+    "pa6": {
+      "data": "configs/gomea/phase1c/data/pa6.dat",
+      "rows": 64
+    },
+    "pa7": {
+      "data": "configs/gomea/phase1c/data/pa7.dat",
+      "rows": 128
+    },
+    "maj5": {
+      "data": "configs/gomea/phase1c/data/maj5.dat",
+      "rows": 32
+    },
+    "maj7": {
+      "data": "configs/gomea/phase1c/data/maj7.dat",
+      "rows": 128
+    },
+    "maj9": {
+      "data": "configs/gomea/phase1c/data/maj9.dat",
+      "rows": 512
+    },
+    "mux6": {
+      "data": "configs/gomea/phase1c/data/mux6.dat",
+      "rows": 64
+    },
+    "mux11": {
+      "data": "configs/gomea/phase1c/data/mux11.dat",
+      "rows": 2048
+    }
+  },
+  "arms": {
+    "GPG-H5": {
+      "argv": [
+        "--functions",
+        "AND_OR_NOT",
+        "--gomea",
+        "--gomfos",
+        "LT",
+        "--ims",
+        "5_1",
+        "--syntuniqinit",
+        "1000",
+        "--time",
+        "1100",
+        "--popsize",
+        "64",
+        "--initmaxtreeheight",
+        "5"
+      ]
+    },
+    "GPG-H6": {
+      "argv": [
+        "--functions",
+        "AND_OR_NOT",
+        "--gomea",
+        "--gomfos",
+        "LT",
+        "--ims",
+        "5_1",
+        "--syntuniqinit",
+        "1000",
+        "--time",
+        "1100",
+        "--popsize",
+        "64",
+        "--initmaxtreeheight",
+        "6"
+      ]
+    },
+    "GPG-H7": {
+      "argv": [
+        "--functions",
+        "AND_OR_NOT",
+        "--gomea",
+        "--gomfos",
+        "LT",
+        "--ims",
+        "5_1",
+        "--syntuniqinit",
+        "1000",
+        "--time",
+        "1100",
+        "--popsize",
+        "64",
+        "--initmaxtreeheight",
+        "7"
+      ]
+    },
+    "GPG-H8": {
+      "argv": [
+        "--functions",
+        "AND_OR_NOT",
+        "--gomea",
+        "--gomfos",
+        "LT",
+        "--ims",
+        "5_1",
+        "--syntuniqinit",
+        "1000",
+        "--time",
+        "1100",
+        "--popsize",
+        "64",
+        "--initmaxtreeheight",
+        "8"
+      ]
+    }
+  }
+}

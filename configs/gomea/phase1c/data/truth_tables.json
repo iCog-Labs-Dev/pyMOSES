@@ -1,0 +1,122 @@
+{
+  "pa3": {
+    "moses_flags": [
+      "-H",
+      "pa",
+      "-k",
+      "3"
+    ],
+    "arity": 3,
+    "rows": 8,
+    "positives": 4,
+    "sha256": "0683692d20fc0299ace8bee69089cf2ea38ddd9b5abddffe9f3a64ad28a15024"
+  },
+  "pa4": {
+    "moses_flags": [
+      "-H",
+      "pa",
+      "-k",
+      "4"
+    ],
+    "arity": 4,
+    "rows": 16,
+    "positives": 8,
+    "sha256": "614dc1d2eac8d73593abcdbef488c3ab6e6399f87bfebe8dd832e4a7f841b534"
+  },
+  "pa5": {
+    "moses_flags": [
+      "-H",
+      "pa",
+      "-k",
+      "5"
+    ],
+    "arity": 5,
+    "rows": 32,
+    "positives": 16,
+    "sha256": "1ea58d25800de6c8d3b7a94a06cf014812668e6404e6e965c46c293587665489"
+  },
+  "pa6": {
+    "moses_flags": [
+      "-H",
+      "pa",
+      "-k",
+      "6"
+    ],
+    "arity": 6,
+    "rows": 64,
+    "positives": 32,
+    "sha256": "56f5905a9ed1b4c2853cb578fe13a238d4d80fade9e8a8b32cfdf942f908395d"
+  },
+  "pa7": {
+    "moses_flags": [
+      "-H",
+      "pa",
+      "-k",
+      "7"
+    ],
+    "arity": 7,
+    "rows": 128,
+    "positives": 64,
+    "sha256": "71d873d0f0e538e76362b1201a92764b42dbc42173178e2204111862e6322733"
+  },
+  "maj5": {
+    "moses_flags": [
+      "-H",
+      "maj",
+      "-k",
+      "5"
+    ],
+    "arity": 5,
+    "rows": 32,
+    "positives": 16,
+    "sha256": "d2d03cfc7527e14fc73830628c29a512506096e497fb9bd8d664b9dbc4081e35"
+  },
+  "maj7": {
+    "moses_flags": [
+      "-H",
+      "maj",
+      "-k",
+      "7"
+    ],
+    "arity": 7,
+    "rows": 128,
+    "positives": 64,
+    "sha256": "f0036aed6d895b1829d2f4e8447e86006a5038f1a886ae432216d51c06d86af7"
+  },
+  "maj9": {
+    "moses_flags": [
+      "-H",
+      "maj",
+      "-k",
+      "9"
+    ],
+    "arity": 9,
+    "rows": 512,
+    "positives": 256,
+    "sha256": "85163096b1a8a47e33db3fe6890e5afa247c817b9b6770ca8481aa0f2ee44a59"
+  },
+  "mux6": {
+    "moses_flags": [
+      "-H",
+      "mux",
+      "-k",
+      "2"
+    ],
+    "arity": 6,
+    "rows": 64,
+    "positives": 32,
+    "sha256": "3859dd00c78462dc3eaf55aaf58ce023b7c6761bd5eff1e9e7cafbd5440fd55e"
+  },
+  "mux11": {
+    "moses_flags": [
+      "-H",
+      "mux",
+      "-k",
+      "3"
+    ],
+    "arity": 11,
+    "rows": 2048,
+    "positives": 1024,
+    "sha256": "2e4b0bfc438a0373e080d7e5119680a47dcbcf871133cdfff8894aafbd726a1e"
+  }
+}
