@@ -45,7 +45,9 @@ merges the best of them back into the metapopulation as usual.
 > If you use it, prefer `--gomea-fos uni`. See [`PHASE1-FINDINGS.md`](PHASE1-FINDINGS.md).
 > A follow-up ([`PHASE1B-FINDINGS.md`](PHASE1B-FINDINGS.md)) ran the authors' own
 > stand-alone GP-GOMEA on the same tasks. It also lost to MOSES hill climbing at equal
-> evaluations.
+> evaluations. On larger problems ([`PHASE1C-FINDINGS.md`](PHASE1C-FINDINGS.md)) the
+> stand-alone GP-GOMEA scaled better than classic MOSES on majority and worse on
+> multiplexer and parity.
 
 ## Quick start
 

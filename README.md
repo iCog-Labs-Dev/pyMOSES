@@ -163,7 +163,8 @@ telemetry, the Python API and the measured comparison with hill climbing, see
 [`docs/gomea/USAGE.md`](docs/gomea/USAGE.md) and
 [`docs/gomea/PHASE1-FINDINGS.md`](docs/gomea/PHASE1-FINDINGS.md). A follow-up comparing the
 authors' stand-alone GP-GOMEA with MOSES hill climbing is in
-[`docs/gomea/PHASE1B-FINDINGS.md`](docs/gomea/PHASE1B-FINDINGS.md).
+[`docs/gomea/PHASE1B-FINDINGS.md`](docs/gomea/PHASE1B-FINDINGS.md), and how it scales to
+larger problems in [`docs/gomea/PHASE1C-FINDINGS.md`](docs/gomea/PHASE1C-FINDINGS.md).
 
 ## Run the tests
 

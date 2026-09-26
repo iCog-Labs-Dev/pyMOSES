@@ -1,0 +1,29 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 720 400" width="720" height="400" role="img" aria-labelledby="ttl"><style>.bg{fill:#fcfcfb}text{font-family:system-ui,-apple-system,'Segoe UI',sans-serif;fill:#52514e;font-size:12px}.t{fill:#0b0b0b;font-size:14px;font-weight:600}.grid{stroke:#e8e7e3;stroke-width:1}.line{fill:none;stroke-width:2;stroke-linejoin:round;stroke-linecap:round}.ring{stroke:#fcfcfb;stroke-width:2}.s1{stroke:#2a78d6}.d1{fill:#2a78d6}.s2{stroke:#eb6834}.d2{fill:#eb6834}@media (prefers-color-scheme:dark){.bg{fill:#1a1a19}text{fill:#c3c2b7}.t{fill:#ffffff}.grid{stroke:#383835}.ring{stroke:#1a1a19}.s1{stroke:#3987e5}.d1{fill:#3987e5}.s2{stroke:#d95926}.d2{fill:#d95926}}</style>
+<rect class="bg" width="720" height="400"/><title id="ttl">parity: share of runs solved (500,000 evals; MOSES also 25-min limit)</title>
+<text class="t" x="72" y="22">parity: share of runs solved (500,000 evals; MOSES also 25-min limit)</text>
+<line class="line s1" x1="72" x2="88" y1="42" y2="42"/><text x="94" y="46">classic C++ MOSES (HC)</text>
+<line class="line s2" x1="270" x2="286" y1="42" y2="42"/><text x="292" y="46">GP-GOMEA (stand-alone)</text>
+<line class="grid" x1="72" x2="680" y1="344.0" y2="344.0"/><text x="64" y="348.0" text-anchor="end">0%</text>
+<line class="grid" x1="72" x2="680" y1="275.5" y2="275.5"/><text x="64" y="279.5" text-anchor="end">25%</text>
+<line class="grid" x1="72" x2="680" y1="207.0" y2="207.0"/><text x="64" y="211.0" text-anchor="end">50%</text>
+<line class="grid" x1="72" x2="680" y1="138.5" y2="138.5"/><text x="64" y="142.5" text-anchor="end">75%</text>
+<line class="grid" x1="72" x2="680" y1="70.0" y2="70.0"/><text x="64" y="74.0" text-anchor="end">100%</text>
+<text x="132.8" y="362" text-anchor="middle">pa3</text>
+<text x="254.4" y="362" text-anchor="middle">pa4</text>
+<text x="376.0" y="362" text-anchor="middle">pa5</text>
+<text x="497.6" y="362" text-anchor="middle">pa6</text>
+<text x="619.2" y="362" text-anchor="middle">pa7</text>
+<text x="376.0" y="390" text-anchor="middle">problem (number of inputs grows left to right)</text>
+<path class="line s1" d="M132.8,97.4 L254.4,234.4 L376.0,344.0 L497.6,344.0 L619.2,344.0"/>
+<circle class="d1 ring" cx="129.8" cy="97.4" r="5"><title>classic C++ MOSES (HC) on pa3: 9/10 solved; ERT 19,867</title></circle>
+<circle class="d1 ring" cx="251.4" cy="234.4" r="5"><title>classic C++ MOSES (HC) on pa4: 4/10 solved; ERT 185,560</title></circle>
+<circle class="d1 ring" cx="373.0" cy="344.0" r="5"><title>classic C++ MOSES (HC) on pa5: 0/10 solved; ERT none solved</title></circle>
+<circle class="d1 ring" cx="494.6" cy="344.0" r="5"><title>classic C++ MOSES (HC) on pa6: 0/10 solved; ERT none solved</title></circle>
+<circle class="d1 ring" cx="616.2" cy="344.0" r="5"><title>classic C++ MOSES (HC) on pa7: 0/10 solved; ERT none solved</title></circle>
+<path class="line s2" d="M132.8,70.0 L254.4,83.7 L376.0,316.6 L497.6,344.0 L619.2,344.0"/>
+<circle class="d2 ring" cx="135.8" cy="70.0" r="5"><title>GP-GOMEA (stand-alone) on pa3: 20/20 solved; ERT 10,167</title></circle>
+<circle class="d2 ring" cx="257.4" cy="83.7" r="5"><title>GP-GOMEA (stand-alone) on pa4: 19/20 solved; ERT 159,882</title></circle>
+<circle class="d2 ring" cx="379.0" cy="316.6" r="5"><title>GP-GOMEA (stand-alone) on pa5: 2/20 solved; ERT 4,473,298</title></circle>
+<circle class="d2 ring" cx="500.6" cy="344.0" r="5"><title>GP-GOMEA (stand-alone) on pa6: 0/20 solved; ERT none solved</title></circle>
+<circle class="d2 ring" cx="622.2" cy="344.0" r="5"><title>GP-GOMEA (stand-alone) on pa7: 0/20 solved; ERT none solved</title></circle>
+</svg>

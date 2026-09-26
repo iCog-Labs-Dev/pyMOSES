@@ -102,6 +102,20 @@ review and a fix wave. The ledger of findings, fixes and deferred minors lives i
   evaluations, and it is far faster per evaluation, which is largely a C++ vs Python
   effect.
 
+## Phase 1c: GP-GOMEA scalability (user-requested follow-up)
+
+* **Approval:** `APPROVALS.md` #7.
+* **Pre-registration:** `PHASE1C-PREREGISTRATION.md`, committed (`d36a4d8`) before any
+  confirmatory run. The report's input-loading fix (`5199bba`) is also from before the
+  results.
+* **Pilot:** 150 runs chose the GP-GOMEA template height per size.
+* **Confirmation:** 300 runs and 40 descriptive height-9 runs, all ok. Run on 2026-09-26
+  and 27; one interruption, after which 15 partial runs were re-run from scratch.
+* **Findings:** `PHASE1C-FINDINGS.md`. Under the pre-registered rule, GP-GOMEA scales
+  better on majority and worse on multiplexer and parity. At the largest parity and majority sizes classic
+  MOSES hit its 25-minute limit before its evaluation budget. Template height is
+  GP-GOMEA's scaling limit.
+
 ## Deferred minors (not blocking; kept for the record)
 
 * The golden.cpp header should note that upstream's commented-out blocks were omitted.

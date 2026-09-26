@@ -1,0 +1,11 @@
+task,moses_unsolved,median_evals_reached_unsolved,unsolved_stopped_by_time_limit
+pa3,1,17797,0
+pa4,6,57359.5,0
+pa5,10,205037.0,10
+pa6,10,218765.0,10
+pa7,10,395173.5,10
+maj5,3,4283,0
+maj7,8,187732.0,8
+maj9,10,86784.5,10
+mux6,0,,0
+mux11,0,,0

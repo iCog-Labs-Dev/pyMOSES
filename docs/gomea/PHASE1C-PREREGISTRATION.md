@@ -93,3 +93,14 @@ Seeds do not pair runs across the two systems.
   * its ERT growth factor per input is smaller, with both fits defined.
 
   "Scales worse" is the mirror image. Anything else is reported as mixed or undetermined.
+
+## Deviations recorded after the runs
+
+* **Interruption.** The session ended during the confirmation. The 15 runs that were in
+  flight (10 MOSES, 5 GP-GOMEA) had no summaries. Their directories were deleted and the
+  runs re-executed from scratch with the same seeds; completed runs were kept. No partial
+  output survived to compare against. GP-GOMEA is seeded and its reruns should reproduce. The MOSES runs that stop on `--max-time` depend on
+  machine load.
+* **Report plumbing.** `phase1c_report.py` was changed to read several GP-GOMEA result
+  directories (`5199bba`), before any confirmatory result. Chart titles were reworded
+  after the results to disclose the MOSES time limit. No statistic changed.

@@ -165,7 +165,7 @@ def family_svg(
 
         ticks = [(10**e, f"{10**e:,}") for e in range(lo_e, hi_e + 1)]
     else:
-        title = f"{family}: share of runs solved within {budget:,} evaluations"
+        title = f"{family}: share of runs solved ({budget:,} evals; MOSES also 25-min limit)"
 
         def sy(v: float) -> float:
             return mt + ph * (1 - v)
@@ -233,7 +233,7 @@ def family_svg(
     if metric == "ert":
         out.append(
             f'<text x="{ml + pw}" y="{mt - 6}" text-anchor="end">× = no run solved '
-            f"within {budget:,}</text>"
+            f"(budget {budget:,} evals or MOSES's 25-min limit)</text>"
         )
     out.append("</svg>")
     path.write_text("\n".join(out))
