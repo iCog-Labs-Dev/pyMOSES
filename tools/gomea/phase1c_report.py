@@ -3,7 +3,7 @@ C++ MOSES hill climbing as a same-language reference (PHASE1C-PREREGISTRATION.md
 
 Usage (from the repository root)::
 
-    .venv/bin/python tools/gomea/phase1c_report.py GPG_DIR MOSES_DIR OUT_DIR
+    .venv/bin/python tools/gomea/phase1c_report.py GPG_DIR[,GPG_DIR...] MOSES_DIR OUT_DIR
 
 `GPG_DIR` and `MOSES_DIR` are result directories (each has `runs/*/summary.json`) written by
 `gpgomea_runner.py` and `moses_cpp_runner.py`.
@@ -242,8 +242,13 @@ def family_svg(
 def main() -> int:
     gpg_dir, moses_dir, out = map(Path, sys.argv[1:4])
     (out / "figures").mkdir(parents=True, exist_ok=True)
-    runs = {**load(moses_dir, "MOSES-CPP"), **load(gpg_dir, "GP-GOMEA")}
-    budget = json.loads((gpg_dir / "manifest.json").read_text())["budget"]
+    gpg_dirs = [Path(p) for p in str(gpg_dir).split(",")]
+    runs = dict(load(moses_dir, "MOSES-CPP"))
+    for d in gpg_dirs:
+        for k, v in load(d, "GP-GOMEA").items():
+            runs.setdefault(k, []).extend(v)
+    budget = json.loads((gpg_dirs[0] / "manifest.json").read_text())["budget"]
+    assert all(json.loads((d / "manifest.json").read_text())["budget"] == budget for d in gpg_dirs)
     assert budget == json.loads((moses_dir / "manifest.json").read_text())["budget"]
     agg = {k: summarise(v, budget) for k, v in runs.items()}
     rows, tests, growth = [], [], {}
