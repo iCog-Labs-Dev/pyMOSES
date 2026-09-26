@@ -146,6 +146,22 @@ runtime**. The parity run above takes about 100 s here, against 4.4 s for the C+
 binary. Start with a small `-m` and raise it. Fidelity, not speed, is the point of this
 port — if you need MOSES to be fast, run the C++.
 
+## Extension: GOMEA inner optimizer (experimental)
+
+Beyond the classic port, this branch adds one **non-classic** option: a GP-GOMEA-style
+population optimizer that can replace MOSES's hill climber *inside* each deme. It leaves
+exemplar selection, knob building and the metapopulation unchanged. It is Boolean-only
+for now.
+
+```bash
+moses -H pa -k 3 -m 3000 -r 1 -a gomea --gomea-pop-size 16
+```
+
+Without `-a gomea`, output is byte-identical to classic, as before. For the options, the
+telemetry, the Python API and the measured comparison with hill climbing, see
+[`docs/gomea/USAGE.md`](docs/gomea/USAGE.md) and
+[`docs/gomea/PHASE1-FINDINGS.md`](docs/gomea/PHASE1-FINDINGS.md).
+
 ## Run the tests
 
 The test suite is self-contained: it diffs against C++ **golden fixtures committed to
@@ -156,11 +172,12 @@ pip install -e ".[dev]"
 pytest
 ```
 
-Expect **7898 passed, 5 skipped**, in about 8 minutes on one core. (Verified from a
-clean checkout and a fresh virtualenv, not from a warm development tree.)
+Expect **8213 passed, 5 skipped** in about 10 minutes on one core: the classic port's
+7898 (verified from a clean checkout and a fresh virtualenv) plus 315 for the GOMEA
+extension (`tests/gomea/`, measured on this branch).
 
-On a machine without a classic MOSES/CogUtil checkout you should see 7 more tests skip —
-roughly `7891 passed, 12 skipped`. Those are the tests that read the C++ sources
+On a machine without a classic MOSES/CogUtil checkout you should see 7 more tests skip,
+roughly `8206 passed, 12 skipped`. Those are the tests that read the C++ sources
 directly; they skip rather than fail, so a green run is still a green run. Everything
 else compares against golden fixtures committed here.
 
