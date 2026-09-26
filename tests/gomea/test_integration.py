@@ -207,8 +207,22 @@ def test_help_only_adds_gomea_lines():
     assert j == len(base), f"base help line missing or reordered: {base[j]!r}"
 
     assert added, "no --gomea-* options appear in --help"
+    # A wrapped continuation of a gomea option's help text (argparse puts
+    # help on its own indented line when the invocation is long, and wraps
+    # the text itself across several such lines) mentions neither "gomea"
+    # nor any flag of its own; it is allowed only right after a line that
+    # does mention gomea (a flag line or an earlier continuation of one).
+    prev_is_gomea = False
     for line in added:
-        assert "gomea" in line.lower(), f"non-GOMEA line added to --help: {line!r}"
+        is_gomea = "gomea" in line.lower()
+        is_continuation = (
+            not is_gomea
+            and prev_is_gomea
+            and line.startswith(" ")
+            and not line.lstrip().startswith("-")
+        )
+        assert is_gomea or is_continuation, f"non-GOMEA line added to --help: {line!r}"
+        prev_is_gomea = is_gomea or is_continuation
     for flag in (
         "--gomea-pop-size",
         "--gomea-fos",

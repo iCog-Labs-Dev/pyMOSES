@@ -105,7 +105,7 @@ def _events(path):
 
 def test_default_parameters():
     gp = gomea_parameters()
-    assert gp.pop_size == 64
+    assert gp.pop_size == 16
     assert gp.fos == "lt-b"
     assert gp.forced_improvement is False
     assert gp.skip_inactive is False
@@ -129,7 +129,9 @@ def test_cli_skip_inactive_defaults_off_and_stays_available():
         problem_params,
     )
 
-    assert {dest: default for _, dest, _, default in _GOMEA_OPTIONS}["gomea_skip_inactive"] == 0
+    assert (
+        {dest: default for _, dest, _, default, _ in _GOMEA_OPTIONS}["gomea_skip_inactive"] == 0
+    )
     assert _gomea_params_from_args(argparse.Namespace()).skip_inactive is False
 
     parser = argparse.ArgumentParser()

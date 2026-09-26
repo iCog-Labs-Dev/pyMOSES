@@ -71,11 +71,15 @@ class gomea_parameters:
     phenotype_key``, to decode to the current phenotype) defaults to off:
     the proof costs about 10% of wall time and was measured at about 0
     skips on real MOSES representations (single-field neutral changes
-    0/210, 0/570, 9/720 and 0/3330). It stays available as an option."""
+    0/210, 0/570, 9/720 and 0/3330). It stays available as an option.
+
+    ``pop_size`` defaults to 16: the Phase 1 pilot found N=16 best of
+    {16, 32, 64} under a 20k-evaluation budget
+    (``docs/gomea/pilot-a/aggregate_results.csv``)."""
 
     def __init__(
         self,
-        pop_size: int = 64,
+        pop_size: int = 16,
         fos: str = "lt-b",
         forced_improvement: bool = False,
         skip_inactive: bool = False,

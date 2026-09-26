@@ -254,25 +254,89 @@ _HC = "hc"  # C++: moses/optimization/optimization.h:68 hc
 _SUPPORTED_OPT_ALGOS = frozenset({"hc", "sa", "un", "ps", "gomea"})
 
 # GOMEA extension (not in classic MOSES): the `--gomea-*` options as
-# (flag, dest, type, default). Registered by `problem_params.add_gomea_options`
-# and read back by `_gomea_params_from_args`, which falls back to these same
-# defaults for a namespace built without them.
+# (flag, dest, type, default, help). Registered by
+# `problem_params.add_gomea_options` and read back by
+# `_gomea_params_from_args`, which falls back to these same defaults for a
+# namespace built without them.
 #
 # `--gomea-skip-inactive` defaults to 0 (off): the phenotype-key proof costs
 # about 10% of wall time and was measured at about 0 skips on real MOSES
 # representations (single-field neutral changes 0/210, 0/570, 9/720 and
 # 0/3330). `--gomea-skip-inactive 1` still turns it on.
+#
+# `--gomea-pop-size` defaults to 16: the Phase 1 pilot found N=16 best of
+# {16, 32, 64} under a 20k-evaluation budget
+# (docs/gomea/pilot-a/aggregate_results.csv) -- larger N spends more per
+# generation (about N x 2 x knobs evals) and converges prematurely.
 _GOMEA_FOS_CHOICES = ("lt-b", "lt-mi", "rt", "uni")
 _GOMEA_OPTIONS = (
-    ("--gomea-pop-size", "gomea_pop_size", int, 64),
-    ("--gomea-fos", "gomea_fos", str, "lt-b"),
-    ("--gomea-fi", "gomea_fi", int, 0),
-    ("--gomea-radii", "gomea_radii", str, "1:0.4,2:0.3,4:0.2,max:0.1"),
-    ("--gomea-skip-inactive", "gomea_skip_inactive", int, 0),
-    ("--gomea-max-gens", "gomea_max_gens", int, 100),
-    ("--gomea-stall-gens", "gomea_stall_gens", int, 5),
-    ("--gomea-max-evals-per-deme", "gomea_max_evals_per_deme", int, 0),
-    ("--gomea-log", "gomea_log", str, ""),
+    (
+        "--gomea-pop-size",
+        "gomea_pop_size",
+        int,
+        16,
+        "GOMEA population per deme (default 16). Each generation costs about "
+        "N x 2 x knobs evaluations.",
+    ),
+    (
+        "--gomea-fos",
+        "gomea_fos",
+        str,
+        "lt-b",
+        "linkage model: lt-b (bias-corrected MI linkage tree), lt-mi (MI linkage "
+        "tree), rt (random tree), uni (no linkage). Default lt-b.",
+    ),
+    (
+        "--gomea-fi",
+        "gomea_fi",
+        int,
+        0,
+        "1 = forced improvements (reconstruction). Default 0.",
+    ),
+    (
+        "--gomea-radii",
+        "gomea_radii",
+        str,
+        "1:0.4,2:0.3,4:0.2,max:0.1",
+        "initial-population distance mixture, radius:weight,...; max = all "
+        "knobs. Default 1:0.4,2:0.3,4:0.2,max:0.1.",
+    ),
+    (
+        "--gomea-skip-inactive",
+        "gomea_skip_inactive",
+        int,
+        0,
+        "1 = skip trials proven to decode to the same program (costly, rarely "
+        "skips). Default 0.",
+    ),
+    (
+        "--gomea-max-gens",
+        "gomea_max_gens",
+        int,
+        100,
+        "max generations per deme. Default 100.",
+    ),
+    (
+        "--gomea-stall-gens",
+        "gomea_stall_gens",
+        int,
+        5,
+        "return to MOSES after this many generations without improvement. Default 5.",
+    ),
+    (
+        "--gomea-max-evals-per-deme",
+        "gomea_max_evals_per_deme",
+        int,
+        0,
+        "evaluation cap per deme, 0 = none. Default 0.",
+    ),
+    (
+        "--gomea-log",
+        "gomea_log",
+        str,
+        "",
+        "append JSON-lines GOMEA telemetry to this file.",
+    ),
 )
 
 
@@ -324,7 +388,7 @@ def _gomea_params_from_args(args: argparse.Namespace) -> gomea_parameters:
     """GOMEA extension (not in classic MOSES): build the `gomea_parameters`
     the `--gomea-*` options describe. Raises `ValueError` for a malformed
     value, like the other enumerated options `parse_options` checks."""
-    v = {dest: getattr(args, dest, default) for _, dest, _, default in _GOMEA_OPTIONS}
+    v = {dest: getattr(args, dest, default) for _, dest, _, default, _ in _GOMEA_OPTIONS}
     if v["gomea_fos"] not in _GOMEA_FOS_CHOICES:
         raise ValueError(
             f"--gomea-fos {v['gomea_fos']} is not recognized. "
@@ -673,8 +737,8 @@ class problem_params:
         their order and wrapping and the GOMEA lines only follow them.
         """
         classic = [o for o in parser._option_string_actions if o.startswith("--")]
-        for flag, dest, type_, default in _GOMEA_OPTIONS:
-            parser.add_argument(flag, dest=dest, type=type_, default=default)
+        for flag, dest, type_, default, help_text in _GOMEA_OPTIONS:
+            parser.add_argument(flag, dest=dest, type=type_, default=default, help=help_text)
         # GOMEA extension (not in classic MOSES): argparse accepts any unique
         # prefix of a long option (`allow_abbrev`), so adding `--gomea-*`
         # would make a prefix such as `--g` (until now `--gen-best-tree`)
