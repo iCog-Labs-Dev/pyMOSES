@@ -1,0 +1,11 @@
+--- /home/yab/Documents/Projects/iCog/HyperonRelated/MOSES/OpenCog/GP-GOMEA/src/RunHandling/IMSHandler.cpp	2024-11-29 16:34:29.712930995 +0300
++++ src-instr/RunHandling/IMSHandler.cpp	2026-09-26 18:31:53.401203195 +0300
+@@ -169,7 +169,7 @@
+         if (!st->config->running_from_python)
+             Logger::GetInstance()->Log(generation_stats, stats_file);
+ 
+-        cout << " > generation " << macro_generation << " - best fit: " << elitist_fit << endl;
++        cout << " > generation " << macro_generation << " - best fit: " << elitist_fit << " - evaluations: " << st->fitness->evaluations << endl;
+     }
+ 
+     Terminate();

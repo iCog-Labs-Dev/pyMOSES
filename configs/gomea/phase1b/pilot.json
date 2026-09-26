@@ -1,0 +1,144 @@
+{
+  "name": "phase1b-pilot",
+  "binary": "/home/yab/Documents/Projects/iCog/HyperonRelated/MOSES/gomea-results/phase1b/gpgomea-build/gpgomea-instr",
+  "binary_sha256": "480a0c899ae3e7929fc3402789629b4b73d62ee6047a545939faeeb042a3b548",
+  "budget": 20000,
+  "wall_cap_s": 900,
+  "seeds": [
+    501,
+    502,
+    503,
+    504,
+    505
+  ],
+  "tasks": {
+    "pa4": {
+      "data": "configs/gomea/phase1b/data/pa4.dat",
+      "rows": 16
+    },
+    "maj5": {
+      "data": "configs/gomea/phase1b/data/maj5.dat",
+      "rows": 32
+    },
+    "mux6": {
+      "data": "configs/gomea/phase1b/data/mux6.dat",
+      "rows": 64
+    }
+  },
+  "arms": {
+    "GPG-P64-H4": {
+      "argv": [
+        "--functions",
+        "AND_OR_NOT",
+        "--gomea",
+        "--gomfos",
+        "LT",
+        "--ims",
+        "5_1",
+        "--syntuniqinit",
+        "1000",
+        "--time",
+        "600",
+        "--popsize",
+        "64",
+        "--initmaxtreeheight",
+        "4"
+      ]
+    },
+    "GPG-P64-H5": {
+      "argv": [
+        "--functions",
+        "AND_OR_NOT",
+        "--gomea",
+        "--gomfos",
+        "LT",
+        "--ims",
+        "5_1",
+        "--syntuniqinit",
+        "1000",
+        "--time",
+        "600",
+        "--popsize",
+        "64",
+        "--initmaxtreeheight",
+        "5"
+      ]
+    },
+    "GPG-P64-H6": {
+      "argv": [
+        "--functions",
+        "AND_OR_NOT",
+        "--gomea",
+        "--gomfos",
+        "LT",
+        "--ims",
+        "5_1",
+        "--syntuniqinit",
+        "1000",
+        "--time",
+        "600",
+        "--popsize",
+        "64",
+        "--initmaxtreeheight",
+        "6"
+      ]
+    },
+    "GPG-P500-H4": {
+      "argv": [
+        "--functions",
+        "AND_OR_NOT",
+        "--gomea",
+        "--gomfos",
+        "LT",
+        "--ims",
+        "5_1",
+        "--syntuniqinit",
+        "1000",
+        "--time",
+        "600",
+        "--popsize",
+        "500",
+        "--initmaxtreeheight",
+        "4"
+      ]
+    },
+    "GPG-P500-H5": {
+      "argv": [
+        "--functions",
+        "AND_OR_NOT",
+        "--gomea",
+        "--gomfos",
+        "LT",
+        "--ims",
+        "5_1",
+        "--syntuniqinit",
+        "1000",
+        "--time",
+        "600",
+        "--popsize",
+        "500",
+        "--initmaxtreeheight",
+        "5"
+      ]
+    },
+    "GPG-P500-H6": {
+      "argv": [
+        "--functions",
+        "AND_OR_NOT",
+        "--gomea",
+        "--gomfos",
+        "LT",
+        "--ims",
+        "5_1",
+        "--syntuniqinit",
+        "1000",
+        "--time",
+        "600",
+        "--popsize",
+        "500",
+        "--initmaxtreeheight",
+        "6"
+      ]
+    }
+  }
+}

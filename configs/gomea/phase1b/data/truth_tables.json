@@ -1,0 +1,38 @@
+{
+  "pa4": {
+    "moses_flags": [
+      "-H",
+      "pa",
+      "-k",
+      "4"
+    ],
+    "arity": 4,
+    "rows": 16,
+    "positives": 8,
+    "sha256": "614dc1d2eac8d73593abcdbef488c3ab6e6399f87bfebe8dd832e4a7f841b534"
+  },
+  "maj5": {
+    "moses_flags": [
+      "-H",
+      "maj",
+      "-k",
+      "5"
+    ],
+    "arity": 5,
+    "rows": 32,
+    "positives": 16,
+    "sha256": "d2d03cfc7527e14fc73830628c29a512506096e497fb9bd8d664b9dbc4081e35"
+  },
+  "mux6": {
+    "moses_flags": [
+      "-H",
+      "mux",
+      "-k",
+      "2"
+    ],
+    "arity": 6,
+    "rows": 64,
+    "positives": 32,
+    "sha256": "3859dd00c78462dc3eaf55aaf58ce023b7c6761bd5eff1e9e7cafbd5440fd55e"
+  }
+}
