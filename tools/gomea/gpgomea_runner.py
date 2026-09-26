@@ -81,8 +81,13 @@ def _run_one(job: dict) -> dict:
     t0 = time.monotonic()
     status, exit_code = "ok", None
     try:
-        proc = subprocess.run(argv, capture_output=True, text=True, timeout=job["wall_cap_s"],
-                              env={**os.environ, "OMP_NUM_THREADS": "1"})
+        proc = subprocess.run(
+            argv,
+            capture_output=True,
+            text=True,
+            timeout=job["wall_cap_s"],
+            env={**os.environ, "OMP_NUM_THREADS": "1"},
+        )
         out, exit_code = proc.stdout, proc.returncode
         if exit_code != 0:
             status = "error"
@@ -93,11 +98,18 @@ def _run_one(job: dict) -> dict:
     after = resource.getrusage(resource.RUSAGE_CHILDREN)
     (run_dir / "stdout.txt").write_text(out)
     summary = {
-        "run_id": job["run_id"], "task": job["task"], "arm": job["arm"], "seed": job["seed"],
-        "argv": argv, "status": status, "exit_code": exit_code, "wall_s": wall,
+        "run_id": job["run_id"],
+        "task": job["task"],
+        "arm": job["arm"],
+        "seed": job["seed"],
+        "argv": argv,
+        "status": status,
+        "exit_code": exit_code,
+        "wall_s": wall,
         "cpu_s": (after.ru_utime - before.ru_utime) + (after.ru_stime - before.ru_stime),
         "ru_maxrss_kb": after.ru_maxrss,
-        "budget": job["budget"], "rows": job["rows"],
+        "budget": job["budget"],
+        "rows": job["rows"],
         **parse_stdout(out, job["rows"], job["budget"]),
     }
     tmp = summary_path.with_suffix(".tmp")
@@ -113,15 +125,39 @@ def expand(manifest: dict, out_root: Path, repo: Path) -> list[dict]:
         for arm, a in manifest["arms"].items():
             for seed in manifest["seeds"]:
                 run_id = f"{task}__{arm}__s{seed}"
-                argv = [str((repo / manifest["binary"]).resolve()) if not os.path.isabs(manifest["binary"])
-                        else manifest["binary"],
-                        "--prob", "accuracy", "--train", data, "--test", data,
-                        "--evaluations", str(manifest["budget"]), "--generations", "-1",
-                        "--seed", str(seed), "--parallel", "1", *a["argv"]]
-                jobs.append({"run_id": run_id, "task": task, "arm": arm, "seed": seed,
-                             "argv": argv, "rows": t["rows"], "budget": manifest["budget"],
-                             "wall_cap_s": manifest["wall_cap_s"],
-                             "run_dir": str(out_root / manifest["name"] / "runs" / run_id)})
+                argv = [
+                    str((repo / manifest["binary"]).resolve())
+                    if not os.path.isabs(manifest["binary"])
+                    else manifest["binary"],
+                    "--prob",
+                    "accuracy",
+                    "--train",
+                    data,
+                    "--test",
+                    data,
+                    "--evaluations",
+                    str(manifest["budget"]),
+                    "--generations",
+                    "-1",
+                    "--seed",
+                    str(seed),
+                    "--parallel",
+                    "1",
+                    *a["argv"],
+                ]
+                jobs.append(
+                    {
+                        "run_id": run_id,
+                        "task": task,
+                        "arm": arm,
+                        "seed": seed,
+                        "argv": argv,
+                        "rows": t["rows"],
+                        "budget": manifest["budget"],
+                        "wall_cap_s": manifest["wall_cap_s"],
+                        "run_dir": str(out_root / manifest["name"] / "runs" / run_id),
+                    }
+                )
     return jobs
 
 
@@ -141,8 +177,11 @@ def main() -> int:
     with mp.get_context("spawn").Pool(args.workers, maxtasksperchild=1) as pool:
         for s in pool.imap_unordered(_run_one, jobs):
             done += 1
-            print(f"[{done}/{len(jobs)}] {s['run_id']}: {s['status']} best_raw={s['best_raw']} "
-                  f"success={s['success']}", flush=True)
+            print(
+                f"[{done}/{len(jobs)}] {s['run_id']}: {s['status']} best_raw={s['best_raw']} "
+                f"success={s['success']}",
+                flush=True,
+            )
     return 0
 
 

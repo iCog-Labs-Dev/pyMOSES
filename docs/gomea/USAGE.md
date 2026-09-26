@@ -43,6 +43,9 @@ merges the best of them back into the metapopulation as usual.
 > | pa4 | 2/20 | 0/20 | 0/20 |
 >
 > If you use it, prefer `--gomea-fos uni`. See [`PHASE1-FINDINGS.md`](PHASE1-FINDINGS.md).
+> A follow-up ([`PHASE1B-FINDINGS.md`](PHASE1B-FINDINGS.md)) ran the authors' own
+> stand-alone GP-GOMEA on the same tasks. It also lost to MOSES hill climbing at equal
+> evaluations.
 
 ## Quick start
 

@@ -85,6 +85,23 @@ review and a fix wave. The ledger of findings, fixes and deferred minors lives i
 * **Post-confirmation polish** (it does not affect the results): help text for the
   `--gomea-*` options, and a default population of 16.
 
+## Phase 1b: stand-alone GP-GOMEA vs MOSES hill climbing (user-requested follow-up)
+
+* **Approvals:** `APPROVALS.md` #5 (the request) and #6 (the Armadillo download).
+* **Pre-registration:** `PHASE1B-PREREGISTRATION.md`, committed (`595c992`) before any
+  confirmatory run.
+* **Build:** the authors' GP-GOMEA `750220c` was built out of tree
+  (`tools/gomea/build_gpgomea.sh`). Only one evaluation-count log field was added.
+* **Pilot:** 90 runs selected N = 64, h = 5. The authors' defaults (N = 500) solved
+  0/15 at 20k.
+* **Confirmation:** 160 runs, plus 60 descriptive 200k runs, all ok.
+* **Analysis:** `tools/gomea/phase1b_report.py`, whose unpaired statistics are unit-tested
+  (`tests/gomea/test_phase1b_stats.py`).
+* **Findings:** `PHASE1B-FINDINGS.md`. GP-GOMEA is *worse* than MOSES HC on maj5, mux6
+  and pa4 at equal evaluations. It solves maj5 and mux6 reliably at about 30k
+  evaluations, and it is far faster per evaluation, which is largely a C++ vs Python
+  effect.
+
 ## Deferred minors (not blocking; kept for the record)
 
 * The golden.cpp header should note that upstream's commented-out blocks were omitted.

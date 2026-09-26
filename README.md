@@ -161,7 +161,9 @@ Without `-a gomea`, output is byte-identical to classic, as before. Measured so 
 the stock hill climber on the tested Boolean tasks. `--gomea-fos uni` was its best variant. For the options, the
 telemetry, the Python API and the measured comparison with hill climbing, see
 [`docs/gomea/USAGE.md`](docs/gomea/USAGE.md) and
-[`docs/gomea/PHASE1-FINDINGS.md`](docs/gomea/PHASE1-FINDINGS.md).
+[`docs/gomea/PHASE1-FINDINGS.md`](docs/gomea/PHASE1-FINDINGS.md). A follow-up comparing the
+authors' stand-alone GP-GOMEA with MOSES hill climbing is in
+[`docs/gomea/PHASE1B-FINDINGS.md`](docs/gomea/PHASE1B-FINDINGS.md).
 
 ## Run the tests
 
@@ -173,12 +175,12 @@ pip install -e ".[dev]"
 pytest
 ```
 
-Expect **8213 passed, 5 skipped** in about 10 minutes on one core: the classic port's
-7898 (verified from a clean checkout and a fresh virtualenv) plus 315 for the GOMEA
+Expect **8220 passed, 5 skipped** in about 10 minutes on one core: the classic port's
+7898 (verified from a clean checkout and a fresh virtualenv) plus 322 for the GOMEA
 extension (`tests/gomea/`, measured on this branch).
 
 On a machine without a classic MOSES/CogUtil checkout you should see 7 more tests skip,
-roughly `8206 passed, 12 skipped`. Those are the tests that read the C++ sources
+roughly `8213 passed, 12 skipped`. Those are the tests that read the C++ sources
 directly; they skip rather than fail, so a green run is still a green run. Everything
 else compares against golden fixtures committed here.
 
