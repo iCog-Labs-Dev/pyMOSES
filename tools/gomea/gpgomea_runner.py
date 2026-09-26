@@ -87,6 +87,7 @@ def _run_one(job: dict) -> dict:
             text=True,
             timeout=job["wall_cap_s"],
             env={**os.environ, "OMP_NUM_THREADS": "1"},
+            cwd=run_dir,  # GP-GOMEA writes result.txt / stats_generations.txt to its cwd,
         )
         out, exit_code = proc.stdout, proc.returncode
         if exit_code != 0:

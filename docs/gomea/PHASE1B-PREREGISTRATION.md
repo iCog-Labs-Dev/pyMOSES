@@ -95,3 +95,12 @@ unrelated, so **seed numbers do not pair runs**. All comparisons are unpaired.
   p < 0.05 **and** it either has a success rate at least 10 percentage points higher or a
   median censored evaluations-to-success at least 20 % lower. *Worse* is the mirror image.
   Otherwise it is a *tie*.
+
+## Notes recorded after the runs
+
+* **The instrumentation was redundant.** Stock GP-GOMEA already writes cumulative
+  evaluations per generation to `stats_generations.txt` in its working directory. The
+  one-line log change, which leaves the search untouched, was therefore not needed.
+* **Shared working directory.** The confirmation runs used the repo root as their working
+  directory, so those files were shared across runs and discarded. Every metric comes from
+  each run's own stdout. `gpgomea_runner.py` now gives each run its own working directory.
