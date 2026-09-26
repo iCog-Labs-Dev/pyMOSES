@@ -1,0 +1,6 @@
+task,contrast,n_paired,wins,ties,losses,p_error,p_error_holm,p_evals_to_target,p_evals_to_target_holm,boot_ci_error_lo,boot_ci_error_hi,boot_ci_evals_lo,boot_ci_evals_hi,censor_value_evals,worst_error_used
+pa4,LT-B:HC,20,1,4,15,0.002349853515625,0.02349853515625,0.5,1.0,1.0,2.5,0.0,0.0,20001,6.0
+pa4,LT-B:LT-MI,20,12,3,5,0.042022705078125,0.378204345703125,1.0,1.0,-1.0,0.0,0.0,0.0,20001,6.0
+pa4,LT-B:UNI,20,5,5,10,0.17626953125,1.0,1.0,1.0,0.0,1.0,0.0,0.0,20001,6.0
+pa4,RT:LT-B,20,4,7,9,0.45751953125,1.0,1.0,1.0,0.0,1.0,0.0,0.0,20001,6.0
+pa4,LT-B-FI:LT-B,20,4,9,7,0.2529296875,1.0,1.0,1.0,0.0,1.0,0.0,0.0,20001,6.0

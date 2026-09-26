@@ -70,11 +70,20 @@ review and a fix wave. The ledger of findings, fixes and deferred minors lives i
 * **Pre-registration:** `PREREGISTRATION.md`, committed with the manifests before any
   confirmatory run.
 
-## P1.5: confirmation (pending, to run on the user's server)
+## P1.5: confirmation (done)
 
-* **Manifests:** `configs/gomea/phase1/{smoke,confirm-frozen,confirm-e2e,confirm-e2e-pa4}.json`.
-* **Runbook:** `SERVER-RUNBOOK.md`.
-* **Findings:** `PHASE1-FINDINGS.md` is written only after the results come back.
+* **Where:** the server attempt failed, so at the user's request (`APPROVALS.md` #4) the
+  runs were made locally on 2026-09-26 with 14 workers. They took 4 h 22 min.
+* **Code:** `c6301cb`, verified by the runner's code check for every manifest. The tag
+  `gomea-phase1-confirmation` (= `4df9a47`) holds that code plus the manifests, driver and
+  report tool.
+* **Runs:** 1,140 confirmatory runs, all ok.
+* **Findings:** `PHASE1-FINDINGS.md`. LT-B GOMEA is *worse* than HC on maj5, mux6 and pa4;
+  UNI is the best GOMEA variant; LT-B vs LT-MI and FI on/off are ties.
+* **Evidence:** `phase1-results/` (checksums, manifests, verdicts, `findings.json`,
+  figures).
+* **Post-confirmation polish** (it does not affect the results): help text for the
+  `--gomea-*` options, and a default population of 16.
 
 ## Deferred minors (not blocking; kept for the record)
 

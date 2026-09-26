@@ -1,5 +1,10 @@
 # Running the Phase 1 confirmation on a server
 
+> The confirmation has already been run (`PHASE1-FINDINGS.md`). This runbook now serves
+> for **reproducing** it. Check out the tag `gomea-phase1-confirmation`, whose code is
+> identical to the manifests' pinned `c6301cb`. Later commits change `pymoses/`, so the
+> code check would refuse to run on them.
+
 This runbook covers everything needed to run the pre-registered Phase 1 experiments
 (`PREREGISTRATION.md`) on another machine and bring the results back. The code is
 standard-library Python only. There is nothing to compile.

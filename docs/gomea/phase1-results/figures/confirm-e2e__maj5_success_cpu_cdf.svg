@@ -1,0 +1,40 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="720" height="420" viewBox="0 0 720 420" font-family="Helvetica, Arial, sans-serif">
+<rect x="0" y="0" width="720" height="420" fill="#ffffff"/>
+<text x="360.0" y="20" font-size="14" text-anchor="middle" fill="#111111">maj5: success probability vs CPU seconds</text>
+<line x1="70" y1="365" x2="550" y2="365" stroke="#333333" stroke-width="1"/>
+<line x1="70" y1="40" x2="70" y2="365" stroke="#333333" stroke-width="1"/>
+<line x1="66" y1="365.00" x2="70" y2="365.00" stroke="#333333" stroke-width="1"/>
+<text x="62" y="369.00" font-size="11" text-anchor="end" fill="#111111">0</text>
+<line x1="66" y1="267.50" x2="70" y2="267.50" stroke="#333333" stroke-width="1"/>
+<text x="62" y="271.50" font-size="11" text-anchor="end" fill="#111111">0.2</text>
+<line x1="66" y1="170.00" x2="70" y2="170.00" stroke="#333333" stroke-width="1"/>
+<text x="62" y="174.00" font-size="11" text-anchor="end" fill="#111111">0.4</text>
+<line x1="66" y1="72.50" x2="70" y2="72.50" stroke="#333333" stroke-width="1"/>
+<text x="62" y="76.50" font-size="11" text-anchor="end" fill="#111111">0.6</text>
+<line x1="70.00" y1="365" x2="70.00" y2="369" stroke="#333333" stroke-width="1"/>
+<text x="70.00" y="383" font-size="11" text-anchor="middle" fill="#111111">0</text>
+<line x1="290.78" y1="365" x2="290.78" y2="369" stroke="#333333" stroke-width="1"/>
+<text x="290.78" y="383" font-size="11" text-anchor="middle" fill="#111111">500</text>
+<line x1="511.56" y1="365" x2="511.56" y2="369" stroke="#333333" stroke-width="1"/>
+<text x="511.56" y="383" font-size="11" text-anchor="middle" fill="#111111">1000</text>
+<text x="310.00" y="410" font-size="12" text-anchor="middle" fill="#111111">CPU seconds</text>
+<text x="16" y="202.50" font-size="12" text-anchor="middle" fill="#111111" transform="rotate(-90 16 202.50)">P(success)</text>
+<path d="M 70.00 365.00 L 128.15 365.00 L 128.15 348.75 L 130.03 348.75 L 130.03 332.50 L 134.48 332.50 L 134.48 316.25 L 135.31 316.25 L 135.31 300.00 L 138.24 300.00 L 138.24 283.75 L 141.98 283.75 L 141.98 267.50 L 170.01 267.50 L 170.01 251.25 L 172.31 251.25 L 172.31 235.00 L 234.11 235.00 L 234.11 218.75 L 236.57 218.75 L 236.57 202.50 L 269.75 202.50 L 269.75 186.25 L 293.86 186.25 L 293.86 170.00 L 338.34 170.00 L 338.34 153.75 L 339.70 153.75 L 339.70 137.50 L 343.04 137.50 L 343.04 121.25 L 345.02 121.25 L 345.02 105.00 L 404.14 105.00 L 404.14 88.75 L 497.95 88.75 L 497.95 72.50 L 512.88 72.50 L 512.88 56.25 L 550.00 56.25 L 550.00 40.00" fill="none" stroke="#E69F00" stroke-width="2"/>
+<line x1="565" y1="50" x2="583" y2="50" stroke="#E69F00" stroke-width="3"/>
+<text x="589" y="54" font-size="11" fill="#111111">HC</text>
+<path d="M 70.00 365.00 L 139.09 365.00 L 139.09 348.75 L 184.79 348.75 L 184.79 332.50 L 204.75 332.50 L 204.75 316.25 L 221.21 316.25 L 221.21 300.00 L 249.00 300.00 L 249.00 283.75 L 335.59 283.75 L 335.59 267.50" fill="none" stroke="#56B4E9" stroke-width="2"/>
+<line x1="565" y1="68" x2="583" y2="68" stroke="#56B4E9" stroke-width="3"/>
+<text x="589" y="72" font-size="11" fill="#111111">LT-B</text>
+<path d="M 70.00 365.00 L 121.83 365.00 L 121.83 348.75 L 123.14 348.75 L 123.14 332.50 L 154.51 332.50 L 154.51 316.25 L 177.71 316.25 L 177.71 300.00 L 228.14 300.00 L 228.14 283.75 L 267.21 283.75 L 267.21 267.50 L 330.23 267.50 L 330.23 251.25 L 332.63 251.25 L 332.63 235.00" fill="none" stroke="#009E73" stroke-width="2"/>
+<line x1="565" y1="86" x2="583" y2="86" stroke="#009E73" stroke-width="3"/>
+<text x="589" y="90" font-size="11" fill="#111111">LT-B-FI</text>
+<path d="M 70.00 365.00 L 99.41 365.00 L 99.41 348.75 L 194.57 348.75 L 194.57 332.50 L 205.62 332.50 L 205.62 316.25 L 207.27 316.25 L 207.27 300.00 L 239.13 300.00 L 239.13 283.75 L 250.04 283.75 L 250.04 267.50 L 259.51 267.50 L 259.51 251.25 L 260.93 251.25 L 260.93 235.00 L 308.39 235.00 L 308.39 218.75" fill="none" stroke="#D55E00" stroke-width="2"/>
+<line x1="565" y1="104" x2="583" y2="104" stroke="#D55E00" stroke-width="3"/>
+<text x="589" y="108" font-size="11" fill="#111111">LT-MI</text>
+<path d="M 70.00 365.00 L 291.63 365.00 L 291.63 348.75 L 314.94 348.75 L 314.94 332.50 L 362.86 332.50 L 362.86 316.25" fill="none" stroke="#0072B2" stroke-width="2"/>
+<line x1="565" y1="122" x2="583" y2="122" stroke="#0072B2" stroke-width="3"/>
+<text x="589" y="126" font-size="11" fill="#111111">RT</text>
+<path d="M 70.00 365.00 L 107.67 365.00 L 107.67 348.75 L 127.79 348.75 L 127.79 332.50 L 150.34 332.50 L 150.34 316.25 L 171.11 316.25 L 171.11 300.00 L 172.27 300.00 L 172.27 283.75 L 229.57 283.75 L 229.57 267.50 L 242.21 267.50 L 242.21 251.25 L 251.74 251.25 L 251.74 235.00 L 267.94 235.00 L 267.94 218.75 L 277.09 218.75 L 277.09 202.50 L 281.53 202.50 L 281.53 186.25 L 282.90 186.25 L 282.90 170.00 L 296.57 170.00 L 296.57 153.75 L 320.99 153.75 L 320.99 137.50 L 334.03 137.50 L 334.03 121.25 L 335.02 121.25 L 335.02 105.00 L 378.57 105.00 L 378.57 88.75 L 421.84 88.75 L 421.84 72.50 L 460.24 72.50 L 460.24 56.25" fill="none" stroke="#CC79A7" stroke-width="2"/>
+<line x1="565" y1="140" x2="583" y2="140" stroke="#CC79A7" stroke-width="3"/>
+<text x="589" y="144" font-size="11" fill="#111111">UNI</text>
+</svg>

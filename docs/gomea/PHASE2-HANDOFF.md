@@ -74,7 +74,14 @@ here has been implemented.
 
 ## Open Phase 1 questions that affect Phase 2
 
-The Phase 1 confirmation results (`PHASE1-FINDINGS.md`, once written) determine whether the
-discrete GOMEA inner loop is worth extending. If LT-B does not beat HC end-to-end, Phase 2
-should first establish why: per-deme cost, representation turnover, or linkage quality.
-The frozen-representation comparison is the main evidence for that.
+The Phase 1 confirmation (`PHASE1-FINDINGS.md`) found that LT-B GOMEA is **worse** than HC
+end-to-end on all three tasks, and that univariate GOMEA beats the linkage trees. The
+diagnosis shows two problems with the tree FOS variants at N = 16:
+
+* about half their demes end by population convergence;
+* 32–47 % of their evaluation requests re-score duplicate genotypes.
+
+Before building the mixed optimizer on top of the discrete loop, Phase 2 (or a Phase 1b)
+should first test a per-deme genotype cache, applied identically to HC, together with a
+diversity-preserving population policy. Otherwise the structural half of GP-RV-GOMEA
+inherits a weaker inner search than stock MOSES.

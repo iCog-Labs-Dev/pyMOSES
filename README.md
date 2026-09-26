@@ -157,7 +157,8 @@ for now.
 moses -H pa -k 3 -m 3000 -r 1 -a gomea --gomea-pop-size 16
 ```
 
-Without `-a gomea`, output is byte-identical to classic, as before. For the options, the
+Without `-a gomea`, output is byte-identical to classic, as before. Measured so far: under equal evaluation budgets it did **not** beat
+the stock hill climber on the tested Boolean tasks. `--gomea-fos uni` was its best variant. For the options, the
 telemetry, the Python API and the measured comparison with hill climbing, see
 [`docs/gomea/USAGE.md`](docs/gomea/USAGE.md) and
 [`docs/gomea/PHASE1-FINDINGS.md`](docs/gomea/PHASE1-FINDINGS.md).

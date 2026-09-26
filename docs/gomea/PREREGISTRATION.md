@@ -99,3 +99,14 @@ LT-B setting, N=16):
 * pa4: 1/5 vs 0/5
 
 Full tables are in `docs/gomea/pilot-a/`.
+
+## Deviations recorded after the fact
+
+* **Venue.** The confirmation ran on the development laptop (14 workers, 512 MB per-run
+  limit), not on a server (`APPROVALS.md` #4). The manifests, code and analysis are
+  unchanged. The code check passed for every manifest.
+* **Operationalization of the rule.** The practical rule was implemented as written in
+  `tools/gomea/phase1_report.py`. That file was committed (`4df9a47`) before any
+  end-to-end confirmatory result existed. The frozen-representation runs had already
+  finished at that point, but the rule does not apply to them.
+* **No other deviations.**

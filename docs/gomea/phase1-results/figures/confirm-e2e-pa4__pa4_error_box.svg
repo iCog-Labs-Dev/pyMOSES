@@ -1,0 +1,43 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="720" height="420" viewBox="0 0 720 420" font-family="Helvetica, Arial, sans-serif">
+<rect x="0" y="0" width="720" height="420" fill="#ffffff"/>
+<text x="360.0" y="20" font-size="14" text-anchor="middle" fill="#111111">pa4: final error by arm</text>
+<line x1="70" y1="365" x2="550" y2="365" stroke="#333333" stroke-width="1"/>
+<line x1="70" y1="40" x2="70" y2="365" stroke="#333333" stroke-width="1"/>
+<line x1="66" y1="342.59" x2="70" y2="342.59" stroke="#333333" stroke-width="1"/>
+<text x="62" y="346.59" font-size="11" text-anchor="end" fill="#111111">0</text>
+<line x1="66" y1="230.52" x2="70" y2="230.52" stroke="#333333" stroke-width="1"/>
+<text x="62" y="234.52" font-size="11" text-anchor="end" fill="#111111">2</text>
+<line x1="66" y1="118.45" x2="70" y2="118.45" stroke="#333333" stroke-width="1"/>
+<text x="62" y="122.45" font-size="11" text-anchor="end" fill="#111111">4</text>
+<text x="16" y="202.50" font-size="12" text-anchor="middle" fill="#111111" transform="rotate(-90 16 202.50)">error (-best_raw)</text>
+<line x1="110.00" y1="62.41" x2="110.00" y2="174.48" stroke="#E69F00" stroke-width="1.5"/>
+<line x1="110.00" y1="244.53" x2="110.00" y2="342.59" stroke="#E69F00" stroke-width="1.5"/>
+<rect x="90.00" y="174.48" width="40.00" height="70.04" fill="#E69F00" fill-opacity="0.35" stroke="#E69F00" stroke-width="1.5"/>
+<line x1="90.00" y1="230.52" x2="130.00" y2="230.52" stroke="#E69F00" stroke-width="2"/>
+<text x="110.00" y="383" font-size="11" text-anchor="middle" fill="#111111">HC</text>
+<line x1="190.00" y1="62.41" x2="190.00" y2="118.45" stroke="#56B4E9" stroke-width="1.5"/>
+<line x1="190.00" y1="174.48" x2="190.00" y2="230.52" stroke="#56B4E9" stroke-width="1.5"/>
+<rect x="170.00" y="118.45" width="40.00" height="56.03" fill="#56B4E9" fill-opacity="0.35" stroke="#56B4E9" stroke-width="1.5"/>
+<line x1="170.00" y1="118.45" x2="210.00" y2="118.45" stroke="#56B4E9" stroke-width="2"/>
+<text x="190.00" y="383" font-size="11" text-anchor="middle" fill="#111111">LT-B</text>
+<line x1="270.00" y1="62.41" x2="270.00" y2="62.41" stroke="#009E73" stroke-width="1.5"/>
+<line x1="270.00" y1="118.45" x2="270.00" y2="230.52" stroke="#009E73" stroke-width="1.5"/>
+<rect x="250.00" y="62.41" width="40.00" height="56.03" fill="#009E73" fill-opacity="0.35" stroke="#009E73" stroke-width="1.5"/>
+<line x1="250.00" y1="118.45" x2="290.00" y2="118.45" stroke="#009E73" stroke-width="2"/>
+<text x="270.00" y="383" font-size="11" text-anchor="middle" fill="#111111">LT-B-FI</text>
+<line x1="350.00" y1="62.41" x2="350.00" y2="62.41" stroke="#D55E00" stroke-width="1.5"/>
+<line x1="350.00" y1="118.45" x2="350.00" y2="174.48" stroke="#D55E00" stroke-width="1.5"/>
+<rect x="330.00" y="62.41" width="40.00" height="56.03" fill="#D55E00" fill-opacity="0.35" stroke="#D55E00" stroke-width="1.5"/>
+<line x1="330.00" y1="62.41" x2="370.00" y2="62.41" stroke="#D55E00" stroke-width="2"/>
+<text x="350.00" y="383" font-size="11" text-anchor="middle" fill="#111111">LT-MI</text>
+<line x1="430.00" y1="62.41" x2="430.00" y2="104.44" stroke="#0072B2" stroke-width="1.5"/>
+<line x1="430.00" y1="118.45" x2="430.00" y2="174.48" stroke="#0072B2" stroke-width="1.5"/>
+<rect x="410.00" y="104.44" width="40.00" height="14.01" fill="#0072B2" fill-opacity="0.35" stroke="#0072B2" stroke-width="1.5"/>
+<line x1="410.00" y1="118.45" x2="450.00" y2="118.45" stroke="#0072B2" stroke-width="2"/>
+<text x="430.00" y="383" font-size="11" text-anchor="middle" fill="#111111">RT</text>
+<line x1="510.00" y1="62.41" x2="510.00" y2="118.45" stroke="#CC79A7" stroke-width="1.5"/>
+<line x1="510.00" y1="174.48" x2="510.00" y2="230.52" stroke="#CC79A7" stroke-width="1.5"/>
+<rect x="490.00" y="118.45" width="40.00" height="56.03" fill="#CC79A7" fill-opacity="0.35" stroke="#CC79A7" stroke-width="1.5"/>
+<line x1="490.00" y1="174.48" x2="530.00" y2="174.48" stroke="#CC79A7" stroke-width="2"/>
+<text x="510.00" y="383" font-size="11" text-anchor="middle" fill="#111111">UNI</text>
+</svg>

@@ -1,0 +1,27 @@
+{
+  "allow_dirty": false,
+  "code_check": {
+    "clean": true,
+    "code_unchanged": true,
+    "dirty": [],
+    "head": "4df9a4764d85c6cf014db5ef6d7ef131fb922f02",
+    "is_ancestor": true,
+    "manifest_commit": "c6301cbc82f525537f0622f399bc40d2c13d6b6d",
+    "ok": true,
+    "reason": null
+  },
+  "cpu": "x86_64",
+  "git_head": "4df9a4764d85c6cf014db5ef6d7ef131fb922f02",
+  "git_status_short": "?? MOSES_GOMEA_LOCAL_AGENT_HANDOFF/\n",
+  "head": "4df9a4764d85c6cf014db5ef6d7ef131fb922f02",
+  "launch_dir": "/home/yab/Documents/Projects/iCog/HyperonRelated/MOSES/pyMoses",
+  "manifest_commit": "c6301cbc82f525537f0622f399bc40d2c13d6b6d",
+  "manifest_output_root": "../gomea-results",
+  "manifest_workers": 16,
+  "max_load_note": null,
+  "mem_limit_mb": 512,
+  "output_root": "/home/yab/Documents/Projects/iCog/HyperonRelated/MOSES/gomea-results",
+  "platform": "Linux-7.2.6-arch2-1-x86_64-with-glibc2.44",
+  "python_version": "3.14.7 (main, Aug 10 2026, 07:46:56) [GCC 16.1.1 20260728]",
+  "workers": 14
+}

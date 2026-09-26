@@ -31,14 +31,25 @@ merges the best of them back into the metapopulation as usual.
 
 > **Status: experimental, Phase 1 (discrete only).** It works for **Boolean** problems,
 > i.e. representations made of discrete/logical knobs. Continuous (regression) problems
-> are rejected with a clear error; that is Phase 2. Read the evidence in
-> [`PHASE1-FINDINGS.md`](PHASE1-FINDINGS.md) before choosing it over `-a hc`.
+> are rejected with a clear error; that is Phase 2.
+>
+> **Measured result, 1,140 pre-registered runs: under equal evaluation budgets it did
+> *not* beat the stock hill climber on any tested task.**
+>
+> | Task | Stock HC | GOMEA with the default linkage tree | GOMEA with `--gomea-fos uni` |
+> |---|---|---|---|
+> | maj5 | 20/30 solved | 6/30 | 19/30 |
+> | mux6 | 30/30 in about 1.7k evals | 30/30 in about 4.9k evals | 30/30 in about 3.0k evals |
+> | pa4 | 2/20 | 0/20 | 0/20 |
+>
+> If you use it, prefer `--gomea-fos uni`. See [`PHASE1-FINDINGS.md`](PHASE1-FINDINGS.md).
 
 ## Quick start
 
 ```bash
 # 3-input parity with GOMEA, population 16, bias-corrected linkage tree (the default FOS)
-moses -H pa -k 3 -m 3000 -r 1 -a gomea --gomea-pop-size 16
+moses -H pa -k 3 -m 3000 -r 1 -a gomea            # population 16, linkage-tree FOS
+moses -H pa -k 3 -m 3000 -r 1 -a gomea --gomea-fos uni   # the best GOMEA variant in Phase 1
 
 # The same problem, stock hill climber, for comparison
 moses -H pa -k 3 -m 3000 -r 1
@@ -60,7 +71,7 @@ to, so an invalid value is always rejected.
 
 | Option | Default | Meaning |
 |---|---|---|
-| `--gomea-pop-size N` | `64` | Population size per deme. Each generation costs about `N × 2 × (number of knobs)` trial evaluations. **The pilot found 16 best** under a 20k-evaluation budget: larger populations run out of budget after very few generations. |
+| `--gomea-pop-size N` | `16` | Population size per deme. Each generation costs about `N × 2 × (number of knobs)` trial evaluations. The pilot found 16 best of {16, 32, 64} under a 20k-evaluation budget; larger populations run out of budget after very few generations. |
 | `--gomea-fos {lt-b,lt-mi,rt,uni}` | `lt-b` | How knobs are grouped for mixing. `lt-b` is a linkage tree built from initialization-bias-corrected mutual information (Virgolin et al. 2021, Eq. 2). `lt-mi` uses ordinary mutual information. `rt` is a random hierarchical tree (a control). `uni` mixes one knob at a time (no linkage). |
 | `--gomea-fi {0,1}` | `0` | Forced improvements: when an individual stagnates, mix it with the best-so-far solution. This is a labelled reconstruction; neither GP-GOMEA nor gpg ships it. |
 | `--gomea-radii SPEC` | `1:0.4,2:0.3,4:0.2,max:0.1` | The mixture of neighbourhood distances used for the initial population, as `radius:weight` pairs. `max` means "all knobs". |
@@ -70,10 +81,8 @@ to, so an invalid value is always rejected.
 | `--gomea-skip-inactive {0,1}` | `0` | Skip evaluating a trial proven to decode to the same program. This is correct, but on MOSES representations it costs about 10 % of time and skips almost nothing, so it is off by default. |
 | `--gomea-log PATH` | none | Append JSON-lines telemetry for every deme. See below. |
 
-Why is the default N still 64 when the pilot preferred 16? The defaults were fixed before
-the experiments. They are documented here rather than silently changed. **Pass
-`--gomea-pop-size 16`** unless you are studying population size. This will be revisited
-once the confirmation results are in.
+The default population was 64 during development. It became 16 after the pilot
+(`docs/gomea/pilot-a/`); the confirmatory runs passed 16 explicitly.
 
 ## Telemetry (`--gomea-log`)
 
