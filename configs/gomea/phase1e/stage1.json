@@ -2,7 +2,7 @@
   "schema_version": 1,
   "name": "phase1e-stage1",
   "phase": 1,
-  "commit": "182bd59cec7e42cb1e2a267b60621ef6776d3044",
+  "commit": "8224f3fbf5bb600f75f4a316eb9284bbebe3eb11",
   "common_argv": [
     "-l",
     "WARN"
