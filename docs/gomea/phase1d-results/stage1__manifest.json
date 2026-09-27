@@ -1,0 +1,289 @@
+{
+  "arms": {
+    "HC": {
+      "argv": [
+        "-a",
+        "hc"
+      ]
+    },
+    "LT-B": {
+      "argv": [
+        "-a",
+        "gomea",
+        "--gomea-pop-size",
+        "16",
+        "--gomea-skip-inactive",
+        "0",
+        "--gomea-fos",
+        "lt-b"
+      ]
+    },
+    "LTB-MEMO": {
+      "argv": [
+        "-a",
+        "gomea",
+        "--gomea-pop-size",
+        "16",
+        "--gomea-skip-inactive",
+        "0",
+        "--gomea-fos",
+        "lt-b",
+        "--gomea-genotype-memo",
+        "1"
+      ]
+    },
+    "LTB-N32": {
+      "argv": [
+        "-a",
+        "gomea",
+        "--gomea-pop-size",
+        "32",
+        "--gomea-skip-inactive",
+        "0",
+        "--gomea-fos",
+        "lt-b"
+      ]
+    },
+    "LTB-N64": {
+      "argv": [
+        "-a",
+        "gomea",
+        "--gomea-pop-size",
+        "64",
+        "--gomea-skip-inactive",
+        "0",
+        "--gomea-fos",
+        "lt-b"
+      ]
+    },
+    "LTB-STRICT": {
+      "argv": [
+        "-a",
+        "gomea",
+        "--gomea-pop-size",
+        "16",
+        "--gomea-skip-inactive",
+        "0",
+        "--gomea-fos",
+        "lt-b",
+        "--gomea-accept",
+        "strict"
+      ]
+    },
+    "LTB-UNIF": {
+      "argv": [
+        "-a",
+        "gomea",
+        "--gomea-pop-size",
+        "16",
+        "--gomea-skip-inactive",
+        "0",
+        "--gomea-fos",
+        "lt-b",
+        "--gomea-init",
+        "uniform"
+      ]
+    },
+    "LTB-WIDE": {
+      "argv": [
+        "-a",
+        "gomea",
+        "--gomea-pop-size",
+        "16",
+        "--gomea-skip-inactive",
+        "0",
+        "--gomea-fos",
+        "lt-b",
+        "--gomea-radii",
+        "2:0.25,4:0.25,8:0.25,max:0.25"
+      ]
+    },
+    "UNI": {
+      "argv": [
+        "-a",
+        "gomea",
+        "--gomea-pop-size",
+        "16",
+        "--gomea-skip-inactive",
+        "0",
+        "--gomea-fos",
+        "uni"
+      ]
+    }
+  },
+  "budget": {
+    "argv": [
+      "-m",
+      "5000"
+    ],
+    "kind": "evaluations"
+  },
+  "commit": "ee1957e03f6600c60c3e02dfe372993ba09adea7",
+  "common_argv": [
+    "-l",
+    "WARN"
+  ],
+  "name": "phase1d-stage1",
+  "output_root": "../gomea-results",
+  "phase": 1,
+  "schema_version": 1,
+  "seeds": [
+    1201,
+    1202,
+    1203,
+    1204,
+    1205,
+    1206,
+    1207,
+    1208,
+    1209,
+    1210
+  ],
+  "tasks": {
+    "maj5-x0": {
+      "argv": [
+        "-H",
+        "maj",
+        "-k",
+        "5",
+        "-e",
+        "or(and(or(and($3 $5) $2) $4) and(or($2 $4) or($3 $5) $1))",
+        "-g",
+        "1"
+      ],
+      "target_raw": 0
+    },
+    "maj5-x1": {
+      "argv": [
+        "-H",
+        "maj",
+        "-k",
+        "5",
+        "-e",
+        "and(or(and(or(and(or($2 $4) $3) $5) $1) and($2 $4) and($3 $5)) or(and($1 $3) $2 $4))",
+        "-g",
+        "1"
+      ],
+      "target_raw": 0
+    },
+    "maj5-x2": {
+      "argv": [
+        "-H",
+        "maj",
+        "-k",
+        "5",
+        "-e",
+        "and(or(and(or(and($1 $5) $3) $2) and(or($1 $5) $4)) or($2 $3))",
+        "-g",
+        "1"
+      ],
+      "target_raw": 0
+    },
+    "maj5-x3": {
+      "argv": [
+        "-H",
+        "maj",
+        "-k",
+        "5",
+        "-e",
+        "and(or(and(or(and(or(!$2 $5) $1) $3) $2) and(or($1 $5) $4)) or(and($1 $5) $2 $3))",
+        "-g",
+        "1"
+      ],
+      "target_raw": 0
+    },
+    "mux6-x0": {
+      "argv": [
+        "-H",
+        "mux",
+        "-k",
+        "2",
+        "-e",
+        "and(or(and(!$1 $3) and($1 $4) $2) or(!$1 $6))",
+        "-g",
+        "1"
+      ],
+      "target_raw": 0
+    },
+    "mux6-x1": {
+      "argv": [
+        "-H",
+        "mux",
+        "-k",
+        "2",
+        "-e",
+        "and(or(and(or($2 $4) $1) and(!$1 $3) and($2 $5)) or(!$1 $6))",
+        "-g",
+        "1"
+      ],
+      "target_raw": 0
+    },
+    "mux6-x2": {
+      "argv": [
+        "-H",
+        "mux",
+        "-k",
+        "2",
+        "-e",
+        "or(and(or(and(!$2 $4) $6) $1) and(!$1 !$2 $3) and(!$1 $2 $5))",
+        "-g",
+        "1"
+      ],
+      "target_raw": 0
+    },
+    "pa4-x0": {
+      "argv": [
+        "-H",
+        "pa",
+        "-k",
+        "4",
+        "-e",
+        "!$1",
+        "-g",
+        "1"
+      ],
+      "target_raw": 0
+    },
+    "pa4-x1": {
+      "argv": [
+        "-H",
+        "pa",
+        "-k",
+        "4",
+        "-e",
+        "and(or(and(or($1 $2) !$3) and($1 $2)) $4)",
+        "-g",
+        "1"
+      ],
+      "target_raw": 0
+    },
+    "pa4-x2": {
+      "argv": [
+        "-H",
+        "pa",
+        "-k",
+        "4",
+        "-e",
+        "!$2",
+        "-g",
+        "1"
+      ],
+      "target_raw": 0
+    },
+    "pa4-x3": {
+      "argv": [
+        "-H",
+        "pa",
+        "-k",
+        "4",
+        "-e",
+        "or(and(or($1 $3) $4) and($1 $3) $2)",
+        "-g",
+        "1"
+      ],
+      "target_raw": 0
+    }
+  },
+  "wall_cap_s": 1800,
+  "workers": 14
+}
