@@ -42,7 +42,10 @@ merges the best of them back into the metapopulation as usual.
 > | mux6 | 30/30 in about 1.7k evals | 30/30 in about 4.9k evals | 30/30 in about 3.0k evals |
 > | pa4 | 2/20 | 0/20 | 0/20 |
 >
-> If you use it, prefer `--gomea-fos uni`. See [`PHASE1-FINDINGS.md`](PHASE1-FINDINGS.md).
+> If you use it, **cap each deme** with `--gomea-max-evals-per-deme 500`. In Phase 1d that
+> alone lifted LT-B on maj5 from 6/30 to 20/30 solved, a tie with hill climbing
+> ([`PHASE1D-FINDINGS.md`](PHASE1D-FINDINGS.md)). Uncapped, prefer `--gomea-fos uni`
+> ([`PHASE1-FINDINGS.md`](PHASE1-FINDINGS.md)).
 > A follow-up ([`PHASE1B-FINDINGS.md`](PHASE1B-FINDINGS.md)) ran the authors' own
 > stand-alone GP-GOMEA on the same tasks. It also lost to MOSES hill climbing at equal
 > evaluations. On larger problems ([`PHASE1C-FINDINGS.md`](PHASE1C-FINDINGS.md)) the
@@ -80,7 +83,7 @@ to, so an invalid value is always rejected.
 | `--gomea-fos {lt-b,lt-mi,rt,uni}` | `lt-b` | How knobs are grouped for mixing. `lt-b` is a linkage tree built from initialization-bias-corrected mutual information (Virgolin et al. 2021, Eq. 2). `lt-mi` uses ordinary mutual information. `rt` is a random hierarchical tree (a control). `uni` mixes one knob at a time (no linkage). |
 | `--gomea-fi {0,1}` | `0` | Forced improvements: when an individual stagnates, mix it with the best-so-far solution. This is a labelled reconstruction; neither GP-GOMEA nor gpg ships it. |
 | `--gomea-radii SPEC` | `1:0.4,2:0.3,4:0.2,max:0.1` | The mixture of neighbourhood distances used for the initial population, as `radius:weight` pairs. `max` means "all knobs". |
-| `--gomea-max-evals-per-deme N` | `0` (no cap) | The evaluation cap per deme. With no cap a deme may spend the whole remaining `-m` budget. If it stops, it is because it converged or stagnated. |
+| `--gomea-max-evals-per-deme N` | `0` (no cap) | The evaluation cap per deme. With no cap a deme may spend the whole remaining `-m` budget. If it stops, it is because it converged or stagnated. **Recommended: 500**, the main fix found in Phase 1d. |
 | `--gomea-stall-gens N` | `5` | Return to MOSES after N generations without a strict improvement of the population's best. |
 | `--gomea-max-gens N` | `100` | The hard limit on generations per deme. |
 | `--gomea-skip-inactive {0,1}` | `0` | Skip evaluating a trial proven to decode to the same program. This is correct, but on MOSES representations it costs about 10 % of time and skips almost nothing, so it is off by default. |

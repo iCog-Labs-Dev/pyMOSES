@@ -116,6 +116,18 @@ review and a fix wave. The ledger of findings, fixes and deferred minors lives i
   MOSES hit its 25-minute limit before its evaluation budget. Template height is
   GP-GOMEA's scaling limit.
 
+## Phase 1d: why HC beat embedded GOMEA (user-requested follow-up)
+
+* **Approval:** `APPROVALS.md` #8.
+* **Code:** opt-in options added in `ee1957e`. The defaults are byte-identical,
+  confirmed by the review and by a 6-run reuse check.
+* **Pre-registration:** `PHASE1D-PREREGISTRATION.md` (`d97a425`), before any run.
+* **Stage 1:** 990 frozen runs. Only N = 64 was carried forward.
+* **Stage 2:** 240 end-to-end runs.
+* **Findings:** `PHASE1D-FINDINGS.md`. The main cause is per-deme budget use: a 500-eval
+  cap closes the maj5 gap and halves mux6 cost. Population size was contradicted
+  end-to-end; diversity and neutral drift were not supported; the memo is undetermined.
+
 ## Deferred minors (not blocking; kept for the record)
 
 * The golden.cpp header should note that upstream's commented-out blocks were omitted.

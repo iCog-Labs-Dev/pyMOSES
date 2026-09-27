@@ -1,0 +1,59 @@
+{
+  "arms": {
+    "LT-B": {
+      "argv": [
+        "-a",
+        "gomea",
+        "--gomea-pop-size",
+        "16",
+        "--gomea-skip-inactive",
+        "0",
+        "--gomea-fos",
+        "lt-b"
+      ]
+    }
+  },
+  "budget": {
+    "argv": [
+      "-m",
+      "20000"
+    ],
+    "kind": "evaluations"
+  },
+  "commit": "ee1957e03f6600c60c3e02dfe372993ba09adea7",
+  "common_argv": [
+    "-l",
+    "WARN"
+  ],
+  "name": "stage2-reuse-check",
+  "output_root": "../gomea-results",
+  "phase": 1,
+  "schema_version": 1,
+  "seeds": [
+    1001,
+    1002,
+    1003
+  ],
+  "tasks": {
+    "maj5": {
+      "argv": [
+        "-H",
+        "maj",
+        "-k",
+        "5"
+      ],
+      "target_raw": 0
+    },
+    "mux6": {
+      "argv": [
+        "-H",
+        "mux",
+        "-k",
+        "2"
+      ],
+      "target_raw": 0
+    }
+  },
+  "wall_cap_s": 3600,
+  "workers": 14
+}
