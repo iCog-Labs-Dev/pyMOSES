@@ -275,10 +275,11 @@ def is_gomea_arm(argv: list) -> bool:
     alongside `-a gomea` in the first place. This scans for the actual
     flag that selects the optimizer.
     """
+    algos = ("gomea", "hc-gomea")  # hc-gomea: the Phase 1e hybrid also writes GOMEA telemetry
     for i, tok in enumerate(argv):
-        if tok in ("-a", "--opt-algo") and i + 1 < len(argv) and argv[i + 1] == "gomea":
+        if tok in ("-a", "--opt-algo") and i + 1 < len(argv) and argv[i + 1] in algos:
             return True
-        if tok == "--opt-algo=gomea":
+        if tok in tuple(f"--opt-algo={a}" for a in algos):
             return True
     return False
 

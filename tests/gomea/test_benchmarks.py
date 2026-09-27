@@ -363,6 +363,9 @@ class TestManifest:
         assert manifest_mod.is_gomea_arm(["-a", "gomea", "--gomea-fos", "lt-b"])
         assert manifest_mod.is_gomea_arm(["--opt-algo", "gomea"])
         assert manifest_mod.is_gomea_arm(["--opt-algo=gomea"])
+        assert manifest_mod.is_gomea_arm(["-a", "hc-gomea", "--gomea-fos", "uni"])
+        assert manifest_mod.is_gomea_arm(["--opt-algo=hc-gomea"])
+        assert not manifest_mod.is_gomea_arm(["-a", "hc"])
         # A bare substring match must NOT be enough -- the previous bug.
         assert not manifest_mod.is_gomea_arm(["--gomea-fos", "lt-b"])
         assert not manifest_mod.is_gomea_arm(["-a", "hc"])
