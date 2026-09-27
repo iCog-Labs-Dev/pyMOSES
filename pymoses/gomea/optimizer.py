@@ -16,6 +16,7 @@ hill climbing's.
 
 from __future__ import annotations
 
+import copy
 import math
 import time
 from collections import Counter
@@ -30,6 +31,7 @@ from pymoses.gomea.population import (
     build_population,
     build_uniform_population,
     parse_radii,
+    top_up_population,
 )
 from pymoses.gomea.schema import FrozenSchema
 from pymoses.gomea.telemetry import TelemetrySink
@@ -54,7 +56,9 @@ BUDGET_REASONS = frozenset({"global_budget", "inner_budget", "time_limit"})
 
 # Every value ``last_result["termination_reason"]`` can take: the engine's own
 # reasons (``GomeaEngine``'s docstring) plus the oracle's budget reasons,
-# which can also end a call during the initial evaluation.
+# which can also end a call during the initial evaluation. ``stall_evals``
+# (Phase 1e) is the oracle's stall rule: the deme is finalized normally, as
+# for ``inner_budget``, but it is not a budget reason (not ``over_budget``).
 TERMINATION_REASONS = (
     "target_reached",
     "no_search_fields",
@@ -66,6 +70,7 @@ TERMINATION_REASONS = (
     "inner_budget",
     "time_limit",
     "interrupted",
+    "stall_evals",
 )
 
 
@@ -88,7 +93,12 @@ class gomea_parameters:
     ``"uniform"`` for ``build_uniform_population``; hypothesis A),
     ``acceptance`` (``"nonworse"``, or ``"strict"``, see ``gom``;
     hypothesis E) and ``genotype_memo`` (``EvaluationOracle``'s
-    GOMEA-only genotype memo; hypothesis C)."""
+    GOMEA-only genotype memo; hypothesis C).
+
+    Phase 1e: ``stall_evals`` (0 = off) ends a deme once that many charged
+    evaluations have passed since its best last strictly improved
+    (``EvaluationOracle``'s stall rule; termination reason
+    ``"stall_evals"``)."""
 
     def __init__(
         self,
@@ -105,6 +115,7 @@ class gomea_parameters:
         init_mode: str = "sampler",
         acceptance: str = "nonworse",
         genotype_memo: bool = False,
+        stall_evals: int = 0,
     ) -> None:
         if pop_size < 2:
             raise ValueError(f"pop_size must be >= 2, got {pop_size}")
@@ -120,6 +131,8 @@ class gomea_parameters:
             raise ValueError(f"init_mode must be one of {INIT_MODES}, got {init_mode!r}")
         if acceptance not in ACCEPTANCE_MODES:
             raise ValueError(f"acceptance must be one of {ACCEPTANCE_MODES}, got {acceptance!r}")
+        if stall_evals < 0:
+            raise ValueError(f"stall_evals must be >= 0 (0 = off), got {stall_evals}")
         parse_radii(radii)
 
         self.pop_size = pop_size
@@ -135,6 +148,7 @@ class gomea_parameters:
         self.init_mode = init_mode
         self.acceptance = acceptance
         self.genotype_memo = bool(genotype_memo)
+        self.stall_evals = stall_evals
 
     def as_dict(self) -> dict:
         return dict(vars(self))
@@ -220,6 +234,15 @@ def population_diversity(
     }
 
 
+def _draw_streams() -> tuple[MT19937RandGen, MT19937RandGen, MT19937RandGen]:
+    """The init, linkage and variation streams, seeded from ``randGen()`` in
+    that order."""
+    rng_init = MT19937RandGen(randGen().randint())
+    rng_link = MT19937RandGen(randGen().randint())
+    rng_var = MT19937RandGen(randGen().randint())
+    return rng_init, rng_link, rng_var
+
+
 def _score_fields(score: composite_score) -> dict:
     return {
         "raw": score.get_score(),
@@ -254,12 +277,87 @@ class gomea_optimization(optimizer_base):
         gp = self.gomea_params
         schema = FrozenSchema(iscorer.get_rep())
 
-        rng_init = MT19937RandGen(randGen().randint())
-        rng_link = MT19937RandGen(randGen().randint())
-        rng_var = MT19937RandGen(randGen().randint())
-
+        rng_init, rng_link, rng_var = _draw_streams()
         sink = TelemetrySink(gp.telemetry_path)
-        oracle = EvaluationOracle(
+        oracle = self._make_oracle(schema, iscorer, deme, max_evals, max_time)
+        ev = _OracleEvaluator(oracle, schema, gp.skip_inactive)
+        self._emit_start(sink, schema, deme, max_evals, max_time)
+
+        t0 = time.perf_counter()
+        if gp.init_mode == "uniform":
+            init = build_uniform_population(schema, gp.pop_size, rng_init, gp.dedupe)
+        else:
+            init = build_population(schema, gp.pop_size, parse_radii(gp.radii), rng_init, gp.dedupe)
+        init_s = time.perf_counter() - t0
+        self._emit_init(sink, schema, gp.init_mode, init)
+        self._evolve(deme, oracle, ev, schema, init, [], rng_var, rng_link, init_s, t_start, sink)
+
+    # GOMEA extension, Phase 1e: the GOMEA phase of ``hc_gomea_optimization``.
+    def run_seeded(
+        self,
+        deme: deme_t,
+        iscorer,
+        schema: FrozenSchema,
+        max_evals: int,
+        max_time: float,
+    ) -> None:
+        """Continue a deme another optimizer (hill climbing) already filled.
+
+        Every instance already in ``deme`` is preloaded into the oracle
+        (never charged, scored or appended again). The initial population is
+        the ``pop_size`` best distinct genotypes among them, ranked by the
+        MOSES composite comparator (earliest first on ties), with their
+        existing scores; if there are fewer, it is topped up with MOSES
+        sampler draws around the best one, which are evaluated normally.
+        ``max_evals``/``max_time`` are what is left of the deme's budget;
+        ``max_evals_per_deme`` and ``stall_evals`` apply on top. On return
+        ``deme.n_evals`` is the earlier count plus this phase's charged
+        evaluations. Draws its three RNG streams from ``randGen()`` first,
+        exactly like ``__call__``.
+        """
+        t_start = time.perf_counter()
+        gp = self.gomea_params
+        rng_init, rng_link, rng_var = _draw_streams()
+        sink = TelemetrySink(gp.telemetry_path)
+        oracle = self._make_oracle(schema, iscorer, deme, max_evals, max_time)
+        prior = [(schema.to_genotype(si.first), si.second) for si in deme]
+        oracle.preload(prior, deme.n_evals)
+        ev = _OracleEvaluator(oracle, schema, gp.skip_inactive)
+        self._emit_start(sink, schema, deme, max_evals, max_time, prior_evals=deme.n_evals)
+
+        t0 = time.perf_counter()
+        ranked = sorted(range(len(prior)), key=lambda i: prior[i][1], reverse=True)
+        seeds: list[tuple[int, ...]] = []
+        seed_scores: list[composite_score] = []
+        seen: set[tuple[int, ...]] = set()
+        for i in ranked:
+            g, score = prior[i]
+            if g in seen:
+                continue
+            seen.add(g)
+            seeds.append(g)
+            seed_scores.append(score)
+            if len(seeds) == gp.pop_size:
+                break
+        center = seeds[0] if seeds else schema.default_genotype()
+        init = top_up_population(
+            schema, seeds, center, gp.pop_size, parse_radii(gp.radii), rng_init, gp.dedupe
+        )
+        seeded = [
+            Individual(g, copy.copy(score), ev.phenotype_key(g))
+            for g, score in zip(seeds, seed_scores, strict=True)
+        ]
+        init_s = time.perf_counter() - t0
+        self._emit_init(sink, schema, "deme", init, from_deme=len(seeded))
+        self._evolve(
+            deme, oracle, ev, schema, init, seeded, rng_var, rng_link, init_s, t_start, sink
+        )
+
+    def _make_oracle(
+        self, schema: FrozenSchema, iscorer, deme: deme_t, max_evals: int, max_time: float
+    ) -> EvaluationOracle:
+        gp = self.gomea_params
+        return EvaluationOracle(
             schema,
             iscorer,
             deme,
@@ -267,8 +365,18 @@ class gomea_optimization(optimizer_base):
             max_time,
             inner_cap=gp.max_evals_per_deme,
             genotype_memo=gp.genotype_memo,
+            stall_evals=gp.stall_evals,
         )
-        ev = _OracleEvaluator(oracle, schema, gp.skip_inactive)
+
+    def _emit_start(
+        self,
+        sink: TelemetrySink,
+        schema: FrozenSchema,
+        deme: deme_t,
+        max_evals: int,
+        max_time: float,
+        **extra,
+    ) -> None:
         sink.emit(
             "invocation_start",
             schema_id=schema.schema_id,
@@ -277,19 +385,20 @@ class gomea_optimization(optimizer_base):
             domains=list(schema.domains),
             max_evals=max_evals,
             max_time=max_time,
-            params={**gp.as_dict(), "terminate_if_gte": self.opt_params.terminate_if_gte},
+            params={
+                **self.gomea_params.as_dict(),
+                "terminate_if_gte": self.opt_params.terminate_if_gte,
+            },
+            **extra,
         )
 
-        t0 = time.perf_counter()
-        if gp.init_mode == "uniform":
-            init = build_uniform_population(schema, gp.pop_size, rng_init, gp.dedupe)
-        else:
-            init = build_population(schema, gp.pop_size, parse_radii(gp.radii), rng_init, gp.dedupe)
-        init_s = time.perf_counter() - t0
+    def _emit_init(
+        self, sink: TelemetrySink, schema: FrozenSchema, init_mode: str, init: InitResult, **extra
+    ) -> None:
         sink.emit(
             "init",
             schema_id=schema.schema_id,
-            init_mode=gp.init_mode,
+            init_mode=init_mode,
             n=len(init.genotypes),
             radii=init.radii,
             attempts=init.attempts,
@@ -297,13 +406,31 @@ class gomea_optimization(optimizer_base):
             coverage_replacements=init.coverage_replacements,
             feasible_short=init.feasible_short,
             diagnostics=init.diagnostics,
+            **extra,
         )
 
+    def _evolve(
+        self,
+        deme: deme_t,
+        oracle: EvaluationOracle,
+        ev: _OracleEvaluator,
+        schema: FrozenSchema,
+        init: InitResult,
+        seeded: list[Individual],
+        rng_var: MT19937RandGen,
+        rng_link: MT19937RandGen,
+        init_s: float,
+        t_start: float,
+        sink: TelemetrySink,
+    ) -> None:
+        """Evaluate ``init.genotypes`` after the already-scored ``seeded``
+        prefix, run the engine, and finalize (also on an interrupt)."""
+        gp = self.gomea_params
         reason: str | None = None
         engine: GomeaEngine | None = None
         try:
-            population: list[Individual] = []
-            for g in init.genotypes:
+            population: list[Individual] = list(seeded)
+            for g in init.genotypes[len(seeded) :]:
                 try:
                     score = ev.evaluate(g)
                 except BudgetExhausted as exc:

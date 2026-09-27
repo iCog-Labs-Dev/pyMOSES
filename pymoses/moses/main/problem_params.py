@@ -250,8 +250,9 @@ _MONTH = "month"  # C++: problem-params.cc:59 month_str
 
 _HC = "hc"  # C++: moses/optimization/optimization.h:68 hc
 # GOMEA extension (not in classic MOSES): "gomea" selects the population
-# optimizer in `pymoses.gomea`; the other four are classic's own names.
-_SUPPORTED_OPT_ALGOS = frozenset({"hc", "sa", "un", "ps", "gomea"})
+# optimizer in `pymoses.gomea` and "hc-gomea" (Phase 1e) hill climbing
+# followed by GOMEA on the same deme; the other four are classic's own names.
+_SUPPORTED_OPT_ALGOS = frozenset({"hc", "sa", "un", "ps", "gomea", "hc-gomea"})
 
 # GOMEA extension (not in classic MOSES): the `--gomea-*` options as
 # (flag, dest, type, default, help). Registered by
@@ -363,6 +364,15 @@ _GOMEA_OPTIONS = (
         "1 = answer a genotype already evaluated in this deme from a memo, "
         "uncharged (GOMEA-only mechanism test). Default 0.",
     ),
+    # Phase 1e (off by default).
+    (
+        "--gomea-stall-evals",
+        "gomea_stall_evals",
+        int,
+        0,
+        "end a GOMEA deme after this many charged evaluations without a strict "
+        "improvement of its best, 0 = off. Default 0.",
+    ),
 )
 _GOMEA_INIT_CHOICES = ("sampler", "uniform")
 _GOMEA_ACCEPT_CHOICES = ("nonworse", "strict")
@@ -438,6 +448,10 @@ def _gomea_params_from_args(args: argparse.Namespace) -> gomea_parameters:
             f"--gomea-max-evals-per-deme must be >= 0 (0 = no cap), "
             f"got {v['gomea_max_evals_per_deme']}"
         )
+    if v["gomea_stall_evals"] < 0:
+        raise ValueError(
+            f"--gomea-stall-evals must be >= 0 (0 = off), got {v['gomea_stall_evals']}"
+        )
     return gomea_parameters(
         pop_size=v["gomea_pop_size"],
         fos=v["gomea_fos"],
@@ -451,6 +465,7 @@ def _gomea_params_from_args(args: argparse.Namespace) -> gomea_parameters:
         init_mode=v["gomea_init"],
         acceptance=v["gomea_accept"],
         genotype_memo=bool(v["gomea_genotype_memo"]),
+        stall_evals=v["gomea_stall_evals"],
     )
 
 

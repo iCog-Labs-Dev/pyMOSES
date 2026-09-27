@@ -208,7 +208,12 @@ from pymoses.comboreduct.combo.iostream_combo import (
 )
 from pymoses.comboreduct.combo.vertex import combo_tree
 from pymoses.comboreduct.type_checker.type_signature import TypeSignature
-from pymoses.gomea import UnsupportedRepresentation, gomea_optimization, gomea_parameters
+from pymoses.gomea import (
+    UnsupportedRepresentation,
+    gomea_optimization,
+    gomea_parameters,
+    hc_gomea_optimization,
+)
 from pymoses.moses.deme.deme_expander import Simplifier, deme_expander
 from pymoses.moses.deme.deme_params import deme_parameters
 from pymoses.moses.metapopulation.metapop_params import (
@@ -707,6 +712,12 @@ def metapop_moses_results_b(
     # `pymoses.gomea`, with its own settings (`--gomea-*`).
     elif opt_params.opt_algo == "gomea":
         optimizer = gomea_optimization(opt_params, gomea_params or gomea_parameters())
+    # GOMEA extension, Phase 1e: hill climbing, then GOMEA on the same deme
+    # (`pymoses.gomea.hybrid`), with both the `--hc-*` and `--gomea-*` settings.
+    elif opt_params.opt_algo == "hc-gomea":
+        optimizer = hc_gomea_optimization(
+            opt_params, hc_params, gomea_params or gomea_parameters()
+        )
     else:
         raise ValueError(
             f"Unknown optimization algo {opt_params.opt_algo}. Supported "
@@ -729,25 +740,32 @@ def metapop_moses_results_b(
     try:
         run_moses(metapop, dex, moses_params, stats)
     except UnsupportedRepresentation as exc:
-        if opt_params.opt_algo != "gomea":
+        if opt_params.opt_algo not in _GOMEA_ALGOS:
             raise
-        raise UnsupportedRepresentation(_gomea_contin_message(dex)) from exc
+        raise UnsupportedRepresentation(
+            _gomea_contin_message(dex, opt_params.opt_algo)
+        ) from exc
     printer(metapop, dex, stats)
 
 
 # GOMEA extension (not in classic MOSES).
 def gomea_kwargs(pms: object) -> dict[str, object]:
     """The keyword arguments a problem's `run` adds to its
-    `metapop_moses_results` call: `gomea_params` when `-a gomea` is
-    selected, nothing otherwise, so every other optimizer's call is
-    exactly classic's."""
-    if getattr(pms, "opt_algo", None) == "gomea":
+    `metapop_moses_results` call: `gomea_params` when `-a gomea` or
+    `-a hc-gomea` is selected, nothing otherwise, so every other
+    optimizer's call is exactly classic's."""
+    if getattr(pms, "opt_algo", None) in _GOMEA_ALGOS:
         return {"gomea_params": getattr(pms, "gomea_params", None)}
     return {}
 
 
+# GOMEA extension (not in classic MOSES): the optimizers that take
+# `gomea_params` (`hc-gomea` is Phase 1e's hybrid).
+_GOMEA_ALGOS = ("gomea", "hc-gomea")
+
+
 # GOMEA extension (not in classic MOSES).
-def _gomea_contin_message(dex: deme_expander) -> str:
+def _gomea_contin_message(dex: deme_expander, algo: str = "gomea") -> str:
     """The `-a gomea` error for a representation with contin fields: how
     many contin fields the first deme's representation has, and the range
     of raw field indices they occupy."""
@@ -759,7 +777,7 @@ def _gomea_contin_message(dex: deme_expander) -> str:
         first = fields.begin_contin_raw_idx()
         listed = f"{n} contin field(s) (numeric constants), raw fields {first}-{first + n_raw - 1}"
     return (
-        "-a gomea supports only discrete (boolean/enum) knobs, but this "
+        f"-a {algo} supports only discrete (boolean/enum) knobs, but this "
         f"problem's representation has continuous knobs: {listed}. "
         "Use -a hc for problems with contin knobs."
     )

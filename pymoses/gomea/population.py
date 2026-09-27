@@ -445,3 +445,69 @@ def build_uniform_population(
         feasible_short=len(population) < n,
         diagnostics=diagnostics,
     )
+
+
+def top_up_population(
+    schema: FrozenSchema,
+    seeds: Sequence[tuple[int, ...]],
+    center: tuple[int, ...],
+    n: int,
+    mix: RadiusMixture,
+    rng: MT19937RandGen,
+    dedupe: bool = True,
+    attempt_cap_multiple: int = 20,
+) -> InitResult:
+    """Phase 1e (the HC->GOMEA hybrid): an ``n``-member population whose
+    first members are ``seeds`` (distinct genotypes the caller already has
+    scores for, at most ``n`` of them are kept), topped up with MOSES
+    neighbourhood-sampler draws around ``center``.
+
+    With no seeds the population starts with ``center`` itself. Each draw
+    picks its radius from ``mix`` with ``rng`` and calls
+    ``sample_from_neighborhood`` (so the process-wide ``randGen()``), like
+    ``build_population``'s fill phase; dedupe (against the seeds too), the
+    ``attempt_cap_multiple * n`` draw budget and ``feasible_short`` behave
+    the same. There is no coverage pass: the seeds are the population the
+    caller wants the linkage model calibrated on. ``radii[i]`` is the
+    Hamming distance of a seed from ``center``, or a draw's sampler radius.
+
+    Never scores anything; the caller decides which members to evaluate.
+    """
+    population: list[tuple[int, ...]] = list(seeds[:n]) or [tuple(center)]
+    radii = [sum(v != c for v, c in zip(g, center, strict=True)) for g in population]
+    seen: set[tuple[int, ...]] = set(population)
+    attempts = 0
+    duplicates_rejected = 0
+
+    if schema.dim > 0 and len(population) < n:
+        resolved = resolve_radii(mix, schema.dim)
+        center_inst = schema.to_instance(center)
+        fill_budget = attempt_cap_multiple * n
+        while len(population) < n and attempts < fill_budget:
+            r = choose_radius(resolved, rng)
+            draw: list = []
+            sample_from_neighborhood(schema.fields, r, 1, draw, 1, center_inst)
+            attempts += 1
+            g = schema.to_genotype(draw[0])
+            if dedupe and g in seen:
+                duplicates_rejected += 1
+                continue
+            population.append(g)
+            radii.append(r)
+            seen.add(g)
+
+    constant = _constant_fields(population, schema.dim)
+    diagnostics = field_diagnostics(population, schema.domains)
+    diagnostics["constant_fields_before_coverage"] = constant
+    diagnostics["constant_fields_after_coverage"] = list(constant)
+    diagnostics["radius_histogram"] = dict(sorted(Counter(radii).items()))
+
+    return InitResult(
+        genotypes=population,
+        radii=radii,
+        attempts=attempts,
+        duplicates_rejected=duplicates_rejected,
+        coverage_replacements=0,
+        feasible_short=len(population) < n,
+        diagnostics=diagnostics,
+    )

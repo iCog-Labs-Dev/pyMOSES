@@ -612,3 +612,125 @@ def test_evaluate_checks_the_budget_every_call_not_just_once(make_boolean_rep):
         oracle.evaluate(g)
     assert exc_info.value.reason == "global_budget"
     assert oracle.ledger.requests == 2
+
+
+# ---------------------------------------------------------------------------
+# Phase 1e: the stall rule (``stall_evals``) and ``preload``
+# ---------------------------------------------------------------------------
+
+
+def _cs(raw: float) -> composite_score:
+    return composite_score(raw, 0, 0.0, 0.0)
+
+
+def test_stall_is_off_by_default(make_boolean_rep):
+    rep = make_boolean_rep("and($1 $2)", 2)
+    schema = FrozenSchema(rep)
+    oracle = EvaluationOracle(
+        schema, _sequence_iscorer([_cs(-1.0)] * 20), _make_deme(schema), 100, 3600.0
+    )
+    g = schema.default_genotype()
+    for _ in range(20):
+        oracle.evaluate(g)
+    assert oracle.check() is None
+
+
+def test_stall_ends_after_n_charged_evals_without_strict_improvement(make_boolean_rep):
+    """N charged evaluations after the best last strictly improved, the next
+    evaluation attempt raises ``BudgetExhausted('stall_evals')`` before the
+    scorer runs. A tie is not an improvement; a strict improvement resets."""
+    rep = make_boolean_rep("and($1 $2)", 2)
+    schema = FrozenSchema(rep)
+    scores = [_cs(-5.0), _cs(-5.0), _cs(-3.0), _cs(-4.0), _cs(-3.0), _cs(-9.0), _cs(0.0)]
+    iscorer = _sequence_iscorer(scores)
+    deme = _make_deme(schema)
+    oracle = EvaluationOracle(schema, iscorer, deme, 100, 3600.0, stall_evals=3)
+    g = schema.default_genotype()
+    for _ in range(6):  # best at #1, tie at #2, improved at #3, then 3 without
+        assert oracle.check() is None
+        oracle.evaluate(g)
+    assert oracle.check() == "stall_evals"
+    with pytest.raises(BudgetExhausted) as exc:
+        oracle.evaluate(g)
+    assert exc.value.reason == "stall_evals"
+    assert len(iscorer.calls) == 6 and len(deme) == 6
+    oracle.finalize()
+    assert deme.n_evals == 6 and deme.n_best_evals == 3
+
+
+def test_stall_counts_only_charged_evals_not_memo_hits(make_boolean_rep):
+    rep = make_boolean_rep("and($1 $2)", 2)
+    schema = FrozenSchema(rep)
+    iscorer = _real_iscorer(rep)
+    oracle = EvaluationOracle(
+        schema, iscorer, _make_deme(schema), 100, 3600.0, genotype_memo=True, stall_evals=2
+    )
+    a, b = _two_genotypes(schema)
+    oracle.evaluate(a)
+    for _ in range(10):
+        oracle.evaluate(a)  # memo hits: free, never advance the stall counter
+    assert oracle.ledger.memo_hits == 10
+    assert oracle.check() is None
+
+
+def test_budget_reasons_take_priority_over_the_stall(make_boolean_rep):
+    rep = make_boolean_rep("and($1 $2)", 2)
+    schema = FrozenSchema(rep)
+    g = schema.default_genotype()
+    for max_evals, inner_cap, expected in ((2, None, "global_budget"), (9, 2, "inner_budget")):
+        oracle = EvaluationOracle(
+            schema, _sequence_iscorer([_cs(-1.0)] * 2), _make_deme(schema), max_evals, 3600.0,
+            inner_cap=inner_cap, stall_evals=1,
+        )  # fmt: skip
+        oracle.evaluate(g)
+        oracle.evaluate(g)  # the stall applies too, but the budget wins
+        assert oracle.check() == expected
+
+
+def test_preload_seeds_best_seen_and_memo_without_charging(make_boolean_rep):
+    """The hybrid seeds a GOMEA phase from hill climbing's deme: the
+    preloaded genotypes are already evaluated, so they are never charged,
+    archived or scored again; the best among them is the stall baseline;
+    ``finalize`` adds ``prior_evals`` to the deme's counts."""
+    rep = make_boolean_rep("and($1 $2)", 2)
+    schema = FrozenSchema(rep)
+    a, b = _two_genotypes(schema)
+    iscorer = _sequence_iscorer([_cs(-3.0), _cs(-1.0)])
+    deme = _make_deme(schema)
+    deme.n_best_evals = 4
+    oracle = EvaluationOracle(
+        schema, iscorer, deme, 100, 3600.0, genotype_memo=True, stall_evals=1
+    )
+    oracle.preload([(a, _cs(-5.0)), (b, _cs(-2.0))], prior_evals=7)
+    assert oracle.ledger.requests == 0 and len(deme) == 0
+    assert oracle.best_so_far().get_score() == -2.0
+    assert oracle.evaluate(a).get_score() == -5.0  # memo hit, not a scorer call
+    assert iscorer.calls == [] and oracle.ledger.memo_hits == 1
+    c = next(
+        g
+        for g in (
+            tuple(random.Random(s).randrange(k) for k in schema.domains) for s in range(100)
+        )
+        if g not in (a, b)
+    )
+    oracle.evaluate(c)  # -3.0: worse than the preloaded best
+    assert oracle.check() == "stall_evals"
+    oracle.finalize()
+    assert deme.n_evals == 8
+    assert deme.n_best_evals == 4  # no improvement in this oracle: left alone
+
+
+def test_preload_then_improvement_sets_n_best_evals_after_prior(make_boolean_rep):
+    rep = make_boolean_rep("and($1 $2)", 2)
+    schema = FrozenSchema(rep)
+    a, b = _two_genotypes(schema)
+    oracle = EvaluationOracle(
+        schema, _sequence_iscorer([_cs(-3.0), _cs(-1.0)]), _make_deme(schema), 100, 3600.0
+    )
+    oracle.preload([(a, _cs(-2.0))], prior_evals=7)
+    oracle.evaluate(b)
+    assert oracle.ledger.duplicate_requests == 0
+    oracle.evaluate(a)  # memo off: re-scored, charged and counted a duplicate
+    assert oracle.ledger.duplicate_requests == 1
+    oracle.finalize()
+    assert oracle.deme.n_evals == 9 and oracle.deme.n_best_evals == 9

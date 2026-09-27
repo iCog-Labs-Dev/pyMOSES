@@ -41,6 +41,11 @@ HELP_BASE = Path(__file__).resolve().parent / "data" / "help_base.out"
 # `-H pa -k 3 -a gomea --gomea-pop-size 16 -m 3000 -r 5` stdout, captured at
 # commit ce698be, before the Phase 1d ablation options existed.
 GOMEA_PHASE1_REF = Path(__file__).resolve().parent / "data" / "gomea_pa3_pop16_m3000_r5.out"
+# `-H maj -k 5 -a gomea --gomea-pop-size 16 --gomea-skip-inactive 0 -m 2000
+# -r 1002` stdout, captured at commit 9472b66, before the Phase 1e options.
+GOMEA_MAJ5_REF = (
+    Path(__file__).resolve().parent / "data" / "gomea_maj5_pop16_skip0_m2000_r1002.out"
+)
 
 # ---------------------------------------------------------------------------
 # -a hc stdout captured at commit 0410881, before any GOMEA code existed.
@@ -239,6 +244,7 @@ def test_help_only_adds_gomea_lines():
         "--gomea-init",
         "--gomea-accept",
         "--gomea-genotype-memo",
+        "--gomea-stall-evals",
     ):
         assert any(line.strip().startswith(flag + " ") for line in added), flag
 
@@ -401,6 +407,7 @@ def test_hidden_aliases_do_not_show_in_help():
         ["--gomea-init", "random"],
         ["--gomea-accept", "greedy"],
         ["--gomea-genotype-memo", "2"],
+        ["--gomea-stall-evals", "-1"],
     ],
 )
 def test_bad_gomea_options_are_rejected(bad):
@@ -457,3 +464,69 @@ def test_each_ablation_option_runs_end_to_end(extra, tmp_path):
     assert {"init_mode", "acceptance", "genotype_memo"} <= set(start["params"])
     ends = [e for e in events if e["type"] == "end"]
     assert ends and all("memo_hits" in e["ledger"] for e in ends)
+
+
+# ---------------------------------------------------------------------------
+# Phase 1e: the stall rule and the -a hc-gomea hybrid.
+# ---------------------------------------------------------------------------
+
+_MAJ5_GOMEA = ["-H", "maj", "-k", "5", "-a", "gomea", "--gomea-pop-size", "16",
+               "--gomea-skip-inactive", "0", "-m", "2000", "-r", "1002"]  # fmt: skip
+
+
+@pytest.mark.parametrize("extra", [[], ["--gomea-stall-evals", "0"]], ids=["implicit", "explicit"])
+def test_gomea_defaults_reproduce_the_phase1d_maj5_stdout(extra):
+    rc, stdout = _run([*_MAJ5_GOMEA, *extra])
+    assert rc == 0
+    assert stdout == GOMEA_MAJ5_REF.read_text()
+
+
+def test_explicit_hc_reproduces_the_base_stdout():
+    rc, stdout = _run(["-H", "pa", "-k", "3", "-a", "hc", "-m", "2000", "-r", "1"])
+    assert rc == 0
+    assert stdout == _HC_PA3_M2000_R1
+
+
+def test_stall_option_parses_and_reaches_gomea_parameters():
+    from pymoses.moses.main.problem_params import _gomea_params_from_args
+
+    ns = _cli_parser(True).parse_args(["--gomea-stall-evals", "250"])
+    assert _gomea_params_from_args(ns).stall_evals == 250
+    assert _gomea_params_from_args(_cli_parser(True).parse_args([])).stall_evals == 0
+    assert _gomea_params_from_args(argparse.Namespace()).stall_evals == 0
+
+
+def test_stall_option_runs_end_to_end(tmp_path):
+    log = tmp_path / "g.jsonl"
+    rc, stdout = _run(["-H", "pa", "-k", "3", "-a", "gomea", "-m", "1500", "-r", "1",
+                       "--gomea-stall-evals", "60", "--gomea-log", str(log)])  # fmt: skip
+    assert rc == 0 and stdout
+    ends = [e for e in _events(log) if e["type"] == "end"]
+    assert "stall_evals" in {e["termination_reason"] for e in ends}
+
+
+def test_hc_gomea_equals_hc_when_hill_climbing_solves_the_problem():
+    base = ["-H", "pa", "-k", "2", "-m", "2000", "-r", "1"]
+    rc_hc, out_hc = _run([*base, "-a", "hc"])
+    rc_hy, out_hy = _run([*base, "-a", "hc-gomea"])
+    assert rc_hc == rc_hy == 0
+    assert out_hy == out_hc
+
+
+def test_hc_gomea_full_cli_run_with_telemetry(tmp_path):
+    log = tmp_path / "g.jsonl"
+    rc, stdout = _run(["-H", "maj", "-k", "5", "-a", "hc-gomea", "--gomea-fos", "uni",
+                       "--gomea-max-evals-per-deme", "500", "-m", "3000", "-r", "3",
+                       "--gomea-log", str(log)])  # fmt: skip
+    assert rc == 0 and stdout.strip()
+    events = _events(log)
+    hybrid = [e for e in events if e["type"] == "hybrid"]
+    assert hybrid
+    for e in hybrid:
+        assert {"hc_evals", "hc_stop", "gomea_ran", "gomea_evals",
+                "gomea_termination_reason"} <= set(e)  # fmt: skip
+        assert e["hc_evals"] + e["gomea_evals"] <= e["max_evals"]
+        assert e["gomea_evals"] <= 500
+    assert any(e["gomea_ran"] for e in hybrid)
+    ends = [e for e in events if e["type"] == "end"]
+    assert len(ends) == sum(e["gomea_ran"] for e in hybrid)

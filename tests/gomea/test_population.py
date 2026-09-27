@@ -23,6 +23,7 @@ from pymoses.gomea.population import (
     field_diagnostics,
     parse_radii,
     resolve_radii,
+    top_up_population,
 )
 from pymoses.gomea.schema import FrozenSchema
 from pymoses.moses.representation.representation import representation
@@ -481,3 +482,44 @@ def test_uniform_dim_zero_schema_returns_only_the_default_genotype():
     assert result.genotypes == [()]
     assert result.radii == [0]
     assert result.feasible_short is True
+
+
+# ---------------------------------------------------------------------------
+# Phase 1e: top_up_population (the HC->GOMEA hybrid's initial population)
+# ---------------------------------------------------------------------------
+
+
+def test_top_up_keeps_the_seeds_first_and_draws_around_the_center():
+    schema = FrozenSchema(_make_rep("and", 3))
+    g0 = schema.default_genotype()
+    center = tuple([1] + list(g0[1:]))
+    seeds = [center, g0]
+    randGen().seed(3)
+    res = top_up_population(schema, seeds, center, 10, DEFAULT_MIX, MT19937RandGen(5))
+    assert res.genotypes[:2] == seeds
+    assert len(res.genotypes) == len(set(res.genotypes)) == 10
+    assert res.radii[:2] == [0, 1]
+    for g, r in zip(res.genotypes[2:], res.radii[2:], strict=True):
+        assert _hamming(g, center) == r
+    assert res.coverage_replacements == 0 and not res.feasible_short
+    assert res.attempts == 8 + res.duplicates_rejected
+
+
+def test_top_up_with_enough_seeds_draws_nothing():
+    schema = FrozenSchema(_make_rep("and", 3))
+    randGen().seed(3)
+    seeds = build_population(schema, 6, DEFAULT_MIX, MT19937RandGen(1)).genotypes
+    before = randGen().randint()
+    randGen().seed(3)
+    build_population(schema, 6, DEFAULT_MIX, MT19937RandGen(1))
+    res = top_up_population(schema, seeds, seeds[0], 4, DEFAULT_MIX, MT19937RandGen(5))
+    assert res.genotypes == list(seeds[:4]) and res.attempts == 0
+    assert randGen().randint() == before
+
+
+def test_top_up_without_seeds_starts_from_the_center():
+    schema = FrozenSchema(_make_rep("and", 3))
+    g0 = schema.default_genotype()
+    randGen().seed(3)
+    res = top_up_population(schema, [], g0, 5, DEFAULT_MIX, MT19937RandGen(5))
+    assert res.genotypes[0] == g0 and len(res.genotypes) == 5

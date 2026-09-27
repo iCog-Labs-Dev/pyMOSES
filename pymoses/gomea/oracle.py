@@ -32,7 +32,7 @@ from __future__ import annotations
 import copy
 import math
 import time
-from collections.abc import Callable
+from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 
 from pymoses.gomea.schema import FrozenSchema
@@ -46,9 +46,10 @@ class BudgetExhausted(Exception):
     """Raised by ``EvaluationOracle.evaluate`` when ``check()`` finds the
     budget already spent -- the scorer is never called in that case.
 
-    ``reason`` is one of ``'global_budget'``, ``'inner_budget'`` or
-    ``'time_limit'`` (see ``EvaluationOracle.check`` for what each one
-    means and the order they are checked in).
+    ``reason`` is one of ``'global_budget'``, ``'inner_budget'``,
+    ``'time_limit'`` or, with the Phase 1e stall rule on, ``'stall_evals'``
+    (see ``EvaluationOracle.check`` for what each one means and the order
+    they are checked in).
     """
 
     def __init__(self, reason: str) -> None:
@@ -118,6 +119,19 @@ class EvaluationOracle:
     spent) and no second deme entry, and counted in ``ledger.memo_hits``.
     The memo belongs to this oracle, i.e. to one deme/invocation; it is
     never shared across demes or schemas.
+
+    ``stall_evals`` (Phase 1e, 0 = off) ends the deme once that many
+    charged requests have passed since the best score last strictly
+    improved (``check`` then returns ``'stall_evals'``). Memo hits are not
+    requests, so they never advance it. The best is ``best_so_far``: every
+    trial strictly better than the best-so-far is also strictly better than
+    the recipient GOM tests it on, so it is always accepted and becomes the
+    engine's elite -- the oracle's best is the population's elite score,
+    tracked at the exact evaluation that produced it.
+
+    ``preload`` (Phase 1e, used by the HC->GOMEA hybrid) hands the oracle
+    genotypes that were already evaluated in this deme by another
+    optimizer, so they are never charged, scored or archived again.
     """
 
     def __init__(
@@ -130,6 +144,7 @@ class EvaluationOracle:
         inner_cap: int | None = None,
         clock: Callable[[], float] = time.monotonic,
         genotype_memo: bool = False,
+        stall_evals: int = 0,
     ) -> None:
         self.schema = schema
         self.iscorer = iscorer
@@ -139,6 +154,10 @@ class EvaluationOracle:
         self.inner_cap = inner_cap
         self.clock = clock
         self.start = clock()
+        self.stall_evals = stall_evals
+        # Evaluations already in the deme before this oracle (``preload``).
+        self.prior_evals = 0
+        self._preloaded = False
 
         self.ledger = EvaluationLedger()
         self._best: composite_score | None = None
@@ -165,6 +184,10 @@ class EvaluationOracle:
             return "inner_budget"
         if self.clock() - self.start >= self.max_time:
             return "time_limit"
+        # GOMEA extension, Phase 1e: the stall rule, checked after every
+        # budget reason so a real budget stop is always reported as such.
+        if self.stall_evals > 0 and self.ledger.requests - self._best_evals >= self.stall_evals:
+            return "stall_evals"
         return None
 
     def evaluate(self, g: tuple[int, ...]) -> composite_score:
@@ -226,6 +249,33 @@ class EvaluationOracle:
 
         return copy.copy(score)
 
+    def preload(
+        self,
+        scored: Sequence[tuple[tuple[int, ...], composite_score]],
+        prior_evals: int,
+    ) -> None:
+        """Mark genotypes another optimizer already evaluated in this deme.
+
+        Each ``(genotype, score)`` becomes "seen" (for
+        ``duplicate_requests``) and, with the memo on, a memo entry; the
+        best of them (MOSES comparator, earliest on ties) becomes
+        ``best_so_far`` at request 0, the stall rule's baseline. Nothing is
+        scored, charged or appended to the deme. ``prior_evals`` is the
+        number of evaluations already in the deme; ``finalize`` adds it to
+        ``deme.n_evals`` and, if this oracle improves on the preloaded best,
+        to ``deme.n_best_evals``.
+        """
+        self._preloaded = True
+        self.prior_evals = prior_evals
+        for g, score in scored:
+            key = tuple(g)
+            self._seen.add(key)
+            if self._memo is not None and key not in self._memo:
+                self._memo[key] = copy.copy(score)
+            if self._best is None or self._best < score:
+                self._best = copy.copy(score)
+        self._best_evals = 0
+
     def record_noop_skip(self) -> None:
         """A trial genotype identical to the recipient it would replace
         was never sent to the scorer -- count the skip, nothing else."""
@@ -259,6 +309,11 @@ class EvaluationOracle:
         ``deme.n_evals`` is the total scorer-reaching request count,
         ``deme.n_best_evals`` is the request count the current best was
         first found at.
+
+        After ``preload`` both counts are offset by ``prior_evals``, and
+        ``n_best_evals`` is left as the earlier optimizer set it unless
+        this oracle strictly improved on the preloaded best.
         """
-        self.deme.n_evals = self.ledger.requests
-        self.deme.n_best_evals = self.evals_at_best()
+        self.deme.n_evals = self.prior_evals + self.ledger.requests
+        if not self._preloaded or self._best_evals > 0:
+            self.deme.n_best_evals = self.prior_evals + self.evals_at_best()

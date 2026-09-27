@@ -118,6 +118,7 @@ def test_default_parameters():
     assert gp.init_mode == "sampler"
     assert gp.acceptance == "nonworse"
     assert gp.genotype_memo is False
+    assert gp.stall_evals == 0
 
 
 def test_cli_skip_inactive_defaults_off_and_stays_available():
@@ -155,6 +156,7 @@ def test_cli_skip_inactive_defaults_off_and_stays_available():
         {"radii": "1:0.5,x"},
         {"init_mode": "random"},
         {"acceptance": "greedy"},
+        {"stall_evals": -1},
     ],
 )
 def test_invalid_parameters_raise_value_error(kwargs):
@@ -652,3 +654,34 @@ def test_strict_acceptance_reaches_the_engine(pa3, monkeypatch):
     monkeypatch.setattr(engine_mod, "gom", spy)
     _run(pa3, 3, gomea_parameters(acceptance="strict"), max_evals=300)
     assert seen == {"strict"}
+
+
+# ---------------------------------------------------------------------------
+# Phase 1e: the stall rule
+# ---------------------------------------------------------------------------
+
+
+def test_stall_evals_ends_the_deme_like_an_inner_budget(pa3):
+    """With ``stall_evals`` set, a deme whose best has not strictly improved
+    for that many charged evaluations ends with ``stall_evals``: finalized
+    normally, not counted as over budget, and the stall really held."""
+    assert "stall_evals" in TERMINATION_REASONS
+    gp = gomea_parameters(fos="uni", stall_evals=40)
+    opt, deme = _run(pa3, 3, gp, max_evals=10**5)
+    res = opt.last_result
+    assert res["termination_reason"] == "stall_evals"
+    assert opt.over_budget is False
+    requests = res["ledger"]["requests"]
+    assert len(deme) == deme.n_evals == requests
+    assert requests - deme.n_best_evals == 40
+    # No evaluation after the best strictly beat it.
+    best = max(deme[i].second for i in range(len(deme)))
+    first_best = next(i for i in range(len(deme)) if not deme[i].second < best)
+    assert first_best + 1 == deme.n_best_evals
+
+
+def test_stall_evals_off_keeps_the_default_run(pa3):
+    opt0, deme0 = _run(pa3, 3, gomea_parameters(fos="uni"), max_evals=800)
+    opt1, deme1 = _run(pa3, 3, gomea_parameters(fos="uni", stall_evals=0), max_evals=800)
+    assert _deme_contents(deme0) == _deme_contents(deme1)
+    assert _without_timings(opt0.last_result) == _without_timings(opt1.last_result)
