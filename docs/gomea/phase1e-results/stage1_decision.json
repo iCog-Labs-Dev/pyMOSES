@@ -1,0 +1,66 @@
+{
+  "winner": "LTB-C250-M",
+  "runner_up": "UNI-S200-M",
+  "ranking": [
+    {
+      "arm": "LTB-C250-M",
+      "sum_success_rate": 2.0,
+      "sum_median_evals": 31016.0,
+      "sum_median_error": 3.0
+    },
+    {
+      "arm": "UNI-S200-M",
+      "sum_success_rate": 1.8,
+      "sum_median_evals": 32548.0,
+      "sum_median_error": 3.0
+    },
+    {
+      "arm": "UNI-C500-M",
+      "sum_success_rate": 1.8,
+      "sum_median_evals": 34168.5,
+      "sum_median_error": 3.0
+    },
+    {
+      "arm": "LTB-S200-M",
+      "sum_success_rate": 1.7,
+      "sum_median_evals": 30813.5,
+      "sum_median_error": 3.5
+    },
+    {
+      "arm": "UNI-C500",
+      "sum_success_rate": 1.7,
+      "sum_median_evals": 33479.0,
+      "sum_median_error": 3.5
+    },
+    {
+      "arm": "LTB-C500-M",
+      "sum_success_rate": 1.7,
+      "sum_median_evals": 36811.0,
+      "sum_median_error": 3.5
+    },
+    {
+      "arm": "HYB-LTB",
+      "sum_success_rate": 1.6,
+      "sum_median_evals": 39685.5,
+      "sum_median_error": 2.0
+    },
+    {
+      "arm": "UNI-C250-M",
+      "sum_success_rate": 1.5,
+      "sum_median_evals": 37766.0,
+      "sum_median_error": 3.5
+    },
+    {
+      "arm": "LTB-C500",
+      "sum_success_rate": 1.5,
+      "sum_median_evals": 38091.0,
+      "sum_median_error": 4.0
+    },
+    {
+      "arm": "HYB-UNI",
+      "sum_success_rate": 1.5,
+      "sum_median_evals": 38549.0,
+      "sum_median_error": 3.5
+    }
+  ]
+}

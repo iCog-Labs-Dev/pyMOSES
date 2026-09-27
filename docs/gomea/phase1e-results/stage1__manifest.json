@@ -1,0 +1,225 @@
+{
+  "arms": {
+    "HC": {
+      "argv": [
+        "-a",
+        "hc"
+      ]
+    },
+    "HYB-LTB": {
+      "argv": [
+        "-a",
+        "hc-gomea",
+        "--gomea-pop-size",
+        "16",
+        "--gomea-skip-inactive",
+        "0",
+        "--gomea-fos",
+        "lt-b",
+        "--gomea-max-evals-per-deme",
+        "500",
+        "--gomea-genotype-memo",
+        "1"
+      ]
+    },
+    "HYB-UNI": {
+      "argv": [
+        "-a",
+        "hc-gomea",
+        "--gomea-pop-size",
+        "16",
+        "--gomea-skip-inactive",
+        "0",
+        "--gomea-fos",
+        "uni",
+        "--gomea-max-evals-per-deme",
+        "500",
+        "--gomea-genotype-memo",
+        "1"
+      ]
+    },
+    "LTB-C250-M": {
+      "argv": [
+        "-a",
+        "gomea",
+        "--gomea-pop-size",
+        "16",
+        "--gomea-skip-inactive",
+        "0",
+        "--gomea-fos",
+        "lt-b",
+        "--gomea-max-evals-per-deme",
+        "250",
+        "--gomea-genotype-memo",
+        "1"
+      ]
+    },
+    "LTB-C500": {
+      "argv": [
+        "-a",
+        "gomea",
+        "--gomea-pop-size",
+        "16",
+        "--gomea-skip-inactive",
+        "0",
+        "--gomea-fos",
+        "lt-b",
+        "--gomea-max-evals-per-deme",
+        "500"
+      ]
+    },
+    "LTB-C500-M": {
+      "argv": [
+        "-a",
+        "gomea",
+        "--gomea-pop-size",
+        "16",
+        "--gomea-skip-inactive",
+        "0",
+        "--gomea-fos",
+        "lt-b",
+        "--gomea-max-evals-per-deme",
+        "500",
+        "--gomea-genotype-memo",
+        "1"
+      ]
+    },
+    "LTB-S200-M": {
+      "argv": [
+        "-a",
+        "gomea",
+        "--gomea-pop-size",
+        "16",
+        "--gomea-skip-inactive",
+        "0",
+        "--gomea-fos",
+        "lt-b",
+        "--gomea-stall-evals",
+        "200",
+        "--gomea-genotype-memo",
+        "1"
+      ]
+    },
+    "UNI-C250-M": {
+      "argv": [
+        "-a",
+        "gomea",
+        "--gomea-pop-size",
+        "16",
+        "--gomea-skip-inactive",
+        "0",
+        "--gomea-fos",
+        "uni",
+        "--gomea-max-evals-per-deme",
+        "250",
+        "--gomea-genotype-memo",
+        "1"
+      ]
+    },
+    "UNI-C500": {
+      "argv": [
+        "-a",
+        "gomea",
+        "--gomea-pop-size",
+        "16",
+        "--gomea-skip-inactive",
+        "0",
+        "--gomea-fos",
+        "uni",
+        "--gomea-max-evals-per-deme",
+        "500"
+      ]
+    },
+    "UNI-C500-M": {
+      "argv": [
+        "-a",
+        "gomea",
+        "--gomea-pop-size",
+        "16",
+        "--gomea-skip-inactive",
+        "0",
+        "--gomea-fos",
+        "uni",
+        "--gomea-max-evals-per-deme",
+        "500",
+        "--gomea-genotype-memo",
+        "1"
+      ]
+    },
+    "UNI-S200-M": {
+      "argv": [
+        "-a",
+        "gomea",
+        "--gomea-pop-size",
+        "16",
+        "--gomea-skip-inactive",
+        "0",
+        "--gomea-fos",
+        "uni",
+        "--gomea-stall-evals",
+        "200",
+        "--gomea-genotype-memo",
+        "1"
+      ]
+    }
+  },
+  "budget": {
+    "argv": [
+      "-m",
+      "20000"
+    ],
+    "kind": "evaluations"
+  },
+  "commit": "8224f3fbf5bb600f75f4a316eb9284bbebe3eb11",
+  "common_argv": [
+    "-l",
+    "WARN"
+  ],
+  "name": "phase1e-stage1",
+  "output_root": "../gomea-results",
+  "phase": 1,
+  "schema_version": 1,
+  "seeds": [
+    2001,
+    2002,
+    2003,
+    2004,
+    2005,
+    2006,
+    2007,
+    2008,
+    2009,
+    2010
+  ],
+  "tasks": {
+    "maj5": {
+      "argv": [
+        "-H",
+        "maj",
+        "-k",
+        "5"
+      ],
+      "target_raw": 0
+    },
+    "mux6": {
+      "argv": [
+        "-H",
+        "mux",
+        "-k",
+        "2"
+      ],
+      "target_raw": 0
+    },
+    "pa4": {
+      "argv": [
+        "-H",
+        "pa",
+        "-k",
+        "4"
+      ],
+      "target_raw": 0
+    }
+  },
+  "wall_cap_s": 3600,
+  "workers": 14
+}
