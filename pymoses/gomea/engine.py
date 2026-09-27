@@ -34,6 +34,9 @@ class EngineParams:
     skip_inactive: bool = True
     max_generations: int = 100
     stall_generations: int = 5
+    # Phase 1d ablation (hypothesis E): "nonworse" (default) or "strict";
+    # see ``gom``.
+    acceptance: str = "nonworse"
 
 
 @dataclass
@@ -223,7 +226,14 @@ def perform_generation(
     for parent in P:
         try:
             off, changed, _ = gom(
-                parent, donors, F, eng.ev, eng.rng_var, stats, eng.params.skip_inactive
+                parent,
+                donors,
+                F,
+                eng.ev,
+                eng.rng_var,
+                stats,
+                eng.params.skip_inactive,
+                eng.params.acceptance,
             )
             eng.offer_elite(off)
             if (

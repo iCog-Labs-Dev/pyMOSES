@@ -38,6 +38,9 @@ from pymoses.moses.scoring.behave_cscore import behave_cscore
 REPO = Path(__file__).resolve().parents[2]
 TABLE_DATA = REPO / "tests" / "fixtures" / "table_data"
 HELP_BASE = Path(__file__).resolve().parent / "data" / "help_base.out"
+# `-H pa -k 3 -a gomea --gomea-pop-size 16 -m 3000 -r 5` stdout, captured at
+# commit ce698be, before the Phase 1d ablation options existed.
+GOMEA_PHASE1_REF = Path(__file__).resolve().parent / "data" / "gomea_pa3_pop16_m3000_r5.out"
 
 # ---------------------------------------------------------------------------
 # -a hc stdout captured at commit 0410881, before any GOMEA code existed.
@@ -233,6 +236,9 @@ def test_help_only_adds_gomea_lines():
         "--gomea-stall-gens",
         "--gomea-max-evals-per-deme",
         "--gomea-log",
+        "--gomea-init",
+        "--gomea-accept",
+        "--gomea-genotype-memo",
     ):
         assert any(line.strip().startswith(flag + " ") for line in added), flag
 
@@ -392,8 +398,62 @@ def test_hidden_aliases_do_not_show_in_help():
         ["--gomea-pop-size", "1"],
         ["--gomea-max-evals-per-deme", "-3"],
         ["--gomea-radii", "nonsense"],
+        ["--gomea-init", "random"],
+        ["--gomea-accept", "greedy"],
+        ["--gomea-genotype-memo", "2"],
     ],
 )
 def test_bad_gomea_options_are_rejected(bad):
     with pytest.raises(ValueError):
         _run(["-H", "pa", "-k", "2", "-a", "gomea", "-m", "10", *bad])
+
+
+# ---------------------------------------------------------------------------
+# Phase 1d ablation options: defaults reproduce Phase 1 bit for bit.
+# ---------------------------------------------------------------------------
+
+_PA3_POP16 = ["-H", "pa", "-k", "3", "-a", "gomea", "--gomea-pop-size", "16", "-m", "3000",
+              "-r", "5"]  # fmt: skip
+
+
+@pytest.mark.parametrize(
+    "extra",
+    [
+        [],
+        ["--gomea-init", "sampler", "--gomea-accept", "nonworse", "--gomea-genotype-memo", "0"],
+    ],
+    ids=["implicit-defaults", "explicit-defaults"],
+)
+def test_gomea_defaults_reproduce_phase1_stdout(extra):
+    rc, stdout = _run([*_PA3_POP16, *extra])
+    assert rc == 0
+    assert stdout == GOMEA_PHASE1_REF.read_text()
+
+
+def test_ablation_options_parse_and_reach_gomea_parameters():
+    from pymoses.moses.main.problem_params import _gomea_params_from_args
+
+    ns = _cli_parser(True).parse_args(
+        ["--gomea-init", "uniform", "--gomea-accept", "strict", "--gomea-genotype-memo", "1"]
+    )
+    gp = _gomea_params_from_args(ns)
+    assert (gp.init_mode, gp.acceptance, gp.genotype_memo) == ("uniform", "strict", True)
+    gp0 = _gomea_params_from_args(_cli_parser(True).parse_args([]))
+    assert (gp0.init_mode, gp0.acceptance, gp0.genotype_memo) == ("sampler", "nonworse", False)
+    assert _gomea_params_from_args(argparse.Namespace()).init_mode == "sampler"
+
+
+@pytest.mark.parametrize(
+    "extra",
+    [["--gomea-init", "uniform"], ["--gomea-accept", "strict"], ["--gomea-genotype-memo", "1"]],
+)
+def test_each_ablation_option_runs_end_to_end(extra, tmp_path):
+    log = tmp_path / "g.jsonl"
+    argv = ["-H", "pa", "-k", "3", "-a", "gomea", "-m", "600", "-r", "1", "--gomea-log", str(log)]
+    rc, stdout = _run([*argv, *extra])
+    assert rc == 0 and stdout
+    events = _events(log)
+    start = next(e for e in events if e["type"] == "invocation_start")
+    assert {"init_mode", "acceptance", "genotype_memo"} <= set(start["params"])
+    ends = [e for e in events if e["type"] == "end"]
+    assert ends and all("memo_hits" in e["ledger"] for e in ends)

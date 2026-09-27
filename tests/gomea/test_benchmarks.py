@@ -533,6 +533,9 @@ class TestRunnerEndToEnd:
         assert summary["status"] == "ok"
         assert summary["n_calls"] > 0
         assert summary["run_id"] == "pa2__HC__s1"
+        assert summary["scorer_calls_total"] == summary["n_calls"]
+        assert summary["deme_count"] >= 1
+        assert 0 <= summary["scorer_duplicate_calls"] < summary["n_calls"]
         assert (rd / "runs" / "pa2__HC__s1" / "config.json").exists()
         assert (rd / "runs" / "pa2__HC__s1" / "stdout.txt").exists()
         assert (rd / "runs" / "pa2__HC__s1" / "trace.jsonl").exists()
@@ -771,6 +774,9 @@ class TestRunnerEndToEnd:
         assert summary["gomea"] is not None
         assert summary["gomea"]["event_counts"].get("end", 0) >= 1
         assert summary["gomea"]["termination_reasons"]
+        assert summary["scorer_calls_total"] == summary["n_calls"]
+        assert summary["deme_count"] >= 1
+        assert 0 <= summary["scorer_duplicate_calls"] < summary["n_calls"]
 
 
 # ---------------------------------------------------------------------------
@@ -1066,6 +1072,75 @@ def _write_manifest(tmp_path, m) -> Path:
     p = tmp_path / "manifest.json"
     p.write_text(json.dumps(m))
     return p
+
+
+class TestScorerDuplicateCounter:
+    """Phase 1d: the harness duplicate counter, fair to every arm because it
+    wraps the one shared scorer seam."""
+
+    def test_same_instance_twice_on_one_scorer_is_one_duplicate(self, make_boolean_rep):
+        rep = make_boolean_rep("and($1 $2)", 2)
+        scores = [composite_score(-float(i), 1, 0.0, 0.0) for i in range(5)]
+        scorer = complexity_based_scorer(_sequence_cscore(scores), rep, True)
+        trace = ScorerTrace()
+        a = instance(rep.fields().packed_width())
+        b = instance(a)
+        b[0] = 1
+        with instrument_scorer(trace):
+            scorer(a)
+            scorer(a)
+            scorer(b)
+        assert trace.n_calls == 3
+        assert trace.scorer_duplicate_calls == 1
+        assert trace.deme_count == 1
+        # Scores and improvement events are exactly what they were before.
+        assert [ev["raw"] for ev in trace.events] == [0.0]
+
+    def test_two_scorer_objects_are_two_demes_with_separate_seen_sets(self, make_boolean_rep):
+        rep = make_boolean_rep("and($1 $2)", 2)
+        mk = lambda: complexity_based_scorer(  # noqa: E731
+            _sequence_cscore([composite_score(-1.0, 1, 0.0, 0.0)] * 3), rep, True
+        )
+        s1, s2 = mk(), mk()
+        trace = ScorerTrace()
+        inst = instance(rep.fields().packed_width())
+        with instrument_scorer(trace):
+            s1(inst)
+            s2(inst)  # same instance, different deme scorer: not a duplicate
+            s2(inst)  # duplicate within s2
+        assert trace.n_calls == 3
+        assert trace.deme_count == 2
+        assert trace.scorer_duplicate_calls == 1
+
+    @pytest.mark.parametrize("algo", ["hc", "gomea"])
+    def test_real_moses_runs_get_the_fields(self, algo, tmp_path, monkeypatch):
+        import contextlib
+
+        from pymoses.moses.main.moses_exec import moses_exec
+
+        monkeypatch.chdir(tmp_path)
+        log = tmp_path / "g.jsonl"
+        argv = ["moses", "-H", "pa", "-k", "3", "-a", algo, "-m", "800", "-r", "1"]
+        if algo == "gomea":
+            argv += ["--gomea-log", str(log)]
+        trace = ScorerTrace()
+        with contextlib.redirect_stdout(io.StringIO()), instrument_scorer(trace):
+            assert moses_exec(argv) == 0
+        assert trace.n_calls > 0
+        assert trace.deme_count >= 1
+        assert 0 <= trace.scorer_duplicate_calls < trace.n_calls
+        if algo == "gomea":
+            # One oracle per deme scorer: the harness count agrees with the
+            # oracle's own charged-duplicate ledger.
+            ends = [
+                json.loads(line)
+                for line in log.read_text().splitlines()
+                if json.loads(line)["type"] == "end"
+            ]
+            assert trace.deme_count == len(ends)
+            assert trace.scorer_duplicate_calls == sum(
+                e["ledger"]["duplicate_requests"] for e in ends
+            )
 
 
 class TestCpuTimeEvidence:

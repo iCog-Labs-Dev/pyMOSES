@@ -115,6 +115,9 @@ def test_default_parameters():
     assert gp.stall_generations == 5
     assert gp.max_evals_per_deme is None
     assert gp.telemetry_path is None
+    assert gp.init_mode == "sampler"
+    assert gp.acceptance == "nonworse"
+    assert gp.genotype_memo is False
 
 
 def test_cli_skip_inactive_defaults_off_and_stays_available():
@@ -150,6 +153,8 @@ def test_cli_skip_inactive_defaults_off_and_stays_available():
         {"stall_generations": 0},
         {"max_evals_per_deme": 0},
         {"radii": "1:0.5,x"},
+        {"init_mode": "random"},
+        {"acceptance": "greedy"},
     ],
 )
 def test_invalid_parameters_raise_value_error(kwargs):
@@ -586,3 +591,64 @@ def test_telemetry_sink_appends_json_lines(tmp_path):
         {"type": "a", "x": 1},
         {"type": "b", "y": {"2": 3}},
     ]
+
+
+# ---------------------------------------------------------------------------
+# Phase 1d ablation options
+# ---------------------------------------------------------------------------
+
+
+def test_init_event_records_the_init_mode(pa3, tmp_path):
+    for mode in ("sampler", "uniform"):
+        path = str(tmp_path / f"{mode}.jsonl")
+        _run(pa3, 5, gomea_parameters(init_mode=mode, telemetry_path=path), max_evals=100)
+        (init,) = [e for e in _events(path) if e["type"] == "init"]
+        assert init["init_mode"] == mode
+        assert init["radii"][0] == 0
+
+
+def test_uniform_init_changes_the_population_and_is_deterministic(pa3, tmp_path):
+    def run(mode, tag=""):
+        path = str(tmp_path / f"u-{mode}{tag}.jsonl")
+        gp = gomea_parameters(init_mode=mode, telemetry_path=path)
+        opt, deme = _run(pa3, 5, gp, max_evals=100)
+        (init,) = [e for e in _events(path) if e["type"] == "init"]
+        return init, deme
+
+    s_init, s_deme = run("sampler")
+    u_init, u_deme = run("uniform")
+    u_init2, u_deme2 = run("uniform", "-again")
+    assert u_init["radii"] != s_init["radii"]
+    assert _deme_contents(u_deme) == _deme_contents(u_deme2)
+    assert u_init["coverage_replacements"] == 0
+
+
+def test_genotype_memo_leaves_the_deme_equal_to_charged_requests(pa3):
+    gp = gomea_parameters(genotype_memo=True, fos="uni")
+    opt, deme = _run(pa3, 3, gp, max_evals=600)
+    ledger = opt.last_result["ledger"]
+    assert ledger["duplicate_requests"] == 0
+    assert ledger["memo_hits"] > 0
+    assert len(deme) == ledger["requests"] == deme.n_evals
+    assert len({tuple(si.first) for si in deme}) == len(deme)
+
+
+def test_memo_hits_is_zero_with_the_memo_off(pa3):
+    opt, deme = _run(pa3, 3, gomea_parameters(fos="uni"), max_evals=600)
+    assert opt.last_result["ledger"]["memo_hits"] == 0
+    assert len(deme) == opt.last_result["ledger"]["requests"]
+
+
+def test_strict_acceptance_reaches_the_engine(pa3, monkeypatch):
+    import pymoses.gomea.engine as engine_mod
+
+    seen = set()
+    real = engine_mod.gom
+
+    def spy(*args):
+        seen.add(args[-1])
+        return real(*args)
+
+    monkeypatch.setattr(engine_mod, "gom", spy)
+    _run(pa3, 3, gomea_parameters(acceptance="strict"), max_evals=300)
+    assert seen == {"strict"}

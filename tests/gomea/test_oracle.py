@@ -123,6 +123,7 @@ def test_ledger_starts_at_all_zeros():
         "cache_hits": 0,
         "cache_misses": 0,
         "duplicate_requests": 0,
+        "memo_hits": 0,
     }
 
 
@@ -163,6 +164,93 @@ def test_duplicate_requests_counts_repeat_genotypes_without_changing_charging(
     with pytest.raises(BudgetExhausted):
         capped.evaluate(a)
     assert capped.ledger.duplicate_requests == 0
+
+
+def _two_genotypes(schema):
+    a = schema.default_genotype()
+    b = next(
+        g
+        for g in (
+            tuple(random.Random(s).randrange(k) for k in schema.domains) for s in range(100)
+        )
+        if g != a
+    )
+    return a, b
+
+
+def test_genotype_memo_returns_a_stored_copy_without_charging_or_archiving(make_boolean_rep):
+    """Phase 1d, hypothesis C: with the memo on, a genotype already
+    evaluated in this oracle is answered from the memo -- no scorer call,
+    no budget charge, no second deme entry -- and counted in ``memo_hits``."""
+    rep = make_boolean_rep("and($1 $2)", 2)
+    schema = FrozenSchema(rep)
+    iscorer = _real_iscorer(rep)
+    calls = []
+
+    def counting(inst):
+        calls.append(inst)
+        return iscorer(inst)
+
+    deme = _make_deme(schema)
+    oracle = EvaluationOracle(
+        schema, counting, deme, max_evals=1000, max_time=3600.0, genotype_memo=True
+    )
+    a, b = _two_genotypes(schema)
+    scores = [oracle.evaluate(g) for g in (a, b, a, a, b)]
+
+    assert len(calls) == 2
+    assert oracle.ledger.requests == 2
+    assert oracle.ledger.memo_hits == 3
+    assert oracle.ledger.duplicate_requests == 0
+    assert oracle.ledger.as_dict()["memo_hits"] == 3
+    assert len(deme) == 2
+    assert scores[2] == scores[0] and scores[4] == scores[1]
+    # Copies: mutating a returned score never reaches the memo.
+    assert scores[2] is not scores[0] and scores[3] is not scores[2]
+    scores[2].set_score(123.0)
+    assert oracle.evaluate(a) == scores[0]
+    oracle.finalize()
+    assert deme.n_evals == 2
+
+
+def test_genotype_memo_hit_is_free_even_when_the_budget_is_spent(make_boolean_rep):
+    rep = make_boolean_rep("and($1 $2)", 2)
+    schema = FrozenSchema(rep)
+    oracle = EvaluationOracle(
+        schema, _real_iscorer(rep), _make_deme(schema), 1, 3600.0, genotype_memo=True
+    )
+    a, b = _two_genotypes(schema)
+    oracle.evaluate(a)
+    assert oracle.evaluate(a) is not None  # a memo hit spends nothing
+    with pytest.raises(BudgetExhausted):
+        oracle.evaluate(b)
+    assert oracle.ledger.requests == 1 and oracle.ledger.memo_hits == 1
+
+
+def test_genotype_memo_off_is_the_default_and_keeps_charging_duplicates(make_boolean_rep):
+    rep = make_boolean_rep("and($1 $2)", 2)
+    schema = FrozenSchema(rep)
+    deme = _make_deme(schema)
+    oracle = EvaluationOracle(schema, _real_iscorer(rep), deme, 1000, 3600.0)
+    a, b = _two_genotypes(schema)
+    for g in (a, b, a, a, b):
+        oracle.evaluate(g)
+    assert oracle.ledger.requests == 5
+    assert oracle.ledger.duplicate_requests == 3
+    assert oracle.ledger.memo_hits == 0
+    assert len(deme) == 5
+
+
+def test_genotype_memo_is_per_oracle(make_boolean_rep):
+    rep = make_boolean_rep("and($1 $2)", 2)
+    schema = FrozenSchema(rep)
+    iscorer = _real_iscorer(rep)
+    a, _ = _two_genotypes(schema)
+    first = EvaluationOracle(schema, iscorer, _make_deme(schema), 10, 3600.0, genotype_memo=True)
+    first.evaluate(a)
+    second = EvaluationOracle(schema, iscorer, _make_deme(schema), 10, 3600.0, genotype_memo=True)
+    second.evaluate(a)
+    assert second.ledger.requests == 1 and second.ledger.memo_hits == 0
 
 
 # ---------------------------------------------------------------------------

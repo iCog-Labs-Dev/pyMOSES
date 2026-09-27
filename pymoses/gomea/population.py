@@ -21,6 +21,11 @@ population member a coverage fix replaces -- goes through the ``rng``
 argument ``build_population`` is explicitly given. A caller that wants a
 fully reproducible run seeds both.
 
+``build_uniform_population`` is the one exception to "around the
+exemplar": the Phase 1d ``--gomea-init uniform`` ablation, which draws the
+non-default genotypes uniformly over the whole legal space from ``rng``
+alone and never calls the sampler.
+
 No fitness. ``build_population`` never scores a genotype, never imports a
 scorer, and never looks at one -- it is a population of DISTINCT LEGAL
 GENOTYPES drawn around the exemplar at a mixture of radii, nothing more.
@@ -376,5 +381,67 @@ def build_population(
         duplicates_rejected=duplicates_rejected,
         coverage_replacements=coverage_replacements,
         feasible_short=feasible_short,
+        diagnostics=diagnostics,
+    )
+
+
+INIT_MODES = ("sampler", "uniform")
+
+
+def build_uniform_population(
+    schema: FrozenSchema,
+    n: int,
+    rng: MT19937RandGen,
+    dedupe: bool = True,
+    attempt_cap_multiple: int = 20,
+) -> InitResult:
+    """Phase 1d ablation (``--gomea-init uniform``, hypothesis A): an
+    ``n``-member population drawn uniformly over the whole legal genotype
+    space instead of around the exemplar.
+
+    Slot 0 is still the default (exemplar) genotype. Every other slot has
+    each knob ``k`` drawn independently and uniformly from ``0 ..
+    schema.domains[k] - 1`` with ``rng.randint_n`` -- MOSES's neighbourhood
+    sampler (and so the process-wide ``randGen()``) is never used. Dedupe,
+    the ``attempt_cap_multiple * n`` fill budget and ``feasible_short``
+    behave exactly as in ``build_population``. There is no coverage pass
+    (``coverage_replacements`` is always 0), but the same diagnostics are
+    reported; ``radii[i]`` is the Hamming distance of ``genotypes[i]`` from
+    the default genotype, so ``radius_histogram`` stays comparable with
+    sampler mode.
+
+    Never scores anything.
+    """
+    g0 = schema.default_genotype()
+    population: list[tuple[int, ...]] = [g0]
+    attempts = 0
+    duplicates_rejected = 0
+
+    if schema.dim > 0:
+        seen: set[tuple[int, ...]] = {g0}
+        fill_budget = attempt_cap_multiple * n
+        while len(population) < n and attempts < fill_budget:
+            g = tuple(rng.randint_n(d) for d in schema.domains)
+            attempts += 1
+            if dedupe and g in seen:
+                duplicates_rejected += 1
+                continue
+            population.append(g)
+            seen.add(g)
+
+    radii = [sum(v != d for v, d in zip(g, g0, strict=True)) for g in population]
+    constant = _constant_fields(population, schema.dim)
+    diagnostics = field_diagnostics(population, schema.domains)
+    diagnostics["constant_fields_before_coverage"] = constant
+    diagnostics["constant_fields_after_coverage"] = list(constant)
+    diagnostics["radius_histogram"] = dict(sorted(Counter(radii).items()))
+
+    return InitResult(
+        genotypes=population,
+        radii=radii,
+        attempts=attempts,
+        duplicates_rejected=duplicates_rejected,
+        coverage_replacements=0,
+        feasible_short=len(population) < n,
         diagnostics=diagnostics,
     )

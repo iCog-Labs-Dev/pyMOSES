@@ -337,7 +337,35 @@ _GOMEA_OPTIONS = (
         "",
         "append JSON-lines GOMEA telemetry to this file.",
     ),
+    # Phase 1d ablation options (off by default: a default run reproduces
+    # Phase 1 bit for bit).
+    (
+        "--gomea-init",
+        "gomea_init",
+        str,
+        "sampler",
+        "initial population: sampler (MOSES neighbourhood sampler around the "
+        "exemplar) or uniform (each knob uniform over its domain). Default sampler.",
+    ),
+    (
+        "--gomea-accept",
+        "gomea_accept",
+        str,
+        "nonworse",
+        "GOM acceptance: nonworse (keep equal-score trials) or strict (keep only "
+        "strict improvements). Default nonworse.",
+    ),
+    (
+        "--gomea-genotype-memo",
+        "gomea_genotype_memo",
+        int,
+        0,
+        "1 = answer a genotype already evaluated in this deme from a memo, "
+        "uncharged (GOMEA-only mechanism test). Default 0.",
+    ),
 )
+_GOMEA_INIT_CHOICES = ("sampler", "uniform")
+_GOMEA_ACCEPT_CHOICES = ("nonworse", "strict")
 
 
 class _ClassicPrefixAlias(argparse.Action):
@@ -394,7 +422,15 @@ def _gomea_params_from_args(args: argparse.Namespace) -> gomea_parameters:
             f"--gomea-fos {v['gomea_fos']} is not recognized. "
             f"Supported: {', '.join(_GOMEA_FOS_CHOICES)}."
         )
-    for dest in ("gomea_fi", "gomea_skip_inactive"):
+    for flag, dest, choices in (
+        ("--gomea-init", "gomea_init", _GOMEA_INIT_CHOICES),
+        ("--gomea-accept", "gomea_accept", _GOMEA_ACCEPT_CHOICES),
+    ):
+        if v[dest] not in choices:
+            raise ValueError(
+                f"{flag} {v[dest]} is not recognized. Supported: {', '.join(choices)}."
+            )
+    for dest in ("gomea_fi", "gomea_skip_inactive", "gomea_genotype_memo"):
         if v[dest] not in (0, 1):
             raise ValueError(f"--{dest.replace('_', '-')} must be 0 or 1, got {v[dest]}")
     if v["gomea_max_evals_per_deme"] < 0:
@@ -412,6 +448,9 @@ def _gomea_params_from_args(args: argparse.Namespace) -> gomea_parameters:
         stall_generations=v["gomea_stall_gens"],
         max_evals_per_deme=v["gomea_max_evals_per_deme"] or None,
         telemetry_path=v["gomea_log"] or None,
+        init_mode=v["gomea_init"],
+        acceptance=v["gomea_accept"],
+        genotype_memo=bool(v["gomea_genotype_memo"]),
     )
 
 

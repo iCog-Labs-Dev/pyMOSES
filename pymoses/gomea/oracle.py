@@ -71,6 +71,12 @@ class EvaluationLedger:
     (protocol Sec 94: requests reported separately from actual work, since
     the demo problems run with the score cache off). A counter only: a
     duplicate is still scored, archived and charged like any request.
+
+    ``memo_hits`` counts ``evaluate()`` calls answered from the genotype
+    memo (``EvaluationOracle(genotype_memo=True)``, the Phase 1d
+    hypothesis-C ablation): never scored, charged or archived, so never
+    part of ``requests`` or ``duplicate_requests``. Always 0 with the memo
+    off.
     """
 
     requests: int = 0
@@ -80,6 +86,7 @@ class EvaluationLedger:
     cache_hits: int = 0
     cache_misses: int = 0
     duplicate_requests: int = 0
+    memo_hits: int = 0
 
     def as_dict(self) -> dict:
         return {
@@ -90,6 +97,7 @@ class EvaluationLedger:
             "cache_hits": self.cache_hits,
             "cache_misses": self.cache_misses,
             "duplicate_requests": self.duplicate_requests,
+            "memo_hits": self.memo_hits,
         }
 
 
@@ -102,6 +110,14 @@ class EvaluationOracle:
     GOMEA optimizer (initial population, GOM variation, later tasks) shares
     identical budget, archival and counting behaviour instead of
     re-implementing it.
+
+    ``genotype_memo`` (off by default) is a GOMEA-only mechanism test for
+    Phase 1d (hypothesis C), not a MOSES feature: when on, a genotype this
+    oracle already evaluated is answered with a copy of its stored score,
+    with no scorer call, no budget charge (so even when the budget is
+    spent) and no second deme entry, and counted in ``ledger.memo_hits``.
+    The memo belongs to this oracle, i.e. to one deme/invocation; it is
+    never shared across demes or schemas.
     """
 
     def __init__(
@@ -113,6 +129,7 @@ class EvaluationOracle:
         max_time: float,
         inner_cap: int | None = None,
         clock: Callable[[], float] = time.monotonic,
+        genotype_memo: bool = False,
     ) -> None:
         self.schema = schema
         self.iscorer = iscorer
@@ -129,6 +146,8 @@ class EvaluationOracle:
         # Every genotype that reached the scorer so far, for
         # ``ledger.duplicate_requests``.
         self._seen: set[tuple[int, ...]] = set()
+        # Genotype -> stored score, only when ``genotype_memo`` is on.
+        self._memo: dict[tuple[int, ...], composite_score] | None = {} if genotype_memo else None
 
     def check(self) -> str | None:
         """The budget reason that would stop evaluation right now, or
@@ -158,7 +177,17 @@ class EvaluationOracle:
         score -- the caller may freely mutate it; the deme's own copy
         (and this oracle's own ``best_so_far`` bookkeeping) are each
         separate objects, never the same one.
+
+        With ``genotype_memo`` on, a genotype already evaluated by this
+        oracle returns a copy of its stored score first, before the budget
+        check, and touches nothing but ``ledger.memo_hits``.
         """
+        if self._memo is not None:
+            stored = self._memo.get(tuple(g))
+            if stored is not None:
+                self.ledger.memo_hits += 1
+                return copy.copy(stored)
+
         reason = self.check()
         if reason is not None:
             raise BudgetExhausted(reason)
@@ -188,6 +217,8 @@ class EvaluationOracle:
             self.ledger.invalid += 1
 
         self.deme.append(scored_instance(self.schema.to_instance(g), copy.copy(score)))
+        if self._memo is not None:
+            self._memo[key] = copy.copy(score)
 
         if self._best is None or self._best < score:
             self._best = copy.copy(score)

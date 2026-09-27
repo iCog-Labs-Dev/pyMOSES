@@ -22,9 +22,15 @@ from collections import Counter
 from collections.abc import Hashable, Sequence
 
 from pymoses.gomea.engine import EngineParams, GomeaEngine
-from pymoses.gomea.gom import Individual
+from pymoses.gomea.gom import ACCEPTANCE_MODES, Individual
 from pymoses.gomea.oracle import BudgetExhausted, EvaluationOracle
-from pymoses.gomea.population import InitResult, build_population, parse_radii
+from pymoses.gomea.population import (
+    INIT_MODES,
+    InitResult,
+    build_population,
+    build_uniform_population,
+    parse_radii,
+)
 from pymoses.gomea.schema import FrozenSchema
 from pymoses.gomea.telemetry import TelemetrySink
 from pymoses.moses.moses.optimization.optimization import (
@@ -75,7 +81,14 @@ class gomea_parameters:
 
     ``pop_size`` defaults to 16: the Phase 1 pilot found N=16 best of
     {16, 32, 64} under a 20k-evaluation budget
-    (``docs/gomea/pilot-a/aggregate_results.csv``)."""
+    (``docs/gomea/pilot-a/aggregate_results.csv``).
+
+    Phase 1d ablation options, each off by default so a default run
+    reproduces Phase 1 bit for bit: ``init_mode`` (``"sampler"``, or
+    ``"uniform"`` for ``build_uniform_population``; hypothesis A),
+    ``acceptance`` (``"nonworse"``, or ``"strict"``, see ``gom``;
+    hypothesis E) and ``genotype_memo`` (``EvaluationOracle``'s
+    GOMEA-only genotype memo; hypothesis C)."""
 
     def __init__(
         self,
@@ -89,6 +102,9 @@ class gomea_parameters:
         stall_generations: int = 5,
         max_evals_per_deme: int | None = None,
         telemetry_path: str | None = None,
+        init_mode: str = "sampler",
+        acceptance: str = "nonworse",
+        genotype_memo: bool = False,
     ) -> None:
         if pop_size < 2:
             raise ValueError(f"pop_size must be >= 2, got {pop_size}")
@@ -100,6 +116,10 @@ class gomea_parameters:
             raise ValueError(f"stall_generations must be >= 1, got {stall_generations}")
         if max_evals_per_deme is not None and max_evals_per_deme < 1:
             raise ValueError(f"max_evals_per_deme must be None or >= 1, got {max_evals_per_deme}")
+        if init_mode not in INIT_MODES:
+            raise ValueError(f"init_mode must be one of {INIT_MODES}, got {init_mode!r}")
+        if acceptance not in ACCEPTANCE_MODES:
+            raise ValueError(f"acceptance must be one of {ACCEPTANCE_MODES}, got {acceptance!r}")
         parse_radii(radii)
 
         self.pop_size = pop_size
@@ -112,6 +132,9 @@ class gomea_parameters:
         self.stall_generations = stall_generations
         self.max_evals_per_deme = max_evals_per_deme
         self.telemetry_path = telemetry_path
+        self.init_mode = init_mode
+        self.acceptance = acceptance
+        self.genotype_memo = bool(genotype_memo)
 
     def as_dict(self) -> dict:
         return dict(vars(self))
@@ -237,7 +260,13 @@ class gomea_optimization(optimizer_base):
 
         sink = TelemetrySink(gp.telemetry_path)
         oracle = EvaluationOracle(
-            schema, iscorer, deme, max_evals, max_time, inner_cap=gp.max_evals_per_deme
+            schema,
+            iscorer,
+            deme,
+            max_evals,
+            max_time,
+            inner_cap=gp.max_evals_per_deme,
+            genotype_memo=gp.genotype_memo,
         )
         ev = _OracleEvaluator(oracle, schema, gp.skip_inactive)
         sink.emit(
@@ -252,11 +281,15 @@ class gomea_optimization(optimizer_base):
         )
 
         t0 = time.perf_counter()
-        init = build_population(schema, gp.pop_size, parse_radii(gp.radii), rng_init, gp.dedupe)
+        if gp.init_mode == "uniform":
+            init = build_uniform_population(schema, gp.pop_size, rng_init, gp.dedupe)
+        else:
+            init = build_population(schema, gp.pop_size, parse_radii(gp.radii), rng_init, gp.dedupe)
         init_s = time.perf_counter() - t0
         sink.emit(
             "init",
             schema_id=schema.schema_id,
+            init_mode=gp.init_mode,
             n=len(init.genotypes),
             radii=init.radii,
             attempts=init.attempts,
@@ -308,6 +341,7 @@ class gomea_optimization(optimizer_base):
                         skip_inactive=gp.skip_inactive,
                         max_generations=gp.max_generations,
                         stall_generations=gp.stall_generations,
+                        acceptance=gp.acceptance,
                     ),
                     ev,
                     rng_var,

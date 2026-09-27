@@ -20,6 +20,7 @@ from __future__ import annotations
 import contextlib
 import copy
 import time
+import weakref
 from collections.abc import Callable, Iterator
 from typing import TYPE_CHECKING
 
@@ -60,6 +61,13 @@ class ScorerTrace:
     trajectory are genuinely different curves, and this harness needs both:
     raw score for task-success thresholds (``first_hit``), the comparator
     for what MOSES itself actually treats as progress.
+
+    Phase 1d duplicate counter, identical for every arm: ``deme_count`` is
+    the number of distinct scorer objects seen (``deme_expander`` builds one
+    ``complexity_based_scorer`` per deme), and ``scorer_duplicate_calls``
+    counts calls whose instance words that same scorer object had already
+    scored. Tracked by ``record_instance``; it never changes a score, a
+    call count or an event.
     """
 
     def __init__(self, sink: Callable[[dict], None] | None = None) -> None:
@@ -77,6 +85,26 @@ class ScorerTrace:
         self._start: float = 0.0
         self._cpu_start: float = 0.0
         self._sink = sink
+        self.deme_count = 0
+        self.scorer_duplicate_calls = 0
+        # Per-scorer-object seen-sets of `tuple(inst)`; weak keys, so a
+        # finished deme's scorer (and its set) is freed and a recycled
+        # `id()` can never be confused with it.
+        self._seen_by_scorer: weakref.WeakKeyDictionary = weakref.WeakKeyDictionary()
+
+    def record_instance(self, scorer: object, inst) -> None:
+        """Called once per scorer invocation, with the scorer object and
+        the instance it was asked to score, to maintain ``deme_count`` and
+        ``scorer_duplicate_calls``."""
+        seen = self._seen_by_scorer.get(scorer)
+        if seen is None:
+            seen = self._seen_by_scorer[scorer] = set()
+            self.deme_count += 1
+        key = tuple(inst)
+        if key in seen:
+            self.scorer_duplicate_calls += 1
+        else:
+            seen.add(key)
 
     def best_pen(self) -> float | None:
         """The penalized score of the best-by-comparator call so far, or
@@ -213,6 +241,7 @@ def instrument_scorer(trace: ScorerTrace) -> Iterator[ScorerTrace]:
 
     def wrapped(self, inst):
         score = original(self, inst)
+        trace.record_instance(self, inst)
         trace.record(score)
         return score
 

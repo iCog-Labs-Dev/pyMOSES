@@ -18,6 +18,7 @@ from pymoses.comboreduct.type_checker.type_signature import gen_signature, type_
 from pymoses.gomea.population import (
     InitResult,
     build_population,
+    build_uniform_population,
     choose_radius,
     field_diagnostics,
     parse_radii,
@@ -396,3 +397,87 @@ def test_init_result_is_a_dataclass_with_the_documented_fields():
         "diagnostics",
     ):
         assert name in fields
+
+
+# ---------------------------------------------------------------------------
+# build_uniform_population -- the Phase 1d `--gomea-init uniform` ablation
+# ---------------------------------------------------------------------------
+
+
+def test_uniform_every_genotype_is_legal_and_index_zero_is_the_default(big_schema):
+    result = build_uniform_population(big_schema, 40, MT19937RandGen(1))
+
+    assert len(result.genotypes) == 40
+    assert result.genotypes[0] == big_schema.default_genotype()
+    assert result.radii[0] == 0
+    for g in result.genotypes:
+        big_schema.to_instance(g)  # raises on an out-of-domain value
+        assert all(0 <= v < d for v, d in zip(g, big_schema.domains, strict=True))
+    assert len(result.genotypes) == len(set(result.genotypes))
+    assert not result.feasible_short
+    assert result.coverage_replacements == 0
+
+
+def test_uniform_radii_are_hamming_distances_and_diagnostics_match_sampler_keys(big_schema):
+    result = build_uniform_population(big_schema, 20, MT19937RandGen(2))
+    default = big_schema.default_genotype()
+    for g, r in zip(result.genotypes, result.radii, strict=True):
+        assert _hamming(g, default) == r
+
+    sampler = build_population(big_schema, 20, DEFAULT_MIX, MT19937RandGen(2))
+    assert set(result.diagnostics) == set(sampler.diagnostics)
+    assert (
+        result.diagnostics["constant_fields_before_coverage"]
+        == result.diagnostics["constant_fields_after_coverage"]
+    )
+
+
+def test_uniform_draws_are_deterministic_under_a_seed_and_never_touch_the_global_rng(
+    big_schema,
+):
+    randGen().seed(7)
+    a = build_uniform_population(big_schema, 20, MT19937RandGen(5))
+    after_a = randGen().randint()
+    randGen().seed(7)
+    b = build_uniform_population(big_schema, 20, MT19937RandGen(5))
+    after_b = randGen().randint()
+    randGen().seed(7)
+    untouched = randGen().randint()
+
+    assert a.genotypes == b.genotypes and a.attempts == b.attempts
+    # MOSES's sampler (which draws from the global RNG) is never used.
+    assert after_a == after_b == untouched
+    c = build_uniform_population(big_schema, 20, MT19937RandGen(6))
+    assert c.genotypes != a.genotypes
+
+
+def test_uniform_differs_from_sampler_mode(big_schema):
+    randGen().seed(3)
+    sampler = build_population(big_schema, 20, DEFAULT_MIX, MT19937RandGen(3))
+    uniform = build_uniform_population(big_schema, 20, MT19937RandGen(3))
+    assert sampler.genotypes != uniform.genotypes
+    # Uniform draws land far from the exemplar: most knobs are non-default.
+    mean_uniform = sum(uniform.radii) / len(uniform.radii)
+    mean_sampler = sum(sampler.radii) / len(sampler.radii)
+    assert mean_uniform > mean_sampler
+
+
+def test_uniform_tiny_schema_dedupes_with_the_same_attempt_cap_and_goes_short():
+    rep = _make_rep("and($1 $2)", 2)
+    schema = FrozenSchema(rep)
+    assert schema.domains == (3, 3)  # 9 legal genotypes total
+
+    result = build_uniform_population(schema, 64, MT19937RandGen(5))
+
+    assert len(result.genotypes) == 9
+    assert len(set(result.genotypes)) == 9
+    assert result.feasible_short is True
+    assert result.attempts == 20 * 64  # the sampler mode's fill budget
+    assert result.duplicates_rejected == result.attempts - 8
+
+
+def test_uniform_dim_zero_schema_returns_only_the_default_genotype():
+    result = build_uniform_population(_EmptySchema(), 5, MT19937RandGen(1))
+    assert result.genotypes == [()]
+    assert result.radii == [0]
+    assert result.feasible_short is True

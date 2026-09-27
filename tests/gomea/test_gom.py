@@ -171,9 +171,9 @@ def test_engine_passes_the_generation_start_snapshot_to_every_recipient(monkeypa
     seen = []
     real_gom = engine_mod.gom
 
-    def spy(recipient, donors, fos, ev, rng, stats, skip_inactive):
+    def spy(recipient, donors, fos, ev, rng, stats, skip_inactive, acceptance="nonworse"):
         seen.append([d.genotype for d in donors])
-        return real_gom(recipient, donors, fos, ev, rng, stats, skip_inactive)
+        return real_gom(recipient, donors, fos, ev, rng, stats, skip_inactive, acceptance)
 
     monkeypatch.setattr(engine_mod, "gom", spy)
     ev = CountingEvaluator(onemax(1))
@@ -438,7 +438,7 @@ def _script_gom(monkeypatch, results):
     it = iter(results)
     calls = []
 
-    def fake(recipient, donors, fos, ev, rng, stats, skip_inactive):
+    def fake(recipient, donors, fos, ev, rng, stats, skip_inactive, acceptance="nonworse"):
         calls.append(recipient)
         return next(it)
 
@@ -551,3 +551,79 @@ def test_empty_fos_stops_with_no_valid_moves(monkeypatch):
     res = _engine([2, 2], ev).run(pop)
     assert res.termination_reason == "no_valid_moves"
     assert res.generations == 0 and ev.calls == before
+
+
+# ------------------------------------------------ acceptance (Phase 1d, hypothesis E)
+
+
+def test_equal_score_trial_is_accepted_under_nonworse():
+    ev = ScriptedEvaluator({(0, 0): 5.0, (1, 0): 5.0})
+    rec, donor = ev.ind((0, 0)), ev.ind((1, 0))
+    stats = GomStats()
+    off, changed, improved = gom(rec, [donor], [[0]], ev, _rng(), stats, False, "nonworse")
+    assert off.genotype == (1, 0) and off.score == 5.0
+    assert (changed, improved) == (True, False)
+    assert stats.accepted_neutral == 1 and stats.rejected == 0
+
+
+def test_equal_score_trial_is_rejected_under_strict():
+    ev = ScriptedEvaluator({(0, 0): 5.0, (1, 0): 5.0})
+    rec, donor = ev.ind((0, 0)), ev.ind((1, 0))
+    stats = GomStats()
+    off, changed, improved = gom(rec, [donor], [[0]], ev, _rng(), stats, False, "strict")
+    assert off == rec  # restored
+    assert (changed, improved) == (False, False)
+    assert ev.calls == [(1, 0)]  # still evaluated once
+    assert stats.evaluated == 1 and stats.rejected == 1 and stats.accepted_neutral == 0
+
+
+def test_strict_still_accepts_a_strict_improvement_and_rejects_a_worse_trial():
+    ev = ScriptedEvaluator({(0, 0): 5.0, (1, 0): 6.0, (0, 1): 4.0, (1, 1): 4.0})
+    rec, donor = ev.ind((0, 0)), ev.ind((1, 1))
+    stats = GomStats()
+    off, changed, improved = gom(rec, [donor], [[0], [1]], ev, _rng(), stats, False, "strict")
+    assert off.genotype == (1, 0) and off.score == 6.0
+    assert (changed, improved) == (True, True)
+    assert stats.accepted_improving == 1 and stats.rejected == 1
+
+
+def test_strict_rejects_a_proven_phenotype_skip_without_evaluation():
+    ev = ScriptedEvaluator({(0, 0): 5.0, (0, 1): 1.0}, pkey=lambda g: g[0])
+    rec, donor = ev.ind((0, 0)), ev.ind((0, 1), score=1.0)
+    stats = GomStats()
+    off, changed, improved = gom(rec, [donor], [[1]], ev, _rng(), stats, True, "strict")
+    assert off == rec and (changed, improved) == (False, False)
+    assert ev.calls == []
+    assert stats.phenotype_skips == 1 and ev.phenotype_skips == 1
+    assert stats.rejected == 1 and stats.accepted_neutral == 0 and stats.evaluated == 0
+
+
+def test_unknown_acceptance_is_rejected():
+    ev = ScriptedEvaluator({(0, 0): 5.0})
+    with pytest.raises(ValueError):
+        gom(ev.ind((0, 0)), [ev.ind((0, 0))], [[0]], ev, _rng(), GomStats(), False, "bogus")
+
+
+def test_engine_defaults_to_nonworse_and_passes_acceptance_to_gom(monkeypatch):
+    assert EngineParams().acceptance == "nonworse"
+    seen = []
+    real_gom = engine_mod.gom
+
+    def spy(recipient, donors, fos, ev, rng, stats, skip_inactive, acceptance="nonworse"):
+        seen.append(acceptance)
+        return real_gom(recipient, donors, fos, ev, rng, stats, skip_inactive, acceptance)
+
+    monkeypatch.setattr(engine_mod, "gom", spy)
+    for mode in ("nonworse", "strict"):
+        seen.clear()
+        ev = CountingEvaluator(onemax(1))
+        rng = MT19937RandGen(3)
+        pop = [ev.individual(tuple(rng.randint_n(2) for _ in range(6))) for _ in range(8)]
+        GomeaEngine(
+            [2] * 6,
+            EngineParams(fos_mode="uni", max_generations=1, acceptance=mode),
+            ev,
+            MT19937RandGen(4),
+            MT19937RandGen(5),
+        ).run(pop)
+        assert seen and set(seen) == {mode}

@@ -98,6 +98,9 @@ class GomInterrupted(Exception):
         self.reason = reason
 
 
+ACCEPTANCE_MODES = ("nonworse", "strict")
+
+
 def _shuffled_order(n: int, rng: MT19937RandGen) -> list[int]:
     """Fisher-Yates permutation of ``range(n)`` drawn with ``randint_n``
     (stands in for upstream's ``std::random_shuffle``)."""
@@ -123,6 +126,7 @@ def gom(
     rng: MT19937RandGen,
     stats: GomStats,
     skip_inactive: bool,
+    acceptance: str = "nonworse",
 ) -> tuple[Individual, bool, bool]:
     """GP-GOMEA: src/GOMEA/GOMVariator.cpp:22 GOMVariator::GOM
 
@@ -140,10 +144,20 @@ def gom(
     because offspring are separate clones). ``std::random_shuffle`` and
     ``randu() * donors.size()`` are replaced by draws from ``rng``.
 
+    ``acceptance`` is ``"nonworse"`` (the above, upstream's rule) or
+    ``"strict"`` (the Phase 1d ablation, hypothesis E): keep a trial only if
+    it is strictly better (``ev.worse(current, trial)``); an equal-score
+    trial is restored and counted as ``rejected``, and so is a proven
+    phenotype skip, which can never be strictly better (it still counts as
+    a ``phenotype_skips`` and is never evaluated).
+
     Returns ``(offspring, changed, strictly_improved)``. A
     ``BudgetExhausted`` from ``ev.evaluate`` is re-raised as
     ``GomInterrupted`` carrying the last accepted state.
     """
+    if acceptance not in ACCEPTANCE_MODES:
+        raise ValueError(f"acceptance must be one of {ACCEPTANCE_MODES}, got {acceptance!r}")
+    strict = acceptance == "strict"
     cur_g, cur_s, cur_k = recipient.genotype, recipient.score, recipient.pkey
     improved = False
     for idx in _shuffled_order(len(fos), rng):
@@ -157,9 +171,12 @@ def gom(
             continue
         trial_k = ev.phenotype_key(trial)
         if skip_inactive and trial_k is not None and trial_k == cur_k:
-            stats.accepted_neutral += 1
             stats.phenotype_skips += 1
             ev.record_phenotype_skip()
+            if strict:
+                stats.rejected += 1
+                continue
+            stats.accepted_neutral += 1
             cur_g = trial
             continue
         try:
@@ -167,7 +184,7 @@ def gom(
         except BudgetExhausted as exc:
             raise GomInterrupted(Individual(cur_g, cur_s, cur_k), exc.reason) from exc
         stats.evaluated += 1
-        if ev.worse(trial_s, cur_s):
+        if ev.worse(trial_s, cur_s) or (strict and not ev.worse(cur_s, trial_s)):
             stats.rejected += 1
             continue
         if ev.worse(cur_s, trial_s):
