@@ -1,0 +1,4 @@
+task,contrast,n,success_a,success_b,wins,ties,losses,p_error,p_evals,median_evals_a,median_evals_b,median_error_a,median_error_b,p_error_holm,p_evals_holm,verdict
+maj7,LTB-C250-M:HC,20,0.0,0.05,4,4,12,0.290618896484375,1.0,40001.0,40001.0,3.0,3.0,0.58123779296875,1.0,tie
+mux11,LTB-C250-M:HC,20,1.0,1.0,0,20,0,1.0,0.0031528472900390625,4632.5,8757.0,-0.0,-0.0,1.0,0.006305694580078125,better
+pa5,LTB-C250-M:HC,20,0.0,0.0,6,5,9,0.18341064453125,1.0,40001.0,40001.0,8.0,7.0,0.3668212890625,1.0,tie

@@ -128,6 +128,22 @@ review and a fix wave. The ledger of findings, fixes and deferred minors lives i
   cap closes the maj5 gap and halves mux6 cost. Population size was contradicted
   end-to-end; diversity and neutral drift were not supported; the memo is undetermined.
 
+## Phase 1e: can embedded GOMEA beat HC? (user-requested follow-up)
+
+* **Approval:** `APPROVALS.md` #9, and #10 for the stage 2 re-runs.
+* **Code:** `182bd59` adds a stall-based deme stop and the `-a hc-gomea` hybrid, both
+  opt-in. `8224f3f` gives the hybrid telemetry in the harness. `63023d9` adds the harness
+  option `--recursion-limit`.
+* **Pre-registration:** `PHASE1E-PREREGISTRATION.md` (`ea5ad1e`), before any run. The
+  deviation for the re-runs is recorded there.
+* **Stage 1:** 330 runs on development seeds. The winner is `LTB-C250-M`.
+* **Stage 2:** 120 runs, of which 25 were re-run under raised wall, memory and recursion
+  limits. All ended ok.
+* **Findings:** `PHASE1E-FINDINGS.md`.
+  * **mux11:** *better*, with a median of 4,633 vs 8,757 evaluations (Holm p = 0.0063).
+  * **maj7 and pa5:** ties.
+  * **Cost:** about 3–4× HC's CPU time.
+
 ## Deferred minors (not blocking; kept for the record)
 
 * The golden.cpp header should note that upstream's commented-out blocks were omitted.
@@ -139,3 +155,6 @@ review and a fix wave. The ledger of findings, fixes and deferred minors lives i
 * The runner-added `-f` overrides a user's `-f`.
 * The +1.0 worst-error sentinel is not scaled.
 * `cpu_s` for timed-out runs includes interpreter start-up.
+* pyMoses's recursive `count_neighborhood_size_from_index` exceeds Python's default
+  recursion limit once a representation has more than about 1,000 knobs (seen on mux11).
+  The harness works around it with `--recursion-limit`; a Phase 2 item.

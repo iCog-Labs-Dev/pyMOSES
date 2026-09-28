@@ -1,0 +1,95 @@
+{
+  "arms": {
+    "HC": {
+      "argv": [
+        "-a",
+        "hc"
+      ]
+    },
+    "LTB-C250-M": {
+      "argv": [
+        "-a",
+        "gomea",
+        "--gomea-pop-size",
+        "16",
+        "--gomea-skip-inactive",
+        "0",
+        "--gomea-fos",
+        "lt-b",
+        "--gomea-max-evals-per-deme",
+        "250",
+        "--gomea-genotype-memo",
+        "1"
+      ]
+    }
+  },
+  "budget": {
+    "argv": [
+      "-m",
+      "40000"
+    ],
+    "kind": "evaluations"
+  },
+  "commit": "63023d90b5170944663de1ba3b0609f0d17c5f09",
+  "common_argv": [
+    "-l",
+    "WARN"
+  ],
+  "name": "phase1e-stage2-rerun",
+  "output_root": "../gomea-results",
+  "phase": 1,
+  "schema_version": 1,
+  "seeds": [
+    3001,
+    3002,
+    3003,
+    3004,
+    3005,
+    3006,
+    3007,
+    3008,
+    3009,
+    3010,
+    3011,
+    3012,
+    3013,
+    3014,
+    3015,
+    3016,
+    3017,
+    3018,
+    3019,
+    3020
+  ],
+  "tasks": {
+    "maj7": {
+      "argv": [
+        "-H",
+        "maj",
+        "-k",
+        "7"
+      ],
+      "target_raw": 0
+    },
+    "mux11": {
+      "argv": [
+        "-H",
+        "mux",
+        "-k",
+        "3"
+      ],
+      "target_raw": 0
+    },
+    "pa5": {
+      "argv": [
+        "-H",
+        "pa",
+        "-k",
+        "5"
+      ],
+      "target_raw": 0
+    }
+  },
+  "wall_cap_s": 36000,
+  "workers": 22
+}

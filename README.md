@@ -157,7 +157,7 @@ for now.
 moses -H pa -k 3 -m 3000 -r 1 -a gomea --gomea-pop-size 16
 ```
 
-Without `-a gomea`, output is byte-identical to classic, as before. Measured so far: under equal evaluation budgets it did **not** beat
+Without `-a gomea`, output is byte-identical to classic, as before. In Phase 1, under equal evaluation budgets, it did **not** beat
 the stock hill climber on the tested Boolean tasks. `--gomea-fos uni` was its best variant. For the options, the
 telemetry, the Python API and the measured comparison with hill climbing, see
 [`docs/gomea/USAGE.md`](docs/gomea/USAGE.md) and
@@ -166,7 +166,10 @@ authors' stand-alone GP-GOMEA with MOSES hill climbing is in
 [`docs/gomea/PHASE1B-FINDINGS.md`](docs/gomea/PHASE1B-FINDINGS.md), how it scales to
 larger problems in [`docs/gomea/PHASE1C-FINDINGS.md`](docs/gomea/PHASE1C-FINDINGS.md), and why hill
 climbing won in [`docs/gomea/PHASE1D-FINDINGS.md`](docs/gomea/PHASE1D-FINDINGS.md): capping GOMEA's
-per-deme evaluations (`--gomea-max-evals-per-deme 500`) closes most of the gap.
+per-deme evaluations (`--gomea-max-evals-per-deme 500`) closes most of the gap. With a cap of
+250, the lt-b FOS and the genotype memo, GOMEA needed about half of hill climbing's
+evaluations on 11-input multiplexer and tied on majority-7 and parity-5, at several times
+the CPU time ([`docs/gomea/PHASE1E-FINDINGS.md`](docs/gomea/PHASE1E-FINDINGS.md)).
 
 ## Run the tests
 
@@ -178,12 +181,12 @@ pip install -e ".[dev]"
 pytest
 ```
 
-Expect **8220 passed, 5 skipped** in about 10 minutes on one core: the classic port's
-7898 (verified from a clean checkout and a fresh virtualenv) plus 322 for the GOMEA
-extension (`tests/gomea/`, measured on this branch).
+Expect **8291 passed, 5 skipped** in about 10 minutes on one core: the classic port's
+7898 (verified from a clean checkout and a fresh virtualenv) plus 393 added on this branch
+for the GOMEA extension (measured on this branch).
 
 On a machine without a classic MOSES/CogUtil checkout you should see 7 more tests skip,
-roughly `8213 passed, 12 skipped`. Those are the tests that read the C++ sources
+roughly `8284 passed, 12 skipped`. Those are the tests that read the C++ sources
 directly; they skip rather than fail, so a green run is still a green run. Everything
 else compares against golden fixtures committed here.
 

@@ -1,0 +1,28 @@
+{
+  "allow_dirty": false,
+  "code_check": {
+    "clean": true,
+    "code_unchanged": true,
+    "dirty": [],
+    "head": "9c724db237775e6d8b2dce9b164717a64c147a59",
+    "is_ancestor": true,
+    "manifest_commit": "63023d90b5170944663de1ba3b0609f0d17c5f09",
+    "ok": true,
+    "reason": null
+  },
+  "cpu": "x86_64",
+  "git_head": "9c724db237775e6d8b2dce9b164717a64c147a59",
+  "git_status_short": "?? MOSES_GOMEA_LOCAL_AGENT_HANDOFF/\n?? docs/gomea/phase1e-results/stage2_aggregate.csv\n?? docs/gomea/phase1e-results/stage2_verdicts.csv\n",
+  "head": "9c724db237775e6d8b2dce9b164717a64c147a59",
+  "launch_dir": "/home/yab/Documents/Projects/iCog/HyperonRelated/MOSES/pyMoses",
+  "manifest_commit": "63023d90b5170944663de1ba3b0609f0d17c5f09",
+  "manifest_output_root": "../gomea-results",
+  "manifest_workers": 22,
+  "max_load_note": null,
+  "mem_limit_mb": 2048,
+  "output_root": "/home/yab/Documents/Projects/iCog/HyperonRelated/MOSES/gomea-results",
+  "platform": "Linux-7.2.6-arch2-1-x86_64-with-glibc2.44",
+  "python_version": "3.14.7 (main, Aug 10 2026, 07:46:56) [GCC 16.1.1 20260728]",
+  "recursion_limit": 100000,
+  "workers": 22
+}

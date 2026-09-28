@@ -655,7 +655,7 @@ def run_manifest(
     total = len(all_runs)
     skipped = total - len(pending)
     if skipped:
-        print(f"resuming: {skipped}/{total} run(s) already complete, skipping")
+        print(f"resuming: {skipped}/{total} run(s) already complete, skipping", flush=True)
 
     target = child_target if child_target is not None else _child_main
     ctx = mp.get_context("spawn")
@@ -696,7 +696,7 @@ def run_manifest(
             for run_id in finished:
                 _, _, run = active.pop(run_id)
                 completed += 1
-                print(f"[{completed}/{total}] {run_id}: {_read_status(run)}")
+                print(f"[{completed}/{total}] {run_id}: {_read_status(run)}", flush=True)
     except KeyboardInterrupt:
         interrupted = True
         print("Interrupted: stopping launches and terminating active runs...", file=sys.stderr)
