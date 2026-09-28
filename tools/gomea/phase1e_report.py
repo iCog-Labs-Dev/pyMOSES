@@ -3,7 +3,7 @@
 Usage (from the repository root)::
 
     .venv/bin/python tools/gomea/phase1e_report.py stage1 RESULT_DIR OUT_DIR
-    .venv/bin/python tools/gomea/phase1e_report.py stage2 RESULT_DIR OUT_DIR
+    .venv/bin/python tools/gomea/phase1e_report.py stage2 RESULT_DIR OUT_DIR [RERUN_DIR]
 
 **stage1** applies the pre-registered selection rule to the development round:
 
@@ -18,7 +18,9 @@ memo contrasts.
 final error and on censored evaluations, applies Holm correction within each task, and
 reports the verdict under the Phase 1 practical rule.
 
-The budget is read from each result directory's manifest.
+The budget is read from each result directory's manifest. For stage2, an optional
+RERUN_DIR (the disclosed re-runs in PHASE1E-PREREGISTRATION.md) replaces the runs it holds;
+its budget must match.
 """
 
 from __future__ import annotations
@@ -169,8 +171,15 @@ def stage1(d: Path, out: Path) -> None:
     print("winner:", decision["winner"], "runner-up:", decision["runner_up"])
 
 
-def stage2(d: Path, out: Path) -> None:
+def stage2(d: Path, out: Path, rerun: Path | None = None) -> None:
     runs, budget = _load(d)
+    if rerun is not None:
+        extra, rerun_budget = _load(rerun)
+        if rerun_budget != budget:
+            raise SystemExit(f"re-run budget {rerun_budget} != {budget}")
+        for key, by_seed in extra.items():
+            runs[key].update(by_seed)
+        print(f"replaced {sum(len(v) for v in extra.values())} run(s) from {rerun}")
     out.mkdir(parents=True, exist_ok=True)
     agg = _aggregate(runs, budget)
     rows = []
@@ -212,7 +221,10 @@ def stage2(d: Path, out: Path) -> None:
 
 def main() -> int:
     mode, d, out = sys.argv[1], Path(sys.argv[2]), Path(sys.argv[3])
-    {"stage1": stage1, "stage2": stage2}[mode](d, out)
+    if mode == "stage2" and len(sys.argv) > 4:
+        stage2(d, out, Path(sys.argv[4]))
+    else:
+        {"stage1": stage1, "stage2": stage2}[mode](d, out)
     return 0
 
 
