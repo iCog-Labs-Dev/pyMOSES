@@ -30,8 +30,11 @@ Every candidate it evaluates goes into the deme, exactly as with hill climbing, 
 merges the best of them back into the metapopulation as usual.
 
 > **Status: experimental, Phase 1 (discrete only).** It works for **Boolean** problems,
-> i.e. representations made of discrete/logical knobs. Continuous (regression) problems
-> are rejected with a clear error; that is Phase 2.
+> i.e. representations made of discrete/logical knobs. By default, continuous (regression)
+> problems are rejected with a clear error. The opt-in `--gomea-contin copy` runs them
+> with the constants handled as in GP-GOMEA's paper: copied between individuals, never
+> mutated (see [Continuous knobs](#continuous-knobs---gomea-contin-copy)). A real-valued
+> GOMEA is Phase 2.
 >
 > **Measured result, 1,140 pre-registered runs: under equal evaluation budgets it did
 > *not* beat the stock hill climber on any tested task.**
@@ -96,9 +99,48 @@ to, so an invalid value is always rejected.
 | `--gomea-max-gens N` | `100` | The hard limit on generations per deme. |
 | `--gomea-skip-inactive {0,1}` | `0` | Skip evaluating a trial proven to decode to the same program. This is correct, but on MOSES representations it costs about 10 % of time and skips almost nothing, so it is off by default. |
 | `--gomea-log PATH` | none | Append JSON-lines telemetry for every deme. See below. |
+| `--gomea-contin {reject,copy}` | `reject` | Contin (numeric constant) knobs. `reject` refuses a representation that has any (the default, unchanged behaviour). `copy` makes each contin knob one gene that GOM only copies between individuals, never mutates. See [Continuous knobs](#continuous-knobs---gomea-contin-copy). |
+| `--gomea-contin-stats {bin,all,none}` | `bin` | With `--gomea-contin copy` and a linkage-tree FOS (`lt-b`, `lt-mi`): how constants enter the linkage statistics. `bin` (the paper's bin-const, γ = 100), `all` (all-const) or `none` (no-const). |
 
 The default population was 64 during development. It became 16 after the pilot
 (`docs/gomea/pilot-a/`); the confirmatory runs passed 16 explicitly.
+
+## Continuous knobs (`--gomea-contin copy`)
+
+A regression representation has contin knobs: numeric constants that MOSES encodes as a
+path of up to `depth` Left/Right steps from the knob's mean. By default GOMEA refuses
+them. `--gomea-contin copy` handles them the way GP-GOMEA handles constants
+(Virgolin et al. 2021, Sec 6): each constant is a gene that gene-pool optimal mixing
+**copies** between individuals, and nothing ever **mutates**. There is no Gaussian model
+and no coefficient mutation; that is Phase 2.
+
+* **One knob, one gene.** The gene's code packs all the knob's raw step fields (two bits
+  each), so copying a gene copies the donor's whole constant. The gene counts as one knob
+  for the initial-population radius, for the FOS and for telemetry (`domains` shows
+  `4 ** depth` for it; `invocation_start` also reports `n_contin_genes`).
+* **Initial population.** `--gomea-init sampler` (the default) keeps MOSES's own
+  neighbourhood sampler, which may step a constant to a neighbouring value.
+  `--gomea-init uniform` draws each constant uniformly over the knob's legal step paths,
+  i.e. over the constants it can represent. (Keeping the exemplar's constant would leave
+  the gene the same in every individual, and mixing could then never change it.)
+* **Only constants already in the population can appear.** Mixing cannot invent a
+  constant, just as it cannot invent a discrete value.
+* **Linkage statistics** (`--gomea-contin-stats`, linkage-tree FOS only; `uni`/`rt` take
+  no statistics):
+  * `bin` (default; the paper uses it for all its later experiments): the first 100
+    distinct constants met, individual by individual and gene by gene, keep their own
+    symbol. Every other constant takes the symbol of the nearest of them. While the
+    population holds at most 100 distinct constants this equals `all`.
+  * `all`: every distinct constant is its own symbol.
+  * `none`: constants carry no linkage information. Each constant gene stays out of the
+    linkage tree and is mixed as its own singleton subset.
+
+```bash
+moses -i data.csv -u y -m 3000 -r 1 -a gomea --gomea-contin copy \
+      --gomea-max-evals-per-deme 250 --gomea-genotype-memo 1
+```
+
+The hybrid (`-a hc-gomea`) takes the same options.
 
 ## Telemetry (`--gomea-log`)
 
@@ -179,8 +221,10 @@ deceptive-trap example.
 
 ## Limitations
 
-* **Discrete (Boolean) representations only.** A representation with continuous knobs
-  raises `UnsupportedRepresentation`, and the message suggests `-a hc`.
+* **Discrete (Boolean) representations by default.** A representation with continuous
+  knobs raises `UnsupportedRepresentation`, and the message suggests `-a hc` or
+  `--gomea-contin copy`. With `--gomea-contin copy` constants are only recombined, never
+  tuned: a constant not in the initial population can never appear in that deme.
 * **Pure Python.** Evaluation costs about 6–12 ms per candidate on the demo problems, so
   keep `-m` modest.
 * **Mixing cannot invent knob values.** It can only recombine values present in the

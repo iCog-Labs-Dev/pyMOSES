@@ -283,6 +283,11 @@ def build_population(
     the diagnostics record which fields were constant both before and
     after.
 
+    GOMEA extension: on a schema with contin genes (``--gomea-contin
+    copy``) the sampler's own contin moves are kept as they are: a knob
+    counts as one field toward the radius, and a draw may step its constant
+    to a neighbouring value (``generate_contin_neighbor``).
+
     Never scores anything: no scorer is imported, called, or referenced.
     """
     g0 = schema.default_genotype()
@@ -410,6 +415,13 @@ def build_uniform_population(
     the default genotype, so ``radius_histogram`` stays comparable with
     sampler mode.
 
+    GOMEA extension: a contin gene (``--gomea-contin copy``) is drawn with
+    ``FrozenSchema.sample_contin_code`` -- uniformly over the knob's legal
+    step paths, i.e. over the constants the knob can represent -- not over
+    its raw ``4 ** depth`` code domain, most of which is not a legal path.
+    Keeping the exemplar's constant instead would leave the gene constant
+    in the population, and so out of the search for good.
+
     Never scores anything.
     """
     g0 = schema.default_genotype()
@@ -420,8 +432,17 @@ def build_uniform_population(
     if schema.dim > 0:
         seen: set[tuple[int, ...]] = {g0}
         fill_budget = attempt_cap_multiple * n
+        contin = set(schema.contin_positions)
         while len(population) < n and attempts < fill_budget:
-            g = tuple(rng.randint_n(d) for d in schema.domains)
+            if contin:
+                # GOMEA extension: a contin gene is drawn uniformly over
+                # its legal step paths (``FrozenSchema.sample_contin_code``).
+                g = tuple(
+                    schema.sample_contin_code(k, rng) if k in contin else rng.randint_n(d)
+                    for k, d in enumerate(schema.domains)
+                )
+            else:
+                g = tuple(rng.randint_n(d) for d in schema.domains)
             attempts += 1
             if dedupe and g in seen:
                 duplicates_rejected += 1

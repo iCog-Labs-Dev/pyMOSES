@@ -734,9 +734,10 @@ def metapop_moses_results_b(
     dex = deme_expander(tt, si_ca, si_kb, sc, optimizer, deme_params, filter_params)
     metapop = metapopulation(simple_bases, sc, meta_params, filter_params)
 
-    # GOMEA extension (not in classic MOSES): GOMEA searches discrete knobs
-    # only. A representation with contin knobs is refused by the optimizer on
-    # its first deme; restate that refusal in CLI terms, naming the fields.
+    # GOMEA extension (not in classic MOSES): by default GOMEA searches
+    # discrete knobs only (`--gomea-contin reject`). A representation with
+    # contin knobs is then refused by the optimizer on its first deme;
+    # restate that refusal in CLI terms, naming the fields.
     try:
         run_moses(metapop, dex, moses_params, stats)
     except UnsupportedRepresentation as exc:
@@ -777,9 +778,10 @@ def _gomea_contin_message(dex: deme_expander, algo: str = "gomea") -> str:
         first = fields.begin_contin_raw_idx()
         listed = f"{n} contin field(s) (numeric constants), raw fields {first}-{first + n_raw - 1}"
     return (
-        f"-a {algo} supports only discrete (boolean/enum) knobs, but this "
+        f"-a {algo} supports only discrete (boolean/enum) knobs by default, but this "
         f"problem's representation has continuous knobs: {listed}. "
-        "Use -a hc for problems with contin knobs."
+        "Use -a hc for problems with contin knobs, or pass --gomea-contin copy "
+        "to make each contin knob a copy-only GOMEA gene."
     )
 
 

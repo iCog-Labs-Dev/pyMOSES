@@ -13,7 +13,7 @@ to genotype indices.
 
 from __future__ import annotations
 
-from collections.abc import Sequence
+from collections.abc import Callable, Sequence
 
 from pymoses.gomea.stats import biased_similarity, entropy_matrix, mi_similarity
 from pymoses.util.rng import MT19937RandGen
@@ -203,17 +203,36 @@ class LinkageModel:
     zero. ``random_shuffle`` is replaced by a Fisher-Yates permutation drawn
     from the seeded MT19937 ``rng``. The linkage-tree root is dropped
     (``FOS.pop_back()``), except that ``d == 1`` keeps its single singleton.
+
+    GOMEA extension: ``symbolize`` (``None`` by default, the plain model)
+    recodes a population before any linkage-tree statistic is taken -- the
+    constant strategies of ``stats.contin_symbols``. Search positions are
+    still the positions that vary in the raw initial population; a search
+    position whose recoded marginal in that population is 0 (every contin
+    gene under no-const) is left out of the tree (and of ``H0``) and joins
+    the FOS as a singleton after it, so GOM can still copy it. The uni and
+    rt modes take no statistics and ignore ``symbolize``.
     """
 
     MODES = ("uni", "rt", "lt-mi", "lt-b")
 
-    def __init__(self, mode: str, rng: MT19937RandGen) -> None:
+    def __init__(
+        self,
+        mode: str,
+        rng: MT19937RandGen,
+        symbolize: Callable[[Sequence[tuple[int, ...]]], list[tuple[int, ...]]] | None = None,
+    ) -> None:
         if mode not in self.MODES:
             raise ValueError(f"unknown linkage mode {mode!r}; expected one of {self.MODES}")
         self.mode = mode
         self.rng = rng
+        self.symbolize = symbolize
         self.search_positions: tuple[int, ...] = ()
         self.constant_positions: tuple[int, ...] = ()
+        # GOMEA extension: the search positions in the linkage tree, and the
+        # ones kept out of it as singletons (see the class docstring).
+        self.linked_positions: tuple[int, ...] = ()
+        self.unlinked_positions: tuple[int, ...] = ()
         self._H0: list[list[float]] | None = None
         self._length: int | None = None
 
@@ -236,7 +255,14 @@ class LinkageModel:
         search = tuple(p for p in range(length) if marginals[p] > 0.0)
         self.search_positions = search
         self.constant_positions = tuple(p for p in range(length) if marginals[p] <= 0.0)
-        self._H0 = entropy_matrix(pop, search)
+        linked = search
+        if self.symbolize is not None:
+            sym = self.symbolize(pop)
+            linked = tuple(p for p in search if entropy_matrix(sym, [p])[0][0] > 0.0)
+            pop = sym
+        self.linked_positions = linked
+        self.unlinked_positions = tuple(p for p in search if p not in linked)
+        self._H0 = entropy_matrix(pop, linked)
         self._length = length
 
     def learn(self, pop: Sequence[tuple[int, ...]]) -> list[list[int]]:
@@ -254,11 +280,28 @@ class LinkageModel:
             local = univariate_fos(d)
         elif self.mode == "rt":
             local = random_tree_fos(d, self.rng)
+        elif self.symbolize is not None:
+            return self._learn_symbolized(pop)
         else:
             H = entropy_matrix(pop, search)
             S = mi_similarity(H) if self.mode == "lt-mi" else biased_similarity(H, self._H0)
             local = linkage_tree_fos(S, self._random_order(d))[:-1]
         return [[search[i] for i in s] for s in local]
+
+    # GOMEA extension: the linkage tree over recoded constants.
+    def _learn_symbolized(self, pop: Sequence[tuple[int, ...]]) -> list[list[int]]:
+        linked = self.linked_positions
+        d = len(linked)
+        if d == 0:
+            fos: list[list[int]] = []
+        elif d == 1:
+            fos = [[linked[0]]]
+        else:
+            H = entropy_matrix(self.symbolize(pop), linked)
+            S = mi_similarity(H) if self.mode == "lt-mi" else biased_similarity(H, self._H0)
+            local = linkage_tree_fos(S, self._random_order(d))[:-1]
+            fos = [[linked[i] for i in s] for s in local]
+        return fos + [[p] for p in self.unlinked_positions]
 
     def _random_order(self, d: int) -> list[int]:
         order = list(range(d))

@@ -245,6 +245,8 @@ def test_help_only_adds_gomea_lines():
         "--gomea-accept",
         "--gomea-genotype-memo",
         "--gomea-stall-evals",
+        "--gomea-contin",
+        "--gomea-contin-stats",
     ):
         assert any(line.strip().startswith(flag + " ") for line in added), flag
 
@@ -304,6 +306,59 @@ def test_regression_problem_is_rejected_with_a_clear_message():
     msg = str(exc.value)
     assert "gomea" in msg
     assert "contin" in msg
+    assert "--gomea-contin copy" in msg
+
+
+# ---------------------------------------------------------------------------
+# Paper-style constant genes (--gomea-contin copy).
+# ---------------------------------------------------------------------------
+
+_REGRESSION = ["-i", str(TABLE_DATA / "regression_sample.csv"), "-u", "y"]
+
+
+def test_contin_options_parse_and_reach_gomea_parameters():
+    from pymoses.moses.main.problem_params import _gomea_params_from_args
+
+    ns = _cli_parser(True).parse_args(["--gomea-contin", "copy", "--gomea-contin-stats", "none"])
+    gp = _gomea_params_from_args(ns)
+    assert (gp.contin, gp.contin_stats) == ("copy", "none")
+    gp0 = _gomea_params_from_args(_cli_parser(True).parse_args([]))
+    assert (gp0.contin, gp0.contin_stats) == ("reject", "bin")
+    assert _gomea_params_from_args(argparse.Namespace()).contin == "reject"
+
+
+@pytest.mark.parametrize("algo", ["gomea", "hc-gomea"])
+def test_explicit_reject_still_refuses_contin(algo):
+    with pytest.raises(UnsupportedRepresentation):
+        _run([*_REGRESSION, "-a", algo, "-m", "300", "--gomea-contin", "reject"])
+
+
+@pytest.mark.parametrize("stats", ["all", "none", "bin"])
+def test_contin_copy_runs_a_regression_end_to_end_within_budget(stats, tmp_path):
+    log = tmp_path / "g.jsonl"
+    rc, stdout = _run([*_REGRESSION, "-a", "gomea", "-m", "1500", "-r", "1",
+                       "--gomea-contin", "copy", "--gomea-contin-stats", stats,
+                       "--gomea-log", str(log)])  # fmt: skip
+    assert rc == 0 and stdout
+    events = _events(log)
+    starts = [e for e in events if e["type"] == "invocation_start"]
+    ends = [e for e in events if e["type"] == "end"]
+    assert starts and len(ends) == len(starts)
+    assert all(s["params"]["contin"] == "copy" for s in starts)
+    assert all(s["params"]["contin_stats"] == stats for s in starts)
+    assert all(s["n_contin_genes"] > 0 for s in starts)
+    assert sum(e["ledger"]["requests"] for e in ends) <= 1500
+    assert all(e["ledger"]["requests"] <= s["max_evals"] for s, e in zip(starts, ends, strict=True))
+
+
+def test_contin_copy_runs_with_the_hybrid(tmp_path):
+    log = tmp_path / "g.jsonl"
+    rc, stdout = _run([*_REGRESSION, "-a", "hc-gomea", "-m", "1500", "-r", "1",
+                       "--gomea-contin", "copy", "--gomea-log", str(log)])  # fmt: skip
+    assert rc == 0 and stdout
+    hybrid = [e for e in _events(log) if e["type"] == "hybrid"]
+    assert hybrid
+    assert sum(e["hc_evals"] + e["gomea_evals"] for e in hybrid) <= 1500
 
 
 def test_reaching_the_target_ends_with_target_reached(tmp_path):
@@ -408,6 +463,8 @@ def test_hidden_aliases_do_not_show_in_help():
         ["--gomea-accept", "greedy"],
         ["--gomea-genotype-memo", "2"],
         ["--gomea-stall-evals", "-1"],
+        ["--gomea-contin", "mutate"],
+        ["--gomea-contin-stats", "some"],
     ],
 )
 def test_bad_gomea_options_are_rejected(bad):

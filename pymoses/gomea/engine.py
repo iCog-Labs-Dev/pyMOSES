@@ -85,6 +85,7 @@ class GomeaEngine:
         rng_link: MT19937RandGen,
         target: Callable[[Score], bool] | None = None,
         on_generation: Callable[[dict, list[Individual]], None] | None = None,
+        symbolize: Callable[[Sequence[tuple[int, ...]]], list[tuple[int, ...]]] | None = None,
     ) -> None:
         self.domains = list(domains)
         self.params = params
@@ -93,6 +94,9 @@ class GomeaEngine:
         self.rng_link = rng_link
         self.target = target
         self.on_generation = on_generation
+        # GOMEA extension: the constant recoding for linkage learning
+        # (``LinkageModel``'s ``symbolize``; ``None`` = none).
+        self.symbolize = symbolize
         self.last_result: EngineResult | None = None
         self.elite: Individual | None = None
         # The run's calibrated linkage model (``None`` before ``run``), so
@@ -144,7 +148,10 @@ class GomeaEngine:
         P = self._pop
         if any(self.target_met(ind) for ind in P):
             return "target_reached"
-        model = LinkageModel(self.params.fos_mode, self.rng_link)
+        if self.symbolize is None:
+            model = LinkageModel(self.params.fos_mode, self.rng_link)
+        else:
+            model = LinkageModel(self.params.fos_mode, self.rng_link, self.symbolize)
         model.calibrate([ind.genotype for ind in P], self.domains)
         self.model = model
         # N < 2 needs no check of its own: a single individual makes every

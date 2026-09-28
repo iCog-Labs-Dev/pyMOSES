@@ -373,9 +373,32 @@ _GOMEA_OPTIONS = (
         "end a GOMEA deme after this many charged evaluations without a strict "
         "improvement of its best, 0 = off. Default 0.",
     ),
+    # Paper-style constants (Virgolin et al. 2021, Sec 6); reject by default,
+    # so a default run is unchanged.
+    (
+        "--gomea-contin",
+        "gomea_contin",
+        str,
+        "reject",
+        "contin (numeric constant) knobs: reject (refuse the problem) or copy "
+        "(each knob is one gene that GOMEA only copies between individuals, "
+        "never mutates). Default reject.",
+    ),
+    (
+        "--gomea-contin-stats",
+        "gomea_contin_stats",
+        str,
+        "bin",
+        "with --gomea-contin copy, how constants enter the linkage tree: bin "
+        "(first 100 distinct constants, others binned to the nearest), all "
+        "(each constant its own symbol) or none (constants left out, as "
+        "singletons). Default bin.",
+    ),
 )
 _GOMEA_INIT_CHOICES = ("sampler", "uniform")
 _GOMEA_ACCEPT_CHOICES = ("nonworse", "strict")
+_GOMEA_CONTIN_CHOICES = ("reject", "copy")
+_GOMEA_CONTIN_STATS_CHOICES = ("bin", "all", "none")
 
 
 class _ClassicPrefixAlias(argparse.Action):
@@ -435,6 +458,8 @@ def _gomea_params_from_args(args: argparse.Namespace) -> gomea_parameters:
     for flag, dest, choices in (
         ("--gomea-init", "gomea_init", _GOMEA_INIT_CHOICES),
         ("--gomea-accept", "gomea_accept", _GOMEA_ACCEPT_CHOICES),
+        ("--gomea-contin", "gomea_contin", _GOMEA_CONTIN_CHOICES),
+        ("--gomea-contin-stats", "gomea_contin_stats", _GOMEA_CONTIN_STATS_CHOICES),
     ):
         if v[dest] not in choices:
             raise ValueError(
@@ -466,6 +491,8 @@ def _gomea_params_from_args(args: argparse.Namespace) -> gomea_parameters:
         acceptance=v["gomea_accept"],
         genotype_memo=bool(v["gomea_genotype_memo"]),
         stall_evals=v["gomea_stall_evals"],
+        contin=v["gomea_contin"],
+        contin_stats=v["gomea_contin_stats"],
     )
 
 

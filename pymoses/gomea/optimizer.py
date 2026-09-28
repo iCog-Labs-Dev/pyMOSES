@@ -33,7 +33,8 @@ from pymoses.gomea.population import (
     parse_radii,
     top_up_population,
 )
-from pymoses.gomea.schema import FrozenSchema
+from pymoses.gomea.schema import CONTIN_MODES, FrozenSchema
+from pymoses.gomea.stats import CONTIN_STATS_MODES, contin_symbols
 from pymoses.gomea.telemetry import TelemetrySink
 from pymoses.moses.moses.optimization.optimization import (
     deme_t,
@@ -98,7 +99,15 @@ class gomea_parameters:
     Phase 1e: ``stall_evals`` (0 = off) ends a deme once that many charged
     evaluations have passed since its best last strictly improved
     (``EvaluationOracle``'s stall rule; termination reason
-    ``"stall_evals"``)."""
+    ``"stall_evals"``).
+
+    GOMEA extension, paper-style constants: ``contin`` (``"reject"`` by
+    default, or ``"copy"``: each contin knob is one copy-only gene, see
+    ``FrozenSchema``) and ``contin_stats`` (how constants enter the linkage
+    tree: ``"bin"`` by default, the paper's bin-const with gamma = 100, or
+    ``"all"``/``"none"``; see ``stats.contin_symbols``). ``contin_stats``
+    has no effect unless ``contin`` is ``"copy"`` and the representation has
+    contin knobs."""
 
     def __init__(
         self,
@@ -116,6 +125,8 @@ class gomea_parameters:
         acceptance: str = "nonworse",
         genotype_memo: bool = False,
         stall_evals: int = 0,
+        contin: str = "reject",
+        contin_stats: str = "bin",
     ) -> None:
         if pop_size < 2:
             raise ValueError(f"pop_size must be >= 2, got {pop_size}")
@@ -133,6 +144,12 @@ class gomea_parameters:
             raise ValueError(f"acceptance must be one of {ACCEPTANCE_MODES}, got {acceptance!r}")
         if stall_evals < 0:
             raise ValueError(f"stall_evals must be >= 0 (0 = off), got {stall_evals}")
+        if contin not in CONTIN_MODES:
+            raise ValueError(f"contin must be one of {CONTIN_MODES}, got {contin!r}")
+        if contin_stats not in CONTIN_STATS_MODES:
+            raise ValueError(
+                f"contin_stats must be one of {CONTIN_STATS_MODES}, got {contin_stats!r}"
+            )
         parse_radii(radii)
 
         self.pop_size = pop_size
@@ -149,6 +166,8 @@ class gomea_parameters:
         self.acceptance = acceptance
         self.genotype_memo = bool(genotype_memo)
         self.stall_evals = stall_evals
+        self.contin = contin
+        self.contin_stats = contin_stats
 
     def as_dict(self) -> dict:
         return dict(vars(self))
@@ -271,11 +290,12 @@ class gomea_optimization(optimizer_base):
         ``deme.n_evals``, then update ``optim_stats`` like hill climbing.
 
         Raises ``UnsupportedRepresentation`` (before drawing from the RNG or
-        evaluating anything) for a representation with contin fields.
+        evaluating anything) for a representation with contin fields, unless
+        ``contin`` is ``"copy"``.
         """
         t_start = time.perf_counter()
         gp = self.gomea_params
-        schema = FrozenSchema(iscorer.get_rep())
+        schema = FrozenSchema(iscorer.get_rep(), gp.contin)
 
         rng_init, rng_link, rng_var = _draw_streams()
         sink = TelemetrySink(gp.telemetry_path)
@@ -377,6 +397,9 @@ class gomea_optimization(optimizer_base):
         max_time: float,
         **extra,
     ) -> None:
+        if schema.contin_positions:
+            # GOMEA extension: paper-style constant genes.
+            extra["n_contin_genes"] = len(schema.contin_positions)
         sink.emit(
             "invocation_start",
             schema_id=schema.schema_id,
@@ -475,6 +498,7 @@ class gomea_optimization(optimizer_base):
                     rng_link,
                     target=lambda s: s.get_score() >= terminate_if_gte,
                     on_generation=on_generation,
+                    symbolize=self._symbolizer(schema),
                 )
                 reason = engine.run(population).termination_reason
         except KeyboardInterrupt:
@@ -483,6 +507,16 @@ class gomea_optimization(optimizer_base):
             )
             raise
         self._finish(deme, oracle, ev, schema, init, engine, reason, init_s, t_start, sink)
+
+    # GOMEA extension: paper-style constant genes.
+    def _symbolizer(self, schema: FrozenSchema):
+        """The engine's constant recoding for linkage learning, or ``None``
+        when the schema has no contin genes (the plain model)."""
+        positions = schema.contin_positions
+        if not positions:
+            return None
+        mode = self.gomea_params.contin_stats
+        return lambda pop: contin_symbols(pop, positions, schema.contin_value, mode)
 
     def _finish(
         self,

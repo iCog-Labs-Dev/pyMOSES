@@ -14,8 +14,9 @@ field and per field pair only. Entropies use the natural log, like upstream.
 
 from __future__ import annotations
 
+from bisect import bisect_left
 from collections import Counter
-from collections.abc import Sequence
+from collections.abc import Callable, Sequence
 from math import log
 from operator import add
 
@@ -121,3 +122,91 @@ def biased_similarity(
             S[i][j] = s
             S[j][i] = s
     return S
+
+
+# GOMEA extension: how constants (contin genes, ``--gomea-contin copy``) enter
+# linkage learning -- Virgolin et al. 2021, Sec 6: ``all`` = all-const,
+# ``none`` = no-const, ``bin`` = bin-const (the paper's choice, gamma = 100).
+CONTIN_STATS_MODES = ("all", "none", "bin")
+MAX_CONSTANTS = 100
+
+
+def contin_symbols(
+    pop: Sequence[Sequence[int]],
+    positions: Sequence[int],
+    value: Callable[[int, int], float],
+    mode: str,
+    max_constants: int = MAX_CONSTANTS,
+) -> list[tuple[int, ...]]:
+    """GP-GOMEA: src/GOMEA/GOMEAFOS.cpp:303 GOMEAFOS::GenerateLinkageTreeFOS
+
+    The symbol encoding of constants (lines 312-380), as a recoding of the
+    contin genes at ``positions`` (``value(p, code)`` is the constant gene
+    ``p`` with ``code`` decodes to) ahead of ``entropy_matrix``. Other
+    positions are returned unchanged. ``mode``:
+
+    * ``"all"`` (all-const): every distinct constant is its own symbol;
+    * ``"none"`` (no-const): every constant is the same symbol, so a
+      constant carries no linkage information (``LinkageModel`` then keeps
+      the gene out of the tree, as a singleton subset);
+    * ``"bin"`` (bin-const, upstream's live path): the first
+      ``max_constants`` distinct constants met in a row-major traversal
+      (individual by individual, ``positions`` in order, like upstream's
+      node loop) keep their own symbol; every other constant takes the
+      symbol of the nearest of them (ties to the lower constant), found by
+      binary search as the paper describes.
+
+    A symbol is the rank of its (binned) constant among all the distinct
+    (binned) constants of the population, shared by every contin gene like
+    upstream's single symbol table, so below ``max_constants`` distinct
+    constants ``"bin"`` equals ``"all"`` exactly.
+
+    Adaptations from the upstream code: upstream starts ``least_dist`` at
+    the first retained constant's value rather than at its distance to the
+    query (so its sorted-order early stop can end on the wrong constant),
+    and stores the result
+    with ``v = constants_v[least_idx]``, which assigns a ``double`` to a
+    ``std::string`` through ``operator=(char)`` -- so binned constants
+    collapse into one-character symbols unrelated to the retained ones.
+    None of that is ported: this is the paper's rule (the true nearest
+    retained constant, whose symbol a binned constant shares).
+    """
+    if mode not in CONTIN_STATS_MODES:
+        raise ValueError(f"contin stats mode must be one of {CONTIN_STATS_MODES}, got {mode!r}")
+    positions = list(positions)
+    if not positions:
+        return [tuple(row) for row in pop]
+    if mode == "none":
+        symbol_of = None
+    else:
+        values = [[value(p, row[p]) for p in positions] for row in pop]
+        if mode == "bin":
+            retained: dict[float, None] = {}
+            for vals in values:
+                for v in vals:
+                    if len(retained) >= max_constants:
+                        break
+                    retained.setdefault(v)
+            kept = sorted(retained)
+
+            def nearest(v: float) -> float:
+                if v in retained:
+                    return v
+                i = bisect_left(kept, v)
+                if i == 0:
+                    return kept[0]
+                if i == len(kept):
+                    return kept[-1]
+                lo, hi = kept[i - 1], kept[i]
+                return lo if v - lo <= hi - v else hi
+
+            values = [[nearest(v) for v in vals] for vals in values]
+        rank = {v: r for r, v in enumerate(sorted({v for vals in values for v in vals}))}
+        symbol_of = [[rank[v] for v in vals] for vals in values]
+    out = []
+    for i, row in enumerate(pop):
+        new = list(row)
+        for j, p in enumerate(positions):
+            new[p] = 0 if symbol_of is None else symbol_of[i][j]
+        out.append(tuple(new))
+    return out

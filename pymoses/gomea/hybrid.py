@@ -63,8 +63,9 @@ class hc_gomea_optimization(optimizer_base):
     def __call__(self, deme: deme_t, iscorer, max_evals: int, max_time: int) -> None:
         """Fill the empty ``deme`` (hill climbing, then maybe GOMEA) and set
         ``deme.n_evals``. Raises ``UnsupportedRepresentation`` for a
-        representation with contin fields before anything is evaluated."""
-        schema = FrozenSchema(iscorer.get_rep())
+        representation with contin fields before anything is evaluated,
+        unless ``gomea_params.contin`` is ``"copy"``."""
+        schema = FrozenSchema(iscorer.get_rep(), self.gomea_params.contin)
 
         t0 = time.monotonic()
         self.hc(deme, iscorer, max_evals, max_time)
