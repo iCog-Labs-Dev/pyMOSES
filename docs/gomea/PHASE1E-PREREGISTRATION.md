@@ -85,3 +85,26 @@ otherwise it is a *tie*.
 
 "**GOMEA beats hill climbing**" is claimed only for the tasks where the verdict is
 *better*. If none are better, the report says so, and says where the gap remains.
+
+## Deviation (recorded 2026-09-28, after stage 2 ran and before its analysis)
+
+Stage 2 as registered did not give an equal-evaluation comparison:
+
+* **maj7:** all 20 `LTB-C250-M` runs hit the 7,200 s wall cap before 40,000 evaluations.
+  Pure-Python GOMEA costs more wall time per evaluation than HC on representations of
+  about 470–840 knobs.
+* **mux11:** three `LTB-C250-M` runs (seeds 3003, 3016, 3019) hit the 512 MB memory
+  limit, and one (3005) hit the wall cap. One `HC` run (3016) crashed with a
+  `RecursionError` in MOSES's recursive neighborhood counting, which nests once per knob.
+
+Those 25 runs are re-run with the same code (`63023d9` changes only the harness; the MOSES
+and GOMEA code is identical to `8224f3f`), the same seeds, budget and arguments, under
+`configs/gomea/phase1e/stage2-rerun.json`. The only changes are:
+
+* a wall cap of 36,000 s;
+* a 2,048 MB memory limit;
+* a per-run Python recursion limit of 100,000.
+
+None of these limits changes a run's trajectory; they only decide whether it can finish.
+The analysis replaces each of the 25 original runs with its re-run; the other 95 are kept.
+The tests and decision rule are unchanged. Approved by the user (`APPROVALS.md` #10).
