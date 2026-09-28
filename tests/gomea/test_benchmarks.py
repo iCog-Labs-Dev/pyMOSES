@@ -1460,6 +1460,45 @@ class TestMemorySafety:
         )
         assert s["status"] == "ok" and s["ru_maxrss_kb"] > 0 and s["mem_limit_mb"] == 4096
 
+    def test_recursion_limit_is_recorded_and_keeps_an_ok_run(self, tmp_path):
+        m = _tiny_manifest(tmp_path / "out")
+        rc = runner_mod.main(
+            [str(_write_manifest(tmp_path, m)), "--allow-dirty", "--recursion-limit", "5000"]
+        )
+        assert rc == 0
+        rd = manifest_mod.result_dir(m)
+        assert json.loads((rd / "environment.json").read_text())["recursion_limit"] == 5000
+        s = json.loads((rd / "runs" / "pa2__HC__s1" / "summary.json").read_text())
+        assert s["status"] == "ok"
+
+    def test_recursion_limit_below_python_default_is_rejected(self, tmp_path, capsys):
+        m = _tiny_manifest(tmp_path / "out")
+        rc = runner_mod.main(
+            [str(_write_manifest(tmp_path, m)), "--allow-dirty", "--recursion-limit", "10"]
+        )
+        assert rc == 1
+        assert "--recursion-limit" in capsys.readouterr().err
+
+    def test_child_applies_recursion_limit(self, tmp_path):
+        import sys
+
+        run = {"run_dir": str(tmp_path / "r"), "recursion_limit": 4321}
+        before = sys.getrecursionlimit()
+        seen = {}
+
+        def fake_child_run(r, reserve):
+            seen["limit"] = sys.getrecursionlimit()
+            return False
+
+        orig = runner_mod._child_run
+        runner_mod._child_run = fake_child_run
+        try:
+            runner_mod._child_main(run)
+        finally:
+            runner_mod._child_run = orig
+            sys.setrecursionlimit(before)
+        assert seen["limit"] == 4321
+
     def test_runner_module_does_not_import_moses(self):
         import subprocess
         import sys

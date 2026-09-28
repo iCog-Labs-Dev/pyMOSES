@@ -319,6 +319,10 @@ def _child_main(run: dict) -> None:
         reserve.append(bytearray(_MEMORY_RESERVE_BYTES))
         limit = int(limit_mb) * 2**20
         resource.setrlimit(resource.RLIMIT_AS, (limit, limit))
+    if run.get("recursion_limit"):
+        # Large representations make MOSES's recursive neighborhood counting
+        # nest once per knob, past Python's default limit of 1000.
+        sys.setrecursionlimit(int(run["recursion_limit"]))
     start = time.time()
     try:
         hit = _child_run(run, reserve)
@@ -563,6 +567,7 @@ def _plan(
     launch_dir: Path,
     output_root: str | Path | None,
     mem_limit_mb: int | None,
+    recursion_limit: int | None = None,
 ) -> tuple[dict, Path, list[dict]]:
     """The effective manifest (`output_root` overridden, F7), its results
     directory, and every selected run in scheduled order (F1)."""
@@ -574,6 +579,7 @@ def _plan(
     for run in all_runs:
         run["launch_dir"] = str(launch_dir)
         run["mem_limit_mb"] = mem_limit_mb
+        run["recursion_limit"] = recursion_limit
     if only:
         pattern = re.compile(only)
         all_runs = [r for r in all_runs if pattern.search(r["run_id"])]
@@ -590,6 +596,7 @@ def run_manifest(
     output_root: str | Path | None = None,
     mem_limit_mb: int | None = None,
     env_extra: dict | None = None,
+    recursion_limit: int | None = None,
 ) -> int:
     """`launch_dir` (default: the repository root) is the directory a
     relative `output_root` and every run's relative task argv resolve
@@ -614,7 +621,9 @@ def run_manifest(
     130 if interrupted by `SIGINT`, else 1 (fix round 1, finding 3).
     """
     launch_dir = Path(launch_dir).resolve() if launch_dir is not None else Path.cwd()
-    effective, rd, all_runs = _plan(manifest, only, launch_dir, output_root, mem_limit_mb)
+    effective, rd, all_runs = _plan(
+        manifest, only, launch_dir, output_root, mem_limit_mb, recursion_limit
+    )
 
     rd.mkdir(parents=True, exist_ok=True)
     _write_json(rd / "manifest.json", manifest)
@@ -627,6 +636,7 @@ def run_manifest(
             "manifest_output_root": manifest["output_root"],
             "manifest_workers": manifest["workers"],
             "mem_limit_mb": mem_limit_mb,
+            "recursion_limit": recursion_limit,
             "max_load_note": manifest.get("max_load_note"),
             **(env_extra or {}),
         },
@@ -732,6 +742,12 @@ def main(
         help="cap each run's address space (RLIMIT_AS) at this many MiB",
     )
     parser.add_argument(
+        "--recursion-limit",
+        type=int,
+        default=None,
+        help="set each run's Python recursion limit (default: Python's own)",
+    )
+    parser.add_argument(
         "--dry-run",
         action="store_true",
         help="print the plan and the code check, then exit without running",
@@ -739,6 +755,9 @@ def main(
     args = parser.parse_args(argv)
     if args.mem_limit_mb is not None and args.mem_limit_mb < 1:
         print("--mem-limit-mb must be >= 1", file=sys.stderr)
+        return 1
+    if args.recursion_limit is not None and args.recursion_limit < 1000:
+        print("--recursion-limit must be >= 1000", file=sys.stderr)
         return 1
 
     # Resolved against the CALLING process's cwd, once, up front -- nothing
@@ -811,6 +830,7 @@ def main(
         launch_dir=resolved_launch_dir,
         output_root=args.output_root,
         mem_limit_mb=args.mem_limit_mb,
+        recursion_limit=args.recursion_limit,
         env_extra={
             "head": check["head"],
             "manifest_commit": check["manifest_commit"],
