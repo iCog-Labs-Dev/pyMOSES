@@ -90,15 +90,67 @@ estimated about 16 CPU-hours for the stock arms. Reducing to 10 is unnecessary h
 3. **Verdict.** "Table 3 replicated" if every level and pattern criterion holds.
    "Partly replicated" lists which hold.
 
-## Parts B–D
+## Part B: stand-alone GP-GOMEA vs classic C++ MOSES (confirmatory)
+
+Registered 2026-09-28, before any part B run.
+
+**Design.** The paper benchmarks GP-GOMEA against other algorithms in its Section 8 (Tables
+7–9) under an **equal wall-time budget of 1,000 s per run**. The paper's reason: GP-GOMEA
+does many evaluations per generation, and linkage learning costs time without evaluations.
+Part B uses the same design. It also matches the paper on data use: training on the
+training data, choosing the returned model on validation data, and scoring on the test
+set.
+
+* **GP-GOMEA** (`GPG-IMS4`): the Table 8 setting with IMS g = 4 (ℓ = 31).
+  * **Flags:** `--linearscaling --functions +_-_*_aq --erc --gomea --initmaxtreeheight 4
+    --ims 4_1 --popsize 500 --time 1000 --generations -1`. Only the stock bin-const
+    constant handling exists.
+  * **Base population:** the paper does not give the IMS base population; 500 is the
+    authors' Python default.
+  * **Data:** trained on `trainval` (75 %), with `--validation` holding out 25 % of all
+    rows. GP-GOMEA draws those rows at random from the seed, so they are not our `val`
+    rows. It returns the archived solution with the best validation error.
+  * **Manifest:** `configs/gomea/phase1f/partB-gpgomea.json`.
+* **Classic C++ MOSES** (`MOSES-CPP`, 5a5bf75): `tools/gomea/moses_sr_runner.py` with
+  `--max-time 1000`.
+  * **Setup:** the training target is rescaled and `-v` is set to 60·n_train, with
+    `-n sin -n exp -n log`, which leaves {+, ×, ÷}. This is the setup that let MOSES run
+    to budget on every table in the setup sweep; without it MOSES stalls after a few
+    hundred evaluations.
+  * **Data:** trained on `train` (50 %). Of its 10 printed candidates, the one with the
+    best NMSE on our `val` split is chosen.
+  * **Manifest:** `configs/gomea/phase1f/partB-moses.json`.
+* **Differences we cannot remove.**
+  * MOSES has no analytic quotient: its division invalidates a candidate that divides by
+    zero.
+  * MOSES has no linear scaling in training. The rescaling and the train-fitted scaling
+    at scoring stand in for it.
+  * MOSES has no size cap. GP-GOMEA's trees have at most 31 nodes.
+  * Constants are MOSES contin knobs rather than ERCs.
+* **Splits:** 1–10, paired, on all 10 datasets. 200 runs of 1,000 s on 16 workers is
+  about 3.5 h.
+* **Load:** part B runs with nothing else heavy on the machine, since its budget is wall
+  time. Workers are not pinned to cores; the machine mixes performance and efficiency
+  cores, which adds noise equally to both arms.
+
+**Tests.**
+* Per dataset: a paired Wilcoxon signed-rank test on test NMSE (10 pairs), with Holm
+  correction across the 10 datasets.
+* GP-GOMEA is **better** on a dataset if Holm p < 0.05 **and** its median test NMSE is at
+  least 10 % lower. **Worse** is the mirror image; otherwise the dataset is a tie.
+* **Overall:** "GP-GOMEA beats classic MOSES" if it is better on a majority of datasets and
+  worse on none.
+* **Descriptive:**
+  * train NMSE and program size;
+  * our GP-GOMEA test medians against the paper's Table 8 IMS g = 4 medians, a secondary
+    replication check at 10 runs on faster hardware.
+
+## Parts C–D
 
 To be registered here before their runs. The planned outline, which is not yet binding:
-
-* **B:** stand-alone GP-GOMEA vs classic C++ MOSES on the 10 datasets, with 10 paired
-  splits, test NMSE, Holm correction across datasets.
 * **C:** pyMoses GOMEA with lt-b, lt-mi and rt against the Table 3 pattern and levels.
 * **D:** pyMoses GOMEA vs pyMoses hill climbing, with 10 paired splits.
 
-**Why 10 splits suffice for B–D.** With 10 pairs, the exact two-sided Wilcoxon p can be as
+**Why 10 splits suffice for parts B–D.** With 10 pairs, the exact two-sided Wilcoxon p can be as
 small as 0.002, below the strictest Holm threshold over 10 datasets (0.005). So a
 consistent effect is detectable. An inconsistent one reads as a tie, not as a false win.

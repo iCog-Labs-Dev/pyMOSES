@@ -1,0 +1,52 @@
+{
+  "name": "phase1f-B-gpgomea",
+  "datasets_dir": "../gomea-results/phase1f/datasets",
+  "datasets": [
+    "Air",
+    "Bos",
+    "Con",
+    "Dow",
+    "EnC",
+    "EnH",
+    "Tow",
+    "WiR",
+    "WiW",
+    "Yac"
+  ],
+  "splits": [
+    1,
+    2,
+    3,
+    4,
+    5,
+    6,
+    7,
+    8,
+    9,
+    10
+  ],
+  "wall_cap_s": 1800,
+  "arms": {
+    "GPG-IMS4": {
+      "binary": "../gomea-results/phase1b/gpgomea-build/gpgomea",
+      "train": "trainval",
+      "argv": [
+        "--linearscaling",
+        "--functions",
+        "+_-_*_aq",
+        "--erc",
+        "--gomea",
+        "--initmaxtreeheight",
+        "4",
+        "--ims",
+        "4_1",
+        "--popsize",
+        "500",
+        "--time",
+        "1000",
+        "--generations",
+        "-1"
+      ]
+    }
+  }
+}

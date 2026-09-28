@@ -1,0 +1,38 @@
+{
+  "name": "phase1f-B-moses",
+  "datasets_dir": "../gomea-results/phase1f/datasets",
+  "datasets": [
+    "Air",
+    "Bos",
+    "Con",
+    "Dow",
+    "EnC",
+    "EnH",
+    "Tow",
+    "WiR",
+    "WiW",
+    "Yac"
+  ],
+  "splits": [
+    1,
+    2,
+    3,
+    4,
+    5,
+    6,
+    7,
+    8,
+    9,
+    10
+  ],
+  "wall_cap_s": 1800,
+  "mem_limit_mb": 4096,
+  "arms": {
+    "MOSES-CPP": {
+      "binary": "../OpenCog/Moses/build/moses/moses/main/moses",
+      "budget": {
+        "time_s": 1000
+      }
+    }
+  }
+}
