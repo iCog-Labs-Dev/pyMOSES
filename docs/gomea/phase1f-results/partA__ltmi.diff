@@ -1,0 +1,11 @@
+--- /home/yab/Documents/Projects/iCog/HyperonRelated/MOSES/OpenCog/GP-GOMEA/src/GOMEA/GOMEAFOS.cpp	2024-11-29 16:34:29.712930995 +0300
++++ src-ltmi/GOMEA/GOMEAFOS.cpp	2026-09-28 17:46:14.872690756 +0300
+@@ -427,7 +427,7 @@
+ 
+     // transform entropy into mutual information
+     //if (!MI_distribution_adjustments) {    // we always apply the correction
+-    if (false){
++    if (true){
+ 
+         for (size_t i = 0; i < number_of_nodes; i++) {
+             for (size_t j = i + 1; j < number_of_nodes; j++) {

@@ -1,0 +1,102 @@
+{
+  "name": "phase1f-A-table3",
+  "datasets_dir": "../gomea-results/phase1f/datasets",
+  "datasets": [
+    "Air",
+    "Bos",
+    "Con",
+    "Dow",
+    "EnC",
+    "EnH",
+    "Tow",
+    "WiR",
+    "WiW",
+    "Yac"
+  ],
+  "splits": [
+    1,
+    2,
+    3,
+    4,
+    5,
+    6,
+    7,
+    8,
+    9,
+    10,
+    11,
+    12,
+    13,
+    14,
+    15,
+    16,
+    17,
+    18,
+    19,
+    20,
+    21,
+    22,
+    23,
+    24,
+    25,
+    26,
+    27,
+    28,
+    29,
+    30
+  ],
+  "wall_cap_s": 7200,
+  "binaries_sha256": {
+    "gpgomea": "see PHASE1F-PREREGISTRATION.md",
+    "gpgomea-ltmi": "see PHASE1F-PREREGISTRATION.md"
+  },
+  "arms": {
+    "LT-MIb": {
+      "binary": "../gomea-results/phase1b/gpgomea-build/gpgomea",
+      "argv": [
+        "--linearscaling",
+        "--functions",
+        "+_-_*_aq",
+        "--gomea",
+        "--popsize",
+        "2000",
+        "--initmaxtreeheight",
+        "4",
+        "--generations",
+        "20"
+      ]
+    },
+    "LT-MI": {
+      "binary": "../gomea-results/phase1b/gpgomea-build/gpgomea-ltmi",
+      "argv": [
+        "--linearscaling",
+        "--functions",
+        "+_-_*_aq",
+        "--gomea",
+        "--popsize",
+        "2000",
+        "--initmaxtreeheight",
+        "4",
+        "--generations",
+        "20"
+      ]
+    },
+    "RT": {
+      "binary": "../gomea-results/phase1b/gpgomea-build/gpgomea",
+      "argv": [
+        "--linearscaling",
+        "--functions",
+        "+_-_*_aq",
+        "--gomea",
+        "--popsize",
+        "2000",
+        "--initmaxtreeheight",
+        "4",
+        "--generations",
+        "20",
+        "--gomfos",
+        "RT"
+      ]
+    }
+  }
+}

@@ -86,6 +86,9 @@ def _pair(a: dict, b: dict, key: str) -> dict:
         "ties": sum(x == 0 for x in d),
         "b_lower": sum(x > 0 for x in d),
         "p": p,
+        # The direction of a paired difference: its median (a - b). A significant pattern
+        # result is "better" for a when this is negative (the arm medians can disagree).
+        "median_diff": _med(d),
     }
 
 
@@ -159,8 +162,8 @@ def part_a(d: Path, published: Path, out: Path) -> None:
             for ds in DATASETS:
                 r = _pair(runs[(ds, "LT-MIb")], runs[(ds, other)], f"{metric}_nmse")
                 sig = r["p"] < 0.05 / 2
-                better = sig and r["median_a"] < r["median_b"]
-                worse = sig and r["median_a"] > r["median_b"]
+                better = sig and r["median_diff"] < 0
+                worse = sig and r["median_diff"] > 0
                 pattern_rows.append(
                     {
                         "contrast": f"LT-MIb:{other}",
@@ -281,8 +284,8 @@ def part_cd(d: Path, a_dir: Path, out: Path) -> None:
                         "metric": metric,
                         "dataset": ds,
                         **r,
-                        "ltb_better": sig and r["median_a"] < r["median_b"],
-                        "ltb_worse": sig and r["median_a"] > r["median_b"],
+                        "ltb_better": sig and r["median_diff"] < 0,
+                        "ltb_worse": sig and r["median_diff"] > 0,
                         "ltb_median_lower": r["median_a"] < r["median_b"],
                     }
                 )

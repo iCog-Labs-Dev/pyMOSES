@@ -1,0 +1,56 @@
+{
+  "levels": {
+    "LT-MIb/train": {
+      "within_band": 10,
+      "replicates": true
+    },
+    "LT-MIb/test": {
+      "within_band": 10,
+      "replicates": true
+    },
+    "LT-MI/train": {
+      "within_band": 10,
+      "replicates": true
+    },
+    "LT-MI/test": {
+      "within_band": 10,
+      "replicates": true
+    },
+    "RT/train": {
+      "within_band": 10,
+      "replicates": true
+    },
+    "RT/test": {
+      "within_band": 10,
+      "replicates": true
+    }
+  },
+  "pattern": {
+    "LT-MIb:LT-MI/train": {
+      "ours_better": 5,
+      "ours_worse": 1,
+      "paper_better": 8,
+      "replicates": false
+    },
+    "LT-MIb:LT-MI/test": {
+      "ours_better": 1,
+      "ours_worse": 0,
+      "paper_better": 7,
+      "replicates": false
+    },
+    "LT-MIb:RT/train": {
+      "ours_better": 10,
+      "ours_worse": 0,
+      "paper_better": 10,
+      "replicates": true
+    },
+    "LT-MIb:RT/test": {
+      "ours_better": 4,
+      "ours_worse": 0,
+      "paper_better": 9,
+      "replicates": false
+    }
+  },
+  "not_ok_runs": [],
+  "replicated": false
+}
