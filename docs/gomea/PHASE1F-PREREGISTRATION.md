@@ -145,11 +145,68 @@ set.
   * our GP-GOMEA test medians against the paper's Table 8 IMS g = 4 medians, a secondary
     replication check at 10 runs on faster hardware.
 
-## Parts C–D
+## Parts C and D: pyMoses GOMEA vs the literature, and vs pyMoses hill climbing
 
-To be registered here before their runs. The planned outline, which is not yet binding:
-* **C:** pyMoses GOMEA with lt-b, lt-mi and rt against the Table 3 pattern and levels.
-* **D:** pyMoses GOMEA vs pyMoses hill climbing, with 10 paired splits.
+Registered 2026-09-28, before any C or D run.
+
+**Code.** `bcccf8f` adds the approved `--gomea-contin copy`. Each MOSES constant (a
+contin knob) is one gene that optimal mixing copies whole and never mutates, as the paper
+treats its ERC constants. Linkage statistics bin constants as the paper's bin-const does
+(γ = 100), the setting it uses from Section 6 on. A review found no issues, and default
+behaviour is byte-identical.
+
+**Runs** (`configs/gomea/phase1f/partCD-pymoses.json`, `tools/gomea/moses_sr_runner.py`).
+All arms use pyMoses with the same MOSES regression setup as part B: rescaled target,
+`-v 60·n_train` and `-n sin -n exp -n log`. Each is trained on `train` and returns the
+printed candidate with the best `val` NMSE.
+
+* **Budget:** **10,000 evaluations** per run. The MOSES seed is the split number.
+* **Splits:** 1–10, on all 10 datasets. 400 runs, estimated at about 220 CPU-hours, or
+  about 11 h on 18 workers. They start after part B, and the budget is evaluations, so
+  machine load does not matter.
+* **Arms:**
+  * `HC`: `-a hc`, stock hill climbing.
+  * `LTB`: `-a gomea --gomea-contin copy --gomea-pop-size 16 --gomea-skip-inactive 0
+    --gomea-max-evals-per-deme 250 --gomea-genotype-memo 1 --gomea-fos lt-b`. This is the
+    Phase 1e winner, with the paper's bias-corrected linkage tree.
+  * `LTMI` and `RT`: the same, with `--gomea-fos lt-mi` or `rt`.
+
+**Why this budget.** pyMoses is 20–35× slower than C++ MOSES, and its GOMEA is 3–10×
+slower per evaluation than its HC on these tables. A timing pilot of 1,000 evaluations on
+Tow, Dow and Air took 42–58 s (HC), 114–287 s (RT) and 191–546 s (LTB). The paper's
+GP-GOMEA spends about 10⁶ evaluations per run, which is far out of reach, so levels
+cannot be matched. Part C therefore tests *relative* behaviour.
+
+### Part C: is pyMoses GOMEA consistent with the literature? (regression check)
+
+The paper's port-relevant claim is the Table 3 pattern: the bias-corrected linkage tree
+beats plain MI and the random tree. Part A measures that pattern for the authors' C++ code
+on our splits. Part C asks whether the same *direction* shows inside pyMoses.
+
+* **Tests.** Per dataset, a paired Wilcoxon test (10 pairs) of LTB vs LTMI and of LTB vs
+  RT, on train and on test NMSE, significant at p < 0.05/2 (Bonferroni, as in part A).
+* **Verdict "consistent, no regression visible"** if both hold:
+  1. LTB is **never significantly worse** than LTMI or RT on any dataset or metric; and
+  2. on **train** NMSE, LTB's median is lower than LTMI's and RT's on at least 6 of 10
+     datasets each. Train NMSE is the fitness the linkage models optimise.
+* **Verdict "inconsistent"** if either fails. The report then says which, and whether
+  part A also failed on that dataset. A pattern the C++ code does not show on our splits
+  is not evidence against the port.
+* **Descriptive:** pyMoses test and train medians next to part A (C++, about 10⁶
+  evaluations) and Table 3. The component-level check is the existing golden parity
+  suite, which ports GP-GOMEA's linkage learning and GOM against the C++ code
+  (`tests/gomea/test_golden_parity.py`).
+
+### Part D: does pyMoses GOMEA beat pyMoses hill climbing? (confirmatory)
+
+* **Contrast:** LTB vs HC, paired by split.
+* **Tests.** Per dataset, a Wilcoxon signed-rank test on **test NMSE** (10 pairs), with
+  Holm correction across the 10 datasets.
+* **Verdict per dataset.** **Better** if Holm p < 0.05 **and** LTB's median test NMSE is
+  at least 10 % lower. **Worse** is the mirror image; otherwise a **tie**.
+* **Overall:** "pyMoses GOMEA beats hill climbing on the paper's benchmarks" if it is
+  better on a majority of datasets and worse on none.
+* **Descriptive:** train NMSE, the other two GOMEA arms vs HC, CPU time and program size.
 
 **Why 10 splits suffice for parts B–D.** With 10 pairs, the exact two-sided Wilcoxon p can be as
 small as 0.002, below the strictest Holm threshold over 10 datasets (0.005). So a
