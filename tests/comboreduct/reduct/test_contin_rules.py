@@ -35,6 +35,7 @@ from pymoses.comboreduct.reduct.contin_rules import (
     reduce_times_div,
     reduce_times_one_zero,
 )
+from pymoses.comboreduct.reduct.meta_rules import downwards
 
 
 def _reduced(tree_str: str, r) -> str:
@@ -238,6 +239,33 @@ def test_reduce_factorize_fraction_common_denominator():
     assert _reduced(
         "+(/($1 $3) /($2 $3))", reduce_factorize_fraction()
     ) == "+(/(+($1 $2) $3))"
+
+
+@pytest.mark.parametrize(
+    ("tree", "expected"),
+    [
+        # key $2 sits inside a `*` denominator; `*($3)` survives the move, so the
+        # whole `/($1 *($3))` (kp_parent) goes under the new `+`.
+        ("+(/($1 *($2 $3)) /($4 *($2 $5)))", "+(/(+(/($1 *($3)) /($4 *($5))) $2))"),
+        # key's `*` is left childless, so only the numerator $1 is kept.
+        ("+(/($1 *($2)) /($4 *($2 $5)))", "+(/(+($1 /($4 *($5))) $2))"),
+        ("+(/($1 *($2 $3)) /($4 $2))", "+(/(+(/($1 *($3)) $4) $2))"),
+        # Both sub-branches in one downwards pass (outer, then nested `+`).
+        (
+            "+(/($1 *($2 $3)) /($4 *($2 $5)) /($6 *($3 $2)))",
+            "+(/(+(/($4 *($5)) /(+($1 $6) $3)) $2))",
+        ),
+    ],
+)
+def test_reduce_factorize_fraction_key_inside_times_denominator(tree, expected):
+    """Pins classic C++ output (tools/cpp_probe/contin_rule_probe) for the
+    non-div `key_parent` branch (contin_rules.cc:229-237). Before the fix that
+    branch raised TypeError on a one-argument `append_child`, and the
+    non-childless case moved `key_parent` instead of `kp_parent`.
+    """
+    tr = str_to_combo_tree(tree)
+    downwards(reduce_factorize_fraction())(tr, tr.begin())
+    assert combo_tree_to_str(tr).strip() == expected
 
 
 def test_reduce_factorize_fraction_no_shared_denominator_is_a_noop():

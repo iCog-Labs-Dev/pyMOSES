@@ -320,11 +320,15 @@ class reduce_factorize_fraction(rule):
             main_div = tr.append_child(it, builtin.div)
             remain_plus = tr.append_child(main_div, builtin.plus)
             tr.move_ontop(tr.append_child(main_div, contin_t(0.0)), key)
+            # C++ `tr.append_child(remain_plus)` appends a default-valued placeholder
+            # that `move_ontop` immediately overwrites; `contin_t(0.0)` stands in for it,
+            # as on the lines above and below.
             if tr.is_childless(key_parent):
-                tr.move_ontop(tr.append_child(remain_plus), kp_parent.first_child)
+                tr.move_ontop(tr.append_child(remain_plus, contin_t(0.0)), kp_parent.first_child)
                 tr.erase(kp_parent)
             else:
-                tr.move_ontop(tr.append_child(remain_plus), key_parent)
+                # C++ moves `kp_parent` here (contin_rules.cc:237), not `key_parent`.
+                tr.move_ontop(tr.append_child(remain_plus, contin_t(0.0)), kp_parent)
 
         for factor in es_vec:
             factor_parent = factor.parent

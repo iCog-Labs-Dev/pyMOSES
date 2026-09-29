@@ -239,3 +239,21 @@ unscorable candidate as infinite error instead of crashing, and
   otherwise unchanged.
 
 Parts C and D use the same scorer and had not started.
+
+## Deviation: a pyMoses reduct bug found during parts C and D (recorded 2026-09-29)
+
+Run `Air__LTMI__s7` crashed with a `TypeError` in `reduce_factorize_fraction`
+(`pymoses/comboreduct/reduct/contin_rules.py`), a port bug independent of GOMEA.
+* **The crash:** two C++ one-argument `append_child` calls had been ported without their
+  placeholder value.
+* **The wrong node:** the non-childless branch moved `key_parent` where C++ moves
+  `kp_parent`.
+
+The fix matches the C++ build exactly on six trees built to reach both sub-branches, for
+the rule alone and for the full `contin_reduce` at efforts 1–3. A regression test pins the
+C++ output. The branch always raised before the fix, so no completed run executed it, and
+completed runs are unaffected.
+
+Runs started after the fix use the fixed code. The crashed run is re-run with the fix
+after the batch finishes. Any other run that crashed the same way before the fix is
+handled likewise and listed in the findings.

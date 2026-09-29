@@ -61,7 +61,14 @@ def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("targets", nargs="+", help="LOG or LOG:PID")
     ap.add_argument("--interval", type=float, default=60.0)
+    ap.add_argument(
+        "--ignore",
+        action="append",
+        default=[],
+        help="regex of an already-handled problem line to skip (repeatable)",
+    )
     args = ap.parse_args(argv)
+    ignore = [re.compile(p) for p in args.ignore]
     watched = []
     for t in args.targets:
         path, _, pid = t.partition(":")
@@ -71,6 +78,7 @@ def main(argv: list[str] | None = None) -> int:
         for path, pid in watched:
             text = path.read_text(errors="replace") if path.exists() else ""
             problems, complete = scan(text)
+            problems = [p for p in problems if not any(r.search(p) for r in ignore)]
             if problems:
                 print(f"ALERT {path}: {len(problems)} problem line(s):")
                 print("\n".join(problems[:40]))
