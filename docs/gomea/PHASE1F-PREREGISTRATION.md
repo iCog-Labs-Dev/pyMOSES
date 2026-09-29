@@ -257,3 +257,34 @@ completed runs are unaffected.
 Runs started after the fix use the fixed code. The crashed run is re-run with the fix
 after the batch finishes. Any other run that crashed the same way before the fix is
 handled likewise and listed in the findings.
+
+## Deviation: parts C and D rescoped after an out-of-memory crash (recorded 2026-09-29, before any C/D analysis)
+
+At 22:50 the machine ran out of memory while 18 runs were in flight. The kernel killed
+a pyMoses GOMEA run on Dow at about 2 GB, and the runner's pool shut down. At that point
+121 runs had finished `ok`, which covers Air, Bos and Con except two runs.
+
+Two further failures were already known:
+* five Air LTMI runs had crashed on the reduct bug before its fix;
+* two Dow HC runs had hit Python's recursion limit before the runner's recursion wrapper
+  (`8b23deb`).
+
+The run time had also been badly underestimated. With 18 concurrent Python processes on
+22 hardware threads, a GOMEA run on Air took 1.5–2 h instead of about 15 min. At a
+memory-safe concurrency, completing the registered design would take 1.5–2 more days.
+
+**User decision:** "Drop LTMI, keep 10k". The rest proceeds as follows.
+* **Budget:** 10,000 evaluations per run, unchanged.
+* **Arms on the 7 remaining datasets** (Dow, EnC, EnH, Tow, WiR, WiW, Yac): HC, LTB and
+  RT only. LTMI is not run there.
+* **Re-runs:** the 7 failed runs above and the unfinished ones.
+* **Resources:** 11 workers, a 3,072 MB address-space cap per run, and a split-by-split
+  schedule so the memory-heavy runs of one dataset do not all overlap. A run that hits the
+  cap is re-run with more room and fewer workers, and listed in the findings.
+
+**Effect on the tests.**
+* **Part D** (LTB vs HC) is unchanged, on all 10 datasets.
+* **Part C, LTB vs RT:** unchanged, on all 10 datasets.
+* **Part C, LTB vs LTMI:** rests on Air, Bos and Con only. Criterion 2 for LTMI becomes
+  "LTB's train median is lower on at least 2 of those 3 datasets", the same two-thirds
+  proportion as 6 of 10 would be; criterion 1 is unchanged.

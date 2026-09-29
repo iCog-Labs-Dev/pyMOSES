@@ -225,6 +225,15 @@ def main() -> int:
     ap.add_argument("output_root")
     ap.add_argument("--workers", type=int, default=8)
     ap.add_argument("--only", default=None, help="run only run ids matching this regex")
+    ap.add_argument(
+        "--mem-limit-mb", type=int, default=None, help="override the manifest's per-run limit"
+    )
+    ap.add_argument(
+        "--split-major",
+        action="store_true",
+        help="schedule split by split (mixing datasets and arms in each batch) instead of "
+        "dataset by dataset, so memory-heavy runs of one dataset do not all overlap",
+    )
     args = ap.parse_args()
     repo = Path(__file__).resolve().parents[2]
     manifest = json.loads(Path(args.manifest).read_text())
@@ -232,6 +241,11 @@ def main() -> int:
     jobs = expand(manifest, out_root, repo)
     if args.only:
         jobs = [j for j in jobs if re.search(args.only, j["run_id"])]
+    if args.mem_limit_mb is not None:
+        for j in jobs:
+            j["mem_limit_mb"] = args.mem_limit_mb
+    if args.split_major:
+        jobs.sort(key=lambda j: (j["seed"], j["task"], j["arm"]))
     (out_root / manifest["name"]).mkdir(parents=True, exist_ok=True)
     (out_root / manifest["name"] / "manifest.json").write_text(json.dumps(manifest, indent=2))
     done = 0
