@@ -93,6 +93,17 @@ def _run_one(job: dict) -> dict:
     if "evals" not in b:
         argv += ["-m", "1000000000"]
     argv += job["argv"]
+    if Path(job["binary"]).parent.name == "bin" and Path(job["binary"]).name == "moses":
+        # pyMoses: run it with a raised recursion limit. Its recursive neighbourhood
+        # counting nests once per knob, past Python's default of 1,000 on large
+        # representations (Dow). The limit only decides whether a run can finish.
+        boot = (
+            "import sys; sys.setrecursionlimit(100000); "
+            "from pymoses.moses.main.moses_exec import moses_exec; "
+            "sys.exit(moses_exec(['moses', *sys.argv[1:]]))"
+        )
+        python = str(Path(job["binary"]).with_name("python"))
+        argv = [python, "-c", boot, *argv[1:]]
     (run_dir / "config.json").write_text(json.dumps({**job, "resolved_argv": argv}, indent=2))
     before = resource.getrusage(resource.RUSAGE_CHILDREN)
     t0 = time.monotonic()
