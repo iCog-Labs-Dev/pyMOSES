@@ -211,3 +211,31 @@ on our splits. Part C asks whether the same *direction* shows inside pyMoses.
 **Why 10 splits suffice for parts B–D.** With 10 pairs, the exact two-sided Wilcoxon p can be as
 small as 0.002, below the strictest Holm threshold over 10 datasets (0.005). So a
 consistent effect is detectable. An inconsistent one reads as a tie, not as a false win.
+
+## Deviation: part B restart (recorded 2026-09-29, before any part B analysis)
+
+The first part B launch crashed. Its MOSES runner died after 9 of its 100 runs, while
+scoring `Bos` split 1.
+
+**The cause.** MOSES's regression programs can contain `impulse(...)`. On `Bos`, the
+column CHAS holds only the tokens `0`/`1`, so MOSES types it as a boolean input. The
+scoring tool used pyMoses's pure contin interpreter, which rejects `impulse`, and passed
+CHAS as the number 1.0 rather than as a logical value.
+
+**The fix.** `tools/gomea/sr_eval.py` now uses the mixed interpreter, as MOSES does, and
+passes columns MOSES types as boolean as logical values, applying MOSES's own
+`infer_type_from_token2` to the training file. It reproduces MOSES's printed training
+scores exactly on the crashing run and on a run without booleans. The runner now scores an
+unscorable candidate as infinite error instead of crashing, and
+`tools/gomea/watch_runs.py` raises an alert on any failure.
+
+**What was kept and what is re-run.**
+* The 9 finished MOSES runs are kept (all `Air`, which has no boolean column).
+* The 13 GP-GOMEA runs that finished before the crash are kept, since both arms were
+  running together.
+* Three GP-GOMEA runs that finished just after the crash are re-run, along with every
+  unfinished run.
+* Both arms are restarted together, so they again share the machine. The protocol is
+  otherwise unchanged.
+
+Parts C and D use the same scorer and had not started.

@@ -64,6 +64,25 @@ class TestSemantics(unittest.TestCase):
         self.assertEqual(sr_eval.nmse(y, [math.nan, 0, 0, 0]), math.inf)
 
 
+class TestBooleanColumns(unittest.TestCase):
+    """A column whose every token is 0/1 is boolean to MOSES; impulse($k) must see it."""
+
+    def test_impulse_of_a_boolean_column(self):
+        with tempfile.TemporaryDirectory() as d:
+            path = Path(d) / "t.csv"
+            path.write_text("a,flag,y\n1.5,0,1\n2.5,1,2\n3.5,1,3\n")
+            t = sr_eval.read_table(str(path))
+            self.assertEqual(t.bool_cols, frozenset({1}))
+            preds = sr_eval.predict("+($1 impulse($2))", t.X, t.labels, t.bool_cols)
+            self.assertEqual(preds, [1.5, 3.5, 4.5])
+
+    def test_decimal_column_is_not_boolean(self):
+        with tempfile.TemporaryDirectory() as d:
+            path = Path(d) / "t.csv"
+            path.write_text("a,y\n0,1\n1.0,2\n")
+            self.assertEqual(sr_eval.read_table(str(path)).bool_cols, frozenset())
+
+
 class TestEndToEnd(unittest.TestCase):
     def setUp(self):
         self.dir = tempfile.TemporaryDirectory()

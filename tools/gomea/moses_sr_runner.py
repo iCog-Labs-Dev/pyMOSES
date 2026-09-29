@@ -124,8 +124,20 @@ def _run_one(job: dict) -> dict:
     test = sr_eval.read_table(str(sdir / "test.csv"))
     scored = []
     for _score, prog in cands:
-        on_val = sr_eval.evaluate(prog, train, val)
-        on_test = sr_eval.evaluate(prog, train, test)
+        try:
+            on_val = sr_eval.evaluate(prog, train, val)
+            on_test = sr_eval.evaluate(prog, train, test)
+        except Exception as exc:  # never let one unscorable candidate kill the pool
+            scored.append(
+                {
+                    "program": prog,
+                    "train_nmse": math.inf,
+                    "val_nmse": math.inf,
+                    "test_nmse": math.inf,
+                    "eval_error": f"{type(exc).__name__}: {exc}"[:300],
+                }
+            )
+            continue
         scored.append(
             {
                 "program": prog,
@@ -156,6 +168,7 @@ def _run_one(job: dict) -> dict:
         "target_mean": mean,
         "target_sd": sd,
         "n_candidates": len(scored),
+        "n_candidates_unscorable": sum("eval_error" in c for c in scored),
         "train_nmse": best.get("train_nmse"),
         "val_nmse": best.get("val_nmse"),
         "test_nmse": best.get("test_nmse"),

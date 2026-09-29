@@ -14,8 +14,10 @@ non-candidate lines are skipped.
 Variable mapping (as MOSES reads a table): `$k` is the k-th column of the CSV header
 once the target column and every `-Y/--ignore-feature` column are removed, in file order.
 
-Evaluation uses pyMoses's own combo parser (`str_to_combo_tree`) and contin interpreter,
-so arithmetic is exactly MOSES's: `/(x y)` returns `x` when `x == 0` (even if `y == 0`),
+Evaluation uses pyMoses's own combo parser (`str_to_combo_tree`) and mixed interpreter
+(which also handles `impulse`, `0<` and the logical operators that MOSES regression
+programs can contain), so arithmetic is exactly MOSES's: `/(x y)` returns `x` when
+`x == 0` (even if `y == 0`),
 and raises `OverflowException` when `x / y` is inf or nan. MOSES scores such a candidate
 as the worst possible score; here the affected rows get a `nan` prediction and every
 NMSE of that split is reported as `inf`.
@@ -40,8 +42,11 @@ from collections.abc import Sequence
 from dataclasses import dataclass
 
 from pymoses.comboreduct.combo.iostream_combo import str_to_combo_tree
+from pymoses.comboreduct.combo.vertex import builtin
 from pymoses.comboreduct.crutil.exception import OverflowException
-from pymoses.comboreduct.interpreter.interpreter import contin_interpreter
+from pymoses.comboreduct.interpreter.interpreter import mixed_interpreter
+from pymoses.comboreduct.table.table_io import infer_type_from_token2
+from pymoses.comboreduct.type_checker.type_signature import type_node
 
 _LABEL_RE = re.compile(r"(!?)\$([^\s()$]+)")
 _FLOAT_RE = re.compile(r"^[-+]?(\d+\.?\d*|\.\d+)([eE][-+]?\d+)?$|^[-+]?(inf|nan)$", re.I)
@@ -54,6 +59,9 @@ class Table:
     labels: list[str]
     X: list[list[float]]
     y: list[float]
+    # Feature columns MOSES types as boolean (every token is 0/1/T/F/t/f), as indices
+    # into `labels`. MOSES passes those as logical values, so `impulse($k)` works.
+    bool_cols: frozenset[int] = frozenset()
 
 
 def read_table(path: str, target: str | None = None, ignore: Sequence[str] = ()) -> Table:
@@ -74,10 +82,13 @@ def read_table(path: str, target: str | None = None, ignore: Sequence[str] = ())
     t_idx = header.index(target)
     keep = [i for i, h in enumerate(header) if i != t_idx and h not in ignore]
     X, y = [], []
+    types = [type_node.unknown_type] * len(keep)
     for r in rows[1:]:
         X.append([float(r[i]) for i in keep])
         y.append(float(r[t_idx]))
-    return Table([header[i] for i in keep], X, y)
+        types = [infer_type_from_token2(t, r[i].strip()) for t, i in zip(types, keep, strict=True)]
+    bools = frozenset(j for j, t in enumerate(types) if t == type_node.boolean_type)
+    return Table([header[i] for i in keep], X, y, bools)
 
 
 def _extract_expr(s: str, pos: int) -> tuple[str, int]:
@@ -144,14 +155,35 @@ def relabel(program: str, labels: Sequence[str]) -> str:
     return _LABEL_RE.sub(sub, program)
 
 
-def predict(program: str, X: Sequence[Sequence[float]], labels: Sequence[str] = ()) -> list:
-    """Evaluate `program` on every row with MOSES's contin semantics (nan on overflow)."""
+def predict(
+    program: str,
+    X: Sequence[Sequence[float]],
+    labels: Sequence[str] = (),
+    bool_cols: frozenset[int] = frozenset(),
+) -> list:
+    """Evaluate `program` on every row with MOSES's semantics (nan on overflow).
+
+    Columns in `bool_cols` are passed as logical values (non-zero is true), as MOSES does
+    for a column it types as boolean."""
     tr = str_to_combo_tree(relabel(program, labels) if labels else program)
     it = tr.begin()
-    interp = contin_interpreter()
+    # The mixed interpreter, as MOSES's own table scoring uses: regression programs can
+    # hold boolean sub-terms such as `impulse(0<(...))`, which the pure contin
+    # interpreter rejects.
+    interp = mixed_interpreter.from_contin_inputs([])
+    if bool_cols:
+        interp = mixed_interpreter([])
     preds = []
     for row in X:
-        interp.contin_inputs = list(row)
+        if bool_cols:
+            interp._mixed_inputs = [
+                (builtin.logical_true if x != 0 else builtin.logical_false)
+                if j in bool_cols
+                else float(x)
+                for j, x in enumerate(row)
+            ]
+        else:
+            interp.contin_inputs = list(row)
         try:
             v = float(interp.contin_eval(it))
         except OverflowException:
@@ -197,7 +229,7 @@ def nmse(y: Sequence[float], p: Sequence[float], a: float = 0.0, b: float = 1.0)
 
 def evaluate(program: str, train: Table, test: Table | None = None) -> dict:
     """Train-fitted linear scaling, then scaled and raw NMSE on each split."""
-    p_tr = predict(program, train.X, train.labels)
+    p_tr = predict(program, train.X, train.labels, train.bool_cols)
     a, b = linear_scaling(train.y, p_tr)
     res = {
         "program": program,
@@ -212,7 +244,8 @@ def evaluate(program: str, train: Table, test: Table | None = None) -> dict:
     if test is not None:
         if test.labels != train.labels:
             raise ValueError("train and test feature columns differ")
-        p_te = predict(program, test.X, test.labels)
+        # The model's input types are those of the table it was trained on.
+        p_te = predict(program, test.X, test.labels, train.bool_cols)
         res["test"] = {
             "nmse_scaled": nmse(test.y, p_te, a, b),
             "nmse_raw": nmse(test.y, p_te),
