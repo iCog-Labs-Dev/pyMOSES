@@ -288,3 +288,20 @@ memory-safe concurrency, completing the registered design would take 1.5–2 mor
 * **Part C, LTB vs LTMI:** rests on Air, Bos and Con only. Criterion 2 for LTMI becomes
   "LTB's train median is lower on at least 2 of those 3 datasets", the same two-thirds
   proportion as 6 of 10 would be; criterion 1 is unchanged.
+
+## Deviation: parts C and D stopped early (recorded 2026-09-30, before the C/D analysis)
+
+The run was restarted with 7 workers after memory pressure; the user chose "Restart with
+7 workers". GOMEA runs on the largest datasets (Tow, WiW) then took 6–8 h each, putting
+completion 2.5–3 days away. The user then chose **"Report now on what's done"**, and the
+runner was stopped on 2026-09-30 at 181 of 330 runs.
+
+**Scope of the analysis actually run.**
+* **Confirmatory:** Air, Bos and Con, the only datasets with all 10 LTB/HC pairs.
+  * **Part D** (LTB vs HC, test NMSE): Holm correction across these 3 datasets instead
+    of 10.
+  * **Part C:** LTB vs RT and LTB vs LTMI on the pairs available (RT 10/9/9, LTMI
+    7/10/10). Criterion 2 becomes "LTB's train median is lower on at least 2 of the 3
+    datasets" for both contrasts; criterion 1 is unchanged.
+* **Descriptive only** (1–4 pairs, no test): Dow, EnC, EnH, Tow, WiR, WiW and Yac.
+  * Two Dow LTB runs hit the 3,072 MB cap. They count as errors, as infinite NMSE.

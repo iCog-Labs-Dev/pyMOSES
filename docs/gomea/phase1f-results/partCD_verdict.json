@@ -1,0 +1,30 @@
+{
+  "C": {
+    "ltb_significantly_worse": [],
+    "train_median_lower_count": {
+      "LTMI": 2,
+      "RT": 2
+    },
+    "datasets": [
+      "Air",
+      "Bos",
+      "Con"
+    ],
+    "consistent": true
+  },
+  "D": {
+    "better": 2,
+    "worse": 0,
+    "tie": 1,
+    "datasets": [
+      "Air",
+      "Bos",
+      "Con"
+    ],
+    "gomea_beats_hc": true
+  },
+  "not_ok_runs": [
+    "Dow__LTB__s2",
+    "Dow__LTB__s3"
+  ]
+}

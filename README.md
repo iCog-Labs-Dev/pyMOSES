@@ -169,7 +169,10 @@ climbing won in [`docs/gomea/PHASE1D-FINDINGS.md`](docs/gomea/PHASE1D-FINDINGS.m
 per-deme evaluations (`--gomea-max-evals-per-deme 500`) closes most of the gap. With a cap of
 250, the lt-b FOS and the genotype memo, GOMEA needed about half of hill climbing's
 evaluations on 11-input multiplexer and tied on majority-7 and parity-5, at several times
-the CPU time ([`docs/gomea/PHASE1E-FINDINGS.md`](docs/gomea/PHASE1E-FINDINGS.md)).
+the CPU time ([`docs/gomea/PHASE1E-FINDINGS.md`](docs/gomea/PHASE1E-FINDINGS.md)). On the GP-GOMEA paper's own
+symbolic-regression benchmarks, with `--gomea-contin copy` for constants, it beat hill
+climbing on 2 of the 3 fully-run datasets, and the authors' C++ GP-GOMEA beat classic MOSES
+on all 10 ([`docs/gomea/PHASE1F-FINDINGS.md`](docs/gomea/PHASE1F-FINDINGS.md)).
 
 ## Run the tests
 
@@ -181,12 +184,13 @@ pip install -e ".[dev]"
 pytest
 ```
 
-Expect **8291 passed, 5 skipped** in about 10 minutes on one core: the classic port's
-7898 (verified from a clean checkout and a fresh virtualenv) plus 393 added on this branch
-for the GOMEA extension (measured on this branch).
+Expect **8344 passed, 5 skipped** in about 11 minutes on one core: the classic port's
+7898 (verified from a clean checkout and a fresh virtualenv) plus 446 added on this branch
+for the GOMEA extension and its experiments, including a reduct regression test (measured on
+this branch).
 
 On a machine without a classic MOSES/CogUtil checkout you should see 7 more tests skip,
-roughly `8284 passed, 12 skipped`. Those are the tests that read the C++ sources
+roughly `8337 passed, 12 skipped`. Those are the tests that read the C++ sources
 directly; they skip rather than fail, so a green run is still a green run. Everything
 else compares against golden fixtures committed here.
 

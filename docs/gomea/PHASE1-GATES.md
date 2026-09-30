@@ -144,6 +144,21 @@ review and a fix wave. The ledger of findings, fixes and deferred minors lives i
   * **maj7 and pa5:** ties.
   * **Cost:** about 3–4× HC's CPU time.
 
+## Phase 1f: the GP-GOMEA paper's own benchmarks (user-requested follow-up)
+
+* **Approval:** `APPROVALS.md` #11, including the opt-in `--gomea-contin copy` (`bcccf8f`).
+* **Pre-registration:** `PHASE1F-PREREGISTRATION.md`. Each part was registered before it
+  ran; it also records every deviation: the part B restart, a reduct bug, an
+  out-of-memory rescope and the early stop of parts C and D.
+* **Findings:** `PHASE1F-FINDINGS.md`.
+  * **A:** Table 3 partly replicated. Levels match on all 60 medians; the linkage-model
+    advantages only partly.
+  * **B:** GP-GOMEA beats classic C++ MOSES on all 10 datasets.
+  * **C:** consistent, with no regression visible.
+  * **D:** pyMoses GOMEA beats HC on Air and Con, and ties on Bos, at 3.3–5.4× the CPU time there.
+* **Bugs fixed:** `reduce_factorize_fraction` (`484e302`, verified against C++) and the
+  scorer's boolean columns (`3e41da7`).
+
 ## Deferred minors (not blocking; kept for the record)
 
 * The golden.cpp header should note that upstream's commented-out blocks were omitted.

@@ -57,6 +57,13 @@ merges the best of them back into the metapopulation as usual.
 > and pa5. It costs about 3–4× HC's CPU time, so prefer it only when scorer calls are
 > the expensive part, and give large problems more than 512 MB of memory
 > ([`PHASE1E-FINDINGS.md`](PHASE1E-FINDINGS.md)).
+>
+> **On the GP-GOMEA paper's regression benchmarks (Phase 1f):**
+> * Add `--gomea-contin copy` so constants become genes.
+> * The same capped setup beat hill climbing on test error on Air and Con, and tied on
+>   Bos, at 3.3–5.4× the CPU time there.
+> * The authors' stand-alone C++ GP-GOMEA is far stronger than classic C++ MOSES there
+>   ([`PHASE1F-FINDINGS.md`](PHASE1F-FINDINGS.md)).
 > A follow-up ([`PHASE1B-FINDINGS.md`](PHASE1B-FINDINGS.md)) ran the authors' own
 > stand-alone GP-GOMEA on the same tasks. It also lost to MOSES hill climbing at equal
 > evaluations. On larger problems ([`PHASE1C-FINDINGS.md`](PHASE1C-FINDINGS.md)) the

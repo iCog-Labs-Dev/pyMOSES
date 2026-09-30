@@ -209,9 +209,11 @@ def part_a(d: Path, published: Path, out: Path) -> None:
     print(json.dumps(verdict, indent=2))
 
 
-def _verdicts(runs: dict, a_arm: str, b_arm: str, threshold: float = 0.10) -> list[dict]:
+def _verdicts(
+    runs: dict, a_arm: str, b_arm: str, threshold: float = 0.10, datasets=DATASETS
+) -> list[dict]:
     rows = []
-    for ds in DATASETS:
+    for ds in datasets:
         rows.append(
             {
                 "dataset": ds,
@@ -269,13 +271,18 @@ def part_b(gdir: Path, mdir: Path, published: Path, out: Path) -> None:
     print(json.dumps(verdict, indent=2))
 
 
+# Parts C and D were stopped early by the user (PHASE1F-PREREGISTRATION.md, last deviation):
+# only these datasets have all 10 LTB/HC pairs; the tests use them, the rest is descriptive.
+COMPLETE_CD = ["Air", "Bos", "Con"]
+
+
 def part_cd(d: Path, a_dir: Path, out: Path) -> None:
     runs = _load(d)
     runs_a = _load(a_dir)
     c_rows = []
     for other in ("LTMI", "RT"):
         for metric in ("train", "test"):
-            for ds in DATASETS:
+            for ds in COMPLETE_CD:
                 r = _pair(runs[(ds, "LTB")], runs[(ds, other)], f"{metric}_nmse")
                 sig = r["p"] < 0.05 / 2
                 c_rows.append(
@@ -302,7 +309,8 @@ def part_cd(d: Path, a_dir: Path, out: Path) -> None:
     c_verdict = {
         "ltb_significantly_worse": worse_any,
         "train_median_lower_count": lower,
-        "consistent": not worse_any and all(k >= 6 for k in lower.values()),
+        "datasets": COMPLETE_CD,
+        "consistent": not worse_any and all(k >= 2 for k in lower.values()),
     }
     levels = []
     for ds in DATASETS:
@@ -315,9 +323,16 @@ def part_cd(d: Path, a_dir: Path, out: Path) -> None:
             )
         levels.append(row)
     _write(out, "partC_levels.csv", levels)
-    d_rows = _verdicts(runs, "LTB", "HC")
+    d_rows = _verdicts(runs, "LTB", "HC", datasets=COMPLETE_CD)
     for other in ("LTMI", "RT"):
-        d_rows += _verdicts(runs, other, "HC")
+        d_rows += _verdicts(runs, other, "HC", datasets=COMPLETE_CD)
+    partial = []
+    for ds in DATASETS:
+        for arm in ("LTB", "RT", "LTMI"):
+            r = _pair(runs[(ds, arm)], runs[(ds, "HC")], "test_nmse")
+            if r["n"]:
+                partial.append({"dataset": ds, "contrast": f"{arm}:HC", **r})
+    _write(out, "partD_descriptive_all.csv", partial)
     _write(out, "partD_verdicts.csv", d_rows)
     _write(out, "partCD_aggregate.csv", _aggregate(runs))
     main_rows = [r for r in d_rows if r["contrast"] == "LTB:HC"]
@@ -327,6 +342,7 @@ def part_cd(d: Path, a_dir: Path, out: Path) -> None:
         "better": k_b,
         "worse": k_w,
         "tie": len(main_rows) - k_b - k_w,
+        "datasets": COMPLETE_CD,
         "gomea_beats_hc": k_b > len(main_rows) / 2 and k_w == 0,
     }
     verdict = {"C": c_verdict, "D": d_verdict, "not_ok_runs": _bad(runs)}
