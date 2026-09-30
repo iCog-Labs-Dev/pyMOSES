@@ -331,3 +331,15 @@ Dow, EnC, EnH and Yac.
 * **Part C, LTB vs LTMI:** stays on Air, Bos and Con.
 
 The 3-dataset analysis already reported stays in the findings as the interim result.
+
+**Update to the extension (2026-09-30, before any extension analysis).** In pass 2, Dow
+LTB exceeded the 5,120 MB cap as well. Both runs (splits 2 and 3) failed with a
+`MemoryError` after about 2.6 h at 5.1 GB. Dow RT stays under 1 GB, and Dow HC under
+100 MB. On the user's decision ("Drop Dow LTB, report it"), the remaining Dow LTB runs
+are not run, and only Dow RT is completed.
+
+**Consequences for the tests.**
+* **Part D (LTB vs HC)** is confirmatory on 6 datasets: Air, Bos, Con, EnC, EnH and Yac,
+  with Holm correction over the 6. The overall claim needs at least 4 of 6.
+* **Dow** is reported as "LTB does not fit in 5 GB on this machine".
+* **Part C, LTB vs RT:** over the same 6 datasets, with criterion 2 at 4 of 6.
