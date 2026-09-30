@@ -305,3 +305,29 @@ runner was stopped on 2026-09-30 at 181 of 330 runs.
     datasets" for both contrasts; criterion 1 is unchanged.
 * **Descriptive only** (1–4 pairs, no test): Dow, EnC, EnH, Tow, WiR, WiW and Yac.
   * Two Dow LTB runs hit the 3,072 MB cap. They count as errors, as infinite NMSE.
+
+## Extension: parts C and D completed on Dow, EnC, EnH and Yac (registered 2026-09-30, before these runs)
+
+After the early stop, the user asked for one more round: "Finish 4 medium datasets".
+
+**Scope.**
+* **Datasets:** Dow, EnC, EnH and Yac are completed to 10 splits.
+* **Arms:** HC, LTB and RT, with the same arguments, 10,000 evaluations and the same code.
+* **Not run:** Tow, WiR and WiW stay descriptive, because their GOMEA runs take 6–8 h each.
+
+**Runs.** Split into two passes, so that memory stays safe.
+* **Pass 1:** EnC, EnH, Yac and Dow HC, on 5 workers with a 3,072 MB cap.
+* **Pass 2:** Dow LTB and RT, on 2 workers with a 5,120 MB cap. Dow GOMEA exceeded 3 GB
+  earlier. The two Dow LTB runs that hit that cap are re-run here; memory caps only decide
+  whether a run can finish.
+
+**Tests after the extension.** The confirmatory set becomes the 7 datasets Air, Bos, Con,
+Dow, EnC, EnH and Yac.
+* **Part D:** LTB vs HC on test NMSE, with Holm correction over the 7. The verdict rules
+  are unchanged; the overall claim needs better on a majority, at least 4 of 7, and worse
+  on none.
+* **Part C, LTB vs RT:** over the 7. Criterion 2 becomes "LTB's train median is lower on
+  at least 5 of 7", the two-thirds proportion of the original 6 of 10.
+* **Part C, LTB vs LTMI:** stays on Air, Bos and Con.
+
+The 3-dataset analysis already reported stays in the findings as the interim result.
