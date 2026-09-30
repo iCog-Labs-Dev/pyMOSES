@@ -1,6 +1,7 @@
 # Phase 1 gate packets
 
-The handoff contract (`00_START_HERE.md`) asks for a hard stop and a review packet at every
+The handoff contract (`00_START_HERE.md`, in the untracked handoff pack
+`MOSES_GOMEA_LOCAL_AGENT_HANDOFF/moses_gomea_plan/`, not committed) asks for a hard stop and a review packet at every
 increment. The user's instruction #1 (`APPROVALS.md`) told the agent to run Phase 1
 without stopping, so these packets stand in for the stops. They let the user review each
 increment after the fact.
@@ -46,8 +47,9 @@ review and a fix wave. The ledger of findings, fixes and deferred minors lives i
 
 ## P1.3: lifecycle integration
 
-* **`-a gomea` plus nine `--gomea-*` options (3272841, 07ea018).** Classic's `--help` and
-  option set are unchanged, and the hidden `--g` alias preserves the classic abbreviation.
+* **`-a gomea` plus nine `--gomea-*` options (3272841, 07ea018; 15 after Phases
+  1d–1f).** Classic's `--help` and option set are unchanged, and the hidden `--g` alias
+  preserves the classic abbreviation.
 * **Integration tests:** at least 2 expansions, each with its own schema and calibration;
   determinism; HC byte-identity ×3; program, score and complexity agreement after the
   merge; contin rejection; distinct termination reasons.
@@ -150,6 +152,9 @@ review and a fix wave. The ledger of findings, fixes and deferred minors lives i
 * **Pre-registration:** `PHASE1F-PREREGISTRATION.md`. Each part was registered before it
   ran; it also records every deviation: the part B restart, a reduct bug, an
   out-of-memory rescope and the early stop of parts C and D.
+* **Extension:** at the user's request ("Finish 4 medium datasets"), parts C and D were
+  completed on EnC, EnH and Yac. Dow LTB exceeded 5 GB, and on the user's decision
+  ("Drop Dow LTB, report it") it is reported, not tested.
 * **Findings:** `PHASE1F-FINDINGS.md`.
   * **A:** Table 3 partly replicated. Levels match on all 60 medians; the linkage-model
     advantages only partly.
@@ -158,8 +163,9 @@ review and a fix wave. The ledger of findings, fixes and deferred minors lives i
   * **D:** pyMoses GOMEA beats HC on 4 of 6 tested datasets (Air, Con, EnC, EnH), ties
     on Bos and Yac, and is worse on none, at 2.3–5.4× the CPU time. LTB exceeded 5 GB
     on 2 of 4 attempted Dow splits.
-* **Bugs fixed:** `reduce_factorize_fraction` (`484e302`, verified against C++) and the
-  scorer's boolean columns (`3e41da7`).
+* **Bugs fixed:** `reduce_factorize_fraction` (`484e302`, verified against C++), the
+  scorer's boolean columns (`3e41da7`), and a raised recursion limit in the regression
+  runner (`8b23deb`, a workaround).
 
 ## Deferred minors (not blocking; kept for the record)
 

@@ -1,23 +1,31 @@
 # Phase 2 handoff (mixed discrete / real-valued GOMEA)
 
 This note is for a separate execution run. It needs explicit approval that names the
-approved Phase 1 commit (see `02_PHASE2_MIXED.md` and the plan's Phase 2 section). Nothing
-here has been implemented.
+approved Phase 1 commit (see `02_PHASE2_MIXED.md` in the untracked handoff pack
+`MOSES_GOMEA_LOCAL_AGENT_HANDOFF/moses_gomea_plan/`, not committed, and the Phase 2 section
+of `docs/superpowers/plans/2026-09-24-moses-gomea.md`). The real-valued model has not been
+implemented. Copy-only constants exist (`--gomea-contin copy`, `bcccf8f`, Phase 1f).
 
 ## Adapter APIs Phase 2 builds on (as committed)
 
-* `pymoses.gomea.schema.FrozenSchema(rep)`
-  * Attributes: `.fields`, `.dim`, `.domains`, `.schema_id`.
+* `pymoses.gomea.schema.FrozenSchema(rep, contin="reject")`
+  * Attributes: `.rep`, `.fields`, `.contin_mode`, `.contin_positions`, `.contin_depths`,
+    `.dim`, `.domains`, `.schema_id`.
   * Methods: `.default_genotype()`, `.to_genotype(inst)`, `.to_instance(g)`,
-    `.phenotype_key(g)` (a key of the unreduced decoded tree), `.decode(g)` (the reduced
-    tree).
-  * **It raises `UnsupportedRepresentation` when contin fields are present.** This is the
-    first thing Phase 2 must extend or wrap. The mixed schema is `(z, c)`.
-* `pymoses.gomea.oracle.EvaluationOracle(schema, iscorer, deme, max_evals, max_time, inner_cap)`
+    `.contin_value(pos, code)`, `.sample_contin_code(pos, rng)`, `.phenotype_key(g)` (a
+    key of the unreduced decoded tree), `.decode(g)` (the reduced tree).
+  * With `contin="reject"` (the default) **it raises `UnsupportedRepresentation` when
+    contin fields are present.** With `contin="copy"` each contin knob is one gene at the
+    front of the genotype, domain `4 ** depth`, whose code packs the knob's raw step
+    fields; GOM copies it whole and never mutates it. Phase 2 must extend or wrap this
+    into the mixed schema `(z, c)`.
+* `pymoses.gomea.oracle.EvaluationOracle(schema, iscorer, deme, max_evals, max_time,
+  inner_cap=None, clock=time.monotonic, genotype_memo=False, stall_evals=0)`
   * Methods: `check()` and `evaluate(g)`; `evaluate` appends to the deme and raises
-    `BudgetExhausted`.
-  * The ledger counts requests, invalid, no-op skips, phenotype skips, duplicate requests
-    and cache deltas.
+    `BudgetExhausted`. `preload(scored, prior_evals)` marks genotypes another optimizer
+    already evaluated (used by `-a hc-gomea`); `finalize()` writes `deme.n_evals`.
+  * The ledger counts requests, invalid, no-op skips, phenotype skips, duplicate requests,
+    memo hits and cache deltas.
   * For Phase 2 it must key on `(schema_id, z, c)` and evaluate a recipient's own
     constants.
 * `pymoses.gomea.fos.LinkageModel(mode, rng)`: `.calibrate(pop, domains)` is called once,
@@ -26,8 +34,8 @@ here has been implemented.
 * `pymoses.gomea.gom.gom(...)`, `forced_improvement(...)` and
   `pymoses.gomea.engine.GomeaEngine`.
   * The generation loop does per-recipient FOS order ([P1] style).
-  * Phase 2's subset-major GP step is a different schedule (see `02_PHASE2_MIXED.md`).
-    Add a discrete-only subset-major control.
+  * Phase 2's subset-major GP step is a different schedule (see `02_PHASE2_MIXED.md` and
+    the plan's Task P2.3). Add a discrete-only subset-major control.
 * `pymoses.gomea.optimizer.gomea_optimization` / `gomea_parameters`: the MOSES seam. A
   mixed optimizer should be a sibling class selected by a new `-a` value, reusing
   `population.build_population` for z.
@@ -39,7 +47,8 @@ here has been implemented.
 ## Continuous pieces that are missing
 
 * **Constants.**
-  * There are no per-individual constant pools.
+  * There are no per-individual real-valued constant pools. `--gomea-contin copy` only
+    recombines the step-encoded codes present in the population; nothing tunes them.
   * The native MOSES contin knobs are **step-encoded** (`contin_spec`: depth × {Stop, Left,
     Right} raw fields). They are not real coordinates and must not be fed to RV-GOMEA.
   * `field_set.get_contin` / `set_contin` decode and encode them.
@@ -59,29 +68,74 @@ here has been implemented.
 * **Reuse by narrow port with golden parity** worked well for [C1]. The same approach fits
   [C4]'s C RV-GOMEA (build a g++/gcc harness from the archive).
 
-## Measured bottlenecks (Phase 1)
+## Measured bottlenecks (Phases 1–1f)
 
-* **Evaluation dominates** at about 6–12 ms per candidate on Boolean demo problems. The
-  score cache is off for demo problems.
+* **Evaluation dominates** at about 6–12 ms per candidate on the Phase 1 Boolean demo
+  problems. The score cache is off for demo problems.
+* **Per-evaluation cost grows with the representation** (Phase 1e, median CPU per scorer
+  call, HC vs GOMEA): mux11 92 vs 525 ms, maj7 129 vs 466 ms, pa5 66 vs 69 ms. In the
+  original maj7 GOMEA runs (median 472 knobs), time inside the GOMEA code was about 16 %
+  of the CPU; of that, scoring took about 84 % and linkage learning about 9 %. The rest
+  was MOSES's own per-deme work outside the optimizer.
 * **GOMEA's per-generation cost is about N × |FOS| trials**, where |FOS| ≈ 2d. On MOSES
   representations with 30–150 fields, that makes a single generation cost thousands of
   evaluations. In the pilot, larger N was uniformly worse under a 20k budget.
-* **HC's cost is dominated by representation turnover.** It runs many expansions with
-  large representations, and knob building plus reduction costs time. In the end-to-end
-  comparisons that shows up as more CPU per evaluation for HC.
+* **Representation turnover is expensive for both optimizers.** In Phase 1 HC ran many
+  expansions and showed more CPU per evaluation end to end. From Phase 1d on, capped GOMEA
+  runs more demes than HC (maj7: 161 vs 43 per run, median), and on larger representations
+  it costs more CPU per evaluation, not less (above).
 * **Phenotype-proof skips are nearly useless on MOSES representations**, because neutral
   single-field changes are rare. They are off by default.
 
-## Open Phase 1 questions that affect Phase 2
+## What Phases 1d–1f answered
 
-The Phase 1 confirmation (`PHASE1-FINDINGS.md`) found that LT-B GOMEA is **worse** than HC
-end-to-end on all three tasks, and that univariate GOMEA beats the linkage trees. The
-diagnosis shows two problems with the tree FOS variants at N = 16:
+Phase 1 found LT-B GOMEA **worse** than HC end to end, with half of the tree-FOS demes
+ending by population convergence and 32–47 % of requests re-scoring duplicates. The
+follow-ups answered most of that:
 
-* about half their demes end by population convergence;
-* 32–47 % of their evaluation requests re-score duplicate genotypes.
+* **Phase 1d:** the main cause was per-deme budget use. A 500-evaluation cap tied HC on
+  maj5; a more diverse start and strict acceptance did not help; a larger population was
+  worse end to end ([`PHASE1D-FINDINGS.md`](PHASE1D-FINDINGS.md)).
+* **Phase 1e:** a 250 cap with `lt-b` and the genotype memo needed about half HC's
+  evaluations on mux11 (*better*) and tied on maj7 and pa5, at 3–4× the CPU time on mux11
+  and maj7. The memo's effect was mixed ([`PHASE1E-FINDINGS.md`](PHASE1E-FINDINGS.md)).
+* **Phase 1f:** on the GP-GOMEA paper's regression benchmarks, the same setup with
+  `--gomea-contin copy` beat HC on test error on 4 of 6 tested datasets and lost on none
+  ([`PHASE1F-FINDINGS.md`](PHASE1F-FINDINGS.md)).
 
-Before building the mixed optimizer on top of the discrete loop, Phase 2 (or a Phase 1b)
-should first test a per-deme genotype cache, applied identically to HC, together with a
-diversity-preserving population policy. Otherwise the structural half of GP-RV-GOMEA
-inherits a weaker inner search than stock MOSES.
+Build the mixed optimizer on the capped setup, not on uncapped demes.
+
+## Learned in Phases 1e–1f
+
+* **Constants.** `--gomea-contin copy` and `--gomea-contin-stats` (bin-const, γ = 100) are
+  Phase 2's starting point: constants already take part in GOM and in linkage learning,
+  and Phase 2 adds the real-valued model on top.
+* **Reduct fix.** A port bug in `reduce_factorize_fraction` crashed contin reduction; it is
+  fixed and pinned against the C++ output (`484e302`). Every regression run depends on it.
+* **Recursion limit.** `neighborhood_sampling.count_neighborhood_size_from_index` recurses
+  once per knob and exceeds Python's default limit past about 1,000 knobs, in HC too. The
+  harnesses raise the limit (`--recursion-limit` in `benchmarks/gomea/runner.py`,
+  `63023d9`; a wrapper in `tools/gomea/moses_sr_runner.py`, `8b23deb`). Backlog: make it
+  iterative.
+* **Memory growth.** GOMEA peaked at 805 MB on mux11 against HC's 44 MB (Phase 1e), and at
+  up to 1.35 GB on the six tested regression datasets, 2.9 GB on Tow and over 5 GB on 2 of
+  4 Dow LTB runs, against about 0.1 GB for HC (Phase 1f). It is not profiled. Profile it
+  before adding per-individual real-valued state.
+* **Speed.** pyMoses is about 20–35× slower than C++ MOSES. GOMEA used 2–23× HC's CPU
+  time on the regression datasets. At 1,000 s per run, C++ GP-GOMEA did 3.3–27.7 million
+  evaluations per run against 19–362 thousand for C++ MOSES.
+* **Tooling to reuse** (`tools/gomea/`): `sr_datasets.py` (splits), `sr_eval.py` (NMSE
+  scoring of MOSES programs), `moses_sr_runner.py`, `gpgomea_sr_runner.py`,
+  `watch_runs.py` (a run watchdog) and `phase1f_report.py`. The datasets live outside the
+  repository (`../gomea-results/phase1f/datasets/`).
+* **Unfinished Phase 1f work.**
+  * Dow LTB exceeded 5 GB on 2 of 4 splits and was dropped; Dow RT stopped at 6 of 10
+    splits.
+  * Tow, WiR and WiW are descriptive only.
+  * LTMI ran only on Air, Bos and Con.
+  * Whether the linkage-model advantage appears at a paper-scale budget (about 10⁶
+    evaluations) is untested.
+* **The `-a hc-gomea` hybrid did not help** (maj5 5/10 vs HC 9/10 in Phase 1e stage 1).
+* **MOSES vs GP-GOMEA setup differences** that stay in any comparison: MOSES has no
+  analytic quotient, no linear scaling in training (the target is rescaled instead), and
+  its constants are knobs rather than ERCs.

@@ -10,6 +10,8 @@
 
 **Protocol and every deviation:** `PHASE1F-PREREGISTRATION.md`. **Results:**
 `phase1f-results/`, and the raw runs in `../gomea-results/phase1f/`.
+Paths starting `../gomea-results/` are relative to the repository root and lie outside the
+repository.
 
 ## The benchmarks
 
@@ -101,6 +103,8 @@ LT–MI needed a one-line source patch, because upstream hard-wires the bias cor
 | Yac | 9.00 | 7.94 | 3/10 | 0.38 | tie |
 
 * **The overall claim holds:** better on 4 of 6 and worse on none.
+* **Interim result:** the first analysis, on Air, Bos and Con only (Holm over 3), found
+  *better* on Air and Con and a tie on Bos (commit `fee65a2`).
 * **Yac:** GOMEA fits the training data better than HC (median train NMSE 4.46 vs 7.85)
   but does not test better (9.00 vs 7.94, not significant, LTB lower in 3/10). This is
   the smallest dataset, with 154 training rows.

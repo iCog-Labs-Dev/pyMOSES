@@ -141,7 +141,7 @@ table-driven ones — `it`, `ip`, `pre`, `pre-conj`, `prerec`, `recall`, `bep`, 
 
 ### A word on speed
 
-This is pure Python doing what optimised C++ does, so expect roughly **20× the
+This is pure Python doing what optimised C++ does, so expect roughly **20–35× the
 runtime**. The parity run above takes about 100 s here, against 4.4 s for the C++
 binary. Start with a small `-m` and raise it. Fidelity, not speed, is the point of this
 port — if you need MOSES to be fast, run the C++.
@@ -150,16 +150,19 @@ port — if you need MOSES to be fast, run the C++.
 
 Beyond the classic port, this branch adds one **non-classic** option: a GP-GOMEA-style
 population optimizer that can replace MOSES's hill climber *inside* each deme. It leaves
-exemplar selection, knob building and the metapopulation unchanged. It is Boolean-only
-for now.
+exemplar selection, knob building and the metapopulation unchanged. It handles discrete
+(Boolean) knobs natively; for regression, `--gomea-contin copy` treats constants as genes
+that are copied, never mutated.
 
 ```bash
 moses -H pa -k 3 -m 3000 -r 1 -a gomea --gomea-pop-size 16
 ```
 
-Without `-a gomea`, output is byte-identical to classic, as before. In Phase 1, under equal evaluation budgets, it did **not** beat
-the stock hill climber on the tested Boolean tasks. `--gomea-fos uni` was its best variant. For the options, the
-telemetry, the Python API and the measured comparison with hill climbing, see
+Without `-a gomea`, output is byte-identical to classic, as before. In Phase 1 (uncapped
+demes; maj5, mux6 and pa4), under equal evaluation budgets, it did **not** beat the stock
+hill climber, and `--gomea-fos uni` was its best variant. Later phases changed that, as
+below. For the options, the telemetry, the Python API and the measured comparison with
+hill climbing, see
 [`docs/gomea/USAGE.md`](docs/gomea/USAGE.md) and
 [`docs/gomea/PHASE1-FINDINGS.md`](docs/gomea/PHASE1-FINDINGS.md). A follow-up comparing the
 authors' stand-alone GP-GOMEA with MOSES hill climbing is in
@@ -169,10 +172,13 @@ climbing won in [`docs/gomea/PHASE1D-FINDINGS.md`](docs/gomea/PHASE1D-FINDINGS.m
 per-deme evaluations (`--gomea-max-evals-per-deme 500`) closes most of the gap. With a cap of
 250, the lt-b FOS and the genotype memo, GOMEA needed about half of hill climbing's
 evaluations on 11-input multiplexer and tied on majority-7 and parity-5, at several times
-the CPU time ([`docs/gomea/PHASE1E-FINDINGS.md`](docs/gomea/PHASE1E-FINDINGS.md)). On the GP-GOMEA paper's own
+the CPU time ([`docs/gomea/PHASE1E-FINDINGS.md`](docs/gomea/PHASE1E-FINDINGS.md); the flags are
+`--gomea-fos lt-b --gomea-max-evals-per-deme 250 --gomea-genotype-memo 1`). On the GP-GOMEA paper's own
 symbolic-regression benchmarks, with `--gomea-contin copy` for constants, it beat hill
-climbing on 4 of 6 fully-run datasets and lost on none, and the authors' C++ GP-GOMEA beat classic MOSES
-on all 10 ([`docs/gomea/PHASE1F-FINDINGS.md`](docs/gomea/PHASE1F-FINDINGS.md)).
+climbing on 4 of 6 fully-run datasets and lost on none, at 2.3–5.4× hill climbing's CPU time;
+on the widest dataset (Dow) 2 of 4 linkage-tree runs needed more than 5 GB. The authors' C++
+GP-GOMEA beat classic MOSES on all 10
+([`docs/gomea/PHASE1F-FINDINGS.md`](docs/gomea/PHASE1F-FINDINGS.md)).
 
 ## Run the tests
 

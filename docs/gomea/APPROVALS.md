@@ -1,6 +1,7 @@
 # Approval log
 
-The handoff contract (`00_START_HERE.md`) requires every increment to be approved by the
+The handoff contract (`00_START_HERE.md`, in the untracked handoff pack
+`MOSES_GOMEA_LOCAL_AGENT_HANDOFF/moses_gomea_plan/`, not committed) requires every increment to be approved by the
 user, and says the agent must not write its own approvals. This log records the user's own
 words verbatim, with the scope that I (the agent) took them to cover. Anything the user did
 not state is labelled "agent-proposed" and is not an approval.
@@ -18,6 +19,16 @@ not state is labelled "agent-proposed" and is not an approval.
 | 9 | 2026-09-27 | Phase 1e (make embedded GOMEA beat HC; then larger problems) | "What else do you think we do for gomea to beat hill climbing? Shall we test it with more problems instead?" then, after the agent proposed a two-stage plan, "Go ahead then what are you waiting for" | `9472b66` | Add a stall-based deme stop and an HC→GOMEA hybrid (opt-in); stage 1 on dev seeds over maj5, mux6 and pa4 to choose the best setup by a pre-registered rule; stage 2 pits it against HC on maj7, pa5 and mux11 | agent-estimated about 3 h for stage 1 and 4–5 h for stage 2 |
 | 10 | 2026-09-28 | Phase 1e stage 2 re-runs | Chose "Complete it (~10 h) (Recommended)" when the agent reported that 25 stage 2 runs were time-, memory- or recursion-limited, then "Go ahead with the reruns" | `63023d9` | Re-run only the 25 affected runs with the same code, seeds and budget under a 36,000 s wall cap, a 2,048 MB memory limit and a recursion limit of 100,000; disclose as a deviation in `PHASE1E-PREREGISTRATION.md` | about 10 h (agent estimate, accepted) |
 | 11 | 2026-09-28 | Phase 1f (the GP-GOMEA paper's own benchmarks) | "Now instead of using the demo problems MOSES was tested on, we need to test the demo problems GP-GOMEA was tested on for the research paper..." (four parts: pyMoses GOMEA vs the literature; replicate GP-GOMEA C++ at small scale; GP-GOMEA vs classic C++ MOSES; pyMoses GOMEA vs pyMoses HC; "reduce the number of seeds from 20 to 10 or lower if that's justifiable"; "maximum resources"). Then chose "Paper-style constants (Recommended)" and "Allow downloads (Recommended)" | `28a118a` | Download the 10 regression datasets of Virgolin et al. 2021 (checksummed, outside the repo). Add an opt-in `--gomea-contin copy` so GOMEA can run on representations with constants, treating each constant as a gene that mixing copies but never mutates, as the paper does; this is the only Phase 2-adjacent code approved. No real-valued model | not stated; agent to estimate in the pre-registration |
+| 12 | 2026-09-29 | Phase 1f parts C and D rescope after an out-of-memory crash | Chose "Drop LTMI, keep 10k" | recorded in `332d3fe` | Keep 10,000 evaluations per run; run HC, LTB and RT only on the 7 remaining datasets (no LTMI there); re-run the failed and unfinished runs; LTB vs LTMI rests on Air, Bos and Con. Recorded as a deviation in `PHASE1F-PREREGISTRATION.md` | agent-proposed: 11 workers, a 3,072 MB address-space cap per run |
+| 13 | 2026-09-30 | Phase 1f parts C and D, after memory pressure | Chose "Restart with 7 workers" | recorded in `fee65a2` | Restart the runner with 7 workers; the design is unchanged | 7 workers |
+| 14 | 2026-09-30 | Phase 1f parts C and D early stop | Chose "Report now on what's done" | recorded in `fee65a2` | Stop the runner (at 181 of 330 runs) and analyse what finished: Air, Bos and Con confirmatory (Holm over 3), the rest descriptive | no further compute |
+| 15 | 2026-09-30 | Phase 1f parts C and D extension | Chose "Finish 4 medium datasets" | registered in `b56c148`, before these runs | Complete Dow, EnC, EnH and Yac to 10 splits with HC, LTB and RT, same code and arguments; Tow, WiR and WiW stay descriptive | agent-proposed: pass 1 on 5 workers with a 3,072 MB cap, pass 2 (Dow LTB and RT) on 2 workers with a 5,120 MB cap |
+| 16 | 2026-09-30 | Dow LTB in the extension | Chose "Drop Dow LTB, report it" | recorded in `8451af3` | Do not run the remaining Dow LTB runs; report Dow as "LTB does not fit in 5 GB on this machine"; part D confirmatory on the other 6 datasets. Dow RT was later stopped at 6 of 10 splits after the user asked: "Why are we running the random-tree GOMEA for Dow if the Bias-corrected GOMEA is dropped because of memory? There's no point" (`8fdf163`) | no further Dow LTB compute |
+
+**Not user-approved.** Two Phase 1f code changes outside GOMEA were bug fixes the agent
+made on its own, disclosed as deviations in `PHASE1F-PREREGISTRATION.md`: the
+`reduce_factorize_fraction` port-bug fix (`484e302`) and the regression runner's raised
+recursion limit (`8b23deb`). No row above approves them.
 
 Deviations from the handoff's gate procedure that follow from instruction #1:
 

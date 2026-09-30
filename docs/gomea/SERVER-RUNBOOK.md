@@ -43,15 +43,15 @@ The results are only valid for the committed code. The runner refuses to run if 
 under `pymoses/`, `benchmarks/` or `pyproject.toml` differs from the manifests' `commit`
 (`c6301cb…`). Commits that touch only docs/configs/tools are allowed.
 
-Branch: `experiment/moses-gomea-discrete`. It has **not** been pushed. Choose one of:
+The branch `experiment/moses-gomea-discrete` and the tag `gomea-phase1-confirmation` are
+both on `origin` (https://github.com/iCog-Labs-Dev/pyMOSES.git). Choose one of:
 
 ```bash
-# (a) Push the branch from the dev machine, then clone it on the server
-git push origin experiment/moses-gomea-discrete            # dev machine
-git clone --branch experiment/moses-gomea-discrete https://github.com/iCog-Labs-Dev/pyMOSES.git
+# (a) Clone the tag from GitHub (a full clone; the tag checks out as a detached HEAD)
+git clone --branch gomea-phase1-confirmation https://github.com/iCog-Labs-Dev/pyMOSES.git pyMoses
 # (b) Or copy a bundle with no remote involved
-git bundle create gomea.bundle experiment/moses-gomea-discrete   # dev machine
-git clone --branch experiment/moses-gomea-discrete gomea.bundle pyMoses   # server
+git bundle create gomea.bundle gomea-phase1-confirmation   # dev machine
+git clone --branch gomea-phase1-confirmation gomea.bundle pyMoses   # server
 ```
 
 ## 3. Python ≥ 3.14 and a venv
@@ -64,7 +64,7 @@ python3.14 -m venv .venv
 ```
 
 Optional check (about 5 min): run `env -u FORCE_COLOR .venv/bin/python -m pytest tests/gomea -q`.
-The expected result is 314 passed.
+The expected result is 314 passed at the tag; the current branch has more tests.
 
 ## 4. Pre-flight (seconds)
 

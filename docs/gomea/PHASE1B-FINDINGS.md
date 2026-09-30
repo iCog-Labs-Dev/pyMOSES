@@ -68,6 +68,9 @@ against GP-GOMEA's fixed-height templates.
 
 ## Decision
 
+*Superseded in part by Phases 1d–1f; see [`PHASE1E-FINDINGS.md`](PHASE1E-FINDINGS.md) and
+[`PHASE1F-FINDINGS.md`](PHASE1F-FINDINGS.md).*
+
 At equal evaluations, **MOSES hill climbing remains the stronger method** on these Boolean
 tasks. Next: an equal-wall-time comparison against classic C++ MOSES, which removes the
 language confound.

@@ -76,6 +76,9 @@ at much higher cost.
 
 ## Decision
 
+*Superseded in part by Phases 1d–1f; see [`PHASE1E-FINDINGS.md`](PHASE1E-FINDINGS.md) and
+[`PHASE1F-FINDINGS.md`](PHASE1F-FINDINGS.md).*
+
 **Do not adopt LT-B GOMEA in place of HC** at these budgets. Keep it as a documented opt-in
 (`USAGE.md`), with `--gomea-fos uni` preferred.
 
