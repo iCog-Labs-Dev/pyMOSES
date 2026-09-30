@@ -2,8 +2,11 @@
 
 **Status.**
 * **Parts A and B:** complete.
-* **Parts C and D:** stopped early at the user's request, after 181 of 330 runs. The
-  tests use the three datasets with complete pairs; the rest is descriptive.
+* **Parts C and D:** stopped early at the user's request, then extended to EnC, EnH and
+  Yac.
+  * **Tests:** six datasets with all 10 LTB/HC pairs: Air, Bos, Con, EnC, EnH and Yac.
+  * **Dow:** LTB exceeded 5 GB on 2 of the 4 splits attempted, so it is not tested.
+  * **Tow, WiR and WiW:** descriptive only.
 
 **Protocol and every deviation:** `PHASE1F-PREREGISTRATION.md`. **Results:**
 `phase1f-results/`, and the raw runs in `../gomea-results/phase1f/`.
@@ -26,7 +29,7 @@ regression.
 | A | Does the authors' C++ GP-GOMEA reproduce the paper (Table 3)? | **Partly.** The error levels replicate on all 60 medians. The linkage tree's advantage over the random tree replicates on training error, but most of the bias correction's advantage does not. |
 | B | Does stand-alone GP-GOMEA beat classic C++ MOSES? | **Yes, on all 10 datasets**, by large margins at equal wall time. |
 | C | Is pyMoses GOMEA consistent with the literature? | **Consistent; no regression visible.** LTB is never significantly worse than LTMI or RT. But none shows the paper's advantage either at this budget, and its levels are far from the paper's. |
-| D | Does pyMoses GOMEA beat pyMoses hill climbing? | **Yes, on 2 of the 3 complete datasets (Air, Con), with a tie on Bos.** It is lower in every available pair on 5 of the 7 partial datasets (descriptive, 1–3 pairs). It costs 3.3–5.4× HC's CPU time on the three tested datasets, and 2–23× across all ten. |
+| D | Does pyMoses GOMEA beat pyMoses hill climbing? | **Yes, by the pre-registered rule.** It is *better* on 4 of the 6 tested datasets (Air, Con, EnC, EnH), with ties on Bos and Yac and worse on none. It costs 2.3–5.4× HC's CPU time there. On Dow, LTB exceeded 5 GB of memory on 2 of the 4 splits attempted. |
 
 ## A: replication of Table 3 (C++ GP-GOMEA, 30 splits × 10 datasets, 900 runs)
 
@@ -85,50 +88,79 @@ LT–MI needed a one-line source patch, because upstream hard-wires the bias cor
   constants genes that mixing copies but never mutates, as in the paper.
 * **LTMI and RT:** the same, with the other linkage models.
 
-**D: tests on Air, Bos and Con** (10 pairs each; Holm correction over the 3 datasets).
+**D: tests on Air, Bos, Con, EnC, EnH and Yac** (10 pairs each; Holm correction over the
+6 datasets; *better* also needs a median at least 10 % lower).
 
 | Dataset | LTB test NMSE | HC test NMSE | LTB lower in | Holm p | Verdict |
 |---|---|---|---|---|---|
-| Air | 42.5 | 75.2 | 10/10 | 0.0059 | **better** |
-| Bos | 41.6 | 77.4 | 9/10 | 0.065 | tie |
-| Con | 37.1 | 54.9 | 10/10 | 0.0059 | **better** |
+| Air | 42.5 | 75.2 | 10/10 | 0.012 | **better** |
+| Bos | 41.6 | 77.4 | 9/10 | 0.13 | tie |
+| Con | 37.1 | 54.9 | 10/10 | 0.012 | **better** |
+| EnC | 20.4 | 27.1 | 8/10 | 0.041 | **better** |
+| EnH | 15.7 | 26.8 | 9/10 | 0.023 | **better** |
+| Yac | 9.00 | 7.94 | 3/10 | 0.38 | tie |
 
-GOMEA's median CPU time was 3.3–5.4× HC's on these datasets: Air 7,710 vs 1,430 s,
-Bos 6,410 vs 1,950 s, Con 2,980 vs 737 s. On the partial datasets the ratio reaches 2.2–23×;
-Tow is 22.8× and WiR 8.9×.
+* **The overall claim holds:** better on 4 of 6 and worse on none.
+* **Yac:** GOMEA fits the training data better than HC (median train NMSE 4.46 vs 7.85)
+  but does not test better (9.00 vs 7.94, not significant, LTB lower in 3/10). This is
+  the smallest dataset, with 154 training rows.
+* **Cost:** GOMEA's median CPU time was 2.3–5.4× HC's.
 
-**Descriptive only** (LTB vs HC test NMSE, with the number of pairs):
+  | | Air | Bos | Con | EnC | EnH | Yac |
+  |---|---|---|---|---|---|---|
+  | GOMEA (s) | 7,710 | 6,410 | 2,980 | 3,030 | 2,890 | 1,720 |
+  | HC (s) | 1,430 | 1,950 | 737 | 798 | 853 | 737 |
+
+  It rises to 8.9× on WiR and 22.8× on Tow (descriptive runs).
+* **Memory:** peak memory on these six datasets was up to 1.07 GB for LTB and 1.35 GB for
+  any GOMEA arm, against about 0.1 GB for HC.
+
+**Dow** (57 features). LTB was attempted on 4 splits.
+* **Failures:** splits 2 and 3 exceeded a 3 GB cap, and on re-run a 5 GB cap too. Each
+  failed at 5.1 GB after 2.6–2.75 h.
+* **The two that finished:** splits 1 and 4 peaked at only 0.8 and 1.4 GB. Both beat HC
+  (88.0 vs 95.9 and 84.5 vs 100.9), but 2 pairs are not a test.
+* **Not attempted:** the other LTB runs, per the user's decision.
+* **Other arms:** RT peaked at 2.6 GB but finished; HC stayed under 0.1 GB.
+* **So:** GOMEA's memory varies strongly from run to run on very wide or large datasets.
+  Tow LTB also peaked at 2.9 GB and WiR LTB at 1.9 GB. *Not profiled.*
+* **Descriptive RT:** RT was lower than HC on 5 of 6 splits (median 84.6 vs 97.1).
+
+**Descriptive only** (Tow, WiR and WiW; LTB vs HC test NMSE, with the number of pairs):
 
 | Dataset | Pairs | LTB lower in | LTB | HC |
 |---|---|---|---|---|
-| EnC | 3 | 3 | 18.4 | 26.9 |
-| EnH | 3 | 3 | 15.5 | 24.8 |
 | Tow | 3 | 3 | 46.2 | 85.3 |
 | WiR | 3 | 3 | 73.3 | 78.1 |
 | WiW | 1 | 1 | 84.5 | 373 |
-| Yac | 3 | 1 | 7.26 | 7.14 |
 
-* **WiW:** the one pair is split 2. HC's program there extrapolates badly (train 92, test
-  373). A second HC run with no LTB partner, split 3, reached about 1.45 million on test.
-* **Dow:** both completed LTB runs beat HC (88.0 vs 95.9 and 84.5 vs 100.9). The other two
-  hit the 3 GB memory cap and count as failures, i.e. infinite NMSE.
-* **EnC:** HC's 26.9 is the median over the 3 paired runs; over all 4 HC runs it is 27.1.
+**WiW:** the one pair is split 2. HC's program there extrapolates badly (train 92, test
+373). The other two HC runs have no LTB partner: split 1 scored 91.2, and split 3
+reached about 1.45 million on test.
 
 **C: the linkage models inside pyMoses** (`partC_pattern.csv`).
-* **Significance:** no contrast is significant on any of the 3 datasets (all p ≥ 0.06).
-* **Train medians over the paired runs:** LTB's is lower than LTMI's on 2/3 datasets, and
-  lower than RT's on 2/3. Over each arm's full set of runs, LTB is lower than RT on 3/3.
+* **LTB vs RT on the 6 tested datasets** (10 pairs each, except 9 on Bos and Con):
+  * no contrast is significant (all p ≥ 0.19);
+  * LTB's train median over the paired runs is lower on 4 of 6: Air, Bos, EnH and Yac.
+* **LTB vs LTMI on Air, Bos and Con** (7 pairs on Air):
+  * no contrast is significant (all p ≥ 0.06);
+  * LTB's train median is lower on 2 of 3.
 * **Not tested:** LTMI vs RT.
-* **Verdict:** consistent under the pre-registered rule; nothing points to a regression.
+* **Verdict:** consistent under the pre-registered rules (4 of 6 and 2 of 3, with nothing
+  significantly worse). Nothing points to a regression.
 
 This is weak evidence, though. At 10,000 evaluations, with 16-individual populations and
 250-evaluation demes, the choice of linkage model makes little measurable difference. The
 paper's advantage appeared at about 10⁶ evaluations with populations of 2,000.
 
 **Levels.** pyMoses GOMEA is far from the C++ GP-GOMEA.
-* **Test NMSE, pyMoses LTB vs C++ LT–MIb̃ on the same splits** (1–10 for Air, Bos and Con;
-  1–3 for Tow and Yac): Air 42.5 vs 29.5, Bos 41.6 vs 18.3, Con 37.1 vs 20.2, Tow 46.2 vs
-  13.0, Yac 7.26 vs 0.61.
+* **Test NMSE, pyMoses LTB vs C++ LT–MIb̃ on the same splits** (1–10; Tow 1–3):
+
+  | | Air | Bos | Con | EnC | EnH | Yac | Tow |
+  |---|---|---|---|---|---|---|---|
+  | pyMoses LTB | 42.5 | 41.6 | 37.1 | 20.4 | 15.7 | 9.00 | 46.2 |
+  | C++ LT–MIb̃ | 29.5 | 18.3 | 20.2 | 10.9 | 6.48 | 0.60 | 13.0 |
+
 * **Why this is expected and not a regression test:** pyMoses gets about 1 % of the
   evaluations, and it searches MOSES's representation rather than a fixed 31-node template.
 
@@ -150,12 +182,15 @@ All three were in shared infrastructure, not in the GOMEA code.
 * **For symbolic regression, stand-alone GP-GOMEA is far stronger than classic C++
   MOSES** on the paper's benchmarks, at equal wall time (part B). Python MOSES was not
   compared with it directly.
-* **Inside pyMoses,** the capped GOMEA setup beat hill climbing on test error on 2 of the
-  3 datasets tested, with a tie on the third. It pointed the same way on 5 of the 7
-  partial datasets. It costs 3.3–5.4× the CPU time there, and up to 23× on the largest
-  partial dataset. It is worth using when evaluations, not CPU, are the constraint.
+* **Inside pyMoses,** the capped GOMEA setup (`--gomea-contin copy` for constants) beat
+  hill climbing on test error on 4 of the 6 tested datasets and lost on none.
+  * **Cost:** 2.3–5.4× the CPU time, and up to 23× on the largest dataset.
+  * **Use it** when evaluations, not CPU, are the constraint.
+  * **Watch for:** very small datasets, where it trains better but does not test better
+    (Yac), and memory on wide or large datasets. Some runs exceeded 5 GB on Dow; others
+    reached 2–3 GB on Dow, Tow and WiR.
 * **Not established here:**
   * whether pyMoses GOMEA would show the paper's linkage-model advantage at a paper-scale
     budget;
-  * the confirmatory results on the seven larger datasets. Finishing them needs about 2–3
-    more days on this machine, or a bigger one.
+  * confirmatory results on Dow, Tow, WiR and WiW. These need more memory for LTB on
+    Dow, and about 2 days of compute for Tow and the two Wine datasets.

@@ -171,7 +171,7 @@ per-deme evaluations (`--gomea-max-evals-per-deme 500`) closes most of the gap. 
 evaluations on 11-input multiplexer and tied on majority-7 and parity-5, at several times
 the CPU time ([`docs/gomea/PHASE1E-FINDINGS.md`](docs/gomea/PHASE1E-FINDINGS.md)). On the GP-GOMEA paper's own
 symbolic-regression benchmarks, with `--gomea-contin copy` for constants, it beat hill
-climbing on 2 of the 3 fully-run datasets, and the authors' C++ GP-GOMEA beat classic MOSES
+climbing on 4 of 6 fully-run datasets and lost on none, and the authors' C++ GP-GOMEA beat classic MOSES
 on all 10 ([`docs/gomea/PHASE1F-FINDINGS.md`](docs/gomea/PHASE1F-FINDINGS.md)).
 
 ## Run the tests

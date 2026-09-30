@@ -155,7 +155,9 @@ review and a fix wave. The ledger of findings, fixes and deferred minors lives i
     advantages only partly.
   * **B:** GP-GOMEA beats classic C++ MOSES on all 10 datasets.
   * **C:** consistent, with no regression visible.
-  * **D:** pyMoses GOMEA beats HC on Air and Con, and ties on Bos, at 3.3–5.4× the CPU time there.
+  * **D:** pyMoses GOMEA beats HC on 4 of 6 tested datasets (Air, Con, EnC, EnH), ties
+    on Bos and Yac, and is worse on none, at 2.3–5.4× the CPU time. LTB exceeded 5 GB
+    on 2 of 4 attempted Dow splits.
 * **Bugs fixed:** `reduce_factorize_fraction` (`484e302`, verified against C++) and the
   scorer's boolean columns (`3e41da7`).
 

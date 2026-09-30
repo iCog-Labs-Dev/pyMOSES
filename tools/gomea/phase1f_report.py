@@ -271,9 +271,9 @@ def part_b(gdir: Path, mdir: Path, published: Path, out: Path) -> None:
     print(json.dumps(verdict, indent=2))
 
 
-# Parts C and D were stopped early by the user (PHASE1F-PREREGISTRATION.md, last deviation):
-# only these datasets have all 10 LTB/HC pairs; the tests use them, the rest is descriptive.
-COMPLETE_CD = ["Air", "Bos", "Con"]
+# The datasets with all 10 LTB/HC pairs after the early stop and its extension
+# (PHASE1F-PREREGISTRATION.md). The tests use them; the rest is descriptive.
+COMPLETE_CD = ["Air", "Bos", "Con", "EnC", "EnH", "Yac"]
 
 
 def part_cd(d: Path, a_dir: Path, out: Path) -> None:
@@ -282,7 +282,7 @@ def part_cd(d: Path, a_dir: Path, out: Path) -> None:
     c_rows = []
     for other in ("LTMI", "RT"):
         for metric in ("train", "test"):
-            for ds in COMPLETE_CD:
+            for ds in COMPLETE_CD if other == "RT" else ["Air", "Bos", "Con"]:
                 r = _pair(runs[(ds, "LTB")], runs[(ds, other)], f"{metric}_nmse")
                 sig = r["p"] < 0.05 / 2
                 c_rows.append(
@@ -310,7 +310,9 @@ def part_cd(d: Path, a_dir: Path, out: Path) -> None:
         "ltb_significantly_worse": worse_any,
         "train_median_lower_count": lower,
         "datasets": COMPLETE_CD,
-        "consistent": not worse_any and all(k >= 2 for k in lower.values()),
+        # LTB vs RT runs on all of COMPLETE_CD (4 of 6); LTB vs LTMI only on Air/Bos/Con
+        # (2 of 3). Both thresholds are the pre-registered two-thirds.
+        "consistent": not worse_any and lower["RT"] >= 4 and lower["LTMI"] >= 2,
     }
     levels = []
     for ds in DATASETS:
@@ -324,8 +326,8 @@ def part_cd(d: Path, a_dir: Path, out: Path) -> None:
         levels.append(row)
     _write(out, "partC_levels.csv", levels)
     d_rows = _verdicts(runs, "LTB", "HC", datasets=COMPLETE_CD)
-    for other in ("LTMI", "RT"):
-        d_rows += _verdicts(runs, other, "HC", datasets=COMPLETE_CD)
+    d_rows += _verdicts(runs, "LTMI", "HC", datasets=["Air", "Bos", "Con"])
+    d_rows += _verdicts(runs, "RT", "HC", datasets=COMPLETE_CD)
     partial = []
     for ds in DATASETS:
         for arm in ("LTB", "RT", "LTMI"):

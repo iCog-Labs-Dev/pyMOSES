@@ -60,8 +60,9 @@ merges the best of them back into the metapopulation as usual.
 >
 > **On the GP-GOMEA paper's regression benchmarks (Phase 1f):**
 > * Add `--gomea-contin copy` so constants become genes.
-> * The same capped setup beat hill climbing on test error on Air and Con, and tied on
->   Bos, at 3.3–5.4× the CPU time there.
+> * The same capped setup beat hill climbing on test error on 4 of 6 tested datasets and
+>   lost on none, at 2.3–5.4× the CPU time.
+> * On very wide data (Dow, 57 features), 2 of 4 linkage-tree runs needed more than 5 GB.
 > * The authors' stand-alone C++ GP-GOMEA is far stronger than classic C++ MOSES there
 >   ([`PHASE1F-FINDINGS.md`](PHASE1F-FINDINGS.md)).
 > A follow-up ([`PHASE1B-FINDINGS.md`](PHASE1B-FINDINGS.md)) ran the authors' own

@@ -343,3 +343,12 @@ are not run, and only Dow RT is completed.
   with Holm correction over the 6. The overall claim needs at least 4 of 6.
 * **Dow** is reported as "LTB does not fit in 5 GB on this machine".
 * **Part C, LTB vs RT:** over the same 6 datasets, with criterion 2 at 4 of 6.
+
+**Final update (2026-09-30, before the extension analysis).** Dow RT feeds no test once
+Dow LTB is dropped, so its pass was stopped at the user's remark, with 6 of its 10 splits
+finished. Those runs are descriptive only. All 90 runs for EnC, EnH and Yac (HC, LTB and
+RT, 10 splits each) finished `ok`.
+
+*Correction (2026-09-30):* the note above says Dow RT "stays under 1 GB". The completed
+Dow RT runs actually peaked at 2.6 GB, within their 5,120 MB cap; Dow HC stayed under
+0.1 GB.

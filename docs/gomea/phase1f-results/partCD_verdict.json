@@ -3,23 +3,29 @@
     "ltb_significantly_worse": [],
     "train_median_lower_count": {
       "LTMI": 2,
-      "RT": 2
+      "RT": 4
     },
     "datasets": [
       "Air",
       "Bos",
-      "Con"
+      "Con",
+      "EnC",
+      "EnH",
+      "Yac"
     ],
     "consistent": true
   },
   "D": {
-    "better": 2,
+    "better": 4,
     "worse": 0,
-    "tie": 1,
+    "tie": 2,
     "datasets": [
       "Air",
       "Bos",
-      "Con"
+      "Con",
+      "EnC",
+      "EnH",
+      "Yac"
     ],
     "gomea_beats_hc": true
   },
