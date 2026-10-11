@@ -65,3 +65,30 @@ learned linkage (LT-B or LT-MI) beats the random tree (RT).
 
 Descriptive: errors, success counts, evaluations used and wall time per arm and N; the
 trend of the gap with N.
+
+## Step 1 outcome and step 2 (added 2026-10-11, before step 2 ran)
+
+**Step 1 verdict, by the rules above: MIXED.** LT-MI was worse than RT at N = 64 (8 losses,
+0 wins, 32 ties; Holm p = 0.047). Nothing else was significant. At N = 256 both learned arms
+led slightly but not significantly. See `PHASE1H-FINDINGS.md`.
+
+MIXED is one of the conclusive rules, so the ladder above would stop here. The user asked to
+continue testing, so **step 2 runs as an exploratory follow-up.** It cannot overturn the
+step 1 verdict, and it is reported separately.
+
+* **Step 2:** N = 1,024, arms LT-B, LT-MI and RT, the same 4 fixtures × 10 seeds (4001–4010)
+  = 40 pairs. Manifest `configs/gomea/phase1h/step2.json`, code `7860f64`, `-m 300000`.
+* **Deviations from step 1's manifest:**
+  * `wall_cap_s` is 43,200 instead of 7,200. At step 1's per-process speed (about 23
+    evaluations/s with 14 workers), a 100k–300k-evaluation run needs 1–4 h.
+  * 18 workers instead of 14. The peak RSS at N = 256 was 96 MB, so memory is not the limit.
+* **Estimate:** roughly 10–20 h, depending on how many evaluations N = 1,024 uses before it
+  stagnates.
+* **Analysis:** `tools/gomea/phase1h_report.py` over both result directories. Holm correction
+  runs over all 8 learned-vs-RT contrasts (N = 16, 64, 256 and 1,024).
+* **Exploratory reading:**
+  * At N = 1,024, does a learned arm beat RT (Holm p < 0.05, negative mean difference)?
+  * Is the N = 1,024 gap in the same direction as the N = 256 lead, and is it larger?
+* **Step 3, if step 2 shows a learned-arm lead that is not significant:** 40 more seeds
+  (4011–4050) at the N with the largest learned-vs-RT gap. It is registered here before
+  running.
