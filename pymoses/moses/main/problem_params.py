@@ -251,8 +251,9 @@ _MONTH = "month"  # C++: problem-params.cc:59 month_str
 _HC = "hc"  # C++: moses/optimization/optimization.h:68 hc
 # GOMEA extension (not in classic MOSES): "gomea" selects the population
 # optimizer in `pymoses.gomea` and "hc-gomea" (Phase 1e) hill climbing
-# followed by GOMEA on the same deme; the other four are classic's own names.
-_SUPPORTED_OPT_ALGOS = frozenset({"hc", "sa", "un", "ps", "gomea", "hc-gomea"})
+# followed by GOMEA on the same deme, and "hc-capped" (Phase 1g) hill climbing
+# with GOMEA's per-deme cap; the other four are classic's own names.
+_SUPPORTED_OPT_ALGOS = frozenset({"hc", "sa", "un", "ps", "gomea", "hc-gomea", "hc-capped"})
 
 # GOMEA extension (not in classic MOSES): the `--gomea-*` options as
 # (flag, dest, type, default, help). Registered by

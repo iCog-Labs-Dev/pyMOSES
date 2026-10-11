@@ -214,6 +214,7 @@ from pymoses.gomea import (
     gomea_parameters,
     hc_gomea_optimization,
 )
+from pymoses.gomea.capped_hc import hc_capped_optimization
 from pymoses.moses.deme.deme_expander import Simplifier, deme_expander
 from pymoses.moses.deme.deme_params import deme_parameters
 from pymoses.moses.metapopulation.metapop_params import (
@@ -718,6 +719,12 @@ def metapop_moses_results_b(
         optimizer = hc_gomea_optimization(
             opt_params, hc_params, gomea_params or gomea_parameters()
         )
+    # GOMEA extension, Phase 1g control arm: hill climbing with GOMEA's
+    # per-deme evaluation cap (`--gomea-max-evals-per-deme`).
+    elif opt_params.opt_algo == "hc-capped":
+        optimizer = hc_capped_optimization(
+            opt_params, hc_params, gomea_params or gomea_parameters()
+        )
     else:
         raise ValueError(
             f"Unknown optimization algo {opt_params.opt_algo}. Supported "
@@ -762,7 +769,7 @@ def gomea_kwargs(pms: object) -> dict[str, object]:
 
 # GOMEA extension (not in classic MOSES): the optimizers that take
 # `gomea_params` (`hc-gomea` is Phase 1e's hybrid).
-_GOMEA_ALGOS = ("gomea", "hc-gomea")
+_GOMEA_ALGOS = ("gomea", "hc-gomea", "hc-capped")
 
 
 # GOMEA extension (not in classic MOSES).
