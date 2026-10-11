@@ -46,3 +46,34 @@ lower in, and the Wilcoxon p (the smallest possible with 6 pairs is 0.031). Cont
 
 **Caveats fixed in advance:** 2,000 evaluations is a fifth of Phase 1f's budget, so the
 GOMEA-vs-HC gap may differ from Phase 1f's; 6 pairs on 2 datasets can only indicate.
+
+## Quick-run result (recorded before the bigger run)
+
+All 48 runs ended `ok` in 16 minutes. Under the reading above the result is
+**inconclusive**. Directionally, linkage made no difference (`LTB-C250` lower than `UNI-C250`
+in 3 of 6 pairs on both datasets), capping helped HC a little (4 of 6 on both), and GOMEA
+without linkage beat capped HC on EnH (6 of 6, p = 0.031) but not on Con (3 of 6).
+
+## Bigger run (registered 2026-10-11, before it ran)
+
+The user asked for a bigger run ("yes go ahead with the bigger run").
+
+* **Same arms, code (`c3d3ad6`), budget (2,000 evaluations) and runner.** Manifest
+  `configs/gomea/phase1g/big.json`.
+* **Datasets:** Con, EnH and EnC, all *better* for GOMEA in Phase 1f. Air was left out
+  because its runs take about twice as long, which would push past the hour.
+* **Splits:** 1–20, paired. The 48 quick runs (Con and EnH, splits 1–6) are reused
+  unchanged, since their arguments and code are identical.
+* **Resources:** 14 workers, a 1,536 MB cap per run.
+
+**Tests.** Per contrast and dataset, a Wilcoxon signed-rank test on test NMSE (20 pairs),
+with Holm correction across the 3 datasets. An arm **leads** if Holm p < 0.05 and its
+median paired difference is negative. The contrasts are the three above, plus
+`UNI-C250` vs `HC-C250`.
+
+**Reading.**
+* "Short demes explain the gain": `HC-C250` leads `HC` on at least 2 of 3 datasets, and
+  neither GOMEA arm leads `HC-C250` on any.
+* "GOMEA's mixing matters": `UNI-C250` or `LTB-C250` leads `HC-C250` on at least 2 of 3.
+* "Linkage matters": `LTB-C250` leads `UNI-C250` on at least 2 of 3.
+* These are not exclusive. Anything else is "inconclusive".
