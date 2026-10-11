@@ -1,0 +1,5 @@
+{
+  "verdict": "MIXED: learned linkage significantly worse somewhere",
+  "largest_N": 256,
+  "margin": 0.25
+}
