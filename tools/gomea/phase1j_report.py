@@ -2,7 +2,10 @@
 
 Usage (from the repository root)::
 
-    .venv/bin/python tools/gomea/phase1j_report.py OUT_DIR MUX11_RESULT_DIR CON_RESULT_DIR
+    .venv/bin/python tools/gomea/phase1j_report.py --stage {1,2} OUT_DIR MUX11_DIRS CON_DIRS
+
+MUX11_DIRS and CON_DIRS are comma-separated result directories (stage 2 passes the stage-1
+and extension directories together), or `-` to leave that problem out.
 
 Arms HC and LTB-C250-M, run with `--max-time T -m 1000000000` (time only, as classic
 MOSES is run). Pairing is by seed (mux11) or split (Con).
@@ -13,8 +16,14 @@ MOSES is run). Pairing is by seed (mux11) or split (Con).
   infinite.
 
 Per problem: paired Wilcoxon signed-rank test of LTB-C250-M vs HC, Holm-corrected over the
-two problems. "Better" means Holm p < 0.05 and a median at least 10 % lower than HC's;
-"worse" is the mirror image; anything else is a tie. See PHASE1J-PREREGISTRATION.md.
+problems given. Two looks, each at ALPHA = 0.025 (Bonferroni over the looks, 0.05 overall):
+
+* stage 1 (10 pairs): Holm p < ALPHA and a median at least 10 % lower than HC's is "better"
+  (the mirror image is "worse"); ALPHA <= Holm p < EXTEND_BELOW is "extend" (run 10 more
+  pairs); anything else is a "tie";
+* stage 2 (all 20 pairs, extended problems only): the same rule without "extend".
+
+See PHASE1J-PREREGISTRATION.md.
 """
 
 from __future__ import annotations
@@ -31,14 +40,17 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 from benchmarks.gomea.stats import holm, wilcoxon_signed_rank  # noqa: E402
 
 T_MUX = 3600.0
+ALPHA = 0.025
+EXTEND_BELOW = 0.25
 ARMS = ("HC", "LTB-C250-M")
 
 
-def _load(d: str) -> dict:
+def _load(dirs: str, task: str) -> dict:
     runs: dict = {a: {} for a in ARMS}
-    for f in glob.glob(str(Path(d) / "runs/*/summary.json")):
+    files = [f for d in dirs.split(",") for f in glob.glob(str(Path(d) / "runs/*/summary.json"))]
+    for f in files:
         s = json.loads(Path(f).read_text())
-        if s["arm"] in runs:
+        if s["arm"] in runs and s["task"] == task:
             runs[s["arm"]][s["seed"]] = s
     return runs
 
@@ -83,21 +95,31 @@ def _contrast(problem: str, runs: dict, metric, extra) -> dict:
 
 
 def main() -> int:
-    out = Path(sys.argv[1])
-    mux, con = _load(sys.argv[2]), _load(sys.argv[3])
-    rows = [
-        _contrast("mux11", mux, _mux_metric, lambda s: s.get("n_calls") or 0),
-        _contrast("Con", con, _con_metric, lambda s: s.get("n_evals") or 0),
-    ]
-    rows[0]["solved_ltb"] = sum(_mux_metric(s) < T_MUX for s in mux["LTB-C250-M"].values())
-    rows[0]["solved_hc"] = sum(_mux_metric(s) < T_MUX for s in mux["HC"].values())
+    if sys.argv[1] != "--stage" or sys.argv[2] not in ("1", "2"):
+        print(__doc__, file=sys.stderr)
+        return 2
+    stage = int(sys.argv[2])
+    out, mux_dirs, con_dirs = Path(sys.argv[3]), sys.argv[4], sys.argv[5]
+    rows = []
+    if mux_dirs != "-":
+        mux = _load(mux_dirs, "mux11")
+        row = _contrast("mux11", mux, _mux_metric, lambda s: s.get("n_calls") or 0)
+        row["solved_ltb"] = sum(_mux_metric(s) < T_MUX for s in mux["LTB-C250-M"].values())
+        row["solved_hc"] = sum(_mux_metric(s) < T_MUX for s in mux["HC"].values())
+        rows.append(row)
+    if con_dirs != "-":
+        con = _load(con_dirs, "Con")
+        rows.append(_contrast("Con", con, _con_metric, lambda s: s.get("n_evals") or 0))
     for r, ph in zip(rows, holm([r["p"] for r in rows]), strict=True):
+        r["stage"] = stage
         r["p_holm"] = ph
         lo, hi = r["median_ltb"], r["median_hc"]
-        if ph < 0.05 and lo <= 0.9 * hi:
+        if ph < ALPHA and lo <= 0.9 * hi:
             r["verdict"] = "better"
-        elif ph < 0.05 and hi <= 0.9 * lo:
+        elif ph < ALPHA and hi <= 0.9 * lo:
             r["verdict"] = "worse"
+        elif stage == 1 and ALPHA <= ph < EXTEND_BELOW:
+            r["verdict"] = "extend"
         else:
             r["verdict"] = "tie"
     out.mkdir(parents=True, exist_ok=True)
@@ -106,6 +128,9 @@ def main() -> int:
         w = csv.DictWriter(fh, fieldnames=keys)
         w.writeheader()
         w.writerows(rows)
+    (out / "verdict.json").write_text(
+        json.dumps({r["problem"]: r["verdict"] for r in rows}, indent=2) + "\n"
+    )
     for r in rows:
         print(json.dumps(r))
     return 0
