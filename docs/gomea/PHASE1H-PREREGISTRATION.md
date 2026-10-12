@@ -92,3 +92,33 @@ step 1 verdict, and it is reported separately.
 * **Step 3, if step 2 shows a learned-arm lead that is not significant:** 40 more seeds
   (4011–4050) at the N with the largest learned-vs-RT gap. It is registered here before
   running.
+
+## Step 2 outcome and step 3 (added 2026-10-12, before step 3 ran)
+
+**Step 2 (N = 1,024), all 120 runs `ok`:**
+* **LT-B vs RT:** 9 lower, 29 ties, 2 higher; mean −0.20 rows, 95 % CI [−0.375, −0.025];
+  p 0.056, Holm p over all 8 contrasts 0.39.
+* **LT-MI vs RT:** 7 / 23 / 10; mean +0.075; p 0.63.
+* **Combined verdict by the script:** INCONCLUSIVE. With 8 contrasts in the Holm family,
+  LT-MI at N = 64 becomes Holm p 0.0625.
+
+This is a learned-arm lead that is not significant, so step 3 runs as planned at the N with
+the largest learned-vs-RT gap: N = 1,024, LT-B vs RT.
+
+* **Step 3:** 40 more seeds (4011–4050) × 4 fixtures = 160 new pairs, arms **LT-B-N1024 and
+  RT-N1024 only**. Manifest `configs/gomea/phase1h/step3.json`, code `7860f64`, the same
+  argv, budget (`-m 300000`) and wall cap as step 2.
+  * **Why LT-MI is left out:** it does not lead RT at N = 1,024, and it was the slowest arm
+    (median wall time 6,194 s against 3,704 s for LT-B and 4,815 s for RT).
+* **Estimate:** about 20–28 h with 18 workers. Step 2's 120 runs took about 10 h.
+* **Confirmatory test, fixed now:** one paired two-sided Wilcoxon signed-rank test of LT-B vs
+  RT on the **160 new pairs only**, at α = 0.05. This is an independent replication of the
+  step 2 lead, so there is no Holm correction.
+  * **H confirmed (learned linkage beats random linkage at N = 1,024):** p < 0.05 and a
+    negative mean paired difference.
+  * **H refuted at N = 1,024:** p ≥ 0.05 and the 95 % bootstrap CI of the mean difference
+    lies within ±0.25 rows.
+  * **Otherwise:** inconclusive with these resources. Stop.
+  * **Also refuted, as a reversal:** p < 0.05 with a positive mean difference.
+* **Descriptive:** the same test on all 200 pairs (steps 2 and 3); per-fixture means and
+  solve counts; median evaluations per arm.
