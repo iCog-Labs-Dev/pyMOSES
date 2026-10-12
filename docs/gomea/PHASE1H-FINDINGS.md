@@ -1,10 +1,10 @@
 # Phase 1h findings: does learned linkage work with a bigger sample?
 
-**Status:** step 1 complete (360 runs, all `ok`). Step 2 (N = 1,024, exploratory) is
-running; this file will be extended when it finishes. Protocol:
+**Status:** steps 1 and 2 complete (360 and 120 runs, all `ok`). Step 3, a replication at
+N = 1,024, is running; this file will be extended when it finishes. Protocol:
 `PHASE1H-PREREGISTRATION.md`. Code `7860f64`. Results: `phase1h-results/step1__*` and
-`../gomea-results/1/phase1h-step1-2e6f467ecb9c/` (relative to the repository root, outside
-it).
+`step2__*`, and `../gomea-results/1/phase1h-step{1,2}-*/` (relative to the repository root,
+outside it).
 
 ## Setup
 
@@ -103,13 +103,67 @@ N ≤ 256**, with one marginal result against learned linkage.
   neighbourhood. The uniform start, which would give more diverse samples, was too slow to
   use (pilot: no generation in 10 min at N = 256).
 
+## Step 2: N = 1,024 (exploratory)
+
+Same 4 fixtures × 10 seeds, 40 pairs per contrast, 18 runs in parallel. The step took about
+10 h (20:21 to 06:20). No run reached the 300,000-evaluation budget: 85 ended on stagnation
+and 35 on reaching the target. In 3 runs (one fixture and seed, all three arms) the starting
+sample already held a perfect program.
+
+| Arm | Mean error | Median error | Solved (of 40) | Median evaluations | Median wall time (s) |
+|---|---|---|---|---|---|
+| LT-B | **0.65** | 1 | **16** | 83,130 | 3,704 |
+| LT-MI | 0.93 | 1 | 8 | 138,596 | 6,194 |
+| RT | 0.85 | 1 | 11 | 105,510 | 4,815 |
+
+| Contrast | A lower / tie / B lower | Mean diff [95 % CI] | p | Holm p (8 contrasts) |
+|---|---|---|---|---|
+| LT-B vs RT | 9 / 29 / 2 | −0.20 [−0.38, −0.03] | 0.056 | 0.39 |
+| LT-MI vs RT | 7 / 23 / 10 | +0.08 [−0.13, +0.28] | 0.63 | 1 |
+| LT-B vs LT-MI | 13 / 23 / 4 | −0.28 [−0.50, −0.05] | 0.030 | – |
+
+Mean error / solved runs (of 10) per fixture:
+
+| Fixture | LT-B | LT-MI | RT |
+|---|---|---|---|
+| maj5-x0 | 0.7 / 3 | 1.1 / 1 | 0.9 / 2 |
+| maj5-x1 | 0.3 / 7 | 0.4 / 6 | 0.3 / 7 |
+| maj5-x2 | 0.4 / 6 | 1.1 / 1 | 0.9 / 2 |
+| maj5-x3 | 1.2 / 0 | 1.1 / 0 | 1.3 / 0 |
+
+**Combined verdict (steps 1 and 2, 8 contrasts in the Holm family): INCONCLUSIVE.** Nothing
+is significant after correction; the N = 64 LT-MI result becomes Holm p 0.0625. Step 2 is
+exploratory, so this does not replace step 1's pre-registered MIXED verdict; both are
+reported.
+
+The 3 perfect-start runs (`maj5-x1`, seed 4008) count as solved in every arm and as a tie in
+every contrast.
+
+**What step 2 shows:**
+1. **LT-B has led RT since N = 256, and the lead is largest at N = 1,024.**
+   * The mean paired difference is +0.00, +0.10, −0.10 and −0.20 rows at N = 16, 64, 256 and
+     1,024, so the series is not monotonic: LT-B trailed at N = 64.
+   * The steps between Ns are well inside each CI.
+   * At N = 1,024 the bootstrap CI excludes zero, but the Wilcoxon p is 0.056 (0.39 after
+     Holm), so the lead is not significant.
+2. **LT-B solves more runs.** It solved 16 of 40 against 11 (RT) and 8 (LT-MI).
+   * Its median evaluations are lower overall (83k against 106k and 139k), partly because
+     solved runs stop early.
+   * Among unsolved runs LT-B is still the lowest (median 125k against 135k for RT and 147k
+     for LT-MI).
+   * Among solved runs LT-B used more than RT (73k against 52k).
+3. **The bias correction seems to matter at this N.** LT-B beats LT-MI in 13 pairs and loses
+   in 4 (p 0.030, uncorrected, descriptive). LT-MI does not beat RT. At N = 256 the solve
+   counts went the other way (LT-MI 7, LT-B 5).
+4. **The lead comes mostly from x2.** Summed over pairs, LT-B made 8 fewer wrong rows than
+   RT: −5 on x2, −2 on x0, −1 on x3 and 0 on x1. On x2 it solved 6 runs against RT's 2.
+   x3 was never solved by any arm.
+
+This is the pattern the hypothesis predicts, a learned-linkage advantage that appears only
+once the linkage model has a big enough sample, but 40 pairs are not enough to establish it.
+
 ## Next
 
-Step 2 (N = 1,024, same 40 pairs) tests whether the N = 256 lead grows with a larger sample.
-It was registered as exploratory in `PHASE1H-PREREGISTRATION.md` before it ran. Step 1's
-verdict above uses step 1's 6 contrasts. The combined analysis will report the Holm values
-over all 8 contrasts as well.
-
-At N = 1,024 the sampler start sometimes already contains a perfect program, for example
-`maj5-x1`, seed 4008. Every arm shares that starting population, so such pairs tie
-regardless of linkage.
+Step 3, registered in `PHASE1H-PREREGISTRATION.md` before it ran, replicates LT-B vs RT at
+N = 1,024 on 160 new pairs (seeds 4011–4050). It uses a single pre-specified two-sided
+Wilcoxon test on the new pairs only, at α = 0.05. LT-MI is left out because it does not lead RT and is the slowest arm.
