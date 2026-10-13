@@ -1,0 +1,69 @@
+{
+  "schema_version": 1,
+  "name": "phase1j-mux11",
+  "phase": 1,
+  "commit": "7860f6470d3d5ae2c82c6e8a86994ad3394038e3",
+  "common_argv": [
+    "-l",
+    "WARN"
+  ],
+  "tasks": {
+    "mux11": {
+      "argv": [
+        "-H",
+        "mux",
+        "-k",
+        "3"
+      ],
+      "target_raw": 0
+    }
+  },
+  "arms": {
+    "HC": {
+      "argv": [
+        "-a",
+        "hc"
+      ]
+    },
+    "LTB-C250-M": {
+      "argv": [
+        "-a",
+        "gomea",
+        "--gomea-pop-size",
+        "16",
+        "--gomea-skip-inactive",
+        "0",
+        "--gomea-fos",
+        "lt-b",
+        "--gomea-max-evals-per-deme",
+        "250",
+        "--gomea-genotype-memo",
+        "1"
+      ]
+    }
+  },
+  "seeds": [
+    3001,
+    3002,
+    3003,
+    3004,
+    3005,
+    3006,
+    3007,
+    3008,
+    3009,
+    3010
+  ],
+  "budget": {
+    "argv": [
+      "--max-time",
+      "3600",
+      "-m",
+      "1000000000"
+    ],
+    "kind": "wall_time"
+  },
+  "wall_cap_s": 5400,
+  "workers": 10,
+  "output_root": "../gomea-results"
+}
