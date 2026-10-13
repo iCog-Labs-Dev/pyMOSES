@@ -1,0 +1,52 @@
+{
+  "schema_version": 1,
+  "phase": 1,
+  "name": "phase1i-identity-check",
+  "commit": "d8752948665045f8c4c9f9dddfe163190fca886b",
+  "common_argv": [
+    "-l",
+    "WARN"
+  ],
+  "tasks": {
+    "maj5-x0": {
+      "argv": [
+        "-H",
+        "maj",
+        "-k",
+        "5",
+        "-e",
+        "or(and(or(and($3 $5) $2) $4) and(or($2 $4) or($3 $5) $1))",
+        "-g",
+        "1"
+      ],
+      "target_raw": 0
+    }
+  },
+  "arms": {
+    "LT-B-N256": {
+      "argv": [
+        "-a",
+        "gomea",
+        "--gomea-pop-size",
+        "256",
+        "--gomea-skip-inactive",
+        "0",
+        "--gomea-fos",
+        "lt-b"
+      ]
+    }
+  },
+  "seeds": [
+    4001
+  ],
+  "budget": {
+    "argv": [
+      "-m",
+      "150000"
+    ],
+    "kind": "evaluations"
+  },
+  "wall_cap_s": 43200,
+  "workers": 20,
+  "output_root": "../gomea-results"
+}
