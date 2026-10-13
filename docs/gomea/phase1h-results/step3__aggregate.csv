@@ -1,0 +1,3 @@
+N,fos,runs,not_ok,mean_err,median_err,solved,median_evals,median_wall_s
+1024,LT-B,160,0,0.66875,1.0,63,89185.0,5050.029286146164
+1024,RT,160,0,0.8,1.0,47,101625.5,5522.220277667046

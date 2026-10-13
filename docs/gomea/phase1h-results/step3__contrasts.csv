@@ -1,0 +1,2 @@
+N,contrast,pairs,a_lower,ties,b_lower,mean_diff,ci_lo,ci_hi,p,median_err_a,median_err_b,solved_a,solved_b,p_holm
+1024,LT-B:RT,160,36,109,15,-0.13125,-0.2125,-0.04375,0.003333300943372919,1.0,1.0,63,47,0.003333300943372919

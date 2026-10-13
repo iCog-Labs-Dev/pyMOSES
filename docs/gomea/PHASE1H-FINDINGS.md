@@ -1,10 +1,17 @@
 # Phase 1h findings: does learned linkage work with a bigger sample?
 
-**Status:** steps 1 and 2 complete (360 and 120 runs, all `ok`). Step 3, a replication at
-N = 1,024, is running; this file will be extended when it finishes. Protocol:
-`PHASE1H-PREREGISTRATION.md`. Code `7860f64`. Results: `phase1h-results/step1__*` and
-`step2__*`, and `../gomea-results/1/phase1h-step{1,2}-*/` (relative to the repository root,
-outside it).
+**Status:** complete. Steps 1, 2 and 3 ran 360, 120 and 320 runs, all `ok`. Protocol:
+`PHASE1H-PREREGISTRATION.md`. Code `7860f64`. Results: `phase1h-results/step{1,2,3}__*` and
+`../gomea-results/1/phase1h-step{1,2,3}-*/` (relative to the repository root, outside it).
+
+**Answer:** yes for LT-B, the bias-corrected linkage tree. With a population of 1,024, LT-B
+beats a random tree on frozen maj5: the registered step 3 test gives p = 0.0033 on 160 new
+pairs. The effect is small, a mean of 0.13 fewer wrong rows, and comes mostly from two of
+the four fixtures.
+* **LT-MI**, the uncorrected tree, showed no advantage at N = 1,024 (step 2).
+* **At N = 16 to 256** there was no significant difference for LT-B. Step 1's registered
+  verdict was MIXED: LT-MI was worse than RT at N = 64 (Holm p 0.047; 0.0625 under the later
+  8-contrast correction).
 
 ## Setup
 
@@ -162,8 +169,70 @@ every contrast.
 This is the pattern the hypothesis predicts, a learned-linkage advantage that appears only
 once the linkage model has a big enough sample, but 40 pairs are not enough to establish it.
 
-## Next
+## Step 3: replication at N = 1,024 (confirmatory)
 
-Step 3, registered in `PHASE1H-PREREGISTRATION.md` before it ran, replicates LT-B vs RT at
-N = 1,024 on 160 new pairs (seeds 4011–4050). It uses a single pre-specified two-sided
-Wilcoxon test on the new pairs only, at α = 0.05. LT-MI is left out because it does not lead RT and is the slowest arm.
+* **Design:** LT-B vs RT at N = 1,024, 4 fixtures × seeds 4011–4050 = 160 new pairs. The
+  setup is otherwise as in step 2.
+* **Registered test:** one two-sided Wilcoxon test on the new pairs only, at α = 0.05.
+  * **Confirmed:** p < 0.05 with a negative mean difference.
+  * **Refuted:** p ≥ 0.05 with the 95 % CI inside ±0.25 rows.
+  * Anything else is inconclusive.
+* **Run:** 2026-10-12 06:26 to 2026-10-13 11:50 (about 29 h), 18 workers.
+
+| Arm | Mean error | Median error | Solved (of 160) | Median evaluations | Median wall time (s) |
+|---|---|---|---|---|---|
+| LT-B | **0.67** | 1 | **63** | 89,185 | 5,050 |
+| RT | 0.80 | 1 | 47 | 101,626 | 5,522 |
+
+**LT-B vs RT:**
+
+| Pairs | LT-B lower / tie / RT lower | Mean diff [95 % CI] | p |
+|---|---|---|---|
+| 160 | 36 / 109 / 15 | −0.13 [−0.21, −0.04] | **0.0033** |
+
+**Verdict: confirmed.** At N = 1,024, LT-B beats the random tree on frozen maj5. The
+registered reversal rule (p < 0.05 with a positive mean) did not apply.
+
+**Per fixture** (LT-B lower / tie / RT lower in 40 pairs; solved runs LT-B vs RT):
+
+| Fixture | Pairs | Solved |
+|---|---|---|
+| maj5-x0 | 16 / 21 / 3 | 21 vs 9 |
+| maj5-x1 | 4 / 29 / 7 | 30 vs 33 |
+| maj5-x2 | 15 / 21 / 4 | 12 vs 5 |
+| maj5-x3 | 1 / 38 / 1 | 0 vs 0 |
+
+**Notes:**
+1. **The effect is uneven.** It comes from x0 and x2. On x1 the random tree is slightly ahead,
+   and x3 was never solved by either arm. In step 2 the lead came mostly from x2. Here x0
+   contributes as much.
+2. **It is small.** It amounts to 0.13 wrong rows on average, or 16 more solved runs out of
+   160.
+3. **Steps 2 and 3 together** (200 pairs at N = 1,024, descriptive): LT-B lower in 45 pairs
+   and higher in 17, mean −0.145, p = 0.0003.
+4. **Termination:**
+   * LT-B: 59 runs reached the target and 101 stagnated.
+   * RT: 47 reached the target, 112 stagnated and 1 hit the 300,000-evaluation budget.
+   * As in step 2, one fixture and seed had a perfect program in its starting sample, in
+     both arms.
+   * Four LT-B runs reached zero error without ending on `target_reached`. The solved
+     counts above are by final error.
+5. **Evaluations:** LT-B's median is lower overall (89k vs 102k), partly because solved runs
+   stop early. Among solved runs LT-B used more (76k vs 62k), and among unsolved runs fewer
+   (119k vs 126k).
+
+## What Phase 1h shows
+
+* **LT-B beat random linkage only with a large sample.** It made no significant difference
+  at N = 16 to 256 and helped at N = 1,024. This is consistent with linkage learning needing
+  more data than a deme provides, but it rests on one larger population size and one learned
+  model; LT-MI did not beat RT at N = 1,024.
+* **MOSES demes normally use N = 16.** With the 250-evaluation cap, demes rarely finish one
+  generation (Phase 1e logs: 7.6 % of capped demes reached a second).
+  There, the linkage model cannot pay off. This matches Phases 1f and 1g, where learned and
+  random linkage tied.
+* **For linkage learning to matter in practice,** each model needs far more data than one
+  deme provides. The options are a much larger population (expensive), a linkage model
+  shared across demes, fewer knobs per deme, or a more diverse starting sample.
+* **Limits:** one problem (maj5), frozen representations, and a modest effect driven by two
+  of four fixtures.
