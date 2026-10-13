@@ -130,6 +130,31 @@ def test_resolve_radii_renormalises_weights_that_do_not_sum_to_one():
     assert resolved == ((1, 0.5), (2, 0.5))
 
 
+def test_parse_radii_accepts_uniform_shorthand_and_component():
+    assert parse_radii("uniform") == (("uniform", 1.0),)
+    assert parse_radii(" uniform ") == (("uniform", 1.0),)
+    assert parse_radii("1:0.5,uniform:0.5") == ((1, 0.5), ("uniform", 0.5))
+
+
+def test_resolve_radii_uniform_gives_every_radius_equal_weight():
+    resolved = resolve_radii((("uniform", 1.0),), dim=4)
+    assert [r for r, _ in resolved] == [1, 2, 3, 4]
+    assert all(w == pytest.approx(0.25) for _, w in resolved)
+
+
+def test_resolve_radii_uniform_mixes_with_explicit_radii():
+    # Half the mass on radius 1, the other half spread over 1..4: radius 1
+    # gets 0.5 + 0.125, every other radius 0.125.
+    resolved = dict(resolve_radii(((1, 0.5), ("uniform", 0.5)), dim=4))
+    assert resolved[1] == pytest.approx(0.625)
+    assert [resolved[r] for r in (2, 3, 4)] == pytest.approx([0.125] * 3)
+
+
+def test_resolve_radii_uniform_rejects_non_positive_weight():
+    with pytest.raises(ValueError):
+        resolve_radii((("uniform", 0.0),), dim=4)
+
+
 def test_resolve_radii_rejects_empty_mixture():
     with pytest.raises(ValueError):
         resolve_radii((), dim=5)

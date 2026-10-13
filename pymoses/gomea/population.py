@@ -42,9 +42,10 @@ from pymoses.gomea.schema import FrozenSchema
 from pymoses.moses.moses.neighborhood_sampling import sample_from_neighborhood
 from pymoses.util.rng import MT19937RandGen
 
-# A radius mixture: each component is either an explicit integer radius or
+# A radius mixture: each component is either an explicit integer radius,
 # the literal string ``"max"`` (meaning "the schema's own dimensionality"),
-# paired with a (not necessarily normalised) weight. ``parse_radii`` builds
+# or the literal string ``"uniform"`` (its weight spread equally over every
+# radius 1..dim), paired with a (not necessarily normalised) weight. ``parse_radii`` builds
 # one from text; ``resolve_radii`` turns it into a normalised, dim-bound
 # ``tuple[tuple[int, float], ...]`` ``build_population`` can actually draw
 # from.
@@ -55,11 +56,15 @@ def parse_radii(text: str) -> RadiusMixture:
     """Parse a ``"1:0.4,2:0.3,4:0.2,max:0.1"``-style radius mixture.
 
     Each comma-separated component is ``<radius>:<weight>``, where
-    ``<radius>`` is either a base-10 integer or the literal ``max`` and
-    ``<weight>`` is anything ``float()`` accepts. Raises ``ValueError`` on
-    any malformed component (missing ``:``, empty component, an
-    unparseable radius or weight) or on empty/whitespace-only text.
+    ``<radius>`` is a base-10 integer or the literal ``max`` or ``uniform``,
+    and ``<weight>`` is anything ``float()`` accepts. The bare text
+    ``uniform`` is shorthand for ``uniform:1``: every distance from 1 to the
+    schema's dimensionality equally likely. Raises ``ValueError`` on any
+    malformed component (missing ``:``, empty component, an unparseable
+    radius or weight) or on empty/whitespace-only text.
     """
+    if text.strip() == "uniform":
+        return (("uniform", 1.0),)
     components: list[tuple[int | str, float]] = []
     for raw_part in text.split(","):
         part = raw_part.strip()
@@ -72,8 +77,8 @@ def parse_radii(text: str) -> RadiusMixture:
         weight_text = weight_text.strip()
 
         radius: int | str
-        if radius_text == "max":
-            radius = "max"
+        if radius_text in ("max", "uniform"):
+            radius = radius_text
         else:
             try:
                 radius = int(radius_text)
@@ -95,7 +100,8 @@ def parse_radii(text: str) -> RadiusMixture:
 def resolve_radii(mix: RadiusMixture, dim: int) -> tuple[tuple[int, float], ...]:
     """Resolve a parsed radius mixture against one schema's dimensionality.
 
-    ``'max'`` becomes ``dim``; any literal radius greater than ``dim`` is
+    ``'max'`` becomes ``dim``; ``'uniform'`` splits its weight equally over
+    every radius 1..``dim``; any literal radius greater than ``dim`` is
     clamped down to ``dim`` (a mixture written for a bigger schema still
     makes sense on a smaller one); components that land on the same
     resolved radius are merged by summing their weights; the result is
@@ -120,6 +126,10 @@ def resolve_radii(mix: RadiusMixture, dim: int) -> tuple[tuple[int, float], ...]
         if weight <= 0:
             raise ValueError(f"radius weight must be positive: {weight!r}")
 
+        if literal_radius == "uniform":
+            for r in range(1, dim + 1):
+                resolved[r] = resolved.get(r, 0.0) + weight / dim
+            continue
         if literal_radius == "max":
             r = dim
         else:

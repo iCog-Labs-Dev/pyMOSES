@@ -301,7 +301,8 @@ _GOMEA_OPTIONS = (
         str,
         "1:0.4,2:0.3,4:0.2,max:0.1",
         "initial-population distance mixture, radius:weight,...; max = all "
-        "knobs. Default 1:0.4,2:0.3,4:0.2,max:0.1.",
+        "knobs; uniform = every distance 1..all knobs equally likely. "
+        "Default 1:0.4,2:0.3,4:0.2,max:0.1.",
     ),
     (
         "--gomea-skip-inactive",
