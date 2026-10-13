@@ -13,13 +13,13 @@ run() { $PY -m benchmarks.gomea.runner "$1" --workers "$2" --mem-limit-mb 3072 >
 
 echo "start $(date -Is)"
 run configs/gomea/phase1i/identity-check.json 1 $R/phase1i-identity.log &
-run configs/gomea/phase1i/stage1.json 20 $R/phase1i-stage1.log
+run configs/gomea/phase1i/stage1.json 12 $R/phase1i-stage1.log
 wait
 echo "stage 1 done $(date -Is)"
 S1=$(dir_of configs/gomea/phase1i/stage1.json)
 $PY tools/gomea/phase1i_report.py --stage 1 $R/phase1i/report-stage1 "$S1" "$STEP1"
 if grep -q '"extend"' $R/phase1i/report-stage1/verdict.json; then
-    run configs/gomea/phase1i/ext.json 20 $R/phase1i-ext.log
+    run configs/gomea/phase1i/ext.json 12 $R/phase1i-ext.log
     echo "extension done $(date -Is)"
     $PY tools/gomea/phase1i_report.py --stage 2 $R/phase1i/report-stage2 "$S1" "$STEP1" \
         "$(dir_of configs/gomea/phase1i/ext.json)"

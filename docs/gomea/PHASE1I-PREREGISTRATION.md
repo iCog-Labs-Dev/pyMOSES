@@ -54,8 +54,8 @@ linkage model has more data to learn from.
   (`configs/gomea/phase1i/ext.json`), because step 1 has no default-start runs for those
   seeds.
 * **Manifests:** `configs/gomea/phase1i/stage1.json`, `identity-check.json` and `ext.json`;
-  code `d875294`; 20 workers.
-* **Estimate:** stage 1 is 80 runs at about 1.5–2 h each, about 7–8 h. The extension would add
+  code `d875294`; 12 workers (20 were planned; cut to 12 at launch because only about 2.4 GB of RAM was free).
+* **Estimate:** stage 1 is 80 runs at about 1.5–2 h each, about 11–13 h with 12 workers. The extension would add
   about the same.
 
 ## Analysis (`tools/gomea/phase1i_report.py`)
