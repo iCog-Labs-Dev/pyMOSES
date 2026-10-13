@@ -1,0 +1,14 @@
+deme	phase	cpu_s	info
+0	create_demes	0.181	exemplar_size=1 dim=[88]
+0	optimize_demes	12.724	evals=649 sizes=[649]
+0	merge_demes	2.075	mp_size=11
+1	create_demes	1.230	exemplar_size=5 dim=[152]
+1	optimize_demes	14.884	evals=526 sizes=[526]
+1	merge_demes	3.114	mp_size=20
+2	create_demes	4.732	exemplar_size=10 dim=[255]
+2	optimize_demes	40.514	evals=1075 sizes=[1075]
+2	merge_demes	12.747	mp_size=20
+3	create_demes	37.556	exemplar_size=30 dim=[742]
+3	optimize_demes	49.735	evals=750 sizes=[750]
+3	merge_demes	27.661	mp_size=20
+#done

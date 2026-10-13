@@ -1,0 +1,38 @@
+deme	phase	cpu_s	info
+0	create_demes	0.307	exemplar_size=1 dim=[88]
+0	optimize_demes	5.473	evals=250 sizes=[250]
+0	merge_demes	0.899	mp_size=2
+1	create_demes	1.179	exemplar_size=5 dim=[151]
+1	optimize_demes	9.412	evals=250 sizes=[250]
+1	merge_demes	2.175	mp_size=5
+2	create_demes	4.992	exemplar_size=10 dim=[261]
+2	optimize_demes	10.360	evals=250 sizes=[250]
+2	merge_demes	0.849	mp_size=7
+3	create_demes	13.395	exemplar_size=20 dim=[496]
+3	optimize_demes	15.804	evals=250 sizes=[250]
+3	merge_demes	1.425	mp_size=15
+4	create_demes	30.447	exemplar_size=30 dim=[700]
+4	optimize_demes	20.779	evals=250 sizes=[250]
+4	merge_demes	8.422	mp_size=16
+5	create_demes	80.978	exemplar_size=43 dim=[951]
+5	optimize_demes	36.098	evals=250 sizes=[250]
+5	merge_demes	6.808	mp_size=20
+6	create_demes	51.023	exemplar_size=38 dim=[835]
+6	optimize_demes	23.466	evals=250 sizes=[250]
+6	merge_demes	2.091	mp_size=20
+7	create_demes	48.308	exemplar_size=48 dim=[135]
+7	optimize_demes	20.089	evals=250 sizes=[250]
+7	merge_demes	2.354	mp_size=20
+8	create_demes	91.048	exemplar_size=52 dim=[1171]
+8	optimize_demes	31.819	evals=250 sizes=[250]
+8	merge_demes	3.427	mp_size=20
+9	create_demes	99.447	exemplar_size=54 dim=[1209]
+9	optimize_demes	35.194	evals=250 sizes=[250]
+9	merge_demes	4.349	mp_size=20
+10	create_demes	136.484	exemplar_size=59 dim=[1276]
+10	optimize_demes	34.405	evals=250 sizes=[250]
+10	merge_demes	4.528	mp_size=20
+11	create_demes	162.039	exemplar_size=70 dim=[1488]
+11	optimize_demes	55.510	evals=250 sizes=[250]
+11	merge_demes	7.153	mp_size=20
+#done
