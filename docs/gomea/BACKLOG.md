@@ -71,6 +71,54 @@ GOM bookkeeping and telemetry are not worth optimising.
    higher than RT's even when final errors tie (Phase 1h step 1). Report it routinely,
    because it is more sensitive than final error.
 
+9. **Seed the metapopulation with GP-GOMEA elites** (user's idea, 2026-10-14).
+   * **Idea:** run stand-alone GP-GOMEA first, with a fixed small tree height (2 or 3, i.e. at
+     most 7 or 15 nodes), and put its elite solutions into MOSES's starting metapopulation
+     instead of starting from the empty program alone.
+     * MOSES then builds knobs around those elites, and its embedded GOMEA still learns knob
+       linkage inside each deme.
+     * The metapopulation level gains node-level improvements at a fixed, small size: a
+       "smart restart".
+     * The empty exemplar (`and()` / `+()`) is added as a control, so MOSES can still grow its
+       own kind of solution if the seeds are misleading.
+   * **Why it is promising:** stand-alone GP-GOMEA beat C++ MOSES on all 10 regression
+     datasets (Phase 1f part B) with small fixed-shape trees. MOSES's strength is refining a
+     good exemplar. On the Boolean tasks, GP-GOMEA solved maj5/mux6 given enough evaluations
+     (Phase 1b).
+   * **Feasible with little code.**
+     * `-e` already accepts several exemplars (`problem_params.py:598`, a multi-value option).
+     * We already run the C++ GP-GOMEA binary (Phase 1f tooling) and parse its output.
+     * Needed: a translator from GP-GOMEA's output to combo syntax.
+   * **Design points to settle first:**
+     1. **The control may never be used.** MOSES picks the exemplar to expand by score with a
+        complexity penalty, so the empty program would almost never be chosen over good
+        seeds. Make the control a separate arm (unseeded MOSES), or reserve a share of
+        expansions for it. Mixing it in alone does not guarantee it is explored.
+     2. **Fair budget:** GP-GOMEA's evaluations must count against the same total budget,
+        e.g. 20 % for seeding and 80 % for MOSES. Otherwise seeding gets free work.
+     3. **Translation:**
+        * The function set must be one both systems share: +, −, ×, protected /, sin, exp,
+          log; for Boolean, AND/OR/NOT.
+        * GP-GOMEA's analytic quotient has no MOSES equivalent, so it must be excluded when
+          seeding.
+        * GP-GOMEA applies linear scaling (a + b·f(x)). The scaled form must be written into
+          the seed, because MOSES's fitness has no linear scaling.
+        * MOSES reduces each seed on entry (reduct), so seeds may change form.
+     4. **How many seeds and which:** the best only, or the top-k distinct elites. More seeds
+        give more diversity but spend metapopulation slots.
+     5. **Where the final best comes from:** log whether each final program descends from a
+        seed or from the empty exemplar, to see whether MOSES refines the seeds or abandons
+        them.
+   * **Experiment sketch:**
+     * Arms: MOSES-HC and MOSES-GOMEA (cap 250), each unseeded and seeded (four arms), at an
+       equal total budget that includes the seeding cost.
+     * Problems: Con, EnH, EnC (+ mux11 or maj7).
+     * Seeds: 10 + 10.
+     * Metrics: test NMSE (or solved / evaluations to solve), final size, and seed lineage.
+   * **Later extension:** re-run seeding when MOSES stagnates, using the current
+     metapopulation's best programs as GP-GOMEA's starting population, for repeated smart
+     restarts.
+
 ## 3. Ideas outside Phase 1's scope
 
 * **IEBL-style building blocks** (Input-space Entropy-based Building-block Learning;
