@@ -190,13 +190,17 @@ pip install -e ".[dev]"
 pytest
 ```
 
-Expect **8344 passed, 5 skipped** in about 11 minutes on one core: the classic port's
-7898 (verified from a clean checkout and a fresh virtualenv) plus 446 added on this branch
+Expect **8352 passed, 5 skipped** in about 11 minutes on one core: the classic port's
+7898 (verified from a clean checkout and a fresh virtualenv) plus 454 added on this branch
 for the GOMEA extension and its experiments, including a reduct regression test (measured on
-this branch).
+this branch, 2026-10-13).
+
+If your shell sets `FORCE_COLOR`, Python 3.14's argparse colours `--help`, and two help-text
+tests in `tests/moses/main/test_moses_exec.py` fail. Run with `NO_COLOR=1` to compare
+plain text.
 
 On a machine without a classic MOSES/CogUtil checkout you should see 7 more tests skip,
-roughly `8337 passed, 12 skipped`. Those are the tests that read the C++ sources
+roughly `8345 passed, 12 skipped`. Those are the tests that read the C++ sources
 directly; they skip rather than fail, so a green run is still a green run. Everything
 else compares against golden fixtures committed here.
 
