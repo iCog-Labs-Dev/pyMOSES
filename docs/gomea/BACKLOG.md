@@ -73,7 +73,15 @@ GOM bookkeeping and telemetry are not worth optimising.
 
 ## 3. Ideas outside Phase 1's scope
 
-* **IEBL-style building blocks** (input-space entropy-based building-block learning,
-  arXiv 2402.12510): extract frequent, informative subtrees from good programs and add them
-  as new terminals or functions for later demes.
+* **IEBL-style building blocks** (Input-space Entropy-based Building-block Learning;
+  Virgolin, Alderliesten, Witteveen and Bosman, GECCO 2017, the first GP-GOMEA paper).
+  * **Method:** score small Boolean subtrees by the entropy of the *unused* inputs over the
+    fitness cases they still get wrong (lower is better), then add the best ones as new
+    terminals and new functions.
+  * **Results:** it helped most on modular problems (Even Parity, 14-bit solved in under an
+    hour).
+  * **Availability:** it is not in the C++ GP-GOMEA we ported (`750220c`); the 2017 code is
+    on Bosman's website.
+  * **For MOSES:** score subtrees of good metapopulation programs the same way, and offer the
+    best as new inputs or operators to later demes.
 * **Phase 2, real-valued constants:** planned; needs explicit approval.
