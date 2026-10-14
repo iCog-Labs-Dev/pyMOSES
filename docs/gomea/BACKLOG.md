@@ -119,6 +119,29 @@ GOM bookkeeping and telemetry are not worth optimising.
      metapopulation's best programs as GP-GOMEA's starting population, for repeated smart
      restarts.
 
+10. **From the two literature reviews** (2026-10-14; `reports/Building blocks for symbolic
+    regression.md` and `reports/Redundancy based simplification in SR.md`, kept outside git).
+    * **Check first:**
+      * Is linear scaling part of pyMoses's regression fitness, or only applied when the error
+        is reported? In the literature, linear scaling gave larger gains than building-block
+        libraries.
+      * How many evaluated candidates are exact duplicates after reduct? Our duplicate
+        counters already record part of this.
+      * Do final models contain redundant constants or near-constant subtrees?
+    * **Most promising change:** every few generations, replace near-constant subtrees in
+      exemplars with constants before building knobs.
+      * Set the threshold relative to the noise level, and accept a change only if a held-out
+        split shows no loss.
+      * Expect any gain in accuracy rather than size: Aldeia et al. 2024 reported −18–20 %
+        test MSE on Airfoil, Concrete, Energy, Boston and Yacht.
+      * Use 10 + 10 seeds; Wine is the guard against a loss.
+    * **IEBL-style building blocks for regression:** no published equivalent exists. If tried,
+      follow GP-GOMEA's feature construction: at most 3 small terms, each refitted jointly with
+      the others, no nesting, at equal size and evaluations against plain GOMEA.
+    * **Feature selection:** low priority. Our regression sets have 5–13 inputs (Dow and Tower
+      are the exceptions). MOSES's default `simple` scorer ignores redundancy and would likely
+      hurt on parity and mux.
+
 ## 3. Ideas outside Phase 1's scope
 
 * **IEBL-style building blocks** (Input-space Entropy-based Building-block Learning;
