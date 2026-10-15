@@ -154,6 +154,37 @@ GOM bookkeeping and telemetry are not worth optimising.
       e.g. `2:0.25,4:0.25,8:0.25,max:0.25` or uniform over distances 1..8.
     * **Combine with a shared linkage model (item 3):** diverse samples pooled across demes.
 
+12. **Population size derived from the deme's budget** (user's design, 2026-10-15).
+    * **Design:**
+      * Each deme gets a cap C. The sampler draws N programs once, with N a fraction of C
+        (e.g. C = 250 → N = 50) instead of the fixed 16.
+      * That population is the deme's population for its whole life; GOM only modifies its
+        members.
+      * Each generation's linkage model is learned from the current N programs, until the
+        deme's evaluations run out.
+    * **Constraint (measured):** a generation costs about 12–13 evaluations per individual.
+      So the starting population plus g full generations needs about
+      N + 13·N·g ≤ C, i.e. N ≤ C / (1 + 13g). For example:
+      * C = 250 allows N ≈ 9 for 2 generations; with N = 50 the deme still ends inside
+        generation 1, with one model learned from 50 unselected programs.
+      * C = 1,000 allows N ≈ 37 for 2 generations.
+      * C = 2,500 allows N ≈ 93 for 2 generations.
+    * **Pair with the budget-derived cap (item 2.1):** at a fixed total, fewer and longer
+      demes, with N set from C, give the linkage model both more programs and later,
+      fitness-shaped populations.
+    * **Code needed (small):**
+      * `--gomea-pop-fraction F`: N = max(2, floor(F · cap)), with the cap taken as
+        min(per-deme cap, remaining budget).
+      * `--gomea-deme-share D`: cap = total budget / D.
+    * **Experiment sketch:**
+      * Regression: Con, EnH and EnC at a fixed total of 10k evaluations.
+      * mux11 at 40k.
+      * Arms: HC; current GOMEA (C = 250, N = 16, LT-B); budget-derived GOMEA (e.g. C = 1,000,
+        N ≈ 40) with LT-B and with RT.
+      * Seeds: 10 + 10.
+      * Questions: does it beat the current setting, does LT-B beat RT once N is larger and
+        generations complete, and does it close the gap to HC?
+
 ## 3. Ideas outside Phase 1's scope
 
 * **IEBL-style building blocks** (Input-space Entropy-based Building-block Learning;
