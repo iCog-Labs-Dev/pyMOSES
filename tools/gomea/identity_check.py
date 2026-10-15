@@ -8,8 +8,9 @@ Usage (from the repository root)::
 `record` runs a fixed set of short pyMoses runs (HC and GOMEA on mux11, maj5, a frozen maj5
 fixture and the Con regression dataset), each in its own process, and saves per case:
 stdout, the GOMEA event log with timing fields removed, and the CPU time and evaluation
-count. `compare` reports, per case, whether stdout and the event log are byte-identical,
-and the CPU-time ratio NEW / BASE.
+count. `compare` reports, per case, whether stdout, the event log and the exit outcome (including
+an exception message) are identical, and the CPU-time ratio NEW / BASE. A case that crashes
+the same way in both counts as identical.
 
 A speed-up is accepted only if every case is identical. The cases are deliberately short
 (a few minutes each) so the check can run after every change.
@@ -58,8 +59,12 @@ CHILD = (
     "import sys, time, json; sys.setrecursionlimit(100000)\n"
     "from pymoses.moses.main.moses_exec import moses_exec\n"
     "t0 = time.process_time()\n"
+    "import traceback\n"
     "try:\n    rc = moses_exec(['moses', *sys.argv[2:]])\n"
     "except SystemExit as e:\n    rc = e.code\n"
+    "except Exception as e:\n"
+    "    rc = 'exception: ' + traceback.format_exception_only(e)[-1].strip()\n"
+    "    traceback.print_exc()\n"
     "open(sys.argv[1], 'w').write(json.dumps({'cpu_s': time.process_time() - t0, 'rc': rc}))\n"
 )
 
@@ -114,10 +119,13 @@ def compare(base: Path, new: Path) -> int:
                 same = False
             elif (b / f).exists() and (b / f).read_bytes() != (n / f).read_bytes():
                 same = False
-        cb = json.loads((b / "cpu.json").read_text())["cpu_s"]
-        cn = json.loads((n / "cpu.json").read_text())["cpu_s"]
+        jb = json.loads((b / "cpu.json").read_text())
+        jn = json.loads((n / "cpu.json").read_text())
+        if jb["rc"] != jn["rc"]:
+            same = False
+        cb, cn = jb["cpu_s"], jn["cpu_s"]
         print(f"{name:20s} {'IDENTICAL' if same else 'DIFFERENT'}  cpu {cb:7.1f}s -> {cn:7.1f}s"
-              f"  ({cn / cb:.2f}x)")
+              f"  ({cn / cb:.2f}x)  rc={jn['rc']}")
         bad += not same
     return 1 if bad else 0
 
