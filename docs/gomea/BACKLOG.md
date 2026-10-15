@@ -122,9 +122,11 @@ GOM bookkeeping and telemetry are not worth optimising.
 10. **From the two literature reviews** (2026-10-14; `reports/Building blocks for symbolic
     regression.md` and `reports/Redundancy based simplification in SR.md`, kept outside git).
     * **Check first:**
-      * Is linear scaling part of pyMoses's regression fitness, or only applied when the error
-        is reported? In the literature, linear scaling gave larger gains than building-block
-        libraries.
+      * Linear scaling: **checked 2026-10-15, not in pyMoses's fitness.** The search scores raw
+        predictions, and linear scaling is applied only when the error is reported
+        (`tools/gomea/sr_eval.py`). In the literature it gave larger gains than
+        building-block libraries (e.g. Dow NMSE 65 → 23 for RDO), so adding it to the
+        regression fitness, for HC and GOMEA alike, is a strong candidate experiment.
       * How many evaluated candidates are exact duplicates after reduct? Our duplicate
         counters already record part of this.
       * Do final models contain redundant constants or near-constant subtrees?
