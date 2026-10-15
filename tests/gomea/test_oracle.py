@@ -734,3 +734,35 @@ def test_preload_then_improvement_sets_n_best_evals_after_prior(make_boolean_rep
     assert oracle.ledger.duplicate_requests == 1
     oracle.finalize()
     assert oracle.deme.n_evals == 9 and oracle.deme.n_best_evals == 9
+
+
+# ---------------------------------------------------------------------------
+# Port-only optimisation: one instance per evaluation
+# ---------------------------------------------------------------------------
+
+
+def test_evaluate_packs_each_genotype_once_and_archives_an_equal_copy(
+    make_boolean_rep, monkeypatch
+):
+    rep = make_boolean_rep("or(and($1 $2) $3)", 3)
+    schema = FrozenSchema(rep)
+    scores = [composite_score(-float(i), 1, 0.0, 0.0) for i in range(20)]
+    iscorer = _sequence_iscorer(scores)
+    deme = _make_deme(schema)
+    oracle = EvaluationOracle(schema, iscorer, deme, max_evals=1000, max_time=3600.0)
+
+    calls = []
+    real = schema.to_instance
+    monkeypatch.setattr(schema, "to_instance", lambda g: calls.append(g) or real(g))
+
+    r = random.Random(5)
+    genotypes = [tuple(r.randrange(k) for k in schema.domains) for _ in range(20)]
+    for g in genotypes:
+        oracle.evaluate(g)
+
+    assert calls == genotypes
+    for g, scored, scored_inst, score in zip(genotypes, deme, iscorer.calls, scores, strict=True):
+        assert list(scored.first) == list(real(g))
+        assert list(scored_inst) == list(real(g))
+        assert scored.first is not scored_inst
+        assert scored.second == score and scored.second is not score

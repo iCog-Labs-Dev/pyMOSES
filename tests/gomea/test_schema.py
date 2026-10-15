@@ -12,7 +12,7 @@ from pymoses.comboreduct.reduct.logical_reduction import logical_reduction
 from pymoses.comboreduct.type_checker.type_signature import gen_signature, type_node
 from pymoses.gomea.schema import FrozenSchema, UnsupportedRepresentation
 from pymoses.moses.representation.representation import representation
-from pymoses.util.rng import randGen
+from pymoses.util.rng import MT19937RandGen, randGen
 
 # ---------------------------------------------------------------------------
 # Construction
@@ -199,3 +199,67 @@ def test_phenotype_key_equal_for_a_field_nested_under_a_disabled_knob():
 
     assert schema.phenotype_key(g1) == schema.phenotype_key(g2)
     assert combo_tree_to_str(schema.decode(g1)) == combo_tree_to_str(schema.decode(g2))
+
+
+# ---------------------------------------------------------------------------
+# Port-only optimisations: identical instances
+# ---------------------------------------------------------------------------
+
+
+def _reference_to_instance(schema: FrozenSchema, g) -> list[int]:
+    """``to_instance`` as it was before the precomputed packer: contin codes
+    unpacked to raw digits, then ``field_set.pack``."""
+    values = list(g)
+    n = len(schema.contin_positions)
+    raw = []
+    for code, depth in zip(values[:n], schema.contin_depths, strict=True):
+        raw.extend((code >> (2 * k)) & 3 for k in range(depth))
+    return list(schema.fields.pack(raw + values[n:]))
+
+
+@pytest.mark.parametrize(
+    "source, arity",
+    [
+        ("and($1 $2)", 2),
+        ("or(and($1 $2) $3)", 3),
+        ("or(and(or(and($3 $5) $2) $4) and(or($2 $4) or($3 $5) $1))", 5),
+    ],
+)
+def test_to_instance_packs_exactly_like_field_set_pack(make_boolean_rep, source, arity):
+    schema = FrozenSchema(make_boolean_rep(source, arity))
+    r = random.Random(7)
+    for _ in range(300):
+        g = tuple(r.randrange(k) for k in schema.domains)
+        assert list(schema.to_instance(g)) == _reference_to_instance(schema, g)
+
+
+def test_to_instance_packs_contin_genes_exactly_like_field_set_pack():
+    rep = representation(
+        lambda _tr: None,
+        lambda _tr: None,
+        str_to_combo_tree("$1"),
+        gen_signature(type_node.contin_type, 2),
+        linear_contin=True,
+    )
+    schema = FrozenSchema(rep, contin="copy")
+    assert schema.contin_positions
+    rng = MT19937RandGen(3)
+    r = random.Random(3)
+    for _ in range(200):
+        g = tuple(
+            schema.sample_contin_code(p, rng) if p in schema.contin_positions else r.randrange(k)
+            for p, k in enumerate(schema.domains)
+        )
+        assert list(schema.to_instance(g)) == _reference_to_instance(schema, g)
+
+
+def test_to_instance_still_rejects_bools_and_accepts_int_subclasses(make_boolean_rep):
+    schema = FrozenSchema(make_boolean_rep("and($1 $2)", 2))
+
+    class _Int(int):
+        pass
+
+    g = [0] * schema.dim
+    with pytest.raises(ValueError, match="not an int"):
+        schema.to_instance([False] + g[1:])
+    assert list(schema.to_instance([_Int(0)] + g[1:])) == list(schema.to_instance(g))

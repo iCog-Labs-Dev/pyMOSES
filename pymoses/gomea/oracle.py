@@ -239,7 +239,11 @@ class EvaluationOracle:
         if math.isnan(penalized) or penalized == very_worst_score:
             self.ledger.invalid += 1
 
-        self.deme.append(scored_instance(self.schema.to_instance(g), copy.copy(score)))
+        # Port-only optimisation: the instance built for the scorer is reused
+        # (scorers take it read-only, like C++'s ``const instance&``) instead
+        # of packing and validating ``g`` a second time; ``scored_instance``
+        # stores its own copies of both the instance and the score.
+        self.deme.append(scored_instance(inst, score))
         if self._memo is not None:
             self._memo[key] = copy.copy(score)
 

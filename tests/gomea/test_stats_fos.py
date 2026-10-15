@@ -11,7 +11,12 @@ from pymoses.gomea.fos import (
     random_tree_fos,
     univariate_fos,
 )
-from pymoses.gomea.stats import biased_similarity, entropy_matrix, mi_similarity
+from pymoses.gomea.stats import (
+    biased_similarity,
+    entropy_matrix,
+    marginal_entropies,
+    mi_similarity,
+)
 from pymoses.util.rng import MT19937RandGen
 
 
@@ -279,3 +284,66 @@ def test_lt_b_uses_calibration_h0():
         order[i], order[j] = order[j], order[i]
     S = biased_similarity(entropy_matrix(pop1, positions), entropy_matrix(pop0, positions))
     assert fos == linkage_tree_fos(S, order)[:-1]
+
+
+# ------------------------------------------------- port-only optimisations
+
+
+def test_marginal_entropies_equal_the_entropy_matrix_diagonal_bit_for_bit():
+    pop = _pop(21, 37, [2, 3, 1, 5, 4, 2])
+    got = marginal_entropies(pop, range(6))
+    assert got == [entropy_matrix(pop, [p])[0][0] for p in range(6)]
+    assert marginal_entropies(pop, [4, 1]) == [got[4], got[1]]
+    assert marginal_entropies(pop, []) == []
+
+
+def _without_reuse(model):
+    """Drop the calibration matrix kept for the first ``learn``, so the
+    model recomputes it like before the optimisation."""
+    model._first_learn = None
+    return model
+
+
+def _sym(pop):
+    # a pure recoding of positions 0 and 1 (like ``contin_symbols``)
+    return [(r[0] // 2, r[1] % 2, *r[2:]) for r in pop]
+
+
+@pytest.mark.parametrize("mode", LinkageModel.MODES)
+@pytest.mark.parametrize("symbolize", [None, _sym])
+def test_first_learn_reuse_gives_the_identical_fos_and_rng_state(mode, symbolize):
+    domains = [4, 3, 2, 3, 4, 2]
+    pops = [_pop(s, 30, domains) for s in (1, 2, 3)]
+    # exact ties too: duplicated full-factorial columns
+    rows = [((m >> 0) & 1, (m >> 1) & 1, (m >> 2) & 1) for m in range(8)]
+    tie_pop = [(a, a, b, b, c, c) for a, b, c in rows] * 2
+    for pop0, later, doms in ((pops[0], pops[1:], domains), (tie_pop, [tie_pop], [2] * 6)):
+        runs = []
+        for reuse in (True, False):
+            rng = MT19937RandGen(13)
+            model = LinkageModel(mode, rng, symbolize)
+            model.calibrate(pop0, doms)
+            if not reuse:
+                _without_reuse(model)
+            fos = [model.learn(list(pop0))] + [model.learn(p) for p in later]
+            runs.append((fos, rng.randint_n(1 << 30)))
+        assert runs[0] == runs[1]
+
+
+def test_first_learn_on_a_different_population_does_not_reuse_h0():
+    domains = [2, 3, 2, 3]
+    pop0 = _pop(4, 20, domains)
+    pop1 = _pop(5, 20, domains)
+    a = LinkageModel("lt-mi", MT19937RandGen(0))
+    a.calibrate(pop0, domains)
+    b = LinkageModel("lt-mi", MT19937RandGen(0))
+    b.calibrate(pop0, domains)
+    _without_reuse(b)
+    assert a.learn(pop1) == b.learn(pop1)
+    assert a._first_learn is None
+
+
+def test_calibrate_reports_the_first_out_of_domain_value_as_before():
+    model = LinkageModel("uni", MT19937RandGen(0))
+    with pytest.raises(ValueError, match="value 3 at position 1 is outside domain 3"):
+        model.calibrate([(0, 1), (1, 3), (2, 0)], [2, 3])

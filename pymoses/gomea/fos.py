@@ -15,8 +15,16 @@ from __future__ import annotations
 
 from collections.abc import Callable, Sequence
 
-from pymoses.gomea.stats import biased_similarity, entropy_matrix, mi_similarity
+from pymoses.gomea.stats import (
+    biased_similarity,
+    entropy_matrix,
+    marginal_entropies,
+    mi_similarity,
+)
 from pymoses.util.rng import MT19937RandGen
+
+# Port-only optimisation: a calibration population and its entropy matrix.
+_Calibration = tuple[tuple[tuple[int, ...], ...], list[list[float]]]
 
 
 def univariate_fos(d: int) -> list[list[int]]:
@@ -235,6 +243,9 @@ class LinkageModel:
         self.unlinked_positions: tuple[int, ...] = ()
         self._H0: list[list[float]] | None = None
         self._length: int | None = None
+        # Port-only optimisation: (calibration population, its entropy
+        # matrix), consumed by the first ``learn`` (see ``_entropies``).
+        self._first_learn: _Calibration | None = None
 
     def calibrate(self, pop: Sequence[tuple[int, ...]], domains: Sequence[int]) -> None:
         """Fix the search positions and ``H0`` from the initial population.
@@ -247,22 +258,35 @@ class LinkageModel:
             raise RuntimeError("LinkageModel.calibrate may only be called once")
         length = len(domains)
         self._check_pop(pop, length)
-        for row in pop:
-            for p, (v, k) in enumerate(zip(row, domains, strict=True)):
-                if not 0 <= v < k:
-                    raise ValueError(f"value {v} at position {p} is outside domain {k}")
-        marginals = [entropy_matrix(pop, [p])[0][0] for p in range(length)]
+        # Port-only optimisation: check each column's range at once; only a
+        # failing population walks the row-major loop, which raises the same
+        # error (first offending row, then position) as before.
+        columns = list(zip(*pop, strict=True))
+        if not all(0 <= min(col) and max(col) < k for col, k in zip(columns, domains, strict=True)):
+            for row in pop:
+                for p, (v, k) in enumerate(zip(row, domains, strict=True)):
+                    if not 0 <= v < k:
+                        raise ValueError(f"value {v} at position {p} is outside domain {k}")
+        # Port-only optimisation: every marginal in one pass (bit-identical to
+        # ``entropy_matrix(pop, [p])[0][0]`` per position).
+        marginals = marginal_entropies(pop, range(length))
         search = tuple(p for p in range(length) if marginals[p] > 0.0)
         self.search_positions = search
         self.constant_positions = tuple(p for p in range(length) if marginals[p] <= 0.0)
+        raw = tuple(tuple(row) for row in pop)
         linked = search
         if self.symbolize is not None:
             sym = self.symbolize(pop)
-            linked = tuple(p for p in search if entropy_matrix(sym, [p])[0][0] > 0.0)
+            sym_marginals = marginal_entropies(sym, search)
+            linked = tuple(p for p, h in zip(search, sym_marginals, strict=True) if h > 0.0)
             pop = sym
         self.linked_positions = linked
         self.unlinked_positions = tuple(p for p in search if p not in linked)
         self._H0 = entropy_matrix(pop, linked)
+        # Port-only optimisation: H0 is exactly the entropy matrix the first
+        # ``learn`` computes when it is handed the calibration population
+        # again (which the engine always does), so keep it for that one call.
+        self._first_learn = (raw, self._H0)
         self._length = length
 
     def learn(self, pop: Sequence[tuple[int, ...]]) -> list[list[int]]:
@@ -270,6 +294,7 @@ class LinkageModel:
         if self._length is None or self._H0 is None:
             raise RuntimeError("LinkageModel.learn called before calibrate")
         self._check_pop(pop, self._length)
+        first, self._first_learn = self._first_learn, None
         search = self.search_positions
         d = len(search)
         if d == 0:
@@ -281,15 +306,17 @@ class LinkageModel:
         elif self.mode == "rt":
             local = random_tree_fos(d, self.rng)
         elif self.symbolize is not None:
-            return self._learn_symbolized(pop)
+            return self._learn_symbolized(pop, first)
         else:
-            H = entropy_matrix(pop, search)
+            H = self._entropies(pop, first, lambda: entropy_matrix(pop, search))
             S = mi_similarity(H) if self.mode == "lt-mi" else biased_similarity(H, self._H0)
             local = linkage_tree_fos(S, self._random_order(d))[:-1]
         return [[search[i] for i in s] for s in local]
 
     # GOMEA extension: the linkage tree over recoded constants.
-    def _learn_symbolized(self, pop: Sequence[tuple[int, ...]]) -> list[list[int]]:
+    def _learn_symbolized(
+        self, pop: Sequence[tuple[int, ...]], first: _Calibration | None = None
+    ) -> list[list[int]]:
         linked = self.linked_positions
         d = len(linked)
         if d == 0:
@@ -297,11 +324,33 @@ class LinkageModel:
         elif d == 1:
             fos = [[linked[0]]]
         else:
-            H = entropy_matrix(self.symbolize(pop), linked)
+            H = self._entropies(pop, first, lambda: entropy_matrix(self.symbolize(pop), linked))
             S = mi_similarity(H) if self.mode == "lt-mi" else biased_similarity(H, self._H0)
             local = linkage_tree_fos(S, self._random_order(d))[:-1]
             fos = [[linked[i] for i in s] for s in local]
         return fos + [[p] for p in self.unlinked_positions]
+
+    @staticmethod
+    def _entropies(
+        pop: Sequence[tuple[int, ...]],
+        first: _Calibration | None,
+        compute: Callable[[], list[list[float]]],
+    ) -> list[list[float]]:
+        """Port-only optimisation: the entropy matrix ``learn`` needs.
+
+        On the first ``learn`` after ``calibrate``, if ``pop`` equals the
+        calibration population, that matrix is exactly calibrate's ``H0``
+        (the same statistic over the same rows and positions, recoded by the
+        same pure ``symbolize``), so it is reused; otherwise ``compute()``.
+        No RNG is involved, so the FOS and the draw order are unchanged.
+        """
+        if first is not None:
+            raw, H0 = first
+            if len(raw) == len(pop) and all(
+                tuple(row) == r for row, r in zip(pop, raw, strict=True)
+            ):
+                return H0
+        return compute()
 
     def _random_order(self, d: int) -> list[int]:
         order = list(range(d))

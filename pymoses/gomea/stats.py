@@ -66,6 +66,26 @@ def entropy_matrix(
     return H
 
 
+def marginal_entropies(
+    pop: Sequence[Sequence[int]], positions: Sequence[int]
+) -> list[float]:
+    """GP-GOMEA: src/GOMEA/GOMEAFOS.cpp:303 GOMEAFOS::GenerateLinkageTreeFOS
+
+    The diagonal of ``entropy_matrix(pop, positions)`` only: entry ``i`` is
+    bit-identical to ``entropy_matrix(pop, [positions[i]])[0][0]`` (the same
+    counts, summed by ``_entropy_of_counts`` in the same key order).
+    Port-only optimisation: one pass over the population instead of one
+    ``entropy_matrix`` call per position, which ``LinkageModel.calibrate``
+    used to make.
+    """
+    positions = list(positions)
+    pop_size = len(pop)
+    if not positions or pop_size == 0:
+        return [0.0] * len(positions)
+    columns = list(zip(*pop, strict=True))
+    return [_entropy_of_counts(Counter(columns[p]), pop_size) for p in positions]
+
+
 def mi_similarity(H: Sequence[Sequence[float]]) -> list[list[float]]:
     """GP-GOMEA: src/GOMEA/GOMEAFOS.cpp:303 GOMEAFOS::GenerateLinkageTreeFOS
 

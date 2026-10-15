@@ -35,7 +35,7 @@ from collections.abc import Sequence
 
 from pymoses.comboreduct.combo.vertex import combo_tree
 from pymoses.moses.representation.field_set import contin_spec, contin_stepper, field_set
-from pymoses.moses.representation.instance import instance
+from pymoses.moses.representation.instance import _PACKED_MASK, bits_per_packed_t, instance
 from pymoses.moses.representation.representation import representation
 from pymoses.moses.scoring.behave_cscore import _cache_key
 from pymoses.util.rng import MT19937RandGen
@@ -109,6 +109,18 @@ class FrozenSchema:
             spec.multy for spec in fields.disc_and_bit()
         )
         self.schema_id: str = self._compute_schema_id()
+        # Port-only optimisation: where ``field_set.pack`` puts each raw
+        # field, worked out once (see ``_pack``).
+        self._packed_width: int = fields.packed_width()
+        plan = []
+        major = offset = 0
+        for f in fields.fields():
+            plan.append((major, offset % bits_per_packed_t))
+            offset += f.width
+            if offset == bits_per_packed_t:
+                offset = 0
+                major += 1
+        self._pack_plan: tuple[tuple[int, int], ...] = tuple(plan)
 
     def _compute_schema_id(self) -> str:
         layout = [(f.width, f.major_offset, f.minor_offset) for f in self.fields.fields()]
@@ -149,21 +161,41 @@ class FrozenSchema:
         values = list(g)
         if len(values) != self.dim:
             raise ValueError(f"genotype has {len(values)} values; schema requires {self.dim}")
-        for k, value in enumerate(values):
-            if not isinstance(value, int) or isinstance(value, bool):
-                raise ValueError(f"genotype value at field {k} is not an int: {value!r}")
-            if not 0 <= value < self.domains[k]:
-                raise ValueError(
-                    f"genotype value {value} at field {k} is out of domain "
-                    f"0..{self.domains[k] - 1}"
-                )
+        # Port-only optimisation: a plain-int, in-domain genotype (every one
+        # the optimizer builds) passes in one pass; anything else takes the
+        # per-field loop, which raises the precise error (or, as before,
+        # accepts an int subclass other than bool).
+        domains = self.domains
+        if not all(type(v) is int and 0 <= v < k for v, k in zip(values, domains, strict=True)):
+            for k, value in enumerate(values):
+                if not isinstance(value, int) or isinstance(value, bool):
+                    raise ValueError(f"genotype value at field {k} is not an int: {value!r}")
+                if not 0 <= value < self.domains[k]:
+                    raise ValueError(
+                        f"genotype value {value} at field {k} is out of domain "
+                        f"0..{self.domains[k] - 1}"
+                    )
         if self.contin_positions:
             n = len(self.contin_positions)
             raw = []
             for code, depth in zip(values[:n], self.contin_depths, strict=True):
                 raw.extend((code >> (2 * k)) & 3 for k in range(depth))
             values = raw + values[n:]
-        return self.fields.pack(values)
+        return self._pack(values)
+
+    def _pack(self, raw: Sequence[int]) -> instance:
+        """C++: moses/moses/representation/field_set.h:1326 pack
+
+        Port-only optimisation: ``self.fields.pack(raw)`` with each raw
+        field's word and shift precomputed (``_pack_plan``, built by the same
+        offset walk as ``field_set.pack``) and the words OR-ed as plain ints
+        before one ``instance`` is built. Same masking, so the same words;
+        ``tests/gomea/test_schema.py`` checks it against ``field_set.pack``.
+        """
+        words = [0] * self._packed_width
+        for (major, shift), value in zip(self._pack_plan, raw, strict=True):
+            words[major] |= (int(value) << shift) & _PACKED_MASK
+        return instance(words)
 
     # GOMEA extension: contin genes (``--gomea-contin copy``).
     def contin_value(self, pos: int, code: int) -> float:
