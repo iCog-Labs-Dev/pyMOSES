@@ -396,6 +396,32 @@ _GOMEA_OPTIONS = (
         "(each constant its own symbol) or none (constants left out, as "
         "singletons). Default bin.",
     ),
+    # Budget-derived deme sizes (off by default: a default run is unchanged).
+    (
+        "--gomea-pop-fraction",
+        "gomea_pop_fraction",
+        float,
+        0.0,
+        "derive each deme's population from its budget: N = max(2, floor(F x "
+        "deme budget)), the deme budget being min(per-deme cap, evaluations "
+        "left); overrides --gomea-pop-size. 0 = off. Default 0.",
+    ),
+    (
+        "--gomea-pop-max",
+        "gomea_pop_max",
+        int,
+        0,
+        "with --gomea-pop-fraction, clamp N to at most this, 0 = no limit. Default 0.",
+    ),
+    (
+        "--gomea-deme-share",
+        "gomea_deme_share",
+        int,
+        0,
+        "set the per-deme cap (as --gomea-max-evals-per-deme does, also for "
+        "-a hc-capped) to max(1, floor(-m / D)), so a run gets about D demes. "
+        "0 = off. Default 0.",
+    ),
 )
 _GOMEA_INIT_CHOICES = ("sampler", "uniform")
 _GOMEA_ACCEPT_CHOICES = ("nonworse", "strict")
@@ -479,6 +505,14 @@ def _gomea_params_from_args(args: argparse.Namespace) -> gomea_parameters:
         raise ValueError(
             f"--gomea-stall-evals must be >= 0 (0 = off), got {v['gomea_stall_evals']}"
         )
+    cap = _gomea_deme_cap(v, getattr(args, "max_evals", None))
+    pop_fraction = v["gomea_pop_fraction"]
+    if not (0 <= pop_fraction <= 1):
+        raise ValueError(f"--gomea-pop-fraction must be in [0, 1] (0 = off), got {pop_fraction}")
+    if v["gomea_pop_max"] != 0 and v["gomea_pop_max"] < 2:
+        raise ValueError(f"--gomea-pop-max must be 0 (no limit) or >= 2, got {v['gomea_pop_max']}")
+    if v["gomea_pop_max"] and not pop_fraction:
+        raise ValueError("--gomea-pop-max needs --gomea-pop-fraction")
     return gomea_parameters(
         pop_size=v["gomea_pop_size"],
         fos=v["gomea_fos"],
@@ -487,7 +521,7 @@ def _gomea_params_from_args(args: argparse.Namespace) -> gomea_parameters:
         radii=v["gomea_radii"],
         max_generations=v["gomea_max_gens"],
         stall_generations=v["gomea_stall_gens"],
-        max_evals_per_deme=v["gomea_max_evals_per_deme"] or None,
+        max_evals_per_deme=cap or None,
         telemetry_path=v["gomea_log"] or None,
         init_mode=v["gomea_init"],
         acceptance=v["gomea_accept"],
@@ -495,7 +529,34 @@ def _gomea_params_from_args(args: argparse.Namespace) -> gomea_parameters:
         stall_evals=v["gomea_stall_evals"],
         contin=v["gomea_contin"],
         contin_stats=v["gomea_contin_stats"],
+        pop_fraction=pop_fraction,
+        pop_max=v["gomea_pop_max"],
+        deme_share=v["gomea_deme_share"],
     )
+
+
+def _gomea_deme_cap(v: dict, total_budget: int | None) -> int:
+    """GOMEA extension (not in classic MOSES): the per-deme cap (0 = none).
+
+    `--gomea-max-evals-per-deme C` gives it directly; `--gomea-deme-share D`
+    derives it from the run's `-m` as max(1, floor(-m / D)). Giving both is
+    an error unless they agree."""
+    explicit = v["gomea_max_evals_per_deme"]
+    share = v["gomea_deme_share"]
+    if share < 0:
+        raise ValueError(f"--gomea-deme-share must be >= 0 (0 = off), got {share}")
+    if share == 0:
+        return explicit
+    if total_budget is None:
+        raise ValueError("--gomea-deme-share needs the run's -m (max evals)")
+    derived = max(1, total_budget // share)
+    if explicit and explicit != derived:
+        raise ValueError(
+            f"--gomea-deme-share {share} gives a per-deme cap of {derived} "
+            f"(-m {total_budget} / {share}), which conflicts with "
+            f"--gomea-max-evals-per-deme {explicit}; give only one"
+        )
+    return derived
 
 
 _DEFAULT_LOG_FILE = "moses.log"  # C++: moses_exec_def.h:56 default_log_file

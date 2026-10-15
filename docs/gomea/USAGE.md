@@ -119,9 +119,30 @@ to, so an invalid value is always rejected.
 | `--gomea-stall-evals N` | `0` (off) | End a GOMEA deme after N charged evaluations without a strict improvement of its best (Phase 1e). |
 | `--gomea-contin {reject,copy}` | `reject` | Contin (numeric constant) knobs. `reject` refuses a representation that has any (the default, unchanged behaviour). `copy` makes each contin knob one gene that GOM only copies between individuals, never mutates. See [Continuous knobs](#continuous-knobs---gomea-contin-copy). |
 | `--gomea-contin-stats {bin,all,none}` | `bin` | With `--gomea-contin copy` and a linkage-tree FOS (`lt-b`, `lt-mi`): how constants enter the linkage statistics. `bin` (the paper's bin-const, γ = 100), `all` (all-const) or `none` (no-const). |
+| `--gomea-pop-fraction F` | `0` (off) | Derive each deme's population from its budget: `N = max(2, floor(F × deme budget))`, where the deme budget is `min(per-deme cap, evaluations left for this deme)`. Overrides `--gomea-pop-size`. The sampler draws the N programs once, at the start of the deme. See [Budget-derived demes](#budget-derived-demes). |
+| `--gomea-pop-max M` | `0` (no limit) | With `--gomea-pop-fraction`: clamp N to at most M (M ≥ 2). An error without `--gomea-pop-fraction`. |
+| `--gomea-deme-share D` | `0` (off) | Set the per-deme cap to `max(1, floor(-m / D))`, so a run gets about D demes. It is the same cap `--gomea-max-evals-per-deme` sets, and also applies to `-a hc-capped`. Giving both is an error unless they give the same cap. |
 
 The default population was 64 during development. It became 16 after the pilot
 (`docs/gomea/pilot-a/`); the confirmatory runs passed 16 explicitly.
+
+## Budget-derived demes
+
+Two opt-in options size each deme from the evaluation budget instead of fixed numbers:
+
+* `--gomea-deme-share D` sets the per-deme cap `C = max(1, floor(-m / D))`. It is exactly the
+  cap `--gomea-max-evals-per-deme C` would set (so `-a hc-capped` uses it too); the two
+  options may be given together only if they agree.
+* `--gomea-pop-fraction F` sets each deme's population `N = max(2, floor(F × B))` with
+  `B = min(C, evaluations MOSES hands this deme)` (`B` is just the evaluations left when
+  there is no cap), optionally clamped by `--gomea-pop-max M`. `--gomea-pop-size` is then
+  ignored. In `-a hc-gomea` the GOMEA phase uses the budget left after hill climbing.
+
+The population is drawn once by the usual sampler and evolved for the deme's whole life; each
+generation's linkage model is learned from the current N programs. For example
+`-m 4000 --gomea-deme-share 4 --gomea-pop-fraction 0.04` gives `C = 1000` and `N = 40` for
+every deme that has at least 1000 evaluations left. With both options off (the default),
+nothing changes. The effective values are logged per deme in `invocation_start` (below).
 
 ## Continuous knobs (`--gomea-contin copy`)
 
@@ -179,7 +200,7 @@ The file gets one JSON object per line, and each object has a `"type"`. For ever
 
 | type | Key fields |
 |---|---|
-| `invocation_start` | `schema_id` (a hash of this representation's knob layout), `dim` (number of knobs), `domains`, `max_evals`, `params` |
+| `invocation_start` | `schema_id` (a hash of this representation's knob layout), `dim` (number of knobs), `domains`, `max_evals`, `params`; with `--gomea-pop-fraction` or `--gomea-deme-share` also `deme_budget`, `deme_cap` (the per-deme cap, `null` for none) and `deme_pop_size` (this deme's N) |
 | `init` | the initial population: `attempts`, `duplicates_rejected`, `coverage_replacements`, `feasible_short`, and `diagnostics` (per-knob entropy and observed values, `constant_fields_before/after_coverage`, `radius_histogram`) |
 | `generation` | `generation`, `fos_size`, per-generation GOM `stats` (trials, evaluated, accepted_improving / accepted_neutral / rejected, noop_skips, fi_*), `nis` (the no-improvement stretch), `best_raw`/`best_pen`/`best_cpx`, a `ledger` snapshot, and diversity: `unique_genotypes`, `mean_entropy_bits`, `n_varying_fields`, `best_raw_count` |
 | `end` | `termination_reason`, `generations`, `ledger` (requests = evaluations charged, invalid, duplicate_requests, …), `timings` (init / eval / linkage / variation seconds), `best` |

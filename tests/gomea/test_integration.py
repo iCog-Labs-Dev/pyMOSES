@@ -247,6 +247,9 @@ def test_help_only_adds_gomea_lines():
         "--gomea-stall-evals",
         "--gomea-contin",
         "--gomea-contin-stats",
+        "--gomea-pop-fraction",
+        "--gomea-pop-max",
+        "--gomea-deme-share",
     ):
         assert any(line.strip().startswith(flag + " ") for line in added), flag
 

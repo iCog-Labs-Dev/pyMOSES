@@ -4,7 +4,8 @@ GOMEA extension (not in classic MOSES). The control arm for asking whether
 GOMEA's gain inside MOSES comes from short demes rather than from linkage
 learning: MOSES's own ``hill_climbing``, built exactly as ``-a hc`` builds it,
 is called with ``min(max_evals, gomea_params.max_evals_per_deme)``, the same
-cap ``--gomea-max-evals-per-deme`` gives GOMEA. Without a cap it is ``-a hc``.
+cap ``--gomea-max-evals-per-deme`` (or ``--gomea-deme-share``, which derives
+it from ``-m``) gives GOMEA. Without a cap it is ``-a hc``.
 """
 
 from __future__ import annotations

@@ -21,6 +21,7 @@ import math
 import time
 from collections import Counter
 from collections.abc import Hashable, Sequence
+from fractions import Fraction
 
 from pymoses.gomea.engine import EngineParams, GomeaEngine
 from pymoses.gomea.gom import ACCEPTANCE_MODES, Individual
@@ -107,7 +108,18 @@ class gomea_parameters:
     tree: ``"bin"`` by default, the paper's bin-const with gamma = 100, or
     ``"all"``/``"none"``; see ``stats.contin_symbols``). ``contin_stats``
     has no effect unless ``contin`` is ``"copy"`` and the representation has
-    contin knobs."""
+    contin knobs.
+
+    GOMEA extension, budget-derived sizes (all 0 = off by default, and then
+    ``as_dict`` leaves them out, so a default run's telemetry is unchanged):
+    ``pop_fraction`` (F > 0) makes each deme's population
+    ``N = max(2, floor(F * deme_budget))``, overriding ``pop_size``, where
+    ``deme_budget = min(max_evals_per_deme, max_evals)`` is what the deme
+    may spend (``max_evals`` being what the caller hands this call);
+    ``pop_max`` (M >= 2, 0 = no limit) then clamps ``N <= M``.
+    ``deme_share`` (D) only records that ``max_evals_per_deme`` was derived
+    as ``max(1, total_budget // D)`` (``_gomea_params_from_args`` does the
+    arithmetic, since only it knows the run's ``-m``)."""
 
     def __init__(
         self,
@@ -127,6 +139,9 @@ class gomea_parameters:
         stall_evals: int = 0,
         contin: str = "reject",
         contin_stats: str = "bin",
+        pop_fraction: float = 0.0,
+        pop_max: int = 0,
+        deme_share: int = 0,
     ) -> None:
         if pop_size < 2:
             raise ValueError(f"pop_size must be >= 2, got {pop_size}")
@@ -150,6 +165,12 @@ class gomea_parameters:
             raise ValueError(
                 f"contin_stats must be one of {CONTIN_STATS_MODES}, got {contin_stats!r}"
             )
+        if not pop_fraction >= 0:
+            raise ValueError(f"pop_fraction must be >= 0 (0 = off), got {pop_fraction}")
+        if pop_max != 0 and pop_max < 2:
+            raise ValueError(f"pop_max must be 0 (no limit) or >= 2, got {pop_max}")
+        if deme_share < 0:
+            raise ValueError(f"deme_share must be >= 0 (0 = off), got {deme_share}")
         parse_radii(radii)
 
         self.pop_size = pop_size
@@ -168,9 +189,46 @@ class gomea_parameters:
         self.stall_evals = stall_evals
         self.contin = contin
         self.contin_stats = contin_stats
+        self.pop_fraction = pop_fraction
+        self.pop_max = pop_max
+        self.deme_share = deme_share
+
+    # The budget-derived options, left out of ``as_dict`` while 0 (off).
+    _OPTIONAL_KEYS = ("pop_fraction", "pop_max", "deme_share")
 
     def as_dict(self) -> dict:
-        return dict(vars(self))
+        d = dict(vars(self))
+        for k in self._OPTIONAL_KEYS:
+            if not d[k]:
+                del d[k]
+        return d
+
+    def budget_derived(self) -> bool:
+        """Whether any budget-derived option (``pop_fraction``,
+        ``deme_share``) is on."""
+        return self.pop_fraction > 0 or self.deme_share > 0
+
+    def deme_budget(self, max_evals: int) -> int:
+        """The evaluations one deme may spend: ``max_evals`` (what is left
+        of the run's budget for this call), capped at ``max_evals_per_deme``
+        when one is set."""
+        if self.max_evals_per_deme is None:
+            return max_evals
+        return min(max_evals, self.max_evals_per_deme)
+
+    def deme_pop_size(self, max_evals: int) -> int:
+        """The population size N of a deme handed ``max_evals``: ``pop_size``
+        when ``pop_fraction`` is off, else ``max(2, floor(pop_fraction *
+        deme_budget(max_evals)))`` clamped to ``pop_max`` when set. The
+        product is taken exactly (on the decimal value of ``pop_fraction``),
+        so 0.29 x 100 is 29, not 28."""
+        if self.pop_fraction <= 0:
+            return self.pop_size
+        budget = max(0, self.deme_budget(max_evals))
+        n = max(2, math.floor(Fraction(repr(float(self.pop_fraction))) * budget))
+        if self.pop_max:
+            n = min(n, self.pop_max)
+        return n
 
 
 class _OracleEvaluator:
@@ -301,13 +359,14 @@ class gomea_optimization(optimizer_base):
         sink = TelemetrySink(gp.telemetry_path)
         oracle = self._make_oracle(schema, iscorer, deme, max_evals, max_time)
         ev = _OracleEvaluator(oracle, schema, gp.skip_inactive)
+        n = gp.deme_pop_size(max_evals)
         self._emit_start(sink, schema, deme, max_evals, max_time)
 
         t0 = time.perf_counter()
         if gp.init_mode == "uniform":
-            init = build_uniform_population(schema, gp.pop_size, rng_init, gp.dedupe)
+            init = build_uniform_population(schema, n, rng_init, gp.dedupe)
         else:
-            init = build_population(schema, gp.pop_size, parse_radii(gp.radii), rng_init, gp.dedupe)
+            init = build_population(schema, n, parse_radii(gp.radii), rng_init, gp.dedupe)
         init_s = time.perf_counter() - t0
         self._emit_init(sink, schema, gp.init_mode, init)
         self._evolve(deme, oracle, ev, schema, init, [], rng_var, rng_link, init_s, t_start, sink)
@@ -325,9 +384,9 @@ class gomea_optimization(optimizer_base):
 
         Every instance already in ``deme`` is preloaded into the oracle
         (never charged, scored or appended again). The initial population is
-        the ``pop_size`` best distinct genotypes among them, ranked by the
-        MOSES composite comparator (earliest first on ties), with their
-        existing scores; if there are fewer, it is topped up with MOSES
+        the N best distinct genotypes among them (N = ``deme_pop_size``),
+        ranked by the MOSES composite comparator (earliest first on ties),
+        with their existing scores; if there are fewer, it is topped up with MOSES
         sampler draws around the best one, which are evaluated normally.
         ``max_evals``/``max_time`` are what is left of the deme's budget;
         ``max_evals_per_deme`` and ``stall_evals`` apply on top. On return
@@ -343,6 +402,7 @@ class gomea_optimization(optimizer_base):
         prior = [(schema.to_genotype(si.first), si.second) for si in deme]
         oracle.preload(prior, deme.n_evals)
         ev = _OracleEvaluator(oracle, schema, gp.skip_inactive)
+        n = gp.deme_pop_size(max_evals)
         self._emit_start(sink, schema, deme, max_evals, max_time, prior_evals=deme.n_evals)
 
         t0 = time.perf_counter()
@@ -357,11 +417,11 @@ class gomea_optimization(optimizer_base):
             seen.add(g)
             seeds.append(g)
             seed_scores.append(score)
-            if len(seeds) == gp.pop_size:
+            if len(seeds) == n:
                 break
         center = seeds[0] if seeds else schema.default_genotype()
         init = top_up_population(
-            schema, seeds, center, gp.pop_size, parse_radii(gp.radii), rng_init, gp.dedupe
+            schema, seeds, center, n, parse_radii(gp.radii), rng_init, gp.dedupe
         )
         seeded = [
             Individual(g, copy.copy(score), ev.phenotype_key(g))
@@ -400,6 +460,13 @@ class gomea_optimization(optimizer_base):
         if schema.contin_positions:
             # GOMEA extension: paper-style constant genes.
             extra["n_contin_genes"] = len(schema.contin_positions)
+        gp = self.gomea_params
+        if gp.budget_derived():
+            # GOMEA extension, budget-derived sizes: this deme's effective
+            # budget, cap and population (absent when the options are off).
+            extra["deme_budget"] = gp.deme_budget(max_evals)
+            extra["deme_cap"] = gp.max_evals_per_deme
+            extra["deme_pop_size"] = gp.deme_pop_size(max_evals)
         sink.emit(
             "invocation_start",
             schema_id=schema.schema_id,
