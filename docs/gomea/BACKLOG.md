@@ -28,8 +28,13 @@ hill climbing (HC) 69 ms (5.1×; Phase 1j measured 5.5×). Profiles and logs are
 1. **Fewer, longer demes:** e.g. a cap of about 750, or continuing a deme rather than
    rebuilding it. About −45 % CPU per evaluation, but it changes the search, so it needs a
    test (see 2.1).
-2. **Cheaper disc probing:** memoise probe results by the subtree's canonical string across
-   demes, since successive exemplars share most subtrees. Up to about −68 %.
+2. **Cheaper disc probing:** ~~memoise probe results across demes~~. **Tried 2026-10-15: no
+   effect.** An exact memo got 0 hits in 12,716 probes on mux11, because each probe
+   simplifies the *whole* exemplar with one knob turned, and that tree differs for every knob
+   and deme. The patch is kept unmerged in `../patches/probe.patch`. What remains:
+   * incremental simplification (risky for C++ fidelity);
+   * fewer demes, i.e. the budget-derived cap (item 2.1), which cuts knob building in
+     proportion.
 3. **Exemplar growth:** find out why GOMEA's best programs grow about 2× faster than HC's at
    equal evaluations. Size drives knob building and reduction.
 4. **Bit-parallel truth-table scoring** with Python int bitmasks: about −40 ms per evaluation
