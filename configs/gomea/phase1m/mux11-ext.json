@@ -1,0 +1,123 @@
+{
+  "schema_version": 1,
+  "name": "phase1m-mux11-ext",
+  "phase": 1,
+  "commit": "a42d5c8da7ff48f2bb6f0ed4f177cb7ce4cc4f4e",
+  "common_argv": [
+    "-l",
+    "WARN"
+  ],
+  "tasks": {
+    "mux11": {
+      "argv": [
+        "-H",
+        "mux",
+        "-k",
+        "3"
+      ],
+      "target_raw": 0
+    }
+  },
+  "arms": {
+    "HC": {
+      "argv": [
+        "-a",
+        "hc"
+      ]
+    },
+    "G-C250-N16": {
+      "argv": [
+        "-a",
+        "gomea",
+        "--gomea-fos",
+        "lt-b",
+        "--gomea-skip-inactive",
+        "0",
+        "--gomea-genotype-memo",
+        "1",
+        "--gomea-pop-size",
+        "16",
+        "--gomea-max-evals-per-deme",
+        "250"
+      ]
+    },
+    "G-D10-LTB": {
+      "argv": [
+        "-a",
+        "gomea",
+        "--gomea-fos",
+        "lt-b",
+        "--gomea-skip-inactive",
+        "0",
+        "--gomea-genotype-memo",
+        "1",
+        "--gomea-deme-share",
+        "10",
+        "--gomea-pop-fraction",
+        "0.2",
+        "--gomea-pop-max",
+        "200"
+      ]
+    },
+    "G-D10-RT": {
+      "argv": [
+        "-a",
+        "gomea",
+        "--gomea-fos",
+        "rt",
+        "--gomea-skip-inactive",
+        "0",
+        "--gomea-genotype-memo",
+        "1",
+        "--gomea-deme-share",
+        "10",
+        "--gomea-pop-fraction",
+        "0.2",
+        "--gomea-pop-max",
+        "200"
+      ]
+    },
+    "G-D10-LTB-WIDE": {
+      "argv": [
+        "-a",
+        "gomea",
+        "--gomea-fos",
+        "lt-b",
+        "--gomea-skip-inactive",
+        "0",
+        "--gomea-genotype-memo",
+        "1",
+        "--gomea-deme-share",
+        "10",
+        "--gomea-pop-fraction",
+        "0.2",
+        "--gomea-pop-max",
+        "200",
+        "--gomea-radii",
+        "1:0.25,2:0.25,4:0.25,8:0.25"
+      ]
+    }
+  },
+  "seeds": [
+    3011,
+    3012,
+    3013,
+    3014,
+    3015,
+    3016,
+    3017,
+    3018,
+    3019,
+    3020
+  ],
+  "budget": {
+    "argv": [
+      "-m",
+      "40000"
+    ],
+    "kind": "evaluations"
+  },
+  "wall_cap_s": 36000,
+  "workers": 12,
+  "output_root": "../gomea-results"
+}
