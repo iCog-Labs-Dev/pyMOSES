@@ -4,11 +4,15 @@ instances."""
 from __future__ import annotations
 
 import copy
+import threading
+from collections import OrderedDict
 from collections.abc import Callable, Collection
 
 from pymoses.comboreduct.combo.iostream_combo import combo_tree_to_str, tree_to_stream_str
+from pymoses.comboreduct.combo.argument import argument
 from pymoses.comboreduct.combo.vertex import builtin, combo_tree, is_contin, vertex, vertex_equal
 from pymoses.comboreduct.reduct.clean_reduction import clean_reduce
+from pymoses.comboreduct.reduct.reduct import rule
 from pymoses.comboreduct.type_checker.type_signature import TypeSignature
 from pymoses.moses.moses.complexity import tree_complexity
 from pymoses.moses.representation.build_knobs import build_knobs
@@ -39,6 +43,65 @@ def _vertex_text(value: object) -> str:
 
 
 Simplifier = Callable[[combo_tree], None]
+
+# No C++ counterpart: a port-only speed-up (classic re-reduces every
+# candidate; so did this port). Profiling showed ~49% of the time spent
+# scoring an instance goes into `get_candidate(inst, reduce=True)`'s
+# `clean_reduce` + candidate reducer, and many evaluated instances decode to
+# the same UNREDUCED tree (GOMEA's `phenotype_key` exists for exactly that
+# reason). Each `representation` therefore memoises "unreduced candidate ->
+# cleaned and reduced candidate" in a bounded LRU of at most this many
+# entries (0 disables it). Memory: one key tuple plus one reduced tree per
+# entry, i.e. a few KB for typical MOSES candidates, so a few tens of MB per
+# live representation at worst; the cache is an instance attribute and dies
+# with its representation (one per deme). See `_reduction_cache_key` and
+# `get_candidate` for why a hit is byte-identical to a fresh reduction.
+REDUCED_CANDIDATE_CACHE_SIZE = 10_000
+
+
+def _reduction_cache_key(tr: combo_tree) -> tuple | None:
+    """No C++ counterpart: the exact, collision-free key of an UNREDUCED
+    candidate for `representation`'s reduced-candidate cache.
+
+    A flat pre-order sequence of `(vertex class, exact value, child count)`
+    triples, which determines the tree uniquely. Unlike `behave_cscore.
+    _cache_key` it stores no vertex OBJECT: `argument` is mutable
+    (`negate()`), and reduction negates the candidate's own arguments in
+    place, so a key holding them could change after insertion. Values are
+    taken exactly: an argument by its signed `idx`, a builtin by its int, a
+    contin by `float.hex` (bit-exact, and unlike `==` it tells `-0.0` from
+    `0.0`), a string/enum by its text; the class is kept so `1.0` and
+    `builtin.logical_true` never collide. Returns None -- "do not cache" --
+    for any other payload type, so an unforeseen vertex kind falls back to
+    a real reduction instead of risking a wrong hit.
+    """
+    root = tr.begin()
+    if root is None:
+        return None
+    key: list = []
+    stack = [root]
+    while stack:
+        node = stack.pop()
+        data = node.data
+        cls = type(data)
+        if cls is float:
+            value: object = data.hex()
+        elif cls is argument:
+            value = data.idx
+        elif isinstance(data, builtin):
+            value = int(data)
+        elif isinstance(data, str):
+            value = str(data)
+        else:
+            return None
+        children = []
+        child = node.first_child
+        while child is not None:
+            children.append(child)
+            child = child.next_sibling
+        key.append((cls, value, len(children)))
+        stack.extend(reversed(children))
+    return tuple(key)
 
 # C++: moses/moses/representation/representation.cc:59-65 (module-level
 # statics `stepsize`, `expansion`, `depth`, and their `set_*` setters).
@@ -86,6 +149,12 @@ def set_depth(new_depth: int) -> None:
 class representation(knob_mapper):
     """C++: moses/moses/representation/representation.h:45 representation"""
 
+    # No C++ counterpart: class-level default for the reduced-candidate
+    # cache (set per instance in `__init__`), so a representation assembled
+    # without `__init__` (`representation.__new__`, as some tests do) simply
+    # reduces uncached.
+    _reduced_cache: OrderedDict[tuple, combo_tree] | None = None
+
     def __init__(
         self,
         simplify_candidate: Simplifier,
@@ -128,6 +197,26 @@ class representation(knob_mapper):
         self._exemplar = combo_tree(exemplar.begin())
         self._simplify_candidate = simplify_candidate
         self._simplify_knob_building = simplify_knob_building
+
+        # No C++ counterpart -- see REDUCED_CANDIDATE_CACHE_SIZE. Per
+        # representation, so entries can never cross problems, reducers or
+        # representations: everything that shapes a reduction here is fixed
+        # for this object's lifetime -- the reducer object itself (which
+        # bakes in its rule set, reduct effort and ignore_ops when built)
+        # and `clean_reduce` (a fixed rule). Only a comboreduct `rule` is
+        # cached: those are stateless, deterministic tree rewriters (no RNG,
+        # no logging, no global settings read), whereas an arbitrary
+        # callable (a test probe, a counting wrapper) may have side effects
+        # a cache hit would skip.
+        self._reduced_cache = (
+            OrderedDict()
+            if REDUCED_CANDIDATE_CACHE_SIZE > 0 and isinstance(simplify_candidate, rule)
+            else None
+        )
+        self._reduced_cache_size = REDUCED_CANDIDATE_CACHE_SIZE
+        self._reduced_cache_lock = threading.Lock()
+        self.reduced_cache_hits = 0
+        self.reduced_cache_misses = 0
 
         # C++: representation.cc:110-121. All three records precede
         # `build_knobs`, which is why classic logs "Start knob building"
@@ -345,7 +434,44 @@ class representation(knob_mapper):
         root = self._exemplar.begin()
         if root is not None:
             self._get_candidate_rec(inst, root, None, candidate)
+        if reduce and self._reduced_cache is not None:
+            return self._reduce_candidate_cached(candidate)
         self.clean_combo_tree(candidate, reduce)
+        return candidate
+
+    def _reduce_candidate_cached(self, candidate: combo_tree) -> combo_tree:
+        """No C++ counterpart: `clean_combo_tree(candidate, True)` through
+        this representation's bounded LRU (see REDUCED_CANDIDATE_CACHE_SIZE).
+
+        Keyed on the exact unreduced tree (`_reduction_cache_key`); the
+        reducer is fixed per representation, so the key is complete. Both
+        the stored entry and every returned tree are deep copies
+        (`combo_tree(node)` copies each vertex by value, `tree._copy_value`),
+        so a caller mutating its result -- or a later reduction negating an
+        `argument` in place -- can never reach the cached tree. A reduction
+        that raises is not cached and raises again on the next call, as
+        before.
+        """
+        key = _reduction_cache_key(candidate)
+        if key is None:
+            self.clean_combo_tree(candidate, True)
+            return candidate
+        cache = self._reduced_cache
+        assert cache is not None
+        with self._reduced_cache_lock:
+            cached = cache.get(key)
+            if cached is not None:
+                cache.move_to_end(key)
+                self.reduced_cache_hits += 1
+                return combo_tree(cached.begin()) if not cached.empty() else combo_tree()
+        self.clean_combo_tree(candidate, True)
+        stored = combo_tree(candidate.begin()) if not candidate.empty() else combo_tree()
+        with self._reduced_cache_lock:
+            self.reduced_cache_misses += 1
+            cache[key] = stored
+            cache.move_to_end(key)
+            while len(cache) > self._reduced_cache_size:
+                cache.popitem(last=False)
         return candidate
 
     def _get_candidate_rec(
