@@ -190,6 +190,27 @@ GOM bookkeeping and telemetry are not worth optimising.
       * Questions: does it beat the current setting, does LT-B beat RT once N is larger and
         generations complete, and does it close the gap to HC?
 
+13. **Curb GOMEA's exemplar growth** (analysis 2026-10-15, `exemplar-growth-2026-10-15/REPORT.md`).
+    * **Cause on mux11:**
+      * GOMEA runs about 4× more demes per evaluation than HC.
+      * Each deme adds about 1.85× more literals per row gained: 5.5 against 3.0 per 100
+        rows. A capped GOM deme behaves like first-improvement search, taking the first
+        not-worse trial; HC takes the best neighbour.
+      * The default complexity penalty (`-z 3.5`, 0.29 per literal) barely binds on mux11,
+        which has 2,048 rows.
+    * **Not the cause:** merging, exemplar selection and large group copies.
+    * **No gap on maj5** (32 rows, where the penalty binds).
+    * **Pilot with `-z 0.125`** (8 rows per literal), 3 seeds:
+      * exemplars about half the size and knob-building CPU 2–17× lower;
+      * 2 of 3 seeds solved sooner;
+      * 1 seed failed, because `-z` also changes exemplar selection.
+    * **Proposed experiment:** a stronger complexity penalty only inside GOMEA's acceptance
+      (`_OracleEvaluator.worse`), with merge and selection unchanged. Optionally add a short
+      end-of-deme pass that removes literals.
+    * **Side finding to check:** knob counts sometimes collapse for large exemplars (a
+      138-node exemplar got 123 knobs; a 58-node one got 248). Representations may
+      occasionally be built incomplete.
+
 ## 3. Ideas outside Phase 1's scope
 
 * **IEBL-style building blocks** (Input-space Entropy-based Building-block Learning;
