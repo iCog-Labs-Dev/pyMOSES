@@ -1,0 +1,6 @@
+contrast,mean,negative,p,p_holm,pairs,positive,verdict,zero
+start,-0.4125,38,3.348458573526614e-05,6.696917147053227e-05,80,10,uniform better,32
+interaction,-0.3,28,0.0070976709814116745,0.0070976709814116745,80,12,uniform better,40
+RT uniform - RT default,-0.1125,21,0.1415833254248866,,80,13,,46
+"LT-B - RT, uniform start",-0.25,23,9.314205805233122e-05,,80,3,,54
+"LT-B - RT, default start",0.05,14,0.5066229777298783,,80,16,,50

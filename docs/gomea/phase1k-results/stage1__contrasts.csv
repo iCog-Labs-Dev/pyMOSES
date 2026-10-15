@@ -1,0 +1,11 @@
+contrast,mean,negative,p,p_holm,pairs,positive,verdict,zero
+interaction N64,-0.025,7,0.99560546875,0.99560546875,40,5,no difference,28
+interaction N256,0.15,8,0.23638153076171875,0.4727630615234375,40,11,no difference,21
+LT-B - RT reduced N64,0.075,2,0.4375,,40,3,,35
+LT-B - RT default N64,0.1,2,0.2890625,,40,6,,32
+improve-rate LT-B - RT reduced N64,0.018115373356543514,3,4.809370808267488e-07,,40,37,,0
+improve-rate LT-B - RT default N64,0.014287280528324165,3,2.539864434325523e-07,,40,37,,0
+LT-B - RT reduced N256,0.05,5,0.794921875,,40,6,,29
+LT-B - RT default N256,-0.1,8,0.3876953125,,40,4,,28
+improve-rate LT-B - RT reduced N256,0.014296489306856194,2,1.0605387412709888e-07,,40,38,,0
+improve-rate LT-B - RT default N256,0.015008769858773313,2,4.6581918766719355e-08,,40,38,,0
