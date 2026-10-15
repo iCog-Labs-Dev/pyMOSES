@@ -1,0 +1,131 @@
+{
+  "name": "phase1m-sr",
+  "datasets_dir": "../gomea-results/phase1f/datasets",
+  "datasets": [
+    "Con",
+    "EnH",
+    "EnC"
+  ],
+  "splits": [
+    1,
+    2,
+    3,
+    4,
+    5,
+    6,
+    7,
+    8,
+    9,
+    10
+  ],
+  "wall_cap_s": 36000,
+  "mem_limit_mb": 3072,
+  "arms": {
+    "HC": {
+      "binary": ".venv/bin/moses",
+      "budget": {
+        "evals": 10000
+      },
+      "argv": [
+        "-a",
+        "hc"
+      ]
+    },
+    "G-C250-N16": {
+      "binary": ".venv/bin/moses",
+      "budget": {
+        "evals": 10000
+      },
+      "argv": [
+        "-a",
+        "gomea",
+        "--gomea-fos",
+        "lt-b",
+        "--gomea-skip-inactive",
+        "0",
+        "--gomea-genotype-memo",
+        "1",
+        "--gomea-pop-size",
+        "16",
+        "--gomea-max-evals-per-deme",
+        "250",
+        "--gomea-contin",
+        "copy"
+      ]
+    },
+    "G-D10-LTB": {
+      "binary": ".venv/bin/moses",
+      "budget": {
+        "evals": 10000
+      },
+      "argv": [
+        "-a",
+        "gomea",
+        "--gomea-fos",
+        "lt-b",
+        "--gomea-skip-inactive",
+        "0",
+        "--gomea-genotype-memo",
+        "1",
+        "--gomea-deme-share",
+        "10",
+        "--gomea-pop-fraction",
+        "0.2",
+        "--gomea-pop-max",
+        "200",
+        "--gomea-contin",
+        "copy"
+      ]
+    },
+    "G-D10-RT": {
+      "binary": ".venv/bin/moses",
+      "budget": {
+        "evals": 10000
+      },
+      "argv": [
+        "-a",
+        "gomea",
+        "--gomea-fos",
+        "rt",
+        "--gomea-skip-inactive",
+        "0",
+        "--gomea-genotype-memo",
+        "1",
+        "--gomea-deme-share",
+        "10",
+        "--gomea-pop-fraction",
+        "0.2",
+        "--gomea-pop-max",
+        "200",
+        "--gomea-contin",
+        "copy"
+      ]
+    },
+    "G-D10-LTB-WIDE": {
+      "binary": ".venv/bin/moses",
+      "budget": {
+        "evals": 10000
+      },
+      "argv": [
+        "-a",
+        "gomea",
+        "--gomea-fos",
+        "lt-b",
+        "--gomea-skip-inactive",
+        "0",
+        "--gomea-genotype-memo",
+        "1",
+        "--gomea-deme-share",
+        "10",
+        "--gomea-pop-fraction",
+        "0.2",
+        "--gomea-pop-max",
+        "200",
+        "--gomea-radii",
+        "1:0.25,2:0.25,4:0.25,8:0.25",
+        "--gomea-contin",
+        "copy"
+      ]
+    }
+  }
+}

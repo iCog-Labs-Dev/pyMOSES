@@ -1,0 +1,18 @@
+{
+  "mux11:design": "A worse",
+  "mux11:linkage": "tie",
+  "Con:design": "tie",
+  "Con:linkage": "tie",
+  "EnC:design": "tie",
+  "EnC:linkage": "tie",
+  "EnH:design": "tie",
+  "EnH:linkage": "tie",
+  "mux11:wide": "A worse",
+  "mux11:vs-hc": "A worse",
+  "Con:wide": "tie",
+  "Con:vs-hc": "tie",
+  "EnC:wide": "tie",
+  "EnC:vs-hc": "tie",
+  "EnH:wide": "tie",
+  "EnH:vs-hc": "tie"
+}
