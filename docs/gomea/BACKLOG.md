@@ -142,6 +142,16 @@ GOM bookkeeping and telemetry are not worth optimising.
       are the exceptions). MOSES's default `simple` scorer ignores redundancy and would likely
       hurt on parity and mux.
 
+11. **Phase 1i follow-ups** (the uniform-distance start helped LT-B at about 6–8× the
+    evaluations).
+    * **Equal-cost test:** compare the uniform and default starts at equal evaluations, e.g.
+      cap the uniform start at the default's ~20k, or give the default start ~150k (larger N
+      or restarts). This shows whether the uniform start is a better use of the budget.
+    * **End to end:** does the uniform start help inside full MOSES runs with capped demes?
+      Its ~37k evaluations per generation may be prohibitive there. Try cheaper mixtures,
+      e.g. `2:0.25,4:0.25,8:0.25,max:0.25` or uniform over distances 1..8.
+    * **Combine with a shared linkage model (item 3):** diverse samples pooled across demes.
+
 ## 3. Ideas outside Phase 1's scope
 
 * **IEBL-style building blocks** (Input-space Entropy-based Building-block Learning;
