@@ -32,6 +32,15 @@ made on its own, disclosed as deviations in `PHASE1F-PREREGISTRATION.md`: the
 `reduce_factorize_fraction` port-bug fix (`484e302`) and the regression runner's raised
 recursion limit (`8b23deb`). No row above approves them.
 
+**Also not user-approved (2026-10-15):** the `twiddle_contin_bit` fix. Hill climbing on a
+contin-only deme crashed with `IndexError` when the last contin field's last pseudo-bit was
+twiddled. C++ makes the same out-of-range read (`neighborhood_sampling.cc:46-47`,
+`field_set.h:412-416`) without a bounds check, which is undefined behaviour. The port now
+treats that "next" position as invalid, as the C++ header documents
+(`neighborhood_sampling.h:82-83`), marked as a DIVERGENCE. Only calls that used to crash
+change; no completed earlier run could have been affected. The user asked for the speed-up
+work to proceed autonomously; this fix was made along the way and is disclosed here.
+
 Deviations from the handoff's gate procedure that follow from instruction #1:
 
 * The P1.0 → P1.5 stops are replaced by the review packets committed under `docs/gomea/`

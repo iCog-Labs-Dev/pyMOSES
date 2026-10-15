@@ -680,20 +680,37 @@ def twiddle_contin_bit(
     Python's own `or` below: when ``idx + 1 != next_idx`` is already
     True, `fs.get_raw(inst, next_idx)` is never evaluated -- load-bearing
     when ``next_idx`` is the `fs.raw_size()` sentinel, which
-    `fs.get_raw` would otherwise reject as out of range. DO NOT FIX: if
-    ``idx + 1`` genuinely EQUALS `fs.raw_size()` (this contin field is the
-    very last thing in the whole raw layout, no disc/bit fields follow
-    it, and this is its final pseudo-bit), the short-circuit does not
-    save us and `fs.get_raw(inst, next_idx)` raises `IndexError` -- the
-    same edge C++ leaves as an invalid `*fs.end_raw(inst)` dereference
-    (undefined behaviour there), a real but strictly-safer failure mode
-    here, not a "fix".
+    `fs.get_raw` would otherwise reject as out of range.
+
+    DIVERGENCE(C++ moses/moses/moses/neighborhood_sampling.cc:46-47):
+    when ``idx + 1`` genuinely EQUALS `fs.raw_size()` (this contin field
+    is the very last thing in the whole raw layout -- no disc/bit fields
+    follow it, e.g. a contin-only regression deme -- and ``idx`` is its
+    final pseudo-bit), C++'s short-circuit does not fire and it
+    dereferences `fs.end_raw(inst)`: `field_set::get_raw` reads
+    `_fields[_fields.size()]` (field_set.h:414, unchecked
+    `std::vector::operator[]`) and then `inst[<garbage major_offset>]`
+    -- undefined behaviour whose value (and hence whether one
+    `randbool()` is drawn) depends on heap contents, so it cannot be
+    mirrored. This port instead treats the end sentinel as "invalid"
+    whenever it is passed, which is (a) what the C++ header documents
+    (neighborhood_sampling.h:82-83: "if the next one is Stop (or
+    invalid) then select Stop or flip"), and (b) exactly what C++ itself
+    does, deterministically, for the same ``up == depth`` call whenever
+    any field follows the contin field. Previously this edge raised
+    `IndexError` (field_set.get_raw's bounds check) and crashed whole
+    hill-climbing runs; no run that completed is affected, since every
+    other path is unchanged.
     """
     if rng is None:
         rng = randGen()
     if fs.get_raw(inst, idx) == contin_spec.Stop:
         fs.set_raw(inst, idx, contin_spec.Left if rng.randbool() else contin_spec.Right)
-    elif idx + 1 != next_idx or fs.get_raw(inst, next_idx) == contin_spec.Stop:
+    elif (
+        idx + 1 != next_idx  # next_itr is invalid
+        or next_idx == fs.raw_size()  # ... or is the end sentinel (see DIVERGENCE above)
+        or fs.get_raw(inst, next_idx) == contin_spec.Stop
+    ):
         if rng.randbool():
             fs.set_raw(inst, idx, contin_spec.Stop)
         else:

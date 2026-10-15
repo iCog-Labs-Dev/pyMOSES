@@ -565,29 +565,65 @@ def test_twiddle_contin_bit_short_circuits_before_reading_invalid_next():
     assert fs.get_raw(inst, 2) in (contin_spec.Stop, contin_spec.Left, contin_spec.Right)
 
 
-def test_twiddle_contin_bit_raises_when_sentinel_collides_with_idx_plus_one():
-    """DO NOT FIX (see twiddle_contin_bit's own docstring): when a contin
+def test_twiddle_contin_bit_treats_end_sentinel_as_invalid_when_it_collides_with_idx_plus_one():
+    """DIVERGENCE (see twiddle_contin_bit's own docstring): when a contin
     field IS the very last thing in the whole raw layout, `idx + 1` at its
     last position genuinely EQUALS `fs.raw_size()` -- the same value used
-    as the "invalid" sentinel -- so the `or` short-circuit does not save
-    us and `fs.get_raw(inst, next_idx)` is evaluated with an
-    out-of-range index. C++'s `field_set::get_raw` has no bounds check at
-    all here (`_fields[idx]`, a bare `std::vector::operator[]`) so this is
-    genuine, non-reproducible undefined behaviour there (measured: it did
-    not crash the probe, but the resulting value is not a meaningful
-    oracle target -- see contin_neighborhood_probe.cc's own comment on why
-    every `generate_contin_neighbor` oracle case appends a trailing disc
-    field specifically to avoid this). This port's `fs.get_raw`'s explicit
-    bounds check turns the same situation into a deterministic
-    `IndexError` instead -- a real, disclosed divergence in KIND of
-    failure (loud and safe vs. silent UB), not a value this test can pin
-    against classic.
+    as the "invalid" sentinel -- so the `idx + 1 != next_idx` short-circuit
+    does not fire. C++ then dereferences `end_raw` (`_fields[size()]`, UB,
+    heap-dependent; see contin_neighborhood_probe.cc's own comment on why
+    no oracle value exists). The port treats the sentinel as "invalid",
+    the header's documented rule and C++'s own behaviour whenever any
+    field follows: one `randbool()` is drawn, choosing Stop or a flip --
+    the same outcome/draw count as the oracle-pinned `next_invalid` cases
+    (cur=Left, seed=s) of `test_twiddle_contin_bit_matches_cpp`.
+
+    MUTATION: dropping the `next_idx == fs.raw_size()` clause makes this
+    raise `IndexError` (field_set.get_raw's bounds check) again.
     """
-    fs = _contin_only_fs(3)  # contin is the ENTIRE raw layout: raw_size() == 3
-    inst = instance(fs.packed_width())
-    fs.set_raw(inst, 2, contin_spec.Left)
-    with pytest.raises(IndexError):
+    for case in _CONTIN_GOLDEN["twiddle_contin_bit"]:
+        if not case["next_invalid"] or case["cur"] == contin_spec.Stop:
+            continue
+        fs = _contin_only_fs(3)  # contin is the ENTIRE raw layout: raw_size() == 3
+        inst = instance(fs.packed_width())
+        fs.set_raw(inst, 2, case["cur"])
+        randGen().seed(case["seed"])
         twiddle_contin_bit(fs, inst, 2, fs.raw_size())
+        assert fs.get_raw(inst, 2) == case["after"]
+        assert randGen().randbool() == case["post_randbool"]
+
+
+def test_generate_contin_neighbor_last_field_at_full_depth_does_not_raise():
+    """Regression for a crash seen in `moses -a hc` on a contin-only
+    regression deme (20 contin knobs of depth 5, no disc/bit fields):
+    `generate_contin_neighbor` picked `up == depth` on the LAST contin
+    field, passed the `fs.raw_size()` sentinel as `next_idx`, which
+    equalled `idx + 1`, and `fs.get_raw(inst, raw_size())` raised
+    `IndexError: raw field index out of range`.
+
+    Here the contin field is fully used (length == depth == 3) and
+    dist=1, so `low` is drawn by `lazy_random_selector(3, 2)` -- which,
+    faithfully to CogUtil, draws over `[0, 3)` -- and `low == 2` gives
+    `up == 3 == depth`, the crash path; the seed loop below is checked to
+    hit it. Each result must match what C++ produces (deterministically)
+    for the same field followed by a disc field, where `end_raw` is not
+    adjacent to the last pseudo-bit.
+    """
+    hit_last_bit = False
+    for seed in range(16):
+        results = []
+        for trailing_disc in (False, True):
+            fs = _contin_fixture_fs([3], trailing_disc)
+            inst = instance(fs.packed_width())
+            for i in range(3):
+                fs.set_raw(inst, i, contin_spec.Left)
+            randGen().seed(seed)
+            generate_contin_neighbor(fs, inst, 0, 1)
+            results.append(([fs.get_raw(inst, i) for i in range(3)], randGen().randbool()))
+        assert results[0] == results[1]
+        if results[0][0][2] != contin_spec.Left:
+            hit_last_bit = True
+    assert hit_last_bit
 
 
 def test_sample_from_neighborhood_contin_branch_hardcodes_distance_one():
