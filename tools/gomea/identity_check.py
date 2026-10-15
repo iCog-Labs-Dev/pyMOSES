@@ -77,6 +77,21 @@ def _strip(o):
     return o
 
 
+def _norm(path: Path) -> bytes:
+    """File contents for comparison. Event logs drop `telemetry_path`, the run's own
+    output path, which differs between any two recordings by construction."""
+    if path.name != "events.jsonl":
+        return path.read_bytes()
+    lines = []
+    for x in path.read_text().splitlines():
+        if x.strip():
+            e = json.loads(x)
+            if isinstance(e.get("params"), dict):
+                e["params"].pop("telemetry_path", None)
+            lines.append(json.dumps(e, sort_keys=True))
+    return "\n".join(lines).encode()
+
+
 def _run(name: str, out: Path) -> str:
     d = out / name
     d.mkdir(parents=True, exist_ok=True)
@@ -117,10 +132,11 @@ def compare(base: Path, new: Path) -> int:
         for f in ("stdout.txt", "events.jsonl"):
             if (b / f).exists() != (n / f).exists():
                 same = False
-            elif (b / f).exists() and (b / f).read_bytes() != (n / f).read_bytes():
+            elif (b / f).exists() and _norm(b / f) != _norm(n / f):
                 same = False
-        jb = json.loads((b / "cpu.json").read_text())
-        jn = json.loads((n / "cpu.json").read_text())
+        jb, jn = (json.loads((x / "cpu.json").read_text()) if (x / "cpu.json").exists()
+                  else {"cpu_s": float("nan"), "rc": "no cpu.json (older harness crash)"}
+                  for x in (b, n))
         if jb["rc"] != jn["rc"]:
             same = False
         cb, cn = jb["cpu_s"], jn["cpu_s"]
