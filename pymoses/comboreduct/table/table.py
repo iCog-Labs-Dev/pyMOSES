@@ -47,6 +47,7 @@ from collections.abc import Iterable, Sequence
 from datetime import date
 from functools import cmp_to_key
 
+from pymoses.comboreduct.combo.argument import argument
 from pymoses.comboreduct.combo.vertex import (
     bool_to_vertex,
     builtin,
@@ -2088,6 +2089,146 @@ class Table:
 # ---------------------------------------------------------------------------
 
 
+# ---------------------------------------------------------------------------
+# Bit-parallel truth-table evaluation. No C++ counterpart: a port-only speed-up
+# for `complete_truth_table._populate` / `same_complete_truth_table` below.
+# Classic evaluates the tree once per row through `boolean_interpreter`
+# (table.h:1495-1503), which is cheap in C++ but dominates Boolean scoring
+# here (~half of `logical_bscore`'s time on mux11, 2,048 rows). Instead, every
+# input column is held as ONE Python int whose bit `i` is that input's value
+# on row `i` (the same `(i >> j) % 2` bit order as `_populate`), and the tree
+# is evaluated once with `&`/`|`/`^`.
+#
+# Only trees whose row-by-row evaluation can neither raise nor depend on
+# evaluation order are accepted (see `_bitparallel_eval`); anything else
+# returns None and the caller falls back to the per-row interpreter, so
+# results -- including every exception the interpreter raises -- are
+# unchanged.
+# ---------------------------------------------------------------------------
+
+_bitparallel_columns_cache: dict[int, tuple[tuple[int, ...], int]] = {}
+
+
+def _bitparallel_columns(arity: int) -> tuple[tuple[int, ...], int]:
+    """No C++ counterpart (port-only optimisation; see the block comment above).
+
+    Returns `(columns, full)`: `columns[j]` has bit `i` set iff `(i >> j) % 2`
+    -- i.e. input `$(j+1)` is true on row `i` -- and `full` has all
+    `2**arity` row bits set. Cached per arity (a handful of arities per run).
+    """
+    cached = _bitparallel_columns_cache.get(arity)
+    if cached is not None:
+        return cached
+    n_rows = 1 << arity
+    full = (1 << n_rows) - 1
+    columns = []
+    for j in range(arity):
+        half = 1 << j  # run length of each 0/1 stripe for input j
+        period = half << 1
+        block = ((1 << half) - 1) << half  # one period: `half` zeros then `half` ones
+        # `full // ((1 << period) - 1)` has one set bit at the start of every period.
+        columns.append(block * (full // ((1 << period) - 1)))
+    cached = (tuple(columns), full)
+    _bitparallel_columns_cache[arity] = cached
+    return cached
+
+
+def _bitparallel_eval(node, columns: tuple[int, ...], full: int) -> int | None:
+    """No C++ counterpart (port-only optimisation; see the block comment above).
+
+    Evaluates the subtree at `node` over all rows at once, mirroring
+    `boolean_interpreter.boolean_eval` (interpreter.py) case by case, or
+    returns None if the subtree contains anything outside the subset where
+    that mirroring is exact:
+
+    * `argument` leaves `$k` / `!$k` with `1 <= |k| <= arity` (the
+      interpreter raises `IndexError` otherwise);
+    * childless `logical_true` / `logical_false`;
+    * `logical_and` / `logical_or` with at least one child (a childless
+      one evaluates to the builtin `and`/`or` itself, which is neither
+      true nor false, so its parent's behaviour is not a Boolean
+      operation -- left to the interpreter);
+    * `logical_not` with exactly one child.
+
+    Within that subset every subexpression evaluates to true or false on
+    every row and nothing raises, so the interpreter's short-circuiting
+    of `and`/`or` cannot change the result. Leaves with children (which
+    the interpreter would silently ignore), contin/enum/predicate
+    vertices and every other builtin fall back.
+    """
+    v = node.data
+    child = node.first_child
+    if isinstance(v, argument):
+        if child is not None:
+            return None
+        idx = v.idx
+        n = len(columns)
+        if 0 < idx <= n:
+            return columns[idx - 1]
+        if 0 < -idx <= n:
+            return full ^ columns[-idx - 1]
+        return None
+    if not isinstance(v, builtin):
+        return None
+    if v is builtin.logical_and:
+        if child is None:
+            return None
+        acc = full
+        while child is not None:
+            m = _bitparallel_eval(child, columns, full)
+            if m is None:
+                return None
+            acc &= m
+            child = child.next_sibling
+        return acc
+    if v is builtin.logical_or:
+        if child is None:
+            return None
+        acc = 0
+        while child is not None:
+            m = _bitparallel_eval(child, columns, full)
+            if m is None:
+                return None
+            acc |= m
+            child = child.next_sibling
+        return acc
+    if v is builtin.logical_not:
+        if child is None or child.next_sibling is not None:
+            return None
+        m = _bitparallel_eval(child, columns, full)
+        return None if m is None else full ^ m
+    if child is not None:
+        return None
+    if v is builtin.logical_true:
+        return full
+    if v is builtin.logical_false:
+        return 0
+    return None
+
+
+_BIT_CHAR_TO_BOOL = {"0": False, "1": True}
+
+
+def _bitparallel_truth_table(tr: combo_tree, arity: int) -> list[bool] | None:
+    """No C++ counterpart (port-only optimisation; see the block comment above).
+
+    The list `complete_truth_table._populate` would build for `tr` at
+    `arity` (row `i` at index `i`, plain `bool` values), or None when `tr`
+    is not fully supported by `_bitparallel_eval`.
+    """
+    root = tr.begin()
+    if root is None:
+        return None
+    columns, full = _bitparallel_columns(arity)
+    m = _bitparallel_eval(root, columns, full)
+    if m is None:
+        return None
+    # Row 0 is the least significant bit: render MSB-first, pad to the row
+    # count, and reverse.
+    bits = format(m, "b").zfill(1 << arity)[::-1]
+    return list(map(_BIT_CHAR_TO_BOOL.__getitem__, bits))
+
+
 class complete_truth_table(list):
     """C++: moses/comboreduct/table/table.h:1436 complete_truth_table
 
@@ -2152,7 +2293,16 @@ class complete_truth_table(list):
         reused across calls in C++ (also by `same_complete_truth_table`
         below, hence `mutable` despite that method being `const`); no
         Python equivalent needed, a fresh list per row costs nothing here.
+
+        Port-only speed-up, no C++ counterpart: a pure Boolean tree is
+        evaluated over all rows at once by `_bitparallel_truth_table`
+        (identical table); anything it does not support falls through to
+        the per-row loop below, which is the faithful port of table.h:1495.
         """
+        bits = _bitparallel_truth_table(tr, self._arity)
+        if bits is not None:
+            self[:] = bits
+            return
         for i in range(len(self)):
             inputs = [bool_to_vertex(bool((i >> j) % 2)) for j in range(self._arity)]
             self[i] = builtin_to_bool(boolean_interpreter(inputs)(tr))
@@ -2168,7 +2318,17 @@ class complete_truth_table(list):
         1489) is a short-circuiting `for` loop with an early `return
         false` -- the same short-circuit a Python `for`/`return` gives for
         free; no separate optimization to reproduce.
+
+        Port-only speed-up, no C++ counterpart: as in `_populate`, a pure
+        Boolean tree is evaluated over all rows at once and compared as a
+        whole. Within the subset `_bitparallel_eval` accepts nothing can
+        raise, so skipping the early exit cannot change the answer; any
+        other tree takes the per-row loop below (and raises, if it does,
+        at the same row as before).
         """
+        bits = _bitparallel_truth_table(tr, self._arity)
+        if bits is not None:
+            return list.__eq__(self, bits)
         for i in range(len(self)):
             inputs = [bool_to_vertex(bool((i >> j) % 2)) for j in range(self._arity)]
             if self[i] != builtin_to_bool(boolean_interpreter(inputs)(tr)):
