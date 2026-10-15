@@ -225,3 +225,30 @@ GOM bookkeeping and telemetry are not worth optimising.
   * **For MOSES:** score subtrees of good metapopulation programs the same way, and offer the
     best as new inputs or operators to later demes.
 * **Phase 2, real-valued constants:** planned; needs explicit approval.
+
+## 4. Bugs and anomalies to investigate later
+
+1. **Knob counts collapse for some large exemplars** (found in the exemplar-growth analysis,
+   2026-10-15).
+   * **What was seen:** in GOMEA runs on mux11, a 138-node exemplar produced only 123 knobs,
+     and a 58-node one 248. Normally knobs grow at about 20 per node: 70 nodes gave 1,488.
+   * **Suspicion:** the representation is occasionally built incomplete, e.g. knob building
+     stops early or `disc_probe` drops far more knobs than it should on large trees.
+   * **Where to look:** `pymoses/moses/representation/build_knobs.py` (`build_logical`,
+     `add_logical_knobs`, `disc_probe`) on the affected exemplars. Reproduce with
+     `docs/gomea/exemplar-growth-2026-10-15/wrap.py`, mux11 seeds 3002 and 3003, `-m 3000`.
+     Compare the knob count against C++ MOSES on the same exemplar.
+   * **Why it matters:** an incomplete representation would silently shrink the search
+     space, for HC and GOMEA alike.
+2. **Rejected GOM trials are stored in the deme and merged.**
+   * **What happens:** every scored trial is appended to the deme, whether GOM accepted it
+     or not. MOSES's merge then ranks them with its own complexity penalty.
+   * **Impact today:** this matches HC, which also stores every evaluated neighbour, and is
+     not a bug now.
+   * **When it becomes one:** any change that penalises complexity *inside* GOMEA's
+     acceptance (backlog item 13). The merge would then bring back bloated rejected trials
+     with higher raw scores, unless it ranks them under the same penalty or keeps only
+     accepted and elite individuals.
+3. **(Fixed 2026-10-15, `a42d5c8`):** `twiddle_contin_bit` crashed on contin-only demes; C++
+   has the same out-of-range read as undefined behaviour. Kept here for the record; disclosed
+   in `APPROVALS.md`.
