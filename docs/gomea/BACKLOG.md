@@ -228,18 +228,32 @@ GOM bookkeeping and telemetry are not worth optimising.
 
 ## 4. Bugs and anomalies to investigate later
 
-1. **Knob counts collapse for some large exemplars** (found in the exemplar-growth analysis,
-   2026-10-15).
-   * **What was seen:** in GOMEA runs on mux11, a 138-node exemplar produced only 123 knobs,
-     and a 58-node one 248. Normally knobs grow at about 20 per node: 70 nodes gave 1,488.
-   * **Suspicion:** the representation is occasionally built incomplete, e.g. knob building
-     stops early or `disc_probe` drops far more knobs than it should on large trees.
-   * **Where to look:** `pymoses/moses/representation/build_knobs.py` (`build_logical`,
-     `add_logical_knobs`, `disc_probe`) on the affected exemplars. Reproduce with
-     `docs/gomea/exemplar-growth-2026-10-15/wrap.py`, mux11 seeds 3002 and 3003, `-m 3000`.
-     Compare the knob count against C++ MOSES on the same exemplar.
-   * **Why it matters:** an incomplete representation would silently shrink the search
-     space, for HC and GOMEA alike.
+1. **Knob counts collapse for some exemplars: classic MOSES behaviour, not a port bug**
+   (investigated 2026-10-16; exemplars and scripts in `knob-collapse-2026-10-16/`).
+   * **Same in C++:** pyMoses and C++ MOSES build identical representations on the
+     collapsing exemplars, e.g. 135, 250 and 114 fields in both.
+   * **Cause:** `disc_probe` (`build_knobs.py:526`, C++ `build_knobs.cc:311`) disallows a
+     setting when reducing the whole decorated exemplar lowers its complexity. That assumes
+     the exemplar is already a fixpoint of the reducer, but effort-2 Boolean reduction is not
+     confluent.
+     * `build_logical` wraps literals in single-child flip junctors as it walks the tree.
+     * Once one wrapper lets the reducer find a context simplification it missed on the plain
+       tree, every later probe sees a reducible baseline, and almost every later knob is
+       thrown away. Example: 117 knobs built before the trigger, 20 of 1,364 probes after it.
+     * Signature: instance 0 (the exemplar itself) reduces to a lower complexity.
+   * **Frequency on mux11:** in 2–4 of 11–20 GOMEA demes per run; none in the HC runs
+     examined; fewer with a stronger complexity penalty, since exemplars stay smaller.
+   * **Effect:**
+     * a collapsed deme searches a much smaller neighbourhood but still pays the full probing
+       cost;
+     * per-deme knob statistics and per-deme budgets work on representations of very
+       different sizes.
+   * **Mitigations (would diverge from C++; untested):**
+     * compare each probed setting against the *reduced* baseline;
+     * or reduce the exemplar with the knob-building reducer before decorating it.
+     * Either could be an opt-in option, tested for knob counts, CPU and accuracy.
+   * **Related:** the earlier `-B 3` result (1 knob on maj5-x3) has the same mechanism, since
+     the exemplars were not fixpoints at effort 3.
 2. **Rejected GOM trials are stored in the deme and merged.**
    * **What happens:** every scored trial is appended to the deme, whether GOM accepted it
      or not. MOSES's merge then ranks them with its own complexity penalty.
