@@ -1,0 +1,3 @@
+problem,hc_lower,ltb_lower,median_cpu_hc,median_cpu_ltb,median_evals_hc,median_evals_ltb,median_hc,median_ltb,not_ok_hc,not_ok_ltb,p,p_holm,pairs,solved_hc,solved_ltb,stage,ties,verdict
+mux11,3,7,979.1354655775,1735.523134382,7500.0,5500.0,7306.0,5344.5,0,0,0.16015625,0.16015625,10,10,10,1,0,extend
+Con,1,9,343.045892,1525.0468610000003,10000.0,10000.0,60.38035804900089,37.096835187902016,0,0,0.00390625,0.0078125,10,,,1,0,better
