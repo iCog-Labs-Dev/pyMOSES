@@ -42,5 +42,7 @@ the same cap.
   * **Better / worse:** Holm p < 0.025 and a median at least 10 % lower / higher.
   * **Extend:** for primary contrasts at stage 1, 0.025 ≤ Holm p < 0.25.
   * Otherwise a **tie**.
+* **Stage 2:** the Holm family stays complete. A problem that was not extended enters with its
+  stage-1 data, and only contrasts that were "extend" at stage 1 take a stage-2 verdict.
 * **Reading:** the user's goal ("at least tie") is met on a problem if `vs-hc` is "tie" or
   "better".

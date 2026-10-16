@@ -17,11 +17,13 @@ All 60 runs ended `ok`. Protocol: `PHASE1N-PREREGISTRATION.md`. Code `8b1e728`. 
 |---|---|---|---|---|---|---|
 | Con (test NMSE), stage 1 | 10 | 9 / 0 / 1 | 37.1 | 60.4 | 0.0078 | **better** |
 | mux11 (evaluations to solve), stage 1 | 10 | 7 / 0 / 3 | 5,345 | 7,306 | 0.16 | extend |
-| mux11, stage 2 (seeds 3001–3020) | 20 | 17 / 0 / 3 | 4,633 | 7,978 | 0.0012 | **better** |
+| mux11, stage 2 (seeds 3001–3020) | 20 | 17 / 0 / 3 | 4,633 | 7,978 | 0.0024 | **better** |
 
 * Both arms solved mux11 in all 20 runs.
-* Stage-1 Holm correction covers the two problems; stage 2 tests the extended problem alone,
-  as registered.
+* Stage-1 Holm correction covers the two problems.
+* **Correction:** the stage-2 report tested mux11 alone. The registered family has 2 problems;
+  with Con's stage-1 p (0.0039) included, mux11's stage-2 Holm p is 0.0024. The verdict is
+  unchanged.
 
 **Cost, equal evaluations** (median CPU per run; mux11 over all 20 seeds, Con over 10 splits):
 

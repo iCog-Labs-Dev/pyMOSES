@@ -17,9 +17,11 @@ M1=$(dir_of configs/gomea/phase1p/mux11.json); C1=$R/phase1p/phase1p-con
 $PY tools/gomea/phase1p_report.py --stage 1 $R/phase1p/report-stage1 "$M1" "$C1" -
 V=$R/phase1p/report-stage1/verdict.json
 ext() { $PY -c "import json,sys; v=json.load(open(sys.argv[1])); print(v.get(sys.argv[2]+':vs-hc')=='extend')" $V "$1"; }
-M2=-; C2=-
-if [ "$(ext Con)" = True ]; then sr configs/gomea/phase1p/con-ext.json; C2="$C1,$R/phase1p/phase1p-con-ext"; fi
-if [ "$(ext mux11)" = True ]; then bench configs/gomea/phase1p/mux11-ext.json; M2="$M1,$(dir_of configs/gomea/phase1p/mux11-ext.json)"; fi
-if [ "$M2" != - ] || [ "$C2" != - ]; then
+# Stage 2 keeps every problem in the Holm family (a non-extended problem with its stage-1
+# data); only contrasts that were "extend" at stage 1 take their verdict from stage 2.
+M2=$M1; C2=$C1; EXT=no
+if [ "$(ext Con)" = True ]; then sr configs/gomea/phase1p/con-ext.json; C2="$C1,$R/phase1p/phase1p-con-ext"; EXT=yes; fi
+if [ "$(ext mux11)" = True ]; then bench configs/gomea/phase1p/mux11-ext.json; M2="$M1,$(dir_of configs/gomea/phase1p/mux11-ext.json)"; EXT=yes; fi
+if [ "$EXT" = yes ]; then
     $PY tools/gomea/phase1p_report.py --stage 2 $R/phase1p/report-stage2 "$M2" "$C2" -; fi
 echo "all done $(date -Is)"

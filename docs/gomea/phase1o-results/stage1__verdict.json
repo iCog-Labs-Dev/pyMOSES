@@ -1,0 +1,12 @@
+{
+  "Con:cpu": "extend",
+  "Con:accuracy": "tie",
+  "mux11:cpu": "tie",
+  "mux11:accuracy": "tie",
+  "Con:acc-store": "tie",
+  "Con:cpu-store": "tie",
+  "Con:vs-hc": "tie",
+  "mux11:acc-store": "tie",
+  "mux11:cpu-store": "tie",
+  "mux11:vs-hc": "tie"
+}
