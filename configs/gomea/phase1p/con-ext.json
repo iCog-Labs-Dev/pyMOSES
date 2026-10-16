@@ -1,0 +1,81 @@
+{
+  "name": "phase1p-con-ext",
+  "datasets_dir": "../gomea-results/phase1f/datasets",
+  "datasets": [
+    "Con"
+  ],
+  "splits": [
+    11,
+    12,
+    13,
+    14,
+    15,
+    16,
+    17,
+    18,
+    19,
+    20
+  ],
+  "wall_cap_s": 2400,
+  "mem_limit_mb": 3072,
+  "arms": {
+    "HC-C250": {
+      "binary": ".venv/bin/moses",
+      "budget": {
+        "time_s": 1000
+      },
+      "argv": [
+        "-a",
+        "hc-capped",
+        "--gomea-max-evals-per-deme",
+        "250"
+      ]
+    },
+    "LTB-C250-M": {
+      "binary": ".venv/bin/moses",
+      "budget": {
+        "time_s": 1000
+      },
+      "argv": [
+        "-a",
+        "gomea",
+        "--gomea-fos",
+        "lt-b",
+        "--gomea-pop-size",
+        "16",
+        "--gomea-skip-inactive",
+        "0",
+        "--gomea-max-evals-per-deme",
+        "250",
+        "--gomea-genotype-memo",
+        "1",
+        "--gomea-contin",
+        "copy"
+      ]
+    },
+    "PEN": {
+      "binary": ".venv/bin/moses",
+      "budget": {
+        "time_s": 1000
+      },
+      "argv": [
+        "-a",
+        "gomea",
+        "--gomea-fos",
+        "lt-b",
+        "--gomea-pop-size",
+        "16",
+        "--gomea-skip-inactive",
+        "0",
+        "--gomea-max-evals-per-deme",
+        "250",
+        "--gomea-genotype-memo",
+        "1",
+        "--gomea-contin",
+        "copy",
+        "--gomea-accept-complexity-ratio",
+        "0.005"
+      ]
+    }
+  }
+}
