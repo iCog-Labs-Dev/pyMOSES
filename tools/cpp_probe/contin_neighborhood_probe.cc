@@ -193,9 +193,9 @@ static void dump_generate_contin_neighbor()
     // `std::vector::operator[]`, so that read is genuine UB in C++ (it
     // happened not to crash when measured, landing on unspecified memory
     // -- NOT a reproducible oracle value; see
-    // twiddle_contin_bit's DIVERGENCE note and test_neighborhood_sampling.py's
-    // own non-oracle tests for how this port treats the colliding sentinel
-    // as "invalid", the header's documented rule). A trailing
+    // test_neighborhood_sampling.py's own direct, non-oracle test for how
+    // this port's `fs.get_raw`'s explicit bounds check turns the same
+    // situation into a deterministic `IndexError` instead). A trailing
     // disc(3) field on every case below guarantees `idx + 1` always names
     // a REAL raw position (the disc field's own start) distinct from the
     // global sentinel, so every case here is well-defined in BOTH
