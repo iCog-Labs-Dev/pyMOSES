@@ -250,6 +250,8 @@ def test_help_only_adds_gomea_lines():
         "--gomea-pop-fraction",
         "--gomea-pop-max",
         "--gomea-deme-share",
+        "--gomea-accept-complexity-ratio",
+        "--gomea-deme-store",
     ):
         assert any(line.strip().startswith(flag + " ") for line in added), flag
 

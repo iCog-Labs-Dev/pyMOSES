@@ -122,6 +122,8 @@ to, so an invalid value is always rejected.
 | `--gomea-pop-fraction F` | `0` (off) | Derive each deme's population from its budget: `N = max(2, floor(F × deme budget))`, where the deme budget is `min(per-deme cap, evaluations left for this deme)`. Overrides `--gomea-pop-size`. The sampler draws the N programs once, at the start of the deme. See [Budget-derived demes](#budget-derived-demes). |
 | `--gomea-pop-max M` | `0` (no limit) | With `--gomea-pop-fraction`: clamp N to at most M (M ≥ 2). An error without `--gomea-pop-fraction`. |
 | `--gomea-deme-share D` | `0` (off) | Set the per-deme cap to `max(1, floor(-m / D))`, so a run gets about D demes. It is the same cap `--gomea-max-evals-per-deme` sets, and also applies to `-a hc-capped`. Giving both is an error unless they give the same cap. |
+| `--gomea-accept-complexity-ratio R` | `0` (off) | Inside a GOMEA deme, rank candidates by `raw score − complexity / R` (the form of `-z`, so one complexity unit costs `1/R` score units) instead of MOSES's penalized score. MOSES's own scoring, merge and exemplar selection are unchanged. See [Deme-local complexity penalty](#deme-local-complexity-penalty). |
+| `--gomea-deme-store {all,accepted}` | `all` | Which evaluated GOMEA trials the deme hands back to MOSES: `all` of them (the default), or `accepted`: only the initial population and the trials GOM or forced improvement accepted. Every evaluation is still charged to `-m` and counted. |
 
 The default population was 64 during development. It became 16 after the pilot
 (`docs/gomea/pilot-a/`); the confirmatory runs passed 16 explicitly.
@@ -143,6 +145,32 @@ generation's linkage model is learned from the current N programs. For example
 `-m 4000 --gomea-deme-share 4 --gomea-pop-fraction 0.04` gives `C = 1000` and `N = 40` for
 every deme that has at least 1000 evaluations left. With both options off (the default),
 nothing changes. The effective values are logged per deme in `invocation_start` (below).
+
+## Deme-local complexity penalty
+
+MOSES's complexity penalty (`-z`, default 3.5, i.e. 1/3.5 ≈ 0.29 score units per complexity
+unit) hardly binds on a problem like mux11 (raw score = minus the wrong rows out of 2,048), so a
+capped GOMEA deme, which keeps the first trial that is not worse, lets the exemplar grow quickly
+(`docs/gomea/exemplar-growth-2026-10-15/REPORT.md`). `--gomea-accept-complexity-ratio R` adds a
+stronger penalty that applies only inside GOMEA:
+
+* Two candidates are compared by `raw − complexity / R`; on equal values the lower complexity
+  wins, and NaN is worse than anything except NaN, exactly as MOSES's own comparator. MOSES's
+  stored complexity and uniformity penalties are left out. `R = 0.125` means one complexity unit
+  must buy 8 raw-score units.
+* It is used by every comparison GOMEA makes inside a deme: GOM acceptance, forced
+  improvements, the elite, the engine's best and its no-improvement count
+  (`--gomea-stall-gens`), the `--gomea-stall-evals` rule, and the `-a hc-gomea` choice of
+  seeds from hill climbing's deme.
+* It is not used by anything MOSES sees: the scores stored in the deme, `n_best_evals`, the
+  `end` event's `best`, and MOSES's merge, exemplar selection and output all keep `-z`.
+
+With the default `--gomea-deme-store all` the deme still holds every evaluated trial, including
+the rejected ones, and MOSES ranks them under `-z`; rejected trials that GOMEA judged too large
+can then come back as candidates. `--gomea-deme-store accepted` keeps only the initial
+population and the accepted trials (the elite and the final population are always among them).
+Under `accepted`, a trial that reaches the target score but is rejected by the deme-local
+penalty is not stored either, so MOSES does not see it.
 
 ## Continuous knobs (`--gomea-contin copy`)
 
@@ -200,9 +228,9 @@ The file gets one JSON object per line, and each object has a `"type"`. For ever
 
 | type | Key fields |
 |---|---|
-| `invocation_start` | `schema_id` (a hash of this representation's knob layout), `dim` (number of knobs), `domains`, `max_evals`, `params`; with `--gomea-pop-fraction` or `--gomea-deme-share` also `deme_budget`, `deme_cap` (the per-deme cap, `null` for none) and `deme_pop_size` (this deme's N) |
+| `invocation_start` | `schema_id` (a hash of this representation's knob layout), `dim` (number of knobs), `domains`, `max_evals`, `params` (`accept_complexity_ratio` and `deme_store` appear only when not at their defaults); with `--gomea-pop-fraction` or `--gomea-deme-share` also `deme_budget`, `deme_cap` (the per-deme cap, `null` for none) and `deme_pop_size` (this deme's N) |
 | `init` | the initial population: `attempts`, `duplicates_rejected`, `coverage_replacements`, `feasible_short`, and `diagnostics` (per-knob entropy and observed values, `constant_fields_before/after_coverage`, `radius_histogram`) |
-| `generation` | `generation`, `fos_size`, per-generation GOM `stats` (trials, evaluated, accepted_improving / accepted_neutral / rejected, noop_skips, fi_*), `nis` (the no-improvement stretch), `best_raw`/`best_pen`/`best_cpx`, a `ledger` snapshot, and diversity: `unique_genotypes`, `mean_entropy_bits`, `n_varying_fields`, `best_raw_count` |
+| `generation` | `generation`, `fos_size`, per-generation GOM `stats` (trials, evaluated, accepted_improving / accepted_neutral / rejected, noop_skips, fi_*), `nis` (the no-improvement stretch), `best_raw`/`best_pen`/`best_cpx` (of the engine's best, under the deme-local comparator when `--gomea-accept-complexity-ratio` is on), a `ledger` snapshot, and diversity: `unique_genotypes`, `mean_entropy_bits`, `n_varying_fields`, `best_raw_count` |
 | `end` | `termination_reason`, `generations`, `ledger` (requests = evaluations charged, invalid, duplicate_requests, …), `timings` (init / eval / linkage / variation seconds), `best` |
 | `hybrid` | `-a hc-gomea` only, one per deme: `deme_id`, `max_evals`, `hc_evals`, `hc_stop` (`budget`, `time_limit`, `target` or `local_optimum`), `gomea_ran`, `gomea_evals` (charged), `gomea_termination_reason` |
 
@@ -265,8 +293,9 @@ deceptive-trap example.
 * **Deterministic given `-r`.** GOMEA draws three independent RNG streams from MOSES's
   generator at the start of every deme.
 * **Every evaluated candidate is charged to `-m`** and appended to the deme, just as with
-  hill climbing. `deme.n_evals == len(deme) ==` the number of scorer calls. GOMEA never
-  exceeds its budget.
+  hill climbing. `deme.n_evals == len(deme) ==` the number of scorer calls (with
+  `--gomea-deme-store accepted`, `len(deme)` is smaller, but `deme.n_evals` still counts
+  every scorer call). GOMEA never exceeds its budget.
 * **One representation = one frozen search space.** The population, linkage calibration
   and statistics are rebuilt for every deme and never shared between representations.
 * **`-a hc` is byte-identical to classic MOSES as before.** No classic flag changed

@@ -132,6 +132,21 @@ class EvaluationOracle:
     ``preload`` (Phase 1e, used by the HC->GOMEA hybrid) hands the oracle
     genotypes that were already evaluated in this deme by another
     optimizer, so they are never charged, scored or archived again.
+
+    GOMEA extension, ``--gomea-accept-complexity-ratio``: ``stall_worse``
+    (``None`` by default) is a strict "``a`` worse than ``b``" test that
+    replaces the MOSES comparator for the stall rule only, so the rule
+    follows the same notion of "best" as GOM's acceptance. ``best_so_far``
+    and ``evals_at_best`` (hence ``deme.n_best_evals``) keep the MOSES
+    comparator.
+
+    GOMEA extension, ``--gomea-deme-store accepted``: with
+    ``store_accepted`` on, every evaluation is still scored, charged,
+    counted and appended to the deme as usual, but ``finalize`` then drops
+    every entry this oracle appended except those marked with ``keep``
+    (the initial population and the trials GOM/FI accepted). Entries that
+    were in the deme before this oracle (``preload``) are always kept.
+    ``deme.n_evals`` still counts every evaluation.
     """
 
     def __init__(
@@ -145,6 +160,8 @@ class EvaluationOracle:
         clock: Callable[[], float] = time.monotonic,
         genotype_memo: bool = False,
         stall_evals: int = 0,
+        stall_worse: Callable[[composite_score, composite_score], bool] | None = None,
+        store_accepted: bool = False,
     ) -> None:
         self.schema = schema
         self.iscorer = iscorer
@@ -167,6 +184,16 @@ class EvaluationOracle:
         self._seen: set[tuple[int, ...]] = set()
         # Genotype -> stored score, only when ``genotype_memo`` is on.
         self._memo: dict[tuple[int, ...], composite_score] | None = {} if genotype_memo else None
+        # The stall rule's own best under ``stall_worse`` (unused when None).
+        self._stall_worse = stall_worse
+        self._stall_best: composite_score | None = None
+        self._stall_best_evals = 0
+        # ``store_accepted``: the deme length before this oracle appended
+        # anything, the latest deme index of each evaluated genotype, and
+        # the indices ``keep`` marked. All ``None`` when off.
+        self._store_start: int | None = len(deme) if store_accepted else None
+        self._last_index: dict[tuple[int, ...], int] | None = {} if store_accepted else None
+        self._kept: set[int] | None = set() if store_accepted else None
 
     def check(self) -> str | None:
         """The budget reason that would stop evaluation right now, or
@@ -186,9 +213,22 @@ class EvaluationOracle:
             return "time_limit"
         # GOMEA extension, Phase 1e: the stall rule, checked after every
         # budget reason so a real budget stop is always reported as such.
-        if self.stall_evals > 0 and self.ledger.requests - self._best_evals >= self.stall_evals:
+        if self.stall_evals > 0 and self.ledger.requests - self._stall_ref() >= self.stall_evals:
             return "stall_evals"
         return None
+
+    def _stall_ref(self) -> int:
+        """The request count the stall rule measures from: when the best
+        last strictly improved, under ``stall_worse`` if one is set, else
+        under the MOSES comparator."""
+        return self._best_evals if self._stall_worse is None else self._stall_best_evals
+
+    def _offer_stall_best(self, score: composite_score, at: int) -> None:
+        if self._stall_worse is None:
+            return
+        if self._stall_best is None or self._stall_worse(self._stall_best, score):
+            self._stall_best = copy.copy(score)
+            self._stall_best_evals = at
 
     def evaluate(self, g: tuple[int, ...]) -> composite_score:
         """Score one genotype through the wrapped ``iscorer``, append it
@@ -244,12 +284,15 @@ class EvaluationOracle:
         # of packing and validating ``g`` a second time; ``scored_instance``
         # stores its own copies of both the instance and the score.
         self.deme.append(scored_instance(inst, score))
+        if self._last_index is not None:
+            self._last_index[key] = len(self.deme) - 1
         if self._memo is not None:
             self._memo[key] = copy.copy(score)
 
         if self._best is None or self._best < score:
             self._best = copy.copy(score)
             self._best_evals = self.ledger.requests
+        self._offer_stall_best(score, self.ledger.requests)
 
         return copy.copy(score)
 
@@ -278,7 +321,20 @@ class EvaluationOracle:
                 self._memo[key] = copy.copy(score)
             if self._best is None or self._best < score:
                 self._best = copy.copy(score)
+            self._offer_stall_best(score, 0)
         self._best_evals = 0
+        self._stall_best_evals = 0
+
+    def keep(self, g: tuple[int, ...]) -> None:
+        """With ``store_accepted`` on, keep the deme entry of ``g``'s most
+        recent evaluation by this oracle through ``finalize``. A genotype
+        this oracle never appended (preloaded, or never evaluated) needs no
+        mark: preloaded entries are always kept. A no-op when off."""
+        if self._last_index is None:
+            return
+        i = self._last_index.get(tuple(g))
+        if i is not None:
+            self._kept.add(i)
 
     def record_noop_skip(self) -> None:
         """A trial genotype identical to the recipient it would replace
@@ -317,7 +373,17 @@ class EvaluationOracle:
         After ``preload`` both counts are offset by ``prior_evals``, and
         ``n_best_evals`` is left as the earlier optimizer set it unless
         this oracle strictly improved on the preloaded best.
+
+        With ``store_accepted`` on, the entries this oracle appended are
+        then reduced to the ones ``keep`` marked, in their original order.
+        Only the stored instances change; both counts above still count
+        every evaluation. ``finalize`` is meant to be called once.
         """
+        if self._kept is not None:
+            start = self._store_start
+            self.deme[start:] = [
+                si for i, si in enumerate(self.deme[start:], start) if i in self._kept
+            ]
         self.deme.n_evals = self.prior_evals + self.ledger.requests
         if not self._preloaded or self._best_evals > 0:
             self.deme.n_best_evals = self.prior_evals + self.evals_at_best()

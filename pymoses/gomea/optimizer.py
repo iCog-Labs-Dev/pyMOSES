@@ -46,13 +46,19 @@ from pymoses.moses.moses.types import composite_score
 from pymoses.util.rng import MT19937RandGen, randGen
 
 __all__ = [
+    "DEME_STORE_MODES",
     "TERMINATION_REASONS",
+    "accept_worse",
     "gomea_optimization",
     "gomea_parameters",
     "population_diversity",
 ]
 
 FOS_MODES = ("lt-b", "lt-mi", "rt", "uni")
+
+# GOMEA extension, ``--gomea-deme-store``: which evaluated trials the deme
+# hands back to MOSES (see ``gomea_parameters``).
+DEME_STORE_MODES = ("all", "accepted")
 
 BUDGET_REASONS = frozenset({"global_budget", "inner_budget", "time_limit"})
 
@@ -119,7 +125,23 @@ class gomea_parameters:
     ``pop_max`` (M >= 2, 0 = no limit) then clamps ``N <= M``.
     ``deme_share`` (D) only records that ``max_evals_per_deme`` was derived
     as ``max(1, total_budget // D)`` (``_gomea_params_from_args`` does the
-    arithmetic, since only it knows the run's ``-m``)."""
+    arithmetic, since only it knows the run's ``-m``).
+
+    GOMEA extension, deme-local complexity penalty (both off by default,
+    and then left out of ``as_dict``, so a default run is unchanged):
+    ``accept_complexity_ratio`` (R > 0; 0 = off) makes every comparison
+    GOMEA makes inside a deme use ``accept_worse`` (``raw - complexity /
+    R``, MOSES's ``-z`` semantics) instead of MOSES's composite comparator:
+    GOM and forced-improvement acceptance, the elite, the engine's best
+    and its stagnation test, the ``stall_evals`` rule and ``run_seeded``'s
+    choice of seeds. What MOSES sees is unchanged: the scores stored in
+    the deme, ``deme.n_best_evals``, ``last_result["best"]``, and MOSES's
+    own merge and exemplar selection. ``deme_store`` (``"all"``, the
+    default, or ``"accepted"``) chooses which evaluated trials stay in the
+    deme handed back to MOSES: all of them, or only the initial population
+    and the trials GOM/FI accepted (``EvaluationOracle``'s
+    ``store_accepted``). Every evaluation is still charged and counted in
+    ``deme.n_evals``."""
 
     def __init__(
         self,
@@ -142,6 +164,8 @@ class gomea_parameters:
         pop_fraction: float = 0.0,
         pop_max: int = 0,
         deme_share: int = 0,
+        accept_complexity_ratio: float = 0.0,
+        deme_store: str = "all",
     ) -> None:
         if pop_size < 2:
             raise ValueError(f"pop_size must be >= 2, got {pop_size}")
@@ -171,6 +195,13 @@ class gomea_parameters:
             raise ValueError(f"pop_max must be 0 (no limit) or >= 2, got {pop_max}")
         if deme_share < 0:
             raise ValueError(f"deme_share must be >= 0 (0 = off), got {deme_share}")
+        if not (accept_complexity_ratio >= 0 and math.isfinite(accept_complexity_ratio)):
+            raise ValueError(
+                "accept_complexity_ratio must be a finite number >= 0 (0 = off), "
+                f"got {accept_complexity_ratio}"
+            )
+        if deme_store not in DEME_STORE_MODES:
+            raise ValueError(f"deme_store must be one of {DEME_STORE_MODES}, got {deme_store!r}")
         parse_radii(radii)
 
         self.pop_size = pop_size
@@ -192,14 +223,23 @@ class gomea_parameters:
         self.pop_fraction = pop_fraction
         self.pop_max = pop_max
         self.deme_share = deme_share
+        self.accept_complexity_ratio = accept_complexity_ratio
+        self.deme_store = deme_store
 
-    # The budget-derived options, left out of ``as_dict`` while 0 (off).
-    _OPTIONAL_KEYS = ("pop_fraction", "pop_max", "deme_share")
+    # The opt-in options, left out of ``as_dict`` while at their default
+    # (off), so a default run's telemetry is unchanged.
+    _OPTIONAL_DEFAULTS = {
+        "pop_fraction": 0.0,
+        "pop_max": 0,
+        "deme_share": 0,
+        "accept_complexity_ratio": 0.0,
+        "deme_store": "all",
+    }
 
     def as_dict(self) -> dict:
         d = dict(vars(self))
-        for k in self._OPTIONAL_KEYS:
-            if not d[k]:
+        for k, default in self._OPTIONAL_DEFAULTS.items():
+            if d[k] == default:
                 del d[k]
         return d
 
@@ -231,18 +271,57 @@ class gomea_parameters:
         return n
 
 
+def accept_worse(a: composite_score, b: composite_score, ratio: float) -> bool:
+    """GOMEA extension (``--gomea-accept-complexity-ratio``): "``a`` strictly
+    worse than ``b``" under a deme-local complexity penalty.
+
+    Each score is ranked by ``raw - complexity / ratio``, the same form as
+    MOSES's ``-z`` (a penalty of ``1 / ratio`` per complexity unit), with
+    MOSES's own complexity and uniformity penalties left out. Otherwise it
+    mirrors ``composite_score.__lt__`` exactly: on equal penalized values
+    the higher complexity is worse, and NaN is worse than anything except
+    NaN. Computed in double precision. ``ratio`` must be > 0.
+    """
+    lef = a.get_score() - a.get_complexity() / ratio
+    rig = b.get_score() - b.get_complexity() / ratio
+    if math.isnan(lef):
+        return not math.isnan(rig)
+    return (lef < rig) or (lef == rig and a.get_complexity() > b.get_complexity())
+
+
+class _WorseKey:
+    """A sort key ordering scores by an evaluator's ``worse``."""
+
+    __slots__ = ("score", "worse")
+
+    def __init__(self, score: composite_score, worse) -> None:
+        self.score = score
+        self.worse = worse
+
+    def __lt__(self, other: _WorseKey) -> bool:
+        return self.worse(self.score, other.score)
+
+
 class _OracleEvaluator:
     """The engine's ``Evaluator`` over one ``EvaluationOracle``.
 
-    ``worse(a, b)`` is MOSES's own ``composite_score.__lt__``. Phenotype keys
+    ``worse(a, b)`` is MOSES's own ``composite_score.__lt__``, or
+    ``accept_worse`` with ``accept_complexity_ratio > 0``. Phenotype keys
     are only computed when ``skip_inactive`` is on. Time spent scoring and
     computing phenotype keys is accumulated for the call's timings.
     """
 
-    def __init__(self, oracle: EvaluationOracle, schema: FrozenSchema, skip_inactive: bool):
+    def __init__(
+        self,
+        oracle: EvaluationOracle,
+        schema: FrozenSchema,
+        skip_inactive: bool,
+        accept_complexity_ratio: float = 0.0,
+    ):
         self.oracle = oracle
         self.schema = schema
         self.skip_inactive = skip_inactive
+        self.ratio = accept_complexity_ratio
         self.eval_s = 0.0
         self.pkey_s = 0.0
 
@@ -266,6 +345,8 @@ class _OracleEvaluator:
             self.pkey_s += time.perf_counter() - t0
 
     def worse(self, a: composite_score, b: composite_score) -> bool:
+        if self.ratio > 0:
+            return accept_worse(a, b, self.ratio)
         return a < b
 
     def record_noop_skip(self) -> None:
@@ -358,7 +439,7 @@ class gomea_optimization(optimizer_base):
         rng_init, rng_link, rng_var = _draw_streams()
         sink = TelemetrySink(gp.telemetry_path)
         oracle = self._make_oracle(schema, iscorer, deme, max_evals, max_time)
-        ev = _OracleEvaluator(oracle, schema, gp.skip_inactive)
+        ev = _OracleEvaluator(oracle, schema, gp.skip_inactive, gp.accept_complexity_ratio)
         n = gp.deme_pop_size(max_evals)
         self._emit_start(sink, schema, deme, max_evals, max_time)
 
@@ -385,7 +466,9 @@ class gomea_optimization(optimizer_base):
         Every instance already in ``deme`` is preloaded into the oracle
         (never charged, scored or appended again). The initial population is
         the N best distinct genotypes among them (N = ``deme_pop_size``),
-        ranked by the MOSES composite comparator (earliest first on ties),
+        ranked by the engine's comparator (MOSES's composite comparator, or
+        ``accept_worse`` with ``accept_complexity_ratio``; earliest first on
+        ties),
         with their existing scores; if there are fewer, it is topped up with MOSES
         sampler draws around the best one, which are evaluated normally.
         ``max_evals``/``max_time`` are what is left of the deme's budget;
@@ -401,12 +484,14 @@ class gomea_optimization(optimizer_base):
         oracle = self._make_oracle(schema, iscorer, deme, max_evals, max_time)
         prior = [(schema.to_genotype(si.first), si.second) for si in deme]
         oracle.preload(prior, deme.n_evals)
-        ev = _OracleEvaluator(oracle, schema, gp.skip_inactive)
+        ev = _OracleEvaluator(oracle, schema, gp.skip_inactive, gp.accept_complexity_ratio)
         n = gp.deme_pop_size(max_evals)
         self._emit_start(sink, schema, deme, max_evals, max_time, prior_evals=deme.n_evals)
 
         t0 = time.perf_counter()
-        ranked = sorted(range(len(prior)), key=lambda i: prior[i][1], reverse=True)
+        ranked = sorted(
+            range(len(prior)), key=lambda i: _WorseKey(prior[i][1], ev.worse), reverse=True
+        )
         seeds: list[tuple[int, ...]] = []
         seed_scores: list[composite_score] = []
         seen: set[tuple[int, ...]] = set()
@@ -446,7 +531,17 @@ class gomea_optimization(optimizer_base):
             inner_cap=gp.max_evals_per_deme,
             genotype_memo=gp.genotype_memo,
             stall_evals=gp.stall_evals,
+            stall_worse=self._accept_worse(),
+            store_accepted=gp.deme_store == "accepted",
         )
+
+    def _accept_worse(self):
+        """The deme-local comparator for ``accept_complexity_ratio > 0``,
+        ``None`` when it is off (MOSES's comparator)."""
+        ratio = self.gomea_params.accept_complexity_ratio
+        if ratio <= 0:
+            return None
+        return lambda a, b: accept_worse(a, b, ratio)
 
     def _emit_start(
         self,
@@ -526,6 +621,7 @@ class gomea_optimization(optimizer_base):
                 except BudgetExhausted as exc:
                     reason = exc.reason
                     break
+                oracle.keep(g)
                 population.append(Individual(g, score, ev.phenotype_key(g)))
 
             if reason is None:
@@ -566,6 +662,7 @@ class gomea_optimization(optimizer_base):
                     target=lambda s: s.get_score() >= terminate_if_gte,
                     on_generation=on_generation,
                     symbolize=self._symbolizer(schema),
+                    on_accept=oracle.keep if gp.deme_store == "accepted" else None,
                 )
                 reason = engine.run(population).termination_reason
         except KeyboardInterrupt:

@@ -191,6 +191,7 @@ flagged prominently in this task's report for whoever next touches
 from __future__ import annotations
 
 import argparse
+import math
 import sys
 
 from pymoses.comboreduct.combo.iostream_combo import _builtin_str_to_vertex, str_to_combo_tree
@@ -422,11 +423,34 @@ _GOMEA_OPTIONS = (
         "-a hc-capped) to max(1, floor(-m / D)), so a run gets about D demes. "
         "0 = off. Default 0.",
     ),
+    # Deme-local complexity penalty (off by default: a default run is
+    # unchanged).
+    (
+        "--gomea-accept-complexity-ratio",
+        "gomea_accept_complexity_ratio",
+        float,
+        0.0,
+        "rank candidates inside a GOMEA deme (GOM acceptance, elite, "
+        "stagnation) by raw score minus complexity / R, R being a complexity "
+        "ratio like that of the complexity penalty, instead of MOSES's "
+        "penalized score; MOSES's own scoring, merge and selection are "
+        "unchanged. 0 = off. Default 0.",
+    ),
+    (
+        "--gomea-deme-store",
+        "gomea_deme_store",
+        str,
+        "all",
+        "which evaluated GOMEA trials the deme hands back to MOSES: all, or "
+        "accepted (the initial population and accepted trials only; every "
+        "evaluation is still counted). Default all.",
+    ),
 )
 _GOMEA_INIT_CHOICES = ("sampler", "uniform")
 _GOMEA_ACCEPT_CHOICES = ("nonworse", "strict")
 _GOMEA_CONTIN_CHOICES = ("reject", "copy")
 _GOMEA_CONTIN_STATS_CHOICES = ("bin", "all", "none")
+_GOMEA_DEME_STORE_CHOICES = ("all", "accepted")
 
 
 class _ClassicPrefixAlias(argparse.Action):
@@ -488,6 +512,7 @@ def _gomea_params_from_args(args: argparse.Namespace) -> gomea_parameters:
         ("--gomea-accept", "gomea_accept", _GOMEA_ACCEPT_CHOICES),
         ("--gomea-contin", "gomea_contin", _GOMEA_CONTIN_CHOICES),
         ("--gomea-contin-stats", "gomea_contin_stats", _GOMEA_CONTIN_STATS_CHOICES),
+        ("--gomea-deme-store", "gomea_deme_store", _GOMEA_DEME_STORE_CHOICES),
     ):
         if v[dest] not in choices:
             raise ValueError(
@@ -513,6 +538,11 @@ def _gomea_params_from_args(args: argparse.Namespace) -> gomea_parameters:
         raise ValueError(f"--gomea-pop-max must be 0 (no limit) or >= 2, got {v['gomea_pop_max']}")
     if v["gomea_pop_max"] and not pop_fraction:
         raise ValueError("--gomea-pop-max needs --gomea-pop-fraction")
+    ratio = v["gomea_accept_complexity_ratio"]
+    if not (ratio >= 0 and math.isfinite(ratio)):
+        raise ValueError(
+            f"--gomea-accept-complexity-ratio must be a finite number >= 0 (0 = off), got {ratio}"
+        )
     return gomea_parameters(
         pop_size=v["gomea_pop_size"],
         fos=v["gomea_fos"],
@@ -532,6 +562,8 @@ def _gomea_params_from_args(args: argparse.Namespace) -> gomea_parameters:
         pop_fraction=pop_fraction,
         pop_max=v["gomea_pop_max"],
         deme_share=v["gomea_deme_share"],
+        accept_complexity_ratio=ratio,
+        deme_store=v["gomea_deme_store"],
     )
 
 

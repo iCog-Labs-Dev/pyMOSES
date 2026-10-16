@@ -86,6 +86,7 @@ class GomeaEngine:
         target: Callable[[Score], bool] | None = None,
         on_generation: Callable[[dict, list[Individual]], None] | None = None,
         symbolize: Callable[[Sequence[tuple[int, ...]]], list[tuple[int, ...]]] | None = None,
+        on_accept: Callable[[tuple[int, ...]], None] | None = None,
     ) -> None:
         self.domains = list(domains)
         self.params = params
@@ -97,6 +98,10 @@ class GomeaEngine:
         # GOMEA extension: the constant recoding for linkage learning
         # (``LinkageModel``'s ``symbolize``; ``None`` = none).
         self.symbolize = symbolize
+        # GOMEA extension (``--gomea-deme-store accepted``): called with
+        # every evaluated trial GOM or FI accepts (``gom``'s ``on_accept``;
+        # ``None`` = none).
+        self.on_accept = on_accept
         self.last_result: EngineResult | None = None
         self.elite: Individual | None = None
         # The run's calibrated linkage model (``None`` before ``run``), so
@@ -227,6 +232,8 @@ def perform_generation(
         eng.elite = eng.best_of(donors)
     fi_threshold = 1 + math.floor(math.log10(len(P)))
     stats = GomStats()
+    # Passed only when set, so the call is unchanged without the hook.
+    hook = {} if eng.on_accept is None else {"on_accept": eng.on_accept}
     offspring: list[Individual] = []
     stop: str | None = None
     t1 = time.perf_counter()
@@ -241,6 +248,7 @@ def perform_generation(
                 stats,
                 eng.params.skip_inactive,
                 eng.params.acceptance,
+                **hook,
             )
             eng.offer_elite(off)
             if (
@@ -248,7 +256,7 @@ def perform_generation(
                 and (not changed or nis > fi_threshold)
                 and off.genotype != eng.elite.genotype
             ):
-                off = forced_improvement(off, eng.elite, F, eng.ev, eng.rng_var, stats)
+                off = forced_improvement(off, eng.elite, F, eng.ev, eng.rng_var, stats, **hook)
                 eng.offer_elite(off)
         except GomInterrupted as exc:
             eng.offer_elite(exc.offspring)

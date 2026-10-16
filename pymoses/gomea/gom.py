@@ -13,7 +13,7 @@ Virgolin); forced improvements are a labelled reconstruction. See
 from __future__ import annotations
 
 import dataclasses
-from collections.abc import Hashable, Sequence
+from collections.abc import Callable, Hashable, Sequence
 from dataclasses import dataclass
 from typing import Any, Protocol
 
@@ -127,6 +127,7 @@ def gom(
     stats: GomStats,
     skip_inactive: bool,
     acceptance: str = "nonworse",
+    on_accept: Callable[[tuple[int, ...]], None] | None = None,
 ) -> tuple[Individual, bool, bool]:
     """GP-GOMEA: src/GOMEA/GOMVariator.cpp:22 GOMVariator::GOM
 
@@ -150,6 +151,12 @@ def gom(
     trial is restored and counted as ``rejected``, and so is a proven
     phenotype skip, which can never be strictly better (it still counts as
     a ``phenotype_skips`` and is never evaluated).
+
+    GOMEA extension (``--gomea-deme-store accepted``): ``on_accept``, when
+    given, is called with every evaluated trial GOM keeps (improving or
+    neutral), right after it is accepted. A proven phenotype skip is never
+    evaluated, so it is never reported. ``None`` (the default) changes
+    nothing.
 
     Returns ``(offspring, changed, strictly_improved)``. A
     ``BudgetExhausted`` from ``ev.evaluate`` is re-raised as
@@ -193,6 +200,8 @@ def gom(
         else:
             stats.accepted_neutral += 1
         cur_g, cur_s, cur_k = trial, trial_s, trial_k
+        if on_accept is not None:
+            on_accept(trial)
     offspring = Individual(cur_g, cur_s, cur_k)
     return offspring, cur_g != recipient.genotype, improved
 
@@ -204,6 +213,7 @@ def forced_improvement(
     ev: Evaluator,
     rng: MT19937RandGen,
     stats: GomStats,
+    on_accept: Callable[[tuple[int, ...]], None] | None = None,
 ) -> Individual:
     """Forced improvement: a labelled reconstruction.
 
@@ -228,6 +238,10 @@ def forced_improvement(
     ``trials``, ``evaluated``, ``accepted_*`` and ``rejected`` are left
     alone. A ``BudgetExhausted`` is re-raised as ``GomInterrupted``
     carrying the unchanged ``offspring``.
+
+    ``on_accept`` (as in ``gom``) is called with the accepted strictly
+    improving trial, if any. An elite copy is not reported: the elite is
+    already an accepted (or initial) individual.
     """
     stats.fi_events += 1
     cur_g, cur_s, cur_k = offspring.genotype, offspring.score, offspring.pkey
@@ -250,6 +264,8 @@ def forced_improvement(
         stats.fi_evaluated += 1
         if ev.worse(cur_s, trial_s):
             stats.fi_improved += 1
+            if on_accept is not None:
+                on_accept(trial)
             return Individual(trial, trial_s, trial_k)
     if not ev.worse(cur_s, elite.score):
         return offspring
