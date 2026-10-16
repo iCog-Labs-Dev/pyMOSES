@@ -28,7 +28,10 @@ the same cap.
   * **mux11:** T = 3,600 s, seeds 3001–3010, extension 3011–3020.
   * **Con:** T = 1,000 s, splits 1–10, extension 11–20.
 * **Manifests:** `configs/gomea/phase1p/`. Code: the commit in the mux11 manifest.
-* **Load:** 10 workers, launched only when no other heavy work runs. CPU time is recorded.
+* **Load:** 10 workers on 22 cores. CPU time is recorded.
+  * **Launch note (2026-10-16 17:25):** launched while two agent pilots used about 5 cores, so
+    about 15 busy processes on 22 cores and every run still had a core to itself. The plan
+    had been to wait for an idle machine.
 
 ## Analysis (`tools/gomea/phase1p_report.py`)
 
