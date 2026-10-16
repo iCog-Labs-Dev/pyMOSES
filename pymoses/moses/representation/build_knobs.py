@@ -69,6 +69,10 @@ from pymoses.util.tree import tree_node
 
 ProbeSimplifier = Callable[[combo_tree], None]
 
+# No C++ counterpart: the values of `--knob-probe-baseline` (see
+# `build_knobs._disc_probe_reduced_baseline`). "classic" is classic MOSES.
+PROBE_BASELINES = ("classic", "reduced")
+
 _FUTURE_OUTPUT_TYPES = frozenset(
     {
         type_node.action_result_type,
@@ -122,6 +126,46 @@ _BOOLEAN_ALLOWED_BUILTINS = frozenset(
 )
 
 
+def _baseline_key(root: tree_node) -> tuple | None:
+    """No C++ counterpart: an exact key for `clean_reduce` of the tree at
+    `root`, read off the live tree without copying it (used only by
+    `--knob-probe-baseline reduced`).
+
+    `clean_reduce` removes every `null_vertex`-rooted subtree and then every
+    junctor left childless, so its result depends only on the tree with the
+    null subtrees left out. The key is that tree's pre-order sequence of
+    (vertex class, exact value, child count), as in `representation.
+    _reduction_cache_key`. Returns None ("do not memoise") for `cond` and
+    `contin_if`, where removing a null condition also removes its consequent,
+    and for any payload type not listed here.
+    """
+    key: list = []
+    stack = [root]
+    while stack:
+        node = stack.pop()
+        data = node.data
+        cls = type(data)
+        if cls is argument:
+            value: object = data.idx
+        elif isinstance(data, builtin):
+            if data == builtin.cond or data == builtin.contin_if:
+                return None
+            value = int(data)
+        elif cls is float:
+            value = data.hex()
+        else:
+            return None
+        children = []
+        child = node.first_child
+        while child is not None:
+            if not (isinstance(child.data, builtin) and child.data == builtin.null_vertex):
+                children.append(child)
+            child = child.next_sibling
+        key.append((cls, value, len(children)))
+        stack.extend(reversed(children))
+    return tuple(key)
+
+
 # DIVERGENCE(C++ moses/moses/representation/build_knobs.cc:53-123): this
 # vertical slice admits Boolean-output and contin-output signatures over
 # Boolean and/or contin inputs -- including the MIXED case, where a
@@ -156,8 +200,13 @@ class build_knobs:
         step_size: contin_t = 1.0,
         expansion: contin_t = 1.0,
         depth: int = 4,
+        probe_baseline: str = "classic",
     ) -> None:
         """C++: moses/moses/representation/build_knobs.cc:53 build_knobs::build_knobs
+
+        ``probe_baseline`` has no C++ counterpart: ``"classic"`` (default)
+        probes knobs exactly as classic does; ``"reduced"`` selects the
+        opt-in ``_disc_probe_reduced_baseline`` (see its DIVERGENCE note).
 
         ``linear_contin``/``step_size``/``expansion``/``depth`` default to
         build_knobs.h:54-56's own literal constructor defaults (``true``,
@@ -180,6 +229,15 @@ class build_knobs:
         )
         if not isinstance(linear_contin, bool):
             raise TypeError("linear_contin must be a bool")
+        if probe_baseline not in PROBE_BASELINES:
+            raise ValueError(
+                f"probe_baseline must be one of {', '.join(PROBE_BASELINES)}, "
+                f"got {probe_baseline!r}"
+            )
+        self._probe_baseline = probe_baseline
+        # Reduced-baseline complexities by `_baseline_key` (probe_baseline
+        # "reduced" only; see `_reduced_complexity`).
+        self._baseline_memo: dict[tuple, int] = {}
         self._exemplar = exemplar
         self._signature = signature
         self._mapper = mapper
@@ -527,6 +585,8 @@ class build_knobs:
         """C++: moses/moses/representation/build_knobs.cc:311 build_knobs::disc_probe"""
         if self._skip_disc_probe:
             return True
+        if self._probe_baseline == "reduced":
+            return self._disc_probe_reduced_baseline(subtree, knob)
 
         to_disallow: list[int] = []
         for idx in range(1, knob.multiplicity()):
@@ -546,6 +606,75 @@ class build_knobs:
 
         knob.clear_exemplar()
         return False
+
+    # DIVERGENCE(C++ moses/moses/representation/build_knobs.cc:311-341):
+    # opt-in only (`--knob-probe-baseline reduced`; the default `classic`
+    # runs `disc_probe` above, unchanged). Classic disallows a setting when
+    # reducing the whole decorated tree with that setting lowers its
+    # complexity, which assumes the tree with every knob at 0 (the
+    # baseline) is a fixpoint of the knob-building reducer. Effort-2
+    # logical reduction is not confluent, though: once `build_logical` has
+    # wrapped a literal in a single-child flip junctor, the reducer can
+    # find a simplification of the BASELINE it missed on the plain
+    # exemplar, and from then on every probe of every later knob "reduces",
+    # so almost every later knob is thrown away (docs/gomea/BACKLOG.md
+    # section 4 item 1; e.g. 135 knobs instead of about 1,000).
+    #
+    # This variant charges a setting only for the reduction it ADDS: it is
+    # disallowed when the setting's tree loses more complexity under
+    # reduction than the baseline does,
+    #     c(T_idx) - c(R(T_idx)) > c(T_0) - c(R(T_0)).
+    # When the baseline is a fixpoint (c(T_0) == c(R(T_0)), the normal
+    # case) this is exactly classic's test, so it differs from classic only
+    # on demes whose baseline is itself reducible.
+    def _disc_probe_reduced_baseline(
+        self, subtree: tree_node, knob: logical_subtree_knob
+    ) -> bool:
+        knob.turn(0)
+        baseline_slack = tree_complexity(subtree, is_predicate) - self._reduced_complexity(
+            subtree
+        )
+
+        to_disallow: list[int] = []
+        for idx in range(1, knob.multiplicity()):
+            knob.turn(idx)
+            initial_complexity = tree_complexity(subtree, is_predicate)
+            reduced = combo_tree(subtree)
+            clean_reduce(reduced)
+            self._simplify_knob_building(reduced)
+            if initial_complexity - tree_complexity(reduced, is_predicate) > baseline_slack:
+                to_disallow.append(idx)
+        knob.turn(0)
+
+        if len(to_disallow) < knob.multiplicity() - 1:
+            for idx in to_disallow:
+                knob.disallow(idx)
+            return True
+
+        knob.clear_exemplar()
+        return False
+
+    def _reduced_complexity(self, subtree: tree_node) -> int:
+        """Complexity of `subtree` after `clean_reduce` and the knob-building
+        reducer (used only by `_disc_probe_reduced_baseline`).
+
+        Memoised by `_baseline_key`: every knob probed at one junctor sees the
+        same baseline once its absent (null_vertex) knobs are cleaned away, so
+        the baseline is reduced about once per junctor rather than once per
+        knob. The reducer is deterministic, so a hit equals a fresh reduction.
+        """
+        key = _baseline_key(subtree)
+        if key is not None:
+            hit = self._baseline_memo.get(key)
+            if hit is not None:
+                return hit
+        cleaned = combo_tree(subtree)
+        clean_reduce(cleaned)
+        self._simplify_knob_building(cleaned)
+        result = tree_complexity(cleaned, is_predicate)
+        if key is not None:
+            self._baseline_memo[key] = result
+        return result
 
     def insert_typed_arg(
         self,

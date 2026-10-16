@@ -212,6 +212,7 @@ from pymoses.moses.moses.optimization.hill_climbing import hc_parameters
 from pymoses.moses.moses.optimization.optimization import optim_parameters
 from pymoses.moses.moses.optimization.particle_swarm import ps_parameters
 from pymoses.moses.moses.types import _to_score_t, very_best_score
+from pymoses.moses.representation.build_knobs import PROBE_BASELINES
 from pymoses.moses.representation.representation import set_depth
 from pymoses.util.logger import logger, ostream_double
 from pymoses.util.rng import randGen
@@ -445,12 +446,49 @@ _GOMEA_OPTIONS = (
         "accepted (the initial population and accepted trials only; every "
         "evaluation is still counted). Default all.",
     ),
+    # Top-K FOS subsets per generation (off by default: a default run is
+    # unchanged).
+    (
+        "--gomea-fos-topk",
+        "gomea_fos_topk",
+        int,
+        0,
+        "visit only K FOS subsets per GOMEA generation (chosen by "
+        "--gomea-fos-topk-mode), so a generation costs about N x K "
+        "evaluations. 0 = off (all subsets). Default 0.",
+    ),
+    (
+        "--gomea-fos-topk-mode",
+        "gomea_fos_topk_mode",
+        str,
+        "linkage",
+        "with --gomea-fos-topk K: linkage (the K linkage-tree merges with the "
+        "strongest linkage; needs --gomea-fos lt-b or lt-mi) or random (K "
+        "subsets drawn uniformly each generation). Default linkage.",
+    ),
+)
+# NOT A PORT (pyMoses extension, no C++ counterpart; not GOMEA-specific): options
+# registered with the GOMEA ones (after every classic option), off by default.
+_PORT_OPTIONS = (
+    (
+        "--simplify-exemplar-numeric",
+        "simplify_exemplar_numeric",
+        float,
+        0.0,
+        "regression (contin output) only: before knobs are built around an "
+        "exemplar, replace each subtree whose output range on the training "
+        "data is below TOL times the standard deviation of the training "
+        "target by the mean of its outputs, keeping a replacement only if "
+        "the training score (with the complexity penalty) is not worse. "
+        "0 = off. Default 0.",
+    ),
 )
 _GOMEA_INIT_CHOICES = ("sampler", "uniform")
 _GOMEA_ACCEPT_CHOICES = ("nonworse", "strict")
 _GOMEA_CONTIN_CHOICES = ("reject", "copy")
 _GOMEA_CONTIN_STATS_CHOICES = ("bin", "all", "none")
 _GOMEA_DEME_STORE_CHOICES = ("all", "accepted")
+_GOMEA_FOS_TOPK_MODE_CHOICES = ("linkage", "random")
 
 
 class _ClassicPrefixAlias(argparse.Action):
@@ -513,6 +551,7 @@ def _gomea_params_from_args(args: argparse.Namespace) -> gomea_parameters:
         ("--gomea-contin", "gomea_contin", _GOMEA_CONTIN_CHOICES),
         ("--gomea-contin-stats", "gomea_contin_stats", _GOMEA_CONTIN_STATS_CHOICES),
         ("--gomea-deme-store", "gomea_deme_store", _GOMEA_DEME_STORE_CHOICES),
+        ("--gomea-fos-topk-mode", "gomea_fos_topk_mode", _GOMEA_FOS_TOPK_MODE_CHOICES),
     ):
         if v[dest] not in choices:
             raise ValueError(
@@ -543,6 +582,14 @@ def _gomea_params_from_args(args: argparse.Namespace) -> gomea_parameters:
         raise ValueError(
             f"--gomea-accept-complexity-ratio must be a finite number >= 0 (0 = off), got {ratio}"
         )
+    if v["gomea_fos_topk"] < 0:
+        raise ValueError(f"--gomea-fos-topk must be >= 0 (0 = off), got {v['gomea_fos_topk']}")
+    linkage_topk = v["gomea_fos_topk"] and v["gomea_fos_topk_mode"] == "linkage"
+    if linkage_topk and v["gomea_fos"] in ("uni", "rt"):
+        raise ValueError(
+            "--gomea-fos-topk-mode linkage needs --gomea-fos lt-b or lt-mi, "
+            f"got --gomea-fos {v['gomea_fos']}"
+        )
     return gomea_parameters(
         pop_size=v["gomea_pop_size"],
         fos=v["gomea_fos"],
@@ -564,6 +611,8 @@ def _gomea_params_from_args(args: argparse.Namespace) -> gomea_parameters:
         deme_share=v["gomea_deme_share"],
         accept_complexity_ratio=ratio,
         deme_store=v["gomea_deme_store"],
+        fos_topk=v["gomea_fos_topk"],
+        fos_topk_mode=v["gomea_fos_topk_mode"],
     )
 
 
@@ -905,7 +954,8 @@ class problem_params:
 
     # GOMEA extension (not in classic MOSES).
     def add_gomea_options(self, parser: argparse.ArgumentParser) -> None:
-        """Register the `--gomea-*` options (`_GOMEA_OPTIONS`).
+        """Register the `--gomea-*` options (`_GOMEA_OPTIONS`) and the other
+        port-only options (`_PORT_OPTIONS`, e.g. `--simplify-exemplar-numeric`).
 
         Kept out of `add_options` so that `add_options` still registers
         exactly classic's option surface. `moses_exec` calls this after every
@@ -913,8 +963,23 @@ class problem_params:
         their order and wrapping and the GOMEA lines only follow them.
         """
         classic = [o for o in parser._option_string_actions if o.startswith("--")]
-        for flag, dest, type_, default, help_text in _GOMEA_OPTIONS:
+        for flag, dest, type_, default, help_text in (*_GOMEA_OPTIONS, *_PORT_OPTIONS):
             parser.add_argument(flag, dest=dest, type=type_, default=default, help=help_text)
+        # Extension (not in classic MOSES), registered here with the other
+        # extensions so classic's own option surface stays unchanged. It is
+        # knob building, so it applies to every optimizer (HC and GOMEA).
+        parser.add_argument(
+            "--knob-probe-baseline",
+            dest="knob_probe_baseline",
+            type=str,
+            default="classic",
+            help="how knob building decides that a knob setting is redundant: "
+            "classic (classic MOSES: reducing the decorated exemplar with that "
+            "setting lowers its complexity) or reduced (the setting lowers it by "
+            "more than reducing the exemplar with the knob at 0 does; keeps knob "
+            "counts from collapsing when that exemplar is itself reducible). "
+            "Default classic.",
+        )
         # GOMEA extension (not in classic MOSES): argparse accepts any unique
         # prefix of a long option (`allow_abbrev`), so adding `--gomea-*`
         # would make a prefix such as `--g` (until now `--gen-best-tree`)
@@ -1133,6 +1198,15 @@ class problem_params:
         # NOT fix" -- ported verbatim, unconditionally, no gate of its own.
         deme_params.linear_contin = self.linear_regression
         deme_params.perm_ratio = self.perm_ratio
+        # Extension (not in classic MOSES): `--knob-probe-baseline`, read
+        # with its default when the namespace was built without it.
+        knob_probe_baseline = getattr(args, "knob_probe_baseline", "classic")
+        if knob_probe_baseline not in PROBE_BASELINES:
+            raise ValueError(
+                f"--knob-probe-baseline {knob_probe_baseline} is not recognized. "
+                f"Supported: {', '.join(PROBE_BASELINES)}."
+            )
+        deme_params.knob_probe_baseline = knob_probe_baseline
         self.deme_params = deme_params
 
         # -- cache size / boosting cache-clear (C++: :2266-2274,2285-2286) --
@@ -1258,6 +1332,14 @@ class problem_params:
         # GOMEA extension (not in classic MOSES): the `-a gomea` settings,
         # handed to `metapop_moses_results` next to `hc_params`/`ps_params`.
         self.gomea_params = _gomea_params_from_args(args)
+        # NOT A PORT (pyMoses extension): `--simplify-exemplar-numeric`, read
+        # by the regression problems (`table_problems._regression`).
+        tol = getattr(args, "simplify_exemplar_numeric", 0.0)
+        if not (tol >= 0 and math.isfinite(tol)):
+            raise ValueError(
+                f"--simplify-exemplar-numeric must be a finite number >= 0 (0 = off), got {tol}"
+            )
+        self.simplify_exemplar_numeric = tol
 
         # -- Set depth (C++: :2371-2372 `set_depth(contin_depth)`) --
         # `representation.py`'s module-level `_depth` static, exactly as

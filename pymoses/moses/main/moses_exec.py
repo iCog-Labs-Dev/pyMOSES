@@ -459,6 +459,14 @@ def moses_exec(argv: Sequence[str] | str) -> int:
 
     probm = pmr.find_problem(pp.problem)
     if probm is not None:
+        # NOT A PORT (pyMoses extension): `--simplify-exemplar-numeric` is
+        # for regression, which only `-H it` on a contin-output table runs
+        # (`table_problems._regression` refuses a non-contin `it` itself).
+        if pp.simplify_exemplar_numeric > 0 and probm.name() != "it":
+            raise ValueError(
+                "--simplify-exemplar-numeric applies to regression only "
+                f"(-H it on a table with a contin output), not to -H {pp.problem}"
+            )
         probm.run(pp)
         return 0
 

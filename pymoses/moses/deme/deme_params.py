@@ -133,3 +133,12 @@ class deme_parameters:
         self.actions = actions
         self.fstor = fstor
         self.linear_contin = True
+        # No C++ counterpart: `--knob-probe-baseline` (see
+        # `build_knobs._disc_probe_reduced_baseline`). "classic" is classic
+        # MOSES's knob probing.
+        self.knob_probe_baseline = "classic"
+        # NOT A PORT (pyMoses extension, no C++ counterpart): the
+        # `--simplify-exemplar-numeric` pass
+        # (`numeric_simplify.exemplar_numeric_simplifier`), set by the
+        # regression problems when the option is on; `None` = off.
+        self.numeric_simplifier = None

@@ -28,6 +28,18 @@ windows scale with the complexity temperature `-v`. So, per run, the runner:
 
 The MOSES seed is the split number. Runs are resumable: an existing `summary.json` is
 kept.
+
+**Seeding (backlog item 9).** An arm may carry a `seed` block, `{"binary": gpgomea-seed,
+"share": 0.2 | "budget": N, "height": 3, "k": 5, "popsize": .., "functions": ..,
+"gpgomea_argv": [..], "with_empty": true}` (evaluation budgets only). The runner then runs
+`gpgomea_seed.make_seeds` on `train_scaled.csv` (the file MOSES reads, so the seeds' linear
+scaling fits the rescaled target) with `share * N` evaluations and the split number as
+GP-GOMEA's seed, gives MOSES `-m (N - used)` and `-e SEED ... -e +`, and writes
+`seeds.json`. The summary's `n_evals_total` and `cpu_s` include GP-GOMEA's evaluations and
+CPU time (`n_evals`, `moses_cpu_s` are MOSES's own); `seed_*_nmse` report the best seed
+(by training score) on the original splits; with pyMoses, `lineage.json`
+(`seed_lineage.py`) gives the lineage of every program left in the metapopulation and
+`final_lineage` that of the reported program.
 """
 
 from __future__ import annotations
@@ -47,6 +59,8 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import sr_eval  # noqa: E402
+
+REPO = Path(__file__).resolve().parents[2]
 
 
 def _scale_train(src: Path, dst: Path) -> tuple[int, float, float]:
@@ -93,13 +107,38 @@ def _run_one(job: dict) -> dict:
     if "evals" not in b:
         argv += ["-m", "1000000000"]
     argv += job["argv"]
-    if Path(job["binary"]).parent.name == "bin" and Path(job["binary"]).name == "moses":
+    seed_rec = None
+    if job.get("seed_spec"):
+        try:
+            seed_rec, argv = _apply_seed(job, argv, run_dir)
+        except Exception as exc:  # never let one failed seeding kill the pool
+            summary = {
+                "run_id": job["run_id"], "task": job["task"], "arm": job["arm"],
+                "seed": job["seed"], "status": "error",
+                "error": f"seeding: {type(exc).__name__}: {exc}"[:300],
+                "test_nmse": None, "train_nmse": None, "val_nmse": None, "n_evals": None,
+            }
+            summary_path.write_text(json.dumps(summary, indent=2, sort_keys=True))
+            return summary
+    is_pymoses = Path(job["binary"]).parent.name == "bin" and Path(job["binary"]).name == "moses"
+    if is_pymoses:
         # pyMoses: run it with a raised recursion limit. Its recursive neighbourhood
         # counting nests once per knob, past Python's default of 1,000 on large
         # representations (Dow). The limit only decides whether a run can finish.
+        lineage = ""
+        if seed_rec is not None:
+            labels = [f"seed{i + 1}" for i in range(len(seed_rec["seeds"]))]
+            labels += ["empty"] if seed_rec["with_empty"] else []
+            lineage = (
+                f"sys.path.insert(0, {str(Path(__file__).resolve().parent)!r}); "
+                "import atexit, seed_lineage; "
+                f"atexit.register(seed_lineage.install({labels!r}).write, "
+                f"{str(run_dir / 'lineage.json')!r}); "
+            )
         boot = (
             "import sys; sys.setrecursionlimit(100000); "
-            "from pymoses.moses.main.moses_exec import moses_exec; "
+            + lineage
+            + "from pymoses.moses.main.moses_exec import moses_exec; "
             "sys.exit(moses_exec(['moses', *sys.argv[1:]]))"
         )
         python = str(Path(job["binary"]).with_name("python"))
@@ -114,7 +153,14 @@ def _run_one(job: dict) -> dict:
             capture_output=True,
             text=True,
             timeout=job["wall_cap_s"],
-            env={**os.environ, "OMP_NUM_THREADS": "1", "PYTHONHASHSEED": "0"},
+            # PYTHONPATH: run this repository's pymoses (the run's cwd is its run
+            # directory, so the venv's editable install would win otherwise)
+            env={
+                **os.environ,
+                "OMP_NUM_THREADS": "1",
+                "PYTHONHASHSEED": "0",
+                **({"PYTHONPATH": str(REPO)} if is_pymoses else {}),
+            },
             cwd=run_dir,
             preexec_fn=_limit(job.get("mem_limit_mb")),
         )
@@ -162,6 +208,7 @@ def _run_one(job: dict) -> dict:
         status, error = "error", "no candidate parsed"
     best = min(scored, key=lambda c: c["val_nmse"]) if scored else {}
     first = scored[0] if scored else {}
+    seeding = _seed_summary(seed_rec, run_dir, best.get("program"), train, val, test)
     summary = {
         "run_id": job["run_id"],
         "task": job["task"],
@@ -186,11 +233,88 @@ def _run_one(job: dict) -> dict:
         "final_program": best.get("program"),
         "first_train_nmse": first.get("train_nmse"),
         "first_test_nmse": first.get("test_nmse"),
+        **seeding,
     }
+    if seed_rec is not None:
+        summary["moses_cpu_s"] = summary["cpu_s"]
+        summary["cpu_s"] += seed_rec["gpgomea"]["cpu_s"]
+        if summary["n_evals"] is not None:
+            summary["n_evals_total"] = summary["n_evals"] + seed_rec["evaluations_used"]
     tmp = summary_path.with_suffix(".tmp")
     tmp.write_text(json.dumps(summary, indent=2, sort_keys=True))
     os.replace(tmp, summary_path)
     return summary
+
+
+def _apply_seed(job: dict, argv: list[str], run_dir: Path) -> tuple[dict, list[str]]:
+    """GP-GOMEA seeds on `train_scaled.csv`, paid out of the arm's evaluation budget."""
+    import gpgomea_seed as gs
+
+    spec, b = job["seed_spec"], job["budget"]
+    if "evals" not in b:
+        raise ValueError("seeding needs an evaluation budget ({'evals': N})")
+    total = int(b["evals"])
+    b_seed = int(spec["budget"]) if "budget" in spec else int(spec["share"] * total)
+    rec = gs.make_seeds(
+        "regression",
+        spec["binary"] if os.path.isabs(spec["binary"]) else str(REPO / spec["binary"]),
+        b_seed,
+        int(spec.get("height", 3)),
+        int(job["seed"]),
+        int(spec.get("k", 5)),
+        run_dir / "gpgomea",
+        train_csv=run_dir / "train_scaled.csv",
+        popsize=spec.get("popsize"),
+        functions=spec.get("functions"),
+        extra=spec.get("gpgomea_argv"),
+        tol=float(spec.get("tol", 1e-5)),
+    )
+    with_empty = bool(spec.get("with_empty", True))
+    moses_m = gs.shared_budget(total, rec["evaluations_used"])
+    argv = gs.replace_max_evals(argv, moses_m)
+    argv += gs.exemplar_argv("regression", [x["combo"] for x in rec["seeds"]], with_empty)
+    rec.update(total_budget=total, seed_budget=b_seed, moses_budget=moses_m,
+               with_empty=with_empty)
+    (run_dir / "seeds.json").write_text(json.dumps(rec, indent=2))
+    return rec, argv
+
+
+def _seed_summary(rec, run_dir: Path, final_program, train, val, test) -> dict:
+    """Seeding fields of a seeded run's summary (empty for an unseeded one)."""
+    if rec is None:
+        return {}
+    out: dict = {
+        "seed_evals": rec["evaluations_used"],
+        "seed_budget": rec["seed_budget"],
+        "moses_budget": rec["moses_budget"],
+        "gpgomea_cpu_s": rec["gpgomea"]["cpu_s"],
+        "n_seeds": len(rec["seeds"]),
+        "seed_n_score_matches": rec.get("n_score_matches"),
+        "seed_n_rejected": rec.get("n_rejected"),
+    }
+    if rec["seeds"]:
+        top = rec["seeds"][0]["combo"]
+        try:
+            on_val = sr_eval.evaluate(top, train, val)
+            on_test = sr_eval.evaluate(top, train, test)
+            out.update(
+                seed_train_nmse=on_val["train"]["nmse_scaled"],
+                seed_val_nmse=on_val["test"]["nmse_scaled"],
+                seed_test_nmse=on_test["test"]["nmse_scaled"],
+            )
+        except Exception as exc:  # report, never fail the run
+            out["seed_eval_error"] = f"{type(exc).__name__}: {exc}"[:300]
+    lin_path = run_dir / "lineage.json"
+    if lin_path.exists():
+        import seed_lineage
+
+        lin = json.loads(lin_path.read_text())
+        out["expansions_by_lineage"] = lin.get("expansions_by_lineage")
+        out["best_train_lineages"] = lin.get("best_lineages")
+        if final_program is not None:
+            key = seed_lineage.key_of(final_program)
+            out["final_lineage"] = lin.get("pool", {}).get(key, "not in final metapopulation")
+    return out
 
 
 def expand(manifest: dict, out_root: Path, repo: Path) -> list[dict]:
@@ -210,6 +334,7 @@ def expand(manifest: dict, out_root: Path, repo: Path) -> list[dict]:
                         "binary": str(Path(binary).absolute()),
                         "argv": a.get("argv", []),
                         "budget": a["budget"],
+                        "seed_spec": a.get("seed"),
                         "split_dir": str(ddir / ds / "splits" / f"s{seed}"),
                         "wall_cap_s": manifest["wall_cap_s"],
                         "mem_limit_mb": manifest.get("mem_limit_mb"),

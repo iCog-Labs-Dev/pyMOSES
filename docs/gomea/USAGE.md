@@ -124,6 +124,9 @@ to, so an invalid value is always rejected.
 | `--gomea-deme-share D` | `0` (off) | Set the per-deme cap to `max(1, floor(-m / D))`, so a run gets about D demes. It is the same cap `--gomea-max-evals-per-deme` sets, and also applies to `-a hc-capped`. Giving both is an error unless they give the same cap. |
 | `--gomea-accept-complexity-ratio R` | `0` (off) | Inside a GOMEA deme, rank candidates by `raw score − complexity / R` (the form of `-z`, so one complexity unit costs `1/R` score units) instead of MOSES's penalized score. MOSES's own scoring, merge and exemplar selection are unchanged. See [Deme-local complexity penalty](#deme-local-complexity-penalty). |
 | `--gomea-deme-store {all,accepted}` | `all` | Which evaluated GOMEA trials the deme hands back to MOSES: `all` of them (the default), or `accepted`: only the initial population and the trials GOM or forced improvement accepted. Every evaluation is still charged to `-m` and counted. |
+| `--simplify-exemplar-numeric TOL` | `0` (off) | Port-only, regression only, any optimizer: before knobs are built, replace exemplar subtrees whose training-output range is below `TOL × sd(target)` by their mean, keeping a replacement only if the training score is not worse. See [Numerical simplification of exemplars](#numerical-simplification-of-exemplars---simplify-exemplar-numeric). |
+| `--gomea-fos-topk K` | `0` (off) | Each generation, GOM (and forced improvement) visits only K FOS subsets instead of all of them (about 2 per knob), so a generation costs about `N × K` trials instead of `N × 2 × knobs`. See [Top-K FOS subsets](#top-k-fos-subsets---gomea-fos-topk). |
+| `--gomea-fos-topk-mode {linkage,random}` | `linkage` | With `--gomea-fos-topk K`: `linkage` keeps the K linkage-tree merges with the strongest linkage (needs `--gomea-fos lt-b` or `lt-mi`); `random` draws K subsets uniformly each generation (the control). |
 
 The default population was 64 during development. It became 16 after the pilot
 (`docs/gomea/pilot-a/`); the confirmatory runs passed 16 explicitly.
@@ -171,6 +174,101 @@ can then come back as candidates. `--gomea-deme-store accepted` keeps only the i
 population and the accepted trials (the elite and the final population are always among them).
 Under `accepted`, a trial that reaches the target score but is rejected by the deme-local
 penalty is not stored either, so MOSES does not see it.
+
+## Knob probing baseline (`--knob-probe-baseline`)
+
+`--knob-probe-baseline {classic,reduced}` (default `classic`) is a knob-building option, so it
+applies to every `-a` (hill climbing, `hc-capped`, GOMEA and the hybrid alike). It is a
+**divergence from C++ MOSES**, off by default; with `classic` knob building is unchanged.
+
+When it builds a logical knob, MOSES turns the knob to each setting, reduces the whole decorated
+exemplar and disallows the setting if the reduction lowers its complexity
+(`build_knobs.cc:311`, `disc_probe`). That assumes the exemplar with every knob at 0 (the
+baseline) is already a fixpoint of the knob-building reducer. Effort-2 logical reduction is not
+confluent, so after knob building has wrapped a literal in a single-child junctor the baseline
+itself can become reducible; from then on every setting of every later knob looks reducible and
+almost all later knobs are dropped (BACKLOG section 4 item 1: e.g. 135 knobs on a 48-node mux11
+exemplar, where a comparable exemplar gets about 830).
+
+`reduced` disallows a setting only when it adds reducibility, i.e. when the setting's tree loses
+more complexity under reduction than the baseline does:
+`c(T_setting) − c(R(T_setting)) > c(T_0) − c(R(T_0))`. When the baseline is a fixpoint this is
+exactly classic's test, so the two options build the same representation on every exemplar
+whose baseline is not reducible, and differ only on the demes that would collapse. The extra
+cost is one baseline reduction per junctor (about 2 % more reductions).
+
+## Top-K FOS subsets (`--gomea-fos-topk`)
+
+A GOM generation tries every FOS subset on every individual. A linkage tree has about two
+subsets per knob, and demes have 100–2,000 knobs, so with `--gomea-max-evals-per-deme 250`
+a deme usually never finishes its first generation, and the linkage model is learned only
+once, from the unselected initial population. `--gomea-fos-topk K` (K > 0) narrows the FOS
+learned at the start of every generation to K subsets, so one generation costs at most
+`N × K` GOM trials and a capped deme can finish several generations (and relearn the
+linkage from a selected population).
+
+* **`linkage` (default).** The candidates are the linkage tree's merges: every subset of
+  two or more knobs the tree builds (the root, the set of all knobs, is already left out of
+  the FOS). Each merge's strength is the UPGMA similarity, at the moment of merging, between
+  the two clusters it joins: the cardinality-weighted average of the pairwise similarities
+  the tree is built from (`lt-b`: initialization-bias-corrected MI; `lt-mi`: MI). Higher is
+  more strongly linked. The K merges with the highest strength are kept, ties going to the
+  earlier merge. Singletons are not candidates: they carry no linkage, and GOM over a
+  singleton is univariate mixing. Since UPGMA never inverts, a kept merge's sub-merges are
+  kept too (barring ties), so the selection is the bottom of the tree: its tightest
+  clusters. If the tree has fewer than K merges (fewer than K + 2 knobs), the remaining
+  slots go to singletons in FOS order. Needs `--gomea-fos lt-b` or `lt-mi`.
+  **Caveat (`lt-b`, first generation):** the bias-corrected similarity is measured against
+  the initial population, so in a deme's first generation every pair scores 0 (up to
+  rounding) and every merge has strength 0. The first generation's K merges are therefore
+  just the earliest merges (decided by ties and rounding), close to arbitrary pairs; the
+  ranking becomes informative from the second generation. `lt-mi` ranks the first
+  generation by plain mutual information.
+* **`random`.** K subsets drawn uniformly, without replacement, from the whole FOS
+  (singletons included) each generation: the control for "fewer subsets" against "the best
+  subsets". Works with every `--gomea-fos`.
+
+Each individual's GOM visits the K subsets in its own shuffled order, as before. With
+`K ≥` the FOS size the whole FOS is used. **RNG:** with K = 0 (the default) nothing is
+drawn and runs are byte-identical to runs without the option. `linkage` mode draws nothing
+extra (the strengths come from the tree already built). `random` mode draws exactly K
+`randint_n` values per generation from the deme's linkage stream (a partial Fisher–Yates
+shuffle), after the linkage tree is learned and before any GOM, whenever `K <` the FOS
+size. In both modes GOM's own per-individual shuffle and donor draws are fewer, because
+it visits fewer subsets. Every `generation` event then also logs `fos_topk`,
+`fos_topk_mode`, `fos_effective_size`, `fos_effective_mean_subset_size`, `fos_selected`
+(the subsets, as knob positions) and `fos_selected_strength` (their strengths, `null` for a
+subset without one); `fos_size` stays the full FOS size.
+
+**CPU cost:** every generation relearns the linkage tree (an entropy matrix over all knob
+pairs), which takes seconds per generation on a 1,000-knob deme. Without top-K a capped deme
+rarely finishes a generation, so it learns the tree about once; with top-K it runs many short
+generations, so CPU time per evaluation rises sharply even though each generation costs fewer
+evaluations.
+
+## Numerical simplification of exemplars (`--simplify-exemplar-numeric`)
+
+Port-only and opt-in: classic MOSES has no counterpart, and with the default `0` nothing
+changes. It is not GOMEA-specific: it acts on the exemplar, so it applies to `-a hc`,
+`hc-capped`, `gomea` and the others alike. Regression only (`-H it` on a table with a contin
+output); any other problem refuses the option.
+
+With `--simplify-exemplar-numeric TOL` (TOL > 0), every time MOSES has picked an exemplar and
+before it builds knobs around it (`deme_expander.create_demes`), each non-leaf subtree of the
+exemplar is evaluated on the training rows. A subtree whose outputs are all finite numbers and
+whose range (max − min) is below `TOL × sd(training target)` is replaced by the mean of its
+outputs, and the tree is reduced with the candidate reducer. Candidates are tried one at a time,
+largest first; a replacement is kept only if the training composite score (raw score with the
+complexity penalty, the score MOSES ranks candidates by) is not worse. A rejected subtree's own
+subtrees are still tried. There is no validation split inside MOSES, so this guard uses the
+training score. Its extra scorer calls are not charged to `-m`.
+
+The scale is the target's standard deviation, so TOL is relative and in the units NMSE uses: a
+training NMSE floor `e` corresponds to residuals of about `sqrt(e) × sd`, and the literature
+puts the best threshold between one and five times the noise level. A constant target disables
+the pass. Each exemplar logs one INFO line, `Numeric exemplar simplification: candidates=…
+accepted=… rejected=… nodes=A->B … | totals: calls=… fired=… … nodes_removed=…`.
+See `pymoses/moses/deme/numeric_simplify.py`.
 
 ## Continuous knobs (`--gomea-contin copy`)
 
@@ -228,9 +326,9 @@ The file gets one JSON object per line, and each object has a `"type"`. For ever
 
 | type | Key fields |
 |---|---|
-| `invocation_start` | `schema_id` (a hash of this representation's knob layout), `dim` (number of knobs), `domains`, `max_evals`, `params` (`accept_complexity_ratio` and `deme_store` appear only when not at their defaults); with `--gomea-pop-fraction` or `--gomea-deme-share` also `deme_budget`, `deme_cap` (the per-deme cap, `null` for none) and `deme_pop_size` (this deme's N) |
+| `invocation_start` | `schema_id` (a hash of this representation's knob layout), `dim` (number of knobs), `domains`, `max_evals`, `params` (`accept_complexity_ratio`, `deme_store`, `fos_topk` and `fos_topk_mode` appear only when not at their defaults); with `--gomea-pop-fraction` or `--gomea-deme-share` also `deme_budget`, `deme_cap` (the per-deme cap, `null` for none) and `deme_pop_size` (this deme's N) |
 | `init` | the initial population: `attempts`, `duplicates_rejected`, `coverage_replacements`, `feasible_short`, and `diagnostics` (per-knob entropy and observed values, `constant_fields_before/after_coverage`, `radius_histogram`) |
-| `generation` | `generation`, `fos_size`, per-generation GOM `stats` (trials, evaluated, accepted_improving / accepted_neutral / rejected, noop_skips, fi_*), `nis` (the no-improvement stretch), `best_raw`/`best_pen`/`best_cpx` (of the engine's best, under the deme-local comparator when `--gomea-accept-complexity-ratio` is on), a `ledger` snapshot, and diversity: `unique_genotypes`, `mean_entropy_bits`, `n_varying_fields`, `best_raw_count` |
+| `generation` | `generation`, `fos_size` (with `--gomea-fos-topk` also `fos_topk`, `fos_topk_mode`, `fos_effective_size`, `fos_effective_mean_subset_size`, `fos_selected`, `fos_selected_strength`), per-generation GOM `stats` (trials, evaluated, accepted_improving / accepted_neutral / rejected, noop_skips, fi_*), `nis` (the no-improvement stretch), `best_raw`/`best_pen`/`best_cpx` (of the engine's best, under the deme-local comparator when `--gomea-accept-complexity-ratio` is on), a `ledger` snapshot, and diversity: `unique_genotypes`, `mean_entropy_bits`, `n_varying_fields`, `best_raw_count` |
 | `end` | `termination_reason`, `generations`, `ledger` (requests = evaluations charged, invalid, duplicate_requests, …), `timings` (init / eval / linkage / variation seconds), `best` |
 | `hybrid` | `-a hc-gomea` only, one per deme: `deme_id`, `max_evals`, `hc_evals`, `hc_stop` (`budget`, `time_limit`, `target` or `local_optimum`), `gomea_ran`, `gomea_evals` (charged), `gomea_termination_reason` |
 

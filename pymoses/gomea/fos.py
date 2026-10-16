@@ -87,7 +87,11 @@ def _determine_nearest_neighbour(
     return result
 
 
-def linkage_tree_fos(S: Sequence[Sequence[float]], order: Sequence[int]) -> list[list[int]]:
+def linkage_tree_fos(
+    S: Sequence[Sequence[float]],
+    order: Sequence[int],
+    merge_similarity: list[float] | None = None,
+) -> list[list[int]]:
     """GP-GOMEA: src/GOMEA/GOMEAFOS.cpp:41 GOMEAFOS::BuildLinkageTreeFromSimilarityMatrix
 
     UPGMA via reciprocal nearest-neighbour chains, returning all ``2d - 1``
@@ -159,6 +163,8 @@ def linkage_tree_fos(S: Sequence[Sequence[float]], order: Sequence[int]) -> list
             n1 = mpm_number_of_indices[r1]
             indices = mpm[r0][:n0] + mpm[r1][:n1]
             fos.append(list(indices))
+            if merge_similarity is not None:
+                merge_similarity.append(S_matrix[r0][r1])
 
             mul0 = float(n0) / (float(n0) + n1)
             mul1 = float(n1) / (float(n0) + n1)
@@ -220,6 +226,14 @@ class LinkageModel:
     gene under no-const) is left out of the tree (and of ``H0``) and joins
     the FOS as a singleton after it, so GOM can still copy it. The uni and
     rt modes take no statistics and ignore ``symbolize``.
+
+    GOMEA extension (``--gomea-fos-topk``): after every ``learn``,
+    ``last_strengths[i]`` is the linkage strength of the returned subset
+    ``i``: for a linkage-tree merge, the UPGMA similarity of the two clusters
+    it joined (``linkage_tree_fos``'s ``merge_similarity``; higher = more
+    strongly linked); ``None`` for a singleton and for every subset of the
+    ``uni`` and ``rt`` modes, which take no statistics. Recording it draws
+    nothing from ``rng`` and does not change the FOS.
     """
 
     MODES = ("uni", "rt", "lt-mi", "lt-b")
@@ -246,6 +260,8 @@ class LinkageModel:
         # Port-only optimisation: (calibration population, its entropy
         # matrix), consumed by the first ``learn`` (see ``_entropies``).
         self._first_learn: _Calibration | None = None
+        # GOMEA extension (``--gomea-fos-topk``): see the class docstring.
+        self.last_strengths: list[float | None] = []
 
     def calibrate(self, pop: Sequence[tuple[int, ...]], domains: Sequence[int]) -> None:
         """Fix the search positions and ``H0`` from the initial population.
@@ -298,20 +314,33 @@ class LinkageModel:
         search = self.search_positions
         d = len(search)
         if d == 0:
+            self.last_strengths = []
             return []
         if d == 1:
+            self.last_strengths = [None]
             return [[search[0]]]
         if self.mode == "uni":
             local = univariate_fos(d)
+            self.last_strengths = [None] * len(local)
         elif self.mode == "rt":
             local = random_tree_fos(d, self.rng)
+            self.last_strengths = [None] * len(local)
         elif self.symbolize is not None:
             return self._learn_symbolized(pop, first)
         else:
             H = self._entropies(pop, first, lambda: entropy_matrix(pop, search))
             S = mi_similarity(H) if self.mode == "lt-mi" else biased_similarity(H, self._H0)
-            local = linkage_tree_fos(S, self._random_order(d))[:-1]
+            local, self.last_strengths = self._tree(S, d)
         return [[search[i] for i in s] for s in local]
+
+    def _tree(self, S: list[list[float]], d: int) -> tuple[list[list[int]], list[float | None]]:
+        """The linkage tree without its root, and each subset's strength
+        (``None`` for the ``d`` singletons, then the merge similarities)."""
+        sims: list[float] = []
+        tree = linkage_tree_fos(S, self._random_order(d), sims)
+        strengths: list[float | None] = [None] * d
+        strengths.extend(sims)
+        return tree[:-1], strengths[: len(tree) - 1]
 
     # GOMEA extension: the linkage tree over recoded constants.
     def _learn_symbolized(
@@ -319,15 +348,19 @@ class LinkageModel:
     ) -> list[list[int]]:
         linked = self.linked_positions
         d = len(linked)
+        strengths: list[float | None]
         if d == 0:
             fos: list[list[int]] = []
+            strengths = []
         elif d == 1:
             fos = [[linked[0]]]
+            strengths = [None]
         else:
             H = self._entropies(pop, first, lambda: entropy_matrix(self.symbolize(pop), linked))
             S = mi_similarity(H) if self.mode == "lt-mi" else biased_similarity(H, self._H0)
-            local = linkage_tree_fos(S, self._random_order(d))[:-1]
+            local, strengths = self._tree(S, d)
             fos = [[linked[i] for i in s] for s in local]
+        self.last_strengths = strengths + [None] * len(self.unlinked_positions)
         return fos + [[p] for p in self.unlinked_positions]
 
     @staticmethod
@@ -366,3 +399,57 @@ class LinkageModel:
         for row in pop:
             if len(row) != length:
                 raise ValueError(f"genotype length {len(row)} != expected {length}")
+
+
+# GOMEA extension (``--gomea-fos-topk``): restrict GOM to K subsets.
+FOS_TOPK_MODES = ("linkage", "random")
+
+
+def select_fos_topk(
+    n: int,
+    strengths: Sequence[float | None] | None,
+    k: int,
+    mode: str,
+    rng: MT19937RandGen,
+) -> list[int]:
+    """Indices of the FOS subsets a generation's GOM visits (``n`` subsets).
+
+    ``k <= 0`` (off) or ``k >= n``: every index, ``0 .. n-1``, and no RNG draw.
+    Otherwise exactly ``k`` distinct indices:
+
+    * ``"linkage"``: the subsets with a strength (``LinkageModel.
+      last_strengths``: linkage-tree merges, never singletons; the root is
+      already dropped by ``learn``), ranked by strength descending (UPGMA
+      similarity: higher = more strongly linked), ties by lower index
+      (earlier merge); the first ``k`` are kept, in rank order. If fewer
+      than ``k`` subsets have a strength (a small tree, or ``strengths``
+      ``None`` / all ``None``), the remaining slots are filled with the
+      other indices in FOS order. No RNG draw.
+    * ``"random"``: ``k`` indices drawn uniformly without replacement by a
+      partial Fisher-Yates shuffle of ``0 .. n-1``: for ``i`` in
+      ``0 .. k-1`` swap ``i`` with ``i + rng.randint_n(n - i)``; exactly
+      ``k`` ``randint_n`` draws, returned in draw order.
+    """
+    if mode not in FOS_TOPK_MODES:
+        raise ValueError(f"fos_topk_mode must be one of {FOS_TOPK_MODES}, got {mode!r}")
+    if k <= 0 or k >= n:
+        return list(range(n))
+    if mode == "random":
+        idx = list(range(n))
+        for i in range(k):
+            j = i + rng.randint_n(n - i)
+            idx[i], idx[j] = idx[j], idx[i]
+        return idx[:k]
+    if strengths is None:
+        strengths = [None] * n
+    if len(strengths) != n:
+        raise ValueError(f"strengths has {len(strengths)} entries for {n} subsets")
+    ranked = sorted(
+        (i for i in range(n) if strengths[i] is not None), key=lambda i: (-strengths[i], i)
+    )
+    chosen = ranked[:k]
+    if len(chosen) < k:
+        taken = set(chosen)
+        chosen.extend(i for i in range(n) if i not in taken)
+        chosen = chosen[:k]
+    return chosen

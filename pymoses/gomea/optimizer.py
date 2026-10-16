@@ -24,6 +24,7 @@ from collections.abc import Hashable, Sequence
 from fractions import Fraction
 
 from pymoses.gomea.engine import EngineParams, GomeaEngine
+from pymoses.gomea.fos import FOS_TOPK_MODES
 from pymoses.gomea.gom import ACCEPTANCE_MODES, Individual
 from pymoses.gomea.oracle import BudgetExhausted, EvaluationOracle
 from pymoses.gomea.population import (
@@ -141,7 +142,15 @@ class gomea_parameters:
     deme handed back to MOSES: all of them, or only the initial population
     and the trials GOM/FI accepted (``EvaluationOracle``'s
     ``store_accepted``). Every evaluation is still charged and counted in
-    ``deme.n_evals``."""
+    ``deme.n_evals``.
+
+    GOMEA extension, ``--gomea-fos-topk`` (off by default, and then left
+    out of ``as_dict``): ``fos_topk`` K > 0 makes every generation's GOM
+    (and forced improvement) visit only K FOS subsets, chosen by
+    ``fos_topk_mode``: ``"linkage"`` (the K linkage-tree merges with the
+    highest UPGMA similarity; needs ``fos`` ``lt-b`` or ``lt-mi``) or
+    ``"random"`` (K drawn uniformly each generation). See
+    ``fos.select_fos_topk`` and ``engine.perform_generation``."""
 
     def __init__(
         self,
@@ -166,6 +175,8 @@ class gomea_parameters:
         deme_share: int = 0,
         accept_complexity_ratio: float = 0.0,
         deme_store: str = "all",
+        fos_topk: int = 0,
+        fos_topk_mode: str = "linkage",
     ) -> None:
         if pop_size < 2:
             raise ValueError(f"pop_size must be >= 2, got {pop_size}")
@@ -202,6 +213,16 @@ class gomea_parameters:
             )
         if deme_store not in DEME_STORE_MODES:
             raise ValueError(f"deme_store must be one of {DEME_STORE_MODES}, got {deme_store!r}")
+        if fos_topk < 0:
+            raise ValueError(f"fos_topk must be >= 0 (0 = off), got {fos_topk}")
+        if fos_topk_mode not in FOS_TOPK_MODES:
+            raise ValueError(
+                f"fos_topk_mode must be one of {FOS_TOPK_MODES}, got {fos_topk_mode!r}"
+            )
+        if fos_topk > 0 and fos_topk_mode == "linkage" and fos in ("uni", "rt"):
+            raise ValueError(
+                f"fos_topk_mode 'linkage' needs a linkage-tree fos (lt-b, lt-mi), got {fos!r}"
+            )
         parse_radii(radii)
 
         self.pop_size = pop_size
@@ -225,6 +246,8 @@ class gomea_parameters:
         self.deme_share = deme_share
         self.accept_complexity_ratio = accept_complexity_ratio
         self.deme_store = deme_store
+        self.fos_topk = fos_topk
+        self.fos_topk_mode = fos_topk_mode
 
     # The opt-in options, left out of ``as_dict`` while at their default
     # (off), so a default run's telemetry is unchanged.
@@ -234,6 +257,8 @@ class gomea_parameters:
         "deme_share": 0,
         "accept_complexity_ratio": 0.0,
         "deme_store": "all",
+        "fos_topk": 0,
+        "fos_topk_mode": "linkage",
     }
 
     def as_dict(self) -> dict:
@@ -655,6 +680,8 @@ class gomea_optimization(optimizer_base):
                         max_generations=gp.max_generations,
                         stall_generations=gp.stall_generations,
                         acceptance=gp.acceptance,
+                        fos_topk=gp.fos_topk,
+                        fos_topk_mode=gp.fos_topk_mode,
                     ),
                     ev,
                     rng_var,

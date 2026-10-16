@@ -190,7 +190,7 @@ from __future__ import annotations
 
 import argparse
 
-from pymoses.comboreduct.combo.vertex import builtin, combo_tree
+from pymoses.comboreduct.combo.vertex import builtin, combo_tree, get_contin
 from pymoses.comboreduct.table.table import CTable, Table, type_node
 from pymoses.comboreduct.table.table_io import loadTable
 from pymoses.comboreduct.type_checker.type_signature import (
@@ -201,6 +201,7 @@ from pymoses.comboreduct.type_checker.type_signature import (
 )
 from pymoses.comboreduct.type_checker.type_tree import get_output_type_tree
 from pymoses.moses.deme.feature_selector import feature_selector
+from pymoses.moses.deme.numeric_simplify import exemplar_numeric_simplifier
 from pymoses.moses.main.problem import (
     _register_unported_table_problems,
     problem_base,
@@ -732,6 +733,22 @@ class table_problem_base(problem_base):
             pms.cache_size = 0
 
         mbcscore = behave_cscore(bscore, pms.cache_size)
+
+        # NOT A PORT (pyMoses extension, `--simplify-exemplar-numeric`; no
+        # C++ counterpart): numerical simplification of exemplars, for
+        # regression (`contin_bscore`) only. See `numeric_simplify.py`.
+        tol = getattr(pms, "simplify_exemplar_numeric", 0.0)
+        if tol > 0:
+            if self.output_type != type_node.contin_type or not isinstance(bscore, contin_bscore):
+                raise ValueError(
+                    "--simplify-exemplar-numeric applies to regression only "
+                    "(a contin output scored by contin_bscore); this problem "
+                    f"has output type {self.output_type.name} and scorer "
+                    f"{type(bscore).__name__}"
+                )
+            pms.deme_params.numeric_simplifier = exemplar_numeric_simplifier(
+                bscore._cti, [get_contin(v) for v in bscore._target], tol
+            )
 
         reduct_cand = pms.bool_reduct
         reduct_rep = pms.bool_reduct_rep

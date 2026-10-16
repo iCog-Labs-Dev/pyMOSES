@@ -31,7 +31,7 @@ from pymoses.moses.main.demo_problems import (
 )
 from pymoses.moses.main.moses_exec import _add_demo_options, moses_exec
 from pymoses.moses.main.problem import problem_manager
-from pymoses.moses.main.problem_params import parse_args, problem_params
+from pymoses.moses.main.problem_params import _PORT_OPTIONS, parse_args, problem_params
 from pymoses.moses.main.table_problems import ip_problem_params, register_table_problems
 from pymoses.moses.scoring.behave_cscore import behave_cscore
 
@@ -93,6 +93,11 @@ _HC_DATASET_M1000 = (
     "-3 and($1 !$2) \n"
 )
 
+
+
+# pyMoses extension options that are not GOMEA-specific but are registered
+# with the GOMEA ones (`problem_params._PORT_OPTIONS`).
+_PORT_FLAGS = tuple(o[0] for o in _PORT_OPTIONS)
 
 def _run(argv: list[str]) -> tuple[int, str]:
     buf = io.StringIO()
@@ -200,6 +205,10 @@ def _help_text() -> str:
     return buf.getvalue()
 
 
+# Extension options that are not `--gomea-*` but are registered with them.
+_EXTENSION_FLAGS = ("--knob-probe-baseline",)
+
+
 def test_help_only_adds_gomea_lines():
     base = HELP_BASE.read_text().splitlines()
     new = _help_text().splitlines()
@@ -222,7 +231,11 @@ def test_help_only_adds_gomea_lines():
     # does mention gomea (a flag line or an earlier continuation of one).
     prev_is_gomea = False
     for line in added:
-        is_gomea = "gomea" in line.lower()
+        # Non-GOMEA extensions registered next to the --gomea-* options
+        # (`problem_params.add_gomea_options`) count as GOMEA lines here.
+        is_gomea = "gomea" in line.lower() or any(
+            f in line for f in (*_EXTENSION_FLAGS, *_PORT_FLAGS)
+        )
         is_continuation = (
             not is_gomea
             and prev_is_gomea
@@ -252,6 +265,8 @@ def test_help_only_adds_gomea_lines():
         "--gomea-deme-share",
         "--gomea-accept-complexity-ratio",
         "--gomea-deme-store",
+        "--gomea-fos-topk",
+        "--gomea-fos-topk-mode",
     ):
         assert any(line.strip().startswith(flag + " ") for line in added), flag
 

@@ -41,6 +41,19 @@ treats that "next" position as invalid, as the C++ header documents
 change; no completed earlier run could have been affected. The user asked for the speed-up
 work to proceed autonomously; this fix was made along the way and is disclosed here.
 
+**Also not user-approved as code (2026-10-16):** four opt-in options, built by the agent while
+working through the backlog, which the user asked it to do autonomously ("please do not stop
+before finishing our backlog"). All four are off by default. With them off, outputs are
+byte-identical to the previous code (identity harness, all 8 cases).
+
+* `--knob-probe-baseline reduced` (knob-collapse fix): a DIVERGENCE from C++ `disc_probe`
+  (`build_knobs.cc:311-341`), opt-in only.
+* `--gomea-fos-topk K` / `--gomea-fos-topk-mode`.
+* `--simplify-exemplar-numeric TOL`.
+* GP-GOMEA elite seeding: `tools/gomea/gpgomea_seed.py` and the seed block in the runners.
+
+Each is used only in a pre-registered phase that names it.
+
 Deviations from the handoff's gate procedure that follow from instruction #1:
 
 * The P1.0 → P1.5 stops are replaced by the review packets committed under `docs/gomea/`

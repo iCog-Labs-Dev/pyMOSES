@@ -120,6 +120,15 @@ GOM bookkeeping and telemetry are not worth optimising.
      * Problems: Con, EnH, EnC (+ mux11 or maj7).
      * Seeds: 10 + 10.
      * Metrics: test NMSE (or solved / evaluations to solve), final size, and seed lineage.
+   * **Tooling (2026-10-16):** `tools/gomea/build_gpgomea_seed.sh` builds `gpgomea-seed`
+     (GP-GOMEA that dumps every IMS elitist and the active populations, with full-precision
+     constants and linear-scaling terms); `tools/gomea/gpgomea_seed.py` translates the dump
+     to combo, checks every translation against pyMoses's own scorer and keeps the k best
+     distinct seeds; an arm's optional `seed` block (`{"binary", "share" | "budget",
+     "height", "k", ...}`) in `benchmarks.gomea.runner` and `tools/gomea/moses_sr_runner.py`
+     runs it out of the arm's `-m` and passes `-e SEED ... -e and|+`;
+     `tools/gomea/seed_lineage.py` records which exemplar each expansion and the final
+     programs descend from. Pilot manifests: `configs/gomea/seed/`.
    * **Later extension:** re-run seeding when MOSES stagnates, using the current
      metapopulation's best programs as GP-GOMEA's starting population, for repeated smart
      restarts.
@@ -248,10 +257,29 @@ GOM bookkeeping and telemetry are not worth optimising.
        cost;
      * per-deme knob statistics and per-deme budgets work on representations of very
        different sizes.
-   * **Mitigations (would diverge from C++; untested):**
-     * compare each probed setting against the *reduced* baseline;
-     * or reduce the exemplar with the knob-building reducer before decorating it.
-     * Either could be an opt-in option, tested for knob counts, CPU and accuracy.
+   * **Mitigation (opt-in, diverges from C++): `--knob-probe-baseline reduced`** (USAGE.md,
+     "Knob probing baseline"). A setting is disallowed only if it loses more complexity under
+     reduction than the baseline (knob at 0) does; with an irreducible baseline this is
+     classic's test.
+     * Knob counts, classic → reduced, default perm ratio, RNG seed 1: c3001_7 135 → 1,048;
+       c3002_11 250 → 1,234; c3003_11 114 → 2,704. Controls n3001_6 (832) and n3002_10
+       (1,193) are unchanged, knob for knob, disallowed settings included. On the collapsing
+       exemplars every knob classic builds is still built with the same disallowed settings.
+     * Reducing the exemplar before decorating it does not help: all five exemplars are
+       already fixpoints of the effort-2 reducer (c3001_7 stays at 135 knobs). The
+       reducibility appears only after decoration.
+     * Comparing reduced complexities directly (`c(R(T_setting)) < c(R(T_0))`) was also
+       tried and rejected: it lets genuinely redundant settings through (n3001_6 832 → 1,160).
+     * Pilot, mux11 `-k 3 -m 3000`, seeds 3001–3003, capped GOMEA (lt-b, N 16, cap 250, memo)
+       and `-a hc-capped` (cap 250), classic → reduced:
+       * GOMEA: collapsed demes (knobs per node < 10) 1/3/2 → 0/0/0; best raw −162/−132/−164 →
+         −164/−128/−183; CPU 738/919/2,357 s → 1,318/1,207/4,507 s, almost all of it knob
+         building on the now-full representations. CPU was measured on a loaded machine
+         (load ≈ 16–20 on 22 cores) and repeated runs of identical work differed by up to 2×.
+       * HC: no deme collapsed with either option, and outputs and per-deme knob counts are
+         identical.
+       * No accuracy gain shows in three seeds; the option is a correctness fix for the
+         representation, not a tuning win.
    * **Related:** the earlier `-B 3` result (1 knob on maj5-x3) has the same mechanism, since
      the exemplars were not fixpoints at effort 3.
 2. **Rejected GOM trials are stored in the deme and merged.**

@@ -14,7 +14,7 @@ import time
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass, field
 
-from pymoses.gomea.fos import LinkageModel
+from pymoses.gomea.fos import LinkageModel, select_fos_topk
 from pymoses.gomea.gom import (
     Evaluator,
     GomInterrupted,
@@ -37,6 +37,11 @@ class EngineParams:
     # Phase 1d ablation (hypothesis E): "nonworse" (default) or "strict";
     # see ``gom``.
     acceptance: str = "nonworse"
+    # GOMEA extension (``--gomea-fos-topk``): visit only ``fos_topk`` FOS
+    # subsets per generation (0 = all, the default); ``fos_topk_mode`` is
+    # ``"linkage"`` or ``"random"``. See ``perform_generation``.
+    fos_topk: int = 0
+    fos_topk_mode: str = "linkage"
 
 
 @dataclass
@@ -221,6 +226,18 @@ def perform_generation(
     An empty FOS raises ``_Stop('no_valid_moves')``; the real
     ``LinkageModel`` never returns one after calibration found search
     fields, so only a substituted model can reach it.
+
+    GOMEA extension (``--gomea-fos-topk``): with ``fos_topk`` K > 0 the
+    learned FOS is narrowed, once per generation and before any GOM, to
+    the K subsets ``select_fos_topk`` picks (``model.last_strengths`` for
+    ``"linkage"``; K draws from ``eng.rng_link`` for ``"random"`` when
+    ``K < |FOS|``). Every individual's GOM, and forced improvements, then
+    use only those subsets (in a fresh shuffled order, as before). The
+    record gains ``fos_topk``, ``fos_topk_mode``, ``fos_effective_size``,
+    ``fos_effective_mean_subset_size``, ``fos_selected`` (the subsets, as
+    genotype positions) and ``fos_selected_strength`` (their strengths,
+    ``None`` where a subset has none); ``fos_size`` stays the full FOS.
+    With K = 0 nothing is drawn and the record is unchanged.
     """
     t0 = time.perf_counter()
     donors = list(P)
@@ -228,6 +245,25 @@ def perform_generation(
     linkage_s = time.perf_counter() - t0
     if not F:
         raise _Stop("no_valid_moves")
+    full_size = len(F)
+    full_mean = sum(len(s) for s in F) / len(F)
+    topk: dict = {}
+    if eng.params.fos_topk > 0:
+        strengths = getattr(model, "last_strengths", None)
+        if strengths is not None and len(strengths) != len(F):
+            strengths = None
+        sel = select_fos_topk(
+            len(F), strengths, eng.params.fos_topk, eng.params.fos_topk_mode, eng.rng_link
+        )
+        F = [F[i] for i in sel]
+        topk = {
+            "fos_topk": eng.params.fos_topk,
+            "fos_topk_mode": eng.params.fos_topk_mode,
+            "fos_effective_size": len(F),
+            "fos_effective_mean_subset_size": sum(len(s) for s in F) / len(F),
+            "fos_selected": [list(s) for s in F],
+            "fos_selected_strength": [None if strengths is None else strengths[i] for i in sel],
+        }
     if eng.elite is None:
         eng.elite = eng.best_of(donors)
     fi_threshold = 1 + math.floor(math.log10(len(P)))
@@ -270,8 +306,9 @@ def perform_generation(
     offspring.extend(P[len(offspring) :])
     record = {
         "generation": generation,
-        "fos_size": len(F),
-        "fos_mean_subset_size": sum(len(s) for s in F) / len(F),
+        "fos_size": full_size,
+        "fos_mean_subset_size": full_mean,
+        **topk,
         "stats": stats.as_dict(),
         "nis": nis,
         "best_improved": False,

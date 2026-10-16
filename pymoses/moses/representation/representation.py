@@ -165,8 +165,13 @@ class representation(knob_mapper):
         ignore_ops: Collection[vertex] = (),
         perm_ratio: float = 0.0,
         linear_contin: bool = True,
+        probe_baseline: str = "classic",
     ) -> None:
         """C++: moses/moses/representation/representation.cc:99 representation::representation
+
+        ``probe_baseline`` has no C++ counterpart: it is handed to
+        `build_knobs` (``"classic"``, the default, is classic MOSES; see
+        `build_knobs._disc_probe_reduced_baseline` for ``"reduced"``).
 
         # DIVERGENCE(C++ moses/moses/representation/representation.h:61):
         # `linear_contin` defaults to `True`, matching classic's own
@@ -257,6 +262,7 @@ class representation(knob_mapper):
             step_size=_stepsize,
             expansion=_expansion,
             depth=_depth,
+            probe_baseline=probe_baseline,
         )
 
         logger().info(

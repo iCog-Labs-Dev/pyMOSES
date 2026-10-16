@@ -110,6 +110,37 @@ def _check_no_duplicate_seeds(seeds: list, errors: list[str]) -> None:
         errors.append(f"manifest.seeds contains duplicate value(s): {dupes!r}")
 
 
+def _check_seed_spec(spec: object, where: str, errors: list[str]) -> None:
+    """Optional arm block `seed` (backlog item 9, `tools/gomea/gpgomea_seed.py`): seed
+    the metapopulation with GP-GOMEA elites, paid for out of the run's `-m`. Keys:
+    `binary` (required), exactly one of `share` (fraction of `-m`, 0 < share < 1) or
+    `budget` (evaluations), and optional `height`, `k`, `popsize`, `functions`,
+    `gpgomea_argv` (array), `with_empty` (bool), `tol`."""
+    if not isinstance(spec, dict):
+        errors.append(f"{where} must be an object")
+        return
+    if not isinstance(spec.get("binary"), str):
+        errors.append(f"{where}: key 'binary' must be a string")
+    if ("share" in spec) == ("budget" in spec):
+        errors.append(f"{where}: give exactly one of 'share' and 'budget'")
+    share = spec.get("share")
+    if share is not None and (
+        isinstance(share, bool) or not isinstance(share, (int, float)) or not 0 < share < 1
+    ):
+        errors.append(f"{where}: 'share' must be a number in (0, 1)")
+    for key in ("budget", "height", "k", "popsize"):
+        v = spec.get(key)
+        if key in spec and (isinstance(v, bool) or not isinstance(v, int) or v < 1):
+            errors.append(f"{where}: '{key}' must be a positive integer")
+    if "gpgomea_argv" in spec:
+        _check_argv(spec["gpgomea_argv"], f"{where}.gpgomea_argv", errors)
+    known = {"binary", "share", "budget", "height", "k", "popsize", "functions",
+             "gpgomea_argv", "with_empty", "tol"}
+    unknown = sorted(set(spec) - known)
+    if unknown:
+        errors.append(f"{where}: unknown key(s) {unknown}")
+
+
 def _validate(m: object) -> list[str]:
     errors: list[str] = []
     if not isinstance(m, dict):
@@ -155,6 +186,8 @@ def _validate(m: object) -> list[str]:
                     _check_present(cfg, key, where, errors)
                 if "argv" in cfg and cfg["argv"] is not None:
                     _check_argv(cfg["argv"], f"{where}.argv", errors)
+                if "seed" in cfg:
+                    _check_seed_spec(cfg["seed"], f"{where}.seed", errors)
 
     if m.get("seeds") is not None:
         if not isinstance(m["seeds"], list) or not m["seeds"]:
@@ -318,6 +351,8 @@ def expand_runs(m: dict, base: str | Path | None = None) -> list[dict]:
         run_dir    -- str(path) this run's own output directory, computed
                       from `result_dir(m, base)` so it stays in sync with
                       `runner.py`'s own layout. Always absolute.
+        seed_spec, task_argv -- only for an arm with a `seed` block: that block and
+                      the task's own argv (the problem GP-GOMEA seeds).
     """
     runs: list[dict] = []
     common_argv = list(m["common_argv"])
@@ -334,17 +369,21 @@ def expand_runs(m: dict, base: str | Path | None = None) -> list[dict]:
                 argv = common_argv + task_argv + arm_argv + budget_argv + ["-r", str(seed)]
                 if is_gomea:
                     argv = argv + ["--gomea-log", str(rd / "events.jsonl")]
-                runs.append(
-                    {
-                        "run_id": run_id,
-                        "task": task_name,
-                        "arm": arm_name,
-                        "seed": seed,
-                        "argv": argv,
-                        "target_raw": target_raw,
-                        "run_dir": str(rd),
-                    }
-                )
+                run = {
+                    "run_id": run_id,
+                    "task": task_name,
+                    "arm": arm_name,
+                    "seed": seed,
+                    "argv": argv,
+                    "target_raw": target_raw,
+                    "run_dir": str(rd),
+                }
+                if "seed" in arm_cfg:
+                    # GP-GOMEA seeding (runner._apply_seed); the task argv names the
+                    # problem GP-GOMEA is run on.
+                    run["seed_spec"] = dict(arm_cfg["seed"])
+                    run["task_argv"] = list(task_argv)
+                runs.append(run)
     return runs
 
 

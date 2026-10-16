@@ -1,0 +1,60 @@
+{
+  "name": "seed-pilot-con",
+  "datasets_dir": "../gomea-results/phase1f/datasets",
+  "datasets": [
+    "Con"
+  ],
+  "splits": [
+    1
+  ],
+  "wall_cap_s": 36000,
+  "mem_limit_mb": 3072,
+  "arms": {
+    "HC-C250-S": {
+      "binary": ".venv/bin/moses",
+      "budget": {
+        "evals": 10000
+      },
+      "argv": [
+        "-a",
+        "hc-capped",
+        "--gomea-max-evals-per-deme",
+        "250"
+      ],
+      "seed": {
+        "binary": "../gomea-results/gpgomea-seed-build/gpgomea-seed",
+        "share": 0.2,
+        "height": 3,
+        "k": 5
+      }
+    },
+    "LTB-C250-M-S": {
+      "binary": ".venv/bin/moses",
+      "budget": {
+        "evals": 10000
+      },
+      "argv": [
+        "-a",
+        "gomea",
+        "--gomea-fos",
+        "lt-b",
+        "--gomea-pop-size",
+        "16",
+        "--gomea-skip-inactive",
+        "0",
+        "--gomea-max-evals-per-deme",
+        "250",
+        "--gomea-genotype-memo",
+        "1",
+        "--gomea-contin",
+        "copy"
+      ],
+      "seed": {
+        "binary": "../gomea-results/gpgomea-seed-build/gpgomea-seed",
+        "share": 0.2,
+        "height": 3,
+        "k": 5
+      }
+    }
+  }
+}

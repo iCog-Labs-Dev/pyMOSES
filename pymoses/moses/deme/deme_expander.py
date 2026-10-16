@@ -783,6 +783,10 @@ class deme_expander:
                 # product-of-sums candidate.
                 linear_contin=self._params.linear_contin,
                 perm_ratio=self._params.perm_ratio,
+                # No C++ counterpart (opt-in `--knob-probe-baseline`): read
+                # with a "classic" fallback, so a deme_parameters built by
+                # hand without it keeps classic knob probing.
+                probe_baseline=getattr(self._params, "knob_probe_baseline", "classic"),
             )
             if rep.fields().empty():
                 logger().warn(
@@ -943,6 +947,14 @@ class deme_expander:
             )
 
         self.create_demeIDs(n_expansions)
+        # NOT A PORT (pyMoses extension, `--simplify-exemplar-numeric`; no
+        # C++ counterpart): replace near-constant subtrees of a regression
+        # exemplar by constants before knobs are built around it, guarded
+        # by the training composite score. `None` (the default) skips it,
+        # so a default run is unchanged. See `numeric_simplify.py`.
+        nsimp = self._params.numeric_simplifier
+        if nsimp is not None:
+            exemplar = nsimp(exemplar, self._cscorer.get_cscore_nocache, self.simplify_candidate)
         self.create_representations(exemplar)
 
         # Create empty demes with their IDs (cc:387). BOTH arms of

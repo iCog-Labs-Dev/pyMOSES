@@ -262,7 +262,7 @@ def _build_summary(
     cpu_to_target = hit["cpu"] if hit is not None else None
     rss_kb = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss
     near = status == "ok" and _near_memory_limit(rss_kb, run.get("mem_limit_mb"))
-    return {
+    summary = {
         "run_id": run["run_id"],
         "task": run["task"],
         "arm": run["arm"],
@@ -292,6 +292,7 @@ def _build_summary(
         "gomea": _read_gomea_events(run_dir),
         "censored": False,
     }
+    return _add_seed_cost(summary, run, run_dir)
 
 
 def _near_memory_limit(rss_kb: int | None, mem_limit_mb: int | None) -> bool:
@@ -299,6 +300,114 @@ def _near_memory_limit(rss_kb: int | None, mem_limit_mb: int | None) -> bool:
     if not mem_limit_mb or rss_kb is None:
         return False
     return rss_kb >= 0.9 * mem_limit_mb * 1024
+
+
+_SEED_FILE = "seeds.json"
+
+
+def _seed_tools():
+    """`tools/gomea/gpgomea_seed.py` and `seed_lineage.py` (not a package)."""
+    tools = str(Path(__file__).resolve().parents[2] / "tools" / "gomea")
+    if tools not in sys.path:
+        sys.path.insert(0, tools)
+    import gpgomea_seed
+    import seed_lineage
+
+    return gpgomea_seed, seed_lineage
+
+
+def _apply_seed(run: dict, argv: list[str], run_dir: Path) -> tuple[list[str], object]:
+    """Backlog item 9. Run GP-GOMEA on the task (`gpgomea_seed.make_seeds`) with
+    `share * M` (or `budget`) evaluations, M the run's `-m`; give MOSES `-m (M - used)`
+    plus `-e SEED ...` and, unless `with_empty` is false, the default exemplar; record
+    everything in `seeds.json`; install the lineage tracker. Returns the new argv and
+    the tracker."""
+    gs, lineage = _seed_tools()
+    spec = run["seed_spec"]
+    total = int(argv[[i for i, t in enumerate(argv) if t in ("-m", "--max-evals")][0] + 1])
+    b_seed = int(spec["budget"]) if "budget" in spec else int(spec["share"] * total)
+    rec = gs.make_seeds(
+        "bool",
+        spec["binary"],
+        b_seed,
+        int(spec.get("height", 3)),
+        int(run["seed"]),
+        int(spec.get("k", 5)),
+        run_dir / "gpgomea",
+        bool_flags=list(run["task_argv"]),
+        popsize=spec.get("popsize"),
+        functions=spec.get("functions"),
+        extra=spec.get("gpgomea_argv"),
+        tol=float(spec.get("tol", 1e-5)),
+    )
+    with_empty = bool(spec.get("with_empty", True))
+    moses_m = gs.shared_budget(total, rec["evaluations_used"])
+    new_argv = gs.replace_max_evals(argv, moses_m)
+    new_argv += gs.exemplar_argv("bool", [x["combo"] for x in rec["seeds"]], with_empty)
+    rec.update(total_budget=total, seed_budget=b_seed, moses_budget=moses_m,
+               with_empty=with_empty)
+    _write_json(run_dir / _SEED_FILE, rec)
+    tracker = lineage.install(lineage.labels_for(len(rec["seeds"]), with_empty))
+    return new_argv, tracker
+
+
+def _add_seed_cost(summary: dict, run: dict, run_dir: Path) -> dict:
+    """For a seeded run, charge GP-GOMEA's work to the run: `n_calls`,
+    `evals_to_target`, `cpu_s` (and `cpu_to_target`, `time_to_target`) include
+    GP-GOMEA's evaluations and CPU/wall time, MOSES's own values are kept as
+    `moses_*`. The seeds' own best score counts too: a seed that already reaches the
+    target is a success at GP-GOMEA's evaluation count (MOSES's initial exemplar scoring
+    is not instrumented, so the trace alone would miss it). The pyMoses scoring that
+    checks each translation is not charged (MOSES rescores its exemplars anyway)."""
+    if not run.get("seed_spec"):
+        return summary
+    try:
+        rec = json.loads((run_dir / _SEED_FILE).read_text())
+    except (OSError, json.JSONDecodeError):
+        summary["seeding"] = None
+        return summary
+    used = rec["evaluations_used"]
+    gp_cpu, gp_wall = rec["gpgomea"]["cpu_s"], rec["gpgomea"]["wall_s"]
+    seed_best = max((s["pymoses_raw"] for s in rec["seeds"]), default=None)
+    summary["moses_n_calls"] = summary.get("n_calls")
+    summary["moses_cpu_s"] = summary.get("cpu_s")
+    summary["moses_evals_to_target"] = summary.get("evals_to_target")
+    if summary.get("n_calls") is not None:
+        summary["n_calls"] += used
+    if summary.get("cpu_s") is not None:
+        summary["cpu_s"] += gp_cpu
+    target = run["target_raw"]
+    if summary.get("evals_to_target") is not None:
+        summary["evals_to_target"] += used
+        if summary.get("cpu_to_target") is not None:
+            summary["cpu_to_target"] += gp_cpu
+        if summary.get("time_to_target") is not None:
+            summary["time_to_target"] += gp_wall
+    elif seed_best is not None and seed_best >= target and summary["status"] != "error":
+        summary.update(success=True, evals_to_target=used, cpu_to_target=gp_cpu,
+                       time_to_target=gp_wall)
+    if seed_best is not None and (summary.get("best_raw") is None
+                                  or seed_best > summary["best_raw"]):
+        summary["best_raw"] = seed_best
+    lin = None
+    with contextlib.suppress(OSError, json.JSONDecodeError):
+        lin = json.loads((run_dir / "lineage.json").read_text())
+    summary["seeding"] = {
+        "evaluations_used": used,
+        "seed_budget": rec.get("seed_budget"),
+        "moses_budget": rec.get("moses_budget"),
+        "total_budget": rec.get("total_budget"),
+        "gpgomea_cpu_s": gp_cpu,
+        "gpgomea_best_fit": rec["gpgomea"]["best_fit"],
+        "n_seeds": len(rec["seeds"]),
+        "seed_best_raw": seed_best,
+        "seed_raws": [s["pymoses_raw"] for s in rec["seeds"]],
+        "n_score_matches": rec.get("n_score_matches"),
+        "n_rejected": rec.get("n_rejected"),
+        "best_lineages": lin.get("best_lineages") if lin else None,
+        "expansions_by_lineage": lin.get("expansions_by_lineage") if lin else None,
+    }
+    return summary
 
 
 def _child_main(run: dict) -> None:
@@ -367,6 +476,16 @@ def _child_run(run: dict, reserve: list[bytearray]) -> bool:
     # every worker would otherwise race the SAME relative path in the
     # shared launch directory.
     full_argv = list(run["argv"]) + ["-f", str(moses_log)]
+    tracker = None
+    if run.get("seed_spec"):
+        # Backlog item 9: GP-GOMEA elites as extra exemplars, paid out of `-m`.
+        try:
+            full_argv, tracker = _apply_seed(run, full_argv, run_dir)
+        except Exception:
+            summary = _recovered_summary(run, "error", 1, 0.0, traceback.format_exc())
+            summary["censored"] = False
+            _write_json_atomic(run_dir / "summary.json", summary)
+            return False
     _write_json(
         run_dir / "config.json",
         {
@@ -432,6 +551,9 @@ def _child_run(run: dict, reserve: list[bytearray]) -> bool:
     # `trace_f` (and `out_f`) are closed here, before the summary is
     # written -- fix round 1, finding 7's "trace first, summary last".
     wall_s = time.time() - start
+    if tracker is not None:
+        with contextlib.suppress(Exception):
+            tracker.write(run_dir / "lineage.json")
 
     # Fix round 1, finding 2: `moses_exec` returning a non-zero code
     # in-band (e.g. `-H <unsupported>` -> 1, moses_exec.py's own
@@ -475,7 +597,7 @@ def _recovered_summary(
     recovered = summarize_events(_read_trace_events(run_dir), run["target_raw"])
     success = status == "timeout" and recovered["evals_to_target"] is not None
     cpu_s, rss_kb = usage
-    return {
+    summary = {
         "run_id": run["run_id"],
         "task": run["task"],
         "arm": run["arm"],
@@ -506,6 +628,7 @@ def _recovered_summary(
         "gomea": _read_gomea_events(run_dir),
         "censored": True,
     }
+    return _add_seed_cost(summary, run, run_dir)
 
 
 def _write_timeout_summary(
