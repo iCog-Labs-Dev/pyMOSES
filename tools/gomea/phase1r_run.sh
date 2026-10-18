@@ -2,14 +2,15 @@
 # Phase 1r launcher: waits until Phase 1q has logged "all done", then runs Con and EnH
 # (4 arms), reports stage 1, extends a problem with an "extend" primary contrast, and
 # reports stage 2 over the full family.
-#   setsid nohup tools/gomea/phase1r_run.sh > ../gomea-results/phase1r.log 2>&1 &
+#   [NOWAIT=1] [WORKERS=N] setsid nohup tools/gomea/phase1r_run.sh > ../gomea-results/phase1r.log 2>&1 &
 set -u
 cd "$(dirname "$0")/../.."
 R=../gomea-results
 PY=.venv/bin/python
 Q=configs/gomea/phase1r
-until grep -q "all done" $R/phase1q.log 2>/dev/null; do sleep 60; done
-sr() { $PY tools/gomea/moses_sr_runner.py "$1" $R/phase1r --workers 18 >> $R/phase1r-sr.log 2>&1; }
+# NOWAIT=1 skips the wait; WORKERS overrides the worker count (default 18).
+[ "${NOWAIT:-0}" = 1 ] || until grep -q "all done" $R/phase1q.log 2>/dev/null; do sleep 60; done
+sr() { $PY tools/gomea/moses_sr_runner.py "$1" $R/phase1r --workers "${WORKERS:-18}" >> $R/phase1r-sr.log 2>&1; }
 echo "start $(date -Is)"
 sr $Q/sr.json
 echo "stage 1 done $(date -Is)"

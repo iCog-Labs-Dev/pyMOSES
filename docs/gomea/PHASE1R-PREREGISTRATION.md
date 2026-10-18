@@ -102,3 +102,11 @@ counts as infinite.
 * **Seeding helps an optimizer:** its `seed-*` contrast is "better" on a problem.
 * **MOSES adds value beyond the seeds:** the seeded arm's test NMSE is below the best seed's
   own (descriptive).
+
+## Launch note (2026-10-18 17:55, before any Phase 1r run)
+
+* **Early start:** started early, without waiting for Phase 1q's "all done", while 1q's
+  last runs and its reruns were still going (about 5 processes).
+* **Workers:** 16 workers instead of 18, so the total stays near the 22 logical cores.
+* **Launcher:** `tools/gomea/phase1r_run.sh` gained `NOWAIT` and `WORKERS` overrides for
+  this. Nothing else changed.
