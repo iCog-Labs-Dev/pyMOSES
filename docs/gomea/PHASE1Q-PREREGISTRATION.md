@@ -96,3 +96,29 @@ comparisons within the phase are fair.
   accuracy not worse.
 * **Mitigation is a cost with no gain:** KR's CPU is worse and its accuracy is a tie. This
   is the outcome the pilot predicts.
+
+## Deviation (2026-10-18 16:30, during stage 1, before any analysis)
+
+The machine was shared with other jobs while stage 1 ran: a WebKitGTK compile, Neo4j and
+another session's Python job. The load average was about 42 on 22 logical cores, and each
+run got about 50–75 % of a core.
+
+* **Effect:** `mux11__LTB-C250-M__s3003` hit the manifest's 7,200 s wall-clock safety cap
+  after 3,237 evaluations. This seed needed 6,417 s of wall time on a quiet machine in
+  Phase 1o, and KR costs more per evaluation, so more runs may hit the cap.
+* **Bias:** the report counts a capped run as infinitely bad, which would bias the analysis.
+
+**Changes:**
+
+* **Launcher stopped:** `phase1q_run.sh` was stopped. The stage-1 runner kept running, so no
+  automatic stage-1 decision was made from capped runs.
+* **Reruns:** every run that ends `timeout` is rerun with the same settings and a 36,000 s
+  cap, using `tools/gomea/phase1q_recap.py`. The configs are in `configs/gomea/phase1q/recap*/`.
+  The manifest hash includes the cap, so reruns go to their own result directories, and the
+  report reads them after the originals. A rerun replaces the capped run with the same task,
+  arm and seed.
+* **Stage-1 report and extension:** made by hand, with the registered rule, once every run
+  has ended `ok`.
+* **Evaluation budget unchanged:** still `-m 40000`. Only the safety cap changes.
+* **CPU caveat:** CPU seconds are measured under this uneven load. The arms are interleaved,
+  but the CPU contrast is noisier than planned.
