@@ -1,0 +1,7 @@
+/home/yab/Documents/Projects/iCog/HyperonRelated/MOSES/gomea-results/1/phase1q-stage1-942f155a9bf5
+/home/yab/Documents/Projects/iCog/HyperonRelated/MOSES/gomea-results/1/phase1q-stage1-recap-mux11-LTB-C250-M-3b749144ccdd
+/home/yab/Documents/Projects/iCog/HyperonRelated/MOSES/gomea-results/1/phase1q-stage1-recap-mux11-KR-59b50d6a98d0
+/home/yab/Documents/Projects/iCog/HyperonRelated/MOSES/gomea-results/1/phase1q-stage1-recap-mux11-LTB-C250-M-bd33cec699a1
+/home/yab/Documents/Projects/iCog/HyperonRelated/MOSES/gomea-results/1/phase1q-stage1-recap-mux11-KR-6e77db4f88cd
+/home/yab/Documents/Projects/iCog/HyperonRelated/MOSES/gomea-results/1/phase1q-stage1-recap-mux11-KR-6fee50b2cf77
+/home/yab/Documents/Projects/iCog/HyperonRelated/MOSES/gomea-results/1/phase1q-stage1-recap-mux11-LTB-C250-M-40af364bfee3

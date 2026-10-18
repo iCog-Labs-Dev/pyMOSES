@@ -1,0 +1,8 @@
+{
+  "mux11:cpu": "tie",
+  "mux11:accuracy": "tie",
+  "pa5:cpu": "tie",
+  "pa5:accuracy": "tie",
+  "mux11:vs-hc": "tie",
+  "pa5:vs-hc": "tie"
+}

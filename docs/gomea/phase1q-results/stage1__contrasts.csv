@@ -1,0 +1,7 @@
+contrast,problem,a,a_lower,b,b_lower,median_a,median_b,p,p_holm,pairs,ties,verdict
+cpu,mux11,KR,6,LTB-C250-M,4,3005.7477758415002,3197.0967691715005,0.322265625,1.0,10,0,tie
+accuracy,mux11,KR,5,LTB-C250-M,5,5538.0,5344.5,0.625,1.0,10,0,tie
+cpu,pa5,KR,5,LTB-C250-M,5,2656.0254106909997,2642.0794015265,0.921875,1.0,10,0,tie
+accuracy,pa5,KR,4,LTB-C250-M,3,7.5,8.0,1.0,1.0,10,3,tie
+vs-hc,mux11,KR,7,HC-C250,3,5538.0,7306.0,0.130859375,0.26171875,10,0,tie
+vs-hc,pa5,KR,2,HC-C250,7,7.5,6.5,0.16015625,0.26171875,10,1,tie
