@@ -1,0 +1,87 @@
+{
+  "schema_version": 1,
+  "name": "phase1q-ext-mux11",
+  "phase": 1,
+  "commit": "a1c2ce77562bf541a10ad95124eec5df1121acf1",
+  "common_argv": [
+    "-l",
+    "WARN"
+  ],
+  "tasks": {
+    "mux11": {
+      "argv": [
+        "-H",
+        "mux",
+        "-k",
+        "3"
+      ],
+      "target_raw": 0
+    }
+  },
+  "arms": {
+    "HC-C250": {
+      "argv": [
+        "-a",
+        "hc-capped",
+        "--gomea-max-evals-per-deme",
+        "250"
+      ]
+    },
+    "LTB-C250-M": {
+      "argv": [
+        "-a",
+        "gomea",
+        "--gomea-fos",
+        "lt-b",
+        "--gomea-pop-size",
+        "16",
+        "--gomea-skip-inactive",
+        "0",
+        "--gomea-max-evals-per-deme",
+        "250",
+        "--gomea-genotype-memo",
+        "1"
+      ]
+    },
+    "KR": {
+      "argv": [
+        "-a",
+        "gomea",
+        "--gomea-fos",
+        "lt-b",
+        "--gomea-pop-size",
+        "16",
+        "--gomea-skip-inactive",
+        "0",
+        "--gomea-max-evals-per-deme",
+        "250",
+        "--gomea-genotype-memo",
+        "1",
+        "--knob-probe-baseline",
+        "reduced"
+      ]
+    }
+  },
+  "seeds": [
+    3011,
+    3012,
+    3013,
+    3014,
+    3015,
+    3016,
+    3017,
+    3018,
+    3019,
+    3020
+  ],
+  "budget": {
+    "argv": [
+      "-m",
+      "40000"
+    ],
+    "kind": "evaluations"
+  },
+  "wall_cap_s": 7200,
+  "workers": 18,
+  "output_root": "../gomea-results"
+}
