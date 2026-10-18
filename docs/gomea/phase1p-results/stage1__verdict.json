@@ -1,0 +1,8 @@
+{
+  "Con:vs-hc": "extend",
+  "mux11:vs-hc": "extend",
+  "Con:pen-vs-hc": "tie",
+  "Con:pen-vs-current": "tie",
+  "mux11:pen-vs-hc": "tie",
+  "mux11:pen-vs-current": "tie"
+}

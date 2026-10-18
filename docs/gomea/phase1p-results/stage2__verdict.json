@@ -1,0 +1,8 @@
+{
+  "Con:vs-hc": "A better",
+  "mux11:vs-hc": "A worse",
+  "Con:pen-vs-hc": "A better",
+  "Con:pen-vs-current": "tie",
+  "mux11:pen-vs-hc": "tie",
+  "mux11:pen-vs-current": "tie"
+}
