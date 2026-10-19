@@ -150,6 +150,14 @@ if TYPE_CHECKING:
 
 __all__ = ["local_moses"]
 
+# NOT A PORT (pyMoses extension, no C++ counterpart): callables run after
+# every expansion of `local_moses`'s loop, as `hook(mp, dex, pa, stats)`. A
+# hook may add programs to the metapopulation (`metapopulation.
+# inject_candidates`) and must add any evaluations it spends to
+# `stats.n_evals`, so they count against `-m`. Empty by default, so nothing
+# changes; `tools/gomea/reseed.py` (re-seeding on stagnation) installs one.
+expansion_hooks: list = []
+
 
 def expand_deme(
     mp: metapopulation,
@@ -345,6 +353,11 @@ def local_moses(
         elapsed = stop - start
         start = stop
         stats.elapsed_secs += elapsed
+
+        # NOT A PORT (pyMoses extension): see `expansion_hooks`. The time a
+        # hook takes is counted in the next iteration's elapsed time.
+        for hook in expansion_hooks:
+            hook(mp, dex, pa, stats)
 
         # C++: local_moses.cc:155-189. One record; `((int) stats.elapsed_secs)`
         # truncates toward zero, and every numeric field is streamed bare, so

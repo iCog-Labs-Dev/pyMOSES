@@ -127,6 +127,7 @@ to, so an invalid value is always rejected.
 | `--simplify-exemplar-numeric TOL` | `0` (off) | Port-only, regression only, any optimizer: before knobs are built, replace exemplar subtrees whose training-output range is below `TOL × sd(target)` by their mean, keeping a replacement only if the training score is not worse. See [Numerical simplification of exemplars](#numerical-simplification-of-exemplars---simplify-exemplar-numeric). |
 | `--gomea-fos-topk K` | `0` (off) | Each generation, GOM (and forced improvement) visits only K FOS subsets instead of all of them (about 2 per knob), so a generation costs about `N × K` trials instead of `N × 2 × knobs`. See [Top-K FOS subsets](#top-k-fos-subsets---gomea-fos-topk). |
 | `--gomea-fos-topk-mode {linkage,random}` | `linkage` | With `--gomea-fos-topk K`: `linkage` keeps the K linkage-tree merges with the strongest linkage (needs `--gomea-fos lt-b` or `lt-mi`); `random` draws K subsets uniformly each generation (the control). |
+| `--reserve-empty-every K` | `0` (off) | Port-only, any optimizer: every K-th expansion picks its exemplar only among the programs descending from an initial exemplar that is the empty program (`+`/`and`), falling back to the normal choice when none is selectable. See [Reserved expansions for the empty program](#reserved-expansions-for-the-empty-program---reserve-empty-every). |
 
 The default population was 64 during development. It became 16 after the pilot
 (`docs/gomea/pilot-a/`); the confirmatory runs passed 16 explicitly.
@@ -336,6 +337,65 @@ A deme ends with one of these `termination_reason`s: `target_reached`, `converge
 `stagnation`, `max_generations`, `global_budget`, `inner_budget`, `time_limit`,
 `no_search_fields`, `no_valid_moves`, `interrupted`, or `stall_evals` (the
 `--gomea-stall-evals` rule).
+
+## Reserved expansions for the empty program (`--reserve-empty-every`)
+
+Port-only and opt-in: classic MOSES has no counterpart, and with the default `0` nothing
+changes (no lineage is tracked). It is not GOMEA-specific: it acts on exemplar selection,
+so it applies to every `-a`. It is meant for seeded runs (`-e SEED1 ... -e +`): Phase 1r
+found that MOSES never expanded the empty program's lineage once seeds were present.
+
+With `--reserve-empty-every K` (K > 0) the metapopulation records which initial exemplar
+each program descends from: the k-th `-e` is `exemplar<k>`, and a program merged for the
+first time inherits the lineage of the exemplar whose deme produced it. An initial
+exemplar counts as the empty program if it was `+` or `and` before reduction (reduction
+turns them into `0` and `true`). Expansions K, 2K, 3K, ... then pick their exemplar only
+among the empty program's descendants, by MOSES's usual Boltzmann selection (score with
+the complexity penalty, `-v`, `--revisit`) restricted to that subset. If none of the
+subset is selectable (all visited, or none left after trimming), the expansion makes the
+normal choice. `K = 1` expands the empty lineage whenever it can. Without an empty
+initial exemplar the option has no effect. It costs no evaluations; on reserved turns
+each candidate's printed form is computed once.
+
+In `tools/gomea/moses_sr_runner.py`, a seed block's `"reserve_empty_every": K` passes the
+flag. The summary's `reserve_empty` (from `lineage.json`) gives `expansions_by_lineage`,
+`empty_lineage_expansions`, `reserved_turns` and `reserved_fallbacks`. See
+`pymoses/moses/metapopulation/lineage.py`.
+
+## Re-seeding on stagnation (runner seed block)
+
+Tooling-only and opt-in, for seeded regression runs of `tools/gomea/moses_sr_runner.py`
+with pyMoses (backlog item 9, later extension). A seed block's `"reseed_after": S`
+installs `tools/gomea/reseed.py` in the MOSES process. Optional keys:
+`"reseed_share": f` (default `0.2`), `"max_reseeds": n` (default `1`),
+`"reseed_min_budget"` (default: the initial seeding's budget, `share × -m`). The other seed-block keys
+(`height`, `k`, `popsize`, `functions`, `gpgomea_argv`, `tol`) are reused.
+
+After every expansion the hook compares the metapopulation's best score with the best so
+far. After S consecutive expansions without a strict improvement it runs GP-GOMEA again
+with `floor(f × (-m − evaluations so far))` evaluations and a new random seed
+(`split + 1000 × r` for the r-th re-seed), verifies the elites with the running MOSES's
+own scorer, reduces them and merges them into the metapopulation (lineage `reseed<r>`).
+GP-GOMEA's evaluations (its own count, which can exceed the share by up to one
+generation) are added to MOSES's evaluation count, so they come out of `-m` and the
+run's total budget stays fixed; MOSES's printed `n_evals` includes them. GP-GOMEA checks
+its limit only between generations, so it overspends a small share (on Con a share of 128
+cost 684 evaluations); a share below the minimum budget therefore skips that re-seed (a
+skip does not count towards `max_reseeds`, and is retried after the next S stagnant
+expansions), and an overspend larger than what MOSES has left is recorded as
+`over_budget`. The verification and merge scorer calls are not
+counted, as in the initial seeding.
+
+GP-GOMEA's initial population is not seeded from the metapopulation: GP-GOMEA works on a
+fixed tree template of height H with its own function set, so reading MOSES programs
+(larger, with `sin`/`exp`/`log` and arbitrary constants) into it would need substantial
+C++ changes. Each re-seed is a fresh GP-GOMEA run instead.
+
+The summary adds `n_reseeds`, `reseed_evals`, `reseed_cpu_s` and `moses_own_evals`
+(`n_evals − reseed_evals`); `reseed.json` records every re-seed (`at_expansion`, `budget`,
+`evaluations_used`, the seeds, the best score before and after). The hook point is
+`pymoses.moses.moses.local_moses.expansion_hooks`, a port-only list of callables run after
+each expansion, empty by default.
 
 ## Using it from Python
 

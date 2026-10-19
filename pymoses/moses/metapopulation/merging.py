@@ -476,6 +476,11 @@ def merge_candidates(self: metapopulation, candidates: scored_combo_tree_set) ->
         # with an invented deme id or raised on, since dropping is what
         # every other demeID-dependent record in this port already does.
 
+    # NOT A PORT (pyMoses extension, `--reserve-empty-every`): lineage of the
+    # programs merged for the first time (`lineage.py`).
+    if getattr(self, "_lineage", None) is not None:
+        self._lineage.note_merged(candidates)
+
     old_size = self.size()
     if not self._params.discard_dominated:
         logger().debug("Insert all candidates in the metapopulation")
@@ -587,6 +592,10 @@ def merge_demes(
     comment below for why it runs AFTER `merge_candidates`, matching
     real C++'s exact statement order.
     """
+    # NOT A PORT (pyMoses extension, `--reserve-empty-every`): count the
+    # expansion, so the lineage tracker knows which ones are reserved.
+    if getattr(self, "_lineage", None) is not None:
+        self._lineage.expansion_done()
     logger().debug("Close and merge demes")
 
     self.sort_demes(all_demes)

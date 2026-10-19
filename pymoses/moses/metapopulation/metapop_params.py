@@ -445,3 +445,7 @@ class metapop_parameters:
         self.ensemble_params = ensemble_parameters()
         self.merge_callback = None
         self.callback_user_data = None
+        # NOT A PORT (pyMoses extension, `--reserve-empty-every K`): every K-th
+        # expansion picks its exemplar from the empty program's lineage
+        # (`lineage.py`). 0 = off, the classic behaviour.
+        self.reserve_empty_every = 0

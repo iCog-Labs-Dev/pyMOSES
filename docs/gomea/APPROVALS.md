@@ -54,6 +54,21 @@ byte-identical to the previous code (identity harness, all 8 cases).
 
 Each is used only in a pre-registered phase that names it.
 
+**Also not user-approved as code (2026-10-19):** two opt-in seeding options, built by the
+agent from the Phase 1r follow-ups (backlog item 9) at the coordinator's request. Both are
+off by default. With them off, outputs are byte-identical to the previous code (identity
+harness, all 8 cases).
+
+* `--reserve-empty-every K`: lineage tracking in the metapopulation and every K-th
+  expansion restricted to the empty program's lineage (`pymoses/moses/metapopulation/
+  lineage.py`); seed-block key `reserve_empty_every`.
+* Re-seeding on stagnation: `tools/gomea/reseed.py`, the port-only
+  `local_moses.expansion_hooks` list and `metapopulation.inject_candidates`; seed-block
+  keys `reseed_after`, `reseed_share`, `max_reseeds`. A fresh GP-GOMEA run per re-seed
+  (not seeded from the metapopulation).
+
+Neither is used in a pre-registered phase yet.
+
 Deviations from the handoff's gate procedure that follow from instruction #1:
 
 * The P1.0 → P1.5 stops are replaced by the review packets committed under `docs/gomea/`
