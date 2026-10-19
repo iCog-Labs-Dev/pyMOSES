@@ -89,6 +89,16 @@ class argument:
             return a < b
         return abs(a) < abs(b)
 
+    def __copy__(self) -> argument:
+        """No C++ counterpart: what `copy.copy` builds through `__reduce_ex__`
+        for this slotted class (a new object with the same `idx`), without
+        the generic reconstruction machinery. Tree copies call this for
+        every argument leaf.
+        """
+        new = object.__new__(type(self))
+        new.idx = self.idx
+        return new
+
     def __eq__(self, other: object) -> bool:
         """C++: moses/comboreduct/combo/argument.h:66 argument
 

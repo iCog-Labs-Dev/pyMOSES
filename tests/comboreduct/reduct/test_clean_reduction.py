@@ -130,3 +130,74 @@ def test_clean_reduce_on_an_empty_tree_is_a_noop():
     tr = combo_tree()
     clean_reduce(tr)  # must not raise
     assert tr.empty()
+
+
+# ---------------------------------------------------------------------------
+# clean_reduced_copy: `combo_tree tmp(it); clean_reduce(tmp);` in one step
+# ---------------------------------------------------------------------------
+
+
+def _random_tree_with_nulls(rng, depth: int):
+    """A random tree over and/or/not/cond, arguments and contin leaves, with
+    `null_vertex` wrappers sprinkled in (as knob building leaves them)."""
+    from pymoses.comboreduct.combo.argument import argument
+    from pymoses.comboreduct.combo.vertex import combo_tree
+
+    def grow(tr, node, d):
+        for _ in range(rng.randint(0, 4) if d > 0 else 0):
+            r = rng.random()
+            if r < 0.2:
+                child = tr.append_child(node, builtin.null_vertex)
+                grow(tr, child, d - 1)
+            elif r < 0.55:
+                op = rng.choice(
+                    [builtin.logical_and, builtin.logical_or, builtin.logical_not]
+                    + [builtin.cond] * (rng.random() < 0.1)
+                )
+                grow(tr, tr.append_child(node, op), d - 1)
+            elif r < 0.9:
+                tr.append_child(node, argument(rng.choice([1, 2, 3, -1, -2, -3])))
+            else:
+                tr.append_child(node, 0.5)
+
+    root = rng.choice(
+        [builtin.logical_and, builtin.logical_or, builtin.null_vertex, builtin.cond]
+    )
+    tr = combo_tree(root)
+    grow(tr, tr.begin(), depth)
+    return tr
+
+
+def test_clean_reduced_copy_equals_copy_then_clean_reduce_on_random_trees():
+    import random
+
+    from pymoses.comboreduct.combo.vertex import combo_tree
+    from pymoses.comboreduct.reduct.clean_reduction import clean_reduced_copy
+
+    rng = random.Random(20261019)
+    checked = 0
+    for _ in range(3000):
+        src = _random_tree_with_nulls(rng, rng.randint(1, 5))
+        before = combo_tree_to_str(src)
+        for node in list(src):
+            try:
+                expected = combo_tree(node)
+                clean_reduce(expected)
+            except Exception as exc:  # e.g. a malformed cond
+                with pytest.raises(type(exc)):
+                    clean_reduced_copy(node)
+                continue
+            got = clean_reduced_copy(node)
+            assert combo_tree_to_str(got) == combo_tree_to_str(expected)
+            checked += 1
+        assert combo_tree_to_str(src) == before  # the source is untouched
+    assert checked > 10000
+
+
+def test_clean_reduced_copy_does_not_share_argument_objects():
+    from pymoses.comboreduct.reduct.clean_reduction import clean_reduced_copy
+
+    tr = str_to_combo_tree("and($1 $2)")
+    got = clean_reduced_copy(tr.begin())
+    got.begin().first_child.data.negate()
+    assert combo_tree_to_str(tr).strip() == "and($1 $2)"

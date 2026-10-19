@@ -51,7 +51,7 @@ from pymoses.comboreduct.combo.vertex import (
     vertex,
     vertex_equal,
 )
-from pymoses.comboreduct.reduct.clean_reduction import clean_reduce
+from pymoses.comboreduct.reduct.clean_reduction import clean_reduced_copy
 from pymoses.comboreduct.reduct.general_rules import is_boolean
 from pymoses.comboreduct.reduct.logical_rules import is_logical_operator, is_predicate
 from pymoses.comboreduct.type_checker.type_signature import (
@@ -592,8 +592,8 @@ class build_knobs:
         for idx in range(1, knob.multiplicity()):
             knob.turn(idx)
             initial_complexity = tree_complexity(subtree, is_predicate)
-            reduced = combo_tree(subtree)
-            clean_reduce(reduced)
+            # `combo_tree tmp(*it); clean_reduce(tmp);` (see clean_reduced_copy)
+            reduced = clean_reduced_copy(subtree)
             self._simplify_knob_building(reduced)
             if initial_complexity > tree_complexity(reduced, is_predicate):
                 to_disallow.append(idx)
@@ -639,8 +639,8 @@ class build_knobs:
         for idx in range(1, knob.multiplicity()):
             knob.turn(idx)
             initial_complexity = tree_complexity(subtree, is_predicate)
-            reduced = combo_tree(subtree)
-            clean_reduce(reduced)
+            # `combo_tree tmp(*it); clean_reduce(tmp);` (see clean_reduced_copy)
+            reduced = clean_reduced_copy(subtree)
             self._simplify_knob_building(reduced)
             if initial_complexity - tree_complexity(reduced, is_predicate) > baseline_slack:
                 to_disallow.append(idx)
@@ -668,8 +668,7 @@ class build_knobs:
             hit = self._baseline_memo.get(key)
             if hit is not None:
                 return hit
-        cleaned = combo_tree(subtree)
-        clean_reduce(cleaned)
+        cleaned = clean_reduced_copy(subtree)
         self._simplify_knob_building(cleaned)
         result = tree_complexity(cleaned, is_predicate)
         if key is not None:

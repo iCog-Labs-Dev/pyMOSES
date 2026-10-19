@@ -151,7 +151,7 @@ from pymoses.comboreduct.reduct.flat_normal_form import (
 )
 from pymoses.comboreduct.reduct.reduct import rule
 from pymoses.comboreduct.table.table import complete_truth_table
-from pymoses.util.tree import tree_node
+from pymoses.util.tree import three_way_comparator, tree_node
 
 # ---------------------------------------------------------------------------
 # vertex.h predicates whose only real call site (within S7's scope) is this
@@ -238,13 +238,10 @@ def _sort_by_comp(items: list, key_fn, comp) -> None:
     `tree.py`'s own `sort_on_subtrees`/`functools.cmp_to_key` idiom.
     """
 
+    cmp3 = three_way_comparator(comp)
+
     def _cmp(a, b):
-        ka, kb = key_fn(a), key_fn(b)
-        if comp(ka, kb):
-            return -1
-        if comp(kb, ka):
-            return 1
-        return 0
+        return cmp3(key_fn(a), key_fn(b))
 
     items.sort(key=functools.cmp_to_key(_cmp))
 
@@ -285,11 +282,13 @@ def erase_set_intersection(erase, seq1: list, seq2: list, comp) -> None:
     """
     i1, n1 = 0, len(seq1)
     i2, n2 = 0, len(seq2)
+    cmp3 = three_way_comparator(comp)
     while i1 != n1 and i2 != n2:
         a, b = seq1[i1], seq2[i2]
-        if comp(a, b):
+        c = cmp3(a, b)
+        if c < 0:
             i1 += 1
-        elif comp(b, a):
+        elif c > 0:
             i2 += 1
         else:
             erase(a)
@@ -305,12 +304,14 @@ def erase_set_difference(erase, seq1: list, seq2: list, comp) -> None:
     """
     i1, n1 = 0, len(seq1)
     i2, n2 = 0, len(seq2)
+    cmp3 = three_way_comparator(comp)
     while i1 != n1 and i2 != n2:
         a, b = seq1[i1], seq2[i2]
-        if comp(a, b):
+        c = cmp3(a, b)
+        if c < 0:
             erase(a)
             i1 += 1
-        elif comp(b, a):
+        elif c > 0:
             i2 += 1
         else:
             i1 += 1
@@ -330,11 +331,13 @@ def insert_set_complement(insert, seq1: list, seq2: list, comp) -> None:
     """
     i1, n1 = 0, len(seq1)
     i2, n2 = 0, len(seq2)
+    cmp3 = three_way_comparator(comp)
     while i1 != n1 and i2 != n2:
         a, b = seq1[i1], seq2[i2]
-        if comp(a, b):
+        c = cmp3(a, b)
+        if c < 0:
             i1 += 1
-        elif comp(b, a):
+        elif c > 0:
             insert(a, b)
             i2 += 1
         else:
@@ -349,11 +352,13 @@ def has_empty_intersection(seq1: list, seq2: list, comp) -> bool:
     """C++: opencog/util/algorithm.h:136 has_empty_intersection"""
     i1, n1 = 0, len(seq1)
     i2, n2 = 0, len(seq2)
+    cmp3 = three_way_comparator(comp)
     while i1 != n1 and i2 != n2:
         a, b = seq1[i1], seq2[i2]
-        if comp(a, b):
+        c = cmp3(a, b)
+        if c < 0:
             i1 += 1
-        elif comp(b, a):
+        elif c > 0:
             i2 += 1
         else:
             return False
@@ -392,13 +397,14 @@ class subtree_set:
 
     def _bisect(self, x: tree_node):
         lo, hi = 0, len(self._items)
-        comp = self._comp
+        cmp3 = three_way_comparator(self._comp)
         while lo < hi:
             mid = (lo + hi) // 2
             v = self._items[mid]
-            if comp(v, x):
+            c = cmp3(v, x)
+            if c < 0:
                 lo = mid + 1
-            elif comp(x, v):
+            elif c > 0:
                 hi = mid
             else:
                 return mid, True
