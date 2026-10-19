@@ -24,9 +24,15 @@ and spend more running time only on inconclusive results.
 5. **Rule:** two looks at α = 0.025 with Holm correction over each phase's primary family.
    "Better" also needs a 10 % lower median. Contrasts that were not extended keep their
    stage-1 verdict.
-6. **Throughput:** two phases at a time, 10 workers each.
-   * Code changes are built and identity-checked in a separate clone (`../pyMoses-dev`).
-   * They are merged only between phase pairs, so a running phase's code check never breaks.
+6. **No overlap, at any cost** (user, 2026-10-19).
+   * Exactly one experiment runs at a time. Within a phase, the Boolean and regression parts
+     also run one after the other.
+   * Each part uses 16 workers.
+   * `tools/gomea/queue_run.sh` starts the next phase only when no other experiment runner
+     is alive.
+   * Code work in the clones (`../pyMoses-dev`-style clones) runs under `nice -n 19`, with at
+     most 2 jobs while an experiment is running.
+   * Code is merged only between phases, so a running phase's code check never breaks.
 7. **Process:** each phase gets a short pre-registration before it runs. A subagent builds and
    smoke-tests its tooling. The phase gets a fact-checked findings file and a row in
    `FINDINGS-LOG.md`.
@@ -35,7 +41,7 @@ and spend more running time only on inconclusive results.
 
 | # | Phase | Backlog item | Question | Arms | Problems | Runs (stage 1) | Code needed |
 |---|---|---|---|---|---|---|---|
-| 0 | **1s** + **1t** | 13 | Does the acceptance penalty cut CPU to solve, for GOMEA (1s) and for HC (1t)? | GOMEA / PEN; HC / HC-PEN | mux11 | 20 + 20 | done |
+| 0 | **1s**, then **1t** | 13 | Does the acceptance penalty cut CPU to solve, for GOMEA (1s) and for HC (1t)? | GOMEA / PEN; HC / HC-PEN | mux11 | 20 + 20 | done |
 | 1 | **1u** | 14 | Does GP-GOMEA seeding close the Boolean gap? | HC, HC-S, GOMEA, GOMEA-S | mux11 | 40 | none (seed block exists) |
 | 1 | **1v** | 11 | Uniform-distance start at equal cost, end to end | GOMEA, GOMEA-UNIFORM | mux11, Con | 40 | none |
 | 2 | **1w** | 2.4 | Top-k linkage subsets per generation (lt-mi) | GOMEA, TOPK | mux11, Con | 40 | none |
@@ -53,9 +59,12 @@ and spend more running time only on inconclusive results.
 * Code-free phases come before code-dependent ones, so code is built while earlier pairs run.
 * Low-priority items (1z, 1aa) and the largest new code (1ab) come last.
 
-**Estimated wall time,** assuming a quiet machine: about 1–2 h per pair at stage 1, so about
-8–12 h for the whole queue without extensions. A shared machine slows wall time but not the
-CPU metrics.
+**Estimated wall time,** run strictly one at a time on a quiet machine: about 1–2 h per
+phase at stage 1, so roughly 14–20 h for the whole queue without extensions. A shared machine
+slows wall time but not the CPU metrics.
+
+**Run order:** 1s → 1t → 1u → 1v → 1w → 1x → 1y → 1z → 1aa → 1ab. The `#` column groups
+phases by priority only; nothing in it runs at the same time.
 
 ## Status
 
