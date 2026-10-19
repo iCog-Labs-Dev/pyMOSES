@@ -220,6 +220,23 @@ GOM bookkeeping and telemetry are not worth optimising.
       138-node exemplar got 123 knobs; a 58-node one got 248). Representations may
       occasionally be built incomplete.
 
+14. **Seeded GOMEA on mux11: does seeding close the Boolean time gap?** (user, 2026-10-19)
+    * **Why:**
+      * In Phase 1r, seeding cut GOMEA's CPU per run in every pair, about 4× on Con (20/20)
+        and 6.3× on EnH (10/10).
+      * It also brought GOMEA's CPU from 4.6–5.2× capped HC's down to 1.65–1.9×. Exemplars
+        stay small, and knob building scales with exemplar size.
+      * mux11 is the problem where GOMEA loses at equal time because of CPU: Phase 1p,
+        2,568 s against 1,311 s to solve.
+    * **Caution:** one earlier pilot (seeded capped HC, mux11, seed 3001) needed about twice
+      the evaluations to solve, so Boolean seeds may mislead.
+    * **Sketch:**
+      * Arms: capped HC and GOMEA (cap 250), each seeded and unseeded, at equal time
+        (`--max-time`, as in Phase 1p).
+      * Seeding: `gpgomea_seed.py --bool`, AND/OR/NOT, its time counted in the budget.
+      * Metric: wall time to solve. Report CPU per evaluation and exemplar size.
+      * Seeds: 10 + 10.
+
 ## 3. Ideas outside Phase 1's scope
 
 * **IEBL-style building blocks** (Input-space Entropy-based Building-block Learning;
