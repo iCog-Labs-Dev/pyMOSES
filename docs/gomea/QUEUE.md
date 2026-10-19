@@ -68,16 +68,15 @@ phases by priority only; nothing in it runs at the same time.
 
 ## Status
 
-* **Segment A** (code `ef88825`, queued with `tools/gomea/queue_run.sh`):
+* **Segment A** (merged code after `f8bc41a`, with the knob speed-ups and seeding options; queued with `tools/gomea/queue_run.sh`):
   1s → 1t → 1u → 1v → 1w → 1x → 1aa.
   * 1s started 2026-10-19 10:55.
   * Pre-registrations: `PHASE1S-`, `PHASE1T-` and `PHASE1U-1AA-PREREGISTRATION.md`.
 * **1z:** settled by pilot and not run. The pass found 0 candidates on Con; see
   `PHASE1U-1AA-PREREGISTRATION.md`.
-* **Between segments:** merge `../pyMoses-seedopts` (reserve-empty, re-seed) and
-  `../pyMoses-knobfast` (knob-building speed-ups); identity check, full suite, regenerate the
-  manifests.
+* **Merged early** (after 1t, before 1u): `../pyMoses-seedopts` and `../pyMoses-knobfast`,
+  via `../pyMoses-int`. Identity check: IDENTICAL on all 8 cases; suite: 8602 passed.
 * **Segment B:** 1y → 1ab, pre-registered after the merge.
 
-**CPU comparability:** every phase in segment A runs on the same code. Segment B runs on the
-merged code; its CPU numbers are compared only within each phase.
+**CPU comparability:** 1s and 1t ran on the old code. Every phase from 1u on, segment B
+included, runs on the same merged code.

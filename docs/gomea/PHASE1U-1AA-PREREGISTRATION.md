@@ -8,8 +8,13 @@ Written 2026-10-19, before any of these runs. Shared rules: `QUEUE.md`.
   1u → 1v → 1w → 1x → 1aa.
 * **How:** `tools/gomea/queue_run.sh`. Within a phase the mux11 part runs first, then Con.
   16 workers.
-* **Code:** commit `ef88825`. Manifests are produced by `tools/gomea/gen_queue_manifests.py`.
-  No code is merged until 1aa is done.
+* **Code:** the merge of the knob-building speed-ups and the seeding options (integration
+  commit `f8bc41a`), merged after Phase 1t and before any of these runs.
+  * Outputs are byte-identical to `ef88825` on all 8 identity cases; the suite passes.
+  * CPU is about 0.34–0.53× on the identity cases.
+  * The manifests' `commit` field is the HEAD after the merge, produced by
+    `tools/gomea/gen_queue_manifests.py`.
+  * No further code is merged until 1aa is done.
 * **Base settings:**
   * GOMEA is LT-B, N = 16, cap 250, memo; `--gomea-contin copy` on Con.
   * HC is `-a hc-capped` with cap 250.
