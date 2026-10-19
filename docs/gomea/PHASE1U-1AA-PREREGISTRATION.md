@@ -71,6 +71,8 @@ Written 2026-10-19, before any of these runs. Shared rules: `QUEUE.md`.
 * **Problems:** mux11 and Con.
 * **Primary** (Holm over 2): `topk`, TOPK-L vs GOMEA, per problem.
 * **Secondary** (Holm over 2): `linkage-vs-random`, TOPK-L vs TOPK-R, per problem.
+* **Extension runs:** only GOMEA and TOPK-L, because secondary contrasts are never extended
+  (amended 2026-10-19, before any 1w run).
 
 ## 1x: deme length by problem type
 

@@ -58,28 +58,6 @@
         "--knob-probe-baseline",
         "reduced"
       ]
-    },
-    "TOPK-R": {
-      "argv": [
-        "-a",
-        "gomea",
-        "--gomea-fos",
-        "lt-mi",
-        "--gomea-pop-size",
-        "16",
-        "--gomea-skip-inactive",
-        "0",
-        "--gomea-max-evals-per-deme",
-        "250",
-        "--gomea-genotype-memo",
-        "1",
-        "--gomea-fos-topk",
-        "4",
-        "--gomea-fos-topk-mode",
-        "random",
-        "--knob-probe-baseline",
-        "reduced"
-      ]
     }
   },
   "seeds": [

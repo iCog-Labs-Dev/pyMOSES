@@ -70,34 +70,6 @@
         "--knob-probe-baseline",
         "reduced"
       ]
-    },
-    "TOPK-R": {
-      "binary": ".venv/bin/moses",
-      "budget": {
-        "evals": 10000
-      },
-      "argv": [
-        "-a",
-        "gomea",
-        "--gomea-fos",
-        "lt-mi",
-        "--gomea-pop-size",
-        "16",
-        "--gomea-skip-inactive",
-        "0",
-        "--gomea-max-evals-per-deme",
-        "250",
-        "--gomea-genotype-memo",
-        "1",
-        "--gomea-fos-topk",
-        "4",
-        "--gomea-fos-topk-mode",
-        "random",
-        "--gomea-contin",
-        "copy",
-        "--knob-probe-baseline",
-        "reduced"
-      ]
     }
   }
 }
