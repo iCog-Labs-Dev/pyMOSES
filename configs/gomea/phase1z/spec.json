@@ -1,0 +1,15 @@
+{
+  "phase": "1z",
+  "metrics": {
+    "Con": "test_nmse"
+  },
+  "primary": [
+    [
+      "Con",
+      "numeric-simplify",
+      "GOMEA-NC",
+      "GOMEA"
+    ]
+  ],
+  "secondary": []
+}

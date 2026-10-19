@@ -1,0 +1,36 @@
+{
+  "phase": "1u",
+  "metrics": {
+    "mux11": "cpu_to_target"
+  },
+  "primary": [
+    [
+      "mux11",
+      "seed-hc",
+      "HC-S",
+      "HC"
+    ],
+    [
+      "mux11",
+      "seed-gomea",
+      "GOMEA-S",
+      "GOMEA"
+    ]
+  ],
+  "secondary": [
+    [
+      "mux11",
+      "seeded-gomea-vs-hc",
+      "GOMEA-S",
+      "HC-S"
+    ]
+  ],
+  "descriptive": [
+    [
+      "mux11",
+      "gomea-vs-hc",
+      "GOMEA",
+      "HC"
+    ]
+  ]
+}
