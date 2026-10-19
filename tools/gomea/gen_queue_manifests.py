@@ -66,18 +66,21 @@ for ph, d in phases.items():
     srarms = d.get("sr") or d.get("arms")
     if "bool" in d: srarms = None
     probs = {c[0] for c in d["primary"]}
+    # Extensions only rerun arms in a primary contrast: secondary contrasts never extend.
+    ext_arms = {a for c in d["primary"] for a in c[2:]}
+    keep = lambda arms: {a: c for a, c in arms.items() if a in ext_arms}
     metrics = {}
     def dump(fn, obj): (out / fn).write_text(json.dumps(obj, indent=2) + "\n")
     if boolarms:
         metrics["mux11"] = "cpu_to_target"
         dump("bool.json", bool_manifest(f"phase{ph}-bool", boolarms, S1))
         if "mux11" in probs:
-            dump("bool-ext-mux11.json", bool_manifest(f"phase{ph}-bool-ext-mux11", boolarms, S2))
+            dump("bool-ext-mux11.json", bool_manifest(f"phase{ph}-bool-ext-mux11", keep(boolarms), S2))
     if srarms:
         metrics["Con"] = "test_nmse"
         dump("sr.json", sr_manifest(f"phase{ph}-sr", srarms, P1))
         if "Con" in probs:
-            dump("sr-ext-Con.json", sr_manifest(f"phase{ph}-sr-ext-Con", srarms, P2))
+            dump("sr-ext-Con.json", sr_manifest(f"phase{ph}-sr-ext-Con", keep(srarms), P2))
     spec = {"phase": ph, "metrics": metrics, "primary": d["primary"], "secondary": d.get("secondary", [])}
     if d.get("descriptive"): spec["descriptive"] = d["descriptive"]
     dump("spec.json", spec)
