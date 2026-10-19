@@ -6,6 +6,12 @@ learning: MOSES's own ``hill_climbing``, built exactly as ``-a hc`` builds it,
 is called with ``min(max_evals, gomea_params.max_evals_per_deme)``, the same
 cap ``--gomea-max-evals-per-deme`` (or ``--gomea-deme-share``, which derives
 it from ``-m``) gives GOMEA. Without a cap it is ``-a hc``.
+
+With ``--gomea-accept-complexity-ratio R`` (> 0; Phase 1t) the climb ranks
+new instances, and tests improvement, by ``raw - complexity / R``, the key
+GOMEA's acceptance uses under the same option (``optimizer.accept_worse``).
+The scores stored in the deme, MOSES's merge and exemplar selection are
+unchanged. With R = 0 (the default) nothing changes.
 """
 
 from __future__ import annotations
@@ -33,7 +39,11 @@ class hc_capped_optimization(optimizer_base):
     ) -> None:
         super().__init__(op)
         self.hc = hill_climbing(self.opt_params, hc if hc is not None else hc_parameters())
-        self.cap = (gp if gp is not None else gomea_parameters()).max_evals_per_deme
+        gp = gp if gp is not None else gomea_parameters()
+        self.cap = gp.max_evals_per_deme
+        ratio = gp.accept_complexity_ratio
+        if ratio:
+            self.hc.accept_key = lambda cs: cs.get_score() - cs.get_complexity() / ratio
 
     def __call__(self, deme: deme_t, iscorer, max_evals: int, max_time: int) -> None:
         budget = min(max_evals, self.cap) if self.cap else max_evals

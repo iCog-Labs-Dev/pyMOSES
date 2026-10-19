@@ -490,6 +490,13 @@ class hill_climbing(optimizer_base):
         self.hc_params = hc_parameters() if hc is None else hc
         self._total_RAM_bytes = _get_total_ram_bytes()
         self._instance_bytes = 0
+        # GOMEA extension (not in classic MOSES), set only by `-a hc-capped`
+        # with `--gomea-accept-complexity-ratio R`: when not None, the key
+        # this climb ranks a deme's new instances by and tests improvement
+        # with, in place of the composite score's penalized score. Scores
+        # stored in the deme, and so MOSES's merge, are unchanged. None (the
+        # default) leaves the loop exactly as ported.
+        self.accept_key = None
 
     # ---------------------------------------------------------------- estimate
 
@@ -1334,7 +1341,10 @@ class hill_climbing(optimizer_base):
             ibest = current_number_of_instances
             for i in range(current_number_of_instances, len(deme)):
                 inst_cscore = deme[i].second
-                iscore = inst_cscore.get_penalized_score()
+                if self.accept_key is None:
+                    iscore = inst_cscore.get_penalized_score()
+                else:
+                    iscore = self.accept_key(inst_cscore)
                 if iscore > best_score:
                     best_cscore = copy.copy(inst_cscore)
                     best_score = iscore

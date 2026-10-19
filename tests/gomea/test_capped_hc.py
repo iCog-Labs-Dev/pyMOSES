@@ -51,3 +51,46 @@ def test_no_cap_is_plain_hill_climbing(problem):
     d1, r1 = _run(capped, problem, 7, 10**4)
     d2, r2 = _run(hc, problem, 7, 10**4)
     assert _deme_contents(d1) == _deme_contents(d2) and r1 == r2
+
+
+def test_accept_ratio_off_leaves_the_key_unset():
+    capped = hc_capped_optimization(
+        optim_parameters(), hc_parameters(), gomea_parameters(max_evals_per_deme=20)
+    )
+    assert capped.hc.accept_key is None
+
+
+def test_accept_ratio_ranks_by_raw_minus_complexity_over_ratio():
+    # Phase 1t: `--gomea-accept-complexity-ratio R` with `-a hc-capped` ranks
+    # instances by raw - complexity / R, the key GOMEA's acceptance uses.
+    from pymoses.moses.moses.types import composite_score
+
+    capped = hc_capped_optimization(
+        optim_parameters(),
+        hc_parameters(),
+        gomea_parameters(max_evals_per_deme=20, accept_complexity_ratio=0.5),
+    )
+    key = capped.hc.accept_key
+    assert key(composite_score(-3.0, 4)) == pytest.approx(-3.0 - 4 / 0.5)
+    # a slightly better raw score loses to a much simpler program
+    assert key(composite_score(-2.0, 10)) < key(composite_score(-3.0, 2))
+
+
+def test_accept_ratio_keeps_stored_scores_and_budget(problem):
+    # The penalty changes which instance the climb moves to, never the scores
+    # it stores or the evaluations it may spend.
+    plain = hc_capped_optimization(
+        optim_parameters(), hc_parameters(), gomea_parameters(max_evals_per_deme=60)
+    )
+    pen = hc_capped_optimization(
+        optim_parameters(),
+        hc_parameters(),
+        gomea_parameters(max_evals_per_deme=60, accept_complexity_ratio=0.1),
+    )
+    d1, _ = _run(plain, problem, 3, 10**4)
+    d2, _ = _run(pen, problem, 3, 10**4)
+    assert d2.n_evals <= 60
+    isc, _ = problem()
+    for si in d2:
+        assert si.second == isc(si.first)
+    assert d1.n_evals <= 60
