@@ -70,6 +70,12 @@ this log and a findings file differ, the findings file is right.
 | 2026-10-19 | PEN (1p) against unpenalized GOMEA (1p) and uncapped HC (1j, 1l), equal time, 10 pairs | **Con:** PEN 43.3, GOMEA 45.4, uncapped HC 54.0. PEN beats uncapped HC in 9/10 (p 0.020). **mux11:** PEN 1,800 s (10/10 solved), GOMEA 2,568 s (8/10), uncapped HC 278 s. PEN is faster than GOMEA in 8/10 (p 0.11) but about 6.5× slower than uncapped HC. Uncorrected p. |
 | 2026-10-19 | GOMEA CPU, seeded against unseeded (1r) | Seeded cheaper in every pair: Con 20/20, median about 4×; EnH 10/10, about 6.3×. GOMEA/HC CPU ratio fell from 4.6–5.2× to 1.65–1.9×. |
 
+## Candidate defaults
+
+| Option | Status | Evidence | Plan |
+|---|---|---|---|
+| `--knob-probe-baseline reduced` (knob-collapse fix) | **Candidate default** (user, 2026-10-19). It diverges from C++ MOSES, so it is opt-in until adopted. | Phase 1q removed all collapsed demes (35 → 0 on mux11, 367 → 0 on pa5), with accuracy and CPU unchanged (Holm p 1.0). It was not tested on regression, where `disc_probe` is not used, or together with PEN or seeding. | Off in 1s and 1t, because 1s pools Phase 1o's runs. **On for every arm, GOMEA and HC alike, in later phases.** Watch for chain effects (larger demes, different exemplar growth) and record them here. Make it the code default after it has run in at least two more phases without a loss. |
+
 ## Open questions (see `BACKLOG.md`)
 
 * Does seeding close the Boolean time gap? Seeded GOMEA on mux11 at equal time (item 14).

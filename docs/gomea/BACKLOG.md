@@ -237,6 +237,13 @@ GOM bookkeeping and telemetry are not worth optimising.
       * Metric: wall time to solve. Report CPU per evaluation and exemplar size.
       * Seeds: 10 + 10.
 
+15. **Adopt `--knob-probe-baseline reduced` as the default** (user, 2026-10-19).
+    * **Evidence:** Phase 1q.
+    * **Plan:** from the first phase after 1s and 1t, add it to every arm, GOMEA and HC
+      alike, and say so in each pre-registration.
+    * **Adoption:** make it the code default (a disclosed DIVERGENCE) once it has run in two
+      phases without a loss. Track the status in `FINDINGS-LOG.md` → "Candidate defaults".
+
 ## 3. Ideas outside Phase 1's scope
 
 * **IEBL-style building blocks** (Input-space Entropy-based Building-block Learning;
