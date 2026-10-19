@@ -54,6 +54,15 @@ byte-identical to the previous code (identity harness, all 8 cases).
 
 Each is used only in a pre-registered phase that names it.
 
+**Also agent-built (2026-10-19):** `--gomea-accept-complexity-ratio R` now also applies to
+`-a hc-capped` (commit `ebd77c0`), for Phase 1t.
+
+* **What changed:** a deme-local penalty in hill climbing's ranking of new instances. It is
+  an extension hook, not a C++ divergence, and is off by default.
+* **Checks:** byte-identical on all 8 identity-harness cases.
+* **The user's request:** an experiment testing the penalty on hill climbing ("Run both of
+  them as different experiments"). The code itself was not separately approved.
+
 Deviations from the handoff's gate procedure that follow from instruction #1:
 
 * The P1.0 → P1.5 stops are replaced by the review packets committed under `docs/gomea/`
