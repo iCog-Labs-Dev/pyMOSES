@@ -244,6 +244,13 @@ GOM bookkeeping and telemetry are not worth optimising.
     * **Adoption:** make it the code default (a disclosed DIVERGENCE) once it has run in two
       phases without a loss. Track the status in `FINDINGS-LOG.md` → "Candidate defaults".
 
+16. **Confirm PEN's CPU-to-solve gain on mux11** (after Phase 1s, 2026-10-19).
+    * **Phase 1s:** a registered tie. Over 20 pooled seeds PEN's median was 37 % lower,
+      13 / 7 pairs, p 0.097.
+    * **If wanted:** 20 fresh seeds on the merged, faster code, same metric, single primary
+      contrast.
+    * **Cost:** about 40 runs, about 1 h with the knob speed-ups.
+
 ## 3. Ideas outside Phase 1's scope
 
 * **IEBL-style building blocks** (Input-space Entropy-based Building-block Learning;

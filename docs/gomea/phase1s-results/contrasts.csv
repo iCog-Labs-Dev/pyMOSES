@@ -1,0 +1,4 @@
+contrast,problem,a,a_lower,b,b_lower,median_a,median_b,p,pairs,replicates,ties,verdict
+pooled,mux11,PEN,13,LTB-C250-M,7,1888.6807826475,2997.877775897,0.09730720520019531,20,,0,tie
+fresh,mux11,PEN,6,LTB-C250-M,4,2671.4668366475,3692.64389769,0.431640625,10,,0,
+pool-only,mux11,PEN,7,LTB-C250-M,3,1341.1983821305,1872.419294945,0.130859375,10,,0,
