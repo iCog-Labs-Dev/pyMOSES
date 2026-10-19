@@ -392,6 +392,10 @@ def vertex_equal(a: vertex, b: vertex) -> bool:
     `builtin.logical_true` -- see interpreter.py's own module docstring
     and eval.py's call sites for the general rule.
     """
+    # Fast path (no C++ counterpart; speed only): operands of the same exact
+    # Python type agree on every `isinstance` test below.
+    if type(a) is type(b):
+        return a == b
     if isinstance(a, builtin) != isinstance(b, builtin):
         return False
     if isinstance(a, contin_t) != isinstance(b, contin_t):
@@ -442,6 +446,12 @@ def vertex_equal(a: vertex, b: vertex) -> bool:
 # ---------------------------------------------------------------------------
 
 
+# `vertex_rank` by exact type, for the four alternatives themselves (speed
+# only: subclasses, e.g. a numpy float, fall through to the `isinstance`
+# chain, which gives them the same rank).
+_VERTEX_RANK_BY_TYPE: dict[type, int] = {contin_t: 0, str: 1, builtin: 2, argument: 3}
+
+
 def vertex_rank(v: vertex) -> int:
     """No direct C++ symbol: reproduces the RELATIVE order of this port's
     four vertex alternatives as they appear in the real 14-way
@@ -452,6 +462,9 @@ def vertex_rank(v: vertex) -> int:
     this section's own module-level note for what is and is not verified
     about this ordering.
     """
+    rank = _VERTEX_RANK_BY_TYPE.get(type(v))
+    if rank is not None:
+        return rank
     if isinstance(v, contin_t):
         return 0
     if isinstance(v, str):
@@ -474,6 +487,8 @@ def vertex_less(v1: vertex, v2: vertex) -> bool:
     type before either `<` here ever runs, so this never risks the
     `contin_t`/`builtin` cross-type trap `vertex_equal` guards against.
     """
+    if type(v1) is type(v2) and type(v1) in _VERTEX_RANK_BY_TYPE:
+        return v1 < v2
     r1, r2 = vertex_rank(v1), vertex_rank(v2)
     if r1 != r2:
         return r1 < r2
@@ -490,9 +505,16 @@ def lexicographic_subtree_cmp(n1: tree_node, n2: tree_node) -> int:
     this port's `first_child`/`next_sibling` node links in place of
     `sibling_iterator`.
     """
-    if vertex_less(n1.data, n2.data):
+    v1, v2 = n1.data, n2.data
+    if type(v1) is type(v2) and type(v1) in _VERTEX_RANK_BY_TYPE:
+        # Same alternative: `vertex_less` reduces to the type's own `<`.
+        if v1 < v2:
+            return 1
+        if v2 < v1:
+            return -1
+    elif vertex_less(v1, v2):
         return 1
-    if vertex_less(n2.data, n1.data):
+    elif vertex_less(v2, v1):
         return -1
     sib1, sib2 = n1.first_child, n2.first_child
     while True:
@@ -509,6 +531,19 @@ def lexicographic_subtree_cmp(n1: tree_node, n2: tree_node) -> int:
 def lexicographic_subtree_less(n1: tree_node, n2: tree_node) -> bool:
     """C++: opencog/util/tree.h:3273 lexicographic_subtree_order::operator()"""
     return lexicographic_subtree_cmp(n1, n2) > 0
+
+
+def _lexicographic_subtree_three_way(n1: tree_node, n2: tree_node) -> int:
+    """No C++ counterpart: `lexicographic_subtree_less` as a Python-style
+    three-way comparison (negative when `n1` sorts first, positive when
+    `n2` does, 0 when equal), answering `less(n1, n2)` and `less(n2, n1)`
+    in one walk. Exact, because `lexicographic_subtree_cmp` is
+    antisymmetric. Found by `three_way_comparator` (tree.py).
+    """
+    return -lexicographic_subtree_cmp(n1, n2)
+
+
+lexicographic_subtree_less.three_way = _lexicographic_subtree_three_way
 
 
 # ---------------------------------------------------------------------------

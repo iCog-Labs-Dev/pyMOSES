@@ -127,6 +127,7 @@ __all__ = [
     "get_arity",
     "get_input_type_tree",
     "get_intersection",
+    "get_output_type_node",
     "get_output_type_tree",
     "get_signature_inputs",
     "get_signature_output",
@@ -578,6 +579,25 @@ def get_output_type_tree(v: vertex) -> type_tree:
     if is_contin(v):
         return type_tree(type_node.contin_type)
     raise AssertionError(f"get_output_type_tree: Unhandled case '{v}'")
+
+
+def get_output_type_node(v: vertex) -> type_node:
+    """No C++ counterpart: the single node of `get_output_type_tree(v)`.
+
+    Every reachable arm of `get_output_type_tree` returns a one-node tree,
+    so `get_output_type_tree(v) == type_tree(t)` holds exactly when
+    `get_output_type_node(v) == t`. Typed `downwards` asks that once per
+    visited node, and this answers it without building two trees.
+    """
+    from pymoses.comboreduct.combo.descriptions import builtins_properties
+
+    if is_builtin(v):
+        return builtins_properties.instance().output_type_of_builtin(v)
+    if is_argument(v):
+        return type_node.unknown_type
+    if is_contin(v):
+        return type_node.contin_type
+    return get_output_type_tree(v).node  # raises, as the tree version does
 
 
 def get_input_type_tree(v: vertex, i: arity_t) -> type_tree:

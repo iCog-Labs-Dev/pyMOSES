@@ -75,7 +75,7 @@ from pymoses.comboreduct.combo.assumption import copy_all_assumptions, equal_ass
 from pymoses.comboreduct.combo.vertex import combo_tree, equal_subtree_vertex_safe
 from pymoses.comboreduct.reduct.reduct import replace_without_changing_it, rule
 from pymoses.comboreduct.table.table import type_node
-from pymoses.comboreduct.type_checker.type_tree import get_output_type_tree, type_tree
+from pymoses.comboreduct.type_checker.type_tree import get_output_type_node
 from pymoses.util.tree import tree_node
 
 
@@ -140,9 +140,12 @@ class downwards(rule):
             for node in tr.iter_pre_at(it):
                 self.r(tr, node)
         else:
-            output_tt = type_tree(self.output)
+            # `get_output_type_tree(*it) == type_tree(output)`, compared
+            # node to node: both sides are always one-node trees (see
+            # `get_output_type_node`).
+            output = self.output
             for node in tr.iter_pre_at(it):
-                if get_output_type_tree(node.data) == output_tt:
+                if get_output_type_node(node.data) == output:
                     self.r(tr, node)
 
 

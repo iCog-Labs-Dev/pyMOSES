@@ -82,7 +82,56 @@ def _copy_value(data):
     # `argument` (`copy.copy(argument(5))` returns a genuinely distinct object with the same
     # `idx`, confirmed directly).
     """
-    return copy.copy(data)
+    cls = type(data)
+    if cls in _COPY_RETURNS_SELF:
+        return data
+    copier = _COPIER_BY_TYPE.get(cls)
+    if copier is None:
+        copier = _COPIER_BY_TYPE[cls] = _copier_for(cls)
+    return copier(data)
+
+
+# Speed only, same result as `copy.copy`: exact types `copy.copy` returns
+# unchanged (some of its atomic types), and, per type, the
+# function `copy.copy` would end up calling.
+_COPY_RETURNS_SELF = frozenset({int, float, bool, str, type(None)})
+_COPIER_BY_TYPE: dict = {}
+
+
+def _copier_for(cls):
+    """The callable `copy.copy(x)` resolves to for an `x` of exact type `cls`.
+
+    `copy.copy` tries its own atomic types and builtin containers (none of
+    which defines `__copy__`), then metaclasses, then `cls.__copy__`; only
+    the last is short-circuited here. An `Enum` member's `__copy__`
+    returns the member itself; `argument.__copy__` builds a new argument.
+    """
+    if not issubclass(cls, type):
+        own_copy = getattr(cls, "__copy__", None)
+        if own_copy is not None:
+            return own_copy
+    return copy.copy
+
+
+def three_way_comparator(comp):
+    """No C++ counterpart: turn a strict-weak-order `comp(a, b)` ("a sorts
+    before b") into a three-way `cmp(a, b)`: -1 if `comp(a, b)`, else 1 if
+    `comp(b, a)`, else 0 -- the two-test pattern every merge, set and sort
+    helper here uses. A comparator may supply its own one-pass version as
+    a `three_way` attribute (`lexicographic_subtree_less` does).
+    """
+    own = getattr(comp, "three_way", None)
+    if own is not None:
+        return own
+
+    def _cmp(a, b):
+        if comp(a, b):
+            return -1
+        if comp(b, a):
+            return 1
+        return 0
+
+    return _cmp
 
 
 class _DeadLink:
@@ -828,14 +877,7 @@ class tree:
         if not children:
             return
 
-        def _cmp(a, b):
-            if comp(a, b):
-                return -1
-            if comp(b, a):
-                return 1
-            return 0
-
-        ordered = sorted(children, key=functools.cmp_to_key(_cmp))
+        ordered = sorted(children, key=functools.cmp_to_key(three_way_comparator(comp)))
         self._relink_full_children(node, ordered)
 
     def equal_subtree(self, a, b, predicate=None):
