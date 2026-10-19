@@ -1,0 +1,3 @@
+arm,runs,not_ok,solved,median_cpu_to_target,median_evals_to_target,median_cpu_s,median_cpu_per_eval,median_deme_count,median_best_complexity
+HC-C250,10,0,10,1167.7646825985,6076.5,1180.8560500704998,0.18894100186141305,25.0,28.5
+HC-PEN,10,0,10,1052.006221443,6076.5,1061.7193990429998,0.17494227055996248,25.0,28.5
