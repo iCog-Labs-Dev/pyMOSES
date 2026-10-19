@@ -62,6 +62,8 @@ this log and a findings file differ, the findings file is right.
 | 1p | 2026-10-17 | GOMEA vs capped HC at equal time, same cap? | **Con better** (43.2 against 68.4, 16/20). **mux11 worse** (2,568 s against 1,311 s, 15/20). PEN (exploratory) ties on both. |
 | 1q | 2026-10-18 | Does fixing knob collapse (`--knob-probe-baseline reduced`) help GOMEA? | **Tie on accuracy and CPU** (Holm p 1.0), although collapsed demes fell to 0 (35 → 0 mux11, 367 → 0 pa5). Kept opt-in. |
 | 1r | 2026-10-18 | Seed MOSES with GP-GOMEA elites at the same total budget? | **Capped HC better** on Con (70.2 → 42.6) and EnH (28.9 → 8.1). **GOMEA better** on EnH (15.7 → 8.5) and a **tie** on Con (35.2 → 42.3, worse in 14/20). GOMEA CPU per run about 4–6× lower. |
+| 1s | 2026-10-19 | Does the acceptance penalty (PEN) cut GOMEA's CPU to solve mux11? (20 seeds pooled with 1o) | **Tie:** PEN lower in 13 of 20 pairs, median 1,889 against 2,998 s, p 0.097. Each evaluation is about 30–40 % cheaper, but PEN needs about 15–35 % more evaluations. It stays opt-in. |
+| 1t | 2026-10-19 | Does the same penalty help capped HC? | **No effect:** all 10 seeds gave identical runs (same evaluations to solve and complexity). The penalty acts only through GOMEA's acceptance. CPU differed by up to 1.6× between identical runs, which shows the CPU noise on a shared machine. |
 
 ## Descriptive comparisons (not pre-registered)
 
