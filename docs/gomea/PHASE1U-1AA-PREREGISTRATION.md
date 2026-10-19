@@ -91,6 +91,14 @@ Written 2026-10-19, before any of these runs. Shared rules: `QUEUE.md`.
   continues with Con as registered.
 * **The mux11 primary verdict:** computed from `earlystop.json` with the registered rule.
   The automatic stage-1 report's mux11 row is partial and is superseded.
+* **Step 2 (20:45):** all 16 slots were held by slow TOPK runs, so GOMEA s3009 and TOPK-L
+  s3003 had not started. `tools/gomea/phase1w_finish.sh` does the following:
+  1. Waits for GOMEA s3003 to finish.
+  2. Pauses `phase_run.sh` (so no Con run can overlap).
+  3. Interrupts the mux11 runner. Interrupted TOPK runs keep their CPU traces as lower
+     bounds.
+  4. Runs only GOMEA s3009 and TOPK-L s3003, until the early-stop rule is met.
+  5. Resumes the phase.
 * **The mux11 secondary (TOPK-L vs TOPK-R):** cannot be decided this way. It is reported
   descriptively: solved counts, and best error at the stop.
 
