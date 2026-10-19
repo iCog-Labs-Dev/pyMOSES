@@ -99,6 +99,13 @@ Written 2026-10-19, before any of these runs. Shared rules: `QUEUE.md`.
      bounds.
   4. Runs only GOMEA s3009 and TOPK-L s3003, until the early-stop rule is met.
   5. Resumes the phase.
+* **Step 3 (21:13):**
+  * SIGINT did not stop the runner, because background jobs of a non-interactive shell
+    ignore it. Its child runs were then terminated with SIGTERM, followed by the runner.
+  * The runner had already written `error` summaries for some of the terminated runs. These
+    count as unsolved (+∞), the same outcome the early-stop rule assigns.
+  * The paused launcher left the runner a zombie, which stalled `phase1w_finish.sh`.
+    `phase1w_finish2.sh` replaced it and runs the remaining two runs plus the early stop.
 * **The mux11 secondary (TOPK-L vs TOPK-R):** cannot be decided this way. It is reported
   descriptively: solved counts, and best error at the stop.
 

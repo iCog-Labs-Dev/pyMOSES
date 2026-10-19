@@ -7,7 +7,7 @@ The registered mux11 metric is CPU seconds to solve (unsolved = +inf). TOPK-L ru
   run needed to solve,
 every pair's sign is fixed, so the Wilcoxon signs, and the medians' order, can no longer
 change. The script then writes `earlystop.json` (each pair's status and CPU lower bound) and
-sends the mux11 runner SIGINT (it terminates its active runs and exits), so `phase_run.sh` goes on to the Con part.
+terminates the mux11 runner's child runs and then the runner, so `phase_run.sh` goes on to the Con part.
 
 Usage: phase1w_earlystop.py RESULT_DIR RUNNER_PID   (polls every 60 s)
 """
@@ -37,6 +37,13 @@ def summary(run_dir: Path):
     return json.loads(p.read_text()) if p.exists() else None
 
 
+def _ppid(p: int) -> int:
+    try:
+        return int(Path(f"/proc/{p}/stat").read_text().rsplit(")", 1)[1].split()[1])
+    except (OSError, IndexError, ValueError):
+        return -1
+
+
 def main() -> int:
     runs, pid = Path(sys.argv[1]) / "runs", int(sys.argv[2])
     seeds = range(3001, 3011)
@@ -59,7 +66,14 @@ def main() -> int:
             (Path(sys.argv[1]) / "earlystop.json").write_text(json.dumps(
                 {"time": time.strftime("%Y-%m-%dT%H:%M:%S%z"), "pairs": state}, indent=2) + "\n")
             print("decided; stopping runner", pid, flush=True)
-            os.kill(pid, signal.SIGINT)  # the runner terminates its active runs on SIGINT
+            # SIGINT is ignored by background jobs of a non-interactive shell, so terminate
+            # the runner's child processes (its runs), then the runner itself.
+            kids = [int(d) for d in os.listdir("/proc") if d.isdigit()
+                    and _ppid(int(d)) == pid]
+            for k in kids:
+                os.kill(k, signal.SIGTERM)
+            time.sleep(5)
+            os.kill(pid, signal.SIGTERM)
             return 0
         time.sleep(60)
 
