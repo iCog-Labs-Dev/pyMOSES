@@ -132,6 +132,11 @@ GOM bookkeeping and telemetry are not worth optimising.
    * **Later extension:** re-run seeding when MOSES stagnates, using the current
      metapopulation's best programs as GP-GOMEA's starting population, for repeated smart
      restarts.
+     * **Built (2026-10-19), opt-in, untested in a phase:** `tools/gomea/reseed.py`
+       (seed-block `reseed_after`/`reseed_share`/`max_reseeds`). Fallback design: each
+       re-seed is a fresh GP-GOMEA run with a new seed, not seeded from the metapopulation
+       (that needs GP-GOMEA C++ changes). Also `--reserve-empty-every K` (design point 1's
+       "reserve a share of expansions"). See `USAGE.md`.
 
 10. **From the two literature reviews** (2026-10-14; `reports/Building blocks for symbolic
     regression.md` and `reports/Redundancy based simplification in SR.md`, kept outside git).

@@ -82,7 +82,56 @@ def _copy_value(data):
     # `argument` (`copy.copy(argument(5))` returns a genuinely distinct object with the same
     # `idx`, confirmed directly).
     """
-    return copy.copy(data)
+    cls = type(data)
+    if cls in _COPY_RETURNS_SELF:
+        return data
+    copier = _COPIER_BY_TYPE.get(cls)
+    if copier is None:
+        copier = _COPIER_BY_TYPE[cls] = _copier_for(cls)
+    return copier(data)
+
+
+# Speed only, same result as `copy.copy`: exact types `copy.copy` returns
+# unchanged (some of its atomic types), and, per type, the
+# function `copy.copy` would end up calling.
+_COPY_RETURNS_SELF = frozenset({int, float, bool, str, type(None)})
+_COPIER_BY_TYPE: dict = {}
+
+
+def _copier_for(cls):
+    """The callable `copy.copy(x)` resolves to for an `x` of exact type `cls`.
+
+    `copy.copy` tries its own atomic types and builtin containers (none of
+    which defines `__copy__`), then metaclasses, then `cls.__copy__`; only
+    the last is short-circuited here. An `Enum` member's `__copy__`
+    returns the member itself; `argument.__copy__` builds a new argument.
+    """
+    if not issubclass(cls, type):
+        own_copy = getattr(cls, "__copy__", None)
+        if own_copy is not None:
+            return own_copy
+    return copy.copy
+
+
+def three_way_comparator(comp):
+    """No C++ counterpart: turn a strict-weak-order `comp(a, b)` ("a sorts
+    before b") into a three-way `cmp(a, b)`: -1 if `comp(a, b)`, else 1 if
+    `comp(b, a)`, else 0 -- the two-test pattern every merge, set and sort
+    helper here uses. A comparator may supply its own one-pass version as
+    a `three_way` attribute (`lexicographic_subtree_less` does).
+    """
+    own = getattr(comp, "three_way", None)
+    if own is not None:
+        return own
+
+    def _cmp(a, b):
+        if comp(a, b):
+            return -1
+        if comp(b, a):
+            return 1
+        return 0
+
+    return _cmp
 
 
 class _DeadLink:
@@ -203,7 +252,8 @@ class tree:
         if isinstance(root_data, tree_node):
             _require_live_subtree_source(root_data, "tree()")
             self._root = tree_node(_copy_value(root_data.data))
-            self._copy_descendants(self._root, root_data)
+            if root_data.first_child is not None:  # a no-op for a leaf
+                self._copy_descendants(self._root, root_data)
             return
         self._root = None if root_data is None else tree_node(root_data)
 
@@ -828,14 +878,7 @@ class tree:
         if not children:
             return
 
-        def _cmp(a, b):
-            if comp(a, b):
-                return -1
-            if comp(b, a):
-                return 1
-            return 0
-
-        ordered = sorted(children, key=functools.cmp_to_key(_cmp))
+        ordered = sorted(children, key=functools.cmp_to_key(three_way_comparator(comp)))
         self._relink_full_children(node, ordered)
 
     def equal_subtree(self, a, b, predicate=None):
@@ -924,19 +967,26 @@ class tree:
             node = self._root
             if node is None:
                 return
-        _require_live_node(node, "validate")
-        if node.parent is not None:
-            if node.prev_sibling is None and node.parent.first_child is not node:
+        self._validate_live(node)
+
+    def _validate_live(self, node):
+        """`validate`'s recursion, with `_require_live_node` inlined (speed
+        only: `reduce_and` validates the whole tree once per child)."""
+        parent, prev, nxt = node.parent, node.prev_sibling, node.next_sibling
+        if parent is _DEAD or prev is _DEAD or nxt is _DEAD:
+            _require_live_node(node, "validate")
+        if parent is not None:
+            if prev is None and parent.first_child is not node:
                 raise AssertionError("validate: parent.first_child mismatch")
-            if node.next_sibling is None and node.parent.last_child is not node:
+            if nxt is None and parent.last_child is not node:
                 raise AssertionError("validate: parent.last_child mismatch")
-        if node.prev_sibling is not None and node.prev_sibling.next_sibling is not node:
+        if prev is not None and prev.next_sibling is not node:
             raise AssertionError("validate: prev_sibling.next_sibling mismatch")
-        if node.next_sibling is not None and node.next_sibling.prev_sibling is not node:
+        if nxt is not None and nxt.prev_sibling is not node:
             raise AssertionError("validate: next_sibling.prev_sibling mismatch")
         child = node.first_child
         while child is not None:
-            self.validate(child)
+            self._validate_live(child)
             child = child.next_sibling
 
     # ---- internal splice helpers -------------------------------------------
@@ -955,6 +1005,30 @@ class tree:
         parent.last_child = node
         node.next_sibling = None
         return node
+
+    @classmethod
+    def pruned_copy(cls, node, prune):
+        """No C++ counterpart: `tree(node)` (a standalone deep copy of `node`'s
+        subtree) that leaves out every proper descendant `d` for which
+        `prune(d)` is true, together with `d`'s own subtree. `prune` is asked
+        once about each child of each kept node, and never about `node`
+        itself.
+        """
+        _require_live_subtree_source(node, "pruned_copy")
+        out = cls()
+        out._root = tree_node(_copy_value(node.data))
+        append = out._append_child_leaf
+        stack = [(node, out._root)]
+        while stack:
+            src, dst = stack.pop()
+            kept = []
+            child = src.first_child
+            while child is not None:
+                if not prune(child):
+                    kept.append((child, append(dst, _copy_value(child.data))))
+                child = child.next_sibling
+            stack.extend(reversed(kept))
+        return out
 
     def _copy_descendants(self, dest_root, source_root):
         """Deep-copy source_root's descendants onto dest_root, whose own

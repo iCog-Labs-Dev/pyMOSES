@@ -10,6 +10,8 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "tools" / "gomea"))
 import gpgomea_seed as gs  # noqa: E402
+import moses_sr_runner  # noqa: E402
+import reseed  # noqa: E402
 import seed_lineage  # noqa: E402
 
 from benchmarks.gomea import runner  # noqa: E402
@@ -340,6 +342,190 @@ class TestLineage(unittest.TestCase):
         from pymoses.moses.metapopulation.metapopulation import metapopulation
 
         self.assertNotEqual(metapopulation.init.__qualname__, "install.<locals>.init")
+
+
+class _Stats:
+    def __init__(self, n_evals=0):
+        self.n_evals, self.n_expansions = n_evals, 0
+
+
+class _Pa:
+    max_evals = 10000
+
+
+class _Mp:
+    def __init__(self):
+        self.score, self.injected = -10.0, []
+
+    def best_score(self):
+        return self.score
+
+    def get_cscorer(self):
+        return "scorer"
+
+    def inject_candidates(self, trees, label):
+        self.injected.append((label, len(trees)))
+        return len(trees)
+
+
+class _Dex:
+    @staticmethod
+    def simplify_candidate(tree):
+        pass
+
+
+def _fake_seeds(calls, used=120, combo="and($1 $2)"):
+    def make_seeds(kind, binary, budget, height, seed, k, workdir, **kw):
+        calls.append({"budget": budget, "seed": seed, "scorer": kw.get("scorer")})
+        Path(workdir).mkdir(parents=True, exist_ok=True)
+        return {
+            "evaluations_used": used,
+            "gpgomea": {"cpu_s": 0.5},
+            "seeds": [{"combo": combo, "pymoses_raw": -3.0}],
+        }
+
+    return make_seeds
+
+
+class TestReseed(unittest.TestCase):
+    def test_stagnation_budget_and_limit(self):
+        calls: list = []
+        orig = gs.make_seeds
+        gs.make_seeds = _fake_seeds(calls)
+        self.addCleanup(setattr, gs, "make_seeds", orig)
+        with tempfile.TemporaryDirectory() as tmp:
+            r = reseed.Reseeder(
+                {"reseed_after": 2, "reseed_share": 0.25, "max_reseeds": 2},
+                "gp",
+                tmp,
+                7,
+                kind="bool",
+                bool_flags=["-H", "mux", "-k", "2"],
+            )
+            mp, dex, pa, st = _Mp(), _Dex(), _Pa(), _Stats(2000)
+            r(mp, dex, pa, st)  # first best seen
+            r(mp, dex, pa, st)  # 1 without improvement
+            self.assertEqual(calls, [])
+            mp.score = -5.0
+            r(mp, dex, pa, st)  # improved: counter reset
+            r(mp, dex, pa, st)
+            self.assertEqual(calls, [])
+            r(mp, dex, pa, st)  # 2 without improvement: re-seed
+            self.assertEqual(calls[0]["budget"], 2000)  # 0.25 * (10000 - 2000)
+            self.assertEqual(calls[0]["seed"], 1007)
+            self.assertEqual(calls[0]["scorer"][0], "scorer")
+            self.assertEqual(st.n_evals, 2120)  # GP-GOMEA's evaluations count against -m
+            self.assertEqual(mp.injected, [("reseed1", 1)])
+            for _ in range(2):
+                r(mp, dex, pa, st)
+            self.assertEqual(calls[1]["seed"], 2007)
+            for _ in range(6):  # max_reseeds reached
+                r(mp, dex, pa, st)
+            self.assertEqual(len(calls), 2)
+            r.write(Path(tmp) / "reseed.json")
+            rep = json.loads((Path(tmp) / "reseed.json").read_text())
+        self.assertEqual(rep["n_reseeds"], 2)
+        self.assertEqual(rep["reseed_evals"], 240)
+        self.assertEqual(st.n_evals, 2240)
+
+    def test_small_budget_is_skipped(self):
+        calls: list = []
+        orig = gs.make_seeds
+        gs.make_seeds = _fake_seeds(calls)
+        self.addCleanup(setattr, gs, "make_seeds", orig)
+        with tempfile.TemporaryDirectory() as tmp:
+            r = reseed.Reseeder({"reseed_after": 1}, "gp", tmp, 1, kind="bool")
+            mp, st = _Mp(), _Stats(9900)
+            r(mp, _Dex(), _Pa(), st)
+            r(mp, _Dex(), _Pa(), st)
+            self.assertEqual(calls, [])
+            self.assertEqual(r.events[0]["status"], "skipped")
+            self.assertEqual(r.report()["n_reseeds"], 0)
+            self.assertEqual(st.n_evals, 9900)
+            # a skip does not use up max_reseeds (1): with budget left, the next one runs
+            st.n_evals = 2000
+            r(mp, _Dex(), _Pa(), st)
+            self.assertEqual(len(calls), 1)
+            self.assertEqual(r.report()["n_reseeds"], 1)
+            self.assertEqual(r.events[1]["reseed"], 1)
+
+    def test_bad_spec(self):
+        for spec in ({"reseed_after": 0}, {"reseed_after": 2, "reseed_share": 1.0}):
+            with self.assertRaises(ValueError):
+                reseed.Reseeder(spec, "gp", ".", 1)
+
+    def test_hook_in_a_moses_run(self):
+        """pa4: the installed hook re-seeds after one expansion without improvement,
+        its programs join the metapopulation, and its evaluations are in n_evals."""
+        import contextlib
+        import io
+        import re
+
+        from pymoses.moses.main.moses_exec import moses_exec
+        from pymoses.moses.moses import local_moses
+
+        calls: list = []
+        orig = gs.make_seeds
+        prog = "or(and($1 !$2 $3) and($2 $4 !$3))"
+        gs.make_seeds = _fake_seeds(calls, used=100, combo=prog)
+        self.addCleanup(setattr, gs, "make_seeds", orig)
+        tracker = seed_lineage.install(seed_lineage.labels_for(0))
+        self.addCleanup(seed_lineage.uninstall)
+        with tempfile.TemporaryDirectory() as tmp:
+            spec = {"reseed_after": 1, "max_reseeds": 1, "reseed_share": 0.5}
+            r = reseed.install({**spec, "reseed_min_budget": 10}, "gp", tmp, 3, kind="bool")
+            self.addCleanup(reseed.uninstall)
+            buf = io.StringIO()
+            with contextlib.redirect_stdout(buf):
+                argv = ["-H", "pa", "-k", "4", "-m", "600", "-r", "1", "-l", "WARN", "-V1"]
+                moses_exec(["moses", *argv, "-f", str(Path(tmp) / "m.log")])
+        rep = r.report()
+        self.assertEqual(rep["n_reseeds"], 1)
+        ev = rep["events"][0]
+        self.assertEqual(calls[0]["budget"], ev["evals_left"] // 2)
+        self.assertEqual(ev["n_evals_after"], ev["n_evals_before"] + 100)
+        n_evals = int(re.search(r"n_evals:\s*(\d+)", buf.getvalue()).group(1))
+        self.assertGreaterEqual(n_evals, 600)
+        # the injected program (reduced as MOSES reduces exemplars) has lineage reseed1
+        self.assertEqual(list(tracker.lineage.values()).count("reseed1"), 1)
+        reseed.uninstall()
+        self.assertEqual(local_moses.expansion_hooks, [])
+
+
+class TestRunnerSeedKeys(unittest.TestCase):
+    def _job(self, binary, **spec):
+        return {
+            "binary": binary,
+            "budget": {"evals": 2000},
+            "seed": 1,
+            "seed_spec": {"binary": "/b", "share": 0.2, **spec},
+        }
+
+    def test_reserve_flag_and_cpp_refusal(self):
+        orig = gs.make_seeds
+
+        def fake(*a, **kw):
+            return {"evaluations_used": 400, "seeds": [{"combo": "$1"}], "gpgomea": {"cpu_s": 0}}
+
+        gs.make_seeds = fake
+        self.addCleanup(setattr, gs, "make_seeds", orig)
+        with tempfile.TemporaryDirectory() as tmp:
+            job = self._job("/venv/bin/moses", reserve_empty_every=4)
+            rec, argv = moses_sr_runner._apply_seed(job, ["moses", "-m", "2000"], Path(tmp))
+            self.assertEqual(argv[:3], ["moses", "-m", "1600"])
+            self.assertEqual(argv[-2:], ["--reserve-empty-every", "4"])
+            self.assertIn("-e", argv)
+            _, argv = moses_sr_runner._apply_seed(
+                self._job("/venv/bin/moses"), ["moses", "-m", "2000"], Path(tmp)
+            )
+            self.assertNotIn("--reserve-empty-every", argv)
+            for key in ({"reserve_empty_every": 2}, {"reseed_after": 3}):
+                with self.assertRaises(ValueError):
+                    moses_sr_runner._apply_seed(
+                        self._job("/opt/moses-cpp/moses", **key),
+                        ["moses", "-m", "2000"],
+                        Path(tmp),
+                    )
 
 
 _BINARY = os.environ.get("GPGOMEA_SEED_BINARY")

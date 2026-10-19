@@ -144,6 +144,7 @@ import math
 from typing import TYPE_CHECKING
 
 from pymoses.comboreduct.combo.iostream_combo import tree_to_stream_str
+from pymoses.moses.metapopulation.lineage import exemplar_lineage
 from pymoses.moses.metapopulation.metapop_params import (
     diversity_parameters,
     metapop_parameters,
@@ -441,6 +442,7 @@ class metapopulation:
         sc: behave_cscore,
         pa: metapop_parameters | None = None,
         subp: subsample_deme_filter_parameters | None = None,
+        empty_exemplars: list[int] | None = None,
     ) -> None:
         """C++: moses/moses/metapopulation/metapopulation.cc:36 metapopulation::metapopulation
         and moses/moses/metapopulation/metapopulation.cc:45 metapopulation::metapopulation
@@ -536,6 +538,13 @@ class metapopulation:
         self._ensemble = ensemble(sc, self._params.ensemble_params)
         self._visited_exemplars = _visited_exemplars_counter()
         self._cached_dst = cached_dst(self._params.diversity)
+        # NOT A PORT (pyMoses extension, `--reserve-empty-every`): lineage
+        # tracking, only when the option is on (`lineage.py`).
+        k = getattr(self._params, "reserve_empty_every", 0)
+        self._lineage = exemplar_lineage(k) if k > 0 else None
+        # `empty_exemplars` (NOT A PORT): indices of the exemplars that were the
+        # empty program before reduction; read only with lineage tracking on.
+        self._empty_exemplars = empty_exemplars
         self.init(bases)
 
     def init(self, exemplars: list[combo_tree]) -> None:
@@ -577,6 +586,8 @@ class metapopulation:
         (`merge_nondominated`, `domination.py`), and the default-OFF path
         (`discard_dominated=False`, unchanged) is unaffected.
         """
+        if self._lineage is not None:  # NOT A PORT (`--reserve-empty-every`)
+            self._lineage.add_initial(exemplars, self._empty_exemplars)
         candidates = scored_combo_tree_set()
         for base in exemplars:
             csc = copy.copy(self._cscorer.get_cscore(base))
@@ -1034,30 +1045,50 @@ class metapopulation:
                 self._visited_exemplars.increment(selex)
             else:
                 selex = None
+            if self._lineage is not None:  # NOT A PORT (`--reserve-empty-every`)
+                self._lineage.note_selected(selex, False, False)
             # C++: metapopulation.cc:120 -- the shortcut logs before it
             # returns, exactly as the general case does. `cbegin()+1` is 1
             # for the single candidate, and 0 for the `end()` arm (unused).
             self.log_selected_exemplar(selex, 1)
             return selex
 
-        probs: list[score_t] = []
-        found_exemplar = False
-        highest_score: score_t = _UNEVALUATED_SCORE
+        # NOT A PORT (pyMoses extension, `--reserve-empty-every`): on a
+        # reserved expansion only the empty program's lineage may be chosen;
+        # if none of it is selectable, the scan is repeated unrestricted (the
+        # normal choice). Off (`_lineage is None`): one unrestricted scan.
+        reserved = self._lineage is not None and self._lineage.reserved_turn()
+        allowed = self._lineage.in_empty_lineage if reserved else None
+        fell_back = False
+        while True:
+            probs: list[score_t] = []
+            found_exemplar = False
+            highest_score: score_t = _UNEVALUATED_SCORE
 
-        for bsct in ordered:
-            sc = bsct.get_penalized_score()
-            if math.isfinite(sc) and (
-                self._params.revisit < 0
-                or self._params.revisit + 1 > self._visited_exemplars.get(bsct)
-            ):
-                probs.append(sc)
-                found_exemplar = True
-                if highest_score < sc:
-                    highest_score = sc
-            else:
-                probs.append(math.nan)
+            for bsct in ordered:
+                sc = bsct.get_penalized_score()
+                if (
+                    math.isfinite(sc)
+                    and (
+                        self._params.revisit < 0
+                        or self._params.revisit + 1 > self._visited_exemplars.get(bsct)
+                    )
+                    and (allowed is None or allowed(bsct))
+                ):
+                    probs.append(sc)
+                    found_exemplar = True
+                    if highest_score < sc:
+                        highest_score = sc
+                else:
+                    probs.append(math.nan)
+
+            if found_exemplar or allowed is None:
+                break
+            allowed, fell_back = None, True
 
         if not found_exemplar:
+            if self._lineage is not None:
+                self._lineage.note_selected(None, reserved, fell_back)
             # C++: metapopulation.cc:152 `log_selected_exemplar(
             # _scored_trees.cend());` -- the "No exemplar found" arm.
             self.log_selected_exemplar(None, 0)
@@ -1082,6 +1113,8 @@ class metapopulation:
         selex = ordered[fwd]
 
         self._visited_exemplars.increment(selex)
+        if self._lineage is not None:
+            self._lineage.note_selected(selex, reserved, fell_back)
 
         # C++: metapopulation.cc:194-195. `fwd` is `std::distance(probs.
         # begin(), roulette_select(...))`, and `probs`/`ordered` are
@@ -1089,3 +1122,29 @@ class metapopulation:
         self.log_selected_exemplar(selex, fwd + 1)
 
         return selex
+
+
+# NOT A PORT (pyMoses extension, no C++ counterpart): add programs to the
+# metapopulation mid-run (re-seeding, `tools/gomea/reseed.py`).
+def inject_candidates(
+    self: metapopulation, trees: list[combo_tree], label: str | None = None
+) -> int:
+    """Score `trees` and merge them into the metapopulation, as `init` does
+    for the initial exemplars (the scorer calls are not counted as
+    evaluations, as `init`'s are not). With lineage tracking on, programs
+    not seen before get the lineage `label`. Returns the number of trees."""
+    if self._lineage is not None and label is not None:
+        self._lineage.label(trees, label)
+    candidates = scored_combo_tree_set()
+    for base in trees:
+        csc = copy.copy(self._cscorer.get_cscore(base))
+        bs = list(self._cscorer.get_bscore(base))
+        candidates.insert(scored_combo_tree(base, cs=csc, bs=bs))
+    self.update_best_candidates(candidates)
+    self.merge_candidates(candidates)
+    if self.diversity_enabled():
+        self.set_diversity()
+    return len(trees)
+
+
+metapopulation.inject_candidates = inject_candidates

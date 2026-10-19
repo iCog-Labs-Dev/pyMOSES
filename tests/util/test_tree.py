@@ -1664,3 +1664,25 @@ def test_erase_pre_order_of_the_very_last_node_in_the_tree_returns_none():
     b = t.append_child(a, "b")
 
     assert t.erase_pre_order(b) is None
+
+
+def test_pruned_copy_leaves_out_pruned_subtrees_and_keeps_the_source():
+    t = tree("a")
+    root = t.begin()
+    b = t.append_child(root, "b")
+    t.append_child(b, "x")
+    t.append_child(b, "c")
+    x = t.append_child(root, "x")
+    t.append_child(x, "d")
+    t.append_child(root, "e")
+    asked = []
+
+    def prune(node):
+        asked.append(node.data)
+        return node.data == "x"
+
+    out = tree.pruned_copy(root, prune)
+    assert [n.data for n in out] == ["a", "b", "c", "e"]
+    assert sorted(asked) == ["b", "c", "e", "x", "x"]
+    assert [n.data for n in t] == ["a", "b", "x", "c", "x", "d", "e"]
+    out.validate()
