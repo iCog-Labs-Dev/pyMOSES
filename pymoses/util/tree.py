@@ -998,6 +998,30 @@ class tree:
         node.next_sibling = None
         return node
 
+    @classmethod
+    def pruned_copy(cls, node, prune):
+        """No C++ counterpart: `tree(node)` (a standalone deep copy of `node`'s
+        subtree) that leaves out every proper descendant `d` for which
+        `prune(d)` is true, together with `d`'s own subtree. `prune` is asked
+        once about each child of each kept node, and never about `node`
+        itself.
+        """
+        _require_live_subtree_source(node, "pruned_copy")
+        out = cls()
+        out._root = tree_node(_copy_value(node.data))
+        append = out._append_child_leaf
+        stack = [(node, out._root)]
+        while stack:
+            src, dst = stack.pop()
+            kept = []
+            child = src.first_child
+            while child is not None:
+                if not prune(child):
+                    kept.append((child, append(dst, _copy_value(child.data))))
+                child = child.next_sibling
+            stack.extend(reversed(kept))
+        return out
+
     def _copy_descendants(self, dest_root, source_root):
         """Deep-copy source_root's descendants onto dest_root, whose own
         .data the caller has already set. Bounded to exactly source_root's

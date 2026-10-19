@@ -22,7 +22,7 @@ composes them, exactly as `clean_reduction.cc:51-52` does.
 
 from __future__ import annotations
 
-from pymoses.comboreduct.combo.vertex import combo_tree
+from pymoses.comboreduct.combo.vertex import builtin, combo_tree
 from pymoses.comboreduct.reduct.general_rules import remove_null_vertices
 from pymoses.comboreduct.reduct.logical_rules import remove_dangling_junctors
 from pymoses.comboreduct.reduct.meta_rules import downwards, sequential, upwards
@@ -69,3 +69,50 @@ def clean_reduce(tr: combo_tree, it: tree_node = _NO_IT) -> None:
     docstring for why that distinction is load-bearing.
     """
     clean_reduction()(tr, it)
+
+
+_dangling_singleton: rule | None = None
+
+
+class _HasCond(Exception):
+    """A kept `cond` node: `remove_null_vertices` treats its children as pairs."""
+
+
+def _prune_null(node: tree_node) -> bool:
+    data = node.data
+    if isinstance(data, builtin):
+        if data == builtin.null_vertex:
+            return True
+        if data == builtin.cond:
+            raise _HasCond
+    return False
+
+
+def clean_reduced_copy(it: tree_node) -> combo_tree:
+    """No C++ counterpart: `combo_tree tmp(it); clean_reduce(tmp);` in one
+    step, as `build_knobs::disc_probe` does for every probed knob setting.
+
+    `clean_reduction`'s first pass, `downwards(remove_null_vertices())`,
+    erases each `null_vertex`-rooted child of each node it visits, so the
+    erased subtrees are never visited; outside `cond`, the tree it leaves
+    is exactly the copy with those subtrees left out. This builds that
+    copy directly (most of a decorated exemplar is disallowed knob
+    settings under `null_vertex`), then runs the second pass,
+    `upwards(remove_dangling_junctors())`, on it; the first pass would be a
+    no-op there. A tree that keeps a `cond` node, whose children
+    `remove_null_vertices` handles in pairs, takes the literal path.
+    """
+    global _dangling_singleton
+    if not (isinstance(it.data, builtin) and it.data == builtin.cond):
+        try:
+            tmp = combo_tree.pruned_copy(it, _prune_null)
+        except _HasCond:
+            pass
+        else:
+            if _dangling_singleton is None:
+                _dangling_singleton = upwards(remove_dangling_junctors())
+            _dangling_singleton(tmp)
+            return tmp
+    tmp = combo_tree(it)
+    clean_reduce(tmp)
+    return tmp
