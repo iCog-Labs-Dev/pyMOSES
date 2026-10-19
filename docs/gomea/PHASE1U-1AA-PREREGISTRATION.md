@@ -74,6 +74,26 @@ Written 2026-10-19, before any of these runs. Shared rules: `QUEUE.md`.
 * **Extension runs:** only GOMEA and TOPK-L, because secondary contrasts are never extended
   (amended 2026-10-19, before any 1w run).
 
+**Deviation (2026-10-19 20:25, during the 1w mux11 runs, before any analysis):**
+
+* **The problem:**
+  * TOPK runs on mux11 cost about 1.2 s of CPU per evaluation, about 5× GOMEA's, because the
+    linkage model is relearned every generation.
+  * After about 55 min of CPU they had reached only 2,500–2,900 of 40,000 evaluations,
+    still 360–430 rows wrong.
+  * One TOPK-L run ended on its own after 1,016 evaluations, unsolved.
+  * Left alone, the remaining runs would take until the 36,000 s wall cap.
+* **The rule:** the registered metric is CPU to solve (unsolved = +∞). Once every GOMEA run
+  is done and every TOPK-L run has either finished or already spent more CPU than its paired
+  GOMEA run needed to solve, every pair's sign is fixed.
+* **What happens then:** `tools/gomea/phase1w_earlystop.py` records each pair's state in
+  `earlystop.json` and stops the mux11 runner, which terminates its active runs. The phase
+  continues with Con as registered.
+* **The mux11 primary verdict:** computed from `earlystop.json` with the registered rule.
+  The automatic stage-1 report's mux11 row is partial and is superseded.
+* **The mux11 secondary (TOPK-L vs TOPK-R):** cannot be decided this way. It is reported
+  descriptively: solved counts, and best error at the stop.
+
 ## 1x: deme length by problem type
 
 * **Question:** is the 250-evaluation cap right for both problem types? Phase 1m found long
