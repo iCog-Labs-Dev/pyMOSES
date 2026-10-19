@@ -65,6 +65,7 @@ this log and a findings file differ, the findings file is right.
 | 1s | 2026-10-19 | Does the acceptance penalty (PEN) cut GOMEA's CPU to solve mux11? (20 seeds pooled with 1o) | **Tie:** PEN lower in 13 of 20 pairs, median 1,889 against 2,998 s, p 0.097. Each evaluation is about 30–40 % cheaper, but PEN needs about 15–35 % more evaluations. It stays opt-in. |
 | 1t | 2026-10-19 | Does the same penalty help capped HC? | **No effect:** all 10 seeds gave identical runs (same evaluations to solve and complexity). The penalty acts only through GOMEA's acceptance. CPU differed by up to 1.6× between identical runs, which shows the CPU noise on a shared machine. |
 | 1u | 2026-10-19 | GP-GOMEA seeding on mux11 (CPU to solve; merged faster code) | **GOMEA: seeded better** (785 against 1,321 s, 15/20, Holm p 0.0097). It needs 2.6× the evaluations, but they are about 4× cheaper. **HC: tie.** Seeded GOMEA against seeded HC: tie (stage 1); descriptively HC is still faster (627 against 785 s). |
+| 1v | 2026-10-19 | Uniform-distance start (`--gomea-radii uniform`), end to end | **Con better:** test NMSE 37.1 → 29.2, lower on 10/10 splits (Holm p 0.0039), same CPU, larger programs (309 against 187 nodes). **mux11 tie** on CPU to solve. |
 
 ## Descriptive comparisons (not pre-registered)
 
@@ -78,6 +79,7 @@ this log and a findings file differ, the findings file is right.
 | Option | Status | Evidence | Plan |
 |---|---|---|---|
 | `--knob-probe-baseline reduced` (knob-collapse fix) | **Candidate default** (user, 2026-10-19). It diverges from C++ MOSES, so it is opt-in until adopted. | Phase 1q removed all collapsed demes (35 → 0 on mux11, 367 → 0 on pa5), with accuracy and CPU unchanged (Holm p 1.0). It was not tested on regression, where `disc_probe` is not used, or together with PEN or seeding. | Off in 1s and 1t, because 1s pools Phase 1o's runs. **On for every arm, GOMEA and HC alike, in later phases.** Watch for chain effects (larger demes, different exemplar growth) and record them here. Make it the code default after it has run in at least two more phases without a loss. |
+| `--gomea-radii uniform` (regression) | **Candidate default for regression** (2026-10-19). | Phase 1v: Con test NMSE 37.1 → 29.2 (10/10 splits) at the same CPU. No gain on mux11. | Confirm on a second regression dataset (EnH) before adopting. Watch program size. |
 
 ## Open questions (see `BACKLOG.md`)
 

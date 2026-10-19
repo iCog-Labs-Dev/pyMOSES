@@ -256,6 +256,12 @@ GOM bookkeeping and telemetry are not worth optimising.
       contrast.
     * **Cost:** about 40 runs, about 1 h with the knob speed-ups.
 
+17. **Confirm the uniform start on a second regression dataset** (after Phase 1v).
+    * **Phase 1v:** Con test NMSE 37.1 → 29.2, 10/10 splits.
+    * **Check:** EnH (and EnC), 10 splits, GOMEA vs GOMEA-UNI, test NMSE.
+    * **Also try:** UNI with seeding (Phase 1r), and UNI with the acceptance penalty to curb
+      the larger programs.
+
 ## 3. Ideas outside Phase 1's scope
 
 * **IEBL-style building blocks** (Input-space Entropy-based Building-block Learning;

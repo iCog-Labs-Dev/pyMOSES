@@ -1,0 +1,3 @@
+contrast,family,problem,a,a_lower,b,b_lower,median_a,median_b,metric,p,p_holm,pairs,ties,verdict
+uniform,primary,mux11,GOMEA-UNI,4,GOMEA,6,1691.5905171075,1470.6230917985,cpu_to_target,0.625,0.625,10,0,tie
+uniform,primary,Con,GOMEA-UNI,10,GOMEA,0,29.228015683816253,37.096835187902016,test_nmse,0.001953125,0.00390625,10,0,A better

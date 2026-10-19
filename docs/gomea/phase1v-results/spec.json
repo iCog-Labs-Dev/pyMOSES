@@ -1,0 +1,22 @@
+{
+  "phase": "1v",
+  "metrics": {
+    "mux11": "cpu_to_target",
+    "Con": "test_nmse"
+  },
+  "primary": [
+    [
+      "mux11",
+      "uniform",
+      "GOMEA-UNI",
+      "GOMEA"
+    ],
+    [
+      "Con",
+      "uniform",
+      "GOMEA-UNI",
+      "GOMEA"
+    ]
+  ],
+  "secondary": []
+}
