@@ -1,0 +1,5 @@
+contrast,family,problem,a,a_lower,b,b_lower,median_a,median_b,metric,p,p_holm,pairs,ties,verdict
+seed-hc,primary,mux11,HC-S,13,HC,7,626.8063941309999,664.079808069,cpu_to_target,0.3299827575683594,0.3299827575683594,20,0,tie
+seed-gomea,primary,mux11,GOMEA-S,15,GOMEA,5,785.029553288,1320.7210225939998,cpu_to_target,0.00485992431640625,0.0097198486328125,20,0,A better
+seeded-gomea-vs-hc,secondary,mux11,GOMEA-S,6,HC-S,14,785.029553288,626.8063941309999,cpu_to_target,0.029575347900390625,0.029575347900390625,20,0,tie
+gomea-vs-hc,descriptive,mux11,GOMEA,3,HC,17,1320.7210225939998,664.079808069,cpu_to_target,0.0004825592041015625,,20,0,

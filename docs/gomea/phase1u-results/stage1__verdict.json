@@ -1,0 +1,5 @@
+{
+  "mux11:seed-hc": "tie",
+  "mux11:seed-gomea": "extend",
+  "mux11:seeded-gomea-vs-hc": "tie"
+}

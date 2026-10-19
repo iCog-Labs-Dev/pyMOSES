@@ -64,6 +64,7 @@ this log and a findings file differ, the findings file is right.
 | 1r | 2026-10-18 | Seed MOSES with GP-GOMEA elites at the same total budget? | **Capped HC better** on Con (70.2 → 42.6) and EnH (28.9 → 8.1). **GOMEA better** on EnH (15.7 → 8.5) and a **tie** on Con (35.2 → 42.3, worse in 14/20). GOMEA CPU per run about 4–6× lower. |
 | 1s | 2026-10-19 | Does the acceptance penalty (PEN) cut GOMEA's CPU to solve mux11? (20 seeds pooled with 1o) | **Tie:** PEN lower in 13 of 20 pairs, median 1,889 against 2,998 s, p 0.097. Each evaluation is about 30–40 % cheaper, but PEN needs about 15–35 % more evaluations. It stays opt-in. |
 | 1t | 2026-10-19 | Does the same penalty help capped HC? | **No effect:** all 10 seeds gave identical runs (same evaluations to solve and complexity). The penalty acts only through GOMEA's acceptance. CPU differed by up to 1.6× between identical runs, which shows the CPU noise on a shared machine. |
+| 1u | 2026-10-19 | GP-GOMEA seeding on mux11 (CPU to solve; merged faster code) | **GOMEA: seeded better** (785 against 1,321 s, 15/20, Holm p 0.0097). It needs 2.6× the evaluations, but they are about 4× cheaper. **HC: tie.** Seeded GOMEA against seeded HC: tie (stage 1); descriptively HC is still faster (627 against 785 s). |
 
 ## Descriptive comparisons (not pre-registered)
 
