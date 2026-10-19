@@ -389,10 +389,58 @@ class nf_mapper:
         # correct translation of "find an equivalent existing key" with
         # no separate data structure to get subtly wrong.
         self._item2int: list[tuple[tree_node, int]] = []
+        # Speed only: items made of nothing but `builtin` and `argument`
+        # vertices are found by `_structure_key` instead of by the linear
+        # scan. For such items `lexicographic_subtree_cmp(a, b) == 0` holds
+        # exactly when the keys are equal (both orders are total there),
+        # and such an item never compares equal to one holding any other
+        # vertex type (different `vertex_rank`), so `_item2int` keeps only
+        # the others. Exact as long as an interned subtree is not mutated
+        # while items are still being added, which holds at both call sites
+        # (`add_cnf`/`add_dnf` intern every item before anything is
+        # rewritten).
+        self._item2int_by_key: dict[tuple, int] = {}
         # C++: Int2Item = std::unordered_map<int, tree> -- id -> a
         # standalone deep copy of the interned subtree (`tree(item)`,
         # this port's `combo_tree(tree_node)` constructor).
         self._int2item: dict[int, combo_tree] = {}
+
+    @staticmethod
+    def _structure_key(item: tree_node, negate_root: bool = False) -> tuple | None:
+        """No C++ counterpart: the pre-order (kind, value, child count)
+        sequence of `item`'s subtree, or None if it holds any vertex that is
+        not exactly a `builtin` or an `argument`. With `negate_root`, the key
+        of the same subtree with its root argument negated.
+        """
+        key = []
+        stack = [item]
+        while stack:
+            node = stack.pop()
+            v = node.data
+            cls = type(v)
+            if cls is argument:
+                entry = v.idx
+                if negate_root:
+                    entry = -entry
+                    negate_root = False
+                kind = 1
+            elif cls is builtin:
+                entry = int(v)
+                kind = 0
+            else:
+                return None
+            child = node.first_child
+            if child is None:
+                key.append((kind, entry, 0))
+                continue
+            children = []
+            while child is not None:
+                children.append(child)
+                child = child.next_sibling
+            key.append((kind, entry, len(children)))
+            children.reverse()
+            stack.extend(children)
+        return tuple(key)
 
     def _find_item2int(self, item: tree_node) -> int | None:
         for node, id_ in self._item2int:
@@ -417,6 +465,21 @@ class nf_mapper:
         interned before plain `$2` is ever seen). `create`/
         `extract_conjunction` below are written to not assume otherwise.
         """
+        key = self._structure_key(item)
+        if key is not None:
+            found = self._item2int_by_key.get(key)
+            if found is not None:
+                return found
+            # Perhaps it's under minus-the-index?
+            if type(item.data) is argument:
+                found = self._item2int_by_key.get(self._structure_key(item, True))
+                if found is not None:
+                    return -found
+            next_id = len(self._int2item) + 1
+            self._int2item[next_id] = combo_tree(item)
+            self._item2int_by_key[key] = next_id
+            return next_id
+
         found = self._find_item2int(item)
         if found is not None:
             return found

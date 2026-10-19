@@ -252,7 +252,8 @@ class tree:
         if isinstance(root_data, tree_node):
             _require_live_subtree_source(root_data, "tree()")
             self._root = tree_node(_copy_value(root_data.data))
-            self._copy_descendants(self._root, root_data)
+            if root_data.first_child is not None:  # a no-op for a leaf
+                self._copy_descendants(self._root, root_data)
             return
         self._root = None if root_data is None else tree_node(root_data)
 
@@ -966,19 +967,26 @@ class tree:
             node = self._root
             if node is None:
                 return
-        _require_live_node(node, "validate")
-        if node.parent is not None:
-            if node.prev_sibling is None and node.parent.first_child is not node:
+        self._validate_live(node)
+
+    def _validate_live(self, node):
+        """`validate`'s recursion, with `_require_live_node` inlined (speed
+        only: `reduce_and` validates the whole tree once per child)."""
+        parent, prev, nxt = node.parent, node.prev_sibling, node.next_sibling
+        if parent is _DEAD or prev is _DEAD or nxt is _DEAD:
+            _require_live_node(node, "validate")
+        if parent is not None:
+            if prev is None and parent.first_child is not node:
                 raise AssertionError("validate: parent.first_child mismatch")
-            if node.next_sibling is None and node.parent.last_child is not node:
+            if nxt is None and parent.last_child is not node:
                 raise AssertionError("validate: parent.last_child mismatch")
-        if node.prev_sibling is not None and node.prev_sibling.next_sibling is not node:
+        if prev is not None and prev.next_sibling is not node:
             raise AssertionError("validate: prev_sibling.next_sibling mismatch")
-        if node.next_sibling is not None and node.next_sibling.prev_sibling is not node:
+        if nxt is not None and nxt.prev_sibling is not node:
             raise AssertionError("validate: next_sibling.prev_sibling mismatch")
         child = node.first_child
         while child is not None:
-            self.validate(child)
+            self._validate_live(child)
             child = child.next_sibling
 
     # ---- internal splice helpers -------------------------------------------

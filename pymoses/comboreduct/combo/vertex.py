@@ -392,10 +392,14 @@ def vertex_equal(a: vertex, b: vertex) -> bool:
     `builtin.logical_true` -- see interpreter.py's own module docstring
     and eval.py's call sites for the general rule.
     """
-    # Fast path (no C++ counterpart; speed only): operands of the same exact
-    # Python type agree on every `isinstance` test below.
-    if type(a) is type(b):
+    # Fast paths (no C++ counterpart; speed only): operands of the same exact
+    # Python type agree on every `isinstance` test below, and two different
+    # alternatives among the four exact types fail one of them.
+    ta, tb = type(a), type(b)
+    if ta is tb:
         return a == b
+    if ta in _VERTEX_RANK_BY_TYPE and tb in _VERTEX_RANK_BY_TYPE:
+        return False
     if isinstance(a, builtin) != isinstance(b, builtin):
         return False
     if isinstance(a, contin_t) != isinstance(b, contin_t):
@@ -505,17 +509,31 @@ def lexicographic_subtree_cmp(n1: tree_node, n2: tree_node) -> int:
     this port's `first_child`/`next_sibling` node links in place of
     `sibling_iterator`.
     """
+    # `vertex_less(v1, v2)` then `vertex_less(v2, v1)`, inlined (speed only).
     v1, v2 = n1.data, n2.data
-    if type(v1) is type(v2) and type(v1) in _VERTEX_RANK_BY_TYPE:
-        # Same alternative: `vertex_less` reduces to the type's own `<`.
+    t1 = type(v1)
+    if t1 is argument and type(v2) is argument:
+        # `argument.__lt__` both ways: absolute_value_order.
+        a, b = v1.idx, v2.idx
+        if a != b:
+            if a == -b:
+                return 1 if a < b else -1
+            return 1 if abs(a) < abs(b) else -1
+    elif t1 is type(v2) and t1 in _VERTEX_RANK_BY_TYPE:
         if v1 < v2:
             return 1
         if v2 < v1:
             return -1
-    elif vertex_less(v1, v2):
-        return 1
-    elif vertex_less(v2, v1):
-        return -1
+    else:
+        r1 = _VERTEX_RANK_BY_TYPE.get(t1)
+        r2 = _VERTEX_RANK_BY_TYPE.get(type(v2))
+        if r1 is not None and r2 is not None:
+            # Distinct alternatives have distinct ranks.
+            return 1 if r1 < r2 else -1
+        if vertex_less(v1, v2):
+            return 1
+        if vertex_less(v2, v1):
+            return -1
     sib1, sib2 = n1.first_child, n2.first_child
     while True:
         if sib1 is None:

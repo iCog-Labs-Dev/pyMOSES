@@ -72,7 +72,7 @@ that module's docstring and task-5-report.md).
 """
 
 from pymoses.comboreduct.combo.assumption import copy_all_assumptions, equal_assumptions
-from pymoses.comboreduct.combo.vertex import combo_tree, equal_subtree_vertex_safe
+from pymoses.comboreduct.combo.vertex import builtin, combo_tree, equal_subtree_vertex_safe
 from pymoses.comboreduct.reduct.reduct import replace_without_changing_it, rule
 from pymoses.comboreduct.table.table import type_node
 from pymoses.comboreduct.type_checker.type_tree import get_output_type_node
@@ -143,9 +143,17 @@ class downwards(rule):
             # `get_output_type_tree(*it) == type_tree(output)`, compared
             # node to node: both sides are always one-node trees (see
             # `get_output_type_node`).
+            from pymoses.comboreduct.combo.descriptions import builtins_properties
+
             output = self.output
+            output_type_of_builtin = builtins_properties.instance().output_type_of_builtin
             for node in tr.iter_pre_at(it):
-                if get_output_type_node(node.data) == output:
+                v = node.data
+                if type(v) is builtin:  # get_output_type_node's first arm
+                    matches = output_type_of_builtin(v) == output
+                else:
+                    matches = get_output_type_node(v) == output
+                if matches:
                     self.r(tr, node)
 
 
