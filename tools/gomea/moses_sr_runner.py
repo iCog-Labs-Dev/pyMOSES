@@ -40,6 +40,21 @@ CPU time (`n_evals`, `moses_cpu_s` are MOSES's own); `seed_*_nmse` report the be
 (by training score) on the original splits; with pyMoses, `lineage.json`
 (`seed_lineage.py`) gives the lineage of every program left in the metapopulation and
 `final_lineage` that of the reported program.
+
+Two opt-in seed-block keys (pyMoses only; see `docs/gomea/USAGE.md`):
+
+* `"reserve_empty_every": K` passes `--reserve-empty-every K`: every K-th expansion picks
+  its exemplar from the empty program's lineage. The summary's `reserve_empty` gives the
+  expansions per lineage and the reserved turns as pyMoses counted them.
+* `"reseed_after": S` (with optional `"reseed_share": f`, default 0.2, and
+  `"max_reseeds": n`, default 1) installs `reseed.py`: after S expansions without a
+  strict improvement of the best score, a fresh GP-GOMEA run (new seed) gets
+  `f * (evaluations MOSES has left)` and its elites join the metapopulation. Its
+  evaluations are added to MOSES's own count, so they come out of `-m` and `n_evals`
+  includes them; the summary adds `n_reseeds`, `reseed_evals`, `reseed_cpu_s` and
+  `moses_own_evals`, and `reseed.json` records each re-seed. A re-seed whose share is
+  below `"reseed_min_budget"` (default: the initial seeding's budget, since GP-GOMEA
+  overspends a small share by up to a generation) is skipped.
 """
 
 from __future__ import annotations
@@ -120,7 +135,7 @@ def _run_one(job: dict) -> dict:
             }
             summary_path.write_text(json.dumps(summary, indent=2, sort_keys=True))
             return summary
-    is_pymoses = Path(job["binary"]).parent.name == "bin" and Path(job["binary"]).name == "moses"
+    is_pymoses = _is_pymoses(job["binary"])
     if is_pymoses:
         # pyMoses: run it with a raised recursion limit. Its recursive neighbourhood
         # counting nests once per knob, past Python's default of 1,000 on large
@@ -134,6 +149,18 @@ def _run_one(job: dict) -> dict:
                 "import atexit, seed_lineage; "
                 f"atexit.register(seed_lineage.install({labels!r}).write, "
                 f"{str(run_dir / 'lineage.json')!r}); "
+            )
+        if seed_rec is not None and job["seed_spec"].get("reseed_after"):
+            # a re-seed is never given less than the initial seeding was
+            spec = {"reseed_min_budget": seed_rec["seed_budget"], **job["seed_spec"]}
+            binary = spec["binary"] if os.path.isabs(spec["binary"]) else str(REPO / spec["binary"])
+            lineage += (
+                f"sys.path.insert(0, {str(Path(__file__).resolve().parent)!r}); "
+                "import reseed; "
+                f"atexit.register(reseed.install({spec!r}, {binary!r}, "
+                f"{str(run_dir / 'gpgomea')!r}, {int(job['seed'])!r}, "
+                f"train_csv={str(run_dir / 'train_scaled.csv')!r}).write, "
+                f"{str(run_dir / 'reseed.json')!r}); "
             )
         boot = (
             "import sys; sys.setrecursionlimit(100000); "
@@ -240,10 +267,26 @@ def _run_one(job: dict) -> dict:
         summary["cpu_s"] += seed_rec["gpgomea"]["cpu_s"]
         if summary["n_evals"] is not None:
             summary["n_evals_total"] = summary["n_evals"] + seed_rec["evaluations_used"]
+        # re-seeding: its GP-GOMEA evaluations are already in MOSES's n_evals (the hook
+        # adds them to stats.n_evals), and its CPU time in cpu_s (a grandchild process)
+        rs_path = run_dir / "reseed.json"
+        if rs_path.exists():
+            rs = json.loads(rs_path.read_text())
+            summary.update(
+                n_reseeds=rs["n_reseeds"],
+                reseed_evals=rs["reseed_evals"],
+                reseed_cpu_s=rs["reseed_cpu_s"],
+            )
+            if summary["n_evals"] is not None:
+                summary["moses_own_evals"] = summary["n_evals"] - rs["reseed_evals"]
     tmp = summary_path.with_suffix(".tmp")
     tmp.write_text(json.dumps(summary, indent=2, sort_keys=True))
     os.replace(tmp, summary_path)
     return summary
+
+
+def _is_pymoses(binary: str) -> bool:
+    return Path(binary).parent.name == "bin" and Path(binary).name == "moses"
 
 
 def _apply_seed(job: dict, argv: list[str], run_dir: Path) -> tuple[dict, list[str]]:
@@ -253,6 +296,9 @@ def _apply_seed(job: dict, argv: list[str], run_dir: Path) -> tuple[dict, list[s
     spec, b = job["seed_spec"], job["budget"]
     if "evals" not in b:
         raise ValueError("seeding needs an evaluation budget ({'evals': N})")
+    opt_in = [x for x in ("reserve_empty_every", "reseed_after") if spec.get(x)]
+    if opt_in and not _is_pymoses(job["binary"]):
+        raise ValueError(f"seed block keys {opt_in} need pyMoses, not {job['binary']}")
     total = int(b["evals"])
     b_seed = int(spec["budget"]) if "budget" in spec else int(spec["share"] * total)
     rec = gs.make_seeds(
@@ -273,6 +319,8 @@ def _apply_seed(job: dict, argv: list[str], run_dir: Path) -> tuple[dict, list[s
     moses_m = gs.shared_budget(total, rec["evaluations_used"])
     argv = gs.replace_max_evals(argv, moses_m)
     argv += gs.exemplar_argv("regression", [x["combo"] for x in rec["seeds"]], with_empty)
+    if int(spec.get("reserve_empty_every", 0)) > 0:
+        argv += ["--reserve-empty-every", str(int(spec["reserve_empty_every"]))]
     rec.update(total_budget=total, seed_budget=b_seed, moses_budget=moses_m,
                with_empty=with_empty)
     (run_dir / "seeds.json").write_text(json.dumps(rec, indent=2))
@@ -310,6 +358,8 @@ def _seed_summary(rec, run_dir: Path, final_program, train, val, test) -> dict:
 
         lin = json.loads(lin_path.read_text())
         out["expansions_by_lineage"] = lin.get("expansions_by_lineage")
+        if "reserve_empty" in lin:
+            out["reserve_empty"] = lin["reserve_empty"]
         out["best_train_lineages"] = lin.get("best_lineages")
         if final_program is not None:
             key = seed_lineage.key_of(final_program)

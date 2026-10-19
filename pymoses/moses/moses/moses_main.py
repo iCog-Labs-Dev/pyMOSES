@@ -739,7 +739,15 @@ def metapop_moses_results_b(
         simple_bases.append(siba)
 
     dex = deme_expander(tt, si_ca, si_kb, sc, optimizer, deme_params, filter_params)
-    metapop = metapopulation(simple_bases, sc, meta_params, filter_params)
+    # NOT A PORT (pyMoses extension, `--reserve-empty-every`): tell the
+    # metapopulation which exemplars were the empty program before reduction.
+    if getattr(meta_params, "reserve_empty_every", 0) > 0:
+        from pymoses.moses.metapopulation.lineage import EMPTY_PROGRAMS, lineage_key
+
+        empty = [i for i, b in enumerate(bases) if lineage_key(b) in EMPTY_PROGRAMS]
+        metapop = metapopulation(simple_bases, sc, meta_params, filter_params, empty)
+    else:
+        metapop = metapopulation(simple_bases, sc, meta_params, filter_params)
 
     # GOMEA extension (not in classic MOSES): by default GOMEA searches
     # discrete knobs only (`--gomea-contin reject`). A representation with

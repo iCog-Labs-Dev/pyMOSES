@@ -482,6 +482,16 @@ _PORT_OPTIONS = (
         "the training score (with the complexity penalty) is not worse. "
         "0 = off. Default 0.",
     ),
+    (
+        "--reserve-empty-every",
+        "reserve_empty_every",
+        int,
+        0,
+        "every K-th expansion picks its exemplar only among the programs that "
+        "descend from an initial exemplar that is the empty program (+ or and), "
+        "by MOSES's normal selection restricted to them, falling back to the "
+        "normal choice when none is selectable. 0 = off. Default 0.",
+    ),
 )
 _GOMEA_INIT_CHOICES = ("sampler", "uniform")
 _GOMEA_ACCEPT_CHOICES = ("nonworse", "strict")
@@ -1340,6 +1350,12 @@ class problem_params:
                 f"--simplify-exemplar-numeric must be a finite number >= 0 (0 = off), got {tol}"
             )
         self.simplify_exemplar_numeric = tol
+        # NOT A PORT (pyMoses extension): `--reserve-empty-every`, read by the
+        # metapopulation (`metapopulation/lineage.py`).
+        k = getattr(args, "reserve_empty_every", 0)
+        if k < 0:
+            raise ValueError(f"--reserve-empty-every must be >= 0 (0 = off), got {k}")
+        self.meta_params.reserve_empty_every = k
 
         # -- Set depth (C++: :2371-2372 `set_depth(contin_depth)`) --
         # `representation.py`'s module-level `_depth` static, exactly as

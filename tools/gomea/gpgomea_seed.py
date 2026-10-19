@@ -306,12 +306,14 @@ def pymoses_scorer(moses_flags: list[str]):
     return got["scorer"], got["si_ca"]
 
 
-def score_programs(moses_flags: list[str], programs: list[str]) -> list[dict]:
-    """pyMoses raw score and reduced form of each combo string."""
+def score_programs(moses_flags: list[str], programs: list[str], scorer=None) -> list[dict]:
+    """pyMoses raw score and reduced form of each combo string. `scorer` is a
+    `(behave_cscore, si_ca)` pair to use instead of setting the problem up
+    from `moses_flags` (re-seeding passes the running MOSES's own)."""
     from pymoses.comboreduct.combo.iostream_combo import combo_tree_to_str, str_to_combo_tree
     from pymoses.comboreduct.combo.vertex import combo_tree
 
-    scorer, si_ca = pymoses_scorer(moses_flags)
+    scorer, si_ca = scorer if scorer is not None else pymoses_scorer(moses_flags)
     out = []
     for p in programs:
         tr = str_to_combo_tree(p)
@@ -370,9 +372,11 @@ def make_seeds(
     extra: list[str] | None = None,
     tol: float = 1e-5,
     max_checks: int | None = None,
+    scorer=None,
 ) -> dict:
     """Run GP-GOMEA, translate and verify its k best distinct elites. Returns the
-    record written to the seeds JSON (see the module docstring)."""
+    record written to the seeds JSON (see the module docstring). `scorer`: see
+    `score_programs`."""
     workdir.mkdir(parents=True, exist_ok=True)
     if os.sep in binary:  # GP-GOMEA runs in `workdir`: pin a relative path first
         binary = str(Path(binary).resolve())
@@ -430,7 +434,7 @@ def make_seeds(
         pending.append(c)
     max_checks = max_checks if max_checks is not None else max(8 * k, 40)
     pending = pending[:max_checks]
-    scored = score_programs(moses_flags, [c["combo"] for c in pending]) if pending else []
+    scored = score_programs(moses_flags, [c["combo"] for c in pending], scorer) if pending else []
 
     seeds: list[dict] = []
     seen_reduced: set[str] = set()

@@ -79,6 +79,9 @@ class Tracker:
             pass
         out["metapop_by_lineage"] = dict(counts)
         out["pool"] = pool
+        core = getattr(mp, "_lineage", None)  # `--reserve-empty-every` (pyMoses core)
+        if core is not None:
+            out["reserve_empty"] = core.report()
         return out
 
     def write(self, path: str | Path) -> None:
