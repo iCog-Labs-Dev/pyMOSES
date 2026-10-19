@@ -56,7 +56,7 @@ and spend more running time only on inconclusive results.
 
 * Items that inform the quarter's build decision most come first: penalty (0), seeding on
   Boolean (1), and the structural GOMEA options (1–2).
-* Code-free phases come before code-dependent ones, so code is built while earlier pairs run.
+* Code-free phases come before code-dependent ones, so code is built while earlier phases run.
 * Low-priority items (1z, 1aa) and the largest new code (1ab) come last.
 
 **Estimated wall time,** run strictly one at a time on a quiet machine: about 1–2 h per
@@ -75,6 +75,6 @@ phases by priority only; nothing in it runs at the same time.
 | engineering 1.x | being built in `../pyMoses-knobfast` (byte-identical results required) |
 | `--reserve-empty-every`, re-seed hook (1y, 1ab) | being built in `../pyMoses-seedopts` |
 
-**CPU comparability:** if the knob-building speed-ups are ready before pair 1, they are merged
+**CPU comparability:** if the knob-building speed-ups are ready before Phase 1u, they are merged
 before it, so every phase from 1u on runs on the same code. If they arrive later, they are
-merged only between pairs, and CPU numbers are compared only within a phase.
+merged only between phases, and CPU numbers are compared only within a phase.
