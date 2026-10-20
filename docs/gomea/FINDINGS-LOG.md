@@ -15,6 +15,9 @@ this log and a findings file differ, the findings file is right.
 * **Verdicts** follow each phase's registered rule: Holm-corrected, and "better" also needs a
   10 % lower median.
 
+**User decisions on how results are weighed (accuracy vs size, cost and generalization) are
+in `DECISIONS.md`.**
+
 ## Standing conclusions (as of 2026-10-20)
 
 1. **Regression: GOMEA beats HC, including at equal time.**
