@@ -329,17 +329,27 @@ GOM bookkeeping and telemetry are not worth optimising.
          representation, not a tuning win.
    * **Related:** the earlier `-B 3` result (1 knob on maj5-x3) has the same mechanism, since
      the exemplars were not fixpoints at effort 3.
-2. **`-B 3` crashes with the reduced-baseline probe** (found 2026-10-20, Phase 1aa).
-   * **What happens:** with `--reduct-knob-building-effort 3` and `--knob-probe-baseline
-     reduced`, a mux11 run (HC-B3, seed 3004, after 2,750 evaluations) raised
-     `AssertionError: builtin should be 'id::logical_true' or 'id::logical_false'`.
-   * **Trace:** `build_knobs._disc_probe_reduced_baseline` → reduction → `logical_rules.py:1681`
-     → `table.same_complete_truth_table` → `builtin_to_bool`.
-   * **Likely cause, unconfirmed:** the reduced-baseline path reduces a tree that the classic
-     path would first clean (`null_vertex` or other non-Boolean leaves), and only effort-3
-     rules evaluate a truth table on it.
-   * **To do:** reproduce with and without the reduced probe; fix (a DIVERGENCE note if it
-     changes reduction); rerun Phase 1aa.
+2. **`-B 3` crash: a latent effort-3 reduction bug, also in C++** (found 2026-10-20 in Phase
+   1aa; diagnosed the same day).
+   * **Where:** `reduce_remove_subtree_equal_tt` (`logical_rules.py:1667-1685`), run only at
+     effort 3 (`logical_reduction.py:192-195`).
+   * **What happens:**
+     1. It cuts the children of the root junctor one at a time and keeps a cut when the
+        truth table is unchanged.
+     2. That can leave a childless root `and()`/`or()`; `remove_dangling_junctors` never
+        removes the root.
+     3. The interpreter returns `id::logical_and`/`or` for an empty junctor (as C++
+        `interpreter.cc:66-76` does).
+     4. `builtin_to_bool` asserts (C++ `OC_ASSERT`, `vertex.h:710`).
+   * **Reproduction:** `or(and($1 $2) $1)` crashes the rule alone. A natural case under full
+     `logical_reduce(3, ·)` was found by fuzzing.
+   * **Not caused by `--knob-probe-baseline reduced`.** The classic probe runs the same code
+     at `-B 3`. The default `-B 2` never reaches the rule, so no earlier result is affected.
+   * **Phase 1aa:** exactly one real crash (HC-B3, seed 3004); the other errors were runs
+     terminated when the phase was stopped.
+   * **Fix:** in progress in a clone. If a cut would leave an empty root junctor, treat it as
+     "truth table changed" and restore the child. Marked DIVERGENCE (C++ aborts here). It
+     changes only inputs that crash today. Then rerun Phase 1aa.
 
 3. **Rejected GOM trials are stored in the deme and merged.**
    * **What happens:** every scored trial is appended to the deme, whether GOM accepted it

@@ -137,7 +137,8 @@ Written 2026-10-19, before any of these runs. Shared rules: `QUEUE.md`.
 * **Why the phase was stopped:** crashes count as unsolved, so they would make `-B 3` look
   worse because of a bug, not because of the search. The phase was stopped and its runs
   discarded.
-* **Not yet known:** whether the crash also happens with the classic probe (`-B 3` alone).
+* **Diagnosed later the same day:** a latent effort-3 rule bug, also present in C++. It is
+  not caused by the reduced probe; see `BACKLOG.md` section 4, item 2.
 * **Status:** 1aa is **blocked by this bug** (`BACKLOG.md` section 4). It can be rerun once
   the crash is understood, either with the classic probe or with a fix.
 
