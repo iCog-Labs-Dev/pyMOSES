@@ -152,6 +152,26 @@ Written 2026-10-19, before any of these runs. Shared rules: `QUEUE.md`.
 * **Results:** the stopped first attempt's results are discarded. The rerun uses fresh
   result directories, because the manifest hash includes `commit`.
 
+**1aa rerun deviation (2026-10-20 15:50, before any analysis):**
+
+* **The problem:**
+  * `-B 3` runs cost up to about 1 s of CPU per evaluation, against about 0.2 s for GOMEA
+    without it.
+  * At 15:41, 20 of 40 runs were done; 8 `-B 3` runs held all 8 slots, and 12 runs had not
+    started.
+  * Every `-B 3` run so far had already spent more CPU than its paired base run's CPU to
+    solve: 4 / 4 finished and all 8 running.
+* **The rule, as in Phase 1w:** a `-B 3` run whose CPU (from its trace) exceeds its paired
+  base run's CPU to solve has a fixed sign.
+* **The mechanism:** `tools/gomea/phase1aa_earlystop.py` terminates such a run's own process.
+  * The runner stays alive and records it as `error`, i.e. unsolved (+∞), the outcome the
+    rule assigns. It then starts the next queued run.
+  * Base runs and undecided `-B 3` runs are never touched.
+  * Unlike the Phase 1w procedure, this cannot orphan runs, because the runner is never
+    stopped.
+* **Caveat:** Wilcoxon ranks treat these pairs as +∞. That can only enlarge positive
+  differences, i.e. those where `-B 3` is slower.
+
 ## Phase 1z (near-constant simplification): settled by pilot, not run
 
 * **Pilot results:**
