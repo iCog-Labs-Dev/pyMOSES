@@ -59,6 +59,19 @@ longer cap is acceptable when it buys cost or generalization.
 * **Status:** pending backlog item 18 (caps 250 / 500 / 1,000, with size and gap reported).
   The cap stays 250 until then.
 
+## D4. Re-seeding is dropped (user, 2026-10-20)
+
+**Decision:** drop re-seeding MOSES from GP-GOMEA on stagnation, in every form. That covers
+the tested design (a fresh GP-GOMEA run) and the untested one (GP-GOMEA started from MOSES's
+current programs). It will not be tested further or built.
+
+* **Evidence:** Phase 1ab.
+  * Re-seeding tied plain seeding on Con: 44.6 against 44.9, with 7/10 splits identical.
+  * Fresh elites rarely beat MOSES's current best.
+  * Size, gap and CPU stayed in seeded territory with no gain.
+* **What remains:** the `reseed_*` seed-block keys stay in the code as an opt-in, unused
+  option. Seeding itself stays (D2: 10 % share).
+
 ## Open for the build decision
 
 * **Candidate defaults:** the knob-collapse fix, and the uniform start for regression (see

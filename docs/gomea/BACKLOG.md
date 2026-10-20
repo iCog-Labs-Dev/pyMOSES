@@ -129,6 +129,8 @@ GOM bookkeeping and telemetry are not worth optimising.
      runs it out of the arm's `-m` and passes `-e SEED ... -e and|+`;
      `tools/gomea/seed_lineage.py` records which exemplar each expansion and the final
      programs descend from. Pilot manifests: `configs/gomea/seed/`.
+   * **Dropped (user, 2026-10-20; DECISIONS.md D4):** the later extension below was tested in
+     Phase 1ab (a tie) and is not pursued further in any form.
    * **Later extension:** re-run seeding when MOSES stagnates, using the current
      metapopulation's best programs as GP-GOMEA's starting population, for repeated smart
      restarts.
