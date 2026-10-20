@@ -1,0 +1,42 @@
+{
+  "phase": "1y",
+  "metrics": {
+    "Con": "test_nmse"
+  },
+  "primary": [
+    [
+      "Con",
+      "reserve-vs-unseeded",
+      "GOMEA-S-RES",
+      "GOMEA"
+    ],
+    [
+      "Con",
+      "share10-vs-unseeded",
+      "GOMEA-S10",
+      "GOMEA"
+    ]
+  ],
+  "secondary": [
+    [
+      "Con",
+      "reserve-vs-seeded",
+      "GOMEA-S-RES",
+      "GOMEA-S"
+    ],
+    [
+      "Con",
+      "share10-vs-seeded",
+      "GOMEA-S10",
+      "GOMEA-S"
+    ]
+  ],
+  "descriptive": [
+    [
+      "Con",
+      "seeded-vs-unseeded",
+      "GOMEA-S",
+      "GOMEA"
+    ]
+  ]
+}

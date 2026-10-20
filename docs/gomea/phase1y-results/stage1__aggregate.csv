@@ -1,0 +1,5 @@
+problem,arm,runs,not_ok,solved,metric,median_metric,median_evals_to_target,median_cpu_s,median_cpu_per_eval,median_deme_count,median_size,median_seed_test_nmse,median_seed_best_raw,median_seed_evals,final_from_seed
+Con,GOMEA,10,0,,test_nmse,37.096835187902016,,2267.4093125,0.22674093124999997,,187.0,,,,
+Con,GOMEA-S,10,0,,test_nmse,44.8763153283918,,535.814833,0.053581483299999996,,28.5,46.76571035117621,,2580.5,10
+Con,GOMEA-S-RES,10,0,,test_nmse,45.77696624030075,,469.1546495,0.04691546495,,25.5,46.76571035117621,,2580.5,10
+Con,GOMEA-S10,10,0,,test_nmse,41.94911683042692,,578.532625,0.0578532625,,32.5,50.000285365894094,,1284.0,10

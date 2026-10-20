@@ -1,0 +1,6 @@
+{
+  "Con:reserve-vs-unseeded": "extend",
+  "Con:share10-vs-unseeded": "tie",
+  "Con:reserve-vs-seeded": "tie",
+  "Con:share10-vs-seeded": "tie"
+}

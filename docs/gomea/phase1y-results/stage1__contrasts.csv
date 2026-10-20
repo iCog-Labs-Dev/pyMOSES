@@ -1,0 +1,6 @@
+contrast,family,problem,a,a_lower,b,b_lower,median_a,median_b,metric,p,p_holm,pairs,ties,verdict
+reserve-vs-unseeded,primary,Con,GOMEA-S-RES,3,GOMEA,7,45.77696624030075,37.096835187902016,test_nmse,0.037109375,0.07421875,10,0,extend
+share10-vs-unseeded,primary,Con,GOMEA-S10,3,GOMEA,7,41.94911683042692,37.096835187902016,test_nmse,0.431640625,0.431640625,10,0,tie
+reserve-vs-seeded,secondary,Con,GOMEA-S-RES,4,GOMEA-S,4,45.77696624030075,44.8763153283918,test_nmse,0.4609375,0.4609375,10,2,tie
+share10-vs-seeded,secondary,Con,GOMEA-S10,7,GOMEA-S,2,41.94911683042692,44.8763153283918,test_nmse,0.09765625,0.1953125,10,1,tie
+seeded-vs-unseeded,descriptive,Con,GOMEA-S,3,GOMEA,7,44.8763153283918,37.096835187902016,test_nmse,0.130859375,,10,0,
