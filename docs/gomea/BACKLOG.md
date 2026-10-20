@@ -262,10 +262,20 @@ GOM bookkeeping and telemetry are not worth optimising.
     * **Also try:** UNI with seeding (Phase 1r), and UNI with the acceptance penalty to curb
       the larger programs.
 
-18. **Cap 500 on Boolean problems** (after Phase 1x).
-    * **Phase 1x:** mux11 CPU to solve 1,000 against 1,464 s, 6/4 pairs, Holm p 0.252, just
-      outside the extension band.
-    * **If wanted:** 10 more seeds at cap 250 vs 500 on mux11, about 1 h.
+18. **Caps 500 and 1,000** (after Phase 1x; cap 1,000 added by the user, 2026-10-20).
+    * **Phase 1x:**
+      * mux11 at cap 500: CPU to solve 1,000 against 1,464 s, 6/4 pairs, Holm p 0.252, just
+        outside the extension band.
+      * The trend: longer demes mean fewer knob rebuilds and cheaper evaluations (0.29 → 0.12 s
+        per evaluation from 250 to 500), but more evaluations to solve.
+      * On Con, 500 was worse by median (41.8 against 37.1).
+    * **Follow-up:** caps 250, 500 and 1,000 on mux11 and Con, 10 + 10 seeds.
+      * Primary: 500 vs 250 and 1,000 vs 250.
+      * Report generations per deme too: does 1,000 start to give second linkage models (see
+        item 19)?
+    * **Bound:** Phase 1m's cap 4,000 (with N up to 200) was much worse on mux11, so the useful
+      range is likely somewhere between 500 and a few thousand.
+    * **Cost:** about 2–3 h.
 
 19. **Fewer, longer demes for promising exemplars, so linkage is relearned** (user,
     2026-10-20).
