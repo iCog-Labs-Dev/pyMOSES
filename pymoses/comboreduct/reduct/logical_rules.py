@@ -1678,7 +1678,19 @@ class reduce_remove_subtree_equal_tt(rule):
             pit = tr.insert_above(pit, builtin.null_vertex)
             amputated_tr = combo_tree(tr.begin())
             clean_reduce(amputated_tr)
-            if tr_tt.same_complete_truth_table(amputated_tr):
+            # DIVERGENCE(C++ moses/comboreduct/reduct/logical_rules.cc:847-849): a cut leaving a childless root and()/or() (e.g. or(and($1 $2) $1)) makes C++ OC_ASSERT in builtin_to_bool (vertex.h:710); the port treats it as truth-table-changing and keeps the child.
+            amp_root = None if amputated_tr.empty() else amputated_tr.begin()
+            if amp_root is None or (
+                (
+                    vertex_equal(amp_root.data, builtin.logical_and)
+                    or vertex_equal(amp_root.data, builtin.logical_or)
+                )
+                and amputated_tr.is_childless(amp_root)
+            ):
+                same_tt = False
+            else:
+                same_tt = tr_tt.same_complete_truth_table(amputated_tr)
+            if same_tt:
                 pit = tr.erase_pre_order(pit)
             else:  # remove only the previously added null_vertex
                 pit = tr.erase_pre_order(tr.flatten(pit))

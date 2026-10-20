@@ -78,6 +78,14 @@ harness, all 8 cases).
 
 Neither is used in a pre-registered phase yet.
 
+**Also not user-approved as code (2026-10-20):** the `-B 3` crash fix (BACKLOG section 4,
+item 2). At effort 3, `reduce_remove_subtree_equal_tt` could cut the last child of the root
+`and`/`or` and then assert while evaluating the empty junctor; C++ has the same latent bug
+(`logical_rules.cc:847-849`, `OC_ASSERT` at `vertex.h:710`). The port now treats that cut as
+truth-table-changing and keeps the child, marked as a DIVERGENCE. Only inputs that used to
+crash change; the default `-B 2` never reaches the rule, and the identity harness is
+byte-identical on all 8 cases.
+
 Deviations from the handoff's gate procedure that follow from instruction #1:
 
 * The P1.0 → P1.5 stops are replaced by the review packets committed under `docs/gomea/`
