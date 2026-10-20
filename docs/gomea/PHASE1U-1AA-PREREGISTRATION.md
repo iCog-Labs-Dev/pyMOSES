@@ -125,6 +125,22 @@ Written 2026-10-19, before any of these runs. Shared rules: `QUEUE.md`.
 * **Problem:** mux11.
 * **Primary** (Holm over 2): `b3-hc` and `b3-gomea`.
 
+**1aa stopped (deviation, 2026-10-20 07:48, after 2 of 40 runs, before any analysis).**
+
+* **The bug:** the first `-B 3` run crashed with an AssertionError in effort-3 Boolean
+  reduction. The trace:
+  1. `logical_rules.py:1681`;
+  2. `same_complete_truth_table`;
+  3. `builtin_to_bool` received a non-Boolean;
+  4. reached from `build_knobs._disc_probe_reduced_baseline`, the `--knob-probe-baseline
+     reduced` path that every arm carries.
+* **Why the phase was stopped:** crashes count as unsolved, so they would make `-B 3` look
+  worse because of a bug, not because of the search. The phase was stopped and its runs
+  discarded.
+* **Not yet known:** whether the crash also happens with the classic probe (`-B 3` alone).
+* **Status:** 1aa is **blocked by this bug** (`BACKLOG.md` section 4). It can be rerun once
+  the crash is understood, either with the classic probe or with a fix.
+
 ## Phase 1z (near-constant simplification): settled by pilot, not run
 
 * **Pilot results:**

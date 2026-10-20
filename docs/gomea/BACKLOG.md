@@ -329,7 +329,19 @@ GOM bookkeeping and telemetry are not worth optimising.
          representation, not a tuning win.
    * **Related:** the earlier `-B 3` result (1 knob on maj5-x3) has the same mechanism, since
      the exemplars were not fixpoints at effort 3.
-2. **Rejected GOM trials are stored in the deme and merged.**
+2. **`-B 3` crashes with the reduced-baseline probe** (found 2026-10-20, Phase 1aa).
+   * **What happens:** with `--reduct-knob-building-effort 3` and `--knob-probe-baseline
+     reduced`, a mux11 run (HC-B3, seed 3004, after 2,750 evaluations) raised
+     `AssertionError: builtin should be 'id::logical_true' or 'id::logical_false'`.
+   * **Trace:** `build_knobs._disc_probe_reduced_baseline` → reduction → `logical_rules.py:1681`
+     → `table.same_complete_truth_table` → `builtin_to_bool`.
+   * **Likely cause, unconfirmed:** the reduced-baseline path reduces a tree that the classic
+     path would first clean (`null_vertex` or other non-Boolean leaves), and only effort-3
+     rules evaluate a truth table on it.
+   * **To do:** reproduce with and without the reduced probe; fix (a DIVERGENCE note if it
+     changes reduction); rerun Phase 1aa.
+
+3. **Rejected GOM trials are stored in the deme and merged.**
    * **What happens:** every scored trial is appended to the deme, whether GOM accepted it
      or not. MOSES's merge then ranks them with its own complexity penalty.
    * **Impact today:** this matches HC, which also stores every evaluated neighbour, and is
@@ -338,6 +350,6 @@ GOM bookkeeping and telemetry are not worth optimising.
      acceptance (backlog item 13). The merge would then bring back bloated rejected trials
      with higher raw scores, unless it ranks them under the same penalty or keeps only
      accepted and elite individuals.
-3. **(Fixed 2026-10-15, `a42d5c8`):** `twiddle_contin_bit` crashed on contin-only demes; C++
+4. **(Fixed 2026-10-15, `a42d5c8`):** `twiddle_contin_bit` crashed on contin-only demes; C++
    has the same out-of-range read as undefined behaviour. Kept here for the record; disclosed
    in `APPROVALS.md`.
