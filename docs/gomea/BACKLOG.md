@@ -347,9 +347,10 @@ GOM bookkeeping and telemetry are not worth optimising.
      at `-B 3`. The default `-B 2` never reaches the rule, so no earlier result is affected.
    * **Phase 1aa:** exactly one real crash (HC-B3, seed 3004); the other errors were runs
      terminated when the phase was stopped.
-   * **Fix:** in progress in a clone. If a cut would leave an empty root junctor, treat it as
-     "truth table changed" and restore the child. Marked DIVERGENCE (C++ aborts here). It
-     changes only inputs that crash today. Then rerun Phase 1aa.
+   * **Fix:** built in commit "fix: keep the last child of the root junctor in
+     reduce_remove_subtree_equal_tt". A cut that would leave an empty root junctor counts as
+     "truth table changed" and the child is restored. Marked DIVERGENCE (C++ aborts here).
+     Only inputs that crashed change; identity harness byte-identical. Then rerun Phase 1aa.
 
 3. **Rejected GOM trials are stored in the deme and merged.**
    * **What happens:** every scored trial is appended to the deme, whether GOM accepted it

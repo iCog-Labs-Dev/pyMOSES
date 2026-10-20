@@ -69,8 +69,10 @@ from pymoses.comboreduct.reduct.logical_rules import (
     subtree_set,
     subtree_to_enf,
 )
+from pymoses.comboreduct.reduct.logical_reduction import logical_reduce
 from pymoses.comboreduct.reduct.meta_rules import downwards, iterative, upwards
 from pymoses.comboreduct.reduct.reduct import rule
+from pymoses.comboreduct.table.table import complete_truth_table
 
 # ---------------------------------------------------------------------------
 # Test-local helpers
@@ -980,6 +982,44 @@ def test_reduce_remove_subtree_equal_tt_raises_on_a_childless_not_via_its_own_pr
 
     with pytest.raises(AttributeError):
         reduce_remove_subtree_equal_tt()(tr, root)
+
+
+@pytest.mark.parametrize(
+    "tree_str, expected",
+    [("or(and($1 $2) $1)", "or($1)"), ("and(or($1 $2) $1)", "and($1)")],
+)
+def test_reduce_remove_subtree_equal_tt_never_leaves_a_childless_root_junctor(tree_str, expected):
+    """Regression (BACKLOG section 4 item 2): cutting the last child of the
+    root junctor used to leave a childless `or()`/`and()`, whose truth
+    table check asserted in `builtin_to_bool`. That cut now counts as
+    truth-table-changing (DIVERGENCE: C++ asserts here), so the child stays.
+    """
+    tr = str_to_combo_tree(tree_str)
+    before = complete_truth_table(str_to_combo_tree(tree_str), 2)
+    reduce_remove_subtree_equal_tt()(tr, tr.begin())
+    assert combo_tree_to_str(tr).strip() == expected
+    assert before.same_complete_truth_table(tr)
+
+
+@pytest.mark.parametrize(
+    "tree_str",
+    [
+        "or(and($1 $2) $1)",
+        "and(or($1 $2) $1)",
+        "and(or(or(and(!$4 !$1) or(!$3 !$1)) and(or(!$3 $3 $1) or($1 $3 $3) or($4 $2))"
+        " and(!$2 or(!$3 $3 $4) $3)) $1)",
+    ],
+)
+def test_logical_reduce_effort_3_survives_the_childless_root_cut(tree_str):
+    """Same regression through full `logical_reduce(3, .)` (the fuzzed
+    tree crashed there before the fix); the result keeps the input's
+    complete truth table and reduces to `$1`.
+    """
+    tr = str_to_combo_tree(tree_str)
+    before = complete_truth_table(str_to_combo_tree(tree_str), 4)
+    logical_reduce(3, tr, ignore_ops=set())
+    assert combo_tree_to_str(tr).strip() == "$1"
+    assert before.same_complete_truth_table(tr)
 
 
 # ---------------------------------------------------------------------------
