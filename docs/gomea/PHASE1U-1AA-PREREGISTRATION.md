@@ -142,6 +142,16 @@ Written 2026-10-19, before any of these runs. Shared rules: `QUEUE.md`.
 * **Status:** 1aa is **blocked by this bug** (`BACKLOG.md` section 4). It can be rerun once
   the crash is understood, either with the classic probe or with a fix.
 
+**1aa rerun (registered 2026-10-20, before the rerun):**
+
+* **Timing:** after segment B, on the merged code plus the effort-3 fix (`17a7bd0`,
+  `pyMoses-b3fix`).
+* **The fix:** it keeps the last child where C++ asserts. Identity on all 8 cases is
+  IDENTICAL; the fuzz gave 0 crashes in 5,000 trees.
+* **Design:** unchanged. Only the manifests' `commit` field is updated.
+* **Results:** the stopped first attempt's results are discarded. The rerun uses fresh
+  result directories, because the manifest hash includes `commit`.
+
 ## Phase 1z (near-constant simplification): settled by pilot, not run
 
 * **Pilot results:**
