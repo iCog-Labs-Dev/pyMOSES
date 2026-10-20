@@ -262,6 +262,11 @@ GOM bookkeeping and telemetry are not worth optimising.
     * **Also try:** UNI with seeding (Phase 1r), and UNI with the acceptance penalty to curb
       the larger programs.
 
+18. **Cap 500 on Boolean problems** (after Phase 1x).
+    * **Phase 1x:** mux11 CPU to solve 1,000 against 1,464 s, 6/4 pairs, Holm p 0.252, just
+      outside the extension band.
+    * **If wanted:** 10 more seeds at cap 250 vs 500 on mux11, about 1 h.
+
 ## 3. Ideas outside Phase 1's scope
 
 * **IEBL-style building blocks** (Input-space Entropy-based Building-block Learning;

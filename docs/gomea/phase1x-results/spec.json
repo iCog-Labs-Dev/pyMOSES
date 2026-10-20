@@ -1,0 +1,34 @@
+{
+  "phase": "1x",
+  "metrics": {
+    "mux11": "cpu_to_target",
+    "Con": "test_nmse"
+  },
+  "primary": [
+    [
+      "mux11",
+      "cap125",
+      "GOMEA-C125",
+      "GOMEA"
+    ],
+    [
+      "mux11",
+      "cap500",
+      "GOMEA-C500",
+      "GOMEA"
+    ],
+    [
+      "Con",
+      "cap125",
+      "GOMEA-C125",
+      "GOMEA"
+    ],
+    [
+      "Con",
+      "cap500",
+      "GOMEA-C500",
+      "GOMEA"
+    ]
+  ],
+  "secondary": []
+}

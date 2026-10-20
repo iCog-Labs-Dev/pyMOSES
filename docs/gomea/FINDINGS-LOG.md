@@ -67,6 +67,7 @@ this log and a findings file differ, the findings file is right.
 | 1u | 2026-10-19 | GP-GOMEA seeding on mux11 (CPU to solve; merged faster code) | **GOMEA: seeded better** (785 against 1,321 s, 15/20, Holm p 0.0097). It needs 2.6× the evaluations, but they are about 4× cheaper. **HC: tie.** Seeded GOMEA against seeded HC: tie (stage 1); descriptively HC is still faster (627 against 785 s). |
 | 1v | 2026-10-19 | Uniform-distance start (`--gomea-radii uniform`), end to end | **Con better:** test NMSE 37.1 → 29.2, lower on 10/10 splits (Holm p 0.0039), same CPU, larger programs (309 against 187 nodes). **mux11 tie** on CPU to solve. |
 | 1w | 2026-10-20 | Top-k (K = 4) linkage subsets per generation, so demes run several generations | **Worse on both:** mux11 0/10 solved (GOMEA 10/10; early stop by rule, a deviation); Con test NMSE 55.9 against 35.2 (18/20, Holm p 0.0002). Linkage-ranked vs random subsets: tie. |
+| 1x | 2026-10-20 | Per-deme cap 125 / 250 / 500 | **Keep 250.** Cap 125 makes mux11 **worse** (3,490 against 1,464 s CPU to solve, 10/10). Cap 500 is a tie on both: mux11 1,000 s (6/4), Con 41.8 against 37.1 (2/8); both Holm p 0.252, just outside the extension band. CPU per evaluation tracks the knob-rebuild rate. |
 
 ## Descriptive comparisons (not pre-registered)
 

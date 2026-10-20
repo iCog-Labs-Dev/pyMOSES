@@ -1,0 +1,5 @@
+contrast,family,problem,a,a_lower,b,b_lower,median_a,median_b,metric,p,p_holm,pairs,ties,verdict
+cap125,primary,mux11,GOMEA-C125,0,GOMEA,10,3489.978737658,1463.464387942,cpu_to_target,0.001953125,0.0078125,10,0,A worse
+cap500,primary,mux11,GOMEA-C500,6,GOMEA,4,999.619288482,1463.464387942,cpu_to_target,0.10546875,0.251953125,10,0,tie
+cap125,primary,Con,GOMEA-C125,3,GOMEA,7,48.490752460551946,37.096835187902016,test_nmse,0.083984375,0.251953125,10,0,tie
+cap500,primary,Con,GOMEA-C500,2,GOMEA,8,41.817210019709066,37.096835187902016,test_nmse,0.083984375,0.251953125,10,0,tie
