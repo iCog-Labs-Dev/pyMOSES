@@ -1,0 +1,35 @@
+{
+  "phase": "1w",
+  "metrics": {
+    "mux11": "cpu_to_target",
+    "Con": "test_nmse"
+  },
+  "primary": [
+    [
+      "mux11",
+      "topk",
+      "TOPK-L",
+      "GOMEA"
+    ],
+    [
+      "Con",
+      "topk",
+      "TOPK-L",
+      "GOMEA"
+    ]
+  ],
+  "secondary": [
+    [
+      "mux11",
+      "linkage-vs-random",
+      "TOPK-L",
+      "TOPK-R"
+    ],
+    [
+      "Con",
+      "linkage-vs-random",
+      "TOPK-L",
+      "TOPK-R"
+    ]
+  ]
+}

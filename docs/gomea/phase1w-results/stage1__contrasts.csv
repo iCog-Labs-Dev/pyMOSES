@@ -1,0 +1,5 @@
+contrast,family,problem,a,a_lower,b,b_lower,median_a,median_b,metric,p,p_holm,pairs,ties,verdict
+topk,primary,mux11,TOPK-L,0,GOMEA,10,inf,1232.272744328,cpu_to_target,0.001953125,0.00390625,10,0,A worse
+topk,primary,Con,TOPK-L,2,GOMEA,8,55.401094969891844,37.096835187902016,test_nmse,0.037109375,0.037109375,10,0,extend
+linkage-vs-random,secondary,mux11,TOPK-L,0,TOPK-R,0,inf,inf,cpu_to_target,1.0,1.0,8,8,tie
+linkage-vs-random,secondary,Con,TOPK-L,7,TOPK-R,3,55.401094969891844,70.9015771483039,test_nmse,0.193359375,0.38671875,10,0,tie

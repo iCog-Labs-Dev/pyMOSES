@@ -1,0 +1,56 @@
+{
+  "time": "2026-10-19T23:28:40+0300",
+  "pairs": {
+    "3001": {
+      "topk": "done",
+      "topk_cpu_to_target": null,
+      "gomea_cpu_to_target": 2481.636140173
+    },
+    "3002": {
+      "topk": "done",
+      "topk_cpu_to_target": null,
+      "gomea_cpu_to_target": 1278.909939049
+    },
+    "3003": {
+      "topk": "running",
+      "topk_cpu_lower_bound": 6618.246412312,
+      "gomea_cpu_to_target": 6549.834775797,
+      "decided": true
+    },
+    "3004": {
+      "topk": "done",
+      "topk_cpu_to_target": null,
+      "gomea_cpu_to_target": 2811.157798509
+    },
+    "3005": {
+      "topk": "done",
+      "topk_cpu_to_target": null,
+      "gomea_cpu_to_target": 1993.664325483
+    },
+    "3006": {
+      "topk": "done",
+      "topk_cpu_to_target": null,
+      "gomea_cpu_to_target": 821.332434787
+    },
+    "3007": {
+      "topk": "done",
+      "topk_cpu_to_target": null,
+      "gomea_cpu_to_target": 964.8917884929999
+    },
+    "3008": {
+      "topk": "done",
+      "topk_cpu_to_target": null,
+      "gomea_cpu_to_target": 1185.635549607
+    },
+    "3009": {
+      "topk": "done",
+      "topk_cpu_to_target": null,
+      "gomea_cpu_to_target": 1062.661055562
+    },
+    "3010": {
+      "topk": "done",
+      "topk_cpu_to_target": null,
+      "gomea_cpu_to_target": 539.797607115
+    }
+  }
+}
