@@ -76,7 +76,7 @@ phases by priority only; nothing in it runs at the same time.
   `PHASE1U-1AA-PREREGISTRATION.md`.
 * **Merged early** (after 1t, before 1u): `../pyMoses-seedopts` and `../pyMoses-knobfast`,
   via `../pyMoses-int`. Identity check: IDENTICAL on all 8 cases; suite: 8602 passed.
-* **Segment B:** 1y → 1ab, pre-registered after the merge.
+* **Segment B:** 1y → 1ab (`PHASE1Y-1AB-PREREGISTRATION.md`), queued behind 1aa.
 
 **CPU comparability:** 1s and 1t ran on the old code. Every phase from 1u on, segment B
 included, runs on the same merged code.

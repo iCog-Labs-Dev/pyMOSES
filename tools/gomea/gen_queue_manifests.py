@@ -1,4 +1,4 @@
-"""Generate the manifests and specs of Phases 1u, 1v, 1w, 1x, 1z and 1aa (docs/gomea/QUEUE.md).
+"""Generate the manifests and specs of Phases 1u, 1v, 1w, 1x, 1y, 1z, 1aa and 1ab (docs/gomea/QUEUE.md).
 
 Usage (from the repository root): .venv/bin/python tools/gomea/gen_queue_manifests.py "$PWD"
 
@@ -14,6 +14,7 @@ def gomea(fos="lt-b", cap="250"):
             "0", "--gomea-max-evals-per-deme", cap, "--gomea-genotype-memo", "1"]
 HC = ["-a", "hc-capped", "--gomea-max-evals-per-deme", "250"]
 SEED = {"binary": "../gomea-results/gpgomea-seed-build/gpgomea-seed", "share": 0.2, "height": 3, "k": 5}
+SR_SEED = dict(SEED, functions="+_-_*")  # the Phase 1r regression seed block
 TOPK = lambda mode: ["--gomea-fos-topk", "4", "--gomea-fos-topk-mode", mode]
 NC_TOL = "0.1"
 
@@ -29,14 +30,15 @@ def sr_manifest(name, arms, splits):
     return {"name": name, "datasets_dir": "../gomea-results/phase1f/datasets", "datasets": ["Con"],
             "splits": splits, "wall_cap_s": 36000, "mem_limit_mb": 3072,
             "arms": {a: {"binary": ".venv/bin/moses", "budget": {"evals": 10000},
-                         "argv": c["argv"] + ["--gomea-contin", "copy"] * c.get("contin", False) + KR}
+                         "argv": c["argv"] + ["--gomea-contin", "copy"] * c.get("contin", False) + KR,
+                         **({"seed": c["seed"]} if "seed" in c else {})}
                      for a, c in arms.items()}}
 
 S1, S2 = list(range(3001, 3011)), list(range(3011, 3021))
 P1, P2 = list(range(1, 11)), list(range(11, 21))
 
-def g(extra=(), fos="lt-b", cap="250"):
-    return {"argv": gomea(fos, cap) + list(extra), "contin": True}
+def g(extra=(), fos="lt-b", cap="250", seed=None):
+    return {"argv": gomea(fos, cap) + list(extra), "contin": True, **({"seed": seed} if seed else {})}
 
 phases = {
   "1u": dict(bool={"HC": {"argv": HC}, "HC-S": {"argv": HC, "seed": SEED},
@@ -53,11 +55,24 @@ phases = {
   "1x": dict(arms={"GOMEA-C125": g(cap="125"), "GOMEA": g(), "GOMEA-C500": g(cap="500")},
              primary=[[p, n, a, "GOMEA"] for p in ("mux11", "Con")
                       for n, a in (("cap125", "GOMEA-C125"), ("cap500", "GOMEA-C500"))]),
+  "1y": dict(sr={"GOMEA": g(), "GOMEA-S": g(seed=SR_SEED),
+                 "GOMEA-S-RES": g(seed=dict(SR_SEED, reserve_empty_every=3)),
+                 "GOMEA-S10": g(seed=dict(SR_SEED, share=0.1))},
+             primary=[["Con", "reserve-vs-unseeded", "GOMEA-S-RES", "GOMEA"],
+                      ["Con", "share10-vs-unseeded", "GOMEA-S10", "GOMEA"]],
+             secondary=[["Con", "reserve-vs-seeded", "GOMEA-S-RES", "GOMEA-S"],
+                        ["Con", "share10-vs-seeded", "GOMEA-S10", "GOMEA-S"]],
+             descriptive=[["Con", "seeded-vs-unseeded", "GOMEA-S", "GOMEA"]]),
   "1z": dict(sr={"GOMEA": g(), "GOMEA-NC": g(["--simplify-exemplar-numeric", NC_TOL])},
              primary=[["Con", "numeric-simplify", "GOMEA-NC", "GOMEA"]]),
   "1aa": dict(bool={"HC": {"argv": HC}, "HC-B3": {"argv": HC + ["-B", "3"]},
                     "GOMEA": {"argv": gomea()}, "GOMEA-B3": {"argv": gomea() + ["-B", "3"]}},
               primary=[["mux11", "b3-hc", "HC-B3", "HC"], ["mux11", "b3-gomea", "GOMEA-B3", "GOMEA"]]),
+  "1ab": dict(sr={"GOMEA": g(), "GOMEA-S": g(seed=SR_SEED),
+                  "GOMEA-S-RESEED": g(seed=dict(SR_SEED, reseed_after=5, reseed_share=0.3, max_reseeds=2, reseed_min_budget=1000))},
+              primary=[["Con", "reseed-vs-seeded", "GOMEA-S-RESEED", "GOMEA-S"]],
+              secondary=[["Con", "reseed-vs-unseeded", "GOMEA-S-RESEED", "GOMEA"]],
+              descriptive=[["Con", "seeded-vs-unseeded", "GOMEA-S", "GOMEA"]]),
 }
 for ph, d in phases.items():
     out = REPO / "configs/gomea" / f"phase{ph}"

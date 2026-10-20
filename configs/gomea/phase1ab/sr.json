@@ -1,0 +1,113 @@
+{
+  "name": "phase1ab-sr",
+  "datasets_dir": "../gomea-results/phase1f/datasets",
+  "datasets": [
+    "Con"
+  ],
+  "splits": [
+    1,
+    2,
+    3,
+    4,
+    5,
+    6,
+    7,
+    8,
+    9,
+    10
+  ],
+  "wall_cap_s": 36000,
+  "mem_limit_mb": 3072,
+  "arms": {
+    "GOMEA": {
+      "binary": ".venv/bin/moses",
+      "budget": {
+        "evals": 10000
+      },
+      "argv": [
+        "-a",
+        "gomea",
+        "--gomea-fos",
+        "lt-b",
+        "--gomea-pop-size",
+        "16",
+        "--gomea-skip-inactive",
+        "0",
+        "--gomea-max-evals-per-deme",
+        "250",
+        "--gomea-genotype-memo",
+        "1",
+        "--gomea-contin",
+        "copy",
+        "--knob-probe-baseline",
+        "reduced"
+      ]
+    },
+    "GOMEA-S": {
+      "binary": ".venv/bin/moses",
+      "budget": {
+        "evals": 10000
+      },
+      "argv": [
+        "-a",
+        "gomea",
+        "--gomea-fos",
+        "lt-b",
+        "--gomea-pop-size",
+        "16",
+        "--gomea-skip-inactive",
+        "0",
+        "--gomea-max-evals-per-deme",
+        "250",
+        "--gomea-genotype-memo",
+        "1",
+        "--gomea-contin",
+        "copy",
+        "--knob-probe-baseline",
+        "reduced"
+      ],
+      "seed": {
+        "binary": "../gomea-results/gpgomea-seed-build/gpgomea-seed",
+        "share": 0.2,
+        "height": 3,
+        "k": 5,
+        "functions": "+_-_*"
+      }
+    },
+    "GOMEA-S-RESEED": {
+      "binary": ".venv/bin/moses",
+      "budget": {
+        "evals": 10000
+      },
+      "argv": [
+        "-a",
+        "gomea",
+        "--gomea-fos",
+        "lt-b",
+        "--gomea-pop-size",
+        "16",
+        "--gomea-skip-inactive",
+        "0",
+        "--gomea-max-evals-per-deme",
+        "250",
+        "--gomea-genotype-memo",
+        "1",
+        "--gomea-contin",
+        "copy",
+        "--knob-probe-baseline",
+        "reduced"
+      ],
+      "seed": {
+        "binary": "../gomea-results/gpgomea-seed-build/gpgomea-seed",
+        "share": 0.2,
+        "height": 3,
+        "k": 5,
+        "functions": "+_-_*",
+        "reseed_after": 5,
+        "reseed_share": 0.3,
+        "max_reseeds": 2,
+        "reseed_min_budget": 1000
+      }
+    }
+  }
+}
