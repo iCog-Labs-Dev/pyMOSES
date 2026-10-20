@@ -66,6 +66,24 @@ slows wall time but not the CPU metrics.
 **Run order:** 1s → 1t → 1u → 1v → 1w → 1x → 1y → 1z → 1aa → 1ab. The `#` column groups
 phases by priority only; nothing in it runs at the same time.
 
+## Incident: orphaned runs overlapped later phases (found 2026-10-20 09:25)
+
+* **What happened:** when runners were stopped early, by terminating their child runs first
+  (Phase 1w at 21:13 on 2026-10-19, Phase 1aa at 07:48), some runs were orphaned and kept
+  computing.
+  * 1 orphan (1w TOPK-R s3007) ran during 1w's Con part, 1x and 1y.
+  * 6 orphans (1aa) ran during 1y.
+  * All were killed at 09:25.
+* **Effect on results:**
+  * Con results (test NMSE at a fixed budget) are unaffected.
+  * mux11 CPU-to-solve in 1x ran with one extra busy process among 16, so it is a little
+    noisier.
+  * Two orphans wrote late summaries into 1w; its findings are corrected and its verdict
+    is unchanged.
+* **Fix for future early stops:** terminate the runner process first (so it cannot launch
+  queued runs), then its children. Afterwards, check for leftover `spawn_main` processes
+  whose parent is init.
+
 ## Status
 
 * **Segment A** (merged code after `f8bc41a`, with the knob speed-ups and seeding options; queued with `tools/gomea/queue_run.sh`):

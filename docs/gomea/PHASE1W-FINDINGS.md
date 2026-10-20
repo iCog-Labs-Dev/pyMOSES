@@ -62,6 +62,22 @@ generations and relearn their linkage. It was **worse** than plain GOMEA on both
 4. **This closes backlog item 2.4.** Making demes complete more generations this way is not a
    route to better linkage use inside MOSES.
 
+## Correction (2026-10-20 09:30): orphaned runs
+
+* **What happened:** stopping the mux11 runner by terminating its child runs left some runs
+  orphaned. Either the runner started queued runs in the seconds before it was terminated,
+  or a child survived the signal. They kept running until killed at 09:25.
+* **Two of them finished and wrote summaries into the 1w result directory after this
+  write-up:**
+  * `TOPK-L s3003`: solved at 12,750 evaluations and **24,939 s** of CPU. Its pair's GOMEA
+    needed 6,550 s.
+  * `TOPK-R s3006`: solved at 12,748 evaluations and 29,361 s.
+* **Effect on the verdicts:** none. Every TOPK-L pair is still slower than its GOMEA pair,
+  10 of 10, so the mux11 verdict stays **worse**.
+* **Correction to the text above:** TOPK-L solved 1 of 10 seeds (after the cutoff), not 0.
+* **Checksums:** `phase1w-results/phase1w-bool__summaries.sha256` records the summaries as
+  analysed. The live directory now differs in these two files.
+
 ## Limits
 
 * One K (4), one population size (16), LT-MI only.
