@@ -1,0 +1,3 @@
+contrast,family,problem,a,a_lower,b,b_lower,median_a,median_b,metric,p,p_holm,pairs,ties,verdict
+b3-hc,primary,mux11,HC-B3,0,HC,10,inf,423.68020121200004,cpu_to_target,0.001953125,0.00390625,10,0,A worse
+b3-gomea,primary,mux11,GOMEA-B3,0,GOMEA,10,inf,890.862507013,cpu_to_target,0.001953125,0.00390625,10,0,A worse

@@ -69,6 +69,8 @@ this log and a findings file differ, the findings file is right.
 | 1w | 2026-10-20 | Top-k (K = 4) linkage subsets per generation, so demes run several generations | **Worse on both:** mux11 0/10 solved (GOMEA 10/10; early stop by rule, a deviation); Con test NMSE 55.9 against 35.2 (18/20, Holm p 0.0002). Linkage-ranked vs random subsets: tie. |
 | 1x | 2026-10-20 | Per-deme cap 125 / 250 / 500 | **Keep 250.** Cap 125 makes mux11 **worse** (3,490 against 1,464 s CPU to solve, 10/10). Cap 500 is a tie on both: mux11 1,000 s (6/4), Con 41.8 against 37.1 (2/8); both Holm p 0.252, just outside the extension band. CPU per evaluation tracks the knob-rebuild rate. |
 | 1y | 2026-10-20 | Seeding refinements on Con: reserve every 3rd expansion for the empty program; 10 % seeding share | **Ties, leaning worse than unseeded:** RES 42.4 and S10 40.6 against 35.2 (20 splits; Holm p 0.053 and 0.43). The reserve reached the empty lineage in only 6 % of expansions. Seeded arms keep about 4–5× less CPU and about 7–8× smaller programs. |
+| 1aa | 2026-10-20 | `-B 3` (effort-3 reduction in knob building) on mux11 | **Worse for HC and GOMEA** (10/10 pairs each, Holm p 0.0039): CPU per evaluation about 4.5×, evaluations to solve not lower. Early stop by rule (a deviation). It exposed and fixed a latent effort-3 crash, also present in C++. Keep `-B 2`. |
+| 1z | 2026-10-19 | Near-constant subtree simplification | **Settled by pilot, not run:** the pass found 0 candidates on Con at TOL 0.1 and 0.5. |
 
 ## Descriptive comparisons (not pre-registered)
 

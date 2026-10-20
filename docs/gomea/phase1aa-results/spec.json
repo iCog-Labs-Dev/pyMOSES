@@ -1,0 +1,21 @@
+{
+  "phase": "1aa",
+  "metrics": {
+    "mux11": "cpu_to_target"
+  },
+  "primary": [
+    [
+      "mux11",
+      "b3-hc",
+      "HC-B3",
+      "HC"
+    ],
+    [
+      "mux11",
+      "b3-gomea",
+      "GOMEA-B3",
+      "GOMEA"
+    ]
+  ],
+  "secondary": []
+}
