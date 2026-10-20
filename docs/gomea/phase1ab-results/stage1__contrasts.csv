@@ -1,0 +1,4 @@
+contrast,family,problem,a,a_lower,b,b_lower,median_a,median_b,metric,p,p_holm,pairs,ties,verdict
+reseed-vs-seeded,primary,Con,GOMEA-S-RESEED,1,GOMEA-S,2,44.63107293813888,44.8763153283918,test_nmse,1.0,1.0,10,7,tie
+reseed-vs-unseeded,secondary,Con,GOMEA-S-RESEED,3,GOMEA,7,44.63107293813888,37.096835187902016,test_nmse,0.16015625,0.16015625,10,0,tie
+seeded-vs-unseeded,descriptive,Con,GOMEA-S,3,GOMEA,7,44.8763153283918,37.096835187902016,test_nmse,0.130859375,,10,0,

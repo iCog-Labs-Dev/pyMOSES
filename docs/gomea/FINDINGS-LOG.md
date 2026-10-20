@@ -15,7 +15,7 @@ this log and a findings file differ, the findings file is right.
 * **Verdicts** follow each phase's registered rule: Holm-corrected, and "better" also needs a
   10 % lower median.
 
-## Standing conclusions (as of 2026-10-19)
+## Standing conclusions (as of 2026-10-20)
 
 1. **Regression: GOMEA beats HC, including at equal time.**
    * Shown in Phases 1f, 1g, 1j, 1n and 1p.
@@ -71,6 +71,7 @@ this log and a findings file differ, the findings file is right.
 | 1y | 2026-10-20 | Seeding refinements on Con: reserve every 3rd expansion for the empty program; 10 % seeding share | **Ties, leaning worse than unseeded:** RES 42.4 and S10 40.6 against 35.2 (20 splits; Holm p 0.053 and 0.43). The reserve reached the empty lineage in only 6 % of expansions. Seeded arms keep about 4–5× less CPU and about 7–8× smaller programs. |
 | 1aa | 2026-10-20 | `-B 3` (effort-3 reduction in knob building) on mux11 | **Worse for HC and GOMEA** (10/10 pairs each, Holm p 0.0039): CPU per evaluation about 4.5×, evaluations to solve not lower. Early stop by rule (a deviation). It exposed and fixed a latent effort-3 crash, also present in C++. Keep `-B 2`. |
 | 1z | 2026-10-19 | Near-constant subtree simplification | **Settled by pilot, not run:** the pass found 0 candidates on Con at TOL 0.1 and 0.5. |
+| 1ab | 2026-10-20 | Re-seed from GP-GOMEA on stagnation (Con) | **Tie:** 44.6 against 44.9 for plain seeding, 7/10 splits identical. Re-seeds fired in 7/10 runs; fresh height-3 elites rarely beat MOSES's current best. |
 
 ## Descriptive comparisons (not pre-registered)
 

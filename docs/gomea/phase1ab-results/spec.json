@@ -1,0 +1,30 @@
+{
+  "phase": "1ab",
+  "metrics": {
+    "Con": "test_nmse"
+  },
+  "primary": [
+    [
+      "Con",
+      "reseed-vs-seeded",
+      "GOMEA-S-RESEED",
+      "GOMEA-S"
+    ]
+  ],
+  "secondary": [
+    [
+      "Con",
+      "reseed-vs-unseeded",
+      "GOMEA-S-RESEED",
+      "GOMEA"
+    ]
+  ],
+  "descriptive": [
+    [
+      "Con",
+      "seeded-vs-unseeded",
+      "GOMEA-S",
+      "GOMEA"
+    ]
+  ]
+}

@@ -86,6 +86,10 @@ phases by priority only; nothing in it runs at the same time.
 
 ## Status
 
+**Queue complete (2026-10-20 17:10).** Every queued phase has a findings file: 1s, 1t, 1u, 1v,
+1w, 1x, 1y, 1aa (rerun on the effort-3 fix) and 1ab. 1z was settled by pilot.
+
+
 * **Segment A** (merged code after `f8bc41a`, with the knob speed-ups and seeding options; queued with `tools/gomea/queue_run.sh`):
   1s → 1t → 1u → 1v → 1w → 1x → 1aa.
   * 1s started 2026-10-19 10:55.
