@@ -267,6 +267,34 @@ GOM bookkeeping and telemetry are not worth optimising.
       outside the extension band.
     * **If wanted:** 10 more seeds at cap 250 vs 500 on mux11, about 1 h.
 
+19. **Fewer, longer demes for promising exemplars, so linkage is relearned** (user,
+    2026-10-20).
+    * **Why:** run telemetry shows that with cap 250 and N = 16, 97–100 % of GOMEA demes
+      learn their linkage model once, from the unselected initial population (1u, 1v, 1x).
+      * Repeated relearning happened only in top-k (1w, worse) and in uncapped frozen
+        single-deme runs (1h). Only the latter showed learned linkage beating a random tree
+        (N = 1,024).
+      * So inside MOSES, GOMEA currently "learns once and mixes in groups".
+    * **Idea:** give most demes the usual short budget, but give the demes of the most
+      promising exemplars (e.g. the top 1–3 by penalized score, or exemplars that improved
+      the run's best) a much larger budget, so that GOM completes several generations and
+      relearns linkage from a selected population.
+    * **Prior evidence to respect:**
+      * 1m: making every deme long (cap 4,000, N up to 200) was much worse on mux11
+        (5.6× the evaluations) and a tie on regression. With N = 200, demes still stopped
+        inside generation 1.
+      * 1x: cap 500 already gave 3 % of demes a second generation.
+      * So the idea is long demes for a few, with small N (16–32), not long demes for all.
+    * **Sketch:**
+      * An opt-in rule for the per-deme cap, e.g. `--gomea-long-deme-cap C_long` plus a
+        selection rule for which demes get it.
+      * Arms: current GOMEA; LONG-TOP (top exemplars get C_long = 2,000–4,000); a
+        random-selection control with the same number of long demes; LONG-TOP with RT
+        linkage (does learned linkage now beat random?).
+      * Problems: mux11 (CPU to solve) and Con (test NMSE), 10 + 10 seeds, the usual rule.
+      * Report generations per deme and the share of long demes that complete 2 or more.
+    * **Status:** to build (subagent), then pre-register.
+
 ## 3. Ideas outside Phase 1's scope
 
 * **IEBL-style building blocks** (Input-space Entropy-based Building-block Learning;
