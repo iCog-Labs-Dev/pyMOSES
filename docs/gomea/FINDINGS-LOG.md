@@ -35,10 +35,26 @@ this log and a findings file differ, the findings file is right.
      (N = 1,024, 1h). Inside MOSES's short demes it rarely matters (1g, 1m).
 5. **Seeding MOSES with GP-GOMEA elites is the biggest lever found so far.**
    * It lowered test error for capped HC on Con and EnH, and for GOMEA on EnH (1r).
-   * It cut GOMEA's CPU per run about 4–6×.
-   * The seeds do most of the work.
-6. **Smaller exemplars are what cut cost:** seeding (1r) and the acceptance penalty (1o, 1p).
-   Fixes that don't shrink exemplars did not change cost (1q).
+   * It cut GOMEA's CPU per run about 4–6× and made programs 7–8× smaller (1r, 1y).
+   * On mux11 it cut GOMEA's CPU to solve by 41 % (1u, better); HC did not gain.
+   * On Con it costs GOMEA about 15–20 % in test error. Neither a smaller share, nor reserving
+     expansions for the empty program, nor re-seeding on stagnation closed that gap (1y, 1ab).
+6. **Smaller exemplars are what cut cost.**
+   * Seeding (1r, 1u) and the acceptance penalty (1o, 1p, 1s) both work this way.
+   * The penalty acts only through GOMEA's acceptance; HC's search is unchanged by it (1t).
+   * Fixes that do not shrink exemplars did not change cost (1q).
+   * The knob-building speed-ups (about 2× on GOMEA, byte-identical) cut cost for everything.
+7. **A wider (uniform-distance) starting population helps GOMEA on regression.** On Con, test
+   NMSE fell from 37.1 to 29.2 (10/10 splits) at the same CPU, with larger programs (1v). It
+   did not help on mux11.
+8. **Ideas that did not help:**
+   * top-k linkage subsets per generation (1w, worse on both problems);
+   * fewer pair knobs (1k);
+   * `-B 3` (1aa, worse);
+   * the knob-collapse fix as an accuracy lever (1q, tie);
+   * near-constant simplification (1z, never fires);
+   * re-seeding on stagnation (1ab, tie).
+9. **Keep the defaults:** a deme cap of 250 (1x), `-B 2` (1aa) and N = 16.
 
 ## Phase register
 
