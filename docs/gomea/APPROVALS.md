@@ -95,7 +95,9 @@ A deme picked by the rule runs with cap C instead of `--gomea-max-evals-per-deme
 by the evaluations left; N is unchanged. Telemetry adds `long`, `deme_cap_used`,
 `long_deme_rule`, `n_demes` and `n_long_demes` to each deme's "invocation_start" and "end"
 events when the option is on. Off by default, and `random` with p = 0 draws nothing; both give
-output byte-identical to the previous code. Not used in a pre-registered phase yet.
+output byte-identical to the previous code. In the same branch, `tools/gomea/moses_sr_runner.py`
+now passes `--gomea-log RUN_DIR/events.jsonl` to pyMoses GOMEA arms (on by default, `"events":
+false` turns it off); MOSES's output is unchanged. Not used in a pre-registered phase yet.
 
 Deviations from the handoff's gate procedure that follow from instruction #1:
 
