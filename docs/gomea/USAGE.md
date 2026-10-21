@@ -128,6 +128,7 @@ to, so an invalid value is always rejected.
 | `--gomea-fos-topk K` | `0` (off) | Each generation, GOM (and forced improvement) visits only K FOS subsets instead of all of them (about 2 per knob), so a generation costs about `N × K` trials instead of `N × 2 × knobs`. See [Top-K FOS subsets](#top-k-fos-subsets---gomea-fos-topk). |
 | `--gomea-fos-topk-mode {linkage,random}` | `linkage` | With `--gomea-fos-topk K`: `linkage` keeps the K linkage-tree merges with the strongest linkage (needs `--gomea-fos lt-b` or `lt-mi`); `random` draws K subsets uniformly each generation (the control). |
 | `--reserve-empty-every K` | `0` (off) | Port-only, any optimizer: every K-th expansion picks its exemplar only among the programs descending from an initial exemplar that is the empty program (`+`/`and`), falling back to the normal choice when none is selectable. See [Reserved expansions for the empty program](#reserved-expansions-for-the-empty-program---reserve-empty-every). |
+| `--linear-scaling {0,1}` | `0` (off) | Port-only, regression only (squared error), any optimizer: score each program `f` on `a + b·f`, the least-squares fit of `f` to the training target. See [Linear scaling](#linear-scaling---linear-scaling). |
 
 The default population was 64 during development. It became 16 after the pilot
 (`docs/gomea/pilot-a/`); the confirmatory runs passed 16 explicitly.
@@ -270,6 +271,25 @@ puts the best threshold between one and five times the noise level. A constant t
 the pass. Each exemplar logs one INFO line, `Numeric exemplar simplification: candidates=…
 accepted=… rejected=… nodes=A->B … | totals: calls=… fired=… … nodes_removed=…`.
 See `pymoses/moses/deme/numeric_simplify.py`.
+
+## Linear scaling (`--linear-scaling`)
+
+Port-only and opt-in: classic MOSES has no counterpart, and with the default `0` nothing
+changes. It sets the regression scorer (`contin_bscore`), which every optimizer shares, so it
+applies to `-a hc`, `hc-capped`, `gomea` and the others alike. Regression only (`-H it` on a
+table with a contin output) with squared error; any other problem, and `--it-abs-err`, refuse
+it.
+
+With `--linear-scaling 1` a program `f` is scored on `a + b·f`, where `(a, b)` is the
+least-squares fit of `f`'s predictions to the training target (Keijzer 2003):
+`b = cov(y, f) / var(f)`, `a = mean(y) − b·mean(f)`, and `b = 0`, `a = mean(y)` for a constant
+`f`. If a prediction is not finite the program is scored unscaled, as without the option. The
+behavioural score keeps its shape, one `−(a + b·f(x) − y)²` per training row, and the
+complexity penalty, best possible score and everything else are unchanged. The printed
+programs are `f` itself, not `a + b·f`. `tools/gomea/sr_eval.py` reports NMSE with the same
+scaling refitted on the training split and applied to the validation and test splits, so its
+reported metrics mean the same with and without the option. See `contin_bscore.
+set_linear_scaling` and `linear_scaling` in `pymoses/moses/scoring/bscores.py`.
 
 ## Continuous knobs (`--gomea-contin copy`)
 

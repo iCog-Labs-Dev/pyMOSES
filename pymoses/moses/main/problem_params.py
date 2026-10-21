@@ -492,6 +492,16 @@ _PORT_OPTIONS = (
         "by MOSES's normal selection restricted to them, falling back to the "
         "normal choice when none is selectable. 0 = off. Default 0.",
     ),
+    (
+        "--linear-scaling",
+        "linear_scaling",
+        int,
+        0,
+        "regression (contin output, squared error) only: 1 = score each "
+        "program f on a + b*f, where (a, b) is the least-squares fit of f to "
+        "the training target (b = cov(y, f) / var(f), a = mean(y) - b mean(f); "
+        "b = 0 for a constant f). 0 = off (classic MOSES). Default 0.",
+    ),
 )
 _GOMEA_INIT_CHOICES = ("sampler", "uniform")
 _GOMEA_ACCEPT_CHOICES = ("nonworse", "strict")
@@ -1356,6 +1366,12 @@ class problem_params:
         if k < 0:
             raise ValueError(f"--reserve-empty-every must be >= 0 (0 = off), got {k}")
         self.meta_params.reserve_empty_every = k
+        # NOT A PORT (pyMoses extension): `--linear-scaling`, read by the
+        # regression problems (`table_problems._regression`).
+        ls = getattr(args, "linear_scaling", 0)
+        if ls not in (0, 1):
+            raise ValueError(f"--linear-scaling must be 0 or 1, got {ls}")
+        self.linear_scaling = ls
 
         # -- Set depth (C++: :2371-2372 `set_depth(contin_depth)`) --
         # `representation.py`'s module-level `_depth` static, exactly as

@@ -466,6 +466,11 @@ class contin_bscore(bscore_base):
                 f"got {type(first).__name__}"
             )
         self.init(eft)
+        # NOT A PORT (pyMoses extension, `--linear-scaling 1`; no C++
+        # counterpart): score a + b*f instead of f. Off by default, and
+        # `__call__` is then exactly classic's. See `set_linear_scaling`.
+        self._linear_scaling = False
+        self._target_values: list[float] | None = None
 
     def init(self, eft: contin_bscore.err_function_type = err_function_type.squared_error) -> None:
         """C++: moses/moses/scoring/bscores.h:186 contin_bscore::init
@@ -523,11 +528,48 @@ class contin_bscore(bscore_base):
         or silently dropping `cti`'s tail.
         """
         iv = interpreter_visitor(tr)
+        if getattr(self, "_linear_scaling", False):
+            return self._scaled_bscore(tr, iv)
         bs: behavioral_score = []
         for row, target_v in zip(self._cti, self._target, strict=True):
             tar = get_contin(target_v)
             res = get_contin(iv(list(row)))
             bs.append(-self._err_func(res, tar))
+        log_candidate_bscore(tr, bs)  # C++: bscores.cc:158
+        return bs
+
+    def set_linear_scaling(self, on: bool = True) -> None:
+        """NOT A PORT (pyMoses extension, `--linear-scaling 1`; no C++
+        counterpart).
+
+        With it on, a program `f` is scored on `a + b*f`, where `(a, b)` is
+        the least-squares fit of `f`'s predictions to the target on this
+        scorer's own rows (Keijzer 2003; `linear_scaling` below, the
+        formula `tools/gomea/sr_eval.py` already applies at report time).
+        The behavioural score keeps its shape: one `-err_func(a + b*res,
+        tar)` per row. Everything else (complexity penalty, best possible
+        score, `min_improv`) is unchanged. The score is still a pure
+        function of the program, so caches keyed by program stay valid.
+        """
+        self._linear_scaling = bool(on)
+        self._target_values = (
+            [get_contin(v) for v in self._target] if self._linear_scaling else None
+        )
+
+    def _scaled_bscore(self, tr: combo_tree, iv: interpreter_visitor) -> behavioral_score:
+        """NOT A PORT: `__call__` with `--linear-scaling 1` (see
+        `set_linear_scaling`). Predictions are computed for every row first,
+        in the same order as the unscaled loop, then scaled and scored."""
+        targets = self._target_values
+        if targets is None:
+            targets = self._target_values = [get_contin(v) for v in self._target]
+        if len(self._cti) != len(targets):
+            raise ValueError("contin_bscore: input and target row counts differ")
+        preds = [get_contin(iv(list(row))) for row in self._cti]
+        a, b = linear_scaling(targets, preds)
+        bs: behavioral_score = [
+            -self._err_func(a + b * res, tar) for res, tar in zip(preds, targets, strict=True)
+        ]
         log_candidate_bscore(tr, bs)  # C++: bscores.cc:158
         return bs
 
@@ -606,6 +648,31 @@ class contin_bscore(bscore_base):
             )
         else:
             super().set_complexity_coef(*args)
+
+
+def linear_scaling(y: Sequence[float], p: Sequence[float]) -> tuple[float, float]:
+    """NOT A PORT (pyMoses extension, `--linear-scaling 1`): the
+    least-squares `(a, b)` minimising `sum (y - (a + b p))^2` (Keijzer 2003).
+
+    `b = cov(y, p) / var(p)`, `a = mean(y) - b * mean(p)`; when `var(p)` is 0
+    (a constant program), `b = 0` and `a = mean(y)`. The same formula, with
+    the same `math.fsum` summation, as `tools/gomea/sr_eval.linear_scaling`,
+    which scales the reported NMSE. One difference: when a prediction is
+    not finite, sr_eval returns `(nan, nan)`, while this returns `(0.0,
+    1.0)` -- the program is then scored unscaled, so a non-finite
+    prediction scores exactly as it does without the option.
+    """
+    if not all(math.isfinite(x) for x in p):
+        return 0.0, 1.0
+    n = len(p)
+    my, mp_ = math.fsum(y) / n, math.fsum(p) / n
+    vp = math.fsum((x - mp_) ** 2 for x in p)
+    if vp == 0.0 or not math.isfinite(vp):
+        return my, 0.0
+    b = math.fsum((x - mp_) * (t - my) for x, t in zip(p, y, strict=True)) / vp
+    if not math.isfinite(b):
+        return my, 0.0
+    return my - b * mp_, b
 
 
 def _c_div(x: score_t, y: score_t) -> score_t:
