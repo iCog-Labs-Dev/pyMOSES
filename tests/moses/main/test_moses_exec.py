@@ -43,6 +43,11 @@ import pytest
 
 from pymoses.moses.main.moses_exec import moses_exec
 
+# Classic MOSES's knob probing, for the classic-oracle runs below that build
+# Boolean knobs: this port's default, `reduced`, is a disclosed DIVERGENCE
+# (backlog item 15).
+_CLASSIC_PROBE = ["--knob-probe-baseline", "classic"]
+
 # ---------------------------------------------------------------------------
 # dataset.csv -- byte-for-byte $CLASSIC/tests/moses/dataset.csv
 # ---------------------------------------------------------------------------
@@ -652,10 +657,11 @@ def test_hc_fraction_of_nn_zero_matches_classic():
     hill-climbing.cc:531). A test on a run where 0 changed nothing would
     pass against a port that silently ignored the flag.
     """
-    rc, out = _run(["moses", "-Hpa", "-k4", "-m5000", "--hc-fraction-of-nn=0"])
+    # classic's knob probing: `reduced`, this port's default, is a DIVERGENCE
+    rc, out = _run(["moses", "-Hpa", "-k4", "-m5000", "--hc-fraction-of-nn=0", *_CLASSIC_PROBE])
     assert rc == 0
     assert out == _EXPECTED_PA_K4_FRAC0
-    rc2, out2 = _run(["moses", "-Hpa", "-k4", "-m5000"])
+    rc2, out2 = _run(["moses", "-Hpa", "-k4", "-m5000", *_CLASSIC_PROBE])
     assert rc2 == 0
     assert out2 != out  # the flag is load-bearing on this run, not inert
 
@@ -694,7 +700,7 @@ def test_hc_fraction_of_nn_negative_is_accepted_like_classic():
     CLI bypasses by assigning the field afterwards, so classic really does
     run this command line.
     """
-    rc, out = _run(["moses", "-Hpa", "-k4", "-m5000", "--hc-fraction-of-nn=-1"])
+    rc, out = _run(["moses", "-Hpa", "-k4", "-m5000", "--hc-fraction-of-nn=-1", *_CLASSIC_PROBE])
     assert rc == 0
     assert out == _EXPECTED_PA_K4_FRAC_NEG1
     assert out != _EXPECTED_PA_K4_FRAC0, "negative is not the same path as zero"
@@ -1979,7 +1985,8 @@ _EXPECTED_PS_SATURATED = (
 
 
 def _run_ps(extra):
-    return _run(["moses", f"-i{_BOOL3_PATH}", "-u", "y", "-aps", "-m300", "-W1", "-r1", *extra])
+    argv = ["moses", f"-i{_BOOL3_PATH}", "-u", "y", "-aps", "-m300", "-W1", "-r1"]
+    return _run([*argv, *_CLASSIC_PROBE, *extra])
 
 
 @pytest.mark.oracle

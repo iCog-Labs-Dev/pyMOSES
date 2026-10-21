@@ -98,6 +98,20 @@ same two with `--knob-probe-baseline reduced`, and the Phase 1v/1r regression ar
 Con split 1 at 1,500 evaluations). Phase 1ag is pre-registered, but the code itself was not
 separately approved.
 
+**Also not user-approved as code (2026-10-21):** `--knob-probe-baseline reduced` is now the
+code default (BACKLOG item 15), a disclosed DIVERGENCE from C++ `disc_probe`
+(`build_knobs.cc:311-341`), marked in `problem_params.py`, `deme_params.py` and
+`build_knobs.py`. The user asked for this as a plan in BACKLOG item 15 (2026-10-19: "make it
+the code default (a disclosed DIVERGENCE) once it has run in two phases without a loss"),
+which this log does not count as approval of the code change. The default changed for the
+`moses` command line (`add_gomea_options`, `parse_options`) and `deme_parameters`; the ported
+`build_knobs` and `representation` constructors still default to `classic`.
+`--knob-probe-baseline classic` gives the old behaviour. Every arm since Phase 1u passes
+`--knob-probe-baseline reduced` explicitly, so their outputs do not change (checked
+byte-identical before and after on `mux11-gomea`, `maj5-hc`, `con-hc`, `con-gomea` and the
+Phase 1v/1r regression arm argvs, each with the flag; `classic` given explicitly reproduces
+the old default byte for byte).
+
 Deviations from the handoff's gate procedure that follow from instruction #1:
 
 * The P1.0 → P1.5 stops are replaced by the review packets committed under `docs/gomea/`

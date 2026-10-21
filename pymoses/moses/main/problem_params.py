@@ -988,17 +988,22 @@ class problem_params:
         # Extension (not in classic MOSES), registered here with the other
         # extensions so classic's own option surface stays unchanged. It is
         # knob building, so it applies to every optimizer (HC and GOMEA).
+        # DIVERGENCE(C++ moses/moses/representation/build_knobs.cc:311-341):
+        # the DEFAULT is `reduced` (since backlog item 15, 2026-10-21), not
+        # classic MOSES's `disc_probe`; `--knob-probe-baseline classic`
+        # restores classic knob probing. See build_knobs.py's
+        # `_disc_probe_reduced_baseline` for what differs.
         parser.add_argument(
             "--knob-probe-baseline",
             dest="knob_probe_baseline",
             type=str,
-            default="classic",
+            default="reduced",
             help="how knob building decides that a knob setting is redundant: "
             "classic (classic MOSES: reducing the decorated exemplar with that "
             "setting lowers its complexity) or reduced (the setting lowers it by "
             "more than reducing the exemplar with the knob at 0 does; keeps knob "
             "counts from collapsing when that exemplar is itself reducible). "
-            "Default classic.",
+            "Default reduced (a divergence from classic MOSES).",
         )
         # GOMEA extension (not in classic MOSES): argparse accepts any unique
         # prefix of a long option (`allow_abbrev`), so adding `--gomea-*`
@@ -1219,8 +1224,9 @@ class problem_params:
         deme_params.linear_contin = self.linear_regression
         deme_params.perm_ratio = self.perm_ratio
         # Extension (not in classic MOSES): `--knob-probe-baseline`, read
-        # with its default when the namespace was built without it.
-        knob_probe_baseline = getattr(args, "knob_probe_baseline", "classic")
+        # with its default (`reduced`, see `add_gomea_options`) when the
+        # namespace was built without it.
+        knob_probe_baseline = getattr(args, "knob_probe_baseline", "reduced")
         if knob_probe_baseline not in PROBE_BASELINES:
             raise ValueError(
                 f"--knob-probe-baseline {knob_probe_baseline} is not recognized. "

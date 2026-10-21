@@ -608,8 +608,10 @@ class build_knobs:
         return False
 
     # DIVERGENCE(C++ moses/moses/representation/build_knobs.cc:311-341):
-    # opt-in only (`--knob-probe-baseline reduced`; the default `classic`
-    # runs `disc_probe` above, unchanged). Classic disallows a setting when
+    # the default of `moses` (`--knob-probe-baseline reduced`, since
+    # backlog item 15; `--knob-probe-baseline classic` runs `disc_probe`
+    # above, unchanged). The `build_knobs`/`representation` constructors
+    # themselves still default to "classic". Classic disallows a setting when
     # reducing the whole decorated tree with that setting lowers its
     # complexity, which assumes the tree with every knob at 0 (the
     # baseline) is a fixpoint of the knob-building reducer. Effort-2

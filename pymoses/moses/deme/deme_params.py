@@ -136,7 +136,9 @@ class deme_parameters:
         # No C++ counterpart: `--knob-probe-baseline` (see
         # `build_knobs._disc_probe_reduced_baseline`). "classic" is classic
         # MOSES's knob probing.
-        self.knob_probe_baseline = "classic"
+        # DIVERGENCE(C++ moses/moses/representation/build_knobs.cc:311-341):
+        # the default is "reduced" (backlog item 15), as on the command line.
+        self.knob_probe_baseline = "reduced"
         # NOT A PORT (pyMoses extension, no C++ counterpart): the
         # `--simplify-exemplar-numeric` pass
         # (`numeric_simplify.exemplar_numeric_simplifier`), set by the

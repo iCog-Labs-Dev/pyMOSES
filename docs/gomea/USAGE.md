@@ -179,9 +179,13 @@ penalty is not stored either, so MOSES does not see it.
 
 ## Knob probing baseline (`--knob-probe-baseline`)
 
-`--knob-probe-baseline {classic,reduced}` (default `classic`) is a knob-building option, so it
-applies to every `-a` (hill climbing, `hc-capped`, GOMEA and the hybrid alike). It is a
-**divergence from C++ MOSES**, off by default; with `classic` knob building is unchanged.
+`--knob-probe-baseline {classic,reduced}` (default `reduced`) is a knob-building option, so it
+applies to every `-a` (hill climbing, `hc-capped`, GOMEA and the hybrid alike). The default
+`reduced` is a **divergence from C++ MOSES**, adopted as the default on 2026-10-21 (backlog
+item 15; it ran in every arm of Phases 1u–1ab without a loss attributable to it). With
+`--knob-probe-baseline classic` knob building is classic MOSES's, unchanged. The ported
+`build_knobs` and `representation` constructors still default to `classic` when called
+directly from Python.
 
 When it builds a logical knob, MOSES turns the knob to each setting, reduces the whole decorated
 exemplar and disallows the setting if the reduction lowers its complexity
