@@ -26,6 +26,7 @@ from fractions import Fraction
 from pymoses.gomea.engine import EngineParams, GomeaEngine
 from pymoses.gomea.fos import FOS_TOPK_MODES
 from pymoses.gomea.gom import ACCEPTANCE_MODES, Individual
+from pymoses.gomea.long_deme import LONG_DEME_RULES, LongDemePolicy
 from pymoses.gomea.oracle import BudgetExhausted, EvaluationOracle
 from pymoses.gomea.population import (
     INIT_MODES,
@@ -150,7 +151,14 @@ class gomea_parameters:
     ``fos_topk_mode``: ``"linkage"`` (the K linkage-tree merges with the
     highest UPGMA similarity; needs ``fos`` ``lt-b`` or ``lt-mi``) or
     ``"random"`` (K drawn uniformly each generation). See
-    ``fos.select_fos_topk`` and ``engine.perform_generation``."""
+    ``fos.select_fos_topk`` and ``engine.perform_generation``.
+
+    GOMEA extension, long demes for promising exemplars (Phase 1af, off by
+    default, and then left out of ``as_dict``): ``long_deme_cap`` C > 0
+    gives the deme of an exemplar chosen by ``long_deme_rule`` (``"top"``
+    or ``"random"`` with ``long_deme_prob``) cap C instead of
+    ``max_evals_per_deme``; see ``pymoses.gomea.long_deme``. N and
+    ``deme_pop_size`` are unchanged."""
 
     def __init__(
         self,
@@ -177,6 +185,9 @@ class gomea_parameters:
         deme_store: str = "all",
         fos_topk: int = 0,
         fos_topk_mode: str = "linkage",
+        long_deme_cap: int = 0,
+        long_deme_rule: str = "top",
+        long_deme_prob: float = 0.0,
     ) -> None:
         if pop_size < 2:
             raise ValueError(f"pop_size must be >= 2, got {pop_size}")
@@ -223,6 +234,14 @@ class gomea_parameters:
             raise ValueError(
                 f"fos_topk_mode 'linkage' needs a linkage-tree fos (lt-b, lt-mi), got {fos!r}"
             )
+        if long_deme_cap < 0:
+            raise ValueError(f"long_deme_cap must be >= 0 (0 = off), got {long_deme_cap}")
+        if long_deme_rule not in LONG_DEME_RULES:
+            raise ValueError(
+                f"long_deme_rule must be one of {LONG_DEME_RULES}, got {long_deme_rule!r}"
+            )
+        if not (0.0 <= long_deme_prob <= 1.0):
+            raise ValueError(f"long_deme_prob must be in [0, 1], got {long_deme_prob}")
         parse_radii(radii)
 
         self.pop_size = pop_size
@@ -248,6 +267,9 @@ class gomea_parameters:
         self.deme_store = deme_store
         self.fos_topk = fos_topk
         self.fos_topk_mode = fos_topk_mode
+        self.long_deme_cap = long_deme_cap
+        self.long_deme_rule = long_deme_rule
+        self.long_deme_prob = long_deme_prob
 
     # The opt-in options, left out of ``as_dict`` while at their default
     # (off), so a default run's telemetry is unchanged.
@@ -259,6 +281,9 @@ class gomea_parameters:
         "deme_store": "all",
         "fos_topk": 0,
         "fos_topk_mode": "linkage",
+        "long_deme_cap": 0,
+        "long_deme_rule": "top",
+        "long_deme_prob": 0.0,
     }
 
     def as_dict(self) -> dict:
@@ -448,6 +473,30 @@ class gomea_optimization(optimizer_base):
         super().__init__(op)
         self.gomea_params = gp if gp is not None else gomea_parameters()
         self.last_result: dict | None = None
+        # GOMEA extension, Phase 1af: long demes (None when off). ``_long``
+        # is the decision ``prepare_deme`` made for the next deme(s).
+        g = self.gomea_params
+        self.long_deme: LongDemePolicy | None = (
+            LongDemePolicy(g.long_deme_cap, g.long_deme_rule, g.long_deme_prob)
+            if g.long_deme_cap > 0
+            else None
+        )
+        self._long = False
+
+    def prepare_deme(self, mp, exemplar) -> None:
+        """GOMEA extension, Phase 1af: called by ``expand_deme`` once the
+        deme of ``exemplar`` (just chosen from the metapopulation ``mp``) is
+        built and before it is optimized. Decides whether it is a long deme.
+        Does nothing (and draws nothing) when the option is off."""
+        if self.long_deme is not None:
+            self._long = self.long_deme.decide(mp, exemplar)
+
+    def deme_cap(self) -> int | None:
+        """The cap of the deme being optimized: ``long_deme_cap`` for a long
+        deme, else ``max_evals_per_deme``."""
+        if self._long:
+            return self.gomea_params.long_deme_cap
+        return self.gomea_params.max_evals_per_deme
 
     def __call__(self, deme: deme_t, iscorer, max_evals: int, max_time: int) -> None:
         """Fill the empty ``deme`` with every evaluated trial and set
@@ -553,7 +602,7 @@ class gomea_optimization(optimizer_base):
             deme,
             max_evals,
             max_time,
-            inner_cap=gp.max_evals_per_deme,
+            inner_cap=self.deme_cap(),
             genotype_memo=gp.genotype_memo,
             stall_evals=gp.stall_evals,
             stall_worse=self._accept_worse(),
@@ -587,6 +636,9 @@ class gomea_optimization(optimizer_base):
             extra["deme_budget"] = gp.deme_budget(max_evals)
             extra["deme_cap"] = gp.max_evals_per_deme
             extra["deme_pop_size"] = gp.deme_pop_size(max_evals)
+        if self.long_deme is not None:
+            # GOMEA extension, Phase 1af (absent when the option is off).
+            extra.update(self._long_deme_record())
         sink.emit(
             "invocation_start",
             schema_id=schema.schema_id,
@@ -699,6 +751,21 @@ class gomea_optimization(optimizer_base):
             raise
         self._finish(deme, oracle, ev, schema, init, engine, reason, init_s, t_start, sink)
 
+    def _long_deme_record(self) -> dict:
+        """Phase 1af telemetry, flat keys on ``invocation_start`` and ``end``:
+        whether this deme is long (``long``), the cap it ran with
+        (``deme_cap_used``), the rule, and the run's counts so far, this deme
+        included (``n_demes``, ``n_long_demes``; the last deme's values are the
+        run's totals)."""
+        pol = self.long_deme
+        return {
+            "long": self._long,
+            "deme_cap_used": self.deme_cap(),
+            "long_deme_rule": pol.rule,
+            "n_demes": pol.n_demes,
+            "n_long_demes": pol.n_long,
+        }
+
     # GOMEA extension: paper-style constant genes.
     def _symbolizer(self, schema: FrozenSchema):
         """The engine's constant recoding for linkage learning, or ``None``
@@ -763,4 +830,7 @@ class gomea_optimization(optimizer_base):
             },
             "best": _score_fields(oracle.best_so_far()) if requests > 0 else None,
         }
+        if self.long_deme is not None:
+            # GOMEA extension, Phase 1af (absent when the option is off).
+            self.last_result.update(self._long_deme_record())
         sink.emit("end", **self.last_result)
