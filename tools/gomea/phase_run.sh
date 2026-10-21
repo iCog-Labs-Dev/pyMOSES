@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # Generic phase launcher. configs/gomea/<PHASE>/ holds spec.json (tools/gomea/phase_report.py)
 # and the stage-1 manifests bool.json (benchmarks.gomea.runner) and/or sr.json
-# (moses_sr_runner.py); optional extensions bool-ext-<task>.json, sr-ext-<dataset>.json.
+# (moses_sr_runner.py); optional extra stage-1 regression manifests sr-<name>.json (for arm
+# sets that differ by dataset); optional extensions bool-ext-<task>.json, sr-ext-<dataset>.json.
 # Runs stage 1 (Boolean first, then regression, never concurrently), reports stage 1, runs
 # the extension of every problem with an "extend" primary contrast (one at a time), and
 # reports stage 2 over all result directories.
@@ -29,8 +30,9 @@ sr() { $PY tools/gomea/moses_sr_runner.py "$1" "$R/$P" --workers "$W" >> "$R/$P-
 run() { case "$(basename "$1")" in bool*) bench "$1" ;; sr*) sr "$1" ;; esac; }
 echo "start $(date -Is)"
 D1=""
-for m in "$Q/bool.json" "$Q/sr.json"; do
+for m in "$Q/bool.json" "$Q/sr.json" "$Q"/sr-*.json; do
     [ -f "$m" ] || continue
+    case "$(basename "$m")" in sr-ext-*) continue ;; esac  # extensions run at stage 2
     echo "run $m $(date -Is)"
     run "$m"
     D1="${D1:+$D1,}$(dir_of "$m")"

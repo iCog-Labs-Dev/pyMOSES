@@ -1,0 +1,36 @@
+{
+  "phase": "1ad",
+  "metrics": {
+    "EnH": "test_nmse",
+    "EnC": "test_nmse",
+    "Con": "test_nmse"
+  },
+  "primary": [
+    [
+      "EnH",
+      "uni",
+      "GOMEA-UNI",
+      "GOMEA"
+    ],
+    [
+      "EnC",
+      "uni",
+      "GOMEA-UNI",
+      "GOMEA"
+    ]
+  ],
+  "secondary": [
+    [
+      "Con",
+      "uni-s10",
+      "GOMEA-UNI-S10",
+      "GOMEA-UNI"
+    ],
+    [
+      "Con",
+      "uni-pen",
+      "GOMEA-UNI-PEN",
+      "GOMEA-UNI"
+    ]
+  ]
+}
