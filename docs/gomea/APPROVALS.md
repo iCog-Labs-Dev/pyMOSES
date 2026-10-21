@@ -86,6 +86,17 @@ truth-table-changing and keeps the child, marked as a DIVERGENCE. Only inputs th
 crash change; the default `-B 2` never reaches the rule, and the identity harness is
 byte-identical on all 8 cases.
 
+**Also not user-approved as code (2026-10-21):** the opt-in long-deme options for Phase 1af
+(backlog item 19), written by an agent at the coordinator's request:
+`--gomea-long-deme-cap C`, `--gomea-long-deme-rule {top,random}` and
+`--gomea-long-deme-prob p` (`pymoses/gomea/long_deme.py`, the cap choice in
+`pymoses/gomea/optimizer.py` and a port-only `prepare_deme` call in `local_moses.expand_deme`).
+A deme picked by the rule runs with cap C instead of `--gomea-max-evals-per-deme`, still bounded
+by the evaluations left; N is unchanged. Telemetry adds `long`, `deme_cap_used`,
+`long_deme_rule`, `n_demes` and `n_long_demes` to each deme's "invocation_start" and "end"
+events when the option is on. Off by default, and `random` with p = 0 draws nothing; both give
+output byte-identical to the previous code. Not used in a pre-registered phase yet.
+
 Deviations from the handoff's gate procedure that follow from instruction #1:
 
 * The P1.0 → P1.5 stops are replaced by the review packets committed under `docs/gomea/`

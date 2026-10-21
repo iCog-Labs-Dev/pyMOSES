@@ -244,6 +244,14 @@ def expand_deme(
         logger().warn("Exemplar: " + tree_to_stream_str(exemplar.get_tree()))
         logger().warn("failed to expand! Let's try another.")
 
+    # NOT A PORT (pyMoses extension, Phase 1af `--gomea-long-deme-cap`): an
+    # optimizer with `prepare_deme` (GOMEA) learns which exemplar the deme
+    # was built from, before it is optimized. Off by default, and then a
+    # no-op that draws nothing.
+    prepare = getattr(getattr(dex, "_optimize", None), "prepare_deme", None)
+    if prepare is not None:
+        prepare(mp, exemplar)
+
     dex.optimize_demes(max_evals, max_time)
     stats.n_evals += dex.total_evals()
     stats.n_expansions += 1
