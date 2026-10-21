@@ -13,8 +13,10 @@ A manifest (JSON) has these keys:
   {"time_s": T}}}`.
 
 **MOSES regression setup** (Phase 1f; see `PHASE1F-PREREGISTRATION.md`). MOSES scores a
-regression candidate by raw squared error, while its deme trimming and exemplar selection
-windows scale with the complexity temperature `-v`. So, per run, the runner:
+regression candidate by raw squared error (pyMoses: of the least-squares
+scaled a + b*f instead, if the arm passes `--linear-scaling 1`), while its deme
+trimming and exemplar selection windows scale with the complexity temperature `-v`.
+So, per run, the runner:
 
 1. rescales the training target to y' = 10 (y - mean) / sd, an affine map that leaves
    linearly-scaled NMSE unchanged, and writes it to the run directory;

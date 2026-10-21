@@ -131,6 +131,7 @@ to, so an invalid value is always rejected.
 | `--gomea-long-deme-rule {top,random}` | `top` | `top`: a deme is long when its exemplar has the metapopulation's highest penalized score when chosen (ties count) and has not had a long deme before. `random`: each deme is long with probability `--gomea-long-deme-prob p`, drawn from the run's RNG. |
 | `--gomea-long-deme-prob p` | `0` | With `--gomea-long-deme-rule random`. p = 0 (and p = 1) draws nothing. |
 | `--reserve-empty-every K` | `0` (off) | Port-only, any optimizer: every K-th expansion picks its exemplar only among the programs descending from an initial exemplar that is the empty program (`+`/`and`), falling back to the normal choice when none is selectable. See [Reserved expansions for the empty program](#reserved-expansions-for-the-empty-program---reserve-empty-every). |
+| `--linear-scaling {0,1}` | `0` (off) | Port-only, regression only (squared error), any optimizer: score each program `f` on `a + b·f`, the least-squares fit of `f` to the training target. See [Linear scaling](#linear-scaling---linear-scaling). |
 
 The default population was 64 during development. It became 16 after the pilot
 (`docs/gomea/pilot-a/`); the confirmatory runs passed 16 explicitly.
@@ -181,9 +182,13 @@ penalty is not stored either, so MOSES does not see it.
 
 ## Knob probing baseline (`--knob-probe-baseline`)
 
-`--knob-probe-baseline {classic,reduced}` (default `classic`) is a knob-building option, so it
-applies to every `-a` (hill climbing, `hc-capped`, GOMEA and the hybrid alike). It is a
-**divergence from C++ MOSES**, off by default; with `classic` knob building is unchanged.
+`--knob-probe-baseline {classic,reduced}` (default `reduced`) is a knob-building option, so it
+applies to every `-a` (hill climbing, `hc-capped`, GOMEA and the hybrid alike). The default
+`reduced` is a **divergence from C++ MOSES**, adopted as the default on 2026-10-21 (backlog
+item 15; it ran in every arm of Phases 1u–1ab without a loss attributable to it). With
+`--knob-probe-baseline classic` knob building is classic MOSES's, unchanged. The ported
+`build_knobs` and `representation` constructors still default to `classic` when called
+directly from Python.
 
 When it builds a logical knob, MOSES turns the knob to each setting, reduces the whole decorated
 exemplar and disallows the setting if the reduction lowers its complexity
@@ -273,6 +278,25 @@ puts the best threshold between one and five times the noise level. A constant t
 the pass. Each exemplar logs one INFO line, `Numeric exemplar simplification: candidates=…
 accepted=… rejected=… nodes=A->B … | totals: calls=… fired=… … nodes_removed=…`.
 See `pymoses/moses/deme/numeric_simplify.py`.
+
+## Linear scaling (`--linear-scaling`)
+
+Port-only and opt-in: classic MOSES has no counterpart, and with the default `0` nothing
+changes. It sets the regression scorer (`contin_bscore`), which every optimizer shares, so it
+applies to `-a hc`, `hc-capped`, `gomea` and the others alike. Regression only (`-H it` on a
+table with a contin output) with squared error; any other problem, and `--it-abs-err`, refuse
+it.
+
+With `--linear-scaling 1` a program `f` is scored on `a + b·f`, where `(a, b)` is the
+least-squares fit of `f`'s predictions to the training target (Keijzer 2003):
+`b = cov(y, f) / var(f)`, `a = mean(y) − b·mean(f)`, and `b = 0`, `a = mean(y)` for a constant
+`f`. If a prediction is not finite the program is scored unscaled, as without the option. The
+behavioural score keeps its shape, one `−(a + b·f(x) − y)²` per training row, and the
+complexity penalty, best possible score and everything else are unchanged. The printed
+programs are `f` itself, not `a + b·f`. `tools/gomea/sr_eval.py` reports NMSE with the same
+scaling refitted on the training split and applied to the validation and test splits, so its
+reported metrics mean the same with and without the option. See `contin_bscore.
+set_linear_scaling` and `linear_scaling` in `pymoses/moses/scoring/bscores.py`.
 
 ## Continuous knobs (`--gomea-contin copy`)
 

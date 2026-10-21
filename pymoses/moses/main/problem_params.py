@@ -521,6 +521,16 @@ _PORT_OPTIONS = (
         "by MOSES's normal selection restricted to them, falling back to the "
         "normal choice when none is selectable. 0 = off. Default 0.",
     ),
+    (
+        "--linear-scaling",
+        "linear_scaling",
+        int,
+        0,
+        "regression (contin output, squared error) only: 1 = score each "
+        "program f on a + b*f, where (a, b) is the least-squares fit of f to "
+        "the training target (b = cov(y, f) / var(f), a = mean(y) - b mean(f); "
+        "b = 0 for a constant f). 0 = off (classic MOSES). Default 0.",
+    ),
 )
 _GOMEA_INIT_CHOICES = ("sampler", "uniform")
 _GOMEA_ACCEPT_CHOICES = ("nonworse", "strict")
@@ -1041,17 +1051,22 @@ class problem_params:
         # Extension (not in classic MOSES), registered here with the other
         # extensions so classic's own option surface stays unchanged. It is
         # knob building, so it applies to every optimizer (HC and GOMEA).
+        # DIVERGENCE(C++ moses/moses/representation/build_knobs.cc:311-341):
+        # the DEFAULT is `reduced` (since backlog item 15, 2026-10-21), not
+        # classic MOSES's `disc_probe`; `--knob-probe-baseline classic`
+        # restores classic knob probing. See build_knobs.py's
+        # `_disc_probe_reduced_baseline` for what differs.
         parser.add_argument(
             "--knob-probe-baseline",
             dest="knob_probe_baseline",
             type=str,
-            default="classic",
+            default="reduced",
             help="how knob building decides that a knob setting is redundant: "
             "classic (classic MOSES: reducing the decorated exemplar with that "
             "setting lowers its complexity) or reduced (the setting lowers it by "
             "more than reducing the exemplar with the knob at 0 does; keeps knob "
             "counts from collapsing when that exemplar is itself reducible). "
-            "Default classic.",
+            "Default reduced (a divergence from classic MOSES).",
         )
         # GOMEA extension (not in classic MOSES): argparse accepts any unique
         # prefix of a long option (`allow_abbrev`), so adding `--gomea-*`
@@ -1272,8 +1287,9 @@ class problem_params:
         deme_params.linear_contin = self.linear_regression
         deme_params.perm_ratio = self.perm_ratio
         # Extension (not in classic MOSES): `--knob-probe-baseline`, read
-        # with its default when the namespace was built without it.
-        knob_probe_baseline = getattr(args, "knob_probe_baseline", "classic")
+        # with its default (`reduced`, see `add_gomea_options`) when the
+        # namespace was built without it.
+        knob_probe_baseline = getattr(args, "knob_probe_baseline", "reduced")
         if knob_probe_baseline not in PROBE_BASELINES:
             raise ValueError(
                 f"--knob-probe-baseline {knob_probe_baseline} is not recognized. "
@@ -1419,6 +1435,12 @@ class problem_params:
         if k < 0:
             raise ValueError(f"--reserve-empty-every must be >= 0 (0 = off), got {k}")
         self.meta_params.reserve_empty_every = k
+        # NOT A PORT (pyMoses extension): `--linear-scaling`, read by the
+        # regression problems (`table_problems._regression`).
+        ls = getattr(args, "linear_scaling", 0)
+        if ls not in (0, 1):
+            raise ValueError(f"--linear-scaling must be 0 or 1, got {ls}")
+        self.linear_scaling = ls
 
         # -- Set depth (C++: :2371-2372 `set_depth(contin_depth)`) --
         # `representation.py`'s module-level `_depth` static, exactly as

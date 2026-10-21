@@ -99,6 +99,32 @@ output byte-identical to the previous code. In the same branch, `tools/gomea/mos
 now passes `--gomea-log RUN_DIR/events.jsonl` to pyMoses GOMEA arms (on by default, `"events":
 false` turns it off); MOSES's output is unchanged. Not used in a pre-registered phase yet.
 
+**Also not user-approved as code (2026-10-21):** `--linear-scaling {0,1}` (BACKLOG item 10,
+Phase 1ag in `PHASE1AC-1AG-PREREGISTRATION.md`), built by a subagent at the coordinator's
+request on branch `feat/linear-scaling`. With `1`, the regression scorer (`contin_bscore`,
+shared by `hc`, `hc-capped`, `gomea` and the hybrid) scores each program `f` on `a + b·f`,
+the least-squares fit on the training rows (`b = cov(y, f) / var(f)`, `a = mean(y) − b·mean(f)`;
+`b = 0` for a constant `f`), the formula `tools/gomea/sr_eval.py` uses when it reports NMSE.
+It is an extension with no C++ counterpart, off by default. With it off, outputs are
+byte-identical to the previous code (the identity harness's `con-hc` and `con-gomea`, the
+same two with `--knob-probe-baseline reduced`, and the Phase 1v/1r regression arm argvs on
+Con split 1 at 1,500 evaluations). Phase 1ag is pre-registered, but the code itself was not
+separately approved.
+
+**Also not user-approved as code (2026-10-21):** `--knob-probe-baseline reduced` is now the
+code default (BACKLOG item 15), a disclosed DIVERGENCE from C++ `disc_probe`
+(`build_knobs.cc:311-341`), marked in `problem_params.py`, `deme_params.py` and
+`build_knobs.py`. The user asked for this as a plan in BACKLOG item 15 (2026-10-19: "make it
+the code default (a disclosed DIVERGENCE) once it has run in two phases without a loss"),
+which this log does not count as approval of the code change. The default changed for the
+`moses` command line (`add_gomea_options`, `parse_options`) and `deme_parameters`; the ported
+`build_knobs` and `representation` constructors still default to `classic`.
+`--knob-probe-baseline classic` gives the old behaviour. Every arm since Phase 1u passes
+`--knob-probe-baseline reduced` explicitly, so their outputs do not change (checked
+byte-identical before and after on `mux11-gomea`, `maj5-hc`, `con-hc`, `con-gomea` and the
+Phase 1v/1r regression arm argvs, each with the flag; `classic` given explicitly reproduces
+the old default byte for byte).
+
 Deviations from the handoff's gate procedure that follow from instruction #1:
 
 * The P1.0 → P1.5 stops are replaced by the review packets committed under `docs/gomea/`

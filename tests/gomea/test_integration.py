@@ -99,6 +99,11 @@ _HC_DATASET_M1000 = (
 # with the GOMEA ones (`problem_params._PORT_OPTIONS`).
 _PORT_FLAGS = tuple(o[0] for o in _PORT_OPTIONS)
 
+# Classic knob probing (the default was `classic` when the base outputs below
+# were recorded; it is `reduced` since backlog item 15).
+_CLASSIC_PROBE = ["--knob-probe-baseline", "classic"]
+
+
 def _run(argv: list[str]) -> tuple[int, str]:
     buf = io.StringIO()
     with redirect_stdout(buf):
@@ -192,7 +197,9 @@ def test_gomea_run_is_deterministic(pa3_gomea_runs):
     ids=["pa3", "maj3", "dataset"],
 )
 def test_hc_output_is_byte_identical_to_base(argv, expected):
-    rc, stdout = _run(argv)
+    # The base outputs predate `--knob-probe-baseline reduced` becoming the
+    # default (backlog item 15), so they are reproduced with `classic`.
+    rc, stdout = _run([*argv, *_CLASSIC_PROBE])
     assert rc == 0
     assert stdout == expected
 
@@ -559,7 +566,7 @@ def test_gomea_defaults_reproduce_the_phase1d_maj5_stdout(extra):
 
 
 def test_explicit_hc_reproduces_the_base_stdout():
-    rc, stdout = _run(["-H", "pa", "-k", "3", "-a", "hc", "-m", "2000", "-r", "1"])
+    rc, stdout = _run(["-H", "pa", "-k", "3", "-a", "hc", "-m", "2000", "-r", "1", *_CLASSIC_PROBE])
     assert rc == 0
     assert stdout == _HC_PA3_M2000_R1
 

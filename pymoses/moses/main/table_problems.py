@@ -725,6 +725,23 @@ class table_problem_base(problem_base):
         # here, after `as`, never before.
         bscore = make_bscore()
         _set_noise_or_ratio(bscore, as_, pms.noise, pms.complexity_ratio)
+        # NOT A PORT (pyMoses extension, `--linear-scaling 1`; no C++
+        # counterpart): regression (`contin_bscore`, squared error) scores
+        # a + b*f, the least-squares scaling of each program. Set on the one
+        # scorer every optimizer (hc, hc-capped, gomea, hc-gomea) shares.
+        if getattr(pms, "linear_scaling", 0):
+            if self.output_type != type_node.contin_type or not isinstance(bscore, contin_bscore):
+                raise ValueError(
+                    "--linear-scaling applies to regression only (a contin output "
+                    "scored by contin_bscore); this problem has output type "
+                    f"{self.output_type.name} and scorer {type(bscore).__name__}"
+                )
+            if pms.it_abs_err:
+                raise ValueError(
+                    "--linear-scaling is a least-squares fit and needs squared error; "
+                    "it cannot be combined with --it-abs-err"
+                )
+            bscore.set_linear_scaling(True)
         if pms.meta_params.do_boosting:
             bscore.use_weighted_scores()
         # When boosting, cache must not be used, as otherwise, stale

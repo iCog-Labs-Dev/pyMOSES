@@ -783,10 +783,11 @@ class deme_expander:
                 # product-of-sums candidate.
                 linear_contin=self._params.linear_contin,
                 perm_ratio=self._params.perm_ratio,
-                # No C++ counterpart (opt-in `--knob-probe-baseline`): read
-                # with a "classic" fallback, so a deme_parameters built by
-                # hand without it keeps classic knob probing.
-                probe_baseline=getattr(self._params, "knob_probe_baseline", "classic"),
+                # No C++ counterpart (`--knob-probe-baseline`, default
+                # "reduced"): read with the same "reduced" fallback as
+                # `deme_parameters`, for a parameters object built by hand
+                # without the field.
+                probe_baseline=getattr(self._params, "knob_probe_baseline", "reduced"),
             )
             if rep.fields().empty():
                 logger().warn(
