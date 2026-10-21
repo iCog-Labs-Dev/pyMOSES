@@ -1,0 +1,83 @@
+{
+  "schema_version": 1,
+  "name": "phase1ac-bool",
+  "phase": 1,
+  "commit": "2c5f24c00a861fa857a15a82ba6a4d03715d72a9",
+  "common_argv": [
+    "-l",
+    "WARN"
+  ],
+  "tasks": {
+    "mux11": {
+      "argv": [
+        "-H",
+        "mux",
+        "-k",
+        "3"
+      ],
+      "target_raw": 0
+    }
+  },
+  "arms": {
+    "GOMEA": {
+      "argv": [
+        "-a",
+        "gomea",
+        "--gomea-fos",
+        "lt-b",
+        "--gomea-pop-size",
+        "16",
+        "--gomea-skip-inactive",
+        "0",
+        "--gomea-max-evals-per-deme",
+        "250",
+        "--gomea-genotype-memo",
+        "1",
+        "--knob-probe-baseline",
+        "reduced"
+      ]
+    },
+    "PEN": {
+      "argv": [
+        "-a",
+        "gomea",
+        "--gomea-fos",
+        "lt-b",
+        "--gomea-pop-size",
+        "16",
+        "--gomea-skip-inactive",
+        "0",
+        "--gomea-max-evals-per-deme",
+        "250",
+        "--gomea-genotype-memo",
+        "1",
+        "--gomea-accept-complexity-ratio",
+        "0.125",
+        "--knob-probe-baseline",
+        "reduced"
+      ]
+    }
+  },
+  "seeds": [
+    3031,
+    3032,
+    3033,
+    3034,
+    3035,
+    3036,
+    3037,
+    3038,
+    3039,
+    3040
+  ],
+  "budget": {
+    "argv": [
+      "-m",
+      "40000"
+    ],
+    "kind": "evaluations"
+  },
+  "wall_cap_s": 36000,
+  "workers": 16,
+  "output_root": "../gomea-results"
+}

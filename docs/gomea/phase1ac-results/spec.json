@@ -1,0 +1,15 @@
+{
+  "phase": "1ac",
+  "metrics": {
+    "mux11": "cpu_to_target"
+  },
+  "primary": [
+    [
+      "mux11",
+      "pen",
+      "PEN",
+      "GOMEA"
+    ]
+  ],
+  "secondary": []
+}

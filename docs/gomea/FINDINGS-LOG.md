@@ -91,6 +91,7 @@ in `DECISIONS.md`.**
 | 1aa | 2026-10-20 | `-B 3` (effort-3 reduction in knob building) on mux11 | **Worse for HC and GOMEA** (10/10 pairs each, Holm p 0.0039): CPU per evaluation about 4.5×, evaluations to solve not lower. Early stop by rule (a deviation). It exposed and fixed a latent effort-3 crash, also present in C++. Keep `-B 2`. |
 | 1z | 2026-10-19 | Near-constant subtree simplification | **Settled by pilot, not run:** the pass found 0 candidates on Con at TOL 0.1 and 0.5. |
 | 1ab | 2026-10-20 | Re-seed from GP-GOMEA on stagnation (Con) | **Tie:** 44.6 against 44.9 for plain seeding, 7/10 splits identical. Re-seeds fired in 7/10 runs; fresh height-3 elites rarely beat MOSES's current best. |
+| 1ac | 2026-10-21 | Confirm PEN's CPU-to-solve gain on mux11 (fresh seeds 3031–3040) | **Tie, not replicated:** PEN 1,628 s against GOMEA 1,055 s, lower in 3/10 pairs (Holm p 0.56). Pooled with 1o/1s: 16 of 30 pairs. PEN is not adopted for speed on Boolean. [PHASE1AC-FINDINGS.md](PHASE1AC-FINDINGS.md) |
 
 ## Descriptive comparisons (not pre-registered)
 

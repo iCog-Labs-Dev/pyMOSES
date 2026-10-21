@@ -102,3 +102,21 @@ phases by priority only; nothing in it runs at the same time.
 
 **CPU comparability:** 1s and 1t ran on the old code. Every phase from 1u on, segment B
 included, runs on the same merged code.
+
+## Round 2 (from 2026-10-21): phases 1ac–1ag
+
+Protocol: `PHASE1AC-1AG-PREREGISTRATION.md`. The rules above apply unchanged.
+
+* **1ac:** ran 10:09–11:30. Verdict: tie (`PHASE1AC-FINDINGS.md`).
+* **Stop at 11:46 (user request: free the CPU):**
+  * 1ad had been running for 16 minutes, with no run finished.
+  * Stopped in this order: the queue, the phase launcher, the runner, then its 16 workers and
+    their runs, by PID.
+  * No orphans were left.
+  * The partial output was moved to `../gomea-results/phase1ad-aborted-20261021` and is not
+    used.
+* **Restart:** 1ad from scratch, then 1ae, from 12:19 (`queue-1ad-1ae.log`).
+* **Code for the later phases:**
+  * The long-deme option and regression-runner telemetry (1af) are done in their clone.
+  * The linear-scaling work (1ag) and the knob-probe default change (backlog 15) are
+    committed in their clone, but their verification was cut off by the stop.

@@ -1,0 +1,2 @@
+contrast,family,problem,a,a_lower,b,b_lower,median_a,median_b,metric,p,p_holm,pairs,ties,verdict
+pen,primary,mux11,PEN,3,GOMEA,7,1628.2355256054998,1055.4454536595001,cpu_to_target,0.556640625,0.556640625,10,0,tie
