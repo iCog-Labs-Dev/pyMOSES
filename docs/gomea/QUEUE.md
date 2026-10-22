@@ -120,3 +120,10 @@ Protocol: `PHASE1AC-1AG-PREREGISTRATION.md`. The rules above apply unchanged.
   * The long-deme option and regression-runner telemetry (1af) are done in their clone.
   * The linear-scaling work (1ag) and the knob-probe default change (backlog 15) are
     committed in their clone, but their verification was cut off by the stop.
+* **Reboot (overnight, 2026-10-21 to 2026-10-22):**
+  * The machine restarted while 1ad's Con manifest was running. Done by then: all 40 EnH/EnC
+    runs and 7 of the 30 Con runs.
+  * 2026-10-22 09:13: the queue was restarted (`queue-1ad-1ae-r2.log`). The runner keeps
+    finished runs, which have a `summary.json`, and redoes the 23 unfinished ones from
+    scratch.
+  * Regression runs are deterministic, so the redone runs are unaffected.
