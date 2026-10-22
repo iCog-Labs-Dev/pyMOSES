@@ -1,0 +1,21 @@
+{
+  "phase": "1ag",
+  "metrics": {
+    "Con": "test_nmse"
+  },
+  "primary": [
+    [
+      "Con",
+      "hcls",
+      "HC-LS",
+      "HC"
+    ],
+    [
+      "Con",
+      "gomeals",
+      "GOMEA-LS",
+      "GOMEA"
+    ]
+  ],
+  "secondary": []
+}

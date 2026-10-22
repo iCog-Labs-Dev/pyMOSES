@@ -1,0 +1,47 @@
+{
+  "phase": "1af",
+  "metrics": {
+    "mux11": "cpu_to_target",
+    "Con": "test_nmse"
+  },
+  "primary": [
+    [
+      "mux11",
+      "longtop",
+      "LONG-TOP",
+      "GOMEA"
+    ],
+    [
+      "Con",
+      "longtop",
+      "LONG-TOP",
+      "GOMEA"
+    ]
+  ],
+  "secondary": [
+    [
+      "mux11",
+      "vsrand",
+      "LONG-TOP",
+      "LONG-RAND"
+    ],
+    [
+      "mux11",
+      "vsrt",
+      "LONG-TOP",
+      "LONG-TOP-RT"
+    ],
+    [
+      "Con",
+      "vsrand",
+      "LONG-TOP",
+      "LONG-RAND"
+    ],
+    [
+      "Con",
+      "vsrt",
+      "LONG-TOP",
+      "LONG-TOP-RT"
+    ]
+  ]
+}
