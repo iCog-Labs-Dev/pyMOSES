@@ -92,6 +92,7 @@ in `DECISIONS.md`.**
 | 1z | 2026-10-19 | Near-constant subtree simplification | **Settled by pilot, not run:** the pass found 0 candidates on Con at TOL 0.1 and 0.5. |
 | 1ab | 2026-10-20 | Re-seed from GP-GOMEA on stagnation (Con) | **Tie:** 44.6 against 44.9 for plain seeding, 7/10 splits identical. Re-seeds fired in 7/10 runs; fresh height-3 elites rarely beat MOSES's current best. |
 | 1ac | 2026-10-21 | Confirm PEN's CPU-to-solve gain on mux11 (fresh seeds 3031–3040) | **Tie, not replicated:** PEN 1,628 s against GOMEA 1,055 s, lower in 3/10 pairs (Holm p 0.56). Pooled with 1o/1s: 16 of 30 pairs. PEN is not adopted for speed on Boolean. [PHASE1AC-FINDINGS.md](PHASE1AC-FINDINGS.md) |
+| 1ad | 2026-10-22 | Uniform start (UNI) on EnH and EnC; keeping UNI small on Con (S10, PEN) | **Ties, leaning UNI:** EnH 12.8 against 15.6, EnC 15.7 against 19.2, each lower in 14/20 splits (Holm p 0.053, 0.031), same gap, about 1.8× size and CPU. **Con: UNI-PEN and UNI-S10 worse than UNI** (0/10): 37.2 and 43.2 against 29.2, but 92 and 30 nodes against 309. [PHASE1AD-FINDINGS.md](PHASE1AD-FINDINGS.md) |
 
 ## Descriptive comparisons (not pre-registered)
 

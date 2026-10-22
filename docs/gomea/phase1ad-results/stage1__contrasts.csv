@@ -1,0 +1,5 @@
+contrast,family,problem,a,a_lower,b,b_lower,median_a,median_b,metric,p,p_holm,pairs,ties,verdict
+uni,primary,EnH,GOMEA-UNI,8,GOMEA,2,11.63419288840036,15.68905527575587,test_nmse,0.048828125,0.09765625,10,0,extend
+uni,primary,EnC,GOMEA-UNI,7,GOMEA,3,16.629307510965504,20.39508203311732,test_nmse,0.083984375,0.09765625,10,0,extend
+uni-s10,secondary,Con,GOMEA-UNI-S10,0,GOMEA-UNI,10,43.19430786101593,29.228015683816253,test_nmse,0.001953125,0.00390625,10,0,A worse
+uni-pen,secondary,Con,GOMEA-UNI-PEN,0,GOMEA-UNI,10,37.238666442107125,29.228015683816253,test_nmse,0.001953125,0.00390625,10,0,A worse
