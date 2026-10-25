@@ -171,6 +171,10 @@ def test_higher_arity_matches_classic(table, max_evals, seed, expected, capsys):
             f"-m{max_evals}",
             "-W1",
             f"-r{seed}",
+            # classic's knob probing; this port's default `reduced` is a
+            # disclosed DIVERGENCE (backlog item 15)
+            "--knob-probe-baseline",
+            "classic",
         ]
     )
     assert rc == 0

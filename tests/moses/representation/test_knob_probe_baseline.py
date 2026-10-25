@@ -1,6 +1,6 @@
 """`--knob-probe-baseline` (extension, not in classic MOSES).
 
-`classic` (the default) probes knobs exactly as classic MOSES does
+`classic` probes knobs exactly as classic MOSES does
 (`build_knobs.disc_probe`, C++ build_knobs.cc:311). `reduced` disallows a knob
 setting only when reducing the decorated exemplar with that setting removes
 MORE complexity than reducing it with the knob at 0 does. It differs from
@@ -102,9 +102,12 @@ def test_knob_counts_classic_and_reduced(name):
         assert len(reduced.disc) >= 4 * len(classic.disc)
 
 
-def test_default_is_classic():
+def test_default_is_reduced_but_constructors_stay_classic():
+    """`moses` defaults to `reduced` (backlog item 15, a disclosed DIVERGENCE);
+    the ported `build_knobs`/`representation` constructors keep classic's
+    probing unless asked."""
     assert PROBE_BASELINES == ("classic", "reduced")
-    assert deme_parameters().knob_probe_baseline == "classic"
+    assert deme_parameters().knob_probe_baseline == "reduced"
     import inspect
 
     for fn in (build_knobs.__init__, representation.__init__):
@@ -132,7 +135,10 @@ def _pp(argv):
 
 
 def test_cli_option_reaches_deme_params():
-    assert _pp([]).deme_params.knob_probe_baseline == "classic"
+    assert _pp([]).deme_params.knob_probe_baseline == "reduced"
+    assert (
+        _pp(["--knob-probe-baseline", "classic"]).deme_params.knob_probe_baseline == "classic"
+    )
     assert (
         _pp(["--knob-probe-baseline", "reduced"]).deme_params.knob_probe_baseline == "reduced"
     )

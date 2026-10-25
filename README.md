@@ -190,10 +190,10 @@ pip install -e ".[dev]"
 pytest
 ```
 
-Expect **8602 passed, 6 skipped** in about 11 minutes on one core: the classic port's
-7898 (verified from a clean checkout and a fresh virtualenv) plus 704 added on this branch
+Expect **8663 passed, 6 skipped** in about 11 minutes on one core: the classic port's
+7898 (verified from a clean checkout and a fresh virtualenv) plus 765 added on this branch
 for the GOMEA extension and its experiments, including a reduct regression test (measured on
-this branch, 2026-10-19). One of the 6 skips is the GP-GOMEA seeding end-to-end test, which
+this branch, 2026-10-22). One of the 6 skips is the GP-GOMEA seeding end-to-end test, which
 needs `GPGOMEA_SEED_BINARY` (built by `tools/gomea/build_gpgomea_seed.sh`).
 
 If your shell sets `FORCE_COLOR`, Python 3.14's argparse colours `--help`, and two help-text
@@ -201,7 +201,7 @@ tests in `tests/moses/main/test_moses_exec.py` fail. Run with `NO_COLOR=1` to co
 plain text.
 
 On a machine without a classic MOSES/CogUtil checkout you should see 7 more tests skip,
-roughly `8595 passed, 13 skipped`. Those are the tests that read the C++ sources
+roughly `8656 passed, 13 skipped`. Those are the tests that read the C++ sources
 directly; they skip rather than fail, so a green run is still a green run. Everything
 else compares against golden fixtures committed here.
 

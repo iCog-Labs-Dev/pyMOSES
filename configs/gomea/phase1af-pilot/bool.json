@@ -1,0 +1,59 @@
+{
+  "schema_version": 1,
+  "name": "phase1af-pilot-bool",
+  "phase": 1,
+  "commit": "72c97b43811b9d19f99c1cb1e1598c311d8dbef4",
+  "common_argv": [
+    "-l",
+    "WARN"
+  ],
+  "tasks": {
+    "mux11": {
+      "argv": [
+        "-H",
+        "mux",
+        "-k",
+        "3"
+      ],
+      "target_raw": 0
+    }
+  },
+  "arms": {
+    "LONG-TOP": {
+      "argv": [
+        "-a",
+        "gomea",
+        "--gomea-fos",
+        "lt-b",
+        "--gomea-pop-size",
+        "16",
+        "--gomea-skip-inactive",
+        "0",
+        "--gomea-max-evals-per-deme",
+        "250",
+        "--gomea-genotype-memo",
+        "1",
+        "--knob-probe-baseline",
+        "reduced",
+        "--gomea-long-deme-cap",
+        "2000",
+        "--gomea-long-deme-rule",
+        "top"
+      ]
+    }
+  },
+  "seeds": [
+    3001,
+    3002
+  ],
+  "budget": {
+    "argv": [
+      "-m",
+      "40000"
+    ],
+    "kind": "evaluations"
+  },
+  "wall_cap_s": 36000,
+  "workers": 16,
+  "output_root": "../gomea-results"
+}

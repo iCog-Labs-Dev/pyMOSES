@@ -1,0 +1,43 @@
+{
+  "name": "phase1af-pilot-sr",
+  "datasets_dir": "../gomea-results/phase1f/datasets",
+  "datasets": [
+    "Con"
+  ],
+  "splits": [
+    1,
+    2
+  ],
+  "wall_cap_s": 36000,
+  "mem_limit_mb": 3072,
+  "arms": {
+    "LONG-TOP": {
+      "binary": ".venv/bin/moses",
+      "budget": {
+        "evals": 10000
+      },
+      "argv": [
+        "-a",
+        "gomea",
+        "--gomea-fos",
+        "lt-b",
+        "--gomea-pop-size",
+        "16",
+        "--gomea-skip-inactive",
+        "0",
+        "--gomea-max-evals-per-deme",
+        "250",
+        "--gomea-genotype-memo",
+        "1",
+        "--gomea-contin",
+        "copy",
+        "--knob-probe-baseline",
+        "reduced",
+        "--gomea-long-deme-cap",
+        "2000",
+        "--gomea-long-deme-rule",
+        "top"
+      ]
+    }
+  }
+}

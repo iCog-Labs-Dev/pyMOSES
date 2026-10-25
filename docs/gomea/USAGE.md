@@ -127,7 +127,11 @@ to, so an invalid value is always rejected.
 | `--simplify-exemplar-numeric TOL` | `0` (off) | Port-only, regression only, any optimizer: before knobs are built, replace exemplar subtrees whose training-output range is below `TOL × sd(target)` by their mean, keeping a replacement only if the training score is not worse. See [Numerical simplification of exemplars](#numerical-simplification-of-exemplars---simplify-exemplar-numeric). |
 | `--gomea-fos-topk K` | `0` (off) | Each generation, GOM (and forced improvement) visits only K FOS subsets instead of all of them (about 2 per knob), so a generation costs about `N × K` trials instead of `N × 2 × knobs`. See [Top-K FOS subsets](#top-k-fos-subsets---gomea-fos-topk). |
 | `--gomea-fos-topk-mode {linkage,random}` | `linkage` | With `--gomea-fos-topk K`: `linkage` keeps the K linkage-tree merges with the strongest linkage (needs `--gomea-fos lt-b` or `lt-mi`); `random` draws K subsets uniformly each generation (the control). |
+| `--gomea-long-deme-cap C` | `0` (off) | With `-a gomea` and a per-deme cap: a deme chosen by `--gomea-long-deme-rule` runs with cap C instead of `--gomea-max-evals-per-deme`, still bounded by the evaluations left; N is unchanged. See [Long demes](#long-demes-for-promising-exemplars---gomea-long-deme-cap). |
+| `--gomea-long-deme-rule {top,random}` | `top` | `top`: a deme is long when its exemplar has the metapopulation's highest penalized score when chosen (ties count) and has not had a long deme before. `random`: each deme is long with probability `--gomea-long-deme-prob p`, drawn from the run's RNG. |
+| `--gomea-long-deme-prob p` | `0` | With `--gomea-long-deme-rule random`. p = 0 (and p = 1) draws nothing. |
 | `--reserve-empty-every K` | `0` (off) | Port-only, any optimizer: every K-th expansion picks its exemplar only among the programs descending from an initial exemplar that is the empty program (`+`/`and`), falling back to the normal choice when none is selectable. See [Reserved expansions for the empty program](#reserved-expansions-for-the-empty-program---reserve-empty-every). |
+| `--linear-scaling {0,1}` | `0` (off) | Port-only, regression only (squared error), any optimizer: score each program `f` on `a + b·f`, the least-squares fit of `f` to the training target. See [Linear scaling](#linear-scaling---linear-scaling). |
 
 The default population was 64 during development. It became 16 after the pilot
 (`docs/gomea/pilot-a/`); the confirmatory runs passed 16 explicitly.
@@ -178,9 +182,13 @@ penalty is not stored either, so MOSES does not see it.
 
 ## Knob probing baseline (`--knob-probe-baseline`)
 
-`--knob-probe-baseline {classic,reduced}` (default `classic`) is a knob-building option, so it
-applies to every `-a` (hill climbing, `hc-capped`, GOMEA and the hybrid alike). It is a
-**divergence from C++ MOSES**, off by default; with `classic` knob building is unchanged.
+`--knob-probe-baseline {classic,reduced}` (default `reduced`) is a knob-building option, so it
+applies to every `-a` (hill climbing, `hc-capped`, GOMEA and the hybrid alike). The default
+`reduced` is a **divergence from C++ MOSES**, adopted as the default on 2026-10-21 (backlog
+item 15; it ran in every arm of Phases 1u–1ab without a loss attributable to it). With
+`--knob-probe-baseline classic` knob building is classic MOSES's, unchanged. The ported
+`build_knobs` and `representation` constructors still default to `classic` when called
+directly from Python.
 
 When it builds a logical knob, MOSES turns the knob to each setting, reduces the whole decorated
 exemplar and disallows the setting if the reduction lowers its complexity
@@ -271,6 +279,25 @@ the pass. Each exemplar logs one INFO line, `Numeric exemplar simplification: ca
 accepted=… rejected=… nodes=A->B … | totals: calls=… fired=… … nodes_removed=…`.
 See `pymoses/moses/deme/numeric_simplify.py`.
 
+## Linear scaling (`--linear-scaling`)
+
+Port-only and opt-in: classic MOSES has no counterpart, and with the default `0` nothing
+changes. It sets the regression scorer (`contin_bscore`), which every optimizer shares, so it
+applies to `-a hc`, `hc-capped`, `gomea` and the others alike. Regression only (`-H it` on a
+table with a contin output) with squared error; any other problem, and `--it-abs-err`, refuse
+it.
+
+With `--linear-scaling 1` a program `f` is scored on `a + b·f`, where `(a, b)` is the
+least-squares fit of `f`'s predictions to the training target (Keijzer 2003):
+`b = cov(y, f) / var(f)`, `a = mean(y) − b·mean(f)`, and `b = 0`, `a = mean(y)` for a constant
+`f`. If a prediction is not finite the program is scored unscaled, as without the option. The
+behavioural score keeps its shape, one `−(a + b·f(x) − y)²` per training row, and the
+complexity penalty, best possible score and everything else are unchanged. The printed
+programs are `f` itself, not `a + b·f`. `tools/gomea/sr_eval.py` reports NMSE with the same
+scaling refitted on the training split and applied to the validation and test splits, so its
+reported metrics mean the same with and without the option. See `contin_bscore.
+set_linear_scaling` and `linear_scaling` in `pymoses/moses/scoring/bscores.py`.
+
 ## Continuous knobs (`--gomea-contin copy`)
 
 A regression representation has contin knobs: numeric constants that MOSES encodes as a
@@ -327,16 +354,39 @@ The file gets one JSON object per line, and each object has a `"type"`. For ever
 
 | type | Key fields |
 |---|---|
-| `invocation_start` | `schema_id` (a hash of this representation's knob layout), `dim` (number of knobs), `domains`, `max_evals`, `params` (`accept_complexity_ratio`, `deme_store`, `fos_topk` and `fos_topk_mode` appear only when not at their defaults); with `--gomea-pop-fraction` or `--gomea-deme-share` also `deme_budget`, `deme_cap` (the per-deme cap, `null` for none) and `deme_pop_size` (this deme's N) |
+| `invocation_start` | `schema_id` (a hash of this representation's knob layout), `dim` (number of knobs), `domains`, `max_evals`, `params` (`accept_complexity_ratio`, `deme_store`, `fos_topk` and `fos_topk_mode` appear only when not at their defaults); with `--gomea-pop-fraction` or `--gomea-deme-share` also `deme_budget`, `deme_cap` (the per-deme cap, `null` for none) and `deme_pop_size` (this deme's N); with `--gomea-long-deme-cap` also `long`, `deme_cap_used`, `long_deme_rule`, `n_demes`, `n_long_demes` |
 | `init` | the initial population: `attempts`, `duplicates_rejected`, `coverage_replacements`, `feasible_short`, and `diagnostics` (per-knob entropy and observed values, `constant_fields_before/after_coverage`, `radius_histogram`) |
 | `generation` | `generation`, `fos_size` (with `--gomea-fos-topk` also `fos_topk`, `fos_topk_mode`, `fos_effective_size`, `fos_effective_mean_subset_size`, `fos_selected`, `fos_selected_strength`), per-generation GOM `stats` (trials, evaluated, accepted_improving / accepted_neutral / rejected, noop_skips, fi_*), `nis` (the no-improvement stretch), `best_raw`/`best_pen`/`best_cpx` (of the engine's best, under the deme-local comparator when `--gomea-accept-complexity-ratio` is on), a `ledger` snapshot, and diversity: `unique_genotypes`, `mean_entropy_bits`, `n_varying_fields`, `best_raw_count` |
-| `end` | `termination_reason`, `generations`, `ledger` (requests = evaluations charged, invalid, duplicate_requests, …), `timings` (init / eval / linkage / variation seconds), `best` |
+| `end` | `termination_reason`, `generations`, `ledger` (requests = evaluations charged, invalid, duplicate_requests, …), `timings` (init / eval / linkage / variation seconds), `best`; with `--gomea-long-deme-cap` also the long-deme keys of `invocation_start` |
 | `hybrid` | `-a hc-gomea` only, one per deme: `deme_id`, `max_evals`, `hc_evals`, `hc_stop` (`budget`, `time_limit`, `target` or `local_optimum`), `gomea_ran`, `gomea_evals` (charged), `gomea_termination_reason` |
 
 A deme ends with one of these `termination_reason`s: `target_reached`, `converged`,
 `stagnation`, `max_generations`, `global_budget`, `inner_budget`, `time_limit`,
 `no_search_fields`, `no_valid_moves`, `interrupted`, or `stall_evals` (the
 `--gomea-stall-evals` rule).
+
+## Long demes for promising exemplars (`--gomea-long-deme-cap`)
+
+Opt-in (Phase 1af, backlog item 19). With cap 250 and N = 16 almost every deme learns its
+linkage once, from the unselected initial population. `--gomea-long-deme-cap C` gives a few
+demes cap C, so GOM can run several generations and relearn the linkage:
+
+* The decision is made in `expand_deme`, after the exemplar is chosen and its deme built,
+  and before the deme is optimized (`gomea_optimization.prepare_deme`,
+  `pymoses/gomea/long_deme.py`).
+* **`top`:** long when the exemplar's penalized score (`get_penalized_score()`, the score
+  `select_exemplar` samples by) is finite and no lower than any finite penalized score in the
+  metapopulation at that moment, and the exemplar (keyed by its printed combo tree) has not
+  had a long deme before in the run.
+* **`random`:** long with probability p, from `randGen().randdouble()`, one draw per deme
+  (none when p is 0 or 1, so p = 0 gives the same run as the option off).
+* A long deme still stops on the engine's own rules (convergence, `--gomea-stall-gens`,
+  `--gomea-max-gens`) before C when they fire first.
+* Needs `-a gomea` and a normal cap (`--gomea-max-evals-per-deme` or `--gomea-deme-share`).
+  `--gomea-pop-fraction` still sizes N from the normal cap.
+* **Telemetry** (only when on): `invocation_start` and `end` carry `long` (true/false),
+  `deme_cap_used`, `long_deme_rule`, and the run's counts so far, this deme included:
+  `n_demes` and `n_long_demes` (the last deme's values are the run's totals).
 
 ## Reserved expansions for the empty program (`--reserve-empty-every`)
 

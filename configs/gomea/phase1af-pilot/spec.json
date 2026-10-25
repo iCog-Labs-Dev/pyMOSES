@@ -1,0 +1,9 @@
+{
+  "phase": "1af-pilot",
+  "metrics": {
+    "mux11": "cpu_to_target",
+    "Con": "test_nmse"
+  },
+  "primary": [],
+  "secondary": []
+}

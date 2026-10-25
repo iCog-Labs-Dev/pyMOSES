@@ -467,6 +467,11 @@ def moses_exec(argv: Sequence[str] | str) -> int:
                 "--simplify-exemplar-numeric applies to regression only "
                 f"(-H it on a table with a contin output), not to -H {pp.problem}"
             )
+        if getattr(pp, "linear_scaling", 0) and probm.name() != "it":
+            raise ValueError(
+                "--linear-scaling applies to regression only "
+                f"(-H it on a table with a contin output), not to -H {pp.problem}"
+            )
         probm.run(pp)
         return 0
 

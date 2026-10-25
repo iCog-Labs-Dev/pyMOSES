@@ -13,8 +13,10 @@ A manifest (JSON) has these keys:
   {"time_s": T}}}`.
 
 **MOSES regression setup** (Phase 1f; see `PHASE1F-PREREGISTRATION.md`). MOSES scores a
-regression candidate by raw squared error, while its deme trimming and exemplar selection
-windows scale with the complexity temperature `-v`. So, per run, the runner:
+regression candidate by raw squared error (pyMoses: of the least-squares
+scaled a + b*f instead, if the arm passes `--linear-scaling 1`), while its deme
+trimming and exemplar selection windows scale with the complexity temperature `-v`.
+So, per run, the runner:
 
 1. rescales the training target to y' = 10 (y - mean) / sd, an affine map that leaves
    linearly-scaled NMSE unchanged, and writes it to the run directory;
@@ -25,6 +27,12 @@ windows scale with the complexity temperature `-v`. So, per run, the runner:
    splits (linear scaling fitted on train), and selects the candidate with the lowest
    validation NMSE. The summary reports that candidate (`test_nmse`, ...) and also the
    first, best-training-score candidate (`first_*`).
+
+**Telemetry.** A pyMoses GOMEA arm (`-a gomea` or `-a hc-gomea` in its argv) also gets
+`--gomea-log RUN_DIR/events.jsonl`, as the Boolean runner (`benchmarks.gomea.manifest`)
+does, so each run writes the per-deme "invocation_start", "generation" and "end" events
+(`events_argv`). It is on by default; `"events": false` on an arm turns it off. The log is a
+side file: MOSES's output is the same with or without it.
 
 The MOSES seed is the split number. Runs are resumable: an existing `summary.json` is
 kept.
@@ -105,14 +113,10 @@ def _limit(mem_mb):
     return fn
 
 
-def _run_one(job: dict) -> dict:
-    run_dir = Path(job["run_dir"])
-    run_dir.mkdir(parents=True, exist_ok=True)
-    summary_path = run_dir / "summary.json"
-    if summary_path.exists():
-        return json.loads(summary_path.read_text())
-    sdir = Path(job["split_dir"])
-    n_train, mean, sd = _scale_train(sdir / "train.csv", run_dir / "train_scaled.csv")
+def moses_argv(job: dict, run_dir: Path, n_train: int) -> list[str]:
+    """The MOSES command line of one run (before seeding rewrites `-m`): the fixed
+    regression setup, the budget, the arm's argv, then `--gomea-log RUN_DIR/events.jsonl`
+    when `events_argv` asks for it."""
     argv = [job["binary"], "-i", str(run_dir / "train_scaled.csv"), "-u", "y"]
     argv += ["-r", str(job["seed"]), "-n", "sin", "-n", "exp", "-n", "log"]
     argv += ["-v", str(60 * n_train), "-c", "10", "-V1", "-l", "WARN"]
@@ -122,6 +126,48 @@ def _run_one(job: dict) -> dict:
     if "evals" not in b:
         argv += ["-m", "1000000000"]
     argv += job["argv"]
+    return argv + events_argv(job, run_dir)
+
+
+def _selects_gomea(argv: list[str]) -> bool:
+    """Whether `argv` selects a GOMEA optimizer (`-a`/`--opt-algo` gomea or hc-gomea),
+    as `benchmarks.gomea.manifest.is_gomea_arm` decides it for the Boolean runner."""
+    algos = ("gomea", "hc-gomea")
+    for i, tok in enumerate(argv):
+        tok = str(tok)
+        if tok in ("-a", "--opt-algo") and i + 1 < len(argv) and str(argv[i + 1]) in algos:
+            return True
+        if tok.startswith("--opt-algo=") and tok.split("=", 1)[1] in algos:
+            return True
+        if tok.startswith("-a") and len(tok) > 2 and tok[2:] in algos:
+            return True
+    return False
+
+
+def events_argv(job: dict, run_dir: Path) -> list[str]:
+    """`["--gomea-log", RUN_DIR/events.jsonl]` for a pyMoses GOMEA arm, as the Boolean
+    runner passes it, so every regression run writes the same per-deme telemetry
+    ("invocation_start", "generation", "end"). On by default; an arm turns it off with
+    `"events": false`, and an arm that already passes `--gomea-log` keeps its own."""
+    argv = [str(x) for x in job["argv"]]
+    if not job.get("events", True) or not _is_pymoses(job["binary"]):
+        return []
+    if not _selects_gomea(argv) or any(
+        x == "--gomea-log" or x.startswith("--gomea-log=") for x in argv
+    ):
+        return []
+    return ["--gomea-log", str(run_dir / "events.jsonl")]
+
+
+def _run_one(job: dict) -> dict:
+    run_dir = Path(job["run_dir"])
+    run_dir.mkdir(parents=True, exist_ok=True)
+    summary_path = run_dir / "summary.json"
+    if summary_path.exists():
+        return json.loads(summary_path.read_text())
+    sdir = Path(job["split_dir"])
+    n_train, mean, sd = _scale_train(sdir / "train.csv", run_dir / "train_scaled.csv")
+    argv = moses_argv(job, run_dir, n_train)
     seed_rec = None
     if job.get("seed_spec"):
         try:
@@ -389,6 +435,7 @@ def expand(manifest: dict, out_root: Path, repo: Path) -> list[dict]:
                         "wall_cap_s": manifest["wall_cap_s"],
                         "mem_limit_mb": manifest.get("mem_limit_mb"),
                         "run_dir": str(out_root / manifest["name"] / "runs" / run_id),
+                        **({"events": a["events"]} if "events" in a else {}),
                     }
                 )
     return jobs
