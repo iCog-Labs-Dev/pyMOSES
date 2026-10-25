@@ -32,9 +32,10 @@ MM_VERSION=2.8.1-1
 MM_SHA256=77b7790ec97f64581118f103585b175df4306f95829b0fa6bfe4a19cc88a1182  # micromamba-linux-64
 GPG_URL=https://github.com/marcovirgolin/GP-GOMEA
 GPG_COMMIT=750220c
+# Reference (netlib) BLAS/LAPACK, as on the local machine: with OpenBLAS the tiny-problem
+# output differs from the local build from generation 2 on; with netlib it is identical.
 CONDA_SPECS=(python=3.14.9 numpy=2.5.4 libboost-devel=1.92.0 libboost-python-devel=1.92.0
-             gxx=16.2.0 sysroot_linux-64=2.28 "libblas=3.11.0=*openblas" liblapack=3.11.0
-             libopenblas=0.3.34)
+             gxx=16.2.0 sysroot_linux-64=2.28 "libblas=3.11.0=*netlib" "liblapack=3.11.0=*netlib")
 DATASETS=(Air Bos Con EnC EnH Yac)
 
 if [ -n "${GOMEA_RESULTS:-}" ] && [ ! -e ../gomea-results ]; then
@@ -263,21 +264,38 @@ step_gpgomea() {
         git -C "$GPG_SRC" checkout -q "$GPG_COMMIT" >> "$GPG_LOG" 2>&1 \
             || { gpg_json 0 "" "checkout $GPG_COMMIT failed"; record gpgomea FAILED "checkout $GPG_COMMIT failed"; return 1; }
     fi
-    local routes=() r err=""
+    # A route whose tiny-problem output matches the local build wins; otherwise the first
+    # route that works is used (rebuilt if a later route overwrote it).
+    local routes=() r err="" fallback="" last=""
     if [ "${FORCE_CONDA:-0}" != 1 ] && system_toolchain_ok; then routes+=(system); fi
     routes+=(conda)
     for r in "${routes[@]}"; do
         note "GP-GOMEA: trying the $r toolchain (log $GPG_LOG)"
         if [ "$r" = conda ] && ! conda_env >> "$GPG_LOG" 2>&1; then err="$err conda env failed;"; continue; fi
+        last=$r
         if ! build_with "$r"; then err="$err $r build failed;"; continue; fi
-        if .venv/bin/python tools/server/gpgomea_smoke.py "$GPG_B1/gpgomea" "$GPG_B2/gpgomea-seed" \
+        if ! .venv/bin/python tools/server/gpgomea_smoke.py "$GPG_B1/gpgomea" "$GPG_B2/gpgomea-seed" \
                "$RES/phase1f/datasets" --out "$SR/gpgomea-smoke.json" >> "$GPG_LOG" 2>&1; then
+            err="$err $r smoke run failed;"; continue
+        fi
+        if .venv/bin/python -c "import json,sys; sys.exit(0 if json.load(open('$SR/gpgomea-smoke.json'))['matches_local'] else 1)"; then
             gpg_json 1 "$r" ""
-            record gpgomea OK "built with the $r toolchain; tiny-problem output matches local: $(.venv/bin/python -c "import json; print(json.load(open('$GPG_JSON'))['smoke_matches_local'])")"
+            record gpgomea OK "built with the $r toolchain; tiny-problem output matches the local build"
             return 0
         fi
-        err="$err $r smoke run failed;"
+        note "GP-GOMEA: the $r build works but its output differs from the local build"
+        fallback=${fallback:-$r}
     done
+    if [ -n "$fallback" ]; then
+        if [ "$last" != "$fallback" ]; then
+            build_with "$fallback" && .venv/bin/python tools/server/gpgomea_smoke.py "$GPG_B1/gpgomea" \
+                "$GPG_B2/gpgomea-seed" "$RES/phase1f/datasets" --out "$SR/gpgomea-smoke.json" >> "$GPG_LOG" 2>&1 \
+                || { gpg_json 0 "" "$err rebuild with $fallback failed"; record gpgomea FAILED "rebuild with $fallback failed"; return 1; }
+        fi
+        gpg_json 1 "$fallback" ""
+        record gpgomea OK "built with the $fallback toolchain; WARNING tiny-problem output differs from the local build"
+        return 0
+    fi
     gpg_json 0 "" "$err"
     record gpgomea FAILED "$err (phases 1ai, 1aj will be skipped; see $GPG_LOG)"
     return 1
