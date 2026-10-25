@@ -58,10 +58,9 @@ def cpu_model() -> str | None:
 
 def collect() -> dict:
     venv_py = REPO / ".venv" / "bin" / "python"
-    uv = os.environ.get("UV_BIN") or shutil.which("uv")
-    if not uv:  # setup.sh's pinned copy under the results tree
-        found = sorted(glob.glob(str(REPO.parent / "gomea-results" / "toolchain" / "uv-*" / "uv")))
-        uv = found[-1] if found else "uv"
+    # setup.sh's pinned copy under the results tree first, then PATH
+    found = sorted(glob.glob(str(REPO.parent / "gomea-results" / "toolchain" / "uv-*" / "uv")))
+    uv = os.environ.get("UV_BIN") or (found[-1] if found else shutil.which("uv") or "uv")
     res = resources.decide()
     return {
         "hostname": socket.gethostname(),
