@@ -105,10 +105,10 @@ PYBIN=""
 step_python() {
     [ -n "$UV" ] || { record python FAILED "no uv"; return 1; }
     export UV_PYTHON_INSTALL_DIR=$TC/python UV_CACHE_DIR=$TC/uv-cache
-    PYBIN=$("$UV" python find --managed-python "$PY_VERSION" 2>/dev/null)
+    PYBIN=$(cd "$TC" && env -u VIRTUAL_ENV "$UV" python find --managed-python "$PY_VERSION" 2>/dev/null)
     if [ -z "$PYBIN" ]; then
         "$UV" python install --no-bin "$PY_VERSION" || { record python FAILED "uv python install $PY_VERSION"; return 1; }
-        PYBIN=$("$UV" python find --managed-python "$PY_VERSION" 2>/dev/null)
+        PYBIN=$(cd "$TC" && env -u VIRTUAL_ENV "$UV" python find --managed-python "$PY_VERSION" 2>/dev/null)
     fi
     local v
     v=$("$PYBIN" -c 'import sys; print(sys.version.split()[0])' 2>/dev/null)
