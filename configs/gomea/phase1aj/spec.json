@@ -1,0 +1,22 @@
+{
+  "phase": "1aj",
+  "metrics": {
+    "mux11": "cpu_to_target"
+  },
+  "primary": [
+    [
+      "mux11",
+      "seed-vs-hc-c250",
+      "GOMEA-SEED",
+      "HC-C250"
+    ]
+  ],
+  "secondary": [
+    [
+      "mux11",
+      "seed-vs-hc",
+      "GOMEA-SEED",
+      "HC"
+    ]
+  ]
+}

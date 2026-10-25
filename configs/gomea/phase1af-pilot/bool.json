@@ -2,7 +2,7 @@
   "schema_version": 1,
   "name": "phase1af-pilot-bool",
   "phase": 1,
-  "commit": "72c97b43811b9d19f99c1cb1e1598c311d8dbef4",
+  "commit": "514f602b1424847fa546ca02dde9db8e14459d29",
   "common_argv": [
     "-l",
     "WARN"

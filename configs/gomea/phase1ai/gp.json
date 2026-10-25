@@ -1,0 +1,46 @@
+{
+  "name": "phase1ai-gp",
+  "datasets_dir": "../gomea-results/phase1f/datasets",
+  "datasets": [
+    "Air",
+    "Con",
+    "EnC",
+    "EnH"
+  ],
+  "splits": [
+    1,
+    2,
+    3,
+    4,
+    5,
+    6,
+    7,
+    8,
+    9,
+    10
+  ],
+  "wall_cap_s": 1800,
+  "arms": {
+    "GPGOMEA": {
+      "binary": "../gomea-results/phase1b/gpgomea-build/gpgomea",
+      "train": "train",
+      "argv": [
+        "--linearscaling",
+        "--functions",
+        "+_-_*_aq",
+        "--erc",
+        "--gomea",
+        "--initmaxtreeheight",
+        "4",
+        "--ims",
+        "4_1",
+        "--popsize",
+        "500",
+        "--evaluations",
+        "10000",
+        "--generations",
+        "-1"
+      ]
+    }
+  }
+}

@@ -1,0 +1,61 @@
+{
+  "name": "phase1ah-sr-ext-Air",
+  "datasets_dir": "../gomea-results/phase1f/datasets",
+  "datasets": [
+    "Air"
+  ],
+  "splits": [
+    11,
+    12,
+    13,
+    14,
+    15,
+    16,
+    17,
+    18,
+    19,
+    20
+  ],
+  "wall_cap_s": 2400,
+  "mem_limit_mb": 3072,
+  "arms": {
+    "GOMEA": {
+      "binary": ".venv/bin/moses",
+      "budget": {
+        "time_s": 1000
+      },
+      "argv": [
+        "-a",
+        "gomea",
+        "--gomea-fos",
+        "lt-b",
+        "--gomea-pop-size",
+        "16",
+        "--gomea-skip-inactive",
+        "0",
+        "--gomea-max-evals-per-deme",
+        "250",
+        "--gomea-genotype-memo",
+        "1",
+        "--gomea-contin",
+        "copy",
+        "--knob-probe-baseline",
+        "reduced"
+      ]
+    },
+    "HC-C250": {
+      "binary": ".venv/bin/moses",
+      "budget": {
+        "time_s": 1000
+      },
+      "argv": [
+        "-a",
+        "hc-capped",
+        "--gomea-max-evals-per-deme",
+        "250",
+        "--knob-probe-baseline",
+        "reduced"
+      ]
+    }
+  }
+}

@@ -1,0 +1,43 @@
+{
+  "name": "phase1ai-gp-ext-Con",
+  "datasets_dir": "../gomea-results/phase1f/datasets",
+  "datasets": [
+    "Con"
+  ],
+  "splits": [
+    11,
+    12,
+    13,
+    14,
+    15,
+    16,
+    17,
+    18,
+    19,
+    20
+  ],
+  "wall_cap_s": 1800,
+  "arms": {
+    "GPGOMEA": {
+      "binary": "../gomea-results/phase1b/gpgomea-build/gpgomea",
+      "train": "train",
+      "argv": [
+        "--linearscaling",
+        "--functions",
+        "+_-_*_aq",
+        "--erc",
+        "--gomea",
+        "--initmaxtreeheight",
+        "4",
+        "--ims",
+        "4_1",
+        "--popsize",
+        "500",
+        "--evaluations",
+        "10000",
+        "--generations",
+        "-1"
+      ]
+    }
+  }
+}
