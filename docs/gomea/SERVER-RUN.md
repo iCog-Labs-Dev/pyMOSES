@@ -117,8 +117,11 @@ caps W (the cap is decided again at each phase start).
 
 ## Smoke test
 
-`bash tools/server/start.sh --plan smoke` runs a few-minute version (limited pytest, the
-mux11 reproducibility run, one tiny phase in `configs/gomea/server-smoke/`) with its own
-state in `../gomea-results/server-run-smoke/`, so it never marks real steps done.
-`status.sh --plan smoke` and `stop.sh --plan smoke` work the same way. The mux11 run alone
-takes about 20 minutes.
+`bash tools/server/start.sh --plan smoke` runs a short version (pytest on
+`tests/server` only, the mux11 reproducibility run, one tiny phase in
+`configs/gomea/server-smoke/`, and a step that is skipped on purpose) with its own state in
+`../gomea-results/server-run-smoke/`, so it never marks real steps done. The mux11 run
+takes about 15 to 20 minutes, the rest about two. `status.sh --plan smoke` and
+`stop.sh --plan smoke` work the same way. Before its phase it sets the `commit` of
+`configs/gomea/server-smoke/bool.json` to the current HEAD (the Boolean runner's code
+check), which leaves that file modified in the working tree; `git checkout` it afterwards.
