@@ -50,8 +50,8 @@ def test_sets_median_share_per_problem(tmp_path):
     res = _tree(tmp_path, configs)
     assert slp.main(["--results", str(res), "--configs", str(configs)]) == 0
     # mux11: shares 0.1 and 0.15 -> 0.125; Con: 0.25 and 0.5 -> 0.375
-    assert _p(configs, "bool.json") == _p(configs, "bool-ext-mux11.json") == "0.125"
-    assert _p(configs, "sr.json") == _p(configs, "sr-ext-Con.json") == "0.375"
+    assert _p(configs, "bool.json") == "0.125"
+    assert _p(configs, "sr.json") == "0.375"
     log = json.loads((res / "phase1af-pilot" / "longrand-p.json").read_text())
     assert log["mux11"]["p"] == 0.125 and len(log["Con"]["runs"]) == 2
     # nothing else in the manifests changes

@@ -19,8 +19,8 @@ demes in a 2-seed LONG-TOP pilot (seeds 3001-3002 / splits 1-2)". Per problem, t
    carries both (the long-deme telemetry is on every "invocation_start" and "end" event;
    the last one holds the run's totals), and the median over the runs;
 3. writes that p into `--gomea-long-deme-prob` of the LONG-RAND arm of every 1af manifest
-   of that problem (mux11: `bool.json`, `bool-ext-mux11.json`; Con: `sr.json`,
-   `sr-ext-Con.json`) and logs the pilot's result to `RESULTS/phase1af-pilot/longrand-p.json`.
+   of that problem (mux11: `bool.json`; Con: `sr.json`; the extensions hold only the
+   primary arms GOMEA and LONG-TOP) and logs the pilot's result to `RESULTS/phase1af-pilot/longrand-p.json`.
 
 It exits 1, changing nothing, unless it finds exactly 2 pilot runs per problem, each with
 the telemetry. `--dry-run` prints what it would set and writes nothing. RESULTS defaults to
@@ -45,7 +45,7 @@ N_PILOT = 2
 ARM = "LONG-RAND"
 FLAG = "--gomea-long-deme-prob"
 # problem -> the 1af manifests whose LONG-RAND arm takes that problem's p
-TARGETS = {"mux11": ("bool.json", "bool-ext-mux11.json"), "Con": ("sr.json", "sr-ext-Con.json")}
+TARGETS = {"mux11": ("bool.json",), "Con": ("sr.json",)}
 
 
 def pilot_globs(results: Path, configs: Path) -> dict[str, str]:

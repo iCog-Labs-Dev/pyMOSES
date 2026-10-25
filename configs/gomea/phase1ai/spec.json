@@ -9,53 +9,77 @@
   "primary": [
     [
       "Air",
-      "vs-gpgomea",
+      "vs-gpgomea-p16",
       "GOMEA",
-      "GPGOMEA"
+      "GPGOMEA-P16"
     ],
     [
       "Con",
-      "vs-gpgomea",
+      "vs-gpgomea-p16",
       "GOMEA",
-      "GPGOMEA"
+      "GPGOMEA-P16"
     ],
     [
       "EnC",
-      "vs-gpgomea",
+      "vs-gpgomea-p16",
       "GOMEA",
-      "GPGOMEA"
+      "GPGOMEA-P16"
     ],
     [
       "EnH",
-      "vs-gpgomea",
+      "vs-gpgomea-p16",
       "GOMEA",
-      "GPGOMEA"
+      "GPGOMEA-P16"
     ]
   ],
   "secondary": [
     [
       "Air",
-      "ls-vs-gpgomea",
-      "GOMEA-LS",
+      "vs-gpgomea-p500",
+      "GOMEA",
       "GPGOMEA"
     ],
     [
       "Con",
-      "ls-vs-gpgomea",
-      "GOMEA-LS",
+      "vs-gpgomea-p500",
+      "GOMEA",
       "GPGOMEA"
     ],
     [
       "EnC",
-      "ls-vs-gpgomea",
-      "GOMEA-LS",
+      "vs-gpgomea-p500",
+      "GOMEA",
       "GPGOMEA"
     ],
     [
       "EnH",
-      "ls-vs-gpgomea",
-      "GOMEA-LS",
+      "vs-gpgomea-p500",
+      "GOMEA",
       "GPGOMEA"
+    ],
+    [
+      "Air",
+      "ls-vs-gpgomea-p16",
+      "GOMEA-LS",
+      "GPGOMEA-P16"
+    ],
+    [
+      "Con",
+      "ls-vs-gpgomea-p16",
+      "GOMEA-LS",
+      "GPGOMEA-P16"
+    ],
+    [
+      "EnC",
+      "ls-vs-gpgomea-p16",
+      "GOMEA-LS",
+      "GPGOMEA-P16"
+    ],
+    [
+      "EnH",
+      "ls-vs-gpgomea-p16",
+      "GOMEA-LS",
+      "GPGOMEA-P16"
     ]
   ]
 }

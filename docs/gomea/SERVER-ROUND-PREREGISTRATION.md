@@ -13,7 +13,7 @@ the user's request; they were not reviewed one by one (see `APPROVALS.md`). How 
   server result. Contrasts are within one machine. Cross-machine comparisons are
   descriptive only.
 * **Code:** one commit for the whole round (the merge of the long-deme and linear-scaling
-  work, `514f602`, plus tools). `--knob-probe-baseline reduced` is the code default; every
+  work, `514f602`, plus a packaging fix, `12718ec`, plus tools). `--knob-probe-baseline reduced` is the code default; every
   arm still passes it explicitly.
 * **Statistics** as in every phase since 1u: paired Wilcoxon signed-rank, Holm across a
   phase's primary contrasts, α = 0.025. "Better" also needs a 10 % lower median. Holm
@@ -74,23 +74,36 @@ the user's request; they were not reviewed one by one (see `APPROVALS.md`). How 
   different budgets.
 * **Datasets:** Air, Con, EnC, EnH, splits 1–10.
 * **Arms:**
-  * GPGOMEA: the authors' C++ GP-GOMEA (`750220c`), 1f part B's setting (IMS g = 4,
-    height 4, ERC), stopped at 10,000 evaluations instead of by time. It trains on the same
-    train rows as pyMoses. Its fitness is linearly scaled (built in).
+  * GPGOMEA-P16: the authors' C++ GP-GOMEA (`750220c`), 1f part B's setting (IMS g = 4,
+    height 4, ERC, linear scaling) with population 16 (the integrated GOMEA's N) and
+    `--evaluations 10000`. It trains on the same train rows as pyMoses.
+  * GPGOMEA: the same with 1f's population of 500 (the authors' setting).
   * GOMEA: pyMoses GOMEA, base setting, 10,000 evaluations.
   * GOMEA-LS: GOMEA with `--linear-scaling 1`, the same fitness scaling as GP-GOMEA's.
-* **Primary:** GOMEA vs GPGOMEA on each dataset, test NMSE (4 contrasts).
-* **Secondary:** GOMEA-LS vs GPGOMEA on each dataset.
-* **Also reported:** size, gap and CPU. CPU is not comparable across the languages and is
-  descriptive only.
+* **Budget caveat (found while configuring):**
+  * GP-GOMEA checks its budget only between generations, so it overshoots.
+  * Measured locally on Con, EnH and Air, splits 1–2: population 16 used 11,050–12,983
+    evaluations, and population 500 used 17,619–19,913. No setting gives exactly 10,000.
+  * Evaluations used are reported per arm. The overshoot favours GP-GOMEA, so a tie or
+    "A better" for GOMEA is conservative.
+* **Primary:** GOMEA vs GPGOMEA-P16 on each dataset, test NMSE (4 contrasts).
+* **Secondary:** GOMEA vs GPGOMEA, and GOMEA-LS vs GPGOMEA-P16, on each dataset.
+* **Also reported:** size, gap and CPU.
+  * CPU is not comparable across the languages and is descriptive only.
+  * GP-GOMEA's size is its own node count, which excludes the scaling terms. pyMoses
+    counts atoms plus parentheses.
 * **Reading:** a tie or "A better" supports keeping the integration on accuracy; "A worse"
   means that per evaluation, plain GP-GOMEA is stronger.
-* **Runs:** 120 (+ up to 80).
+* **Runs:** 160 (+ up to 80).
 
 ## 1af. Long demes for promising exemplars (as pre-registered)
 
 As in `PHASE1AC-1AG-PREREGISTRATION.md`, including the 2-seed LONG-TOP pilot that sets
 LONG-RAND's p before stage 1. The pilot's result is logged.
+
+* **Correction:** the extension manifests now hold only the primary arms, GOMEA and
+  LONG-TOP. Before, they also held LONG-RAND and LONG-TOP-RT, which would have given
+  secondary contrasts 20 pairs, against the rule that secondary contrasts never extend.
 
 ## 1aj. Seeded GOMEA on mux11 at equal time (backlog 14, new)
 
@@ -98,7 +111,13 @@ LONG-RAND's p before stage 1. The pilot's result is logged.
   time gap to MOSES hill climbing?
 * **Arms:** GOMEA-SEED (1u's seeded GOMEA arm), HC-C250 and HC (uncapped).
 * **Budget:** 3,600 s wall time per run (as 1p's mux11). Metric: CPU to solve, unsolved =
-  infinite. The seeding step's CPU counts.
+  infinite.
+* **Seeding:**
+  * The seeding step's GP-GOMEA CPU counts towards CPU to solve. Its wall time (about
+    2.5 s in 1u) comes before MOSES's 3,600 s clock starts.
+  * 1u sets the seeding budget as a 0.2 share of `-m`. Under a time budget `-m` is 10⁹,
+    so the arm uses a fixed seeding budget of 8,000 evaluations instead: the value 1u
+    actually ran with.
 * **Primary:** GOMEA-SEED vs HC-C250. **Secondary:** GOMEA-SEED vs HC.
 * **Seeds:** 3001–3010 (+ 3011–3020).
 * **Runs:** 30 (+ 20).

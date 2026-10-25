@@ -18,7 +18,7 @@
   ],
   "wall_cap_s": 1800,
   "arms": {
-    "GPGOMEA": {
+    "GPGOMEA-P16": {
       "binary": "../gomea-results/phase1b/gpgomea-build/gpgomea",
       "train": "train",
       "argv": [
@@ -32,7 +32,7 @@
         "--ims",
         "4_1",
         "--popsize",
-        "500",
+        "16",
         "--evaluations",
         "10000",
         "--generations",
