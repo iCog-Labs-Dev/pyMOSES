@@ -4,9 +4,11 @@ Usage (from the repository root)::
 
     .venv/bin/python tools/gomea/phase_report.py --stage {1,2} SPEC_JSON OUT_DIR RESULT_DIRS
 
-RESULT_DIRS: comma-separated result directories, Boolean (`benchmarks.gomea.runner`) and
-regression (`moses_sr_runner.py`) mixed freely. A later directory overrides an earlier one
-for the same (task, arm, seed).
+RESULT_DIRS: comma-separated result directories, Boolean (`benchmarks.gomea.runner`),
+regression (`moses_sr_runner.py`) and stand-alone GP-GOMEA (`gpgomea_sr_runner.py`) mixed
+freely. A later directory overrides an earlier one for the same (task, arm, seed). Runs of
+different runners pair like any two arms: by (task, seed), a regression run's seed being its
+split (both regression runners write `task`, `arm`, `seed`, `status` and `test_nmse`).
 
 SPEC_JSON (one per phase, `configs/gomea/<phase>/spec.json`)::
 
@@ -33,8 +35,8 @@ pre-registration and `docs/gomea/QUEUE.md`).
 
 Writes OUT_DIR/contrasts.csv, aggregate.csv (per problem and arm: runs, failures, solved,
 medians of the metric, evaluations to solve, CPU, CPU per evaluation, demes, program size,
-and for seeded arms the best seed's score and the runs whose program descends from a seed)
-and verdict.json (`{"problem:name": verdict}` for primary and secondary contrasts).
+and for seeded arms the best seed's score and the runs whose program descends from a seed,
+and the evaluations used) and verdict.json (`{"problem:name": verdict}` for primary and secondary contrasts).
 """
 
 from __future__ import annotations
@@ -80,6 +82,11 @@ def _value(metric: str, s: dict) -> float:
 
 
 def _size(s: dict) -> int | None:
+    """Program size: for a MOSES combo program, its "(" plus its atoms. A GP-GOMEA summary
+    (`gpgomea_sr_runner.py`, infix output) gives GP-GOMEA's own node count instead
+    (`final_program_nodes`, without its linear scaling), which is not the same count."""
+    if s.get("final_program_nodes") is not None:
+        return int(s["final_program_nodes"])
     p = s.get("final_program")
     return None if p is None else p.count("(") + len(p.replace("(", " ").replace(")", " ").split())
 
@@ -121,8 +128,19 @@ def _med(xs):
     return statistics.median(xs) if xs else None
 
 
+def _evals(s: dict) -> float | None:
+    """Evaluations a run used: Boolean `n_calls`, regression `n_evals_total` (seeded) or
+    `n_evals`, GP-GOMEA `evaluations`."""
+    if "n_calls" in s:
+        return s.get("n_calls")
+    for k in ("n_evals_total", "n_evals", "evaluations"):
+        if s.get(k) is not None:
+            return s[k]
+    return None
+
+
 def _per_eval(s: dict) -> float | None:
-    n = s.get("n_calls") if "n_calls" in s else s.get("n_evals_total", s.get("n_evals"))
+    n = _evals(s)
     c = s.get("cpu_s")
     return c / n if c is not None and n else None
 
@@ -145,6 +163,7 @@ def _aggregate(problem: str, arm: str, v: list[dict], metric: str) -> dict:
         "median_seed_best_raw": None,
         "median_seed_evals": None,
         "final_from_seed": None,
+        "median_evals_used": _med(_evals(s) for s in v),
     }
     if seeded:
         row["median_seed_test_nmse"] = _med(s.get("seed_test_nmse") for s in v)
