@@ -439,7 +439,8 @@ class Round:
         procs = {}
         pcfg = step.get("pytest", {})
         if "pytest" not in st and not pcfg.get("skip"):
-            argv = [str(PY), "-m", "pytest", "-p", "no:cacheprovider", *pcfg.get("args", [])]
+            argv = [str(PY), "-m", "pytest", "-p", "no:cacheprovider",
+                    f"--junitxml={self.sd / 'pytest.xml'}", *pcfg.get("args", [])]
             logf = (self.sd / "pytest.log").open("w")
             procs["pytest"] = (subprocess.Popen(argv, cwd=REPO, stdout=logf, stderr=subprocess.STDOUT),
                                logf, time.time(), argv)
@@ -466,8 +467,9 @@ class Round:
             logf.close()
             dur = round(time.time() - t0)
             if name == "pytest":
-                st["pytest"] = res = {"rc": rc, "duration_s": dur, "args": argv[3:],
-                                      **self.pytest_counts(self.sd / "pytest.log")}
+                st["pytest"] = res = {"rc": rc, "duration_s": dur, "args": argv[6:],
+                                      **self.pytest_counts(self.sd / "pytest.log"),
+                                      **self.junit_counts(self.sd / "pytest.xml")}
                 res["ok"] = rc == 0
                 self.event("pytest", **res)
                 self.log(f"S0: pytest rc={rc} {res}")
@@ -494,6 +496,22 @@ class Round:
         self.current = {}
         st.update(status="done", flags=flags, end=utc())
         self.save_state()
+
+    @staticmethod
+    def junit_counts(xml: Path) -> dict:
+        """Counts from pytest's JUnit XML (present whatever the verbosity)."""
+        try:
+            import xml.etree.ElementTree as ET
+
+            root = ET.parse(xml).getroot()
+            suites = [root] if root.tag == "testsuite" else list(root.iter("testsuite"))
+            tot = {k: sum(int(x.get(k, 0)) for x in suites)
+                   for k in ("tests", "failures", "errors", "skipped")}
+        except (OSError, ValueError, Exception):
+            return {}
+        return {"tests": tot["tests"], "failed": tot["failures"], "errors": tot["errors"],
+                "skipped": tot["skipped"],
+                "passed": tot["tests"] - tot["failures"] - tot["errors"] - tot["skipped"]}
 
     @staticmethod
     def pytest_counts(logp: Path) -> dict:
