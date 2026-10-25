@@ -10,9 +10,11 @@ decision of resources.py. Standard library only; every field is best effort.
 
 from __future__ import annotations
 
+import glob
 import json
 import os
 import platform
+import shutil
 import socket
 import subprocess
 import sys
@@ -56,7 +58,10 @@ def cpu_model() -> str | None:
 
 def collect() -> dict:
     venv_py = REPO / ".venv" / "bin" / "python"
-    uv = os.environ.get("UV_BIN") or "uv"
+    uv = os.environ.get("UV_BIN") or shutil.which("uv")
+    if not uv:  # setup.sh's pinned copy under the results tree
+        found = sorted(glob.glob(str(REPO.parent / "gomea-results" / "toolchain" / "uv-*" / "uv")))
+        uv = found[-1] if found else "uv"
     res = resources.decide()
     return {
         "hostname": socket.gethostname(),
