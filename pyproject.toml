@@ -20,6 +20,9 @@ moses = "pymoses.moses.main.moses_exec:_console_main"
 feature-selection = "pymoses.feature_selection.main.fs_main:_console_main"
 eval-features = "pymoses.feature_selection.main.eval_features:_console_main"
 
+[tool.setuptools.packages.find]
+include = ["pymoses*"]
+
 [project.optional-dependencies]
 dev = ["pytest>=9.0", "ruff>=0.6"]
 
