@@ -125,6 +125,16 @@ byte-identical before and after on `mux11-gomea`, `maj5-hc`, `con-hc`, `con-gome
 Phase 1v/1r regression arm argvs, each with the flag; `classic` given explicitly reproduces
 the old default byte for byte).
 
+**Server round (2026-10-25):** the user asked for every remaining and confirmatory
+experiment to run unattended on a Debian Jupyter pod ("Give me a no human no ai interruption
+needed workflow for running all of the experiment that are needed to confirm ...").
+The scope request is the user's. Not user-approved: the designs of the new phases 1ah, 1ai
+and 1aj, the changes to 1ae and 1ag, and the server tooling (`tools/server/`,
+`data/gomea-sr/`, the `phase_run.sh` GP-GOMEA manifests). All are agent-written and are
+pre-registered in `SERVER-ROUND-PREREGISTRATION.md`. The long-deme and linear-scaling code
+was merged into this branch (`514f602`) for the round; it is opt-in and was not separately
+approved.
+
 Deviations from the handoff's gate procedure that follow from instruction #1:
 
 * The P1.0 → P1.5 stops are replaced by the review packets committed under `docs/gomea/`
