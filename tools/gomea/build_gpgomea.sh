@@ -12,6 +12,13 @@
 # 14.0.2 source (Apache-2.0) and uses it header-only (ARMA_DONT_USE_WRAPPER).
 # The checkout used for Phase 1b is GP-GOMEA@750220c.
 set -euo pipefail
+# Optional toolchain hooks (tools/server/setup.sh's conda route); empty by default, so the
+# command is the plain system one: GPGOMEA_CXX (compiler, default g++), GPGOMEA_CXXFLAGS
+# (extra flags before the sources, e.g. -I), GPGOMEA_LDFLAGS (extra flags before the
+# libraries, e.g. -L and -Wl,-rpath). `python3` is whichever is first on PATH.
+CXX_BIN=${GPGOMEA_CXX:-g++}
+EXTRA_CXXFLAGS=${GPGOMEA_CXXFLAGS:-}
+EXTRA_LDFLAGS=${GPGOMEA_LDFLAGS:-}
 G=$(realpath "${1:?GP-GOMEA checkout}")
 B=$(realpath -m "${2:?build dir}")
 mkdir -p "$B"
@@ -28,8 +35,8 @@ NPINC=$(python3 -c "import numpy;print(numpy.get_include())")
 PYVER=$(python3 -c "import sys;print(f'{sys.version_info[0]}{sys.version_info[1]}')")
 build() {  # $1 = source dir, $2 = output name
   mapfile -t srcs < <(find "$1" -name "*.cpp" ! -name gpgomea_python.cpp | sort)
-  g++ -std=c++17 -O2 -fopenmp -w -DARMA_DONT_USE_WRAPPER -I "$1/Include" -I "$ARMA/include" \
-      -I "$PYINC" -I "$NPINC" "${srcs[@]}" -o "$2" -llapack -lblas -lboost_program_options \
+  "$CXX_BIN" -std=c++17 -O2 $EXTRA_CXXFLAGS -fopenmp -w -DARMA_DONT_USE_WRAPPER -I "$1/Include" -I "$ARMA/include" \
+      -I "$PYINC" -I "$NPINC" "${srcs[@]}" -o "$2" $EXTRA_LDFLAGS -llapack -lblas -lboost_program_options \
       -lboost_filesystem "-lboost_python$PYVER" "-lboost_numpy$PYVER" "-lpython${PYVER:0:1}.${PYVER:1}"
 }
 build "$G/src" gpgomea
