@@ -12,7 +12,7 @@
 #   1. disk     free space under the results root (warning below 20 GB)
 #   2. uv       uv $UV_VERSION (pinned; downloaded and checksum-verified if not on PATH)
 #   3. python   CPython $PY_VERSION exactly, uv-managed, under the toolchain dir
-#   4. venv     .venv from that Python; pytest==9.1.1 and the repository (editable)
+#   4. venv     .venv from that Python; pip install -e . pytest==9.1.1
 #   5. datasets ../gomea-results/phase1f/datasets/<Abbr>/ for Air Bos Con EnC EnH Yac,
 #               rebuilt from data/gomea-sr/ and verified
 #   6. gpgomea  the authors' GP-GOMEA (750220c) and the seed build, for phases 1ai/1aj
@@ -116,25 +116,9 @@ step_python() {
 }
 
 # ---- 4. venv
-write_scripts() {  # the console scripts pip would write (pyproject.toml [project.scripts])
-    local name mod
-    for name in moses:pymoses.moses.main.moses_exec feature-selection:pymoses.feature_selection.main.fs_main \
-                eval-features:pymoses.feature_selection.main.eval_features; do
-        mod=${name#*:}; name=${name%%:*}
-        cat > ".venv/bin/$name" <<EOF
-#!$REPO/.venv/bin/python
-import sys
-from $mod import _console_main
-if __name__ == '__main__':
-    sys.argv[0] = sys.argv[0].removesuffix('.exe')
-    sys.exit(_console_main())
-EOF
-        chmod +x ".venv/bin/$name"
-    done
-}
 step_venv() {
     [ -n "$PYBIN" ] || { record venv FAILED "no Python $PY_VERSION"; return 1; }
-    local want have how
+    local want have
     want=$("$PYBIN" -c 'import sys; print(sys.base_prefix)')
     if [ -x .venv/bin/python ]; then
         have=$(.venv/bin/python -c 'import sys; print(sys.base_prefix)' 2>/dev/null)
@@ -146,27 +130,14 @@ step_venv() {
     if [ ! -x .venv/bin/python ]; then
         "$PYBIN" -m venv .venv || { record venv FAILED "python -m venv"; return 1; }
     fi
-    .venv/bin/python -m pip install -q --disable-pip-version-check pytest==9.1.1 \
-        || { record venv FAILED "pip install pytest==9.1.1"; return 1; }
-    if .venv/bin/python -m pip install -q --disable-pip-version-check --no-deps -e . ; then
-        how="pip install -e ."
-    else
-        # setuptools' flat-layout discovery refuses this tree (top-level configs/ next to
-        # pymoses/). The equivalent without touching pyproject.toml: the repository on
-        # sys.path through a .pth file, and the console scripts pip would have written.
-        note "pip install -e . failed; using the .pth fallback (repository on sys.path + console scripts)"
-        local sp
-        sp=$(.venv/bin/python -c 'import sysconfig; print(sysconfig.get_paths()["purelib"])')
-        echo "$REPO" > "$sp/pymoses-repo.pth"
-        write_scripts
-        how=".pth fallback"
-    fi
+    .venv/bin/python -m pip install -q --disable-pip-version-check -e . pytest==9.1.1 \
+        || { record venv FAILED "pip install -e . pytest==9.1.1"; return 1; }
     if ! .venv/bin/python -c "import pathlib, pymoses; assert pathlib.Path(pymoses.__file__).resolve().is_relative_to(pathlib.Path('$REPO').resolve())"; then
         record venv FAILED "pymoses does not import from $REPO"; return 1
     fi
-    if ! .venv/bin/moses --help > /dev/null 2>&1; then record venv FAILED ".venv/bin/moses --help fails"; return 1; fi
+    if ! .venv/bin/moses --help 2>&1 | grep -q "usage: moses"; then record venv FAILED ".venv/bin/moses --help fails"; return 1; fi
     .venv/bin/python -m pip freeze --all > "$SR/pip-freeze.txt"
-    record venv OK "$(.venv/bin/python -V) pytest $(.venv/bin/python -c 'import pytest; print(pytest.__version__)'), repo via $how"
+    record venv OK "$(.venv/bin/python -V) pytest $(.venv/bin/python -c 'import pytest; print(pytest.__version__)'), pymoses editable from $REPO"
 }
 
 # ---- 5. datasets

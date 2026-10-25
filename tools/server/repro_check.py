@@ -78,6 +78,23 @@ def extract(local_res: Path) -> dict:
     return out
 
 
+def runtime_manifest(spec: dict, out: Path) -> str:
+    """The manifest a run uses. A Boolean one is the committed template with `commit` set
+    to the current `git rev-parse HEAD` (written under OUT/manifests/, never into the
+    repository), so the runner's code check passes on whatever commit runs it."""
+    if spec["kind"] != "bool":
+        return spec["manifest"]
+    m = json.loads((REPO / spec["manifest"]).read_text())
+    m["commit"] = subprocess.run(["git", "rev-parse", "HEAD"], cwd=REPO, capture_output=True,
+                                 text=True, check=True).stdout.strip()
+    dst = out / "manifests" / Path(spec["manifest"]).name
+    dst.parent.mkdir(parents=True, exist_ok=True)
+    text = json.dumps(m, indent=2) + "\n"
+    if not dst.exists() or dst.read_text() != text:
+        dst.write_text(text)
+    return str(dst)
+
+
 def _bool_result_dir(manifest: str, out: Path) -> Path:
     r = subprocess.run([str(PY), "-m", "benchmarks.gomea.runner", manifest, "--dry-run",
                         "--output-root", str(out)], cwd=REPO, capture_output=True, text=True)
@@ -91,15 +108,16 @@ def _summary_path(spec: dict, out: Path) -> Path:
     if spec["kind"] == "sr":
         name = json.loads((REPO / spec["manifest"]).read_text())["name"]
         return out / name / "runs" / spec["run_id"] / "summary.json"
-    return _bool_result_dir(spec["manifest"], out) / "runs" / spec["run_id"] / "summary.json"
+    return (_bool_result_dir(runtime_manifest(spec, out), out) / "runs" / spec["run_id"]
+            / "summary.json")
 
 
 def _command(spec: dict, out: Path) -> list[str]:
     if spec["kind"] == "sr":
-        return [str(PY), "tools/gomea/moses_sr_runner.py", spec["manifest"], str(out),
+        return [str(PY), "tools/gomea/moses_sr_runner.py", runtime_manifest(spec, out), str(out),
                 "--workers", "1"]
     # the per-run settings of phase_run.sh's Boolean stage
-    return [str(PY), "-m", "benchmarks.gomea.runner", spec["manifest"], "--workers", "1",
+    return [str(PY), "-m", "benchmarks.gomea.runner", runtime_manifest(spec, out), "--workers", "1",
             "--recursion-limit", "100000", "--mem-limit-mb", "3072", "--output-root", str(out)]
 
 

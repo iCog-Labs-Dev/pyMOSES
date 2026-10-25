@@ -1,0 +1,22 @@
+{
+  "phase": "server-smoke",
+  "metrics": {
+    "mux6": "evals_to_target",
+    "Yac": "test_nmse"
+  },
+  "primary": [
+    [
+      "mux6",
+      "gomea_vs_hc",
+      "GOMEA",
+      "HC"
+    ],
+    [
+      "Yac",
+      "gomea_vs_hc",
+      "GOMEA",
+      "HC"
+    ]
+  ],
+  "secondary": []
+}

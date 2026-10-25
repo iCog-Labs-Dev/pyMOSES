@@ -2,7 +2,7 @@
   "schema_version": 1,
   "name": "server-repro-bool-mux11-GOMEA",
   "phase": "bool",
-  "commit": "889bea29e8f170e68aba9fda33ecb4be57385e55",
+  "commit": "SET_AT_RUNTIME",
   "common_argv": [
     "-l",
     "WARN"

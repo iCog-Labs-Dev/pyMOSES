@@ -1,0 +1,12 @@
+{
+  "name": "server-smoke",
+  "description": "Smoke test of the orchestrator: limited pytest, the mux11 repro run, one tiny phase (configs/gomea/server-smoke), a skipped step. Uses its own state dir, so it never marks real steps done.",
+  "state_dir": "server-run-smoke",
+  "steps": [
+    {"id": "S0", "type": "check", "pytest": {"args": ["-q", "tests/server"]},
+     "repro": {"only": ["1ae-mux11-GOMEA-s3001"]}},
+    {"id": "smoke-phase", "type": "phase", "phase": "server-smoke",
+     "set_commit_in": ["configs/gomea/server-smoke/bool.json"]},
+    {"id": "smoke-missing", "type": "phase", "phase": "server-smoke-missing"}
+  ]
+}
