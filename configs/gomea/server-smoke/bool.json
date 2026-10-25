@@ -55,7 +55,7 @@
   "budget": {
     "argv": [
       "-m",
-      "400"
+      "3000"
     ],
     "kind": "evaluations"
   },

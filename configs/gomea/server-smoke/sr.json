@@ -14,7 +14,7 @@
     "GOMEA": {
       "binary": ".venv/bin/moses",
       "budget": {
-        "evals": 300
+        "evals": 2000
       },
       "argv": [
         "-a",
@@ -38,7 +38,7 @@
     "HC": {
       "binary": ".venv/bin/moses",
       "budget": {
-        "evals": 300
+        "evals": 2000
       },
       "argv": [
         "-a",
