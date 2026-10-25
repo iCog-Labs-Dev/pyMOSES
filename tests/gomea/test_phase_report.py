@@ -175,3 +175,56 @@ def test_seed_fields(tmp_path):
 def test_no_runs_exits_1(tmp_path):
     rc, _, _ = _run(tmp_path, SPEC, [str(tmp_path / "nothing")])
     assert rc == 1
+
+
+def _gp(arm, split, nmse, task="Con", status="ok"):
+    """A `gpgomea_sr_runner.py` summary (infix program, its own node count)."""
+    return {"arm": arm, "task": task, "seed": split, "status": status, "exit_code": 0,
+            "test_nmse": nmse if status == "ok" else None, "train_nmse": nmse,
+            "val_nmse": None, "cpu_s": 0.5, "evaluations": 17869.0,
+            "final_program": "((x1+x2)*x3)", "final_program_nodes": 5.0}
+
+
+def test_gpgomea_summaries_pair_with_moses_by_split(tmp_path):
+    # Phase 1ai: pyMoses GOMEA (moses_sr_runner) vs stand-alone GP-GOMEA in its own dir.
+    dm = _write(tmp_path, "sr", [_reg("GOMEA", k, 0.1 + 0.01 * k) for k in range(1, 11)])
+    dg = _write(tmp_path, "gp", [_gp("GPGOMEA", k, 0.5 + 0.02 * k) for k in range(1, 9)]
+                + [_gp("GPGOMEA", k, None, status="timeout") for k in (9, 10)])
+    spec = {"phase": "t", "metrics": {"Con": "test_nmse"},
+            "primary": [["Con", "vs-gpgomea", "GOMEA", "GPGOMEA"]]}
+    rc, out, v = _run(tmp_path, spec, [dm, dg])
+    assert rc == 0 and v == {"Con:vs-gpgomea": "A better"}
+    row = _rows(out, "contrasts.csv")[0]
+    assert row["pairs"] == "10" and row["a_lower"] == "10"
+    # the two timed-out GP-GOMEA runs count as inf: median of 0.52..0.66 plus inf, inf
+    assert math.isclose(float(row["median_b"]), 0.61)
+    agg = {r["arm"]: r for r in _rows(out, "aggregate.csv")}
+    assert float(agg["GPGOMEA"]["median_size"]) == 5  # final_program_nodes, not the infix
+    assert float(agg["GPGOMEA"]["median_evals_used"]) == 17869
+    assert float(agg["GPGOMEA"]["median_cpu_per_eval"]) == 0.5 / 17869
+    assert agg["GPGOMEA"]["not_ok"] == "2"
+    assert float(agg["GOMEA"]["median_size"]) == 7 and float(agg["GOMEA"]["median_evals_used"]) == 500
+
+
+def test_scores_now_shows_gpgomea_runs(tmp_path):
+    import os
+    import subprocess
+
+    res = tmp_path / "res"
+    _write(res / "phase1ai", "phase1ai-sr", [_reg("GOMEA", k, 0.1, task="Air") for k in (1, 2)])
+    _write(res / "phase1ai", "phase1ai-gp", [_gp("GPGOMEA", k, 0.3, task="Air") for k in (1, 2)])
+    script = Path(__file__).resolve().parents[2] / "tools" / "gomea" / "scores_now.py"
+    out = subprocess.run([sys.executable, str(script), "phase1ai"], capture_output=True,
+                         text=True, env={**os.environ, "GOMEA_RESULTS": str(res)}).stdout
+    rows = {line.split()[0]: line.split() for line in out.splitlines()
+            if line.strip().startswith(("GOMEA", "GPGOMEA"))}
+    # arm runs fail test train gap size evals cpu
+    assert rows["GPGOMEA"][1:] == ["2", "0", "0.3", "0.3", "0.0", "5", "17,869", "0"]
+    assert rows["GOMEA"][1:] == ["2", "0", "0.1", "0.1", "0.0", "7", "500", "10"]
+    import importlib.util
+
+    spec = importlib.util.spec_from_file_location("scores_now", script)
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    assert mod.DEFAULT == ["phase1ah", "phase1ai", "phase1af-pilot", "phase1af", "phase1aj",
+                           "phase1ag", "phase1ae"]

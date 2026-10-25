@@ -1,0 +1,61 @@
+{
+  "phase": "1ai",
+  "metrics": {
+    "Air": "test_nmse",
+    "Con": "test_nmse",
+    "EnC": "test_nmse",
+    "EnH": "test_nmse"
+  },
+  "primary": [
+    [
+      "Air",
+      "vs-gpgomea",
+      "GOMEA",
+      "GPGOMEA"
+    ],
+    [
+      "Con",
+      "vs-gpgomea",
+      "GOMEA",
+      "GPGOMEA"
+    ],
+    [
+      "EnC",
+      "vs-gpgomea",
+      "GOMEA",
+      "GPGOMEA"
+    ],
+    [
+      "EnH",
+      "vs-gpgomea",
+      "GOMEA",
+      "GPGOMEA"
+    ]
+  ],
+  "secondary": [
+    [
+      "Air",
+      "ls-vs-gpgomea",
+      "GOMEA-LS",
+      "GPGOMEA"
+    ],
+    [
+      "Con",
+      "ls-vs-gpgomea",
+      "GOMEA-LS",
+      "GPGOMEA"
+    ],
+    [
+      "EnC",
+      "ls-vs-gpgomea",
+      "GOMEA-LS",
+      "GPGOMEA"
+    ],
+    [
+      "EnH",
+      "ls-vs-gpgomea",
+      "GOMEA-LS",
+      "GPGOMEA"
+    ]
+  ]
+}

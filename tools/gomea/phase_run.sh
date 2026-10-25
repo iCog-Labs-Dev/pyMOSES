@@ -2,7 +2,9 @@
 # Generic phase launcher. configs/gomea/<PHASE>/ holds spec.json (tools/gomea/phase_report.py)
 # and the stage-1 manifests bool.json (benchmarks.gomea.runner) and/or sr.json
 # (moses_sr_runner.py); optional extra stage-1 regression manifests sr-<name>.json (for arm
-# sets that differ by dataset); optional extensions bool-ext-<task>.json, sr-ext-<dataset>.json.
+# sets that differ by dataset); optional stage-1 gp.json (stand-alone GP-GOMEA,
+# gpgomea_sr_runner.py); optional extensions bool-ext-<task>.json, sr-ext-<dataset>.json,
+# gp-ext-<dataset>.json.
 # Runs stage 1 (Boolean first, then regression, never concurrently), reports stage 1, runs
 # the extension of every problem with an "extend" primary contrast (one at a time), and
 # reports stage 2 over all result directories.
@@ -21,16 +23,17 @@ mkdir -p "$R/$P"
 dir_of() {  # result directory of a manifest
     case "$(basename "$1")" in
         bool*) $PY -m benchmarks.gomea.runner "$1" --dry-run | sed -n 's/^result directory: //p' ;;
-        sr*) echo "$R/$P/$($PY -c 'import json,sys; print(json.load(open(sys.argv[1]))["name"])' "$1")" ;;
+        sr*|gp*) echo "$R/$P/$($PY -c 'import json,sys; print(json.load(open(sys.argv[1]))["name"])' "$1")" ;;
     esac
 }
 bench() { $PY -m benchmarks.gomea.runner "$1" --workers "$W" --recursion-limit 100000 \
             --mem-limit-mb 3072 >> "$R/$P-bench.log" 2>&1; }
 sr() { $PY tools/gomea/moses_sr_runner.py "$1" "$R/$P" --workers "$W" >> "$R/$P-sr.log" 2>&1; }
-run() { case "$(basename "$1")" in bool*) bench "$1" ;; sr*) sr "$1" ;; esac; }
+gp() { $PY tools/gomea/gpgomea_sr_runner.py "$1" "$R/$P" --workers "$W" >> "$R/$P-gp.log" 2>&1; }
+run() { case "$(basename "$1")" in bool*) bench "$1" ;; sr*) sr "$1" ;; gp*) gp "$1" ;; esac; }
 echo "start $(date -Is)"
 D1=""
-for m in "$Q/bool.json" "$Q/sr.json" "$Q"/sr-*.json; do
+for m in "$Q/bool.json" "$Q/sr.json" "$Q"/sr-*.json "$Q/gp.json"; do
     [ -f "$m" ] || continue
     case "$(basename "$m")" in sr-ext-*) continue ;; esac  # extensions run at stage 2
     echo "run $m $(date -Is)"
@@ -48,7 +51,7 @@ print(" ".join(sorted({p for p, n, a, b in spec["primary"] if v.get(f"{p}:{n}") 
 ' "$Q/spec.json" "$V" 2>/dev/null)
 D2=$D1; EXT=no
 for t in $EXTP; do
-    for m in "$Q/bool-ext-$t.json" "$Q/sr-ext-$t.json"; do
+    for m in "$Q/bool-ext-$t.json" "$Q/sr-ext-$t.json" "$Q/gp-ext-$t.json"; do
         [ -f "$m" ] || continue
         echo "extend $t: $m $(date -Is)"
         run "$m"

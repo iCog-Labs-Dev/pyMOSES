@@ -1,0 +1,74 @@
+{
+  "phase": "1ah",
+  "metrics": {
+    "Air": "test_nmse",
+    "Bos": "test_nmse",
+    "EnC": "test_nmse",
+    "EnH": "test_nmse",
+    "Yac": "test_nmse"
+  },
+  "primary": [
+    [
+      "Air",
+      "vs-hc-c250",
+      "GOMEA",
+      "HC-C250"
+    ],
+    [
+      "Bos",
+      "vs-hc-c250",
+      "GOMEA",
+      "HC-C250"
+    ],
+    [
+      "EnC",
+      "vs-hc-c250",
+      "GOMEA",
+      "HC-C250"
+    ],
+    [
+      "EnH",
+      "vs-hc-c250",
+      "GOMEA",
+      "HC-C250"
+    ],
+    [
+      "Yac",
+      "vs-hc-c250",
+      "GOMEA",
+      "HC-C250"
+    ]
+  ],
+  "secondary": [
+    [
+      "Air",
+      "vs-hc",
+      "GOMEA",
+      "HC"
+    ],
+    [
+      "Bos",
+      "vs-hc",
+      "GOMEA",
+      "HC"
+    ],
+    [
+      "EnC",
+      "vs-hc",
+      "GOMEA",
+      "HC"
+    ],
+    [
+      "EnH",
+      "vs-hc",
+      "GOMEA",
+      "HC"
+    ],
+    [
+      "Yac",
+      "vs-hc",
+      "GOMEA",
+      "HC"
+    ]
+  ]
+}
