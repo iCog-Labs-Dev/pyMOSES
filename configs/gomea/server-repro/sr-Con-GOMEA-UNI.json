@@ -1,0 +1,40 @@
+{
+  "name": "server-repro-Con-GOMEA-UNI",
+  "datasets_dir": "../gomea-results/phase1f/datasets",
+  "wall_cap_s": 36000,
+  "mem_limit_mb": 3072,
+  "datasets": [
+    "Con"
+  ],
+  "splits": [
+    1
+  ],
+  "arms": {
+    "GOMEA-UNI": {
+      "binary": ".venv/bin/moses",
+      "budget": {
+        "evals": 10000
+      },
+      "argv": [
+        "-a",
+        "gomea",
+        "--gomea-fos",
+        "lt-b",
+        "--gomea-pop-size",
+        "16",
+        "--gomea-skip-inactive",
+        "0",
+        "--gomea-max-evals-per-deme",
+        "250",
+        "--gomea-genotype-memo",
+        "1",
+        "--gomea-radii",
+        "uniform",
+        "--gomea-contin",
+        "copy",
+        "--knob-probe-baseline",
+        "reduced"
+      ]
+    }
+  }
+}
