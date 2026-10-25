@@ -1,0 +1,65 @@
+{
+  "schema_version": 1,
+  "name": "server-smoke-bool",
+  "phase": 1,
+  "commit": "SET_AT_RUNTIME",
+  "common_argv": [
+    "-l",
+    "WARN"
+  ],
+  "tasks": {
+    "mux6": {
+      "argv": [
+        "-H",
+        "mux",
+        "-k",
+        "2"
+      ],
+      "target_raw": 0
+    }
+  },
+  "arms": {
+    "GOMEA": {
+      "argv": [
+        "-a",
+        "gomea",
+        "--gomea-fos",
+        "lt-b",
+        "--gomea-pop-size",
+        "16",
+        "--gomea-skip-inactive",
+        "0",
+        "--gomea-max-evals-per-deme",
+        "250",
+        "--gomea-genotype-memo",
+        "1",
+        "--knob-probe-baseline",
+        "reduced"
+      ]
+    },
+    "HC": {
+      "argv": [
+        "-a",
+        "hc-capped",
+        "--gomea-max-evals-per-deme",
+        "250",
+        "--knob-probe-baseline",
+        "reduced"
+      ]
+    }
+  },
+  "seeds": [
+    3001,
+    3002
+  ],
+  "budget": {
+    "argv": [
+      "-m",
+      "3000"
+    ],
+    "kind": "evaluations"
+  },
+  "wall_cap_s": 1800,
+  "workers": 2,
+  "output_root": "../gomea-results"
+}

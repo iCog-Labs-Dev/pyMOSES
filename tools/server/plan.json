@@ -1,0 +1,15 @@
+{
+  "name": "server-round-2026-10",
+  "description": "SERVER-ROUND-PREREGISTRATION.md, in its order: S0, 1ah, 1ai, 1af-pilot + 1af, 1aj, 1ag, 1ae",
+  "state_dir": "server-run",
+  "steps": [
+    {"id": "S0", "type": "check", "pytest": {}, "repro": {}},
+    {"id": "phase1ah", "type": "phase", "phase": "phase1ah"},
+    {"id": "phase1ai", "type": "phase", "phase": "phase1ai", "requires": ["gpgomea"]},
+    {"id": "phase1af", "type": "phase", "phase": "phase1af", "pilot": "phase1af-pilot",
+     "after_pilot": [".venv/bin/python", "tools/gomea/set_longrand_p.py", "--results", "../gomea-results"]},
+    {"id": "phase1aj", "type": "phase", "phase": "phase1aj", "requires": ["gpgomea"]},
+    {"id": "phase1ag", "type": "phase", "phase": "phase1ag"},
+    {"id": "phase1ae", "type": "phase", "phase": "phase1ae"}
+  ]
+}

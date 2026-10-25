@@ -1,0 +1,54 @@
+{
+  "schema_version": 1,
+  "name": "server-repro-bool-mux11-GOMEA",
+  "phase": "bool",
+  "commit": "SET_AT_RUNTIME",
+  "common_argv": [
+    "-l",
+    "WARN"
+  ],
+  "tasks": {
+    "mux11": {
+      "argv": [
+        "-H",
+        "mux",
+        "-k",
+        "3"
+      ],
+      "target_raw": 0
+    }
+  },
+  "arms": {
+    "GOMEA": {
+      "argv": [
+        "-a",
+        "gomea",
+        "--gomea-fos",
+        "lt-b",
+        "--gomea-pop-size",
+        "16",
+        "--gomea-skip-inactive",
+        "0",
+        "--gomea-max-evals-per-deme",
+        "250",
+        "--gomea-genotype-memo",
+        "1",
+        "--knob-probe-baseline",
+        "reduced"
+      ]
+    }
+  },
+  "seeds": [
+    3001
+  ],
+  "budget": {
+    "argv": [
+      "-m",
+      "40000"
+    ],
+    "kind": "evaluations"
+  },
+  "wall_cap_s": 36000,
+  "workers": 1,
+  "output_root": "../gomea-results/server-run/repro"
+}

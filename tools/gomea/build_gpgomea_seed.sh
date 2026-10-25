@@ -19,6 +19,13 @@
 # BUILD_DIR/armadillo-code-14.0.2 (run build_gpgomea.sh first, or pass the one it made).
 # The checkout is never modified.
 set -euo pipefail
+# Optional toolchain hooks (tools/server/setup.sh's conda route); empty by default, so the
+# command is the plain system one: GPGOMEA_CXX (compiler, default g++), GPGOMEA_CXXFLAGS
+# (extra flags before the sources, e.g. -I), GPGOMEA_LDFLAGS (extra flags before the
+# libraries, e.g. -L and -Wl,-rpath). `python3` is whichever is first on PATH.
+CXX_BIN=${GPGOMEA_CXX:-g++}
+EXTRA_CXXFLAGS=${GPGOMEA_CXXFLAGS:-}
+EXTRA_LDFLAGS=${GPGOMEA_LDFLAGS:-}
 G=$(realpath "${1:?GP-GOMEA checkout}")
 B=$(realpath -m "${2:?build dir}")
 ARMA=$(realpath -m "${3:-$B/armadillo-code-14.0.2}")
@@ -98,7 +105,7 @@ open(p, "w").write(s)
 PY
 diff -u "$G/src/RunHandling/IMSHandler.cpp" src-seed/RunHandling/IMSHandler.cpp > seed.diff || true
 mapfile -t srcs < <(find src-seed -name "*.cpp" ! -name gpgomea_python.cpp | sort)
-g++ -std=c++17 -O2 -fopenmp -w -DARMA_DONT_USE_WRAPPER -I src-seed/Include -I "$ARMA/include" \
-    -I "$PYINC" -I "$NPINC" "${srcs[@]}" -o gpgomea-seed -llapack -lblas -lboost_program_options \
+"$CXX_BIN" -std=c++17 -O2 $EXTRA_CXXFLAGS -fopenmp -w -DARMA_DONT_USE_WRAPPER -I src-seed/Include -I "$ARMA/include" \
+    -I "$PYINC" -I "$NPINC" "${srcs[@]}" -o gpgomea-seed $EXTRA_LDFLAGS -llapack -lblas -lboost_program_options \
     -lboost_filesystem "-lboost_python$PYVER" "-lboost_numpy$PYVER" "-lpython${PYVER:0:1}.${PYVER:1}"
 sha256sum gpgomea-seed

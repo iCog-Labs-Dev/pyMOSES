@@ -7,6 +7,16 @@ under `DATASETS/<Abbr>/raw/` (see `DATASETS/PROVENANCE.md` for URLs and SHA-256s
 never downloads anything.
 
 Usage: .venv/bin/python tools/gomea/sr_datasets.py DATASETS [ABBR ...] [--no-splits]
+       .venv/bin/python tools/gomea/sr_datasets.py DATASETS ABBR ... --from-full SRC_DIR
+
+`--from-full SRC_DIR` (the server set-up, `tools/server/setup.sh`) needs no raw files: it
+takes `SRC_DIR/<Abbr>/full.csv` (e.g. the committed copies in `data/gomea-sr/`), checks
+its SHA-256 against `SRC_DIR/SHA256SUMS`, copies it to `DATASETS/<Abbr>/full.csv` and
+writes the 30 splits from it as in step 3 below. It then checks that the regenerated
+`splits.json` equals `SRC_DIR/<Abbr>/splits.json` (or `SRC_DIR/<Abbr>/splits/splits.json`)
+exactly, and exits non-zero on any mismatch. full.csv prints every value with its
+shortest round-trip repr, so re-reading it gives the same floats and the same split files,
+byte for byte.
 
 For every requested dataset (default: all ten) it
 
@@ -288,12 +298,44 @@ def _sha(text: str) -> str:
     return hashlib.sha256(text.encode()).hexdigest()
 
 
-def build(root: Path, abbr: str, splits: bool) -> dict:
+def load_full(src: Path, abbr: str) -> tuple[list[list[float]], str]:
+    """Rows of `src/<abbr>/full.csv`, after checking its SHA-256 against
+    `src/SHA256SUMS` (line `<sha>  <abbr>/full.csv`), its header and (k, n)."""
+    k, n = DATASETS[abbr][3], DATASETS[abbr][4]
+    text = (src / abbr / "full.csv").read_text()
+    sums = {}
+    for line in (src / "SHA256SUMS").read_text().splitlines():
+        if line.strip():
+            h, name = line.split(maxsplit=1)
+            sums[name.strip().lstrip("*")] = h
+    want = sums.get(f"{abbr}/full.csv")
+    if want is None:
+        raise SystemExit(f"{abbr}: no {abbr}/full.csv line in {src / 'SHA256SUMS'}")
+    if _sha(text) != want:
+        raise SystemExit(f"{abbr}: full.csv SHA-256 {_sha(text)} != {want} (SHA256SUMS)")
+    lines = text.splitlines()
+    head = ",".join([f"x{i}" for i in range(1, k + 1)] + ["y"])
+    if lines[0] != head:
+        raise SystemExit(f"{abbr}: full.csv header {lines[0]!r} != {head!r}")
+    rows = [[_num(t) for t in line.split(",")] for line in lines[1:] if line.strip()]
+    if len(rows) != n or any(len(r) != k + 1 for r in rows):
+        raise SystemExit(f"{abbr}: full.csv is not {k} features x {n} examples")
+    if csv_text(rows, k) != text:
+        raise SystemExit(f"{abbr}: full.csv does not re-print identically")
+    return rows, text
+
+
+def build(root: Path, abbr: str, splits: bool, from_full: Path | None = None) -> dict:
     ddir = root / abbr
     k, n = DATASETS[abbr][3], DATASETS[abbr][4]
-    rows = load_raw(ddir, abbr)
-    notes = cross_check(ddir, abbr, rows)
-    full = csv_text(rows, k)
+    if from_full is None:
+        rows = load_raw(ddir, abbr)
+        notes = cross_check(ddir, abbr, rows)
+        full = csv_text(rows, k)
+    else:
+        rows, full = load_full(from_full, abbr)
+        notes = [f"from {from_full / abbr / 'full.csv'} (SHA-256 checked; no raw files)"]
+    ddir.mkdir(parents=True, exist_ok=True)
     (ddir / "full.csv").write_text(full)
     info = {"features": k, "examples": n, "full_csv_sha256": _sha(full), "xcheck": notes}
     dups = n - len(set(map(tuple, rows)))
@@ -326,18 +368,42 @@ def build(root: Path, abbr: str, splits: bool) -> dict:
             "gpgomea_validation_fraction": (q + 0.5) / (n - q),
             "splits": meta,
         }
-        (ddir / "splits" / "splits.json").write_text(json.dumps(summary, indent=1) + "\n")
+        text = json.dumps(summary, indent=1) + "\n"
+        (ddir / "splits" / "splits.json").write_text(text)
         info["sizes"] = {"train": n - 2 * q, "val": q, "test": q}
+        if from_full is not None:
+            ref = next(
+                (p for p in (from_full / abbr / "splits.json",
+                             from_full / abbr / "splits" / "splits.json") if p.exists()),
+                None,
+            )
+            if ref is None:
+                raise SystemExit(f"{abbr}: no splits.json under {from_full / abbr}")
+            if ref.read_text() != text:
+                raise SystemExit(f"{abbr}: regenerated splits.json differs from {ref}")
+            info["splits_json_matches"] = str(ref)
     return info
 
 
 def main() -> int:
-    args = [a for a in sys.argv[1:] if not a.startswith("--")]
+    argv = sys.argv[1:]
+    from_full = None
+    if "--from-full" in argv:
+        i = argv.index("--from-full")
+        if i + 1 >= len(argv):
+            raise SystemExit("--from-full needs SRC_DIR")
+        from_full = Path(argv[i + 1])
+        del argv[i : i + 2]
+    args = [a for a in argv if not a.startswith("--")]
     if not args:
         raise SystemExit(__doc__)
     root = Path(args[0])
     wanted = args[1:] or list(DATASETS)
-    report = {abbr: build(root, abbr, "--no-splits" not in sys.argv) for abbr in wanted}
+    unknown = [a for a in wanted if a not in DATASETS]
+    if unknown:
+        raise SystemExit(f"unknown dataset(s) {unknown}; known: {list(DATASETS)}")
+    splits = "--no-splits" not in argv
+    report = {abbr: build(root, abbr, splits, from_full) for abbr in wanted}
     print(json.dumps(report, indent=2))
     return 0
 
