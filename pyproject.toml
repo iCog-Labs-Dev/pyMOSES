@@ -20,6 +20,11 @@ moses = "pymoses.moses.main.moses_exec:_console_main"
 feature-selection = "pymoses.feature_selection.main.fs_main:_console_main"
 eval-features = "pymoses.feature_selection.main.eval_features:_console_main"
 
+# Only the pymoses package is installed; configs/, tools/, benchmarks/ etc. are repo
+# folders, not packages (flat-layout auto-discovery otherwise refuses to build).
+[tool.setuptools.packages.find]
+include = ["pymoses*"]
+
 [project.optional-dependencies]
 dev = ["pytest>=9.0", "ruff>=0.6"]
 
