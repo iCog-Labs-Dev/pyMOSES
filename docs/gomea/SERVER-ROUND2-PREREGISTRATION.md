@@ -124,3 +124,13 @@ At most 18 + 210 + 240 + 180 = 648 runs, at about 900 CPU-seconds each (1ae, 1ai
 As round 1: `server-run/events.jsonl`, `run.log`, scoreboards, hourly and final bundles, and
 the pilot's log (`phase1ak-pilot/knob-cap.json`). The chosen K is written into the KC arms
 of 1ak, 1al and 1am.
+
+## Implementation notes (added before the round starts)
+
+* Round 2 writes its state to `server-run2/`, not `server-run/`, because round 1's DONE marker
+  and finished steps are there. Start it with `bash tools/server/start.sh --plan round2`.
+* The knob-cap stream is seeded by one extra draw from MOSES's global generator, only when
+  K > 0. K = 0 stays byte-identical (golden test against 04c2020).
+* The generation-0 contrast uses the penalized score. A NaN contrast scores 0.
+* 1al and 1am do not start until `phase1ak-pilot/knob-cap.json` exists. K can differ per
+  problem; the regression manifests are split per dataset for this.
