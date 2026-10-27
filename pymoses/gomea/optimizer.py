@@ -26,6 +26,7 @@ from fractions import Fraction
 from pymoses.gomea.engine import EngineParams, GomeaEngine
 from pymoses.gomea.fos import FOS_TOPK_MODES
 from pymoses.gomea.gom import ACCEPTANCE_MODES, Individual
+from pymoses.gomea.knob_cap import KNOB_RANK0_MODES, KNOB_SELECT_MODES, default_explore
 from pymoses.gomea.long_deme import LONG_DEME_RULES, LongDemePolicy
 from pymoses.gomea.oracle import BudgetExhausted, EvaluationOracle
 from pymoses.gomea.population import (
@@ -158,7 +159,16 @@ class gomea_parameters:
     gives the deme of an exemplar chosen by ``long_deme_rule`` (``"top"``
     or ``"random"`` with ``long_deme_prob``) cap C instead of
     ``max_evals_per_deme``; see ``pymoses.gomea.long_deme``. N and
-    ``deme_pop_size`` are unchanged."""
+    ``deme_pop_size`` are unchanged.
+
+    GOMEA extension, knob cap (server round 2, off by default, and then left
+    out of ``as_dict``): ``knob_cap`` K > 0 builds each generation's FOS over K
+    selected knobs only, chosen by ``knob_select`` (``"explore"``, ``"static"``
+    or ``"random"``) with ``knob_explore`` E rotating knobs (``None``: ``ceil(K /
+    4)``) and the generation-0 score ``knob_rank0`` (``"contrast"``,
+    ``"entropy"`` or ``"random"``); see ``pymoses.gomea.knob_cap``. Its draws
+    come from a fourth stream, seeded from ``randGen()`` after the other three
+    and only when K > 0, so a K = 0 run draws exactly as before."""
 
     def __init__(
         self,
@@ -188,6 +198,10 @@ class gomea_parameters:
         long_deme_cap: int = 0,
         long_deme_rule: str = "top",
         long_deme_prob: float = 0.0,
+        knob_cap: int = 0,
+        knob_select: str = "explore",
+        knob_explore: int | None = None,
+        knob_rank0: str = "contrast",
     ) -> None:
         if pop_size < 2:
             raise ValueError(f"pop_size must be >= 2, got {pop_size}")
@@ -242,6 +256,19 @@ class gomea_parameters:
             )
         if not (0.0 <= long_deme_prob <= 1.0):
             raise ValueError(f"long_deme_prob must be in [0, 1], got {long_deme_prob}")
+        if knob_cap < 0:
+            raise ValueError(f"knob_cap must be >= 0 (0 = off), got {knob_cap}")
+        if knob_select not in KNOB_SELECT_MODES:
+            raise ValueError(f"knob_select must be one of {KNOB_SELECT_MODES}, got {knob_select!r}")
+        if knob_rank0 not in KNOB_RANK0_MODES:
+            raise ValueError(f"knob_rank0 must be one of {KNOB_RANK0_MODES}, got {knob_rank0!r}")
+        if knob_cap > 0:
+            if knob_explore is None:
+                knob_explore = default_explore(knob_cap)
+            if not 0 <= knob_explore <= knob_cap:
+                raise ValueError(f"knob_explore must be in [0, {knob_cap}], got {knob_explore}")
+        elif knob_explore is not None or knob_select != "explore" or knob_rank0 != "contrast":
+            raise ValueError("knob_select, knob_explore and knob_rank0 need knob_cap > 0")
         parse_radii(radii)
 
         self.pop_size = pop_size
@@ -270,6 +297,10 @@ class gomea_parameters:
         self.long_deme_cap = long_deme_cap
         self.long_deme_rule = long_deme_rule
         self.long_deme_prob = long_deme_prob
+        self.knob_cap = knob_cap
+        self.knob_select = knob_select
+        self.knob_explore = knob_explore
+        self.knob_rank0 = knob_rank0
 
     # The opt-in options, left out of ``as_dict`` while at their default
     # (off), so a default run's telemetry is unchanged.
@@ -286,10 +317,17 @@ class gomea_parameters:
         "long_deme_prob": 0.0,
     }
 
+    # The knob-cap options: all left out of ``as_dict`` while ``knob_cap`` is 0
+    # (off), all kept otherwise.
+    _KNOB_KEYS = ("knob_cap", "knob_select", "knob_explore", "knob_rank0")
+
     def as_dict(self) -> dict:
         d = dict(vars(self))
         for k, default in self._OPTIONAL_DEFAULTS.items():
             if d[k] == default:
+                del d[k]
+        if self.knob_cap == 0:
+            for k in self._KNOB_KEYS:
                 del d[k]
         return d
 
@@ -451,6 +489,15 @@ def _draw_streams() -> tuple[MT19937RandGen, MT19937RandGen, MT19937RandGen]:
     return rng_init, rng_link, rng_var
 
 
+def _knob_stream(gp: gomea_parameters) -> MT19937RandGen | None:
+    """GOMEA extension (``--gomea-knob-cap``): the knob-cap stream, seeded from
+    ``randGen()`` after the other three; ``None`` (and nothing drawn) when the
+    cap is off."""
+    if gp.knob_cap <= 0:
+        return None
+    return MT19937RandGen(randGen().randint())
+
+
 def _score_fields(score: composite_score) -> dict:
     return {
         "raw": score.get_score(),
@@ -482,6 +529,9 @@ class gomea_optimization(optimizer_base):
             else None
         )
         self._long = False
+        # GOMEA extension (``--gomea-knob-cap``): the current call's knob-cap
+        # stream (``None`` when off).
+        self._rng_knob: MT19937RandGen | None = None
 
     def prepare_deme(self, mp, exemplar) -> None:
         """GOMEA extension, Phase 1af: called by ``expand_deme`` once the
@@ -511,6 +561,7 @@ class gomea_optimization(optimizer_base):
         schema = FrozenSchema(iscorer.get_rep(), gp.contin)
 
         rng_init, rng_link, rng_var = _draw_streams()
+        self._rng_knob = _knob_stream(gp)
         sink = TelemetrySink(gp.telemetry_path)
         oracle = self._make_oracle(schema, iscorer, deme, max_evals, max_time)
         ev = _OracleEvaluator(oracle, schema, gp.skip_inactive, gp.accept_complexity_ratio)
@@ -554,6 +605,7 @@ class gomea_optimization(optimizer_base):
         t_start = time.perf_counter()
         gp = self.gomea_params
         rng_init, rng_link, rng_var = _draw_streams()
+        self._rng_knob = _knob_stream(gp)
         sink = TelemetrySink(gp.telemetry_path)
         oracle = self._make_oracle(schema, iscorer, deme, max_evals, max_time)
         prior = [(schema.to_genotype(si.first), si.second) for si in deme]
@@ -734,6 +786,10 @@ class gomea_optimization(optimizer_base):
                         acceptance=gp.acceptance,
                         fos_topk=gp.fos_topk,
                         fos_topk_mode=gp.fos_topk_mode,
+                        knob_cap=gp.knob_cap,
+                        knob_select=gp.knob_select,
+                        knob_explore=gp.knob_explore,
+                        knob_rank0=gp.knob_rank0,
                     ),
                     ev,
                     rng_var,
@@ -742,6 +798,8 @@ class gomea_optimization(optimizer_base):
                     on_generation=on_generation,
                     symbolize=self._symbolizer(schema),
                     on_accept=oracle.keep if gp.deme_store == "accepted" else None,
+                    rng_knob=self._rng_knob,
+                    fitness=self._fitness(),
                 )
                 reason = engine.run(population).termination_reason
         except KeyboardInterrupt:
@@ -750,6 +808,15 @@ class gomea_optimization(optimizer_base):
             )
             raise
         self._finish(deme, oracle, ev, schema, init, engine, reason, init_s, t_start, sink)
+
+    def _fitness(self):
+        """GOMEA extension (``--gomea-knob-cap``): a score's scalar fitness for the
+        generation-0 contrast, as the deme ranks it: the penalized score, or ``raw -
+        complexity / R`` with ``accept_complexity_ratio`` R > 0."""
+        ratio = self.gomea_params.accept_complexity_ratio
+        if ratio > 0:
+            return lambda s: s.get_score() - s.get_complexity() / ratio
+        return lambda s: s.get_penalized_score()
 
     def _long_deme_record(self) -> dict:
         """Phase 1af telemetry, flat keys on ``invocation_start`` and ``end``:
@@ -833,4 +900,11 @@ class gomea_optimization(optimizer_base):
         if self.long_deme is not None:
             # GOMEA extension, Phase 1af (absent when the option is off).
             self.last_result.update(self._long_deme_record())
+        if self.gomea_params.knob_cap > 0:
+            # GOMEA extension, knob cap (absent when the option is off).
+            knobs = engine.knobs if engine is not None else None
+            self.last_result["knob_cap"] = self.gomea_params.knob_cap
+            self.last_result["knob_core_entered_total"] = (
+                knobs.entered_total if knobs is not None else 0
+            )
         sink.emit("end", **self.last_result)

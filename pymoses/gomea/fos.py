@@ -13,6 +13,7 @@ to genotype indices.
 
 from __future__ import annotations
 
+import math
 from collections.abc import Callable, Sequence
 
 from pymoses.gomea.stats import (
@@ -362,6 +363,119 @@ class LinkageModel:
             fos = [[linked[i] for i in s] for s in local]
         self.last_strengths = strengths + [None] * len(self.unlinked_positions)
         return fos + [[p] for p in self.unlinked_positions]
+
+    # GOMEA extension (``--gomea-knob-cap``, server round 2): see ``pymoses.gomea.knob_cap``.
+    def initial_entropies(self) -> dict[int, float]:
+        """Each linked position's entropy in the initial population (``H0``'s diagonal)."""
+        if self._H0 is None:
+            raise RuntimeError("LinkageModel.initial_entropies called before calibrate")
+        return {p: self._H0[i][i] for i, p in enumerate(self.linked_positions)}
+
+    def _linked_entropies(
+        self, pop: Sequence[tuple[int, ...]], first: _Calibration | None
+    ) -> list[list[float]]:
+        """The entropy matrix over every linked position of ``pop`` (recoded by
+        ``symbolize`` when set), as the linkage tree takes it."""
+        linked = self.linked_positions
+        if self.symbolize is None:
+            return self._entropies(pop, first, lambda: entropy_matrix(pop, linked))
+        return self._entropies(pop, first, lambda: entropy_matrix(self.symbolize(pop), linked))
+
+    def knob_strengths(
+        self, pop: Sequence[tuple[int, ...]]
+    ) -> tuple[dict[int, float], list[list[float]] | None]:
+        """Linkage strength of every search position in ``pop``: its largest LT-B
+        similarity (``biased_similarity`` against ``H0``) to any other linked position,
+        whatever ``mode`` is; ``-inf`` for a position outside the linkage tree, and for
+        all when fewer than two positions are linked. Also returns the entropy matrix
+        over ``linked_positions`` it used (``None`` when none was needed), which
+        ``learn_subset`` can reuse. Draws nothing from ``rng``."""
+        if self._length is None or self._H0 is None:
+            raise RuntimeError("LinkageModel.knob_strengths called before calibrate")
+        self._check_pop(pop, self._length)
+        out = {p: -math.inf for p in self.search_positions}
+        linked = self.linked_positions
+        if len(linked) < 2:
+            return out, None
+        H = self._linked_entropies(pop, self._first_learn)
+        S = biased_similarity(H, self._H0)
+        for i, p in enumerate(linked):
+            out[p] = max(S[i][j] for j in range(len(linked)) if j != i)
+        return out, H
+
+    def learn_subset(
+        self,
+        pop: Sequence[tuple[int, ...]],
+        positions: Sequence[int],
+        H_linked: list[list[float]] | None = None,
+    ) -> list[list[int]]:
+        """The FOS for ``pop`` over the search positions ``positions`` only (root
+        excluded), built as ``learn`` builds it over all of them: ``uni`` and ``rt`` over
+        the positions in ascending order; the linkage-tree modes over those of them that
+        are linked, from the rows and columns of ``H0`` and of the population's entropy
+        matrix that belong to them (``H_linked``, an entropy matrix of ``pop`` over all
+        ``linked_positions``, is reused when given), the unlinked ones following as
+        singletons. With every search position given, the FOS (and every draw from
+        ``rng``) equals ``learn``'s. Sets ``last_strengths`` like ``learn``."""
+        if self._length is None or self._H0 is None:
+            raise RuntimeError("LinkageModel.learn_subset called before calibrate")
+        self._check_pop(pop, self._length)
+        first, self._first_learn = self._first_learn, None
+        search = set(self.search_positions)
+        sel = sorted(set(positions))
+        if any(p not in search for p in sel):
+            raise ValueError(f"positions {sel} are not all search positions")
+        d = len(sel)
+        if d == 0:
+            self.last_strengths = []
+            return []
+        if d == 1:
+            self.last_strengths = [None]
+            return [[sel[0]]]
+        if self.mode in ("uni", "rt"):
+            local = univariate_fos(d) if self.mode == "uni" else random_tree_fos(d, self.rng)
+            self.last_strengths = [None] * len(local)
+            return [[sel[i] for i in s] for s in local]
+        index = {p: i for i, p in enumerate(self.linked_positions)}
+        lk = [p for p in sel if p in index]
+        ul = [p for p in sel if p not in index]
+        strengths: list[float | None]
+        if len(lk) == 0:
+            fos: list[list[int]] = []
+            strengths = []
+        elif len(lk) == 1:
+            fos, strengths = [[lk[0]]], [None]
+        else:
+            rows = [index[p] for p in lk]
+            if H_linked is None:
+                if len(lk) == len(index):
+                    H_linked = self._linked_entropies(pop, first)
+                else:
+                    H_linked = self._subset_entropies(pop, first, lk)
+                    rows = list(range(len(lk)))
+            H = [[H_linked[i][j] for j in rows] for i in rows]
+            H0 = [[self._H0[index[p]][index[q]] for q in lk] for p in lk]
+            S = mi_similarity(H) if self.mode == "lt-mi" else biased_similarity(H, H0)
+            local, strengths = self._tree(S, len(lk))
+            fos = [[lk[i] for i in s] for s in local]
+        self.last_strengths = strengths + [None] * len(ul)
+        return fos + [[p] for p in ul]
+
+    def _subset_entropies(
+        self, pop: Sequence[tuple[int, ...]], first: _Calibration | None, positions: list[int]
+    ) -> list[list[float]]:
+        """The entropy matrix of ``pop`` over ``positions`` (linked positions, recoded by
+        ``symbolize`` when set): taken from ``H0`` on the calibration population, else
+        computed over those positions only."""
+        if first is not None:
+            raw, H0 = first
+            if len(raw) == len(pop) and all(
+                tuple(row) == r for row, r in zip(pop, raw, strict=True)
+            ):
+                index = {p: i for i, p in enumerate(self.linked_positions)}
+                return [[H0[index[p]][index[q]] for q in positions] for p in positions]
+        src = pop if self.symbolize is None else self.symbolize(pop)
+        return entropy_matrix(src, positions)
 
     @staticmethod
     def _entropies(

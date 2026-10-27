@@ -274,6 +274,10 @@ def test_help_only_adds_gomea_lines():
         "--gomea-deme-store",
         "--gomea-fos-topk",
         "--gomea-fos-topk-mode",
+        "--gomea-knob-cap",
+        "--gomea-knob-select",
+        "--gomea-knob-explore",
+        "--gomea-knob-rank0",
     ):
         assert any(line.strip().startswith(flag + " ") for line in added), flag
 

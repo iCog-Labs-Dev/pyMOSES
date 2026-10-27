@@ -130,6 +130,10 @@ to, so an invalid value is always rejected.
 | `--gomea-long-deme-cap C` | `0` (off) | With `-a gomea` and a per-deme cap: a deme chosen by `--gomea-long-deme-rule` runs with cap C instead of `--gomea-max-evals-per-deme`, still bounded by the evaluations left; N is unchanged. See [Long demes](#long-demes-for-promising-exemplars---gomea-long-deme-cap). |
 | `--gomea-long-deme-rule {top,random}` | `top` | `top`: a deme is long when its exemplar has the metapopulation's highest penalized score when chosen (ties count) and has not had a long deme before. `random`: each deme is long with probability `--gomea-long-deme-prob p`, drawn from the run's RNG. |
 | `--gomea-long-deme-prob p` | `0` | With `--gomea-long-deme-rule random`. p = 0 (and p = 1) draws nothing. |
+| `--gomea-knob-cap K` | `0` (off) | Build each generation's FOS (by `--gomea-fos`) over K selected knobs only; GOM never changes the other knobs. See [Knob cap](#knob-cap---gomea-knob-cap). |
+| `--gomea-knob-select {explore,static,random}` | `explore` | With `--gomea-knob-cap K`: `explore` (each generation a core of the K − E best knobs plus E random others), `static` (the K best in generation 0, fixed for the deme) or `random` (K random knobs, fixed). |
+| `--gomea-knob-explore E` | `-1` (= ⌈K/4⌉) | With `--gomea-knob-select explore`: the random knobs drawn each generation, 0 to K. |
+| `--gomea-knob-rank0 {contrast,entropy,random}` | `contrast` | With `--gomea-knob-cap`: the knob score in generation 0 (see below). |
 | `--reserve-empty-every K` | `0` (off) | Port-only, any optimizer: every K-th expansion picks its exemplar only among the programs descending from an initial exemplar that is the empty program (`+`/`and`), falling back to the normal choice when none is selectable. See [Reserved expansions for the empty program](#reserved-expansions-for-the-empty-program---reserve-empty-every). |
 | `--linear-scaling {0,1}` | `0` (off) | Port-only, regression only (squared error), any optimizer: score each program `f` on `a + b·f`, the least-squares fit of `f` to the training target. See [Linear scaling](#linear-scaling---linear-scaling). |
 
@@ -255,6 +259,36 @@ rarely finishes a generation, so it learns the tree about once; with top-K it ru
 generations, so CPU time per evaluation rises sharply even though each generation costs fewer
 evaluations.
 
+## Knob cap (`--gomea-knob-cap`)
+
+Server round 2 (`SERVER-ROUND2-PREREGISTRATION.md`). With `--gomea-knob-cap K` (K > 0) each
+generation's FOS is built by the arm's `--gomea-fos` over K selected knobs only: a linkage
+or random tree has `2K − 2` subsets, the univariate FOS K. GOM never copies a knob outside
+the selection, so every individual keeps its own value there. (Forced improvements, off by
+default, use the same FOS, but when they find no improvement they still copy the whole
+elite.)
+
+* **Candidates:** the deme's search positions (knobs that vary in the initial population).
+* **Generation-0 score** (`--gomea-knob-rank0`): `contrast` = |mean fitness (penalized
+  score) of the individuals whose value at the knob differs from the exemplar's − mean
+  fitness of the others|, 0 when all or none differ; `entropy` = the knob's entropy in the
+  initial population (LT-B's `H0`); `random` = a random order.
+* **Later score** (`explore` only): linkage strength, the knob's largest LT-B similarity to
+  any other search position in the current population, computed with LT-B whatever
+  `--gomea-fos` is.
+* **Selection:** `static` keeps the K best of generation 0; `random` keeps K random knobs;
+  `explore` takes, each generation, a core of the K − E best plus E random knobs from the
+  rest. Ties are broken at random. LT-B over the selection uses the `H0` rows of the
+  selected knobs, so a knob that enters later already has its baseline.
+
+**RNG:** the knob cap's draws come from a stream of their own, seeded from the run's RNG
+after the deme's other three streams, and only when K > 0; with K = 0 nothing is drawn and
+runs are byte-identical to runs without the option (`tests/gomea/test_knob_cap_identity.py`).
+Every `generation` event then also logs `knob_cap`, `knob_select`, `knob_rank0`,
+`knob_explore_n` (E), `knob_n_candidates`, `knob_selected`, `knob_core`, `knob_explore` and
+`knob_core_entered` (core knobs that were not in the previous generation's core); `fos_size`
+is the size of the capped FOS. The `end` event adds `knob_cap` and `knob_core_entered_total`.
+
 ## Numerical simplification of exemplars (`--simplify-exemplar-numeric`)
 
 Port-only and opt-in: classic MOSES has no counterpart, and with the default `0` nothing
@@ -354,10 +388,10 @@ The file gets one JSON object per line, and each object has a `"type"`. For ever
 
 | type | Key fields |
 |---|---|
-| `invocation_start` | `schema_id` (a hash of this representation's knob layout), `dim` (number of knobs), `domains`, `max_evals`, `params` (`accept_complexity_ratio`, `deme_store`, `fos_topk` and `fos_topk_mode` appear only when not at their defaults); with `--gomea-pop-fraction` or `--gomea-deme-share` also `deme_budget`, `deme_cap` (the per-deme cap, `null` for none) and `deme_pop_size` (this deme's N); with `--gomea-long-deme-cap` also `long`, `deme_cap_used`, `long_deme_rule`, `n_demes`, `n_long_demes` |
+| `invocation_start` | `schema_id` (a hash of this representation's knob layout), `dim` (number of knobs), `domains`, `max_evals`, `params` (`accept_complexity_ratio`, `deme_store`, `fos_topk` and `fos_topk_mode` appear only when not at their defaults; `knob_cap`, `knob_select`, `knob_explore`, `knob_rank0` only with `--gomea-knob-cap`); with `--gomea-pop-fraction` or `--gomea-deme-share` also `deme_budget`, `deme_cap` (the per-deme cap, `null` for none) and `deme_pop_size` (this deme's N); with `--gomea-long-deme-cap` also `long`, `deme_cap_used`, `long_deme_rule`, `n_demes`, `n_long_demes` |
 | `init` | the initial population: `attempts`, `duplicates_rejected`, `coverage_replacements`, `feasible_short`, and `diagnostics` (per-knob entropy and observed values, `constant_fields_before/after_coverage`, `radius_histogram`) |
-| `generation` | `generation`, `fos_size` (with `--gomea-fos-topk` also `fos_topk`, `fos_topk_mode`, `fos_effective_size`, `fos_effective_mean_subset_size`, `fos_selected`, `fos_selected_strength`), per-generation GOM `stats` (trials, evaluated, accepted_improving / accepted_neutral / rejected, noop_skips, fi_*), `nis` (the no-improvement stretch), `best_raw`/`best_pen`/`best_cpx` (of the engine's best, under the deme-local comparator when `--gomea-accept-complexity-ratio` is on), a `ledger` snapshot, and diversity: `unique_genotypes`, `mean_entropy_bits`, `n_varying_fields`, `best_raw_count` |
-| `end` | `termination_reason`, `generations`, `ledger` (requests = evaluations charged, invalid, duplicate_requests, …), `timings` (init / eval / linkage / variation seconds), `best`; with `--gomea-long-deme-cap` also the long-deme keys of `invocation_start` |
+| `generation` | `generation`, `fos_size` (with `--gomea-fos-topk` also `fos_topk`, `fos_topk_mode`, `fos_effective_size`, `fos_effective_mean_subset_size`, `fos_selected`, `fos_selected_strength`; with `--gomea-knob-cap` the `knob_*` keys of [Knob cap](#knob-cap---gomea-knob-cap)), per-generation GOM `stats` (trials, evaluated, accepted_improving / accepted_neutral / rejected, noop_skips, fi_*), `nis` (the no-improvement stretch), `best_raw`/`best_pen`/`best_cpx` (of the engine's best, under the deme-local comparator when `--gomea-accept-complexity-ratio` is on), a `ledger` snapshot, and diversity: `unique_genotypes`, `mean_entropy_bits`, `n_varying_fields`, `best_raw_count` |
+| `end` | `termination_reason`, `generations`, `ledger` (requests = evaluations charged, invalid, duplicate_requests, …), `timings` (init / eval / linkage / variation seconds), `best`; with `--gomea-long-deme-cap` also the long-deme keys of `invocation_start`; with `--gomea-knob-cap` also `knob_cap`, `knob_core_entered_total` |
 | `hybrid` | `-a hc-gomea` only, one per deme: `deme_id`, `max_evals`, `hc_evals`, `hc_stop` (`budget`, `time_limit`, `target` or `local_optimum`), `gomea_ran`, `gomea_evals` (charged), `gomea_termination_reason` |
 
 A deme ends with one of these `termination_reason`s: `target_reached`, `converged`,

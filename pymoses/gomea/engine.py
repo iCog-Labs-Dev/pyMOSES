@@ -24,6 +24,7 @@ from pymoses.gomea.gom import (
     forced_improvement,
     gom,
 )
+from pymoses.gomea.knob_cap import KnobSelector, default_explore
 from pymoses.util.rng import MT19937RandGen
 
 
@@ -42,6 +43,14 @@ class EngineParams:
     # ``"linkage"`` or ``"random"``. See ``perform_generation``.
     fos_topk: int = 0
     fos_topk_mode: str = "linkage"
+    # GOMEA extension (``--gomea-knob-cap``, server round 2): build each
+    # generation's FOS over ``knob_cap`` selected knobs only (0 = off, the
+    # default); see ``pymoses.gomea.knob_cap``. ``knob_explore`` ``None`` is
+    # ``ceil(knob_cap / 4)``.
+    knob_cap: int = 0
+    knob_select: str = "explore"
+    knob_explore: int | None = None
+    knob_rank0: str = "contrast"
 
 
 @dataclass
@@ -51,6 +60,13 @@ class EngineResult:
     generations: int
     termination_reason: str
     history: list[dict] = field(default_factory=list)
+
+
+def _default_fitness(score: Score) -> float:
+    """A score's scalar fitness, higher is better: MOSES's penalized score, or the
+    score itself when it is a number."""
+    get = getattr(score, "get_penalized_score", None)
+    return float(get() if get is not None else score)
 
 
 class _Stop(Exception):
@@ -92,6 +108,8 @@ class GomeaEngine:
         on_generation: Callable[[dict, list[Individual]], None] | None = None,
         symbolize: Callable[[Sequence[tuple[int, ...]]], list[tuple[int, ...]]] | None = None,
         on_accept: Callable[[tuple[int, ...]], None] | None = None,
+        rng_knob: MT19937RandGen | None = None,
+        fitness: Callable[[Score], float] | None = None,
     ) -> None:
         self.domains = list(domains)
         self.params = params
@@ -112,6 +130,14 @@ class GomeaEngine:
         # The run's calibrated linkage model (``None`` before ``run``), so
         # ``on_generation`` can report over its ``search_positions``.
         self.model: LinkageModel | None = None
+        # GOMEA extension (``--gomea-knob-cap``): the knob-cap stream (all of
+        # the selector's draws; required when ``knob_cap > 0``), the scalar
+        # fitness of a score for the generation-0 contrast (higher is better;
+        # default ``_default_fitness``) and the deme's selector (``None``
+        # when off, and before ``run``).
+        self.rng_knob = rng_knob
+        self.fitness = fitness if fitness is not None else _default_fitness
+        self.knobs: KnobSelector | None = None
 
     def best_of(self, pop: Sequence[Individual]) -> Individual:
         """The best individual; ties go to the lowest index."""
@@ -168,6 +194,14 @@ class GomeaEngine:
         # position constant, so calibration yields no search fields.
         if not model.search_positions:
             return "no_search_fields"
+        p = self.params
+        if p.knob_cap > 0:
+            if self.rng_knob is None:
+                raise ValueError("knob_cap > 0 needs rng_knob, the knob-cap stream")
+            explore = default_explore(p.knob_cap) if p.knob_explore is None else p.knob_explore
+            self.knobs = KnobSelector(
+                p.knob_cap, p.knob_select, explore, p.knob_rank0, self.rng_knob
+            )
         if self.params.max_generations <= 0:
             return "max_generations"
         best = self.best_of(P)
@@ -238,10 +272,26 @@ def perform_generation(
     genotype positions) and ``fos_selected_strength`` (their strengths,
     ``None`` where a subset has none); ``fos_size`` stays the full FOS.
     With K = 0 nothing is drawn and the record is unchanged.
+
+    GOMEA extension (``--gomea-knob-cap``): with ``eng.knobs`` set (``knob_cap``
+    K > 0), the generation's knobs are chosen first (``KnobSelector.select``,
+    drawing only from ``eng.rng_knob``) and the FOS is learned over them only
+    (``LinkageModel.learn_subset``), so GOM and forced improvements never copy
+    another knob. ``fos_size`` is then the size of that FOS, and the record
+    gains the ``knob_*`` fields of ``KnobSelector.record``. With K = 0 the FOS
+    is ``model.learn``'s and the record is unchanged.
     """
     t0 = time.perf_counter()
     donors = list(P)
-    F = model.learn([ind.genotype for ind in P])
+    knobs = getattr(eng, "knobs", None)
+    knob_rec: dict = {}
+    if knobs is None:
+        F = model.learn([ind.genotype for ind in P])
+    else:
+        genotypes = [ind.genotype for ind in P]
+        sel = knobs.select(generation, genotypes, lambda: [eng.fitness(i.score) for i in P], model)
+        F = model.learn_subset(genotypes, sel.selected, sel.H)
+        knob_rec = knobs.record(sel)
     linkage_s = time.perf_counter() - t0
     if not F:
         raise _Stop("no_valid_moves")
@@ -309,6 +359,7 @@ def perform_generation(
         "fos_size": full_size,
         "fos_mean_subset_size": full_mean,
         **topk,
+        **knob_rec,
         "stats": stats.as_dict(),
         "nis": nis,
         "best_improved": False,

@@ -495,6 +495,44 @@ _GOMEA_OPTIONS = (
         "with --gomea-long-deme-rule random: the probability that a deme is "
         "long. Default 0.",
     ),
+    # Knob cap (server round 2; off by default: a default run is unchanged).
+    (
+        "--gomea-knob-cap",
+        "gomea_knob_cap",
+        int,
+        0,
+        "build each GOMEA generation's FOS (by --gomea-fos) over K selected "
+        "knobs only (chosen by --gomea-knob-select); GOM never changes the "
+        "other knobs. 0 = off (all knobs). Default 0.",
+    ),
+    (
+        "--gomea-knob-select",
+        "gomea_knob_select",
+        str,
+        "explore",
+        "with --gomea-knob-cap K: explore (each generation the K-E best knobs, "
+        "by --gomea-knob-rank0 in generation 0 and by linkage strength later, "
+        "plus E random others), static (the K best in generation 0, fixed) or "
+        "random (K random knobs, fixed). Default explore.",
+    ),
+    (
+        "--gomea-knob-explore",
+        "gomea_knob_explore",
+        int,
+        -1,
+        "with --gomea-knob-select explore: E, the random knobs drawn each "
+        "generation (0 to K). Default -1, meaning ceil(K/4).",
+    ),
+    (
+        "--gomea-knob-rank0",
+        "gomea_knob_rank0",
+        str,
+        "contrast",
+        "with --gomea-knob-cap: the generation-0 knob score: contrast "
+        "(|mean fitness where the knob differs from the exemplar - mean "
+        "fitness of the others|), entropy (the knob's entropy in the initial "
+        "population) or random. Default contrast.",
+    ),
 )
 # NOT A PORT (pyMoses extension, no C++ counterpart; not GOMEA-specific): options
 # registered with the GOMEA ones (after every classic option), off by default.
@@ -539,6 +577,8 @@ _GOMEA_CONTIN_STATS_CHOICES = ("bin", "all", "none")
 _GOMEA_DEME_STORE_CHOICES = ("all", "accepted")
 _GOMEA_FOS_TOPK_MODE_CHOICES = ("linkage", "random")
 _GOMEA_LONG_DEME_RULE_CHOICES = ("top", "random")
+_GOMEA_KNOB_SELECT_CHOICES = ("explore", "static", "random")
+_GOMEA_KNOB_RANK0_CHOICES = ("contrast", "entropy", "random")
 
 
 class _ClassicPrefixAlias(argparse.Action):
@@ -603,6 +643,8 @@ def _gomea_params_from_args(args: argparse.Namespace) -> gomea_parameters:
         ("--gomea-deme-store", "gomea_deme_store", _GOMEA_DEME_STORE_CHOICES),
         ("--gomea-fos-topk-mode", "gomea_fos_topk_mode", _GOMEA_FOS_TOPK_MODE_CHOICES),
         ("--gomea-long-deme-rule", "gomea_long_deme_rule", _GOMEA_LONG_DEME_RULE_CHOICES),
+        ("--gomea-knob-select", "gomea_knob_select", _GOMEA_KNOB_SELECT_CHOICES),
+        ("--gomea-knob-rank0", "gomea_knob_rank0", _GOMEA_KNOB_RANK0_CHOICES),
     ):
         if v[dest] not in choices:
             raise ValueError(
@@ -642,6 +684,7 @@ def _gomea_params_from_args(args: argparse.Namespace) -> gomea_parameters:
             f"got --gomea-fos {v['gomea_fos']}"
         )
     _check_long_deme(v, cap, getattr(args, "opt_algo", None))
+    knob_explore = _check_knob_cap(v)
     return gomea_parameters(
         pop_size=v["gomea_pop_size"],
         fos=v["gomea_fos"],
@@ -668,7 +711,32 @@ def _gomea_params_from_args(args: argparse.Namespace) -> gomea_parameters:
         long_deme_cap=v["gomea_long_deme_cap"],
         long_deme_rule=v["gomea_long_deme_rule"],
         long_deme_prob=v["gomea_long_deme_prob"],
+        knob_cap=v["gomea_knob_cap"],
+        knob_select=v["gomea_knob_select"],
+        knob_explore=knob_explore,
+        knob_rank0=v["gomea_knob_rank0"],
     )
+
+
+def _check_knob_cap(v: dict) -> int | None:
+    """GOMEA extension, server round 2: validate the `--gomea-knob-*` options and
+    return E for `gomea_parameters` (`None` = its default, ceil(K/4)). With the cap at
+    0 (off) any other knob option is an error."""
+    cap, explore = v["gomea_knob_cap"], v["gomea_knob_explore"]
+    if cap < 0:
+        raise ValueError(f"--gomea-knob-cap must be >= 0 (0 = off), got {cap}")
+    if cap == 0:
+        if (v["gomea_knob_select"], explore, v["gomea_knob_rank0"]) != ("explore", -1, "contrast"):
+            raise ValueError(
+                "--gomea-knob-select, --gomea-knob-explore and --gomea-knob-rank0 "
+                "need --gomea-knob-cap"
+            )
+        return None
+    if explore == -1:
+        return None
+    if not 0 <= explore <= cap:
+        raise ValueError(f"--gomea-knob-explore must be in [0, {cap}] (or -1), got {explore}")
+    return explore
 
 
 def _check_long_deme(v: dict, cap: int, opt_algo: str | None) -> None:
