@@ -143,3 +143,15 @@ Deviations from the handoff's gate procedure that follow from instruction #1:
 * The confirmatory manifest's practical-effect criterion and statistical protocol are
   **agent-proposed and pre-registered before confirmatory runs** (`PREREGISTRATION.md`).
   They are not user-approved thresholds.
+
+**Server round 2 (2026-10-27):** the user asked for a second server round: "Okay using this
+let's try this as one of the explorations and also what were that small test you recommended
+for the linkage learning itself? Lets create a second set of experiments we can run on our
+server to verify these please". After reading the draft, the user replied "Yes but I also
+want to see the difference using a fitness as the generatio 0 helps or not so add another
+test with a different way of ranking the knobs at generation 0", and then "With that you can
+go ahead and give me insturctions to start this on my server". The scope requests are the
+user's. Not user-approved: the details of phases 1ak-pilot, 1ak, 1al and 1am (written by the
+agent and pre-registered in `SERVER-ROUND2-PREREGISTRATION.md`; the entropy and random
+generation-0 rankings of 1am were the agent's choice), and the knob-cap code
+(`--gomea-knob-cap` and related flags; opt-in, off by default).
