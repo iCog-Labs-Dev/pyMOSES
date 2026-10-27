@@ -125,3 +125,44 @@ takes about 15 to 20 minutes, the rest about two. `status.sh --plan smoke` and
 `stop.sh --plan smoke` work the same way. Before its phase it sets the `commit` of
 `configs/gomea/server-smoke/bool.json` to the current HEAD (the Boolean runner's code
 check), which leaves that file modified in the working tree; `git checkout` it afterwards.
+
+## Round 2
+
+The second round (`SERVER-ROUND2-PREREGISTRATION.md`: the knob cap, the linkage ablation
+at that cap, and the generation-0 ranking) has its own plan, `tools/server/plan2.json`:
+S0 (full pytest and the round-1 reproducibility check, now with the knob-cap code, which
+must reproduce round 1 exactly), then 1ak-pilot, 1ak, 1al and 1am, one phase at a time.
+
+1. Update the clone and set up as in steps 1 to 3 (`git pull`, then
+   `bash tools/server/setup.sh`; safe to rerun on a pod that ran round 1).
+2. Start it:
+
+       bash tools/server/start.sh --plan round2
+
+   (`PLAN=round2 bash tools/server/start.sh` or `--plan tools/server/plan2.json` work
+   too). `status.sh --plan round2` and `stop.sh --plan round2` work the same way. A
+   round-1 autostart block does not start round 2: run `uninstall_autostart.sh`, then
+   `install_autostart.sh --plan round2`.
+3. After 1ak-pilot, `tools/gomea/set_knob_cap.py` picks K per problem (the largest of 8, 16
+   and 32 whose median generations per deme is at least 3, else 8) and writes it into
+   every knob-cap arm of `configs/gomea/phase1ak`, `phase1al` and `phase1am` (this leaves
+   those files modified in the working tree; that is expected). 1al and 1am do not start
+   without that choice.
+
+Outputs, all under `../gomea-results/`:
+
+* `server-run2/`: the round's state and logs (`run.log`, `events.jsonl`, `state.json`,
+  the scoreboards, `round-summary.md`, `bundle-latest.tar.gz` and at the end
+  `bundle-final-<UTC time>.tar.gz`, which is what to bring back). Round 1's
+  `server-run/` is not touched.
+* `phase1ak-pilot/knob-cap.json`: the pilot's numbers and the chosen K.
+* `phase1ak-pilot/`, `phase1ak/`, `phase1al/`, `phase1am/`: the regression runs and
+  each phase's `report-stage{1,2}/`; the Boolean runs are in `1/phase1a?-*-bool-*/`.
+* `phase1ak-pilot.log`, `phase1ak.log`, ...: each phase's log.
+
+Smoke test: `bash tools/server/start.sh --plan smoke2` runs a miniature of the same plan
+(pytest on `tests/server` and the round-2 tool tests, the mux11 reproducibility run, then
+the pilot, `set_knob_cap.py` and the three phases in `configs/gomea/server-smoke2-*` on
+mux6, Con and EnH with tiny budgets) with its state in `../gomea-results/server-run2-smoke/`.
+It sets the `commit` of the smoke Boolean manifests to HEAD and writes K into the smoke
+configs, so `git checkout configs/gomea/server-smoke2-*` afterwards.

@@ -23,8 +23,10 @@ The plan (tools/server/plan.json) lists the steps in order and names the state d
   `round-summary.md` and `DONE` at the end.
 
 Step types: `check` (S0: pytest and the reproducibility check; failures are flagged, never
-fatal) and `phase` (optionally `requires: ["gpgomea"]`, and a `pilot` phase plus an
-`after_pilot` command that must succeed before the phase). A phase runs as
+fatal) and `phase` (optionally `requires: ["gpgomea"]` or `["knob-cap:PILOT"]` (PILOT's
+`knob-cap.json`, written by tools/gomea/set_knob_cap.py), and a `pilot` phase plus an
+`after_pilot` command that must succeed before the phase). A phase step's `set_commit_in`
+manifests get the current HEAD as `commit` before its pilot and phase run. A phase runs as
 `WORKERS=W tools/gomea/phase_run.sh PHASE >> ../gomea-results/PHASE.log`, W from
 resources.py at the phase's start; a non-zero exit is retried once, then the step is
 marked failed and the round goes on. A step whose requirement or configuration is missing
@@ -70,7 +72,7 @@ BUNDLE_S = int(os.environ.get("ORCH_BUNDLE_S", 3600))
 BUNDLE_SKIP = {"moses.log", "train_scaled.csv"}
 RUN_FILES = {"summary.json", "manifest.json", "events.jsonl", "environment.json",
              "run_order.json", "seeds.json", "lineage.json", "reseed.json",
-             "longrand-p.json"}
+             "longrand-p.json", "knob-cap.json"}
 
 
 def utc() -> str:
@@ -379,6 +381,16 @@ class Round:
                 if not os.access(b, os.X_OK):
                     return f"GP-GOMEA binary {b} missing"
             return None
+        if req.startswith("knob-cap:"):
+            # round 2: the pilot's K must be set (tools/gomea/set_knob_cap.py) first
+            j = RES / req.split(":", 1)[1] / "knob-cap.json"
+            try:
+                d = json.loads(j.read_text())
+            except (OSError, ValueError):
+                return f"knob cap not set: {j} missing or unreadable (the pilot step failed?)"
+            if not d.get("problems"):
+                return f"knob cap not set: {j} has no problems"
+            return None
         return f"unknown requirement {req!r}"
 
     def skip(self, sid: str, st: dict, reason: str) -> None:
@@ -396,6 +408,7 @@ class Round:
         for p in [step.get("pilot"), phase]:
             if p and not (REPO / "configs" / "gomea" / p / "spec.json").exists():
                 return self.skip(sid, st, f"no configs/gomea/{p}/spec.json in this checkout")
+        self.set_commit(step)  # before the pilot too, whose manifests it may name
         if step.get("pilot"):
             pst = st.setdefault("pilot", {})
             if pst.get("status") not in ("done", "failed"):
@@ -426,7 +439,6 @@ class Round:
                 if ast["status"] != "done":
                     return self.skip(sid, st, f"after-pilot command failed (rc={ast.get('rc')}): "
                                      f"{(ast.get('stderr') or '').strip()[-300:]}")
-        self.set_commit(step)
         rc = self.run_phase(phase, st)
         st.update(status="done" if rc == 0 else "failed", rc=rc, end=utc(),
                   **self.run_counts(phase))

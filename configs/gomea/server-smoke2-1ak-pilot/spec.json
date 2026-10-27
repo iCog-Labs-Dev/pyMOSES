@@ -1,0 +1,10 @@
+{
+  "phase": "server-smoke2-1ak-pilot",
+  "metrics": {
+    "mux6": "cpu_to_target",
+    "Con": "test_nmse",
+    "EnH": "test_nmse"
+  },
+  "primary": [],
+  "secondary": []
+}

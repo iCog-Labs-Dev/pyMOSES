@@ -1,0 +1,84 @@
+{
+  "phase": "server-smoke2-1ak",
+  "metrics": {
+    "mux6": "cpu_to_target",
+    "Con": "test_nmse",
+    "EnH": "test_nmse"
+  },
+  "primary": [
+    [
+      "mux6",
+      "kc",
+      "KC",
+      "GOMEA"
+    ],
+    [
+      "mux6",
+      "kc-static",
+      "KC-STATIC",
+      "GOMEA"
+    ],
+    [
+      "Con",
+      "kc",
+      "KC",
+      "GOMEA"
+    ],
+    [
+      "Con",
+      "kc-static",
+      "KC-STATIC",
+      "GOMEA"
+    ],
+    [
+      "EnH",
+      "kc",
+      "KC",
+      "GOMEA"
+    ],
+    [
+      "EnH",
+      "kc-static",
+      "KC-STATIC",
+      "GOMEA"
+    ]
+  ],
+  "secondary": [
+    [
+      "mux6",
+      "kc-vs-static",
+      "KC",
+      "KC-STATIC"
+    ],
+    [
+      "mux6",
+      "static-vs-random",
+      "KC-STATIC",
+      "KC-RANDOM"
+    ],
+    [
+      "Con",
+      "kc-vs-static",
+      "KC",
+      "KC-STATIC"
+    ],
+    [
+      "Con",
+      "static-vs-random",
+      "KC-STATIC",
+      "KC-RANDOM"
+    ],
+    [
+      "EnH",
+      "kc-vs-static",
+      "KC",
+      "KC-STATIC"
+    ],
+    [
+      "EnH",
+      "static-vs-random",
+      "KC-STATIC",
+      "KC-RANDOM"
+    ]
+  ]
+}

@@ -2,7 +2,7 @@
 # Stop the round: SIGTERM to the orchestrator's process group (recorded in
 # orchestrator.pid), SIGKILL after GRACE seconds (default 60), then write a fresh
 # bundle-latest.tar.gz. No pattern kills. Restart with start.sh; it resumes.
-#   bash tools/server/stop.sh [--plan round|smoke|FILE]
+#   bash tools/server/stop.sh [--plan round|smoke|round2|smoke2|FILE]
 set -u
 source "$(dirname "${BASH_SOURCE[0]}")/_common.sh"
 GRACE=${GRACE:-60}

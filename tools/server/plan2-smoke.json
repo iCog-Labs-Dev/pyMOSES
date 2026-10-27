@@ -1,0 +1,21 @@
+{
+  "name": "server-round2-smoke",
+  "description": "Smoke test of the round-2 plan: limited pytest, the mux11 repro run, then 1ak-pilot (+ set_knob_cap.py), 1ak, 1al and 1am in miniature (configs/gomea/server-smoke2-*: mux6, Con and EnH, 2 seeds or splits, tiny budgets). Uses its own state dir, so it never marks real steps done.",
+  "state_dir": "server-run2-smoke",
+  "steps": [
+    {"id": "S0", "type": "check",
+     "pytest": {"args": ["tests/server", "tests/gomea/test_set_knob_cap.py", "tests/gomea/test_knob_cap_identity.py"]},
+     "repro": {"only": ["1ae-mux11-GOMEA-s3001"]}},
+    {"id": "smoke2-1ak", "type": "phase", "phase": "server-smoke2-1ak", "pilot": "server-smoke2-1ak-pilot",
+     "after_pilot": [".venv/bin/python", "tools/gomea/set_knob_cap.py", "--results", "{results}",
+                     "--pilot", "server-smoke2-1ak-pilot",
+                     "--phases", "server-smoke2-1ak,server-smoke2-1al,server-smoke2-1am"],
+     "set_commit_in": ["configs/gomea/server-smoke2-1ak-pilot/bool.json", "configs/gomea/server-smoke2-1ak/bool.json"]},
+    {"id": "smoke2-1al", "type": "phase", "phase": "server-smoke2-1al",
+     "requires": ["knob-cap:server-smoke2-1ak-pilot"],
+     "set_commit_in": ["configs/gomea/server-smoke2-1al/bool.json"]},
+    {"id": "smoke2-1am", "type": "phase", "phase": "server-smoke2-1am",
+     "requires": ["knob-cap:server-smoke2-1ak-pilot"],
+     "set_commit_in": ["configs/gomea/server-smoke2-1am/bool.json"]}
+  ]
+}

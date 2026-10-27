@@ -1,0 +1,12 @@
+{
+  "name": "server-round2-2026-10",
+  "description": "SERVER-ROUND2-PREREGISTRATION.md, in its order: S0, 1ak-pilot (+ set_knob_cap.py) and 1ak, 1al, 1am. One phase at a time.",
+  "state_dir": "server-run2",
+  "steps": [
+    {"id": "S0", "type": "check", "pytest": {}, "repro": {}},
+    {"id": "phase1ak", "type": "phase", "phase": "phase1ak", "pilot": "phase1ak-pilot",
+     "after_pilot": [".venv/bin/python", "tools/gomea/set_knob_cap.py", "--results", "{results}"]},
+    {"id": "phase1al", "type": "phase", "phase": "phase1al", "requires": ["knob-cap:phase1ak-pilot"]},
+    {"id": "phase1am", "type": "phase", "phase": "phase1am", "requires": ["knob-cap:phase1ak-pilot"]}
+  ]
+}

@@ -1,0 +1,84 @@
+{
+  "phase": "1ak",
+  "metrics": {
+    "mux11": "cpu_to_target",
+    "Con": "test_nmse",
+    "EnH": "test_nmse"
+  },
+  "primary": [
+    [
+      "mux11",
+      "kc",
+      "KC",
+      "GOMEA"
+    ],
+    [
+      "mux11",
+      "kc-static",
+      "KC-STATIC",
+      "GOMEA"
+    ],
+    [
+      "Con",
+      "kc",
+      "KC",
+      "GOMEA"
+    ],
+    [
+      "Con",
+      "kc-static",
+      "KC-STATIC",
+      "GOMEA"
+    ],
+    [
+      "EnH",
+      "kc",
+      "KC",
+      "GOMEA"
+    ],
+    [
+      "EnH",
+      "kc-static",
+      "KC-STATIC",
+      "GOMEA"
+    ]
+  ],
+  "secondary": [
+    [
+      "mux11",
+      "kc-vs-static",
+      "KC",
+      "KC-STATIC"
+    ],
+    [
+      "mux11",
+      "static-vs-random",
+      "KC-STATIC",
+      "KC-RANDOM"
+    ],
+    [
+      "Con",
+      "kc-vs-static",
+      "KC",
+      "KC-STATIC"
+    ],
+    [
+      "Con",
+      "static-vs-random",
+      "KC-STATIC",
+      "KC-RANDOM"
+    ],
+    [
+      "EnH",
+      "kc-vs-static",
+      "KC",
+      "KC-STATIC"
+    ],
+    [
+      "EnH",
+      "static-vs-random",
+      "KC-STATIC",
+      "KC-RANDOM"
+    ]
+  ]
+}

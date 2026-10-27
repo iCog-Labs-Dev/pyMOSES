@@ -3,7 +3,7 @@
 # pod restart. Appends a delimited block to ~/.jupyter/jupyter_server_config.py that runs
 # tools/server/start.sh in the background unless the round is DONE (start.sh itself also
 # refuses when an orchestrator is already running). Undo: uninstall_autostart.sh.
-#   bash tools/server/install_autostart.sh [--plan round|smoke|FILE]
+#   bash tools/server/install_autostart.sh [--plan round|smoke|round2|smoke2|FILE]
 set -u
 source "$(dirname "${BASH_SOURCE[0]}")/_common.sh"
 CFG=${JUPYTER_CONFIG_DIR:-$HOME/.jupyter}/jupyter_server_config.py

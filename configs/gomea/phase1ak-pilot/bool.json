@@ -1,0 +1,109 @@
+{
+  "schema_version": 1,
+  "name": "phase1ak-pilot-bool",
+  "phase": 1,
+  "commit": "7bcc13de852b4ee77fb283656bb7338227c310c4",
+  "common_argv": [
+    "-l",
+    "WARN"
+  ],
+  "tasks": {
+    "mux11": {
+      "argv": [
+        "-H",
+        "mux",
+        "-k",
+        "3"
+      ],
+      "target_raw": 0
+    }
+  },
+  "arms": {
+    "KC-K8": {
+      "argv": [
+        "-a",
+        "gomea",
+        "--gomea-fos",
+        "lt-b",
+        "--gomea-pop-size",
+        "16",
+        "--gomea-skip-inactive",
+        "0",
+        "--gomea-max-evals-per-deme",
+        "250",
+        "--gomea-genotype-memo",
+        "1",
+        "--knob-probe-baseline",
+        "reduced",
+        "--gomea-knob-cap",
+        "8",
+        "--gomea-knob-select",
+        "explore",
+        "--gomea-knob-rank0",
+        "contrast"
+      ]
+    },
+    "KC-K16": {
+      "argv": [
+        "-a",
+        "gomea",
+        "--gomea-fos",
+        "lt-b",
+        "--gomea-pop-size",
+        "16",
+        "--gomea-skip-inactive",
+        "0",
+        "--gomea-max-evals-per-deme",
+        "250",
+        "--gomea-genotype-memo",
+        "1",
+        "--knob-probe-baseline",
+        "reduced",
+        "--gomea-knob-cap",
+        "16",
+        "--gomea-knob-select",
+        "explore",
+        "--gomea-knob-rank0",
+        "contrast"
+      ]
+    },
+    "KC-K32": {
+      "argv": [
+        "-a",
+        "gomea",
+        "--gomea-fos",
+        "lt-b",
+        "--gomea-pop-size",
+        "16",
+        "--gomea-skip-inactive",
+        "0",
+        "--gomea-max-evals-per-deme",
+        "250",
+        "--gomea-genotype-memo",
+        "1",
+        "--knob-probe-baseline",
+        "reduced",
+        "--gomea-knob-cap",
+        "32",
+        "--gomea-knob-select",
+        "explore",
+        "--gomea-knob-rank0",
+        "contrast"
+      ]
+    }
+  },
+  "seeds": [
+    3001,
+    3002
+  ],
+  "budget": {
+    "argv": [
+      "-m",
+      "40000"
+    ],
+    "kind": "evaluations"
+  },
+  "wall_cap_s": 36000,
+  "workers": 16,
+  "output_root": "../gomea-results"
+}

@@ -1,0 +1,127 @@
+{
+  "schema_version": 1,
+  "name": "server-smoke2-1ak-bool",
+  "phase": 1,
+  "commit": "SET_AT_RUNTIME",
+  "common_argv": [
+    "-l",
+    "WARN"
+  ],
+  "tasks": {
+    "mux6": {
+      "argv": [
+        "-H",
+        "mux",
+        "-k",
+        "2"
+      ],
+      "target_raw": 0
+    }
+  },
+  "arms": {
+    "GOMEA": {
+      "argv": [
+        "-a",
+        "gomea",
+        "--gomea-fos",
+        "lt-b",
+        "--gomea-pop-size",
+        "16",
+        "--gomea-skip-inactive",
+        "0",
+        "--gomea-max-evals-per-deme",
+        "250",
+        "--gomea-genotype-memo",
+        "1",
+        "--knob-probe-baseline",
+        "reduced"
+      ]
+    },
+    "KC": {
+      "argv": [
+        "-a",
+        "gomea",
+        "--gomea-fos",
+        "lt-b",
+        "--gomea-pop-size",
+        "16",
+        "--gomea-skip-inactive",
+        "0",
+        "--gomea-max-evals-per-deme",
+        "250",
+        "--gomea-genotype-memo",
+        "1",
+        "--knob-probe-baseline",
+        "reduced",
+        "--gomea-knob-cap",
+        "16",
+        "--gomea-knob-select",
+        "explore",
+        "--gomea-knob-rank0",
+        "contrast"
+      ]
+    },
+    "KC-STATIC": {
+      "argv": [
+        "-a",
+        "gomea",
+        "--gomea-fos",
+        "lt-b",
+        "--gomea-pop-size",
+        "16",
+        "--gomea-skip-inactive",
+        "0",
+        "--gomea-max-evals-per-deme",
+        "250",
+        "--gomea-genotype-memo",
+        "1",
+        "--knob-probe-baseline",
+        "reduced",
+        "--gomea-knob-cap",
+        "16",
+        "--gomea-knob-select",
+        "static",
+        "--gomea-knob-rank0",
+        "contrast"
+      ]
+    },
+    "KC-RANDOM": {
+      "argv": [
+        "-a",
+        "gomea",
+        "--gomea-fos",
+        "lt-b",
+        "--gomea-pop-size",
+        "16",
+        "--gomea-skip-inactive",
+        "0",
+        "--gomea-max-evals-per-deme",
+        "250",
+        "--gomea-genotype-memo",
+        "1",
+        "--knob-probe-baseline",
+        "reduced",
+        "--gomea-knob-cap",
+        "16",
+        "--gomea-knob-select",
+        "random",
+        "--gomea-knob-rank0",
+        "contrast"
+      ]
+    }
+  },
+  "seeds": [
+    3001,
+    3002
+  ],
+  "budget": {
+    "argv": [
+      "-m",
+      "1500"
+    ],
+    "kind": "evaluations"
+  },
+  "wall_cap_s": 1800,
+  "workers": 2,
+  "output_root": "../gomea-results"
+}

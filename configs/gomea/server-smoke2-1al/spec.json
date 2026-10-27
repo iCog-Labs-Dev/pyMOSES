@@ -1,0 +1,84 @@
+{
+  "phase": "server-smoke2-1al",
+  "metrics": {
+    "mux6": "cpu_to_target",
+    "Con": "test_nmse",
+    "EnH": "test_nmse"
+  },
+  "primary": [
+    [
+      "mux6",
+      "vs-uni",
+      "KC",
+      "KC-UNI"
+    ],
+    [
+      "mux6",
+      "vs-rt",
+      "KC",
+      "KC-RT"
+    ],
+    [
+      "Con",
+      "vs-uni",
+      "KC",
+      "KC-UNI"
+    ],
+    [
+      "Con",
+      "vs-rt",
+      "KC",
+      "KC-RT"
+    ],
+    [
+      "EnH",
+      "vs-uni",
+      "KC",
+      "KC-UNI"
+    ],
+    [
+      "EnH",
+      "vs-rt",
+      "KC",
+      "KC-RT"
+    ]
+  ],
+  "secondary": [
+    [
+      "mux6",
+      "n64-vs-rt-n64",
+      "KC-N64",
+      "KC-RT-N64"
+    ],
+    [
+      "mux6",
+      "n64-vs-n16",
+      "KC-N64",
+      "KC"
+    ],
+    [
+      "Con",
+      "n64-vs-rt-n64",
+      "KC-N64",
+      "KC-RT-N64"
+    ],
+    [
+      "Con",
+      "n64-vs-n16",
+      "KC-N64",
+      "KC"
+    ],
+    [
+      "EnH",
+      "n64-vs-rt-n64",
+      "KC-N64",
+      "KC-RT-N64"
+    ],
+    [
+      "EnH",
+      "n64-vs-n16",
+      "KC-N64",
+      "KC"
+    ]
+  ]
+}

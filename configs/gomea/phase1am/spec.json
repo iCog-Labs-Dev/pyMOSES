@@ -1,0 +1,66 @@
+{
+  "phase": "1am",
+  "metrics": {
+    "mux11": "cpu_to_target",
+    "Con": "test_nmse",
+    "EnH": "test_nmse"
+  },
+  "primary": [
+    [
+      "mux11",
+      "vs-entropy",
+      "KC",
+      "KC-R0-ENT"
+    ],
+    [
+      "mux11",
+      "vs-random",
+      "KC",
+      "KC-R0-RAND"
+    ],
+    [
+      "Con",
+      "vs-entropy",
+      "KC",
+      "KC-R0-ENT"
+    ],
+    [
+      "Con",
+      "vs-random",
+      "KC",
+      "KC-R0-RAND"
+    ],
+    [
+      "EnH",
+      "vs-entropy",
+      "KC",
+      "KC-R0-ENT"
+    ],
+    [
+      "EnH",
+      "vs-random",
+      "KC",
+      "KC-R0-RAND"
+    ]
+  ],
+  "secondary": [
+    [
+      "mux11",
+      "entropy-vs-random",
+      "KC-R0-ENT",
+      "KC-R0-RAND"
+    ],
+    [
+      "Con",
+      "entropy-vs-random",
+      "KC-R0-ENT",
+      "KC-R0-RAND"
+    ],
+    [
+      "EnH",
+      "entropy-vs-random",
+      "KC-R0-ENT",
+      "KC-R0-RAND"
+    ]
+  ]
+}
