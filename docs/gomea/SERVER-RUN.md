@@ -166,3 +166,53 @@ the pilot, `set_knob_cap.py` and the three phases in `configs/gomea/server-smoke
 mux6, Con and EnH with tiny budgets) with its state in `../gomea-results/server-run2-smoke/`.
 It sets the `commit` of the smoke Boolean manifests to HEAD and writes K into the smoke
 configs, so `git checkout configs/gomea/server-smoke2-*` afterwards.
+
+## Round 3
+
+The third round (`SERVER-ROUND3-PREREGISTRATION.md`: constant tuning at equal evaluations
+and at equal CPU time, size control with linear scaling, the uniform start, and five more
+datasets) has its own plan, `tools/server/plan3.json`: S0 (full pytest and the round-1
+reproducibility check, which must still match: with `--const-opt none` the new code gives
+byte-identical output), then 1an, 1ao, 1ap, 1aq and 1ar, one phase at a time.
+
+1. Update the clone and set up as in steps 1 to 3 (`git pull`, then
+   `bash tools/server/setup.sh`). Set-up now also builds WiR and WiW (committed) and
+   downloads Dow and Tow from github.com/grantdick/gpzgd at a pinned commit (their data has
+   no licence and is not committed; see `data/gomea-sr/README.md`). It checks every file
+   against its SHA-256. If a download or a check fails, set-up prints `SETUP FAILED` and
+   names the dataset; phase 1ar then does not start (its step is skipped with that reason).
+2. Start it:
+
+       bash tools/server/start.sh --plan round3
+
+   `status.sh --plan round3` and `stop.sh --plan round3` work the same way. An autostart
+   block of an earlier round does not start round 3: run `uninstall_autostart.sh`, then
+   `install_autostart.sh --plan round3`.
+3. 1an runs as the pilot of the 1ao step. After it, `tools/gomea/set_const_opt.py` picks
+   the tuning arm (LM or MUT, the lower median test NMSE pooled over the three datasets'
+   medians, from 1an's final results) and writes `--const-opt lm` or `mutate` into the
+   GOMEA-LS-TUNE arms of `configs/gomea/phase1ao` and `phase1ar` (this leaves those files
+   modified in the working tree; that is expected). 1ao and 1ar do not start without that
+   choice.
+
+Outputs, all under `../gomea-results/`:
+
+* `server-run3/`: the round's state and logs, as in round 2; bring back
+  `bundle-final-<UTC time>.tar.gz`.
+* `phase1an/const-opt-choice.json`: the per-dataset and pooled medians and the choice.
+* `phase1an/` to `phase1ar/`: the runs (each `summary.json` has `const_opt` for a tuning
+  arm: LM calls and statuses, tuning evaluations and their share of the run, mutation
+  attempts and acceptances, polish accepted or not) and each phase's `report-stage{1,2}/`.
+* `phase1an.log`, ...: each phase's log.
+
+Cost note (measured locally on three Con programs of 212-265 nodes, 45-69 constants, 516
+training rows): one LM call used 140-712 evaluations and 10-71 s of CPU. So in 1an the LM
+arm spends most of its 10,000 evaluations on LM; this is the pre-registered cost
+accounting.
+
+Smoke test: `bash tools/server/start.sh --plan smoke3` runs a miniature of the same plan
+(pytest on `tests/server` and the round-3 tests, the mux11 reproducibility run, then 1an
+and the choice, 1ao, 1ap, 1aq and 1ar in `configs/gomea/server-smoke3-*`, 2 splits, 400
+evaluations or 20 s per run) with its state in `../gomea-results/server-run3-smoke/`. It
+writes the choice into the smoke configs, so `git checkout configs/gomea/server-smoke3-*`
+afterwards.

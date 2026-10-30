@@ -136,6 +136,8 @@ to, so an invalid value is always rejected.
 | `--gomea-knob-rank0 {contrast,entropy,random}` | `contrast` | With `--gomea-knob-cap`: the knob score in generation 0 (see below). |
 | `--reserve-empty-every K` | `0` (off) | Port-only, any optimizer: every K-th expansion picks its exemplar only among the programs descending from an initial exemplar that is the empty program (`+`/`and`), falling back to the normal choice when none is selectable. See [Reserved expansions for the empty program](#reserved-expansions-for-the-empty-program---reserve-empty-every). |
 | `--linear-scaling {0,1}` | `0` (off) | Port-only, regression only (squared error), any optimizer: score each program `f` on `a + b·f`, the least-squares fit of `f` to the training target. See [Linear scaling](#linear-scaling---linear-scaling). |
+| `--const-opt {none,lm,mutate,polish}` | `none` | Regression with `-a gomea` or `-a hc-gomea` only: tune numeric constants (server round 3). `lm`: Levenberg-Marquardt on each deme's best program; `mutate`: Gaussian coefficient mutation after each GOM step (needs `--gomea-contin copy`); `polish`: LM once on the final best program (needs `--const-opt-val`). Every pass over the training rows counts as one evaluation. See [Constant tuning](#constant-tuning---const-opt). |
+| `--const-opt-val FILE` | none | With `--const-opt polish` only: the validation table (the training columns, target `y`). `tools/gomea/moses_sr_runner.py` writes and passes it (`val_scaled.csv`). |
 
 The default population was 64 during development. It became 16 after the pilot
 (`docs/gomea/pilot-a/`); the confirmatory runs passed 16 explicitly.
@@ -332,6 +334,56 @@ scaling refitted on the training split and applied to the validation and test sp
 reported metrics mean the same with and without the option. See `contin_bscore.
 set_linear_scaling` and `linear_scaling` in `pymoses/moses/scoring/bscores.py`.
 
+## Constant tuning (`--const-opt`)
+
+Port-only and opt-in (server round 3, `SERVER-ROUND3-PREREGISTRATION.md`; code in
+`pymoses/gomea/const_opt.py`). With the default `none` every output is byte-identical to the
+code before it (`tests/gomea/test_const_opt_identity.py`). It needs a regression problem
+(`contin_bscore`) and `-a gomea` or `-a hc-gomea`. The tuned error is the training MSE after
+linear scaling when `--linear-scaling 1` is on, else the plain training MSE.
+
+* **`lm`.** At the end of each deme, Levenberg-Marquardt (LM) on all the numeric constants of
+  the deme's best program, on the training rows: a forward-difference Jacobian (step
+  `1.49e-8 × max(|c|, 1)`), Marquardt damping (`J'J + λ diag(J'J)`, λ starts at 1e-3,
+  ÷10 after an accepted step, ×10 after a rejected one, at most 10 trial steps per
+  iteration), at most 10 iterations, and a stop when an accepted step lowers the MSE by less
+  than 1e-6 relative. A constant whose Jacobian column is about zero (norm at most 1e-7 of
+  the larger of the largest column and the centred target; for example an additive or
+  multiplicative constant that linear scaling absorbs) is held fixed. If the damped
+  equations cannot be solved (a pivot below 1e-12 of the largest diagonal entry), no
+  constant has an effect, or the program or a Jacobian column is not finite, the old program
+  is kept and the call is logged as `singular` or `failed`. LM tunes the constants of the
+  program TREE, not the contin-knob codes: a knob holds only the values of its step path, and
+  reduction can make constants that no knob gives. If the training MSE is lower, the tuned
+  program, scored once more, replaces the best program's entries in the deme (Lamarckian),
+  so MOSES merges it and can expand it later. Its evaluations are charged to the run's
+  budget (`-m`, and the time limit), not to the deme cap.
+* **`mutate`.** After each GOM step on an individual, one Gaussian change `c + N(0, σ)`,
+  `σ = max(0.1 |c|, 0.1)`, to each of its active constants in turn (the contin genes whose
+  constant is in its program), each kept if the score is not worse under the deme's
+  comparator (after Virgolin and Bosman 2022, without their decaying temperature). Each
+  change is one evaluation through the deme's oracle (the deme cap applies). A new value is
+  a "free" contin code of the frozen schema (`FrozenSchema.register_contin_value`), which GOM
+  then copies like any other code. The draws come from a fifth RNG stream, seeded only in
+  this mode.
+* **`polish`.** At the end of the run, LM as above, once, on the final best program (the
+  first one MOSES prints). The tuned program replaces it only if the validation NMSE (linear
+  scaling fitted on the training rows, as `sr_eval.py` does) is not worse. To keep the run's
+  total within `-m`, the search runs with 5 % of `-m` held back; polish then has what is
+  left (the scoring of the tuned program included).
+
+Every pass over the training rows (one residual vector, one Jacobian column, one trial step,
+one final score, one mutation) is one evaluation: it is in `n_evals`, in the deme's ledger
+(`tuning_requests` for LM) and in `deme.n_evals`. Telemetry: the `end` event of each deme
+gets `const_opt` (`mode`, `lm_calls`, `lm_improved`, `lm_not_improved`, `lm_singular`,
+`lm_failed`, `lm_no_constants`, `lm_budget`, `mutate_attempts`, `mutate_accepted`,
+`tuning_evals`, and `lm`, the record of the deme's LM call: status, constants, inert
+constants, MSE before and after, evaluations, iterations, `written_back`); polish writes one
+`polish` event. `moses_sr_runner.py` sums them into `const_opt` in `summary.json`
+(with `lm_improved_share`, `mutate_accepted_share`, `tuning_share` = tuning evaluations /
+`n_evals`, and `polish_accepted`), and `phase_report.py` reports their medians in
+`aggregate.csv`.
+
 ## Continuous knobs (`--gomea-contin copy`)
 
 A regression representation has contin knobs: numeric constants that MOSES encodes as a
@@ -391,7 +443,8 @@ The file gets one JSON object per line, and each object has a `"type"`. For ever
 | `invocation_start` | `schema_id` (a hash of this representation's knob layout), `dim` (number of knobs), `domains`, `max_evals`, `params` (`accept_complexity_ratio`, `deme_store`, `fos_topk` and `fos_topk_mode` appear only when not at their defaults; `knob_cap`, `knob_select`, `knob_explore`, `knob_rank0` only with `--gomea-knob-cap`); with `--gomea-pop-fraction` or `--gomea-deme-share` also `deme_budget`, `deme_cap` (the per-deme cap, `null` for none) and `deme_pop_size` (this deme's N); with `--gomea-long-deme-cap` also `long`, `deme_cap_used`, `long_deme_rule`, `n_demes`, `n_long_demes` |
 | `init` | the initial population: `attempts`, `duplicates_rejected`, `coverage_replacements`, `feasible_short`, and `diagnostics` (per-knob entropy and observed values, `constant_fields_before/after_coverage`, `radius_histogram`) |
 | `generation` | `generation`, `fos_size` (with `--gomea-fos-topk` also `fos_topk`, `fos_topk_mode`, `fos_effective_size`, `fos_effective_mean_subset_size`, `fos_selected`, `fos_selected_strength`; with `--gomea-knob-cap` the `knob_*` keys of [Knob cap](#knob-cap---gomea-knob-cap)), per-generation GOM `stats` (trials, evaluated, accepted_improving / accepted_neutral / rejected, noop_skips, fi_*), `nis` (the no-improvement stretch), `best_raw`/`best_pen`/`best_cpx` (of the engine's best, under the deme-local comparator when `--gomea-accept-complexity-ratio` is on), a `ledger` snapshot, and diversity: `unique_genotypes`, `mean_entropy_bits`, `n_varying_fields`, `best_raw_count` |
-| `end` | `termination_reason`, `generations`, `ledger` (requests = evaluations charged, invalid, duplicate_requests, …), `timings` (init / eval / linkage / variation seconds), `best`; with `--gomea-long-deme-cap` also the long-deme keys of `invocation_start`; with `--gomea-knob-cap` also `knob_cap`, `knob_core_entered_total` |
+| `end` | `termination_reason`, `generations`, `ledger` (requests = evaluations charged, invalid, duplicate_requests, …; `tuning_requests` with `--const-opt lm`), `timings` (init / eval / linkage / variation seconds), `best`; with `--gomea-long-deme-cap` also the long-deme keys of `invocation_start`; with `--gomea-knob-cap` also `knob_cap`, `knob_core_entered_total`; with `--const-opt` also `const_opt` (see [Constant tuning](#constant-tuning---const-opt)) |
+| `polish` | `--const-opt polish` only, once at the end of the run: the LM record, `val_nmse_old`, `val_nmse_new`, `accepted`, `evals`, `budget_available` |
 | `hybrid` | `-a hc-gomea` only, one per deme: `deme_id`, `max_evals`, `hc_evals`, `hc_stop` (`budget`, `time_limit`, `target` or `local_optimum`), `gomea_ran`, `gomea_evals` (charged), `gomea_termination_reason` |
 
 A deme ends with one of these `termination_reason`s: `target_reached`, `converged`,
