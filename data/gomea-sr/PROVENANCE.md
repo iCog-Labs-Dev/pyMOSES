@@ -1,7 +1,8 @@
-<!-- Copied from ../gomea-results/phase1f/datasets/PROVENANCE.md (local machine), with the
-     table rows of the datasets not committed here (Dow, Tow, WiR, WiW) removed. Paths
+<!-- Copied from ../gomea-results/phase1f/datasets/PROVENANCE.md (local machine). Paths
      such as <Abbr>/raw/ refer to that local directory; the raw files are not committed.
-     See README.md in this directory. -->
+     Dow and Tow have no committed full.csv: tools/server/setup.sh downloads their raw
+     gpzgd files (rows below) and builds full.csv from them. See README.md in this
+     directory. -->
 
 # Phase 1f SR datasets: provenance
 
@@ -43,8 +44,12 @@ keep the order of the canonical source. No rows were removed, added or deduplica
 | Air | UCI 291 `airfoil+self+noise.zip` (`5c7767ba53ad827d3f48ba1eb9434117f4892df8f10bc4c99e118a9e8a7ae07c`), member `airfoil_self_noise.dat` | tab-separated, 6 cols, target = sound pressure (col 6) | 5 x 1503 | 0 | Martins airfoil fold 0: exact |
 | Bos | UCI legacy `https://archive.ics.uci.edu/ml/machine-learning-databases/housing/housing.data` (`baadf72995725d76efe787b664e1f083388c79ba21ef9a7990d87f774184735a`) | whitespace, 14 cols, target = MEDV | 13 x 506 | 0 | gpzgd `housing`: exact |
 | Con | gpzgd `concrete` (`a26b866b78da9349ce40b682c05fecaef4f46894eaa8bc4d6c76bba458d8c83f`) | gpzgd format, 9 cols, target = strength | 8 x 1030 | 25 | Martins concrete fold 0: exact. The UCI 165 zip (`dad85d14de8aee4e07479daa774e6b569a313715b71a3b92c95a07cf91c2c9a7`) is kept in raw/ for reference, but its legacy `.xls` cannot be parsed with the stdlib. |
+| Dow | gpzgd `dowchem` (`0e55bcd11740d65ab7c3fe80df8e2636b0e84840c46fc9182086868a5c9f52aa`) | gpzgd format, 58 cols, target = last | 57 x 1066 | 2 | MultiGPG `dowchemical.csv` (`ed9e3b3d…`): exact. GPFI `dowchemical_full.dat` (`b9c555a4…`): exact. The original EvoStar 2010 competition file (`casnew.iti.upv.es/cas/competitions/symreg/SymbolicRegressionCompetition.xls`, on the Wayback Machine only) is legacy `.xls` and was not used. |
 | EnC | UCI 242 `energy+efficiency.zip` (`499441eee27929a4b00417f58fd8c63c9cc14b8a71520cd0dd27fcb626738351`), member `ENB2012_data.xlsx` | stdlib xlsx (zip+XML) parse of sheet 1. Columns A..H = X1..X8, target = column J = **Y2 (cooling)**. Header row and empty rows skipped. | 8 x 768 | 0 | Martins energyCooling fold 0: exact |
 | EnH | same zip | same, target = column I = **Y1 (heating)** | 8 x 768 | 0 | Martins energyHeating fold 0 and gpzgd `energy`: equal except **one known diff**. xlsx cell I32 (X = 0.71, 710.5, 269.5, 220.5, 3.5, 4, 0, 0) stores Y1 = **6.366**, which the sheet's 2-decimal format displays as 6.37. Both copies carry 6.37. full.csv keeps UCI's 6.366 (see `KNOWN_XCHECK_DIFFS` in the tool). |
+| Tow | gpzgd `tower` (`7d353f109f0d13c4c372ec9c3b7580580d351f0b29e395c9b05a0e89bc6492db`) | gpzgd format, 26 cols, target = last | 25 x 4999 | 0 | Martins towerData fold 0: exact. MultiGPG `tower.csv` (`a591f1d9…`): exact. |
+| WiR | UCI 186 `wine+quality.zip` (`3ed56667f4b828242bd732d7d1dd7f2861e54432239d7fa63877014cbb0304d4`), member `winequality-red.csv` | `;`-separated, header dropped, target = quality | 11 x 1599 | 240 | Martins wineRed fold 0: exact. gpzgd `winequality-red`: exact. |
+| WiW | same zip, member `winequality-white.csv` | same | 11 x 4898 | 937 | Martins wineWhite fold 0: exact |
 | Yac | UCI 243 `yacht+hydrodynamics.zip` (`aa52b68f88c4bb552187a53ef4c5753fa178f6a36035a3771c5bc04e078487ac`), member `yacht_hydrodynamics.data` | whitespace, blank lines skipped, target = residuary resistance | 6 x 308 | 0 | Martins yacht fold 0: exact. gpzgd `yacht`: exact. |
 
 Each cross-check compares the multiset of rows after rounding to 6 significant digits.

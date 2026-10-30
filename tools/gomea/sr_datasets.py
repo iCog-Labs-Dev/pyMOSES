@@ -8,6 +8,7 @@ never downloads anything.
 
 Usage: .venv/bin/python tools/gomea/sr_datasets.py DATASETS [ABBR ...] [--no-splits]
        .venv/bin/python tools/gomea/sr_datasets.py DATASETS ABBR ... --from-full SRC_DIR
+       .venv/bin/python tools/gomea/sr_datasets.py DATASETS ABBR ... --from-raw SRC_DIR
 
 `--from-full SRC_DIR` (the server set-up, `tools/server/setup.sh`) needs no raw files: it
 takes `SRC_DIR/<Abbr>/full.csv` (e.g. the committed copies in `data/gomea-sr/`), checks
@@ -17,6 +18,13 @@ writes the 30 splits from it as in step 3 below. It then checks that the regener
 exactly, and exits non-zero on any mismatch. full.csv prints every value with its
 shortest round-trip repr, so re-reading it gives the same floats and the same split files,
 byte for byte.
+
+`--from-raw SRC_DIR` (the server set-up for Dow and Tow, whose data has no licence and is
+not committed; `tools/server/setup.sh` downloads their raw files first) parses
+`DATASETS/<Abbr>/raw/<raw file>` as step 1 below, skips the cross-checks of step 2 (the
+`raw/xcheck/` copies are not downloaded), and then checks the result as `--from-full`
+does: the SHA-256 of the built full.csv against `SRC_DIR/SHA256SUMS`, and the regenerated
+`splits.json` against `SRC_DIR/<Abbr>/splits.json`. It exits non-zero on any mismatch.
 
 For every requested dataset (default: all ten) it
 
@@ -303,12 +311,7 @@ def load_full(src: Path, abbr: str) -> tuple[list[list[float]], str]:
     `src/SHA256SUMS` (line `<sha>  <abbr>/full.csv`), its header and (k, n)."""
     k, n = DATASETS[abbr][3], DATASETS[abbr][4]
     text = (src / abbr / "full.csv").read_text()
-    sums = {}
-    for line in (src / "SHA256SUMS").read_text().splitlines():
-        if line.strip():
-            h, name = line.split(maxsplit=1)
-            sums[name.strip().lstrip("*")] = h
-    want = sums.get(f"{abbr}/full.csv")
+    want = _sums(src).get(f"{abbr}/full.csv")
     if want is None:
         raise SystemExit(f"{abbr}: no {abbr}/full.csv line in {src / 'SHA256SUMS'}")
     if _sha(text) != want:
@@ -325,10 +328,34 @@ def load_full(src: Path, abbr: str) -> tuple[list[list[float]], str]:
     return rows, text
 
 
-def build(root: Path, abbr: str, splits: bool, from_full: Path | None = None) -> dict:
+def _sums(src: Path) -> dict[str, str]:
+    sums = {}
+    for line in (src / "SHA256SUMS").read_text().splitlines():
+        if line.strip():
+            h, name = line.split(maxsplit=1)
+            sums[name.strip().lstrip("*")] = h
+    return sums
+
+
+def build(
+    root: Path, abbr: str, splits: bool, from_full: Path | None = None,
+    from_raw: Path | None = None,
+) -> dict:
     ddir = root / abbr
     k, n = DATASETS[abbr][3], DATASETS[abbr][4]
-    if from_full is None:
+    if from_raw is not None:
+        rows = load_raw(ddir, abbr)
+        full = csv_text(rows, k)
+        want = _sums(from_raw).get(f"{abbr}/full.csv")
+        if want is None:
+            raise SystemExit(f"{abbr}: no {abbr}/full.csv line in {from_raw / 'SHA256SUMS'}")
+        if _sha(full) != want:
+            raise SystemExit(
+                f"{abbr}: full.csv built from raw has SHA-256 {_sha(full)} != {want} (SHA256SUMS)"
+            )
+        notes = [f"from {ddir / 'raw'} (cross-checks skipped; full.csv SHA-256 checked)"]
+        from_full = from_raw  # the splits.json check below
+    elif from_full is None:
         rows = load_raw(ddir, abbr)
         notes = cross_check(ddir, abbr, rows)
         full = csv_text(rows, k)
@@ -387,13 +414,17 @@ def build(root: Path, abbr: str, splits: bool, from_full: Path | None = None) ->
 
 def main() -> int:
     argv = sys.argv[1:]
-    from_full = None
-    if "--from-full" in argv:
-        i = argv.index("--from-full")
-        if i + 1 >= len(argv):
-            raise SystemExit("--from-full needs SRC_DIR")
-        from_full = Path(argv[i + 1])
-        del argv[i : i + 2]
+    src = {}
+    for opt in ("--from-full", "--from-raw"):
+        if opt in argv:
+            i = argv.index(opt)
+            if i + 1 >= len(argv):
+                raise SystemExit(f"{opt} needs SRC_DIR")
+            src[opt] = Path(argv[i + 1])
+            del argv[i : i + 2]
+    if len(src) > 1:
+        raise SystemExit("use --from-full or --from-raw, not both")
+    from_full, from_raw = src.get("--from-full"), src.get("--from-raw")
     args = [a for a in argv if not a.startswith("--")]
     if not args:
         raise SystemExit(__doc__)
@@ -403,7 +434,7 @@ def main() -> int:
     if unknown:
         raise SystemExit(f"unknown dataset(s) {unknown}; known: {list(DATASETS)}")
     splits = "--no-splits" not in argv
-    report = {abbr: build(root, abbr, splits, from_full) for abbr in wanted}
+    report = {abbr: build(root, abbr, splits, from_full, from_raw) for abbr in wanted}
     print(json.dumps(report, indent=2))
     return 0
 

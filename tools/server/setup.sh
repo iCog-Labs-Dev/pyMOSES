@@ -13,8 +13,13 @@
 #   2. uv       uv $UV_VERSION (pinned; downloaded and checksum-verified if not on PATH)
 #   3. python   CPython $PY_VERSION exactly, uv-managed, under the toolchain dir
 #   4. venv     .venv from that Python; pip install -e . pytest==9.1.1
-#   5. datasets ../gomea-results/phase1f/datasets/<Abbr>/ for Air Bos Con EnC EnH Yac,
-#               rebuilt from data/gomea-sr/ and verified
+#   5. datasets ../gomea-results/phase1f/datasets/<Abbr>/ for Air Bos Con EnC EnH WiR WiW
+#               Yac, rebuilt from data/gomea-sr/ and verified; and for Dow and Tow (no
+#               licence, not committed: data/gomea-sr/README.md), the raw gpzgd files are
+#               downloaded to <Abbr>/raw/ at a pinned commit, checked against their SHA-256,
+#               and built with sr_datasets.py --from-raw (full.csv and splits.json checked
+#               against data/gomea-sr). A missing or wrong file fails this step and names
+#               the dataset; phase 1ar (which needs them) then does not start.
 #   6. gpgomea  the authors' GP-GOMEA (750220c) and the seed build, for phases 1ai/1aj
 #               only, so a failure here is NOT fatal; result in server-run/gpgomea-build.json.
 #               Uses the system toolchain if it is complete, else (or with FORCE_CONDA=1)
@@ -36,7 +41,12 @@ GPG_COMMIT=750220c
 # output differs from the local build from generation 2 on; with netlib it is identical.
 CONDA_SPECS=(python=3.14.9 numpy=2.5.4 libboost-devel=1.92.0 libboost-python-devel=1.92.0
              gxx=16.2.0 sysroot_linux-64=2.28 "libblas=3.11.0=*netlib" "liblapack=3.11.0=*netlib")
-DATASETS=(Air Bos Con EnC EnH Yac)
+DATASETS=(Air Bos Con EnC EnH WiR WiW Yac)
+# Dow and Tow: downloaded (abbr, gpzgd file, raw SHA-256 from the local PROVENANCE.md).
+GPZGD_COMMIT=42e5a1829a0b8a2eb50e116000001f82c770791e
+GPZGD_RAW=https://raw.githubusercontent.com/grantdick/gpzgd/$GPZGD_COMMIT/problems/data
+DOWNLOADED=("Dow dowchem 0e55bcd11740d65ab7c3fe80df8e2636b0e84840c46fc9182086868a5c9f52aa"
+            "Tow tower 7d353f109f0d13c4c372ec9c3b7580580d351f0b29e395c9b05a0e89bc6492db")
 
 if [ -n "${GOMEA_RESULTS:-}" ] && [ ! -e ../gomea-results ]; then
     mkdir -p "$GOMEA_RESULTS" && ln -s "$(cd "$GOMEA_RESULTS" && pwd)" ../gomea-results
@@ -142,25 +152,50 @@ step_venv() {
 }
 
 # ---- 5. datasets
+dataset_ok() {  # dir abbr: full.csv, splits.json and the 240 split files verified
+    local D=$1 a=$2
+    [ -f "$D/$a/full.csv" ] && [ -f "$D/$a/splits/splits.json" ] \
+        && [ "$(sha256sum < "$D/$a/full.csv" | cut -d' ' -f1)" = "$(grep " $a/full.csv" data/gomea-sr/SHA256SUMS | cut -d' ' -f1)" ] \
+        && cmp -s "$D/$a/splits/splits.json" "data/gomea-sr/$a/splits.json" \
+        && [ "$(find "$D/$a/splits" -mindepth 2 -type f | wc -l)" -eq 240 ]
+}
 step_datasets() {
     [ -x .venv/bin/python ] || { record datasets FAILED "no venv"; return 1; }
-    local D=$RES/phase1f/datasets todo=() a
+    local D=$RES/phase1f/datasets todo=() a f sha line built=() bad=()
     mkdir -p "$D"
     for a in "${DATASETS[@]}"; do
-        if [ -f "$D/$a/full.csv" ] && [ -f "$D/$a/splits/splits.json" ] \
-           && [ "$(sha256sum < "$D/$a/full.csv" | cut -d' ' -f1)" = "$(grep " $a/full.csv" data/gomea-sr/SHA256SUMS | cut -d' ' -f1)" ] \
-           && cmp -s "$D/$a/splits/splits.json" "data/gomea-sr/$a/splits.json" \
-           && [ "$(find "$D/$a/splits" -mindepth 2 -type f | wc -l)" -eq 240 ]; then
-            continue
-        fi
-        todo+=("$a")
+        dataset_ok "$D" "$a" || todo+=("$a")
     done
-    if [ ${#todo[@]} -eq 0 ]; then record datasets OK "all ${#DATASETS[@]} present and verified"; return 0; fi
-    if .venv/bin/python tools/gomea/sr_datasets.py "$D" "${todo[@]}" --from-full data/gomea-sr > "$SR/datasets.json"; then
-        cp data/gomea-sr/SHA256SUMS data/gomea-sr/PROVENANCE.md "$D/" 2>/dev/null
-        record datasets OK "built ${todo[*]} (verified against data/gomea-sr)"
+    if [ ${#todo[@]} -gt 0 ]; then
+        if .venv/bin/python tools/gomea/sr_datasets.py "$D" "${todo[@]}" --from-full data/gomea-sr > "$SR/datasets.json"; then
+            built+=("${todo[@]}")
+        else
+            bad+=("${todo[*]}: sr_datasets.py --from-full failed")
+        fi
+    fi
+    for line in "${DOWNLOADED[@]}"; do
+        read -r a f sha <<< "$line"
+        dataset_ok "$D" "$a" && continue
+        mkdir -p "$D/$a/raw"
+        if ! fetch "$GPZGD_RAW/$f" "$D/$a/raw/$f" "$sha"; then
+            note "DATASET $a: download of $GPZGD_RAW/$f failed, or its SHA-256 is not $sha"
+            bad+=("$a: download or raw SHA-256 check failed ($GPZGD_RAW/$f)"); continue
+        fi
+        if .venv/bin/python tools/gomea/sr_datasets.py "$D" "$a" --from-raw data/gomea-sr > "$SR/datasets-$a.json"; then
+            built+=("$a")
+        else
+            note "DATASET $a: sr_datasets.py --from-raw failed (full.csv or splits.json differs)"
+            bad+=("$a: sr_datasets.py --from-raw failed")
+        fi
+    done
+    cp data/gomea-sr/SHA256SUMS data/gomea-sr/PROVENANCE.md "$D/" 2>/dev/null
+    if [ ${#bad[@]} -gt 0 ]; then
+        record datasets FAILED "$(IFS=';'; echo "${bad[*]}") (phase 1ar needs Dow and Tow and will not start)"; return 1
+    fi
+    if [ ${#built[@]} -eq 0 ]; then
+        record datasets OK "all $(( ${#DATASETS[@]} + ${#DOWNLOADED[@]} )) present and verified"
     else
-        record datasets FAILED "sr_datasets.py --from-full failed for ${todo[*]}"; return 1
+        record datasets OK "built ${built[*]} (verified against data/gomea-sr)"
     fi
 }
 
