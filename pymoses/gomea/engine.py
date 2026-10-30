@@ -110,6 +110,7 @@ class GomeaEngine:
         on_accept: Callable[[tuple[int, ...]], None] | None = None,
         rng_knob: MT19937RandGen | None = None,
         fitness: Callable[[Score], float] | None = None,
+        mutate: Callable[[Individual], Individual] | None = None,
     ) -> None:
         self.domains = list(domains)
         self.params = params
@@ -138,6 +139,10 @@ class GomeaEngine:
         self.rng_knob = rng_knob
         self.fitness = fitness if fitness is not None else _default_fitness
         self.knobs: KnobSelector | None = None
+        # GOMEA extension (``--const-opt mutate``): called with each GOM
+        # offspring, returns it with its constants mutated (``None`` = off).
+        # It raises ``GomInterrupted`` when the budget runs out.
+        self.mutate = mutate
 
     def best_of(self, pop: Sequence[Individual]) -> Individual:
         """The best individual; ties go to the lowest index."""
@@ -336,6 +341,9 @@ def perform_generation(
                 eng.params.acceptance,
                 **hook,
             )
+            mutate = getattr(eng, "mutate", None)
+            if mutate is not None:
+                off = mutate(off)
             eng.offer_elite(off)
             if (
                 eng.params.forced_improvement

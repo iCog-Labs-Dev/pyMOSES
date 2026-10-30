@@ -753,15 +753,44 @@ def metapop_moses_results_b(
     # discrete knobs only (`--gomea-contin reject`). A representation with
     # contin knobs is then refused by the optimizer on its first deme;
     # restate that refusal in CLI terms, naming the fields.
+    # NOT A PORT (pyMoses extension, `--const-opt polish`): hold back a share
+    # of -m for one LM call on the final best program, so the run's total
+    # (search plus polish) stays within -m. Off by default.
+    polish = gomea_params is not None and gomea_params.const_opt == "polish"
+    run_params = moses_params
+    if polish:
+        from pymoses.gomea.const_opt import POLISH_RESERVE_SHARE
+
+        run_params = copy.copy(moses_params)
+        run_params.max_evals = moses_params.max_evals - max(
+            1, int(POLISH_RESERVE_SHARE * moses_params.max_evals)
+        )
     try:
-        run_moses(metapop, dex, moses_params, stats)
+        run_moses(metapop, dex, run_params, stats)
     except UnsupportedRepresentation as exc:
         if opt_params.opt_algo not in _GOMEA_ALGOS:
             raise
         raise UnsupportedRepresentation(
             _gomea_contin_message(dex, opt_params.opt_algo)
         ) from exc
+    if polish:
+        _polish(metapop, sc, moses_params, gomea_params, stats)
     printer(metapop, dex, stats)
+
+
+def _polish(metapop, sc, moses_params, gomea_params, stats) -> None:
+    """NOT A PORT (pyMoses extension, `--const-opt polish`): LM once on the
+    final best program with the evaluations -m has left (the reserve plus
+    what the search did not use); see `const_opt.polish_metapopulation`.
+    Its evaluations are added to `stats.n_evals`, and its record goes to the
+    GOMEA log as a "polish" event."""
+    from pymoses.gomea.const_opt import polish_metapopulation
+    from pymoses.gomea.telemetry import TelemetrySink
+
+    budget = max(0, moses_params.max_evals - stats.n_evals)
+    rec = polish_metapopulation(metapop, sc, budget, gomea_params.const_opt_val)
+    stats.n_evals += rec["evals"]
+    TelemetrySink(gomea_params.telemetry_path).emit("polish", **rec)
 
 
 # GOMEA extension (not in classic MOSES).

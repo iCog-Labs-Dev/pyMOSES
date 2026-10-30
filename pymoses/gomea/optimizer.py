@@ -23,9 +23,18 @@ from collections import Counter
 from collections.abc import Hashable, Sequence
 from fractions import Fraction
 
+from pymoses.gomea.const_opt import (
+    CONST_OPT_MODES,
+    RegressionRows,
+    find_contin_bscore,
+    gaussian,
+    levenberg_marquardt,
+    mutation_sigma,
+    scored_tree_instance,
+)
 from pymoses.gomea.engine import EngineParams, GomeaEngine
 from pymoses.gomea.fos import FOS_TOPK_MODES
-from pymoses.gomea.gom import ACCEPTANCE_MODES, Individual
+from pymoses.gomea.gom import ACCEPTANCE_MODES, GomInterrupted, Individual
 from pymoses.gomea.knob_cap import KNOB_RANK0_MODES, KNOB_SELECT_MODES, default_explore
 from pymoses.gomea.long_deme import LONG_DEME_RULES, LongDemePolicy
 from pymoses.gomea.oracle import BudgetExhausted, EvaluationOracle
@@ -202,6 +211,8 @@ class gomea_parameters:
         knob_select: str = "explore",
         knob_explore: int | None = None,
         knob_rank0: str = "contrast",
+        const_opt: str = "none",
+        const_opt_val: str = "",
     ) -> None:
         if pop_size < 2:
             raise ValueError(f"pop_size must be >= 2, got {pop_size}")
@@ -269,6 +280,14 @@ class gomea_parameters:
                 raise ValueError(f"knob_explore must be in [0, {knob_cap}], got {knob_explore}")
         elif knob_explore is not None or knob_select != "explore" or knob_rank0 != "contrast":
             raise ValueError("knob_select, knob_explore and knob_rank0 need knob_cap > 0")
+        if const_opt not in CONST_OPT_MODES:
+            raise ValueError(f"const_opt must be one of {CONST_OPT_MODES}, got {const_opt!r}")
+        if const_opt == "mutate" and contin != "copy":
+            raise ValueError("const_opt 'mutate' needs contin 'copy' (constants as genes)")
+        if const_opt == "polish" and not const_opt_val:
+            raise ValueError("const_opt 'polish' needs const_opt_val (the validation table)")
+        if const_opt_val and const_opt != "polish":
+            raise ValueError("const_opt_val is used by const_opt 'polish' only")
         parse_radii(radii)
 
         self.pop_size = pop_size
@@ -301,6 +320,8 @@ class gomea_parameters:
         self.knob_select = knob_select
         self.knob_explore = knob_explore
         self.knob_rank0 = knob_rank0
+        self.const_opt = const_opt
+        self.const_opt_val = const_opt_val
 
     # The opt-in options, left out of ``as_dict`` while at their default
     # (off), so a default run's telemetry is unchanged.
@@ -315,6 +336,8 @@ class gomea_parameters:
         "long_deme_cap": 0,
         "long_deme_rule": "top",
         "long_deme_prob": 0.0,
+        "const_opt": "none",
+        "const_opt_val": "",
     }
 
     # The knob-cap options: all left out of ``as_dict`` while ``knob_cap`` is 0
@@ -375,6 +398,27 @@ def accept_worse(a: composite_score, b: composite_score, ratio: float) -> bool:
     if math.isnan(lef):
         return not math.isnan(rig)
     return (lef < rig) or (lef == rig and a.get_complexity() > b.get_complexity())
+
+
+def _new_const_opt_counts() -> dict:
+    """GOMEA extension (``--const-opt``): one call's tuning counts."""
+    return {
+        "lm_calls": 0,
+        "lm_improved": 0,
+        "lm_not_improved": 0,
+        "lm_singular": 0,
+        "lm_failed": 0,
+        "lm_no_constants": 0,
+        "lm_budget": 0,
+        "mutate_attempts": 0,
+        "mutate_accepted": 0,
+        "tuning_evals": 0,
+        "lm": None,
+    }
+
+
+def _const_opt_mode(opt) -> str:
+    return opt.gomea_params.const_opt
 
 
 class _WorseKey:
@@ -498,6 +542,15 @@ def _knob_stream(gp: gomea_parameters) -> MT19937RandGen | None:
     return MT19937RandGen(randGen().randint())
 
 
+def _mutate_stream(gp: gomea_parameters) -> MT19937RandGen | None:
+    """GOMEA extension (``--const-opt mutate``): the coefficient-mutation
+    stream, seeded from ``randGen()`` after the others; ``None`` (and nothing
+    drawn) for every other mode."""
+    if gp.const_opt != "mutate":
+        return None
+    return MT19937RandGen(randGen().randint())
+
+
 def _score_fields(score: composite_score) -> dict:
     return {
         "raw": score.get_score(),
@@ -532,6 +585,10 @@ class gomea_optimization(optimizer_base):
         # GOMEA extension (``--gomea-knob-cap``): the current call's knob-cap
         # stream (``None`` when off).
         self._rng_knob: MT19937RandGen | None = None
+        # GOMEA extension (``--const-opt``): the current call's mutation
+        # stream (``None`` unless ``mutate``) and tuning counts.
+        self._rng_mut: MT19937RandGen | None = None
+        self._co: dict = _new_const_opt_counts()
 
     def prepare_deme(self, mp, exemplar) -> None:
         """GOMEA extension, Phase 1af: called by ``expand_deme`` once the
@@ -562,6 +619,8 @@ class gomea_optimization(optimizer_base):
 
         rng_init, rng_link, rng_var = _draw_streams()
         self._rng_knob = _knob_stream(gp)
+        self._rng_mut = _mutate_stream(gp)
+        self._co = _new_const_opt_counts()
         sink = TelemetrySink(gp.telemetry_path)
         oracle = self._make_oracle(schema, iscorer, deme, max_evals, max_time)
         ev = _OracleEvaluator(oracle, schema, gp.skip_inactive, gp.accept_complexity_ratio)
@@ -606,6 +665,8 @@ class gomea_optimization(optimizer_base):
         gp = self.gomea_params
         rng_init, rng_link, rng_var = _draw_streams()
         self._rng_knob = _knob_stream(gp)
+        self._rng_mut = _mutate_stream(gp)
+        self._co = _new_const_opt_counts()
         sink = TelemetrySink(gp.telemetry_path)
         oracle = self._make_oracle(schema, iscorer, deme, max_evals, max_time)
         prior = [(schema.to_genotype(si.first), si.second) for si in deme]
@@ -800,6 +861,7 @@ class gomea_optimization(optimizer_base):
                     on_accept=oracle.keep if gp.deme_store == "accepted" else None,
                     rng_knob=self._rng_knob,
                     fitness=self._fitness(),
+                    mutate=self._mutator(schema, oracle, ev),
                 )
                 reason = engine.run(population).termination_reason
         except KeyboardInterrupt:
@@ -859,6 +921,8 @@ class gomea_optimization(optimizer_base):
         """Finalize the deme, set ``optim_stats`` and ``last_result``, and
         emit the ``end`` event."""
         oracle.finalize()
+        if _const_opt_mode(self) == "lm" and reason != "interrupted":
+            self._tune_best(deme, oracle, schema)
         result = engine.last_result if engine is not None else None
         history = result.history if result is not None else []
         generations = result.generations if result is not None else 0
@@ -907,4 +971,95 @@ class gomea_optimization(optimizer_base):
             self.last_result["knob_core_entered_total"] = (
                 knobs.entered_total if knobs is not None else 0
             )
+        if _const_opt_mode(self) != "none":
+            # GOMEA extension (``--const-opt``; absent when it is none).
+            self.last_result["const_opt"] = {"mode": _const_opt_mode(self), **self._co}
         sink.emit("end", **self.last_result)
+
+    # GOMEA extension (``--const-opt mutate``): coefficient mutation.
+    def _mutator(self, schema: FrozenSchema, oracle: EvaluationOracle, ev: _OracleEvaluator):
+        """The engine's ``mutate`` hook, or ``None`` unless ``mutate``.
+
+        After each GOM step, one Gaussian change ``c + N(0, sigma)``, sigma =
+        ``max(0.1 |c|, 0.1)``, to each constant of the offspring in turn (each
+        active contin gene, in gene order), kept if the score is not worse
+        under the deme's comparator. Each change is one evaluation through the
+        oracle (the deme cap applies). The new value is a free contin value
+        (``FrozenSchema.register_contin_value``). A ``BudgetExhausted`` is
+        raised as ``GomInterrupted`` with the last kept state."""
+        if self.gomea_params.const_opt != "mutate":
+            return None
+        rng = self._rng_mut
+        co = self._co
+        keep = oracle.keep if self.gomea_params.deme_store == "accepted" else None
+
+        def mutate(ind: Individual) -> Individual:
+            cur_g, cur_s, cur_k = ind.genotype, ind.score, ind.pkey
+            before = oracle.ledger.requests
+            try:
+                for p in schema.active_contin(cur_g):
+                    c = schema.contin_value(p, cur_g[p])
+                    code = schema.register_contin_value(p, c + mutation_sigma(c) * gaussian(rng))
+                    if code == cur_g[p]:
+                        continue
+                    trial = cur_g[:p] + (code,) + cur_g[p + 1 :]
+                    try:
+                        score = ev.evaluate(trial)
+                    except BudgetExhausted as exc:
+                        raise GomInterrupted(Individual(cur_g, cur_s, cur_k), exc.reason) from exc
+                    co["mutate_attempts"] += 1
+                    if ev.worse(score, cur_s):
+                        continue
+                    co["mutate_accepted"] += 1
+                    cur_g, cur_s, cur_k = trial, score, ev.phenotype_key(trial)
+                    if keep is not None:
+                        keep(trial)
+            finally:
+                co["tuning_evals"] += oracle.ledger.requests - before
+            return Individual(cur_g, cur_s, cur_k)
+
+        return mutate
+
+    # GOMEA extension (``--const-opt lm``): elite-only LM at the end of a deme.
+    def _tune_best(self, deme: deme_t, oracle: EvaluationOracle, schema: FrozenSchema) -> None:
+        """LM on the deme's best program (``const_opt.levenberg_marquardt``),
+        after ``oracle.finalize``. Every pass over the training rows is charged
+        through ``oracle.charge_tuning`` (the run's budget; not the deme cap)
+        and added to ``deme.n_evals``. If LM lowered the training MSE, the
+        tuned program, scored (one more pass), replaces the best program's
+        entries in the deme (Lamarckian). A singular or failed call keeps the
+        old program; the call's record is logged in ``const_opt.lm``."""
+        co = self._co
+        g = oracle.best_genotype()
+        if g is None:
+            return
+        iscorer = oracle.iscorer
+        cscorer = iscorer._cscorer
+        rows = RegressionRows.of_bscore(find_contin_bscore(cscorer))
+        tree = schema.candidate(g, getattr(iscorer, "_reduce", True))
+        before = oracle.ledger.requests
+        lm = levenberg_marquardt(tree, rows, oracle.charge_tuning)
+        rec = lm.record()
+        if lm.tree is not None:
+            try:
+                oracle.charge_tuning()
+                score = cscorer.get_cscore(lm.tree)
+            except BudgetExhausted:
+                rec["budget"] = True
+                rec["written_back"] = False
+            else:
+                inst = schema.to_instance(g)
+                deme[:] = [
+                    si
+                    for si in deme
+                    if not (si.first == inst and getattr(si, "tree", None) is None)
+                ]
+                deme.append(scored_tree_instance(inst, score, lm.tree))
+                rec["written_back"] = True
+        used = oracle.ledger.requests - before
+        deme.n_evals += used
+        rec["evals"] = used
+        co["tuning_evals"] += used
+        co["lm_calls"] += 1
+        co["lm_" + lm.status] += 1
+        co["lm"] = rec

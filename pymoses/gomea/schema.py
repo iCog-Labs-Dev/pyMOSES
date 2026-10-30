@@ -30,6 +30,7 @@ produced: every code comes from a MOSES instance or from
 
 from __future__ import annotations
 
+import copy
 import hashlib
 from collections.abc import Sequence
 
@@ -104,6 +105,13 @@ class FrozenSchema:
         )
         self._disc_raw0: int = fields.n_contin_fields()
         self._contin_values: dict[tuple[int, int], float] = {}
+        # GOMEA extension (``--const-opt mutate``): free contin values. Code
+        # ``4 ** depth + j`` of contin gene ``pos`` is ``_free_values[pos][j]``,
+        # a constant that no step path gives (see ``register_contin_value``).
+        # Empty (and never read) unless a value is registered.
+        self._n_free: int = 0
+        self._free_values: list[list[float]] = [[] for _ in specs]
+        self._free_codes: list[dict[float, int]] = [{} for _ in specs]
         self.dim: int = len(specs) + fields.raw_size() - self._disc_raw0
         self.domains: tuple[int, ...] = tuple(4**c.depth for c in specs) + tuple(
             spec.multy for spec in fields.disc_and_bit()
@@ -159,6 +167,8 @@ class FrozenSchema:
         outside its field's domain.
         """
         values = list(g)
+        if self._n_free:
+            values = self._placeholder(values)
         if len(values) != self.dim:
             raise ValueError(f"genotype has {len(values)} values; schema requires {self.dim}")
         # Port-only optimisation: a plain-int, in-domain genotype (every one
@@ -200,7 +210,11 @@ class FrozenSchema:
     # GOMEA extension: contin genes (``--gomea-contin copy``).
     def contin_value(self, pos: int, code: int) -> float:
         """The constant that contin gene ``pos`` with ``code`` decodes to
-        (``field_set.get_contin``'s step walk, memoized per code)."""
+        (``field_set.get_contin``'s step walk, memoized per code; a free code
+        gives its registered value)."""
+        base = 4 ** self.contin_depths[pos]
+        if code >= base:
+            return self._free_values[pos][code - base]
         key = (pos, code)
         value = self._contin_values.get(key)
         if value is None:
@@ -239,6 +253,91 @@ class FrozenSchema:
             code |= step << (2 * k)
         return code
 
+    # GOMEA extension (``--const-opt mutate``): free contin values.
+    def register_contin_value(self, pos: int, value: float) -> int:
+        """The code of contin gene ``pos`` that holds ``value``: a new free
+        code ``4 ** depth + j`` (or the earlier one for the same value). A
+        genotype with a free code decodes to its value (``decode``) and packs
+        to an instance with code 0 there (``to_instance``)."""
+        value = float(value)
+        codes = self._free_codes[pos]
+        code = codes.get(value)
+        if code is None:
+            code = 4 ** self.contin_depths[pos] + len(self._free_values[pos])
+            self._free_values[pos].append(value)
+            codes[value] = code
+            self._n_free += 1
+        return code
+
+    def free_values(self, g: Sequence[int]) -> dict[int, float]:
+        """``{contin gene: value}`` for the free codes of ``g`` (empty when
+        none)."""
+        if not self._n_free:
+            return {}
+        return {
+            p: self._free_values[p][g[p] - 4**d]
+            for p, d in zip(self.contin_positions, self.contin_depths, strict=True)
+            if g[p] >= 4**d
+        }
+
+    def _placeholder(self, values: list[int]) -> list[int]:
+        for p, d in zip(self.contin_positions, self.contin_depths, strict=True):
+            if values[p] >= 4**d:
+                values[p] = 0
+        return values
+
+    def candidate(
+        self, g: Sequence[int], reduce: bool, visited: set[int] | None = None
+    ) -> combo_tree:
+        """The program of ``g`` with its free contin values in place (the
+        same tree ``rep.get_candidate(to_instance(g), reduce)`` gives when
+        ``g`` has none). ``visited``, when given, receives the contin genes
+        whose constant is in the unreduced tree (the active ones)."""
+        rep = self.rep
+        inst = self.to_instance(g)
+        free = self.free_values(g)
+        cand = combo_tree()
+        root = rep._exemplar.begin()
+        if root is not None:
+            self._candidate_rec(rep, inst, free, visited, root, None, cand)
+        rep.clean_combo_tree(cand, reduce)
+        return cand
+
+    def _candidate_rec(self, rep, inst, free, visited, src, parent_dst, cand) -> None:
+        """``representation._get_candidate_rec`` with a free value (when
+        ``free`` has one) in place of a contin knob's step-path value."""
+        knob = rep.find_disc_knob(src)
+        if knob is not None:
+            raw = self.fields.get_raw(inst, rep._it_disc_idx[src])
+            new_src, new_parent = knob.append_to(cand, parent_dst, raw)
+            if new_src is not None:
+                for child in rep._exemplar.children(new_src):
+                    self._candidate_rec(rep, inst, free, visited, child, new_parent, cand)
+            return
+        contin_kb = rep.find_contin_knob(src)
+        if contin_kb is not None:
+            idx = rep._it_contin_idx[src]
+            if visited is not None:
+                visited.add(idx)
+            value = free.get(idx)
+            if value is None:
+                value = self.fields.get_contin(inst, idx)
+            contin_kb.append_to(cand, parent_dst, value)
+            return
+        if cand.empty():
+            new_parent = cand.set_head(src.data)
+        else:
+            new_parent = cand.append_child(parent_dst, copy.copy(src.data))
+        for child in rep._exemplar.children(src):
+            self._candidate_rec(rep, inst, free, visited, child, new_parent, cand)
+
+    def active_contin(self, g: Sequence[int]) -> list[int]:
+        """The contin genes of ``g`` whose constant is in its (unreduced)
+        program, in gene order."""
+        seen: set[int] = set()
+        self.candidate(g, False, seen)
+        return sorted(seen)
+
     def phenotype_key(self, g: Sequence[int]) -> tuple:
         """A collision-free key identifying ``g``'s scored phenotype.
 
@@ -248,10 +347,14 @@ class FrozenSchema:
         (``representation.clean_combo_tree``), also proves their REDUCED
         trees (what a scorer actually sees) are identical.
         """
+        if self._n_free and self.free_values(g):
+            return _cache_key(self.candidate(g, False))
         inst = self.to_instance(g)
         return _cache_key(self.rep.get_candidate(inst, False))
 
     def decode(self, g: Sequence[int]) -> combo_tree:
         """The reduced combo tree ``g`` decodes to."""
+        if self._n_free and self.free_values(g):
+            return self.candidate(g, True)
         inst = self.to_instance(g)
         return self.rep.get_candidate(inst, True)

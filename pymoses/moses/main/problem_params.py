@@ -569,6 +569,30 @@ _PORT_OPTIONS = (
         "the training target (b = cov(y, f) / var(f), a = mean(y) - b mean(f); "
         "b = 0 for a constant f). 0 = off (classic MOSES). Default 0.",
     ),
+    # Constant tuning, server round 3 (off by default: a default run is
+    # unchanged; pymoses/gomea/const_opt.py).
+    (
+        "--const-opt",
+        "const_opt",
+        str,
+        "none",
+        "regression with -a gomea or hc-gomea only: tune numeric constants. "
+        "none; lm (at the end of each deme, Levenberg-Marquardt on the deme's "
+        "best program, kept if the training error is lower); mutate (after "
+        "each GOM step, one Gaussian change to each constant, kept if the "
+        "score is not worse; needs --gomea-contin copy); polish (LM once on "
+        "the final best program, kept if the validation NMSE is not worse; "
+        "needs --const-opt-val). Every pass over the training rows counts "
+        "as one evaluation. Default none.",
+    ),
+    (
+        "--const-opt-val",
+        "const_opt_val",
+        str,
+        "",
+        "with --const-opt polish: the validation table (same columns as the "
+        "training table, target y). Default none.",
+    ),
 )
 _GOMEA_INIT_CHOICES = ("sampler", "uniform")
 _GOMEA_ACCEPT_CHOICES = ("nonworse", "strict")
@@ -578,6 +602,7 @@ _GOMEA_DEME_STORE_CHOICES = ("all", "accepted")
 _GOMEA_FOS_TOPK_MODE_CHOICES = ("linkage", "random")
 _GOMEA_LONG_DEME_RULE_CHOICES = ("top", "random")
 _GOMEA_KNOB_SELECT_CHOICES = ("explore", "static", "random")
+_CONST_OPT_CHOICES = ("none", "lm", "mutate", "polish")
 _GOMEA_KNOB_RANK0_CHOICES = ("contrast", "entropy", "random")
 
 
@@ -630,6 +655,10 @@ def _gomea_params_from_args(args: argparse.Namespace) -> gomea_parameters:
     the `--gomea-*` options describe. Raises `ValueError` for a malformed
     value, like the other enumerated options `parse_options` checks."""
     v = {dest: getattr(args, dest, default) for _, dest, _, default, _ in _GOMEA_OPTIONS}
+    # Server round 3: `--const-opt` (a port option, read here because the
+    # GOMEA optimizer does the tuning).
+    v["const_opt"] = getattr(args, "const_opt", "none")
+    v["const_opt_val"] = getattr(args, "const_opt_val", "")
     if v["gomea_fos"] not in _GOMEA_FOS_CHOICES:
         raise ValueError(
             f"--gomea-fos {v['gomea_fos']} is not recognized. "
@@ -684,6 +713,7 @@ def _gomea_params_from_args(args: argparse.Namespace) -> gomea_parameters:
             f"got --gomea-fos {v['gomea_fos']}"
         )
     _check_long_deme(v, cap, getattr(args, "opt_algo", None))
+    _check_const_opt(v, getattr(args, "opt_algo", None))
     knob_explore = _check_knob_cap(v)
     return gomea_parameters(
         pop_size=v["gomea_pop_size"],
@@ -715,7 +745,27 @@ def _gomea_params_from_args(args: argparse.Namespace) -> gomea_parameters:
         knob_select=v["gomea_knob_select"],
         knob_explore=knob_explore,
         knob_rank0=v["gomea_knob_rank0"],
+        const_opt=v["const_opt"],
+        const_opt_val=v["const_opt_val"],
     )
+
+
+def _check_const_opt(v: dict, opt_algo: str | None) -> None:
+    """GOMEA extension, server round 3: validate `--const-opt` and
+    `--const-opt-val`."""
+    mode = v["const_opt"]
+    if mode not in _CONST_OPT_CHOICES:
+        raise ValueError(
+            f"--const-opt {mode} is not recognized. Supported: {', '.join(_CONST_OPT_CHOICES)}."
+        )
+    if mode != "none" and opt_algo not in ("gomea", "hc-gomea"):
+        raise ValueError(f"--const-opt {mode} needs -a gomea or -a hc-gomea, got -a {opt_algo}")
+    if mode == "mutate" and v["gomea_contin"] != "copy":
+        raise ValueError("--const-opt mutate needs --gomea-contin copy")
+    if mode == "polish" and not v["const_opt_val"]:
+        raise ValueError("--const-opt polish needs --const-opt-val FILE")
+    if v["const_opt_val"] and mode != "polish":
+        raise ValueError("--const-opt-val is used by --const-opt polish only")
 
 
 def _check_knob_cap(v: dict) -> int | None:

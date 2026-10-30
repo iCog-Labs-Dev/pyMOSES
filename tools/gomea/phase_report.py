@@ -14,15 +14,19 @@ SPEC_JSON (one per phase, `configs/gomea/<phase>/spec.json`)::
 
     {"phase": "1u",
      "metrics": {"mux11": "cpu_to_target", "Con": "test_nmse"},
-     "primary":     [[problem, name, arm_a, arm_b], ...],
+     "primary":     [[problem, name, arm_a, arm_b(, metric)], ...],
      "secondary":   [[...], ...],
      "descriptive": [[...], ...]}          # optional
 
-Metrics, paired by seed (a regression run's seed is its split); lower is better:
+A contrast takes its problem's metric, or the optional fifth element (server round 3,
+1ap: program size as the primary metric and test NMSE as the secondary one for the same
+problem). Metrics, paired by seed (a regression run's seed is its split); lower is better:
 
 * `cpu_to_target`: CPU seconds to a solution; a failed or unsolved run = infinite;
 * `evals_to_target`: evaluations to a solution; a failed or unsolved run = infinite;
-* `test_nmse`: test NMSE of the reported program; a failed run = infinite.
+* `test_nmse`: test NMSE of the reported program; a failed run = infinite;
+* `program_size`: size of the reported program (`_size`; server round 3, 1ap);
+  a failed run = infinite.
 
 Families: Holm over all primary contrasts, and separately over all secondary ones.
 Descriptive contrasts take no verdict (raw p only).
@@ -54,7 +58,7 @@ from benchmarks.gomea.stats import holm, wilcoxon_signed_rank  # noqa: E402
 
 ALPHA = 0.025
 EXTEND_BELOW = 0.25
-METRICS = ("cpu_to_target", "evals_to_target", "test_nmse")
+METRICS = ("cpu_to_target", "evals_to_target", "test_nmse", "program_size")
 
 
 def _load(dirs: str, into: dict) -> None:
@@ -74,7 +78,9 @@ def _is_regression(s: dict) -> bool:
 def _value(metric: str, s: dict) -> float:
     if s.get("status") != "ok":
         return math.inf
-    if metric == "test_nmse":
+    if metric == "program_size":
+        v = _size(s)
+    elif metric == "test_nmse":
         v = s.get("test_nmse")
     else:
         v = s.get(metric) if s.get("success") else None
@@ -123,6 +129,13 @@ def _decide(rows, stage, can_extend) -> None:
             r["verdict"] = "tie"
 
 
+def _gap(s: dict) -> float | None:
+    """Test NMSE minus training NMSE of the reported program."""
+    if s.get("test_nmse") is None or s.get("train_nmse") is None:
+        return None
+    return s["test_nmse"] - s["train_nmse"]
+
+
 def _med(xs):
     xs = [x for x in xs if x is not None]
     return statistics.median(xs) if xs else None
@@ -165,6 +178,21 @@ def _aggregate(problem: str, arm: str, v: list[dict], metric: str) -> dict:
         "final_from_seed": None,
         "median_evals_used": _med(_evals(s) for s in v),
     }
+    if any("const_opt" in s for s in v):
+        # server round 3: constant tuning (moses_sr_runner.const_opt_summary)
+        co = [s.get("const_opt") or {} for s in v]
+        row.update(
+            median_train_test_gap=_med(_gap(s) for s in v),
+            median_lm_calls=_med(c.get("lm_calls") for c in co),
+            median_lm_improved_share=_med(c.get("lm_improved_share") for c in co),
+            median_lm_singular_or_failed=_med(
+                (c.get("lm_singular", 0) + c.get("lm_failed", 0)) if c else None for c in co
+            ),
+            median_tuning_evals=_med(c.get("tuning_evals") for c in co),
+            median_tuning_share=_med(c.get("tuning_share") for c in co),
+            median_mutate_accepted_share=_med(c.get("mutate_accepted_share") for c in co),
+            polish_accepted=sum(bool(c.get("polish_accepted")) for c in co),
+        )
     if seeded:
         row["median_seed_test_nmse"] = _med(s.get("seed_test_nmse") for s in v)
         row["median_seed_best_raw"] = _med((s.get("seeding") or {}).get("seed_best_raw")
@@ -213,7 +241,13 @@ def main(argv: list[str] | None = None) -> int:
     if not agg:
         print(f"no Phase {spec.get('phase', '?')} runs found in {argv[4]}", file=sys.stderr)
         return 1
-    rows = {k: [_contrast(p, n, a, b, runs.get(p, {}), metrics[p]) for p, n, a, b in f]
+    for f in families.values():
+        for c in f:
+            if len(c) == 5 and c[4] not in METRICS:
+                print(f"unknown metric {c[4]!r} in contrast {c}", file=sys.stderr)
+                return 2
+    rows = {k: [_contrast(p, n, a, b, runs.get(p, {}), m[0] if m else metrics[p])
+                for p, n, a, b, *m in f]
             for k, f in families.items()}
     _decide(rows["primary"], stage, can_extend=True)
     _decide(rows["secondary"], stage, can_extend=False)
@@ -227,7 +261,9 @@ def main(argv: list[str] | None = None) -> int:
     fields = sorted({k for r in allrows for k in r},
                     key=lambda k: (k not in ("problem", "contrast", "family"), k))
     _write_csv(out / "contrasts.csv", allrows, fields)
-    _write_csv(out / "aggregate.csv", agg, list(agg[0]))
+    afields = list(agg[0]) + [k for r in agg for k in r if k not in agg[0]]
+    afields = list(dict.fromkeys(afields))
+    _write_csv(out / "aggregate.csv", agg, afields)
     verdict = {f"{r['problem']}:{r['contrast']}": r["verdict"]
                for r in rows["primary"] + rows["secondary"]}
     (out / "verdict.json").write_text(json.dumps(verdict, indent=2) + "\n")

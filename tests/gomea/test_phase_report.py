@@ -228,3 +228,49 @@ def test_scores_now_shows_gpgomea_runs(tmp_path):
     spec.loader.exec_module(mod)
     assert mod.DEFAULT == ["phase1ah", "phase1ai", "phase1af-pilot", "phase1af", "phase1aj",
                            "phase1ag", "phase1ae"]
+
+
+def test_program_size_metric(tmp_path):
+    # Server round 3, 1ap: program size as a primary metric (smaller is better).
+    small = "(+ $x1 2)"  # 1 "(" + 3 atoms = 4
+    big = "(+ $x1 (* $x2 (+ $x3 (* $x4 2))))"  # 4 "(" + 9 atoms = 13
+    a = [dict(_reg("A", k, 0.2), final_program=small) for k in range(1, 11)]
+    b = [dict(_reg("B", k, 0.1), final_program=big) for k in range(1, 11)]
+    b[0]["status"] = "error"  # a failed run is infinitely large
+    d = _write(tmp_path, "r", a + b)
+    spec = {"phase": "t", "metrics": {"Con": "program_size"},
+            "primary": [["Con", "size", "A", "B"]],
+            "secondary": [["Con", "nmse", "A", "B"]]}
+    rc, out, v = _run(tmp_path, spec, [d])
+    assert rc == 0 and v["Con:size"] == "A better"
+    row = _rows(out, "contrasts.csv")[0]
+    assert row["metric"] == "program_size" and float(row["median_a"]) == 4.0
+    assert float(row["median_b"]) == 13.0
+
+
+def test_const_opt_columns(tmp_path):
+    co = {"lm_calls": 4, "lm_improved": 1, "lm_improved_share": 0.25, "lm_singular": 1,
+          "lm_failed": 0, "tuning_evals": 50, "tuning_share": 0.05, "polish_accepted": True}
+    a = [dict(_reg("A", k, 0.2), const_opt=co) for k in range(1, 11)]
+    d = _write(tmp_path, "r", a + [_reg("B", k, 0.3) for k in range(1, 11)])
+    spec = {"phase": "t", "metrics": {"Con": "test_nmse"}, "primary": [["Con", "x", "A", "B"]]}
+    _, out, _ = _run(tmp_path, spec, [d])
+    agg = {r["arm"]: r for r in _rows(out, "aggregate.csv")}
+    assert float(agg["A"]["median_lm_improved_share"]) == 0.25
+    assert float(agg["A"]["median_tuning_evals"]) == 50 and agg["A"]["polish_accepted"] == "10"
+    assert agg["B"]["median_lm_calls"] == ""
+
+
+def test_contrast_metric_override(tmp_path):
+    # a fifth element sets the contrast's metric (1ap: size primary, NMSE secondary)
+    a = [dict(_reg("A", k, 0.3), final_program="(+ $x1 2)") for k in range(1, 11)]
+    b = [_reg("B", k, 0.1) for k in range(1, 11)]
+    d = _write(tmp_path, "r", a + b)
+    spec = {"phase": "t", "metrics": {"Con": "program_size"},
+            "primary": [["Con", "size", "A", "B"]],
+            "secondary": [["Con", "nmse", "A", "B", "test_nmse"]]}
+    rc, out, v = _run(tmp_path, spec, [d])
+    assert rc == 0 and v == {"Con:size": "A better", "Con:nmse": "A worse"}
+    spec["secondary"][0][4] = "nope"
+    rc, _, _ = _run(tmp_path, spec, [d])
+    assert rc == 2

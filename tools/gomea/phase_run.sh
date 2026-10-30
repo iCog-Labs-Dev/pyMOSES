@@ -47,7 +47,7 @@ V=$R/$P/report-stage1/verdict.json
 EXTP=$($PY -c '
 import json, sys
 spec, v = json.load(open(sys.argv[1])), json.load(open(sys.argv[2]))
-print(" ".join(sorted({p for p, n, a, b in spec["primary"] if v.get(f"{p}:{n}") == "extend"})))
+print(" ".join(sorted({p for p, n, *_ in spec["primary"] if v.get(f"{p}:{n}") == "extend"})))
 ' "$Q/spec.json" "$V" 2>/dev/null)
 D2=$D1; EXT=no
 for t in $EXTP; do

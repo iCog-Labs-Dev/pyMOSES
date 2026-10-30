@@ -253,6 +253,7 @@ import math
 from typing import TYPE_CHECKING
 
 from pymoses.comboreduct.combo.iostream_combo import tree_to_stream_str
+from pymoses.comboreduct.combo.vertex import combo_tree
 from pymoses.moses.metapopulation import diversity as _diversity  # noqa: F401
 from pymoses.moses.metapopulation import domination as _domination  # noqa: F401
 from pymoses.moses.metapopulation.metapopulation import _copy_sct, metapopulation
@@ -370,6 +371,16 @@ def trim_down_deme(self: metapopulation, deme: deme_t) -> None:
         logger().debug(f"Deme trimmed down, new size: {len(deme)}")
 
 
+def _entry_tree(si, rep: representation) -> combo_tree:
+    """NOT A PORT (pyMoses extension, `--const-opt`): the reduced program of
+    a deme entry, `rep.get_candidate(si.first, True)` unless the entry
+    carries its own (`pymoses.gomea.const_opt.scored_tree_instance`)."""
+    tr = getattr(si, "tree", None)
+    if tr is None:
+        return rep.get_candidate(si.first, True)
+    return combo_tree(tr.begin())
+
+
 def deme_to_trees(
     self: metapopulation,
     deme: deme_t,
@@ -422,7 +433,10 @@ def deme_to_trees(
         if inst_sc <= very_worst_score or not math.isfinite(inst_sc):
             continue
 
-        tr = rep.get_candidate(inst.first, True)
+        # NOT A PORT (pyMoses extension, `--const-opt`): a GOMEA deme entry
+        # can carry its own program (tuned constants that no instance
+        # encodes); `entry_tree` returns it, else this same `get_candidate`.
+        tr = _entry_tree(inst, rep)
         # C++: merging.cc:107 `logger().debug() << tr;` -- a bare tree, with
         # no prefix of any kind, one record per selected instance.
         logger().debug(tree_to_stream_str(tr))
@@ -1278,8 +1292,9 @@ def keep_top_unique_candidates(
                 sc = deme[it_idx].second.get_penalized_score()
                 prev_sc = deme[prev_idx].second.get_penalized_score()
                 if _is_approx_eq(prev_sc, sc, _EPSILON):
-                    tr = rep.get_candidate(deme[it_idx].first, True)
-                    prev_tr = rep.get_candidate(deme[prev_idx].first, True)
+                    # NOT A PORT (`--const-opt`): see `deme_to_trees`.
+                    tr = _entry_tree(deme[it_idx], rep)
+                    prev_tr = _entry_tree(deme[prev_idx], rep)
                     if _combo_tree_structural_eq(prev_tr, tr):
                         del deme[it_idx]
                         top_cnd = min(top_cnd, len(deme))

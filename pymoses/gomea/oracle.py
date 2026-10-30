@@ -36,7 +36,7 @@ from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 
 from pymoses.gomea.schema import FrozenSchema
-from pymoses.moses.moses.types import composite_score, very_worst_score
+from pymoses.moses.moses.types import composite_score, very_worst_score, worst_composite_score
 from pymoses.moses.representation.instance_scorer import iscorer_base
 from pymoses.moses.representation.instance_set import instance_set
 from pymoses.moses.representation.scored_instance import scored_instance
@@ -88,9 +88,12 @@ class EvaluationLedger:
     cache_misses: int = 0
     duplicate_requests: int = 0
     memo_hits: int = 0
+    # GOMEA extension (``--const-opt lm``): the part of ``requests`` that
+    # ``charge_tuning`` charged (LM passes over the training rows).
+    tuning_requests: int = 0
 
     def as_dict(self) -> dict:
-        return {
+        d = {
             "requests": self.requests,
             "invalid": self.invalid,
             "noop_skips": self.noop_skips,
@@ -100,6 +103,10 @@ class EvaluationLedger:
             "duplicate_requests": self.duplicate_requests,
             "memo_hits": self.memo_hits,
         }
+        if self.tuning_requests:
+            # Absent while 0, so a run without constant tuning is unchanged.
+            d["tuning_requests"] = self.tuning_requests
+        return d
 
 
 class EvaluationOracle:
@@ -179,6 +186,8 @@ class EvaluationOracle:
         self.ledger = EvaluationLedger()
         self._best: composite_score | None = None
         self._best_evals = 0
+        # GOMEA extension (``--const-opt lm``): the genotype of ``_best``.
+        self._best_g: tuple[int, ...] | None = None
         # Every genotype that reached the scorer so far, for
         # ``ledger.duplicate_requests``.
         self._seen: set[tuple[int, ...]] = set()
@@ -261,7 +270,14 @@ class EvaluationOracle:
         hits_before = getattr(cscorer, "_cache_hits", 0)
         misses_before = getattr(cscorer, "_cache_misses", 0)
 
-        score = self.iscorer(inst)
+        # GOMEA extension (``--const-opt mutate``): a genotype with free
+        # contin values is scored on its own program, and its deme entry
+        # carries that program (``const_opt.scored_tree_instance``).
+        tree = None
+        if self.schema._n_free and self.schema.free_values(g):
+            tree, score = self._score_free(g)
+        else:
+            score = self.iscorer(inst)
 
         hits_after = getattr(cscorer, "_cache_hits", 0)
         misses_after = getattr(cscorer, "_cache_misses", 0)
@@ -283,7 +299,12 @@ class EvaluationOracle:
         # (scorers take it read-only, like C++'s ``const instance&``) instead
         # of packing and validating ``g`` a second time; ``scored_instance``
         # stores its own copies of both the instance and the score.
-        self.deme.append(scored_instance(inst, score))
+        if tree is None:
+            self.deme.append(scored_instance(inst, score))
+        else:
+            from pymoses.gomea.const_opt import scored_tree_instance
+
+            self.deme.append(scored_tree_instance(inst, score, tree))
         if self._last_index is not None:
             self._last_index[key] = len(self.deme) - 1
         if self._memo is not None:
@@ -292,9 +313,39 @@ class EvaluationOracle:
         if self._best is None or self._best < score:
             self._best = copy.copy(score)
             self._best_evals = self.ledger.requests
+            self._best_g = key
         self._offer_stall_best(score, self.ledger.requests)
 
         return copy.copy(score)
+
+    def _score_free(self, g: tuple[int, ...]):
+        """GOMEA extension (``--const-opt mutate``): ``(program, score)`` of a
+        genotype with free contin values, scored as ``complexity_based_scorer``
+        scores an instance (any error gives the worst score)."""
+        reduce = getattr(self.iscorer, "_reduce", True)
+        tree = self.schema.candidate(g, reduce)
+        try:
+            return tree, self.iscorer._cscorer.get_cscore(tree)
+        except Exception:
+            return tree, copy.copy(worst_composite_score)
+
+    def charge_tuning(self) -> None:
+        """GOMEA extension (``--const-opt lm``): charge one evaluation (one
+        pass over the training rows by constant tuning). Raises
+        ``BudgetExhausted`` first when the run's budget or the time limit is
+        spent. The deme's own cap (``inner_cap``) and the stall rule do not
+        apply: tuning runs after the deme's search, on the run's budget."""
+        if self.ledger.requests >= self.max_evals:
+            raise BudgetExhausted("global_budget")
+        if self.clock() - self.start >= self.max_time:
+            raise BudgetExhausted("time_limit")
+        self.ledger.requests += 1
+        self.ledger.tuning_requests += 1
+
+    def best_genotype(self) -> tuple[int, ...] | None:
+        """GOMEA extension: the genotype of ``best_so_far`` (``None`` when it
+        came from ``preload`` or nothing was evaluated)."""
+        return self._best_g
 
     def preload(
         self,
@@ -321,6 +372,7 @@ class EvaluationOracle:
                 self._memo[key] = copy.copy(score)
             if self._best is None or self._best < score:
                 self._best = copy.copy(score)
+                self._best_g = key
             self._offer_stall_best(score, 0)
         self._best_evals = 0
         self._stall_best_evals = 0

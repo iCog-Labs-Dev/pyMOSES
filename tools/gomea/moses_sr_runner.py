@@ -94,6 +94,20 @@ def _scale_train(src: Path, dst: Path) -> tuple[int, float, float]:
     ys = [float(r[k]) for r in body]
     mean = sum(ys) / len(ys)
     sd = math.sqrt(sum((y - mean) ** 2 for y in ys) / len(ys))
+    _write_scaled(header, body, dst, mean, sd)
+    return len(body), mean, sd
+
+
+def _scale_like_train(src: Path, dst: Path, mean: float, sd: float) -> None:
+    """`src` (e.g. val.csv) with its target mapped as the training target was,
+    y' = 10 (y - mean) / sd with the TRAINING mean and sd."""
+    with src.open() as fh:
+        rows = list(csv.reader(fh))
+    _write_scaled(rows[0], rows[1:], dst, mean, sd)
+
+
+def _write_scaled(header, body, dst: Path, mean: float, sd: float) -> None:
+    k = header.index("y")
     with dst.open("w", newline="") as fh:
         w = csv.writer(fh)
         w.writerow(header)
@@ -101,7 +115,6 @@ def _scale_train(src: Path, dst: Path) -> tuple[int, float, float]:
             r = list(r)
             r[k] = repr(10.0 * (float(r[k]) - mean) / sd)
             w.writerow(r)
-    return len(body), mean, sd
 
 
 def _limit(mem_mb):
@@ -168,6 +181,11 @@ def _run_one(job: dict) -> dict:
     sdir = Path(job["split_dir"])
     n_train, mean, sd = _scale_train(sdir / "train.csv", run_dir / "train_scaled.csv")
     argv = moses_argv(job, run_dir, n_train)
+    if _const_opt(job["argv"]) == "polish":
+        # server round 3: polish keeps a tuned program only if the validation
+        # NMSE is not worse; it reads the validation split, scaled like train
+        _scale_like_train(sdir / "val.csv", run_dir / "val_scaled.csv", mean, sd)
+        argv += ["--const-opt-val", str(run_dir / "val_scaled.csv")]
     seed_rec = None
     if job.get("seed_spec"):
         try:
@@ -308,6 +326,9 @@ def _run_one(job: dict) -> dict:
         "first_test_nmse": first.get("test_nmse"),
         **seeding,
     }
+    co = const_opt_summary(run_dir / "events.jsonl", summary["n_evals"])
+    if co is not None:
+        summary["const_opt"] = co
     if seed_rec is not None:
         summary["moses_cpu_s"] = summary["cpu_s"]
         summary["cpu_s"] += seed_rec["gpgomea"]["cpu_s"]
@@ -329,6 +350,54 @@ def _run_one(job: dict) -> dict:
     tmp.write_text(json.dumps(summary, indent=2, sort_keys=True))
     os.replace(tmp, summary_path)
     return summary
+
+
+def _const_opt(argv: list) -> str:
+    """The `--const-opt` mode an arm's argv selects ("none" without it)."""
+    argv = [str(x) for x in argv]
+    for i, tok in enumerate(argv):
+        if tok == "--const-opt" and i + 1 < len(argv):
+            return argv[i + 1]
+        if tok.startswith("--const-opt="):
+            return tok.split("=", 1)[1]
+    return "none"
+
+
+def const_opt_summary(events: Path, n_evals: int | None) -> dict | None:
+    """Server round 3: the run's constant-tuning telemetry from the GOMEA log
+    (the `const_opt` record of every deme's "end" event and the "polish"
+    event), or `None` when the run did no tuning. `lm_improved_share` is the
+    share of LM calls that lowered the training error; `tuning_share` the share
+    of the run's evaluations that tuning used."""
+    if not events.exists():
+        return None
+    ends, polish = [], None
+    for line in events.read_text().splitlines():
+        try:
+            ev = json.loads(line)
+        except ValueError:
+            continue
+        if ev.get("type") == "end" and ev.get("const_opt"):
+            ends.append(ev["const_opt"])
+        elif ev.get("type") == "polish":
+            polish = ev
+    if not ends and polish is None:
+        return None
+    keys = ("lm_calls", "lm_improved", "lm_not_improved", "lm_singular", "lm_failed",
+            "lm_no_constants", "lm_budget", "mutate_attempts", "mutate_accepted",
+            "tuning_evals")
+    out: dict = {"mode": ends[0]["mode"] if ends else "polish"}
+    out.update({k: sum(int(e.get(k, 0)) for e in ends) for k in keys})
+    out["lm_improved_share"] = (out["lm_improved"] / out["lm_calls"]) if out["lm_calls"] else None
+    out["mutate_accepted_share"] = (
+        out["mutate_accepted"] / out["mutate_attempts"] if out["mutate_attempts"] else None
+    )
+    if polish is not None:
+        out["polish"] = {k: v for k, v in polish.items() if k != "type"}
+        out["polish_accepted"] = bool(polish.get("accepted"))
+        out["tuning_evals"] += int(polish.get("evals", 0))
+    out["tuning_share"] = out["tuning_evals"] / n_evals if n_evals else None
+    return out
 
 
 def _is_pymoses(binary: str) -> bool:
