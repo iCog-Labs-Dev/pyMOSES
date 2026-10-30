@@ -89,16 +89,19 @@ GOMEA's 280–380. No phase has tuned constants.
 
 ## 1ap. Size control: the acceptance penalty with linear scaling
 
-* **Arms (10,000 evaluations):** GOMEA-LS, GOMEA-LS-PEN (`--gomea-accept-complexity-ratio
-  0.005`, the Phase 1o value; it acts only inside GOMEA's acceptance).
+* **Arms (10,000 evaluations):** GOMEA-LS, GOMEA-LS-PEN5 (`--gomea-accept-complexity-ratio
+  0.005`, the Phase 1o value) and GOMEA-LS-PEN1 (`0.001`). Both penalty arms also use
+  `--gomea-deme-store accepted` (BACKLOG bug 4.3: without it, the merge brings back the
+  rejected, larger trials that the penalty rejected).
 * **Datasets:** Con, EnH, Air.
-* **Primary (3):** program size, GOMEA-LS-PEN vs GOMEA-LS, on each dataset ("better" =
+* **Primary (6):** program size, each penalty arm vs GOMEA-LS, on each dataset ("better" =
   smaller, with a 10 % lower median).
-* **Secondary:** test NMSE, GOMEA-LS-PEN vs GOMEA-LS, on each dataset.
+* **Secondary:** test NMSE, each penalty arm vs GOMEA-LS, on each dataset.
 * **Adoption rule (agent-proposed, after `DECISIONS.md`: a moderate accuracy loss is
-  acceptable for smaller programs):** recommend PEN for regression if it is better on size
-  on at least 2 of 3 datasets and its median test NMSE is at most 10 % higher on each.
-* **Runs:** 60 (+ up to 60).
+  acceptable for smaller programs):** a strength qualifies if it is better on size on at
+  least 2 of 3 datasets and its median test NMSE is at most 10 % higher on each. If both
+  qualify, recommend the one with the smaller median size over the three datasets.
+* **Runs:** 90 (+ up to 90).
 
 ## 1aq. The uniform start as the regression default
 
@@ -129,13 +132,16 @@ S0, 1an, 1ao, 1ap, 1aq, 1ar, one at a time. 1ao and 1ar need the 1an choice.
 
 ## Size and time
 
-* At most 300 (1an) + 180 (1ao) + 120 (1ap) + 120 (1aq) + 300 (1ar) = 1,020 runs.
-* At stage 1 only: 540 runs, about 140 CPU-hours, about 13 hours at W = 11, plus about
-  1.3 hours for S0. With all extensions: about 290 CPU-hours, about 27 hours.
+* At most 300 (1an) + 180 (1ao) + 180 (1ap) + 120 (1aq) + 300 (1ar) = 1,080 runs.
+* At stage 1 only: 570 runs, about 150 CPU-hours, about 14 hours at W = 11, plus about
+  1.3 hours for S0. With all extensions: about 300 CPU-hours, about 28 hours.
 * Round 2 took 2.7× its estimate, so plan for up to 2–3 days. Tow (4,999 rows) and Dow
   (57 features) cost more per evaluation than the other datasets.
 
-## Before the round
+## Amendment (2026-10-30, before any implementation)
 
-Check bug 4.3 (rejected GOM trials stored and merged) before
-the round starts, because it can change GOMEA results.
+* Bug 4.3 is checked: it matters only with a penalty inside GOMEA's acceptance, and the
+  existing flag `--gomea-deme-store accepted` (tested in Phase 1o, arm PEN-ACC) avoids it.
+  The 1ap penalty arms use it.
+* Phase 1o (no linear scaling) found that the 0.005 penalty raised Con's test NMSE from 35.2
+  to 42.8. The user chose to add a weaker arm (0.001) to 1ap.

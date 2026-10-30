@@ -170,3 +170,7 @@ design itself, the adoption rule of 1ap and the method settings are agent-writte
 the literature review `reports/Constant optimization in symbolic regression.md` (not
 committed). Not user-approved: the constant-tuning code (`--const-opt`), which is still to
 be written.
+
+**Server round 3 amendment (2026-10-30):** for 1ap, the agent proposed adding
+`--gomea-deme-store accepted` to the penalty arm (a correction for BACKLOG bug 4.3) and a
+weaker penalty arm (0.001). The user chose "Add a 0.001 arm (Recommended)".
