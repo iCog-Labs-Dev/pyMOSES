@@ -1,0 +1,151 @@
+{
+  "name": "phase1an-sr",
+  "datasets_dir": "../gomea-results/phase1f/datasets",
+  "datasets": [
+    "Con",
+    "EnH",
+    "Air"
+  ],
+  "splits": [
+    1,
+    2,
+    3,
+    4,
+    5,
+    6,
+    7,
+    8,
+    9,
+    10
+  ],
+  "wall_cap_s": 36000,
+  "mem_limit_mb": 3072,
+  "arms": {
+    "GOMEA-LS": {
+      "binary": ".venv/bin/moses",
+      "budget": {
+        "evals": 10000
+      },
+      "argv": [
+        "-a",
+        "gomea",
+        "--gomea-fos",
+        "lt-b",
+        "--gomea-pop-size",
+        "16",
+        "--gomea-skip-inactive",
+        "0",
+        "--gomea-max-evals-per-deme",
+        "250",
+        "--gomea-genotype-memo",
+        "1",
+        "--gomea-contin",
+        "copy",
+        "--knob-probe-baseline",
+        "reduced",
+        "--linear-scaling",
+        "1"
+      ]
+    },
+    "GOMEA-LS-LM": {
+      "binary": ".venv/bin/moses",
+      "budget": {
+        "evals": 10000
+      },
+      "argv": [
+        "-a",
+        "gomea",
+        "--gomea-fos",
+        "lt-b",
+        "--gomea-pop-size",
+        "16",
+        "--gomea-skip-inactive",
+        "0",
+        "--gomea-max-evals-per-deme",
+        "250",
+        "--gomea-genotype-memo",
+        "1",
+        "--gomea-contin",
+        "copy",
+        "--knob-probe-baseline",
+        "reduced",
+        "--linear-scaling",
+        "1",
+        "--const-opt",
+        "lm"
+      ]
+    },
+    "GOMEA-LS-MUT": {
+      "binary": ".venv/bin/moses",
+      "budget": {
+        "evals": 10000
+      },
+      "argv": [
+        "-a",
+        "gomea",
+        "--gomea-fos",
+        "lt-b",
+        "--gomea-pop-size",
+        "16",
+        "--gomea-skip-inactive",
+        "0",
+        "--gomea-max-evals-per-deme",
+        "250",
+        "--gomea-genotype-memo",
+        "1",
+        "--gomea-contin",
+        "copy",
+        "--knob-probe-baseline",
+        "reduced",
+        "--linear-scaling",
+        "1",
+        "--const-opt",
+        "mutate"
+      ]
+    },
+    "GOMEA-LS-POLISH": {
+      "binary": ".venv/bin/moses",
+      "budget": {
+        "evals": 10000
+      },
+      "argv": [
+        "-a",
+        "gomea",
+        "--gomea-fos",
+        "lt-b",
+        "--gomea-pop-size",
+        "16",
+        "--gomea-skip-inactive",
+        "0",
+        "--gomea-max-evals-per-deme",
+        "250",
+        "--gomea-genotype-memo",
+        "1",
+        "--gomea-contin",
+        "copy",
+        "--knob-probe-baseline",
+        "reduced",
+        "--linear-scaling",
+        "1",
+        "--const-opt",
+        "polish"
+      ]
+    },
+    "HC-LS": {
+      "binary": ".venv/bin/moses",
+      "budget": {
+        "evals": 10000
+      },
+      "argv": [
+        "-a",
+        "hc-capped",
+        "--gomea-max-evals-per-deme",
+        "250",
+        "--knob-probe-baseline",
+        "reduced",
+        "--linear-scaling",
+        "1"
+      ]
+    }
+  }
+}

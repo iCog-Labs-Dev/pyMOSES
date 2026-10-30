@@ -1,0 +1,102 @@
+{
+  "name": "server-smoke3-1ap-sr",
+  "datasets_dir": "../gomea-results/phase1f/datasets",
+  "datasets": [
+    "Con",
+    "EnH"
+  ],
+  "splits": [
+    1,
+    2
+  ],
+  "wall_cap_s": 1800,
+  "mem_limit_mb": 3072,
+  "arms": {
+    "GOMEA-LS": {
+      "binary": ".venv/bin/moses",
+      "budget": {
+        "evals": 400
+      },
+      "argv": [
+        "-a",
+        "gomea",
+        "--gomea-fos",
+        "lt-b",
+        "--gomea-pop-size",
+        "16",
+        "--gomea-skip-inactive",
+        "0",
+        "--gomea-max-evals-per-deme",
+        "250",
+        "--gomea-genotype-memo",
+        "1",
+        "--gomea-contin",
+        "copy",
+        "--knob-probe-baseline",
+        "reduced",
+        "--linear-scaling",
+        "1"
+      ]
+    },
+    "GOMEA-LS-PEN5": {
+      "binary": ".venv/bin/moses",
+      "budget": {
+        "evals": 400
+      },
+      "argv": [
+        "-a",
+        "gomea",
+        "--gomea-fos",
+        "lt-b",
+        "--gomea-pop-size",
+        "16",
+        "--gomea-skip-inactive",
+        "0",
+        "--gomea-max-evals-per-deme",
+        "250",
+        "--gomea-genotype-memo",
+        "1",
+        "--gomea-contin",
+        "copy",
+        "--knob-probe-baseline",
+        "reduced",
+        "--linear-scaling",
+        "1",
+        "--gomea-accept-complexity-ratio",
+        "0.005",
+        "--gomea-deme-store",
+        "accepted"
+      ]
+    },
+    "GOMEA-LS-PEN1": {
+      "binary": ".venv/bin/moses",
+      "budget": {
+        "evals": 400
+      },
+      "argv": [
+        "-a",
+        "gomea",
+        "--gomea-fos",
+        "lt-b",
+        "--gomea-pop-size",
+        "16",
+        "--gomea-skip-inactive",
+        "0",
+        "--gomea-max-evals-per-deme",
+        "250",
+        "--gomea-genotype-memo",
+        "1",
+        "--gomea-contin",
+        "copy",
+        "--knob-probe-baseline",
+        "reduced",
+        "--linear-scaling",
+        "1",
+        "--gomea-accept-complexity-ratio",
+        "0.001",
+        "--gomea-deme-store",
+        "accepted"
+      ]
+    }
+  }
+}

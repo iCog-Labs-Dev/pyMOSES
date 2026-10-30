@@ -1,0 +1,74 @@
+{
+  "phase": "1ar",
+  "metrics": {
+    "Yac": "test_nmse",
+    "Dow": "test_nmse",
+    "Tow": "test_nmse",
+    "WiR": "test_nmse",
+    "WiW": "test_nmse"
+  },
+  "primary": [
+    [
+      "Yac",
+      "gomea-vs-hc",
+      "GOMEA-LS",
+      "HC-LS"
+    ],
+    [
+      "Dow",
+      "gomea-vs-hc",
+      "GOMEA-LS",
+      "HC-LS"
+    ],
+    [
+      "Tow",
+      "gomea-vs-hc",
+      "GOMEA-LS",
+      "HC-LS"
+    ],
+    [
+      "WiR",
+      "gomea-vs-hc",
+      "GOMEA-LS",
+      "HC-LS"
+    ],
+    [
+      "WiW",
+      "gomea-vs-hc",
+      "GOMEA-LS",
+      "HC-LS"
+    ]
+  ],
+  "secondary": [
+    [
+      "Yac",
+      "tune",
+      "GOMEA-LS-TUNE",
+      "GOMEA-LS"
+    ],
+    [
+      "Dow",
+      "tune",
+      "GOMEA-LS-TUNE",
+      "GOMEA-LS"
+    ],
+    [
+      "Tow",
+      "tune",
+      "GOMEA-LS-TUNE",
+      "GOMEA-LS"
+    ],
+    [
+      "WiR",
+      "tune",
+      "GOMEA-LS-TUNE",
+      "GOMEA-LS"
+    ],
+    [
+      "WiW",
+      "tune",
+      "GOMEA-LS-TUNE",
+      "GOMEA-LS"
+    ]
+  ]
+}

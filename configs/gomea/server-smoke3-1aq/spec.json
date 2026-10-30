@@ -1,0 +1,22 @@
+{
+  "phase": "smoke3-1aq",
+  "metrics": {
+    "Con": "test_nmse",
+    "EnH": "test_nmse"
+  },
+  "primary": [
+    [
+      "Con",
+      "unif",
+      "GOMEA-LS-UNIF",
+      "GOMEA-LS"
+    ],
+    [
+      "EnH",
+      "unif",
+      "GOMEA-LS-UNIF",
+      "GOMEA-LS"
+    ]
+  ],
+  "secondary": []
+}

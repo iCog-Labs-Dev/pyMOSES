@@ -1,0 +1,63 @@
+{
+  "phase": "smoke3-1ap",
+  "metrics": {
+    "Con": "program_size",
+    "EnH": "program_size"
+  },
+  "primary": [
+    [
+      "Con",
+      "pen5-size",
+      "GOMEA-LS-PEN5",
+      "GOMEA-LS"
+    ],
+    [
+      "Con",
+      "pen1-size",
+      "GOMEA-LS-PEN1",
+      "GOMEA-LS"
+    ],
+    [
+      "EnH",
+      "pen5-size",
+      "GOMEA-LS-PEN5",
+      "GOMEA-LS"
+    ],
+    [
+      "EnH",
+      "pen1-size",
+      "GOMEA-LS-PEN1",
+      "GOMEA-LS"
+    ]
+  ],
+  "secondary": [
+    [
+      "Con",
+      "pen5-nmse",
+      "GOMEA-LS-PEN5",
+      "GOMEA-LS",
+      "test_nmse"
+    ],
+    [
+      "Con",
+      "pen1-nmse",
+      "GOMEA-LS-PEN1",
+      "GOMEA-LS",
+      "test_nmse"
+    ],
+    [
+      "EnH",
+      "pen5-nmse",
+      "GOMEA-LS-PEN5",
+      "GOMEA-LS",
+      "test_nmse"
+    ],
+    [
+      "EnH",
+      "pen1-nmse",
+      "GOMEA-LS-PEN1",
+      "GOMEA-LS",
+      "test_nmse"
+    ]
+  ]
+}

@@ -1,0 +1,14 @@
+{
+  "name": "server-round3-2026-10",
+  "description": "SERVER-ROUND3-PREREGISTRATION.md, in its order: S0, 1an (as 1ao's pilot, then set_const_opt.py writes the TUNE choice into 1ao and 1ar), 1ao, 1ap, 1aq, 1ar. One phase at a time.",
+  "state_dir": "server-run3",
+  "steps": [
+    {"id": "S0", "type": "check", "pytest": {}, "repro": {}},
+    {"id": "phase1ao", "type": "phase", "phase": "phase1ao", "pilot": "phase1an",
+     "after_pilot": [".venv/bin/python", "tools/gomea/set_const_opt.py", "--results", "{results}"]},
+    {"id": "phase1ap", "type": "phase", "phase": "phase1ap"},
+    {"id": "phase1aq", "type": "phase", "phase": "phase1aq"},
+    {"id": "phase1ar", "type": "phase", "phase": "phase1ar",
+     "requires": ["const-opt:phase1an", "datasets:Yac,Dow,Tow,WiR,WiW"]}
+  ]
+}

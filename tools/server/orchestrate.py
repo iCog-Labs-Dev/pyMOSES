@@ -23,8 +23,11 @@ The plan (tools/server/plan.json) lists the steps in order and names the state d
   `round-summary.md` and `DONE` at the end.
 
 Step types: `check` (S0: pytest and the reproducibility check; failures are flagged, never
-fatal) and `phase` (optionally `requires: ["gpgomea"]` or `["knob-cap:PILOT"]` (PILOT's
-`knob-cap.json`, written by tools/gomea/set_knob_cap.py), and a `pilot` phase plus an
+fatal) and `phase` (optionally `requires: ["gpgomea"]`, `["knob-cap:PILOT"]` (PILOT's
+`knob-cap.json`, written by tools/gomea/set_knob_cap.py), `["const-opt:PHASE"]` (round 3:
+PHASE's `const-opt-choice.json`, written by tools/gomea/set_const_opt.py) or
+`["datasets:A,B,..."]` (round 3: each dataset built and verified by setup.sh under
+phase1f/datasets/), and a `pilot` phase plus an
 `after_pilot` command that must succeed before the phase). A phase step's `set_commit_in`
 manifests get the current HEAD as `commit` before its pilot and phase run. A phase runs as
 `WORKERS=W tools/gomea/phase_run.sh PHASE >> ../gomea-results/PHASE.log`, W from
@@ -390,6 +393,27 @@ class Round:
                 return f"knob cap not set: {j} missing or unreadable (the pilot step failed?)"
             if not d.get("problems"):
                 return f"knob cap not set: {j} has no problems"
+            return None
+        if req.startswith("const-opt:"):
+            # round 3: the 1an choice must be written (tools/gomea/set_const_opt.py) first
+            j = RES / req.split(":", 1)[1] / "const-opt-choice.json"
+            try:
+                d = json.loads(j.read_text())
+            except (OSError, ValueError):
+                return f"const-opt choice not set: {j} missing or unreadable (did 1an or set_const_opt.py fail?)"
+            if d.get("choice") not in ("lm", "mutate"):
+                return f"const-opt choice not set: {j} has choice {d.get('choice')!r}"
+            return None
+        if req.startswith("datasets:"):
+            # round 3: datasets that setup.sh builds (Dow and Tow are downloaded)
+            bad = []
+            for a in req.split(":", 1)[1].split(","):
+                d = RES / "phase1f" / "datasets" / a
+                if not (d / "full.csv").is_file() or not (d / "splits" / "splits.json").is_file():
+                    bad.append(a)
+            if bad:
+                return (f"dataset(s) {', '.join(bad)} missing under {RES / 'phase1f' / 'datasets'} "
+                        "(setup.sh failed to build them; see server-run/setup.log)")
             return None
         return f"unknown requirement {req!r}"
 

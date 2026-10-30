@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Start (or resume) the server round in the background and return at once.
-#   bash tools/server/start.sh [--plan round|smoke|round2|smoke2|FILE] [--force]
+#   bash tools/server/start.sh [--plan round|smoke|round2|smoke2|round3|smoke3|FILE] [--force]
 # --force starts even if the round is DONE (it then only rewrites the summary and bundles).
 # Refuses if an orchestrator of this plan is already running. Survives closing the
 # terminal (setsid + nohup), not a pod restart: after one, run this again; it resumes.

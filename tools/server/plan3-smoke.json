@@ -1,0 +1,18 @@
+{
+  "name": "server-round3-smoke",
+  "description": "Smoke test of the round-3 plan: limited pytest, the mux11 repro run, then 1an (as 1ao's pilot, + set_const_opt.py), 1ao, 1ap, 1aq and 1ar in miniature (configs/gomea/server-smoke3-*: 2 splits, 400 evaluations or 20 s CPU per run). Uses its own state dir, so it never marks real steps done.",
+  "state_dir": "server-run3-smoke",
+  "steps": [
+    {"id": "S0", "type": "check",
+     "pytest": {"args": ["tests/server", "tests/gomea/test_const_opt.py", "tests/gomea/test_const_opt_identity.py", "tests/gomea/test_set_const_opt.py"]},
+     "repro": {"only": ["1ae-mux11-GOMEA-s3001"]}},
+    {"id": "smoke3-1ao", "type": "phase", "phase": "server-smoke3-1ao", "pilot": "server-smoke3-1an",
+     "after_pilot": [".venv/bin/python", "tools/gomea/set_const_opt.py", "--results", "{results}",
+                     "--source", "server-smoke3-1an",
+                     "--phases", "server-smoke3-1ao,server-smoke3-1ar"]},
+    {"id": "smoke3-1ap", "type": "phase", "phase": "server-smoke3-1ap"},
+    {"id": "smoke3-1aq", "type": "phase", "phase": "server-smoke3-1aq"},
+    {"id": "smoke3-1ar", "type": "phase", "phase": "server-smoke3-1ar",
+     "requires": ["const-opt:server-smoke3-1an", "datasets:Yac,Dow,Tow,WiR,WiW"]}
+  ]
+}

@@ -1,0 +1,71 @@
+{
+  "phase": "smoke3-1an",
+  "metrics": {
+    "Con": "test_nmse",
+    "EnH": "test_nmse"
+  },
+  "primary": [
+    [
+      "Con",
+      "lm",
+      "GOMEA-LS-LM",
+      "GOMEA-LS"
+    ],
+    [
+      "Con",
+      "mut",
+      "GOMEA-LS-MUT",
+      "GOMEA-LS"
+    ],
+    [
+      "EnH",
+      "lm",
+      "GOMEA-LS-LM",
+      "GOMEA-LS"
+    ],
+    [
+      "EnH",
+      "mut",
+      "GOMEA-LS-MUT",
+      "GOMEA-LS"
+    ]
+  ],
+  "secondary": [
+    [
+      "Con",
+      "polish",
+      "GOMEA-LS-POLISH",
+      "GOMEA-LS"
+    ],
+    [
+      "Con",
+      "lm-vs-mut",
+      "GOMEA-LS-LM",
+      "GOMEA-LS-MUT"
+    ],
+    [
+      "Con",
+      "gomea-vs-hc",
+      "GOMEA-LS",
+      "HC-LS"
+    ],
+    [
+      "EnH",
+      "polish",
+      "GOMEA-LS-POLISH",
+      "GOMEA-LS"
+    ],
+    [
+      "EnH",
+      "lm-vs-mut",
+      "GOMEA-LS-LM",
+      "GOMEA-LS-MUT"
+    ],
+    [
+      "EnH",
+      "gomea-vs-hc",
+      "GOMEA-LS",
+      "HC-LS"
+    ]
+  ]
+}
