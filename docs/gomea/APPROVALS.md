@@ -155,3 +155,18 @@ user's. Not user-approved: the details of phases 1ak-pilot, 1ak, 1al and 1am (wr
 agent and pre-registered in `SERVER-ROUND2-PREREGISTRATION.md`; the entropy and random
 generation-0 rankings of 1am were the agent's choice), and the knob-cap code
 (`--gomea-knob-cap` and related flags; opt-in, off by default).
+
+**Server round 3 (2026-10-30):** the user asked: "So what about on continous domains,
+according to their optimization, is there a better approach for continous domain's
+integration? That requires low compute and as well as acceptalbe accuracy?". To the offer
+of a literature review and a pre-registration draft, the user answered "Both". The user
+then asked "Can you also add few more benchmarks that we didn't get around to testing yet
+but are logged in our backlogs, let me see it and pick some of them to be incorporated in
+this run" and selected A (size control), B (uniform start), C (four new datasets) and D
+(Yac). To the full draft and its questions (including the 10 % accuracy limit in 1ap) the
+user answered "Yes. It will be designed to run on our server over the weekends right?".
+User-approved: the design in `SERVER-ROUND3-PREREGISTRATION.md` (phases 1an–1ar). The
+design itself, the adoption rule of 1ap and the method settings are agent-written, from
+the literature review `reports/Constant optimization in symbolic regression.md` (not
+committed). Not user-approved: the constant-tuning code (`--const-opt`), which is still to
+be written.
