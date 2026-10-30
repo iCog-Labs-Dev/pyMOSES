@@ -1,0 +1,47 @@
+setting A LT reproduces Phase 1ai GPGOMEA: 30/30 identical
+setting B LT reproduces Phase 1ai GPGOMEA-P16: 30/30 identical
+
+== Setting A ==
+median test NMSE | median nodes | median evals | median train NMSE
+Con: test[LT=37.32 RT=36.31 UNI=37.85 LTMI=38.04]  nodes[LT=28 RT=28 UNI=30 LTMI=28]  evals[LT=18007 RT=18198 UNI=15218 LTMI=19424]  train[LT=34.01 RT=33.14 UNI=33.77 LTMI=34.46]
+EnH: test[LT=8.49 RT=9.17 UNI=8.56 LTMI=8.97]  nodes[LT=29 RT=27 UNI=28 LTMI=29]  evals[LT=17658 RT=17572 UNI=15169 LTMI=18563]  train[LT=7.49 RT=7.78 UNI=7.81 LTMI=7.77]
+Air: test[LT=44.14 RT=44.88 UNI=42.95 LTMI=42.19]  nodes[LT=24 RT=29 UNI=24 LTMI=27]  evals[LT=19524 RT=19437 UNI=15502 LTMI=20278]  train[LT=44.37 RT=44.82 UNI=44.20 LTMI=43.37]
+  Con LT vs RT: LT wins/losses 4/6, median diff +1.01, raw p=0.557, Holm p=1.000
+  Con LT vs UNI: LT wins/losses 7/3, median diff -0.53, raw p=0.232, Holm p=1.000
+  Con LT vs LTMI: LT wins/losses 6/4, median diff -0.72, raw p=0.432, Holm p=(not in Holm family)
+  EnH LT vs RT: LT wins/losses 6/4, median diff -0.68, raw p=0.275, Holm p=1.000
+  EnH LT vs UNI: LT wins/losses 8/2, median diff -0.07, raw p=0.322, Holm p=1.000
+  EnH LT vs LTMI: LT wins/losses 6/4, median diff -0.48, raw p=0.695, Holm p=(not in Holm family)
+  Air LT vs RT: LT wins/losses 6/4, median diff -0.74, raw p=0.432, Holm p=1.000
+  Air LT vs UNI: LT wins/losses 4/6, median diff +1.18, raw p=0.557, Holm p=1.000
+  Air LT vs LTMI: LT wins/losses 4/6, median diff +1.95, raw p=0.695, Holm p=(not in Holm family)
+
+== Setting B ==
+median test NMSE | median nodes | median evals | median train NMSE
+Con: test[LT=33.63 RT=30.03 UNI=32.13 LTMI=33.96]  nodes[LT=29 RT=30 UNI=31 LTMI=25]  evals[LT=12032 RT=11247 UNI=10274 LTMI=11398]  train[LT=29.92 RT=26.93 UNI=28.33 LTMI=30.55]
+EnH: test[LT=8.98 RT=8.08 UNI=8.74 LTMI=7.94]  nodes[LT=29 RT=28 UNI=29 LTMI=28]  evals[LT=11706 RT=10334 UNI=10136 LTMI=10916]  train[LT=7.32 RT=7.25 UNI=7.50 LTMI=7.27]
+Air: test[LT=41.02 RT=42.23 UNI=45.08 LTMI=44.24]  nodes[LT=29 RT=25 UNI=30 LTMI=29]  evals[LT=11274 RT=11065 UNI=10423 LTMI=11974]  train[LT=42.52 RT=43.68 UNI=43.63 LTMI=43.44]
+  Con LT vs RT: LT wins/losses 4/6, median diff +3.60, raw p=0.193, Holm p=1.000
+  Con LT vs UNI: LT wins/losses 3/7, median diff +1.50, raw p=0.375, Holm p=1.000
+  Con LT vs LTMI: LT wins/losses 5/5, median diff -0.33, raw p=0.557, Holm p=(not in Holm family)
+  EnH LT vs RT: LT wins/losses 4/6, median diff +0.90, raw p=0.275, Holm p=1.000
+  EnH LT vs UNI: LT wins/losses 4/6, median diff +0.24, raw p=0.557, Holm p=1.000
+  EnH LT vs LTMI: LT wins/losses 4/6, median diff +1.05, raw p=0.922, Holm p=(not in Holm family)
+  Air LT vs RT: LT wins/losses 4/6, median diff -1.21, raw p=1.000, Holm p=1.000
+  Air LT vs UNI: LT wins/losses 6/4, median diff -4.06, raw p=0.375, Holm p=1.000
+  Air LT vs LTMI: LT wins/losses 7/3, median diff -3.22, raw p=0.193, Holm p=(not in Holm family)
+
+== Setting C ==
+median test NMSE | median nodes | median evals | median train NMSE
+Con: test[LT=31.53 RT=32.69 UNI=32.43 LTMI=31.27]  nodes[LT=28 RT=27 UNI=25 LTMI=31]  evals[LT=71354 RT=72773 UNI=60319 LTMI=75416]  train[LT=32.09 RT=30.02 UNI=28.97 LTMI=32.14]
+EnH: test[LT=8.47 RT=8.51 UNI=8.97 LTMI=8.61]  nodes[LT=28 RT=28 UNI=27 LTMI=24]  evals[LT=70912 RT=71202 UNI=60906 LTMI=73701]  train[LT=7.49 RT=7.61 UNI=7.42 LTMI=7.38]
+Air: test[LT=41.92 RT=39.60 UNI=41.23 LTMI=39.83]  nodes[LT=26 RT=26 UNI=29 LTMI=29]  evals[LT=76876 RT=77606 UNI=62042 LTMI=79618]  train[LT=42.99 RT=40.65 UNI=41.35 LTMI=42.59]
+  Con LT vs RT: LT wins/losses 6/4, median diff -1.16, raw p=0.625, Holm p=1.000
+  Con LT vs UNI: LT wins/losses 4/6, median diff -0.90, raw p=0.770, Holm p=1.000
+  Con LT vs LTMI: LT wins/losses 7/3, median diff +0.25, raw p=0.625, Holm p=(not in Holm family)
+  EnH LT vs RT: LT wins/losses 7/3, median diff -0.03, raw p=0.322, Holm p=1.000
+  EnH LT vs UNI: LT wins/losses 7/3, median diff -0.50, raw p=0.131, Holm p=0.785
+  EnH LT vs LTMI: LT wins/losses 7/3, median diff -0.14, raw p=0.160, Holm p=(not in Holm family)
+  Air LT vs RT: LT wins/losses 4/6, median diff +2.31, raw p=0.375, Holm p=1.000
+  Air LT vs UNI: LT wins/losses 4/6, median diff +0.69, raw p=0.375, Holm p=1.000
+  Air LT vs LTMI: LT wins/losses 4/6, median diff +2.09, raw p=0.492, Holm p=(not in Holm family)

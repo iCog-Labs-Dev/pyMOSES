@@ -57,13 +57,20 @@ GOM bookkeeping and telemetry are not worth optimising.
    Combine it with fix 1.1.
 2. **Regression with a cap of about 1,000** (4–5 full generations per deme) instead of 250,
    on Con, EnH and EnC.
+   * **Closed (server round 1, 1ae, 2026-10-27):** on Con, caps 500 and 1,000 were worse than
+     250 (43.4 and 44.9 against 35.2, 15/20 each). Keep 250 for regression.
 3. **A shared linkage model across demes:** learn the knob groups from a pool of good
    programs that persists between demes, so the model sees thousands of programs, not 16.
    Phase 1h showed LT-B needs N ≈ 1,024 to beat a random tree. Knobs differ between demes,
    so this needs a mapping, e.g. by knob position or by the subtree a knob inserts.
+   * **Lower priority (server round 2, 2026-10-30):** learned linkage gave no benefit at 3–5
+     generations per deme or at N = 64 (1al). This idea is the only untested route to a
+     much larger linkage sample.
 4. **Cheaper GOM generations:** use only the k strongest linkage groups per generation (e.g.
    8–16), or a random k, instead of all of them (about 2 per knob). With N = 16 and k = 8 a
    generation costs about 128 evaluations.
+   * **Closed:** top-k subsets were worse (1w), and a FOS over a cap of 16 knobs was worse on
+     mux11, Con and EnH (server round 2, 1ak, 2026-10-29).
 5. **Population size tied to the deme:** scale N with the knob count or the per-deme budget,
    or port GP-GOMEA's interleaved multistart scheme (doubling populations, no fixed N).
 6. **Stronger knob-building reduction:** `-B 3` gave implausibly few knobs (1 on maj5-x3),
@@ -72,6 +79,8 @@ GOM bookkeeping and telemetry are not worth optimising.
 7. **More equal-time tests (Phase 1j follow-up):** further regression datasets (EnH, EnC) and
    Boolean problems (maj7, pa5), or a longer limit, before generalising "GOMEA wins on
    regression at equal time".
+   * **Answered for regression (server round 1, 1ah, 2026-10-26):** GOMEA beats capped HC at
+     equal time on Air, EnC and EnH, and ties on Bos and Yac. maj7 and pa5 stay untested.
 8. **Improvement rate as a standing metric:** the share of GOM trials that improve. LT-B's is
    higher than RT's even when final errors tie (Phase 1h step 1). Report it routinely,
    because it is more sensitive than final error.
@@ -148,6 +157,9 @@ GOM bookkeeping and telemetry are not worth optimising.
         (`tools/gomea/sr_eval.py`). In the literature it gave larger gains than
         building-block libraries (e.g. Dow NMSE 65 → 23 for RDO), so adding it to the
         regression fitness, for HC and GOMEA alike, is a strong candidate experiment.
+        **Tested (server round 1, 1ag, 2026-10-27):** `--linear-scaling 1` was better for HC
+        (38.6 against 60.4, 10/10) and GOMEA (25.9 against 37.1, 8/10) on Con. Recommended
+        as the default with GOMEA for regression. Open: equal-time test (item 5.1).
       * How many evaluated candidates are exact duplicates after reduct? Our duplicate
         counters already record part of this.
       * Do final models contain redundant constants or near-constant subtrees?
@@ -243,6 +255,8 @@ GOM bookkeeping and telemetry are not worth optimising.
       * Seeding: `gpgomea_seed.py --bool`, AND/OR/NOT, its time counted in the budget.
       * Metric: wall time to solve. Report CPU per evaluation and exemplar size.
       * Seeds: 10 + 10.
+    * **Closed (server round 1, 1aj, 2026-10-27): no.** At 3,600 s, seeded GOMEA tied capped HC
+      (351 against 293 s CPU to solve, 7/20) and lost to plain HC (77 s, 0/10).
 
 15. **Adopt `--knob-probe-baseline reduced` as the default** (user, 2026-10-19).
     * **Evidence:** Phase 1q.
@@ -278,6 +292,9 @@ GOM bookkeeping and telemetry are not worth optimising.
     * **Bound:** Phase 1m's cap 4,000 (with N up to 200) was much worse on mux11, so the useful
       range is likely somewhere between 500 and a few thousand.
     * **Cost:** about 2–3 h.
+    * **Closed (server round 1, 1ae, 2026-10-27):** mux11 cap 1,000 better (278 against 627 s,
+      19/20), cap 500 tie; Con both worse. Cap 1,000 gave a second generation to 12.6 % of
+      mux11 demes and 44.7 % of Con demes. Keep 250 as the default.
 
 19. **Fewer, longer demes for promising exemplars, so linkage is relearned** (user,
     2026-10-20).
@@ -306,6 +323,8 @@ GOM bookkeeping and telemetry are not worth optimising.
       * Problems: mux11 (CPU to solve) and Con (test NMSE), 10 + 10 seeds, the usual rule.
       * Report generations per deme and the share of long demes that complete 2 or more.
     * **Status:** to build (subagent), then pre-register.
+    * **Closed (server round 1, 1af, 2026-10-27): all ties.** LONG-TOP tied GOMEA on mux11 and
+      Con, and tied LONG-RAND and LONG-TOP-RT. The options stay opt-in.
 
 ## 3. Ideas outside Phase 1's scope
 
@@ -404,3 +423,33 @@ GOM bookkeeping and telemetry are not worth optimising.
 4. **(Fixed 2026-10-15, `a42d5c8`):** `twiddle_contin_bit` crashed on contin-only demes; C++
    has the same out-of-range read as undefined behaviour. Kept here for the record; disclosed
    in `APPROVALS.md`.
+
+## 5. Open items after the server rounds (2026-10-30)
+
+From `SERVER-ROUND-FINDINGS.md` and `SERVER-ROUND2-FINDINGS.md`.
+
+1. **GOMEA-LS against HC-LS at equal time** (regression).
+   * **Why:** 1ag showed linear scaling helps both, at equal evaluations. GOMEA-LS had the
+     lowest error on Con (25.9 against 38.6 for HC-LS) but used about 8× the CPU (916 against
+     114 s). The recommendation (GOMEA with linear scaling) rests on this comparison.
+   * **Sketch:** GOMEA-LS vs HC-LS (capped and uncapped), 1,000 s, the 1ah datasets plus Con,
+     10 + 10 splits. Report size, gap and evaluations (D1).
+2. **Yac: why GOMEA loses.**
+   * **Why:** in 1ah, GOMEA's median test NMSE on Yac was 8.0 against 4.5 (HC-C250) and 4.4
+     (HC), lower than HC-C250 in only 8/20 splits. Its gap was 1.3 against 0.4. Yac is the
+     only 1ah dataset that leans to HC.
+   * **First step:** a descriptive look at the Yac runs (exemplar growth, overfitting, number
+     of demes), before any new phase.
+3. **Size control for regression.**
+   * **Why:** GOMEA's programs are 3.0–3.9× capped HC's and 1.8–2.2× HC's (1ah), and 5–10×
+     GP-GOMEA's with linear scaling (1ai). The user accepts a moderate accuracy loss for
+     smaller programs (`DECISIONS.md`).
+   * **Candidates:** the acceptance penalty with linear scaling (UNI-PEN was a D1
+     candidate in 1ad); linear scaling alone already made programs smaller (1ag).
+4. **Knob-cap linkage-score cost (only if the knob-cap code is kept).**
+   * **What:** in `explore`, `LinkageModel.knob_strengths` (`pymoses/gomea/fos.py`) builds the
+     entropy matrix over all linked search positions in every generation, not only the K
+     selected knobs. On mux11 (about 1,600 positions) linkage was 50 % of the engine time and
+     about 19 % of KC's total CPU (1ak).
+   * **Status:** the knob cap is not recommended (1ak worse on all problems), and it is off by
+     default. Fix the cost only if a later experiment uses the cap.

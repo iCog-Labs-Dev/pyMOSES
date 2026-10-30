@@ -58,6 +58,17 @@ in `DECISIONS.md`.**
    * near-constant simplification (1z, never fires);
    * re-seeding on stagnation (1ab, tie).
 9. **Keep the defaults:** a deme cap of 250 (1x), `-B 2` (1aa) and N = 16.
+10. **Server rounds (2026-10-26 to 2026-10-30; `SERVER-ROUND-FINDINGS.md`,
+    `SERVER-ROUND2-FINDINGS.md`):**
+    * Regression at equal time: GOMEA beats capped HC on Air, EnC and EnH; ties on Bos and
+      Yac (1ah). Programs are about 3× larger.
+    * With linear scaling, GOMEA ties the authors' GP-GOMEA per evaluation (1ai). Linear
+      scaling helps HC and GOMEA (1ag).
+    * Learned linkage gives no benefit, at one generation per deme (round 1) or at 3–5
+      (1al), also at N = 64. A knob cap makes GOMEA worse (1ak). The gain comes from
+      optimal mixing, not learned linkage.
+    * Boolean: seeding does not close the time gap to HC (1aj). Long demes do not help (1af).
+      Cap 1,000 makes GOMEA faster on mux11 (1ae).
 
 ## Phase register
 
@@ -93,6 +104,15 @@ in `DECISIONS.md`.**
 | 1ab | 2026-10-20 | Re-seed from GP-GOMEA on stagnation (Con) | **Tie:** 44.6 against 44.9 for plain seeding, 7/10 splits identical. Re-seeds fired in 7/10 runs; fresh height-3 elites rarely beat MOSES's current best. |
 | 1ac | 2026-10-21 | Confirm PEN's CPU-to-solve gain on mux11 (fresh seeds 3031–3040) | **Tie, not replicated:** PEN 1,628 s against GOMEA 1,055 s, lower in 3/10 pairs (Holm p 0.56). Pooled with 1o/1s: 16 of 30 pairs. PEN is not adopted for speed on Boolean. [PHASE1AC-FINDINGS.md](PHASE1AC-FINDINGS.md) |
 | 1ad | 2026-10-22 | Uniform start (UNI) on EnH and EnC; keeping UNI small on Con (S10, PEN) | **Ties, leaning UNI:** EnH 12.8 against 15.6, EnC 15.7 against 19.2, each lower in 14/20 splits (Holm p 0.053, 0.031), same gap, about 1.8× size and CPU. **Con: UNI-PEN and UNI-S10 worse than UNI** (0/10): 37.2 and 43.2 against 29.2, but 92 and 30 nodes against 309. [PHASE1AD-FINDINGS.md](PHASE1AD-FINDINGS.md) |
+| 1ae | 2026-10-27 (server 1) | Per-deme caps 500 and 1,000 against 250 (full rerun on the server) | **mux11: cap 1,000 better** (278 against 627 s CPU to solve, 19/20, Holm p 0.0002); cap 500 tie (384 s, 13/20). **Con: both worse** (43.4 and 44.9 against 35.2, 15/20 each), with smaller programs (199 and 146 against 229.5 nodes). [SERVER-ROUND-FINDINGS.md](SERVER-ROUND-FINDINGS.md) |
+| 1af | 2026-10-27 (server 1) | Long demes (cap 2,000) for the best exemplar (LONG-TOP), with a random control and a random-tree control | **All ties** (Holm p 0.77–1.0). mux11: 384 against 536 s (6/10), 9/10 solved. Con: 35.8 against 37.1 (5/10). LONG-TOP vs LONG-TOP-RT tie on both. Pilot set LONG-RAND p = 0.771 (mux11), 0.265 (Con). [SERVER-ROUND-FINDINGS.md](SERVER-ROUND-FINDINGS.md) |
+| 1ag | 2026-10-27 (server 1) | Linear scaling in the regression fitness (Con) | **Better for both:** HC-LS 38.6 against 60.4 (10/10), GOMEA-LS 25.9 against 37.1 (8/10). Smaller programs (31.5 against 51.5; 160 against 187). GOMEA-LS uses about 8× HC-LS's CPU. [SERVER-ROUND-FINDINGS.md](SERVER-ROUND-FINDINGS.md) |
+| 1ah | 2026-10-26 (server 1) | GOMEA vs capped HC at equal time (1,000 s) on Air, Bos, EnC, EnH, Yac | **Better on Air, EnC, EnH** (e.g. EnC 19.3 against 24.6, 15/20); **ties on Bos** (44.3 against 73.4, 15/20) **and Yac** (8.0 against 4.5, HC lower in 12/20). GOMEA programs 281–381.5 nodes against 93–121 (HC-C250); CPU per evaluation 2.4–3.5×. [SERVER-ROUND-FINDINGS.md](SERVER-ROUND-FINDINGS.md) |
+| 1ai | 2026-10-27 (server 1) | Integrated GOMEA vs the authors' GP-GOMEA (P16) at 10,000 evaluations | **Ties on Air and Con, worse on EnC and EnH** (0/10 each). GOMEA-LS vs GP-GOMEA P16: **ties on all four** (lower median on three). GP-GOMEA: 24–30 nodes, under 1 s CPU; GOMEA 592–1,942 s. [SERVER-ROUND-FINDINGS.md](SERVER-ROUND-FINDINGS.md) |
+| 1aj | 2026-10-27 (server 1) | Seeded GOMEA on mux11 at equal time (3,600 s) | **Tie against capped HC** (351 against 293 s CPU to solve, 7/20). **Worse than plain HC** (77 s, 0/10). Seeding does not close the Boolean time gap. [SERVER-ROUND-FINDINGS.md](SERVER-ROUND-FINDINGS.md) |
+| 1ak | 2026-10-29 (server 2) | Knob cap K = 16 (pilot) so demes run several generations: KC (explore), KC-STATIC, KC-RANDOM | **KC and KC-STATIC worse than GOMEA on all three:** mux11 5,901 and 4,502 against 535 s (0/10); Con 49.2 and 57.2 against 35.2 (4/20, 2/20); EnH 20.6 and 21.2 against 15.6 (3/20). Generations per deme 1 → 3–5. Regression programs 32–55 % smaller; mux11 programs larger. Explore vs static and static vs random: ties. [SERVER-ROUND2-FINDINGS.md](SERVER-ROUND2-FINDINGS.md) |
+| 1al | 2026-10-29 (server 2) | At the knob cap, learned linkage (LT-B) vs univariate and random tree; N = 64 | **All ties** (12 contrasts, Holm p ≥ 0.40). KC-N64 solved mux11 in only 4/10 within 40,000 evaluations. [SERVER-ROUND2-FINDINGS.md](SERVER-ROUND2-FINDINGS.md) |
+| 1am | 2026-10-30 (server 2) | At the knob cap, fitness-contrast ranking in generation 0 vs entropy and random | **All ties** (9 contrasts, Holm p ≥ 0.79). [SERVER-ROUND2-FINDINGS.md](SERVER-ROUND2-FINDINGS.md) |
 
 ## Descriptive comparisons (not pre-registered)
 
@@ -110,6 +130,7 @@ in `DECISIONS.md`.**
 
 ## Open questions (see `BACKLOG.md`)
 
-* Does seeding close the Boolean time gap? Seeded GOMEA on mux11 at equal time (item 14).
+* ~~Does seeding close the Boolean time gap? (item 14)~~ Answered by 1aj: no.
+* GOMEA-LS against HC-LS at equal time; why GOMEA loses on Yac; size control (section 5).
 * Does PEN beat unpenalized GOMEA on mux11 at equal time, under a registered test?
 * Cheaper knob building (items 1.x).
