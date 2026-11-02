@@ -11,11 +11,15 @@ Usage (from the repository root, after `tools/gomea/phase_run.sh phase1an` and b
 the lower median test NMSE, pooled over the three datasets' medians, goes to 1ao. A script
 writes the choice and logs it." 1ar uses the same choice. This script
 
-1. reads the source phase's runs: every regression manifest `CONFIGS/SOURCE/sr*.json`
-   (stage 1 and, unless `--stage1-only`, the extensions `sr-ext-*.json`, so the final
-   results), whose runs are `RESULTS/SOURCE/<name>/runs/<dataset>__<arm>__s<split>/
-   summary.json` (moses_sr_runner.py); a run whose status is not "ok" counts as an
-   infinite test NMSE, as in the phase report;
+1. reads the source phase's runs: every stage-1 regression manifest
+   `CONFIGS/SOURCE/sr*.json` and, unless `--stage1-only`, every extension
+   `sr-ext-<dataset>.json` that the phase ran, so the final results. The runs are
+   `RESULTS/SOURCE/<name>/runs/<dataset>__<arm>__s<split>/summary.json`
+   (moses_sr_runner.py); a run whose status is not "ok" counts as an infinite test NMSE,
+   as in the phase report. The rule for an extension is that of phase_run.sh: it ran only
+   if a primary contrast of its dataset (`CONFIGS/SOURCE/spec.json`) has the verdict
+   "extend" (`RESULTS/SOURCE/report-stage1/verdict.json`). Other extensions are ignored,
+   even if some of their run folders exist;
 2. per dataset of the stage-1 manifest, takes the median test NMSE of arm LM
    (`GOMEA-LS-LM`, `--const-opt lm`) and of arm MUT (`GOMEA-LS-MUT`, `--const-opt
    mutate`), then per arm the median of those per-dataset medians (the pooled median);
@@ -26,9 +30,12 @@ writes the choice and logs it." 1ar uses the same choice. This script
    regression manifest (`sr*.json`) of each target phase, and logs the numbers and the
    choice to `RESULTS/SOURCE/const-opt-choice.json`.
 
-It exits 1, changing nothing, unless every expected run (each split of each manifest read,
-for both arms) has a summary.json, or if a target phase has no TUNE arm. `--dry-run` prints
-what it would set and writes nothing. RESULTS defaults to `../gomea-results`, CONFIGS to
+It prints each included and each ignored extension, and logs the included datasets as
+`extended_datasets`. It exits 1, changing nothing, unless every expected run (each split of
+each manifest read, for both arms) has a summary.json, if extension manifests exist without
+`--stage1-only` and spec.json or verdict.json is missing or unreadable, or if a target phase
+has no TUNE arm. `--stage1-only` does not read those two files. `--dry-run` prints what it
+would set and writes nothing. RESULTS defaults to `../gomea-results`, CONFIGS to
 `configs/gomea`, SOURCE to `phase1an`, the phases to `phase1ao,phase1ar`.
 """
 
@@ -47,6 +54,7 @@ FLAG = "--const-opt"
 PLACEHOLDER = "SET-BY-set_const_opt.py"
 ARMS = {"lm": "GOMEA-LS-LM", "mutate": "GOMEA-LS-MUT"}
 TIE = "mutate"
+EXT = "sr-ext-"
 PHASES = "phase1ao,phase1ar"
 
 
@@ -56,14 +64,34 @@ def _nmse(summary: dict) -> float:
     return float(summary["test_nmse"])
 
 
-def collect(results: Path, source_dir: Path, stage1_only: bool) -> tuple[dict, list[str]]:
+def select_extensions(results: Path, source_dir: Path,
+                      stage1_only: bool) -> tuple[list[Path], list[tuple[Path, str]], list[str]]:
+    """The extension manifests to read, those to ignore (with why), and the errors."""
+    files = sorted(source_dir.glob(f"{EXT}*.json"))
+    if stage1_only:
+        return [], [(f, "--stage1-only") for f in files], []
+    if not files:
+        return [], [], []
+    spec = source_dir / "spec.json"
+    verdict = results / source_dir.name / "report-stage1" / "verdict.json"
+    try:
+        primary = json.loads(spec.read_text())["primary"]
+        v = json.loads(verdict.read_text())
+        extended = {p for p, n, *_ in primary if v.get(f"{p}:{n}") == "extend"}
+    except (OSError, ValueError, KeyError, TypeError, AttributeError) as exc:
+        return [], [], [f"cannot tell which extensions ran from {spec} and {verdict}: "
+                        f"{type(exc).__name__}: {exc}"]
+    included = [f for f in files if f.stem.removeprefix(EXT) in extended]
+    return included, [(f, 'no "extend" primary contrast') for f in files
+                      if f not in included], []
+
+
+def collect(results: Path, source_dir: Path, extensions: list[Path]) -> tuple[dict, list[str]]:
     """Per mode and dataset the list of test NMSEs, and the errors (missing runs)."""
     out: dict[str, dict[str, list[float]]] = {m: {} for m in ARMS}
     errors = []
-    files = sorted(source_dir.glob("sr*.json"))
-    if stage1_only:
-        files = [f for f in files if not f.name.startswith("sr-ext-")]
-    stage1 = [f for f in files if not f.name.startswith("sr-ext-")]
+    stage1 = [f for f in sorted(source_dir.glob("sr*.json")) if not f.name.startswith(EXT)]
+    files = sorted(stage1 + extensions)
     if not stage1:
         errors.append(f"no stage-1 regression manifest (sr*.json) in {source_dir}")
     datasets = []
@@ -156,9 +184,14 @@ def main(argv: list[str] | None = None) -> int:
     a = ap.parse_args(argv)
     results, configs = Path(a.results).resolve(), Path(a.configs).resolve()
     phases = [p for p in a.phases.split(",") if p]
-    values, errors = collect(results, configs / a.source, a.stage1_only)
+    extensions, ignored, errors = select_extensions(results, configs / a.source, a.stage1_only)
+    for f in extensions:
+        print(f"include extension {f.name}")
+    for f, why in ignored:
+        print(f"ignore extension {f.name}: {why}")
+    values, cerr = collect(results, configs / a.source, extensions)
     writes, werr = plan_writes(configs, phases)
-    errors += werr
+    errors += cerr + werr
     if errors:
         for e in errors[:50]:
             print(f"set_const_opt: {e}", file=sys.stderr)
@@ -174,6 +207,7 @@ def main(argv: list[str] | None = None) -> int:
                 "the datasets' medians (median of the per-dataset medians); a failed run "
                 f"counts as inf; a tie goes to {TIE}",
         "source": a.source, "stage1_only": a.stage1_only, "arms": ARMS,
+        "extended_datasets": [f.stem.removeprefix(EXT) for f in extensions],
         "n_runs": {m: {ds: len(v) for ds, v in d.items()} for m, d in values.items()},
         **med, "choice": choice, "written": [],
     }
