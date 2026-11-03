@@ -14,13 +14,25 @@ The plan (tools/server/plan.json) lists the steps in order and names the state d
   (reason), workers_decision, phase_attempt, run_end (every finished run with its full
   summary, deduplicated across restarts), report and verdict (every row of
   report-stage{1,2}/contrasts.csv), pilot_p, pytest, repro, resources (every 5 min),
-  scoreboard (every 10 min), bundle, error, stopped, round_end;
+  scoreboard (every 10 min), bundle, error, stopped, round_end, and for a chain chain_start,
+  chain_started, chain_not_started;
 * `state.json`: per step its status (running, done, failed, skipped) and details, so a
   restart skips finished steps and resumes the current one (the runners skip runs that
   already have a summary.json); RETRY_FAILED=1 reruns failed and skipped steps;
 * `scores-latest.txt`, `scores-history.txt`: tools/gomea/scores_now.py every 10 min;
 * `bundle-latest.tar.gz` every hour and at the end, plus `bundle-final-<UTC>.tar.gz`,
   `round-summary.md` and `DONE` at the end.
+
+A step's `duration_s` is its active time: the sum over the orchestrator sessions, without the
+idle time between them. Its `elapsed_s` is the wall clock since the step first started.
+
+A plan's optional `"then": "<plan name>"` makes a chain (tools/server/chain.py, and "Round 5"
+in docs/gomea/SERVER-RUN.md). When the plan finishes (with failed or skipped steps too, which
+the log reports), and after its own `round-summary.md`, final bundle and `DONE`, the
+orchestrator releases its locks, starts the next plan's start.sh in a new session, logs the
+`chain_start` event and exits. A stopped round does not start the next one, and a `--force` start
+does not either. RETRY_FAILED and REPRO_ONLY do not pass to the next plan. Each orchestrator of
+a chain holds the chain's lock (`chain.lock`), so no two of them run at the same time.
 
 Step types: `check` (S0: pytest and the reproducibility check; failures are flagged, never
 fatal) and `phase` (optionally `requires: ["gpgomea"]`, `["knob-cap:PILOT"]` (PILOT's
@@ -61,6 +73,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
+import chain  # noqa: E402
 import resources  # noqa: E402
 
 REPO = Path(__file__).resolve().parents[2]
@@ -75,7 +88,10 @@ BUNDLE_S = int(os.environ.get("ORCH_BUNDLE_S", 3600))
 BUNDLE_SKIP = {"moses.log", "train_scaled.csv"}
 RUN_FILES = {"summary.json", "manifest.json", "events.jsonl", "environment.json",
              "run_order.json", "seeds.json", "lineage.json", "reseed.json",
-             "longrand-p.json", "knob-cap.json"}
+             "longrand-p.json", "knob-cap.json", "const-opt-choice.json"}
+# What one plan's environment must not give to the next plan of a chain.
+CHAIN_ENV_DROP = ("RETRY_FAILED", "REPRO_ONLY", "PLAN", "ORCH_CHAINED", "ORCH_NO_CHAIN")
+CHAIN_START_WAIT_S = 120
 
 
 def utc() -> str:
@@ -83,7 +99,7 @@ def utc() -> str:
 
 
 def since(stamp: str) -> int:
-    """Seconds from a `utc()` stamp to now (wall clock, so it includes any downtime)."""
+    """Seconds from a `utc()` stamp to now (wall clock, so it includes any idle time)."""
     t = datetime.strptime(stamp, "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=UTC)
     return round((datetime.now(UTC) - t).total_seconds())
 
@@ -118,6 +134,7 @@ class Round:
                     self.phases.append(s[key])
         self.seen: set[str] = set()
         self.current: dict = {}
+        self.clocks: list[list] = []  # [record, monotonic start, active seconds before]
 
     # ---- logging
     def log(self, msg: str) -> None:
@@ -142,6 +159,24 @@ class Round:
 
     def step_state(self, sid: str) -> dict:
         return self.state["steps"].setdefault(sid, {})
+
+    # ---- active time of a step: the sum over the sessions, without the idle time between them
+    def clock_start(self, rec: dict) -> None:
+        with self.lock:
+            self.clocks.append([rec, time.monotonic(), float(rec.get("duration_s") or 0)])
+
+    def clock_tick(self) -> None:
+        """Write the active time of the running records. The monitor calls it at each poll, so a
+        kill loses at most one poll interval."""
+        with self.lock:
+            now = time.monotonic()
+            for rec, t0, before in self.clocks:
+                rec["duration_s"] = round(before + now - t0)
+
+    def clock_stop(self, rec: dict) -> None:
+        self.clock_tick()
+        with self.lock:
+            self.clocks = [c for c in self.clocks if c[0] is not rec]
 
     # ---- dedupe keys from earlier sessions
     def load_seen(self) -> None:
@@ -288,6 +323,11 @@ class Round:
         while not self.stop.is_set():
             try:
                 self.scan()
+                self.clock_tick()
+                try:
+                    self.save_state()
+                except RuntimeError:  # the main thread changed a record; the next poll saves
+                    pass
                 t = time.time()
                 if t - last["res"] >= RESOURCES_S:
                     last["res"] = t
@@ -438,9 +478,11 @@ class Round:
             if pst.get("status") not in ("done", "failed"):
                 self.event("step_start", step=f"{sid}:pilot", phase=step["pilot"])
                 pst.setdefault("start", utc())
+                self.clock_start(pst)
                 rc = self.run_phase(step["pilot"], pst)
+                self.clock_stop(pst)
                 pst.update(status="done" if rc == 0 else "failed", rc=rc,
-                           duration_s=since(pst["start"]), **self.run_counts(step["pilot"]))
+                           elapsed_s=since(pst["start"]), **self.run_counts(step["pilot"]))
                 self.save_state()
                 self.event("step_end", step=f"{sid}:pilot", phase=step["pilot"], **pst)
             if pst["status"] != "done":
@@ -576,7 +618,8 @@ class Round:
         self.save_state()
         self.event("round_start" if fresh else "round_resume", plan=self.plan,
                    session=self.state["sessions"], environment=env,
-                   pid=os.getpid(), pgid=os.getpgrp())
+                   pid=os.getpid(), pgid=os.getpgrp(),
+                   chained=os.environ.get("ORCH_CHAINED") == "1")
         self.log(f"{'start' if fresh else 'resume'} round {self.plan.get('name')} "
                  f"(session {self.state['sessions']}, plan {self.plan_path}, state {self.sd})")
         mon = threading.Thread(target=self.monitor, daemon=True)
@@ -595,6 +638,7 @@ class Round:
             self.save_state()
             self.event("step_start", step=sid, type=step["type"], resumed=st.get("attempts", 0) > 0)
             t0 = time.time()
+            self.clock_start(st)
             try:
                 if step["type"] == "check":
                     self.do_check(step, st)
@@ -609,15 +653,17 @@ class Round:
                 self.save_state()
                 self.event("error", where=sid, error=st["error"])
                 self.log(f"{sid}: ERROR {st['error']}")
+            self.clock_stop(st)
             if st["status"] != "skipped":
-                st["duration_s"] = since(st["start"])
+                st["elapsed_s"] = since(st["start"])
                 self.save_state()
                 self.event("step_end", step=sid, rc=st.get("rc"), status=st["status"],
-                           duration_s=st["duration_s"], session_s=round(time.time() - t0),
+                           duration_s=st["duration_s"], elapsed_s=st["elapsed_s"],
+                           session_s=round(time.time() - t0),
                            workers=st.get("workers"), runs_ok=st.get("runs_ok"),
                            runs_failed=st.get("runs_failed"), flags=st.get("flags"))
-                self.log(f"{sid}: {st['status']} (rc={st.get('rc')}, {st['duration_s']} s since "
-                         f"the step first started)")
+                self.log(f"{sid}: {st['status']} (rc={st.get('rc')}, {st['duration_s']} s active, "
+                         f"{st['elapsed_s']} s since the step first started)")
         self.finish()
         return 0
 
@@ -649,7 +695,9 @@ class Round:
         L = [f"# Server round summary: {self.plan.get('name')}", "",
              f"Started {self.state.get('round_started')}, ended {self.state.get('round_ended')}, "
              f"{self.state.get('sessions')} orchestrator session(s). Plan `{self.plan_path.name}`, "
-             f"state `{self.sd}`.", "", "## Environment", ""]
+             f"state `{self.sd}`."
+             + (f" Next plan: `{self.plan['then']}`." if self.plan.get("then") else ""),
+             "", "## Environment", ""]
         res = env.get("resources", {})
         L += [f"* host `{env.get('hostname')}`, {env.get('os_release', {}).get('PRETTY_NAME')}, "
               f"kernel {env.get('kernel')}",
@@ -662,7 +710,9 @@ class Round:
               f"* Python {(env.get('python') or '').split()[0] if env.get('python') else None}, "
               f"git HEAD `{env.get('git_head')}`, dirty: "
               f"{bool((env.get('git_status_porcelain') or '').strip())}", ""]
-        L += ["## Steps", "", "| step | status | duration | workers | runs ok | runs failed | notes |",
+        L += ["## Steps", "", "Active time: the sum over the orchestrator sessions, without the "
+              "idle time between them.", "",
+              "| step | status | active time | workers | runs ok | runs failed | notes |",
               "|---|---|---|---|---|---|---|"]
         for step in self.plan["steps"]:
             st = self.state["steps"].get(step["id"], {})
@@ -707,6 +757,96 @@ class Round:
         n_runs = sum(e["event"] == "run_end" for e in events)
         L += [f"{n_runs} run_end events, {len(events)} events in total."]
         _atomic_write(self.sd / "round-summary.md", "\n".join(L) + "\n")
+
+
+def plan_state(plan: Path) -> tuple[str, str]:
+    """(state, bundle) of one plan of a chain, in words."""
+    sd = chain.state_dir(plan)
+    finals = sorted(sd.glob("bundle-final-*.tar.gz"))
+    bundle = str(finals[-1]) if finals else (
+        f"no final bundle yet, latest: {sd / 'bundle-latest.tar.gz'}"
+        if (sd / "bundle-latest.tar.gz").exists() else "no bundle yet")
+    if (sd / "DONE").exists():
+        st = f"DONE {(sd / 'DONE').read_text().strip()}"
+        try:
+            steps = json.loads((sd / "state.json").read_text()).get("steps", {})
+        except (OSError, ValueError):
+            steps = {}
+        bad = {k: v.get("status") for k, v in steps.items() if v.get("status") != "done"}
+        return (st + (f", not done: {bad}" if bad else ""), bundle)
+    d = chain.live_pid(plan)
+    if d is not None:
+        return (f"RUNNING pid {d['pid']} pgid {d['pgid']}", bundle)
+    if (sd / "state.json").exists():
+        return ("stopped or interrupted, not running (start.sh resumes it)", bundle)
+    return ("not started", bundle)
+
+
+def print_chain(plan: Path) -> None:
+    members = chain.members(plan)
+    if len(members) < 2:
+        return
+    print("\nchain:")
+    for p in members:
+        state, bundle = plan_state(p)
+        print(f"  {chain.name_of(p) or p.name} (state {chain.state_dir(p)}): {state}")
+        print(f"    bundle: {bundle}")
+
+
+def start_next(r: Round, locks: list) -> None:
+    """Start the next plan of the chain, after this plan's summary, bundle and DONE. The new
+    start.sh runs in a new session, so a later stop of this process group never reaches it."""
+    then = r.plan.get("then")
+    if not then:
+        return
+    bad = {k: v.get("status") for k, v in r.state["steps"].items() if v.get("status") != "done"}
+    flags = {k: v["flags"] for k, v in r.state["steps"].items() if v.get("flags")}
+    if bad or flags:
+        r.log(f"chain: this round ended with steps not done {bad} and flags {flags}; "
+              f"the chain goes on to {then}")
+    if os.environ.get("ORCH_NO_CHAIN") == "1":
+        r.event("chain_not_started", next=then, reason="this session started with --force")
+        r.log(f"chain: {then} not started, because this session started with --force")
+        return
+    nxt = chain.resolve(then)
+    if nxt is None:
+        r.event("error", where="chain", error=f"no plan named {then!r}")
+        r.log(f"chain: ERROR: no plan named {then!r}; nothing started")
+        return
+    if chain.stop_marker(r.plan_path).exists():
+        r.event("chain_not_started", next=then, reason="stop.sh ran")
+        r.log(f"chain: {then} not started, because stop.sh ran")
+        return
+    # From here this process does no more work. It gives up its place before the next start.
+    try:
+        (r.sd / "orchestrator.pid").unlink()
+    except OSError:
+        pass
+    for lk in locks:
+        fcntl.flock(lk, fcntl.LOCK_UN)
+        lk.close()
+    env = {k: v for k, v in os.environ.items() if k not in CHAIN_ENV_DROP}
+    nsd = chain.state_dir(nxt)
+    nsd.mkdir(parents=True, exist_ok=True)
+    argv = ["bash", str(REPO / "tools" / "server" / "start.sh"), "--plan", then, "--chained"]
+    with (nsd / "chain-start.log").open("a") as log:
+        log.write(f"\n=== {utc()} started by the end of {r.plan.get('name')}\n")
+        log.flush()
+        try:
+            p = subprocess.Popen(argv, cwd=REPO, env=env, stdin=subprocess.DEVNULL, stdout=log,
+                                 stderr=subprocess.STDOUT, start_new_session=True)
+        except OSError as exc:
+            r.event("error", where="chain", error=f"{type(exc).__name__}: {exc}")
+            r.log(f"chain: ERROR: cannot start {then}: {exc}")
+            return
+    r.event("chain_start", next=then, plan=str(nxt), pid=p.pid, log=str(nsd / "chain-start.log"))
+    r.log(f"chain: started {then} (start.sh pid {p.pid}, log {nsd / 'chain-start.log'})")
+    try:
+        rc = p.wait(CHAIN_START_WAIT_S)
+    except subprocess.TimeoutExpired:
+        rc = None
+    r.event("chain_started", next=then, start_rc=rc)
+    r.log(f"chain: start.sh of {then} returned {rc}")
 
 
 def make_bundle(r: Round) -> Path:
@@ -776,6 +916,7 @@ def status(r: Round) -> int:
     print(f"round {r.plan.get('name')} (state {r.sd})")
     print(f"orchestrator: {'RUNNING pid ' + str(info.get('pid')) + ' pgid ' + str(info.get('pgid')) if alive else 'not running'}"
           f"{'; DONE ' + (r.sd / 'DONE').read_text().strip() if done else ''}")
+    print_chain(r.plan_path)
     print("\nsteps:")
     for step in r.plan["steps"]:
         st = r.state["steps"].get(step["id"], {})
@@ -831,6 +972,16 @@ def main() -> int:
         make_bundle(r)
         print(r.sd / "bundle-latest.tar.gz")
         return 0
+    # The chain's lock first: at most one orchestrator of a chain, whichever plan it runs.
+    chain_lock = chain.lock_path(plan)
+    chain_lock.parent.mkdir(parents=True, exist_ok=True)
+    chain_lockf = open(chain_lock, "w")
+    try:
+        fcntl.flock(chain_lockf, fcntl.LOCK_EX | fcntl.LOCK_NB)
+    except OSError:
+        print(f"another orchestrator of this chain holds {chain_lock}; not starting",
+              file=sys.stderr)
+        return 3
     lockf = open(r.sd / "orchestrator.lock", "w")
     try:
         fcntl.flock(lockf, fcntl.LOCK_EX | fcntl.LOCK_NB)
@@ -839,6 +990,17 @@ def main() -> int:
         return 3
     _atomic_write(r.sd / "orchestrator.pid", json.dumps(
         {"pid": os.getpid(), "pgid": os.getpgrp(), "started": utc(), "plan": str(plan)}) + "\n")
+    # The pid file first, then the marker: a stop.sh that wrote the marker too late for this
+    # check reads this pid file and signals this process.
+    marker = chain.stop_marker(plan)
+    if os.environ.get("ORCH_CHAINED") == "1":
+        if marker.exists():
+            r.event("chain_not_started", reason="stop.sh ran before this chained start")
+            r.log("not starting: stop.sh ran before this chained start")
+            (r.sd / "orchestrator.pid").unlink(missing_ok=True)
+            return 0
+    else:
+        marker.unlink(missing_ok=True)  # a person or the autostart started this session
 
     def on_signal(signum, frame):
         signal.signal(signal.SIGTERM, signal.SIG_IGN)
@@ -849,9 +1011,12 @@ def main() -> int:
     signal.signal(signal.SIGINT, on_signal)
     signal.signal(signal.SIGHUP, signal.SIG_IGN)
     try:
-        return r.run()
+        rc = r.run()
+        start_next(r, [lockf, chain_lockf])
+        return rc
     except Stopped as exc:
         r.stop.set()
+        r.clock_tick()
         try:
             os.killpg(os.getpgrp(), signal.SIGTERM)  # our children, if the signal was ours only
         except OSError:

@@ -1,0 +1,90 @@
+{
+  "phase": "smoke5-1av",
+  "metrics": {
+    "Con": "program_size",
+    "EnH": "program_size",
+    "Air": "program_size"
+  },
+  "primary": [
+    [
+      "Con",
+      "lmpen5-size",
+      "LM-PEN5",
+      "LM"
+    ],
+    [
+      "Con",
+      "lmpen25-size",
+      "LM-PEN25",
+      "LM"
+    ],
+    [
+      "EnH",
+      "lmpen5-size",
+      "LM-PEN5",
+      "LM"
+    ],
+    [
+      "EnH",
+      "lmpen25-size",
+      "LM-PEN25",
+      "LM"
+    ],
+    [
+      "Air",
+      "lmpen5-size",
+      "LM-PEN5",
+      "LM"
+    ],
+    [
+      "Air",
+      "lmpen25-size",
+      "LM-PEN25",
+      "LM"
+    ]
+  ],
+  "secondary": [
+    [
+      "Con",
+      "lmpen5-nmse",
+      "LM-PEN5",
+      "LM",
+      "test_nmse"
+    ],
+    [
+      "Con",
+      "lmpen25-nmse",
+      "LM-PEN25",
+      "LM",
+      "test_nmse"
+    ],
+    [
+      "EnH",
+      "lmpen5-nmse",
+      "LM-PEN5",
+      "LM",
+      "test_nmse"
+    ],
+    [
+      "EnH",
+      "lmpen25-nmse",
+      "LM-PEN25",
+      "LM",
+      "test_nmse"
+    ],
+    [
+      "Air",
+      "lmpen5-nmse",
+      "LM-PEN5",
+      "LM",
+      "test_nmse"
+    ],
+    [
+      "Air",
+      "lmpen25-nmse",
+      "LM-PEN25",
+      "LM",
+      "test_nmse"
+    ]
+  ]
+}

@@ -254,7 +254,7 @@ Outputs, all under `../gomea-results/`:
   the reports.
 * `phase1as.log`, `phase1as-bench.log`, `phase1as-sr.log`: the logs of the phase.
 
-The report does not give all D1 values. Regression summaries have no `deme_count`. Take the number
+The report of this round's code gave not all D1 values ("Round 5" has the new columns). Regression summaries have no `deme_count`. Take the number
 of demes, the generations per deme and how demes end from the `end` events in each run's
 `events.jsonl`. The bundle holds these files. A deme that starts when the time is spent has 0
 evaluations and ends with `time_limit`. Do not count it as a real deme.
@@ -279,3 +279,82 @@ Smoke test: `bash tools/server/start.sh --plan smoke4` runs a miniature of the s
 state in `../gomea-results/server-run4-smoke/`. With 2 pairs no problem extends, so the smoke plan does
 not run the `*-ext-*` manifests. It sets the `commit` of the smoke Boolean manifests to HEAD, so
 `git checkout configs/gomea/server-smoke4-1as` afterwards.
+
+## Round 5 and the chain from round 4
+
+The fifth round (`SERVER-ROUND5-PREREGISTRATION.md`: a validation guard for LM, a weaker size
+penalty, LM with a size penalty) has its own plan, `tools/server/plan5.json`: S0, then phases 1at,
+1au and 1av. Its state is in `../gomea-results/server-run5/`. There is no pilot and no value to set
+during the run.
+
+`plan4.json` has `"then": "round5"`, so one command runs both rounds, one after the other:
+
+    bash tools/server/start.sh --plan round4
+
+How the chain works:
+
+* When round 4 ends, it writes its own `round-summary.md`, `bundle-final-<UTC time>.tar.gz` and
+  `DONE`. Then it logs the `chain_start` event and starts `start.sh --plan round5` in a new session.
+* Each round reports separately: `server-run4/` and `server-run5/` each have their own summary and
+  final bundle. A bundle holds only the files of its round. Bring back both.
+* Round 4 goes on to round 5 when it ends with a failed or skipped step. `run.log` of round 4 reports
+  those steps. The verdict for that step stays in the summary of round 4.
+* `stop.sh` with either plan name stops the running orchestrator of the chain. A stopped round does
+  not start the next round. It writes `server-run4/chain.stop`, and the next `start.sh` removes it.
+* Never two at once: each orchestrator of the chain holds `server-run4/chain.lock`, whichever round
+  it runs. `start.sh` refuses, and a direct `orchestrate.py` exits with 3.
+* `RETRY_FAILED` and `REPRO_ONLY` apply only to the plan that the command names. They do not pass to
+  the next plan.
+
+Commands, with the state of the chain:
+
+| Command | Round 4 not DONE | Round 4 DONE, round 5 not DONE | Both DONE |
+|---|---|---|---|
+| `start.sh --plan round4` | starts or resumes round 4 | starts or resumes round 5 | says where both bundles are |
+| `start.sh --plan round4 --force` | as above, without the next round | reruns the end of round 4 only | reruns the end of round 4 only |
+| `status.sh --plan round4` | all, and the `chain:` section | all, and the `chain:` section | all, and the `chain:` section |
+| `stop.sh --plan round4` | stops round 4 | stops round 5 | nothing to stop |
+
+The `chain:` section of `status.sh` gives the state of each plan and where its bundle is.
+
+`start.sh --plan round5` also works when round 4 is not DONE and not running. It prints no error,
+and it does not run round 4. Use it only to skip round 4.
+
+**Autostart.** Run `uninstall_autostart.sh`, then `install_autostart.sh --plan round4`. The block
+returns only when both rounds are DONE. In all other cases it runs `start.sh --plan round4`, so a pod
+restart during round 4 resumes round 4, and a pod restart during round 5 resumes round 5. As in earlier
+rounds, the block also resumes a round that `stop.sh` stopped. To prevent this, run
+`uninstall_autostart.sh` after `stop.sh`.
+
+**Time.** In the step records and in `round-summary.md`, `duration_s` is now the active time: the sum
+over the orchestrator sessions, without the idle time between them. `elapsed_s` is the wall clock
+since the step first started. A kill loses at most one poll interval (60 s) of active time.
+
+**Report.** `aggregate.csv` now has, for each arm, `median_train_test_gap`,
+`median_generations_per_deme` and `deme_end_share_<reason>`. For regression, `median_deme_count` now
+has a value. All of them count only demes with evaluations (`ledger.requests > 0`), from each
+run's `events.jsonl`. The note in "Round 4" about taking these values by hand no longer applies. The
+arm LM-VAL also has `median_lm_guard_checked`, `median_lm_guard_rejected` and
+`median_lm_guard_rejected_share` (rejected / checked).
+
+Arms and files:
+
+* `configs/gomea/phase1at/`: GOMEA-LS, LM, LM-VAL on WiR, Con, EnH, Air, Yac, Tow, 1,000 s, wall cap
+  2,400 s.
+* `configs/gomea/phase1au/`: GOMEA-LS, PEN25, PEN125, PEN625 on Con, EnH, Air, 10,000 evaluations, wall
+  cap 36,000 s (as 1ap). Primary metric: `program_size`.
+* `configs/gomea/phase1av/`: GOMEA-LS, LM, LM-PEN5, LM-PEN25 on Con, EnH, Air, 1,000 s, wall cap
+  2,400 s. Primary metric: `program_size`.
+* Each has `spec.json`, `sr.json` (splits 1-10) and `sr-ext-<dataset>.json` (splits 11-20, all arms).
+* The phases have `datasets:` requirements. `setup.sh` builds Yac and WiR from `data/gomea-sr/`, and it
+  downloads Tow. If a dataset is missing, the step is skipped, and the log gives the reason. So run
+  `setup.sh` after `git pull`.
+
+Smoke test: `bash tools/server/start.sh --plan smoke4` runs the miniature of round 4, then
+`smoke5` by itself (`configs/gomea/server-smoke5-*`: 2 splits, 15 s or 400 evaluations per run). The
+state is in `server-run4-smoke/` and `server-run5-smoke/`.
+
+**Boolean manifests of round 4.** The guard changed `pymoses`, so the `commit` of the Boolean manifests
+of 1as moved to the commit with the guard. The name of the result folder holds a hash of the manifest,
+so runs under an older `commit` are not reused: `1/phase1as-bool-<new hash>/` starts empty.
+

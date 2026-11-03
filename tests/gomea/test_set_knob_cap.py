@@ -138,7 +138,8 @@ def _ext_setup(tmp_path):
     configs = _configs(tmp_path)
     pilot = configs / "phase1ak-pilot"
     sr = json.loads((pilot / "sr.json").read_text())
-    ext = dict(sr, name=sr["name"] + "-ext-Con", datasets=["Con"], splits=[s + 100 for s in sr["splits"]])
+    ext = dict(sr, name=sr["name"] + "-ext-Con", datasets=["Con"],
+               splits=[s + 100 for s in sr["splits"]])
     (pilot / "sr-ext-Con.json").write_text(json.dumps(ext))
     b = json.loads((pilot / "bool.json").read_text())
     bext = dict(b, name=b["name"] + "-ext-mux11", seeds=[s + 100 for s in b["seeds"]])

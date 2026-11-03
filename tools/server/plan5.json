@@ -1,0 +1,37 @@
+{
+  "name": "server-round5-2026-11",
+  "description": "SERVER-ROUND5-PREREGISTRATION.md: S0, then 1at (validation guard of LM), 1au (weaker size penalty), 1av (LM with a size penalty). One phase at a time. Runs after round 4 (plan4.json, \"then\").",
+  "state_dir": "server-run5",
+  "steps": [
+    {
+      "id": "S0",
+      "type": "check",
+      "pytest": {},
+      "repro": {}
+    },
+    {
+      "id": "phase1at",
+      "type": "phase",
+      "phase": "phase1at",
+      "requires": [
+        "datasets:WiR,Con,EnH,Air,Yac,Tow"
+      ]
+    },
+    {
+      "id": "phase1au",
+      "type": "phase",
+      "phase": "phase1au",
+      "requires": [
+        "datasets:Con,EnH,Air"
+      ]
+    },
+    {
+      "id": "phase1av",
+      "type": "phase",
+      "phase": "phase1av",
+      "requires": [
+        "datasets:Con,EnH,Air"
+      ]
+    }
+  ]
+}

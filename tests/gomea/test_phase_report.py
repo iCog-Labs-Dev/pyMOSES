@@ -390,9 +390,11 @@ def test_scores_now_still_reads_a_report(tmp_path):
     _events(res / "phaseX", "x", a[0], [_end(4, 7)])
     sp = tmp_path / "spec.json"
     sp.write_text(json.dumps(REG_SPEC))
-    assert phase_report.main(["--stage", "1", str(sp), str(res / "phaseX" / "report-stage1"), d]) == 0
+    report = res / "phaseX" / "report-stage1"
+    assert phase_report.main(["--stage", "1", str(sp), str(report), d]) == 0
     repo = Path(__file__).resolve().parents[2]
     r = subprocess.run([sys.executable, str(repo / "tools" / "gomea" / "scores_now.py"), "phaseX"],
-                       capture_output=True, text=True, env={"GOMEA_RESULTS": str(res), "PATH": "/usr/bin:/bin"})
+                       capture_output=True, text=True,
+                       env={"GOMEA_RESULTS": str(res), "PATH": "/usr/bin:/bin"})
     assert r.returncode == 0, r.stderr
     assert "A vs B" in r.stdout and "stage 1 verdicts" in r.stdout

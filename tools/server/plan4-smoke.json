@@ -2,6 +2,7 @@
   "name": "server-round4-smoke",
   "description": "Smoke test of the round-4 plan: limited pytest, the mux11 repro run, then 1as in miniature (configs/gomea/server-smoke4-1as: mux6, Con, EnH and Air, 2 seeds or splits, 15 s per run). Uses its own state dir, so it never marks real steps done.",
   "state_dir": "server-run4-smoke",
+  "then": "smoke5",
   "steps": [
     {"id": "S0", "type": "check",
      "pytest": {"args": ["tests/server", "tests/gomea/test_knob_cap.py", "tests/gomea/test_knob_cap_identity.py"]},

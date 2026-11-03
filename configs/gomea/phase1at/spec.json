@@ -1,0 +1,87 @@
+{
+  "phase": "1at",
+  "metrics": {
+    "WiR": "test_nmse",
+    "Con": "test_nmse",
+    "EnH": "test_nmse",
+    "Air": "test_nmse",
+    "Yac": "test_nmse",
+    "Tow": "test_nmse"
+  },
+  "primary": [
+    [
+      "WiR",
+      "lmval-vs-lm",
+      "LM-VAL",
+      "LM"
+    ],
+    [
+      "Con",
+      "lmval-vs-lm",
+      "LM-VAL",
+      "LM"
+    ],
+    [
+      "EnH",
+      "lmval-vs-lm",
+      "LM-VAL",
+      "LM"
+    ],
+    [
+      "Air",
+      "lmval-vs-lm",
+      "LM-VAL",
+      "LM"
+    ],
+    [
+      "Yac",
+      "lmval-vs-lm",
+      "LM-VAL",
+      "LM"
+    ],
+    [
+      "Tow",
+      "lmval-vs-lm",
+      "LM-VAL",
+      "LM"
+    ]
+  ],
+  "secondary": [
+    [
+      "WiR",
+      "lmval-vs-gomea",
+      "LM-VAL",
+      "GOMEA-LS"
+    ],
+    [
+      "Con",
+      "lmval-vs-gomea",
+      "LM-VAL",
+      "GOMEA-LS"
+    ],
+    [
+      "EnH",
+      "lmval-vs-gomea",
+      "LM-VAL",
+      "GOMEA-LS"
+    ],
+    [
+      "Air",
+      "lmval-vs-gomea",
+      "LM-VAL",
+      "GOMEA-LS"
+    ],
+    [
+      "Yac",
+      "lmval-vs-gomea",
+      "LM-VAL",
+      "GOMEA-LS"
+    ],
+    [
+      "Tow",
+      "lmval-vs-gomea",
+      "LM-VAL",
+      "GOMEA-LS"
+    ]
+  ]
+}

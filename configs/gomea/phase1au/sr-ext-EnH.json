@@ -1,0 +1,139 @@
+{
+  "name": "phase1au-sr-ext-EnH",
+  "datasets": [
+    "EnH"
+  ],
+  "splits": [
+    11,
+    12,
+    13,
+    14,
+    15,
+    16,
+    17,
+    18,
+    19,
+    20
+  ],
+  "datasets_dir": "../gomea-results/phase1f/datasets",
+  "wall_cap_s": 36000,
+  "mem_limit_mb": 3072,
+  "arms": {
+    "GOMEA-LS": {
+      "binary": ".venv/bin/moses",
+      "budget": {
+        "evals": 10000
+      },
+      "argv": [
+        "-a",
+        "gomea",
+        "--gomea-fos",
+        "lt-b",
+        "--gomea-pop-size",
+        "16",
+        "--gomea-skip-inactive",
+        "0",
+        "--gomea-max-evals-per-deme",
+        "250",
+        "--gomea-genotype-memo",
+        "1",
+        "--gomea-contin",
+        "copy",
+        "--knob-probe-baseline",
+        "reduced",
+        "--linear-scaling",
+        "1"
+      ]
+    },
+    "PEN25": {
+      "binary": ".venv/bin/moses",
+      "budget": {
+        "evals": 10000
+      },
+      "argv": [
+        "-a",
+        "gomea",
+        "--gomea-fos",
+        "lt-b",
+        "--gomea-pop-size",
+        "16",
+        "--gomea-skip-inactive",
+        "0",
+        "--gomea-max-evals-per-deme",
+        "250",
+        "--gomea-genotype-memo",
+        "1",
+        "--gomea-contin",
+        "copy",
+        "--knob-probe-baseline",
+        "reduced",
+        "--linear-scaling",
+        "1",
+        "--gomea-accept-complexity-ratio",
+        "0.025",
+        "--gomea-deme-store",
+        "accepted"
+      ]
+    },
+    "PEN125": {
+      "binary": ".venv/bin/moses",
+      "budget": {
+        "evals": 10000
+      },
+      "argv": [
+        "-a",
+        "gomea",
+        "--gomea-fos",
+        "lt-b",
+        "--gomea-pop-size",
+        "16",
+        "--gomea-skip-inactive",
+        "0",
+        "--gomea-max-evals-per-deme",
+        "250",
+        "--gomea-genotype-memo",
+        "1",
+        "--gomea-contin",
+        "copy",
+        "--knob-probe-baseline",
+        "reduced",
+        "--linear-scaling",
+        "1",
+        "--gomea-accept-complexity-ratio",
+        "0.125",
+        "--gomea-deme-store",
+        "accepted"
+      ]
+    },
+    "PEN625": {
+      "binary": ".venv/bin/moses",
+      "budget": {
+        "evals": 10000
+      },
+      "argv": [
+        "-a",
+        "gomea",
+        "--gomea-fos",
+        "lt-b",
+        "--gomea-pop-size",
+        "16",
+        "--gomea-skip-inactive",
+        "0",
+        "--gomea-max-evals-per-deme",
+        "250",
+        "--gomea-genotype-memo",
+        "1",
+        "--gomea-contin",
+        "copy",
+        "--knob-probe-baseline",
+        "reduced",
+        "--linear-scaling",
+        "1",
+        "--gomea-accept-complexity-ratio",
+        "0.625",
+        "--gomea-deme-store",
+        "accepted"
+      ]
+    }
+  }
+}
