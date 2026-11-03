@@ -180,13 +180,16 @@ on the widest dataset (Dow) 2 of 4 linkage-tree runs needed more than 5 GB. The 
 GP-GOMEA beat classic MOSES on all 10
 ([`docs/gomea/PHASE1F-FINDINGS.md`](docs/gomea/PHASE1F-FINDINGS.md)).
 
-Two server rounds (2026-10-26 to 2026-10-30) give the current status
+Three server rounds (2026-10-26 to 2026-11-02) give the current status
 ([`docs/gomea/SERVER-ROUND-FINDINGS.md`](docs/gomea/SERVER-ROUND-FINDINGS.md),
-[`docs/gomea/SERVER-ROUND2-FINDINGS.md`](docs/gomea/SERVER-ROUND2-FINDINGS.md)):
+[`docs/gomea/SERVER-ROUND2-FINDINGS.md`](docs/gomea/SERVER-ROUND2-FINDINGS.md),
+[`docs/gomea/SERVER-ROUND3-FINDINGS.md`](docs/gomea/SERVER-ROUND3-FINDINGS.md)):
 
 * **Regression:** at equal time GOMEA beat capped hill climbing on Air, EnC and EnH and tied
   on Bos and Yac, with programs about 3× larger. With `--linear-scaling 1` it matched the
   authors' GP-GOMEA per evaluation. Use GOMEA as an optional optimizer, with linear scaling.
+  At equal CPU, `--const-opt lm` lowered the test NMSE further on Con, EnH and Air, with smaller
+  programs. Plain GOMEA-LS tied HC-LS on most datasets (1ao, 1ar).
 * **Boolean:** keep hill climbing. Seeding did not close the time gap, and long demes did not help.
 * **Linkage:** learned linkage gave no benefit, also when a knob cap
   (`--gomea-knob-cap`, off by default, not recommended) let demes run 3–5 generations. The

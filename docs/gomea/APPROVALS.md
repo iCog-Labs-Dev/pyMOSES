@@ -174,3 +174,7 @@ be written.
 **Server round 3 amendment (2026-10-30):** for 1ap, the agent proposed adding
 `--gomea-deme-store accepted` to the penalty arm (a correction for BACKLOG bug 4.3) and a
 weaker penalty arm (0.001). The user chose "Add a 0.001 arm (Recommended)".
+
+**Correction (2026-11-03):** the agent described the 0.001 arm as weaker when the user chose it.
+It is 5× stronger than 0.005 (the penalty is `complexity / R`). The user's choice rested on the
+agent's wrong description.

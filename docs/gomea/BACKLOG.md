@@ -453,3 +453,22 @@ From `SERVER-ROUND-FINDINGS.md` and `SERVER-ROUND2-FINDINGS.md`.
      about 19 % of KC's total CPU (1ak).
    * **Status:** the knob cap is not recommended (1ak worse on all problems), and it is off by
      default. Fix the cost only if a later experiment uses the cap.
+
+## 6. Open items after server round 3 (2026-11-03)
+
+From `SERVER-ROUND3-FINDINGS.md`. Section 5 items 1 to 3 have their answers there, except a
+penalty that is weaker than R 0.005.
+
+1. **A weaker size penalty.**
+   * **Why:** 1ap tested R 0.005 and R 0.001. The penalty is `complexity / R`, so 0.001 is the
+     stronger one. Both fail the +10 % accuracy limit.
+   * **Sketch:** R 0.025 and larger, with the accepted store.
+2. **LM with a size penalty.** LM lowers both the error and the size. The combination is untested.
+3. **LM against mutation at equal CPU.** 1an compared them at equal evaluations only (ties).
+4. **Why LM lowers CPU and size.** 1an shows both, but no run measures the cause. Also find a
+   guard for the overfitting on WiR (gap 9.7), for example validation.
+5. **Tooling:**
+   * `set_knob_cap.py` reads every `sr*.json` with no extension rule, as `set_const_opt.py` did.
+     It causes no failure now, because its pilots have no extension manifests.
+   * `make_bundle` leaves out `const-opt-choice.json` (add it to `RUN_FILES`).
+   * After a restart, `duration_s` includes the idle time.

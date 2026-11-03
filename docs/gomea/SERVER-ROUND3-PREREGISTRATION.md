@@ -145,3 +145,9 @@ S0, 1an, 1ao, 1ap, 1aq, 1ar, one at a time. 1ao and 1ar need the 1an choice.
   The 1ap penalty arms use it.
 * Phase 1o (no linear scaling) found that the 0.005 penalty raised Con's test NMSE from 35.2
   to 42.8. The user chose to add a weaker arm (0.001) to 1ap.
+
+## Correction (2026-11-03, after the round)
+
+The amendment above calls 0.001 a weaker penalty. This is wrong. The penalty is `complexity / R`,
+so 0.001 is 5× stronger than 0.005. The arm ran as registered, but it did not test a weaker penalty.
+See `SERVER-ROUND3-FINDINGS.md`.

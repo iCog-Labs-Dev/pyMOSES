@@ -113,6 +113,11 @@ in `DECISIONS.md`.**
 | 1ak | 2026-10-29 (server 2) | Knob cap K = 16 (pilot) so demes run several generations: KC (explore), KC-STATIC, KC-RANDOM | **KC and KC-STATIC worse than GOMEA on all three:** mux11 5,901 and 4,502 against 535 s (0/10); Con 49.2 and 57.2 against 35.2 (4/20, 2/20); EnH 20.6 and 21.2 against 15.6 (3/20). Generations per deme 1 → 3–5. Regression programs 32–55 % smaller; mux11 programs larger. Explore vs static and static vs random: ties. [SERVER-ROUND2-FINDINGS.md](SERVER-ROUND2-FINDINGS.md) |
 | 1al | 2026-10-29 (server 2) | At the knob cap, learned linkage (LT-B) vs univariate and random tree; N = 64 | **All ties** (12 contrasts, Holm p ≥ 0.40). KC-N64 solved mux11 in only 4/10 within 40,000 evaluations. [SERVER-ROUND2-FINDINGS.md](SERVER-ROUND2-FINDINGS.md) |
 | 1am | 2026-10-30 (server 2) | At the knob cap, fitness-contrast ranking in generation 0 vs entropy and random | **All ties** (9 contrasts, Holm p ≥ 0.79). [SERVER-ROUND2-FINDINGS.md](SERVER-ROUND2-FINDINGS.md) |
+| 1an | 2026-10-30 (server 3) | Constant tuning at 10,000 evaluations: LM, mutation, polish | **All primary contrasts tie** (6, Holm p ≥ 0.29). LM medians −24 %, −13 %, −1 % on Con, EnH, Air at about half the CPU or less. The rule chose LM. [SERVER-ROUND3-FINDINGS.md](SERVER-ROUND3-FINDINGS.md) |
+| 1ao | 2026-11-02 (server 3) | Equal CPU (1,000 s): GOMEA-LS, LM-tuned GOMEA-LS, HC-LS | **LM better than GOMEA-LS on all three** (Con 24.9 → 20.1, EnH 8.3 → 6.1, Air 37.9 → 33.4), with smaller programs. GOMEA-LS vs HC-LS: better on Air, tie on Con and EnH. [SERVER-ROUND3-FINDINGS.md](SERVER-ROUND3-FINDINGS.md) |
+| 1ap | 2026-10-30 (server 3) | Acceptance penalty with linear scaling, R 0.005 and 0.001 (0.001 is the stronger) | **Programs 56–83 % smaller, but neither strength qualifies:** test NMSE +6 to +29 %, limit +10 %. A weaker penalty is untested. [SERVER-ROUND3-FINDINGS.md](SERVER-ROUND3-FINDINGS.md) |
+| 1aq | 2026-10-30 (server 3) | Uniform start with linear scaling | **Tie on Con, EnH, EnC** (Holm p 1), programs 1.3–2.2× larger. [SERVER-ROUND3-FINDINGS.md](SERVER-ROUND3-FINDINGS.md) |
+| 1ar | 2026-11-02 (server 3) | Equal CPU on Yac, Dow, Tow, WiR, WiW | **GOMEA-LS vs HC-LS: all ties.** LM vs GOMEA-LS (secondary): better on Yac and Tow, tie on Dow, WiR, WiW; LM overfits on WiR (gap 9.7). [SERVER-ROUND3-FINDINGS.md](SERVER-ROUND3-FINDINGS.md) |
 
 ## Descriptive comparisons (not pre-registered)
 
@@ -126,11 +131,13 @@ in `DECISIONS.md`.**
 | Option | Status | Evidence | Plan |
 |---|---|---|---|
 | `--knob-probe-baseline reduced` (knob-collapse fix) | **Code default since 2026-10-21** (backlog item 15, branch `feat/linear-scaling`; a disclosed DIVERGENCE from C++ MOSES; `--knob-probe-baseline classic` restores classic probing). Candidate default (user, 2026-10-19) before that. | Phase 1q removed all collapsed demes (35 → 0 on mux11, 367 → 0 on pa5), with accuracy and CPU unchanged (Holm p 1.0). It was not tested on regression, where `disc_probe` is not used, or together with PEN or seeding. | Off in 1s and 1t, because 1s pools Phase 1o's runs. **On for every arm, GOMEA and HC alike, in later phases.** Watch for chain effects (larger demes, different exemplar growth) and record them here. Make it the code default after it has run in at least two more phases without a loss. |
-| `--gomea-radii uniform` (regression) | **Candidate default for regression** (2026-10-19). | Phase 1v: Con test NMSE 37.1 → 29.2 (10/10 splits) at the same CPU. No gain on mux11. | Confirm on a second regression dataset (EnH) before adopting. Watch program size. |
+| `--gomea-radii uniform` (regression) | **Not recommended** (1aq, 2026-10-30). | Phase 1v: Con test NMSE 37.1 → 29.2 without linear scaling. With linear scaling (1aq): ties on Con, EnH and EnC, with programs 1.3–2.2× larger. | Keep off. |
+| `--const-opt lm` (regression, with linear scaling) | **Candidate default** (2026-11-03). The user decides. | 1ao: better than GOMEA-LS on Con, EnH and Air at equal CPU, with smaller programs. 1ar: better on Yac and Tow, tie on the others; gap 9.7 on WiR. | Decide after the follow-ups in `BACKLOG.md`, section 6. |
 
 ## Open questions (see `BACKLOG.md`)
 
 * ~~Does seeding close the Boolean time gap? (item 14)~~ Answered by 1aj: no.
-* GOMEA-LS against HC-LS at equal time; why GOMEA loses on Yac; size control (section 5).
+* ~~GOMEA-LS against HC-LS at equal time; why GOMEA loses on Yac~~ Answered by 1ao and 1ar.
+* Size control with a weaker penalty, and LM with a penalty (section 6).
 * Does PEN beat unpenalized GOMEA on mux11 at equal time, under a registered test?
 * Cheaper knob building (items 1.x).
