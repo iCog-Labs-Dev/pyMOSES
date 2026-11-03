@@ -274,3 +274,125 @@ def test_contrast_metric_override(tmp_path):
     spec["secondary"][0][4] = "nope"
     rc, _, _ = _run(tmp_path, spec, [d])
     assert rc == 2
+
+
+# ---- server round 5: columns of every arm
+
+
+def _end(requests, generations=3, reason="stagnation"):
+    return {"type": "end", "termination_reason": reason, "generations": generations,
+            "ledger": {"requests": requests}}
+
+
+def _events(root: Path, name: str, s: dict, events: list[dict]) -> None:
+    rd = root / name / "runs" / f"{s['task']}__{s['arm']}__s{s['seed']}"
+    lines = [json.dumps({"type": "invocation_start"}), "not json", *map(json.dumps, events)]
+    (rd / "events.jsonl").write_text("\n".join(lines) + "\n")
+
+
+REG_SPEC = {"phase": "t", "metrics": {"Con": "test_nmse"}, "primary": [["Con", "ab", "A", "B"]]}
+
+
+def test_deme_columns_never_count_demes_without_evaluations(tmp_path):
+    a = [_reg("A", s, 1.0 + s) for s in (1, 2, 3)]
+    b = [_reg("B", s, 2.0 + s) for s in (1, 2, 3)]
+    d = _write(tmp_path, "r", a + b)
+    zero = [_end(0, 0, "time_limit")] * 50  # the short runs' empty demes
+    _events(tmp_path, "r", a[0], [_end(10, 4), _end(9, 6, "converged"), *zero])
+    _events(tmp_path, "r", a[1], [_end(10, 8), *zero])
+    _events(tmp_path, "r", a[2], [_end(10, 2, "time_limit"), _end(5, 1), _end(5, 5), *zero])
+    rc, out, _ = _run(tmp_path, REG_SPEC, [d])
+    assert rc == 0
+    agg = {r["arm"]: r for r in _rows(out, "aggregate.csv")}
+    assert float(agg["A"]["median_deme_count"]) == 2  # of 2, 1, 3
+    assert float(agg["A"]["median_generations_per_deme"]) == 4.5  # of 4 6 8 2 1 5
+    assert float(agg["A"]["deme_end_share_stagnation"]) == 4 / 6
+    assert float(agg["A"]["deme_end_share_converged"]) == 1 / 6
+    assert float(agg["A"]["deme_end_share_time_limit"]) == 1 / 6
+    # no telemetry: no value, and the columns stay in the file
+    assert agg["B"]["median_deme_count"] == "" and agg["B"]["median_generations_per_deme"] == ""
+    assert agg["B"]["deme_end_share_time_limit"] == ""
+
+
+def test_a_regression_run_with_only_empty_demes_has_zero_demes(tmp_path):
+    a = [_reg("A", s, 1.0 + s) for s in (1, 2)]
+    b = [_reg("B", s, 2.0 + s) for s in (1, 2)]
+    d = _write(tmp_path, "r", a + b)
+    for s in a:
+        _events(tmp_path, "r", s, [_end(0, 0, "time_limit")])
+    _, out, _ = _run(tmp_path, REG_SPEC, [d])
+    agg = {r["arm"]: r for r in _rows(out, "aggregate.csv")}
+    assert float(agg["A"]["median_deme_count"]) == 0
+    assert agg["A"]["median_generations_per_deme"] == ""
+
+
+def test_gap_is_in_every_arm(tmp_path):
+    a = [dict(_reg("A", s, 2.0 + s), train_nmse=1.0) for s in (1, 2, 3)]
+    d = _write(tmp_path, "r", a + [_reg("B", s, 2.0) for s in (1, 2, 3)])
+    _, out, _ = _run(tmp_path, REG_SPEC, [d])
+    agg = {r["arm"]: r for r in _rows(out, "aggregate.csv")}
+    assert float(agg["A"]["median_train_test_gap"]) == 3.0  # no const_opt in this arm
+    assert float(agg["B"]["median_train_test_gap"]) == 0.0
+
+
+def test_a_boolean_run_keeps_its_own_deme_count(tmp_path):
+    a = [_bool("A", s, 1.0 + i) for i, s in enumerate(SEEDS)]
+    b = [_bool("B", s, 9.0 + i) for i, s in enumerate(SEEDS)]
+    d = _write(tmp_path, "r", a + b)
+    for s in a:
+        _events(tmp_path, "r", s, [_end(4, 7), _end(0, 0, "time_limit")])
+    _, out, _ = _run(tmp_path, SPEC, [d])
+    agg = {r["arm"]: r for r in _rows(out, "aggregate.csv")}
+    assert float(agg["A"]["median_deme_count"]) == 3  # the runner's value in _bool
+    assert float(agg["A"]["median_generations_per_deme"]) == 7
+    assert float(agg["A"]["deme_end_share_stagnation"]) == 1
+    assert agg["A"]["median_train_test_gap"] == ""
+
+
+def test_old_columns_keep_their_values(tmp_path):
+    """The columns of the code before these additions, on the same runs."""
+    co = {"lm_calls": 4, "lm_improved_share": 0.5, "lm_singular": 1, "lm_failed": 0,
+          "tuning_evals": 9, "tuning_share": 0.1, "mutate_accepted_share": None}
+    a = [dict(_reg("A", s, 2.0 + s), train_nmse=1.0, const_opt=co) for s in (1, 2, 3)]
+    d = _write(tmp_path, "r", a + [_reg("B", s, 9.0) for s in (1, 2, 3)])
+    _, out, _ = _run(tmp_path, REG_SPEC, [d])
+    agg = {r["arm"]: r for r in _rows(out, "aggregate.csv")}["A"]
+    old = {"runs": "3", "not_ok": "0", "solved": "", "metric": "test_nmse", "median_metric": "4.0",
+           "median_evals_to_target": "", "median_cpu_s": "10.0", "median_cpu_per_eval": "0.02",
+           "median_size": "7", "median_evals_used": "500", "median_train_test_gap": "3.0",
+           "median_lm_calls": "4", "median_lm_improved_share": "0.5",
+           "median_lm_singular_or_failed": "1", "median_tuning_evals": "9",
+           "median_tuning_share": "0.1", "polish_accepted": "0"}
+    assert {k: agg[k] for k in old} == old
+    assert "median_lm_guard_rejected" not in agg
+
+
+def test_guard_columns(tmp_path):
+    co = {"lm_calls": 4, "lm_guard_checked": 4, "lm_guard_rejected": 1,
+          "lm_guard_rejected_share": 0.25}
+    a = [dict(_reg("A", s, 2.0 + s), const_opt=co) for s in (1, 2, 3)]
+    d = _write(tmp_path, "r", a + [_reg("B", s, 9.0) for s in (1, 2, 3)])
+    _, out, _ = _run(tmp_path, REG_SPEC, [d])
+    agg = {r["arm"]: r for r in _rows(out, "aggregate.csv")}
+    assert float(agg["A"]["median_lm_guard_rejected"]) == 1
+    assert float(agg["A"]["median_lm_guard_checked"]) == 4
+    assert float(agg["A"]["median_lm_guard_rejected_share"]) == 0.25
+    assert agg["B"]["median_lm_guard_rejected"] == ""
+
+
+def test_scores_now_still_reads_a_report(tmp_path):
+    """tools/gomea/scores_now.py reads contrasts.csv, not aggregate.csv."""
+    import subprocess
+
+    res = tmp_path / "results"
+    a = [_reg("A", s, 1.0 + s) for s in (1, 2, 3)]
+    d = _write(res / "phaseX", "x", a + [_reg("B", s, 2.0 + s) for s in (1, 2, 3)])
+    _events(res / "phaseX", "x", a[0], [_end(4, 7)])
+    sp = tmp_path / "spec.json"
+    sp.write_text(json.dumps(REG_SPEC))
+    assert phase_report.main(["--stage", "1", str(sp), str(res / "phaseX" / "report-stage1"), d]) == 0
+    repo = Path(__file__).resolve().parents[2]
+    r = subprocess.run([sys.executable, str(repo / "tools" / "gomea" / "scores_now.py"), "phaseX"],
+                       capture_output=True, text=True, env={"GOMEA_RESULTS": str(res), "PATH": "/usr/bin:/bin"})
+    assert r.returncode == 0, r.stderr
+    assert "A vs B" in r.stdout and "stage 1 verdicts" in r.stdout

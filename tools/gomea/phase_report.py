@@ -40,7 +40,19 @@ pre-registration and `docs/gomea/QUEUE.md`).
 Writes OUT_DIR/contrasts.csv, aggregate.csv (per problem and arm: runs, failures, solved,
 medians of the metric, evaluations to solve, CPU, CPU per evaluation, demes, program size,
 and for seeded arms the best seed's score and the runs whose program descends from a seed,
-and the evaluations used) and verdict.json (`{"problem:name": verdict}` for primary and secondary contrasts).
+the evaluations used, the train-test gap, generations per deme and the share of each deme end
+reason) and verdict.json (`{"problem:name": verdict}` for primary and secondary contrasts).
+
+The deme columns come from each run's `events.jsonl`, next to its `summary.json`, and count
+only demes with evaluations (an "end" event with `ledger.requests > 0`). A deme that starts
+when the time is spent ends at once with 0 evaluations; it is not a real deme:
+
+* `median_deme_count`: a regression run counts these demes. A Boolean run keeps the
+  runner's own `deme_count`, the scorers with at least one call;
+* `median_generations_per_deme`: pooled over the demes of the arm's runs;
+* `deme_end_share_<reason>`: share of the arm's demes with that `termination_reason`.
+
+A run without `events.jsonl` (a stand-alone GP-GOMEA or classic run) gives no deme values.
 """
 
 from __future__ import annotations
@@ -68,6 +80,7 @@ def _load(dirs: str, into: dict) -> None:
             continue
         for f in sorted(glob.glob(str(Path(d) / "runs/*/summary.json"))):
             s = json.loads(Path(f).read_text())
+            s["_events_path"] = str(Path(f).with_name("events.jsonl"))
             into.setdefault(s["task"], {}).setdefault(s["arm"], {})[s["seed"]] = s
 
 
@@ -158,6 +171,41 @@ def _per_eval(s: dict) -> float | None:
     return c / n if c is not None and n else None
 
 
+def _demes(s: dict) -> list[dict] | None:
+    """The "end" events with evaluations of one run; `None` when it has no telemetry."""
+    path = s.get("_events_path")
+    if not path or not Path(path).is_file():
+        return None
+    out = []
+    with open(path) as fh:
+        for line in fh:
+            if '"end"' not in line:
+                continue
+            try:
+                ev = json.loads(line)
+            except ValueError:
+                continue
+            if (isinstance(ev, dict) and ev.get("type") == "end"
+                    and (ev.get("ledger") or {}).get("requests", 0) > 0):
+                out.append(ev)
+    return out
+
+
+def _deme_columns(v: list[dict], reg: bool) -> dict:
+    per_run = [_demes(s) for s in v]
+    pooled = [e for d in per_run if d for e in d]
+    row: dict = {"median_generations_per_deme": _med(e.get("generations") for e in pooled)}
+    if reg:
+        row["median_deme_count"] = _med(None if d is None else len(d) for d in per_run)
+    reasons: dict[str, int] = {}
+    for e in pooled:
+        r = str(e.get("termination_reason"))
+        reasons[r] = reasons.get(r, 0) + 1
+    for r in sorted(reasons):
+        row[f"deme_end_share_{r}"] = reasons[r] / len(pooled)
+    return row
+
+
 def _aggregate(problem: str, arm: str, v: list[dict], metric: str) -> dict:
     reg = any(_is_regression(s) for s in v)
     seeded = any(s.get("seeding") is not None or "seed_test_nmse" in s for s in v)
@@ -177,12 +225,13 @@ def _aggregate(problem: str, arm: str, v: list[dict], metric: str) -> dict:
         "median_seed_evals": None,
         "final_from_seed": None,
         "median_evals_used": _med(_evals(s) for s in v),
+        "median_train_test_gap": _med(_gap(s) for s in v),
     }
+    row.update(_deme_columns(v, reg))
     if any("const_opt" in s for s in v):
         # server round 3: constant tuning (moses_sr_runner.const_opt_summary)
         co = [s.get("const_opt") or {} for s in v]
         row.update(
-            median_train_test_gap=_med(_gap(s) for s in v),
             median_lm_calls=_med(c.get("lm_calls") for c in co),
             median_lm_improved_share=_med(c.get("lm_improved_share") for c in co),
             median_lm_singular_or_failed=_med(

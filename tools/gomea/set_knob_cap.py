@@ -4,7 +4,7 @@ Usage (from the repository root, after `tools/gomea/phase_run.sh phase1ak-pilot`
 `tools/gomea/phase_run.sh phase1ak`; the round-2 plan runs it as 1ak's `after_pilot`)::
 
     .venv/bin/python tools/gomea/set_knob_cap.py [--results DIR] [--configs DIR]
-        [--pilot PHASE] [--phases P1,P2,...] [--dry-run]
+        [--pilot PHASE] [--phases P1,P2,...] [--stage1-only] [--dry-run]
 
 `SERVER-ROUND2-PREREGISTRATION.md`, 1ak-pilot: "per problem, the largest K whose median
 `generations` per deme (over the demes of both runs) is at least 3 ... If no K qualifies,
@@ -14,7 +14,11 @@ K = 8. A script writes K into every KC arm of 1ak and 1al and logs the pilot's n
 1. finds the pilot's runs: every arm of the pilot manifests (`CONFIGS/PILOT/bool.json`, a
    Boolean task per problem; `CONFIGS/PILOT/sr*.json`, a regression dataset per problem)
    passes `--gomea-knob-cap K`; each run's GOMEA telemetry is `RUN_DIR/events.jsonl`
-   (both runners pass `--gomea-log RUN_DIR/events.jsonl`):
+   (both runners pass `--gomea-log RUN_DIR/events.jsonl`). An extension manifest
+   (`bool-ext-<task>.json`, `sr-ext-<dataset>.json`) counts only if it ran. The rule is that of
+   phase_run.sh and `set_const_opt.py`: a primary contrast of its problem
+   (`CONFIGS/PILOT/spec.json`) has the verdict "extend"
+   (`RESULTS/PILOT/report-stage1/verdict.json`). `--stage1-only` ignores all extensions:
    * Boolean: `RESULTS/1/<name>-<hash>/runs/<task>__<arm>__s<seed>/events.jsonl`
      (benchmarks.gomea.runner's result directory);
    * regression: `RESULTS/PILOT/<name>/runs/<dataset>__<arm>__s<split>/events.jsonl`
@@ -29,8 +33,9 @@ K = 8. A script writes K into every KC arm of 1ak and 1al and logs the pilot's n
 
 A manifest whose problems got different K values cannot take them and is an error. It exits
 1, changing nothing, unless every problem has the pilot's runs (one per seed or split of the
-pilot manifest, for every K), each with at least one `"end"` event. `--dry-run` prints what
-it would set and writes nothing. RESULTS defaults to `../gomea-results`, CONFIGS to
+pilot manifest, for every K), each with at least one `"end"` event, and if extension manifests
+exist without `--stage1-only` and spec.json or verdict.json is missing or unreadable. `--dry-run`
+prints what it would set and writes nothing. RESULTS defaults to `../gomea-results`, CONFIGS to
 `configs/gomea`, PILOT to `phase1ak-pilot`, the phases to `phase1ak,phase1al,phase1am`.
 """
 
@@ -50,17 +55,57 @@ FLAG = "--gomea-knob-cap"
 MIN_MEDIAN_GENERATIONS = 3
 FALLBACK_K = 8
 PHASES = "phase1ak,phase1al,phase1am"
+EXT_PREFIXES = ("bool-ext-", "sr-ext-")
+
+
+def _is_extension(f: Path) -> bool:
+    return f.name.startswith(EXT_PREFIXES)
+
+
+def _ext_problem(f: Path) -> str:
+    for prefix in EXT_PREFIXES:
+        if f.stem.startswith(prefix):
+            return f.stem.removeprefix(prefix)
+    raise ValueError(f"{f} is not an extension manifest")
+
+
+def select_extensions(results: Path, pilot_dir: Path,
+                      stage1_only: bool) -> tuple[list[Path], list[tuple[Path, str]], list[str]]:
+    """The extension manifests to read, those to ignore (with why), and the errors."""
+    files = sorted(f for f in [*pilot_dir.glob("bool*.json"), *pilot_dir.glob("sr*.json")]
+                   if _is_extension(f))
+    if stage1_only:
+        return [], [(f, "--stage1-only") for f in files], []
+    if not files:
+        return [], [], []
+    spec = pilot_dir / "spec.json"
+    verdict = results / pilot_dir.name / "report-stage1" / "verdict.json"
+    try:
+        primary = json.loads(spec.read_text())["primary"]
+        v = json.loads(verdict.read_text())
+        extended = {p for p, n, *_ in primary if v.get(f"{p}:{n}") == "extend"}
+    except (OSError, ValueError, KeyError, TypeError, AttributeError) as exc:
+        return [], [], [f"cannot tell which extensions ran from {spec} and {verdict}: "
+                        f"{type(exc).__name__}: {exc}"]
+    included = [f for f in files if _ext_problem(f) in extended]
+    return included, [(f, 'no "extend" primary contrast') for f in files
+                      if f not in included], []
 
 
 def _k_of(argv: list[str]) -> int | None:
     return int(argv[argv.index(FLAG) + 1]) if FLAG in argv else None
 
 
-def pilot_runs(results: Path, pilot_dir: Path) -> dict[str, dict[int, list[str]]]:
-    """Per problem and K, the expected events.jsonl paths of the pilot's runs."""
+def pilot_runs(results: Path, pilot_dir: Path,
+               extensions: list[Path] | None = None) -> dict[str, dict[int, list[str]]]:
+    """Per problem and K, the expected events.jsonl paths of the pilot's runs: the stage-1
+    manifests and `extensions` (default: none)."""
     out: dict[str, dict[int, list[str]]] = {}
     pilot = pilot_dir.name
+    ran = set(extensions or [])
     for f in sorted(pilot_dir.glob("bool*.json")):
+        if _is_extension(f) and f not in ran:
+            continue
         m = json.loads(f.read_text())
         bdir = results / str(m["phase"]) / f"{m['name']}-{manifest_hash(m)}"
         for task in m["tasks"]:
@@ -73,6 +118,8 @@ def pilot_runs(results: Path, pilot_dir: Path) -> dict[str, dict[int, list[str]]
                     for s in m["seeds"]
                 )
     for f in sorted(pilot_dir.glob("sr*.json")):
+        if _is_extension(f) and f not in ran:
+            continue
         m = json.loads(f.read_text())
         for ds in m["datasets"]:
             for arm, spec in m["arms"].items():
@@ -106,10 +153,11 @@ def choose(medians: dict[int, float]) -> int:
     return max(ok) if ok else FALLBACK_K
 
 
-def measure(results: Path, pilot_dir: Path) -> tuple[dict, list[str]]:
+def measure(results: Path, pilot_dir: Path,
+            extensions: list[Path] | None = None) -> tuple[dict, list[str]]:
     """Per problem `{"K": chosen, "per_k": {K: {...}}}`, and the errors found."""
     found, errors = {}, []
-    for prob, by_k in pilot_runs(results, pilot_dir).items():
+    for prob, by_k in pilot_runs(results, pilot_dir, extensions).items():
         per_k, bad = {}, False
         for k, files in sorted(by_k.items()):
             gens, runs = [], {}
@@ -180,11 +228,20 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--configs", default=str(REPO / "configs" / "gomea"))
     ap.add_argument("--pilot", default="phase1ak-pilot")
     ap.add_argument("--phases", default=PHASES)
+    ap.add_argument("--stage1-only", action="store_true")
     ap.add_argument("--dry-run", action="store_true")
     a = ap.parse_args(argv)
     results, configs = Path(a.results).resolve(), Path(a.configs).resolve()
     phases = [p for p in a.phases.split(",") if p]
-    found, errors = measure(results, configs / a.pilot)
+    extensions, ignored, errors = select_extensions(results, configs / a.pilot, a.stage1_only)
+    for f in extensions:
+        print(f"include extension {f.name}")
+    for f, why in ignored:
+        print(f"ignore extension {f.name}: {why}")
+    if not errors:
+        found, errors = measure(results, configs / a.pilot, extensions)
+    else:
+        found = {}
     if not found and not errors:
         errors.append(f"no knob-cap arms in the pilot manifests under {configs / a.pilot}")
     writes, werr = plan_writes(configs, phases, found) if not errors else ([], [])
@@ -200,7 +257,9 @@ def main(argv: list[str] | None = None) -> int:
         print(f"{prob}: {meds} -> K = {r['K']}")
     log = {"rule": f"per problem the largest K with median generations per deme >= "
                    f"{MIN_MEDIAN_GENERATIONS}, else {FALLBACK_K}",
-           "pilot": a.pilot, "problems": found, "written": []}
+           "pilot": a.pilot, "stage1_only": a.stage1_only,
+           "extended": [_ext_problem(f) for f in extensions],
+           "problems": found, "written": []}
     for path, m, k in writes:
         arms = set_k(m, k)
         print(f"  {path}: K = {k} ({'changed: ' + ', '.join(arms) if arms else 'unchanged'})")

@@ -128,3 +128,89 @@ def test_choose_rule():
     assert skc.choose({8: 5, 16: 3, 32: 2.5}) == 16
     assert skc.choose({8: 2.5, 16: 1, 32: 0}) == 8
     assert skc.choose({8: 9, 16: 9, 32: 3}) == 32
+
+
+# ---- extension manifests of the pilot (the rule of set_const_opt.py)
+
+
+def _ext_setup(tmp_path):
+    """A pilot with `sr-ext-Con.json` and `bool-ext-mux11.json`, which no run has used yet."""
+    configs = _configs(tmp_path)
+    pilot = configs / "phase1ak-pilot"
+    sr = json.loads((pilot / "sr.json").read_text())
+    ext = dict(sr, name=sr["name"] + "-ext-Con", datasets=["Con"], splits=[s + 100 for s in sr["splits"]])
+    (pilot / "sr-ext-Con.json").write_text(json.dumps(ext))
+    b = json.loads((pilot / "bool.json").read_text())
+    bext = dict(b, name=b["name"] + "-ext-mux11", seeds=[s + 100 for s in b["seeds"]])
+    (pilot / "bool-ext-mux11.json").write_text(json.dumps(bext))
+    res = _tree(tmp_path, configs)  # the stage-1 runs only
+    return configs, res
+
+
+def _verdict(res, verdicts):
+    d = res / "phase1ak-pilot" / "report-stage1"
+    d.mkdir(parents=True, exist_ok=True)
+    (d / "verdict.json").write_text(json.dumps(verdicts))
+
+
+def _spec(configs, primary):
+    (configs / "phase1ak-pilot" / "spec.json").write_text(json.dumps({"primary": primary}))
+
+
+def _argv(configs, res, *extra):
+    return ["--results", str(res), "--configs", str(configs), *extra]
+
+
+def test_extensions_without_an_extend_verdict_are_not_expected(tmp_path, capsys):
+    configs, res = _ext_setup(tmp_path)
+    _spec(configs, [["Con", "x", "A", "B"], ["mux11", "y", "A", "B"]])
+    _verdict(res, {"Con:x": "tie", "mux11:y": "tie"})
+    assert skc.main(_argv(configs, res)) == 0
+    out = capsys.readouterr().out
+    assert "ignore extension sr-ext-Con.json" in out
+    assert "ignore extension bool-ext-mux11.json" in out
+    log = json.loads((res / "phase1ak-pilot" / "knob-cap.json").read_text())
+    assert log["extended"] == []
+
+
+def test_an_extend_verdict_makes_the_runs_of_that_extension_necessary(tmp_path, capsys):
+    configs, res = _ext_setup(tmp_path)
+    _spec(configs, [["Con", "x", "A", "B"], ["mux11", "y", "A", "B"]])
+    _verdict(res, {"Con:x": "extend", "mux11:y": "tie"})
+    before = _ks(configs)
+    assert skc.main(_argv(configs, res)) == 1
+    assert "missing pilot run telemetry" in capsys.readouterr().err
+    assert _ks(configs) == before
+    assert not (res / "phase1ak-pilot" / "knob-cap.json").exists()
+
+
+def test_the_runs_of_an_extended_problem_count(tmp_path):
+    configs, res = _ext_setup(tmp_path)
+    pilot = configs / "phase1ak-pilot"
+    _spec(configs, [["Con", "x", "A", "B"]])
+    _verdict(res, {"Con:x": "extend"})
+    # Con's K = 8 by stage 1. The extension makes K = 16 qualify: many generations per deme.
+    ext = skc.select_extensions(res, pilot, False)[0]
+    assert [f.name for f in ext] == ["sr-ext-Con.json"]
+    stage1 = skc.pilot_runs(res, pilot)
+    both = skc.pilot_runs(res, pilot, ext)
+    for k, files in both["Con"].items():
+        for f in set(files) - set(stage1["Con"][k]):
+            _events(Path(f), [20] * 30)
+    assert skc.main(_argv(configs, res)) == 0
+    log = json.loads((res / "phase1ak-pilot" / "knob-cap.json").read_text())
+    assert log["extended"] == ["Con"]
+    assert log["problems"]["Con"]["K"] == 32
+    assert log["problems"]["mux11"]["K"] == 16  # no extension: stage 1 only
+
+
+def test_stage1_only_reads_no_verdict(tmp_path):
+    configs, res = _ext_setup(tmp_path)
+    assert skc.main(_argv(configs, res, "--stage1-only")) == 0
+
+
+def test_extension_manifests_need_a_readable_verdict(tmp_path, capsys):
+    configs, res = _ext_setup(tmp_path)
+    _spec(configs, [["Con", "x", "A", "B"]])
+    assert skc.main(_argv(configs, res)) == 1
+    assert "cannot tell which extensions ran" in capsys.readouterr().err
