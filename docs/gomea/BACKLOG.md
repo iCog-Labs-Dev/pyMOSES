@@ -472,3 +472,7 @@ penalty that is weaker than R 0.005.
      It causes no failure now, because its pilots have no extension manifests.
    * `make_bundle` leaves out `const-opt-choice.json` (add it to `RUN_FILES`).
    * After a restart, `duration_s` includes the idle time.
+6. **Parked by the user (2026-11-03): the constant-tuning round** ("Maybe some other time when we
+   are out of any other ideas"). It compared none, LM, mutation and polish at equal CPU on all 10
+   datasets, splits 11–30. Also not selected: real-valued genes in place of the step knobs, because
+   100 % of the genes in the Con, EnH and Air demes of 1ao are contin knobs (weight 0 removes a term).

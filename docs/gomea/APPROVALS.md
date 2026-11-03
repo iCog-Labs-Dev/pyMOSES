@@ -178,3 +178,10 @@ weaker penalty arm (0.001). The user chose "Add a 0.001 arm (Recommended)".
 **Correction (2026-11-03):** the agent described the 0.001 arm as weaker when the user chose it.
 It is 5× stronger than 0.005 (the penalty is `complexity / R`). The user's choice rested on the
 agent's wrong description.
+
+**Server round 4 (2026-11-03):** the user asked: "What if we remove the 250 evaluation per deme ...
+And can we not test on different caps of the knobs? Not only on the 16?" The agent proposed the
+design. The user answered: "1. Yes I approve this design." The user declined LM in the K arms
+("3. No."), and about the constant-tuning round: "2. Discard this experiment entirely I don't think
+it's worth exploring now. Maybe some other time when we are out of any other ideas." Agent-written,
+not user-approved in detail: the adoption rule of 1as and the two secondary contrasts.
