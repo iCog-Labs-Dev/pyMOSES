@@ -1,6 +1,6 @@
 # Server round 5: pre-registration (2026-11-03)
 
-**Status:** the design is approved by the user (see `APPROVALS.md`). Nothing is implemented.
+**Status:** the design is approved by the user (see `APPROVALS.md`). Implemented in `f28a08b` to `ac3041c`. Not run yet.
 
 **Question:** three follow-ups to round 3: can a validation guard stop LM's overfitting, does a
 weaker size penalty keep the accuracy, and does a size penalty work with LM?
