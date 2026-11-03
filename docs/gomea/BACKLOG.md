@@ -459,19 +459,16 @@ From `SERVER-ROUND-FINDINGS.md` and `SERVER-ROUND2-FINDINGS.md`.
 From `SERVER-ROUND3-FINDINGS.md`. Section 5 items 1 to 3 have their answers there, except a
 penalty that is weaker than R 0.005.
 
-1. **A weaker size penalty.**
-   * **Why:** 1ap tested R 0.005 and R 0.001. The penalty is `complexity / R`, so 0.001 is the
-     stronger one. Both fail the +10 % accuracy limit.
-   * **Sketch:** R 0.025 and larger, with the accepted store.
-2. **LM with a size penalty.** LM lowers both the error and the size. The combination is untested.
-3. **LM against mutation at equal CPU.** 1an compared them at equal evaluations only (ties).
-4. **Why LM lowers CPU and size.** 1an shows both, but no run measures the cause. Also find a
-   guard for the overfitting on WiR (gap 9.7), for example validation.
-5. **Tooling:**
-   * `set_knob_cap.py` reads every `sr*.json` with no extension rule, as `set_const_opt.py` did.
-     It causes no failure now, because its pilots have no extension manifests.
-   * `make_bundle` leaves out `const-opt-choice.json` (add it to `RUN_FILES`).
-   * After a restart, `duration_s` includes the idle time.
+1. **LM against mutation at equal CPU.** 1an compared them at equal evaluations only (ties).
+2. **Why LM lowers CPU and size.** 1an shows both, but no run measures the cause.
+3. **Print `a` and `b` with the final program.** With `--linear-scaling 1` the printed program is
+   `f`, not `a + b·f`. A user needs the training data to get the predictions right. This changes
+   the output only.
+4. **Early rejection of bad candidates.** Score a candidate on a sample of rows, with `a` and `b`
+   fitted on that sample, and stop if it is clearly bad. Program evaluation is more than 99 % of
+   the scoring time (timing on Con, EnH, Air, 2026-11-03). It can reject good programs, and it is
+   not tested. Check the literature first.
+5. **A regression profile of CPU.** Section 1 is from mux11. Regression has no such profile.
 6. **Parked by the user (2026-11-03): the constant-tuning round** ("Maybe some other time when we
    are out of any other ideas"). It compared none, LM, mutation and polish at equal CPU on all 10
    datasets, splits 11–30. Also not selected: real-valued genes in place of the step knobs, because

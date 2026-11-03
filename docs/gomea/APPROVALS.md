@@ -185,3 +185,8 @@ design. The user answered: "1. Yes I approve this design." The user declined LM 
 ("3. No."), and about the constant-tuning round: "2. Discard this experiment entirely I don't think
 it's worth exploring now. Maybe some other time when we are out of any other ideas." Agent-written,
 not user-approved in detail: the adoption rule of 1as and the two secondary contrasts.
+
+**Server round 5 (2026-11-03):** the user asked for three follow-up experiments, and that rounds 4
+and 5 report their results separately. The agent wrote the design and the adoption rules. The user
+answered: "Yes, I approve the round 5 design". Not user-approved: the code of the guard and of the
+chain from round 4 to round 5, which are still to be written.

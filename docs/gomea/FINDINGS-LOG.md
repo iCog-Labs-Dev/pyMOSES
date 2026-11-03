@@ -132,7 +132,7 @@ in `DECISIONS.md`.**
 |---|---|---|---|
 | `--knob-probe-baseline reduced` (knob-collapse fix) | **Code default since 2026-10-21** (backlog item 15, branch `feat/linear-scaling`; a disclosed DIVERGENCE from C++ MOSES; `--knob-probe-baseline classic` restores classic probing). Candidate default (user, 2026-10-19) before that. | Phase 1q removed all collapsed demes (35 → 0 on mux11, 367 → 0 on pa5), with accuracy and CPU unchanged (Holm p 1.0). It was not tested on regression, where `disc_probe` is not used, or together with PEN or seeding. | Off in 1s and 1t, because 1s pools Phase 1o's runs. **On for every arm, GOMEA and HC alike, in later phases.** Watch for chain effects (larger demes, different exemplar growth) and record them here. Make it the code default after it has run in at least two more phases without a loss. |
 | `--gomea-radii uniform` (regression) | **Not recommended** (1aq, 2026-10-30). | Phase 1v: Con test NMSE 37.1 → 29.2 without linear scaling. With linear scaling (1aq): ties on Con, EnH and EnC, with programs 1.3–2.2× larger. | Keep off. |
-| `--const-opt lm` (regression, with linear scaling) | **Candidate default** (2026-11-03). The user decides. | 1ao: better than GOMEA-LS on Con, EnH and Air at equal CPU, with smaller programs. 1ar: better on Yac and Tow, tie on the others; gap 9.7 on WiR. | Decide after the follow-ups in `BACKLOG.md`, section 6. |
+| `--const-opt lm` (regression, with linear scaling) | **Not the default** (user, 2026-11-03). | 1ao: better than GOMEA-LS on Con, EnH and Air at equal CPU, with smaller programs. 1ar: better on Yac and Tow, tie on the others; gap 9.7 on WiR. | Follow-ups in `SERVER-ROUND5-PREREGISTRATION.md`. |
 
 ## Open questions (see `BACKLOG.md`)
 
