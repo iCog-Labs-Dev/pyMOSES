@@ -1,6 +1,6 @@
 # Sourced by start.sh, stop.sh and status.sh: REPO, RES, PLAN, SD from
-# "--plan round|smoke|round2|smoke2|round3|smoke3|FILE" (default round; env PLAN works too, e.g.
-# PLAN=round2 or PLAN=tools/server/plan2.json).
+# "--plan round|smoke|round2|smoke2|round3|smoke3|round4|smoke4|FILE" (default round; env PLAN
+# works too, e.g. PLAN=round2 or PLAN=tools/server/plan2.json).
 REPO=$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)
 RES=$REPO/../gomea-results
 PY3=$REPO/.venv/bin/python; [ -x "$PY3" ] || PY3=python3
@@ -20,6 +20,8 @@ case "$PLAN_ARG" in
     smoke2) PLAN=$REPO/tools/server/plan2-smoke.json ;;
     round3) PLAN=$REPO/tools/server/plan3.json ;;
     smoke3) PLAN=$REPO/tools/server/plan3-smoke.json ;;
+    round4) PLAN=$REPO/tools/server/plan4.json ;;
+    smoke4) PLAN=$REPO/tools/server/plan4-smoke.json ;;
     *) PLAN=$(realpath "$PLAN_ARG") ;;
 esac
 [ -f "$PLAN" ] || { echo "no plan file $PLAN" >&2; exit 2; }

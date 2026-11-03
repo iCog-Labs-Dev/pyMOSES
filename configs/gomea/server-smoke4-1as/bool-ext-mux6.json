@@ -1,0 +1,195 @@
+{
+  "schema_version": 1,
+  "name": "server-smoke4-1as-bool-ext-mux6",
+  "phase": 1,
+  "commit": "SET_AT_RUNTIME",
+  "common_argv": [
+    "-l",
+    "WARN"
+  ],
+  "tasks": {
+    "mux6": {
+      "argv": [
+        "-H",
+        "mux",
+        "-k",
+        "2"
+      ],
+      "target_raw": 0
+    }
+  },
+  "arms": {
+    "BASE": {
+      "argv": [
+        "-a",
+        "gomea",
+        "--gomea-fos",
+        "lt-b",
+        "--gomea-pop-size",
+        "16",
+        "--gomea-skip-inactive",
+        "0",
+        "--gomea-max-evals-per-deme",
+        "250",
+        "--gomea-genotype-memo",
+        "1",
+        "--knob-probe-baseline",
+        "reduced"
+      ]
+    },
+    "NOCAP": {
+      "argv": [
+        "-a",
+        "gomea",
+        "--gomea-fos",
+        "lt-b",
+        "--gomea-pop-size",
+        "16",
+        "--gomea-skip-inactive",
+        "0",
+        "--gomea-max-evals-per-deme",
+        "0",
+        "--gomea-genotype-memo",
+        "1",
+        "--knob-probe-baseline",
+        "reduced"
+      ]
+    },
+    "K8": {
+      "argv": [
+        "-a",
+        "gomea",
+        "--gomea-fos",
+        "lt-b",
+        "--gomea-pop-size",
+        "16",
+        "--gomea-skip-inactive",
+        "0",
+        "--gomea-max-evals-per-deme",
+        "0",
+        "--gomea-genotype-memo",
+        "1",
+        "--knob-probe-baseline",
+        "reduced",
+        "--gomea-knob-cap",
+        "8",
+        "--gomea-knob-select",
+        "explore",
+        "--gomea-knob-rank0",
+        "contrast"
+      ]
+    },
+    "K16": {
+      "argv": [
+        "-a",
+        "gomea",
+        "--gomea-fos",
+        "lt-b",
+        "--gomea-pop-size",
+        "16",
+        "--gomea-skip-inactive",
+        "0",
+        "--gomea-max-evals-per-deme",
+        "0",
+        "--gomea-genotype-memo",
+        "1",
+        "--knob-probe-baseline",
+        "reduced",
+        "--gomea-knob-cap",
+        "16",
+        "--gomea-knob-select",
+        "explore",
+        "--gomea-knob-rank0",
+        "contrast"
+      ]
+    },
+    "K32": {
+      "argv": [
+        "-a",
+        "gomea",
+        "--gomea-fos",
+        "lt-b",
+        "--gomea-pop-size",
+        "16",
+        "--gomea-skip-inactive",
+        "0",
+        "--gomea-max-evals-per-deme",
+        "0",
+        "--gomea-genotype-memo",
+        "1",
+        "--knob-probe-baseline",
+        "reduced",
+        "--gomea-knob-cap",
+        "32",
+        "--gomea-knob-select",
+        "explore",
+        "--gomea-knob-rank0",
+        "contrast"
+      ]
+    },
+    "K64": {
+      "argv": [
+        "-a",
+        "gomea",
+        "--gomea-fos",
+        "lt-b",
+        "--gomea-pop-size",
+        "16",
+        "--gomea-skip-inactive",
+        "0",
+        "--gomea-max-evals-per-deme",
+        "0",
+        "--gomea-genotype-memo",
+        "1",
+        "--knob-probe-baseline",
+        "reduced",
+        "--gomea-knob-cap",
+        "64",
+        "--gomea-knob-select",
+        "explore",
+        "--gomea-knob-rank0",
+        "contrast"
+      ]
+    },
+    "K16-C250": {
+      "argv": [
+        "-a",
+        "gomea",
+        "--gomea-fos",
+        "lt-b",
+        "--gomea-pop-size",
+        "16",
+        "--gomea-skip-inactive",
+        "0",
+        "--gomea-max-evals-per-deme",
+        "250",
+        "--gomea-genotype-memo",
+        "1",
+        "--knob-probe-baseline",
+        "reduced",
+        "--gomea-knob-cap",
+        "16",
+        "--gomea-knob-select",
+        "explore",
+        "--gomea-knob-rank0",
+        "contrast"
+      ]
+    }
+  },
+  "seeds": [
+    3003,
+    3004
+  ],
+  "budget": {
+    "argv": [
+      "--max-time",
+      "15",
+      "-m",
+      "1000000000"
+    ],
+    "kind": "wall_time"
+  },
+  "wall_cap_s": 600,
+  "workers": 2,
+  "output_root": "../gomea-results"
+}

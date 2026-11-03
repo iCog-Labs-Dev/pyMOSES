@@ -1,0 +1,9 @@
+{
+  "name": "server-round4-2026-11",
+  "description": "SERVER-ROUND4-PREREGISTRATION.md: S0, then 1as (knob caps with and without the evaluation cap).",
+  "state_dir": "server-run4",
+  "steps": [
+    {"id": "S0", "type": "check", "pytest": {}, "repro": {}},
+    {"id": "phase1as", "type": "phase", "phase": "phase1as"}
+  ]
+}
