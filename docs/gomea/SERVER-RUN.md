@@ -254,7 +254,7 @@ Outputs, all under `../gomea-results/`:
   the reports.
 * `phase1as.log`, `phase1as-bench.log`, `phase1as-sr.log`: the logs of the phase.
 
-The report of this round's code gave not all D1 values ("Round 5" has the new columns). Regression summaries have no `deme_count`. Take the number
+Regression summaries have no `deme_count`. The report now has these values (see "Round 5"). The method by hand is: Take the number
 of demes, the generations per deme and how demes end from the `end` events in each run's
 `events.jsonl`. The bundle holds these files. A deme that starts when the time is spent has 0
 evaluations and ends with `time_limit`. Do not count it as a real deme.
@@ -298,7 +298,7 @@ How the chain works:
 * Each round reports separately: `server-run4/` and `server-run5/` each have their own summary and
   final bundle. A bundle holds only the files of its round. Bring back both.
 * Round 4 goes on to round 5 when it ends with a failed or skipped step. `run.log` of round 4 reports
-  those steps. The verdict for that step stays in the summary of round 4.
+  those steps, and so does its `round-summary.md`.
 * `stop.sh` with either plan name stops the running orchestrator of the chain. A stopped round does
   not start the next round. It writes `server-run4/chain.stop`, and the next `start.sh` removes it.
 * Never two at once: each orchestrator of the chain holds `server-run4/chain.lock`, whichever round

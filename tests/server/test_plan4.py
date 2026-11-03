@@ -190,8 +190,9 @@ def test_default_explore_count(k, e):
 
 def test_smoke_has_the_same_arms_and_is_small():
     bm, sm = load(SMOKE / "bool.json"), load(SMOKE / "sr.json")
-    assert bm["commit"] == "SET_AT_RUNTIME"
-    assert load(SMOKE / "bool-ext-mux6.json")["commit"] == "SET_AT_RUNTIME"
+    code_commit = load(PHASE / "bool.json")["commit"]
+    assert bm["commit"] == code_commit
+    assert load(SMOKE / "bool-ext-mux6.json")["commit"] == code_commit
     assert bm["arms"] == load(PHASE / "bool.json")["arms"]
     assert sm["arms"].keys() == load(PHASE / "sr.json")["arms"].keys()
     for arm, spec in sm["arms"].items():

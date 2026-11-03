@@ -2,7 +2,7 @@
   "schema_version": 1,
   "name": "server-smoke4-1as-bool-ext-mux6",
   "phase": 1,
-  "commit": "SET_AT_RUNTIME",
+  "commit": "f28a08b1164b4d6dda82b0a849cbccfae4aba588",
   "common_argv": [
     "-l",
     "WARN"

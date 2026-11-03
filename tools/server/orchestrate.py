@@ -397,8 +397,8 @@ class Round:
 
     def set_commit(self, step: dict) -> None:
         """`set_commit_in`: Boolean manifests whose `commit` is set to the current HEAD before
-        the phase runs (the smoke plan's, committed as "SET_AT_RUNTIME"), so the runner's
-        code check passes on whatever commit runs them. Rewrites them in the working tree."""
+        the phase runs (the smoke plans'), so the runner's code check passes on whatever
+        commit runs them. Rewrites them in the working tree."""
         head = subprocess.run(["git", "rev-parse", "HEAD"], cwd=REPO, capture_output=True,
                               text=True).stdout.strip()
         for rel in step.get("set_commit_in", []):
