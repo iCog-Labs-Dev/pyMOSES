@@ -216,3 +216,66 @@ and the choice, 1ao, 1ap, 1aq and 1ar in `configs/gomea/server-smoke3-*`, 2 spli
 evaluations or 20 s per run) with its state in `../gomea-results/server-run3-smoke/`. It
 writes the choice into the smoke configs, so `git checkout configs/gomea/server-smoke3-*`
 afterwards.
+
+## Round 4
+
+The fourth round (`SERVER-ROUND4-PREREGISTRATION.md`: knob caps with and without the 250-evaluation
+deme cap) has its own plan, `tools/server/plan4.json`: S0 (full pytest and the round-1
+reproducibility check), then phase 1as. There is no pilot and no value to set during the run.
+The search code does not change.
+
+1. Update the clone and set up as in steps 1 to 3 (`git pull`, then
+   `bash tools/server/setup.sh`).
+2. Start the round:
+
+       bash tools/server/start.sh --plan round4
+
+   `status.sh --plan round4` and `stop.sh --plan round4` work the same way. An autostart block
+   of an earlier round does not start round 4. Run `uninstall_autostart.sh`, then
+   `install_autostart.sh --plan round4`.
+3. Stage 1 cannot give a primary verdict: with 10 pairs and 20 contrasts, the lowest Holm p is
+   0.039. So a large effect gets "extend", and `phase_run.sh` runs the extension of that problem.
+   This is expected.
+
+Arms and files:
+
+* `configs/gomea/phase1as/`: `spec.json` (20 primary and 8 secondary contrasts), `bool.json` (mux11,
+  seeds 3001-3010), `bool-ext-mux11.json` (seeds 3011-3020), `sr.json` (Con, EnH, Air, splits 1-10)
+  and `sr-ext-{Con,EnH,Air}.json` (splits 11-20).
+* All manifests hold all seven arms. The extensions also need K16-C250, because the secondary
+  contrasts use it. A problem that extends costs 70 more runs.
+* Time budgets: regression 1,000 s, wall cap 2,400 s. mux11 3,600 s, wall cap 5,400 s.
+
+Outputs, all under `../gomea-results/`:
+
+* `server-run4/`: the state and logs of the round, as in round 2. Bring back
+  `bundle-final-<UTC time>.tar.gz`.
+* `phase1as/phase1as-sr*/` and `1/phase1as-bool*/`: the runs, and `phase1as/report-stage{1,2}/`:
+  the reports.
+* `phase1as.log`, `phase1as-bench.log`, `phase1as-sr.log`: the logs of the phase.
+
+The report does not give all D1 values. Regression summaries have no `deme_count`. Take the number
+of demes, the generations per deme and how demes end from the `end` events in each run's
+`events.jsonl`. The bundle holds these files. A deme that starts when the time is spent has 0
+evaluations and ends with `time_limit`. Do not count it as a real deme.
+
+Time check (local, one run each, `--max-time 60`, nice 19, on a loaded machine; not a result):
+
+| Run | Wall s | Evaluations | Demes (with evaluations) | Genes per deme | Generations per deme | Deme ends |
+|---|---|---|---|---|---|---|
+| Con NOCAP | 61.9 | 1,616 | 2 | 20, 162 | 7, 2 | converged, time limit |
+| Con K64 | 60.9 | 1,418 | 2 | 20, 128 | 9, 1 | stagnation, time limit |
+| Con K8 | 60.8 | 1,491 | 3 | 20, 135, 162 | 13, 13, 3 | stagnation, stagnation, time limit |
+| mux11 NOCAP | 94.1 | 3,011 | 3 | 88, 425, 952 | 11, 6, 1 | stagnation, converged, time limit |
+| mux11 K64 | 79.9 | 3,785 | 3 | 88, 317, 637 | 10, 11, 2 | stagnation, stagnation, time limit |
+
+The time limit stops a deme before the next evaluation, so a deme does not overshoot. A mux11 run
+overshoots because the program spends time outside the deme. In these two mux11 runs, 20 to 34 s
+were over the limit. The wall caps allow for more.
+
+Smoke test: `bash tools/server/start.sh --plan smoke4` runs a miniature of the same plan (pytest on
+`tests/server` and the knob-cap tests, the mux11 reproducibility run, then 1as in
+`configs/gomea/server-smoke4-1as`: mux6, Con, EnH and Air, 2 seeds or splits, 15 s per run) with its
+state in `../gomea-results/server-run4-smoke/`. With 2 pairs no problem extends, so the smoke plan does
+not run the `*-ext-*` manifests. It sets the `commit` of the smoke Boolean manifests to HEAD, so
+`git checkout configs/gomea/server-smoke4-1as` afterwards.
