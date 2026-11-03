@@ -193,6 +193,13 @@ def _aggregate(problem: str, arm: str, v: list[dict], metric: str) -> dict:
             median_mutate_accepted_share=_med(c.get("mutate_accepted_share") for c in co),
             polish_accepted=sum(bool(c.get("polish_accepted")) for c in co),
         )
+        if any("lm_guard_rejected" in c for c in co):
+            # server round 5: the LM guard (absent for an arm without it)
+            row.update(
+                median_lm_guard_checked=_med(c.get("lm_guard_checked") for c in co),
+                median_lm_guard_rejected=_med(c.get("lm_guard_rejected") for c in co),
+                median_lm_guard_rejected_share=_med(c.get("lm_guard_rejected_share") for c in co),
+            )
     if seeded:
         row["median_seed_test_nmse"] = _med(s.get("seed_test_nmse") for s in v)
         row["median_seed_best_raw"] = _med((s.get("seeding") or {}).get("seed_best_raw")

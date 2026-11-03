@@ -24,11 +24,14 @@ from collections.abc import Hashable, Sequence
 from fractions import Fraction
 
 from pymoses.gomea.const_opt import (
+    CONST_OPT_GUARDS,
     CONST_OPT_MODES,
     RegressionRows,
     find_contin_bscore,
     gaussian,
+    guard_accepts,
     levenberg_marquardt,
+    load_rows,
     mutation_sigma,
     scored_tree_instance,
 )
@@ -213,6 +216,7 @@ class gomea_parameters:
         knob_rank0: str = "contrast",
         const_opt: str = "none",
         const_opt_val: str = "",
+        const_opt_guard: str = "none",
     ) -> None:
         if pop_size < 2:
             raise ValueError(f"pop_size must be >= 2, got {pop_size}")
@@ -286,8 +290,18 @@ class gomea_parameters:
             raise ValueError("const_opt 'mutate' needs contin 'copy' (constants as genes)")
         if const_opt == "polish" and not const_opt_val:
             raise ValueError("const_opt 'polish' needs const_opt_val (the validation table)")
-        if const_opt_val and const_opt != "polish":
-            raise ValueError("const_opt_val is used by const_opt 'polish' only")
+        if const_opt_guard not in CONST_OPT_GUARDS:
+            raise ValueError(
+                f"const_opt_guard must be one of {CONST_OPT_GUARDS}, got {const_opt_guard!r}"
+            )
+        if const_opt_guard == "val" and const_opt != "lm":
+            raise ValueError("const_opt_guard 'val' needs const_opt 'lm'")
+        if const_opt_guard == "val" and not const_opt_val:
+            raise ValueError("const_opt_guard 'val' needs const_opt_val (the validation table)")
+        if const_opt_val and const_opt != "polish" and const_opt_guard != "val":
+            raise ValueError(
+                "const_opt_val is used by const_opt 'polish' and const_opt_guard 'val' only"
+            )
         parse_radii(radii)
 
         self.pop_size = pop_size
@@ -322,6 +336,7 @@ class gomea_parameters:
         self.knob_rank0 = knob_rank0
         self.const_opt = const_opt
         self.const_opt_val = const_opt_val
+        self.const_opt_guard = const_opt_guard
 
     # The opt-in options, left out of ``as_dict`` while at their default
     # (off), so a default run's telemetry is unchanged.
@@ -338,6 +353,7 @@ class gomea_parameters:
         "long_deme_prob": 0.0,
         "const_opt": "none",
         "const_opt_val": "",
+        "const_opt_guard": "none",
     }
 
     # The knob-cap options: all left out of ``as_dict`` while ``knob_cap`` is 0
@@ -589,6 +605,7 @@ class gomea_optimization(optimizer_base):
         # stream (``None`` unless ``mutate``) and tuning counts.
         self._rng_mut: MT19937RandGen | None = None
         self._co: dict = _new_const_opt_counts()
+        self._val_rows: RegressionRows | None = None
 
     def prepare_deme(self, mp, exemplar) -> None:
         """GOMEA extension, Phase 1af: called by ``expand_deme`` once the
@@ -974,6 +991,13 @@ class gomea_optimization(optimizer_base):
         if _const_opt_mode(self) != "none":
             # GOMEA extension (``--const-opt``; absent when it is none).
             self.last_result["const_opt"] = {"mode": _const_opt_mode(self), **self._co}
+            if self.gomea_params.const_opt_guard != "none":
+                # server round 5 (absent without the guard).
+                self.last_result["const_opt"].update(
+                    guard=self.gomea_params.const_opt_guard,
+                    lm_guard_checked=self._co.get("lm_guard_checked", 0),
+                    lm_guard_rejected=self._co.get("lm_guard_rejected", 0),
+                )
         sink.emit("end", **self.last_result)
 
     # GOMEA extension (``--const-opt mutate``): coefficient mutation.
@@ -1020,6 +1044,14 @@ class gomea_optimization(optimizer_base):
 
         return mutate
 
+    # NOT A PORT (``--const-opt-guard val``, server round 5).
+    def _guard_rows(self, cscorer, rows: RegressionRows) -> RegressionRows:
+        """The validation rows, read once per optimizer."""
+        if self._val_rows is None:
+            labels = find_contin_bscore(cscorer)._cti.get_labels()
+            self._val_rows = load_rows(self.gomea_params.const_opt_val, labels, rows.scaled)
+        return self._val_rows
+
     # GOMEA extension (``--const-opt lm``): elite-only LM at the end of a deme.
     def _tune_best(self, deme: deme_t, oracle: EvaluationOracle, schema: FrozenSchema) -> None:
         """LM on the deme's best program (``const_opt.levenberg_marquardt``),
@@ -1028,7 +1060,12 @@ class gomea_optimization(optimizer_base):
         and added to ``deme.n_evals``. If LM lowered the training MSE, the
         tuned program, scored (one more pass), replaces the best program's
         entries in the deme (Lamarckian). A singular or failed call keeps the
-        old program; the call's record is logged in ``const_opt.lm``."""
+        old program; the call's record is logged in ``const_opt.lm``.
+
+        NOT A PORT (``--const-opt-guard val``, server round 5): between LM and
+        that score, ``guard_accepts`` compares the old and the tuned program on
+        the validation rows (two charged passes). A worse validation NMSE keeps
+        the old program."""
         co = self._co
         g = oracle.best_genotype()
         if g is None:
@@ -1042,6 +1079,20 @@ class gomea_optimization(optimizer_base):
         rec = lm.record()
         if lm.tree is not None:
             try:
+                if self.gomea_params.const_opt_guard == "val":
+                    verdict = guard_accepts(
+                        tree, lm.tree, rows, self._guard_rows(cscorer, rows), oracle.charge_tuning
+                    )
+                    rec.update(
+                        guard="accepted" if verdict["accepted"] else "rejected",
+                        val_nmse_old=verdict["val_nmse_old"],
+                        val_nmse_new=verdict["val_nmse_new"],
+                    )
+                    co["lm_guard_checked"] = co.get("lm_guard_checked", 0) + 1
+                    if not verdict["accepted"]:
+                        co["lm_guard_rejected"] = co.get("lm_guard_rejected", 0) + 1
+                        rec["written_back"] = False
+                        return self._close_tuning(deme, oracle, lm, rec, before)
                 oracle.charge_tuning()
                 score = cscorer.get_cscore(lm.tree)
             except BudgetExhausted:
@@ -1056,6 +1107,11 @@ class gomea_optimization(optimizer_base):
                 ]
                 deme.append(scored_tree_instance(inst, score, lm.tree))
                 rec["written_back"] = True
+        self._close_tuning(deme, oracle, lm, rec, before)
+
+    def _close_tuning(self, deme, oracle, lm, rec: dict, before: int) -> None:
+        """The counts and the record of one LM call."""
+        co = self._co
         used = oracle.ledger.requests - before
         deme.n_evals += used
         rec["evals"] = used

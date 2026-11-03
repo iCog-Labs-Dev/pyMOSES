@@ -137,7 +137,8 @@ to, so an invalid value is always rejected.
 | `--reserve-empty-every K` | `0` (off) | Port-only, any optimizer: every K-th expansion picks its exemplar only among the programs descending from an initial exemplar that is the empty program (`+`/`and`), falling back to the normal choice when none is selectable. See [Reserved expansions for the empty program](#reserved-expansions-for-the-empty-program---reserve-empty-every). |
 | `--linear-scaling {0,1}` | `0` (off) | Port-only, regression only (squared error), any optimizer: score each program `f` on `a + b·f`, the least-squares fit of `f` to the training target. See [Linear scaling](#linear-scaling---linear-scaling). |
 | `--const-opt {none,lm,mutate,polish}` | `none` | Regression with `-a gomea` or `-a hc-gomea` only: tune numeric constants (server round 3). `lm`: Levenberg-Marquardt on each deme's best program; `mutate`: Gaussian coefficient mutation after each GOM step (needs `--gomea-contin copy`); `polish`: LM once on the final best program (needs `--const-opt-val`). Every pass over the training rows counts as one evaluation. See [Constant tuning](#constant-tuning---const-opt). |
-| `--const-opt-val FILE` | none | With `--const-opt polish` only: the validation table (the training columns, target `y`). `tools/gomea/moses_sr_runner.py` writes and passes it (`val_scaled.csv`). |
+| `--const-opt-val FILE` | none | With `--const-opt polish` or `--const-opt-guard val` only: the validation table (the training columns, target `y`). `tools/gomea/moses_sr_runner.py` writes and passes it (`val_scaled.csv`). |
+| `--const-opt-guard {none,val}` | `none` | With `--const-opt lm` only (server round 5). `val`: the tuned constants replace the old ones only if the training error is lower and the validation NMSE is not worse. Needs `--const-opt-val`. See [Constant tuning](#constant-tuning---const-opt). |
 
 The default population was 64 during development. It became 16 after the pilot
 (`docs/gomea/pilot-a/`); the confirmatory runs passed 16 explicitly.
@@ -371,6 +372,16 @@ linear scaling when `--linear-scaling 1` is on, else the plain training MSE.
   scaling fitted on the training rows, as `sr_eval.py` does) is not worse. To keep the run's
   total within `-m`, the search runs with 5 % of `-m` held back; polish then has what is
   left (the scoring of the tuned program included).
+* **`lm` with `--const-opt-guard val`** (server round 5, `SERVER-ROUND5-PREREGISTRATION.md`; not a
+  port). LM runs as above. When LM lowers the training MSE, the guard compares the old and the
+  tuned program on the `--const-opt-val` table: the NMSE with the linear scaling that the training
+  rows give (`sr_eval.py` scores a report the same way). The tuned program replaces the old one
+  only if its validation NMSE is not worse. Each of the two validation passes counts as one
+  evaluation (`tuning_requests`, the run's budget). The guard does not charge the training pass
+  of the linear scaling, because LM already charged that pass at the same constants. If the budget ends
+  before the comparison ends, the old program stays and the guard does not count the call as
+  checked. With `none`, every output is the same as before the flag existed
+  (`tests/gomea/test_const_opt_guard.py`). `--const-opt polish` does not change.
 
 Every pass over the training rows (one residual vector, one Jacobian column, one trial step,
 one final score, one mutation) is one evaluation: it is in `n_evals`, in the deme's ledger
@@ -378,10 +389,13 @@ one final score, one mutation) is one evaluation: it is in `n_evals`, in the dem
 gets `const_opt` (`mode`, `lm_calls`, `lm_improved`, `lm_not_improved`, `lm_singular`,
 `lm_failed`, `lm_no_constants`, `lm_budget`, `mutate_attempts`, `mutate_accepted`,
 `tuning_evals`, and `lm`, the record of the deme's LM call: status, constants, inert
-constants, MSE before and after, evaluations, iterations, `written_back`); polish writes one
+constants, MSE before and after, evaluations, iterations, `written_back`, and with the guard
+`guard`, `val_nmse_old`, `val_nmse_new`); with the guard, `const_opt` also has `guard`,
+`lm_guard_checked` and `lm_guard_rejected`; polish writes one
 `polish` event. `moses_sr_runner.py` sums them into `const_opt` in `summary.json`
 (with `lm_improved_share`, `mutate_accepted_share`, `tuning_share` = tuning evaluations /
-`n_evals`, and `polish_accepted`), and `phase_report.py` reports their medians in
+`n_evals`, `polish_accepted`, and with the guard `lm_guard_checked`, `lm_guard_rejected` and
+`lm_guard_rejected_share` = rejected / checked), and `phase_report.py` reports their medians in
 `aggregate.csv`.
 
 ## Continuous knobs (`--gomea-contin copy`)

@@ -590,8 +590,20 @@ _PORT_OPTIONS = (
         "const_opt_val",
         str,
         "",
-        "with --const-opt polish: the validation table (same columns as the "
-        "training table, target y). Default none.",
+        "with --const-opt polish or --const-opt-guard val: the validation "
+        "table (same columns as the training table, target y). Default none.",
+    ),
+    # NOT A PORT, server round 5 (off by default: a default run is unchanged).
+    (
+        "--const-opt-guard",
+        "const_opt_guard",
+        str,
+        "none",
+        "with --const-opt lm: none; val (the tuned constants replace the old "
+        "ones only if the training error is lower and the NMSE on "
+        "--const-opt-val is not worse, with the linear scaling of the "
+        "training rows; each validation pass counts as one evaluation). "
+        "Default none.",
     ),
 )
 _GOMEA_INIT_CHOICES = ("sampler", "uniform")
@@ -603,6 +615,7 @@ _GOMEA_FOS_TOPK_MODE_CHOICES = ("linkage", "random")
 _GOMEA_LONG_DEME_RULE_CHOICES = ("top", "random")
 _GOMEA_KNOB_SELECT_CHOICES = ("explore", "static", "random")
 _CONST_OPT_CHOICES = ("none", "lm", "mutate", "polish")
+_CONST_OPT_GUARD_CHOICES = ("none", "val")
 _GOMEA_KNOB_RANK0_CHOICES = ("contrast", "entropy", "random")
 
 
@@ -659,6 +672,7 @@ def _gomea_params_from_args(args: argparse.Namespace) -> gomea_parameters:
     # GOMEA optimizer does the tuning).
     v["const_opt"] = getattr(args, "const_opt", "none")
     v["const_opt_val"] = getattr(args, "const_opt_val", "")
+    v["const_opt_guard"] = getattr(args, "const_opt_guard", "none")
     if v["gomea_fos"] not in _GOMEA_FOS_CHOICES:
         raise ValueError(
             f"--gomea-fos {v['gomea_fos']} is not recognized. "
@@ -747,12 +761,13 @@ def _gomea_params_from_args(args: argparse.Namespace) -> gomea_parameters:
         knob_rank0=v["gomea_knob_rank0"],
         const_opt=v["const_opt"],
         const_opt_val=v["const_opt_val"],
+        const_opt_guard=v["const_opt_guard"],
     )
 
 
 def _check_const_opt(v: dict, opt_algo: str | None) -> None:
-    """GOMEA extension, server round 3: validate `--const-opt` and
-    `--const-opt-val`."""
+    """GOMEA extension, server rounds 3 and 5: validate `--const-opt`,
+    `--const-opt-val` and `--const-opt-guard`."""
     mode = v["const_opt"]
     if mode not in _CONST_OPT_CHOICES:
         raise ValueError(
@@ -764,8 +779,20 @@ def _check_const_opt(v: dict, opt_algo: str | None) -> None:
         raise ValueError("--const-opt mutate needs --gomea-contin copy")
     if mode == "polish" and not v["const_opt_val"]:
         raise ValueError("--const-opt polish needs --const-opt-val FILE")
-    if v["const_opt_val"] and mode != "polish":
-        raise ValueError("--const-opt-val is used by --const-opt polish only")
+    guard = v["const_opt_guard"]
+    if guard not in _CONST_OPT_GUARD_CHOICES:
+        raise ValueError(
+            f"--const-opt-guard {guard} is not recognized. "
+            f"Supported: {', '.join(_CONST_OPT_GUARD_CHOICES)}."
+        )
+    if guard == "val" and mode != "lm":
+        raise ValueError(f"--const-opt-guard val needs --const-opt lm, got --const-opt {mode}")
+    if guard == "val" and not v["const_opt_val"]:
+        raise ValueError("--const-opt-guard val needs --const-opt-val FILE")
+    if v["const_opt_val"] and mode != "polish" and guard != "val":
+        raise ValueError(
+            "--const-opt-val is used by --const-opt polish and --const-opt-guard val only"
+        )
 
 
 def _check_knob_cap(v: dict) -> int | None:

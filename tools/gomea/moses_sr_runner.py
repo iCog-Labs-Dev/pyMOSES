@@ -181,9 +181,10 @@ def _run_one(job: dict) -> dict:
     sdir = Path(job["split_dir"])
     n_train, mean, sd = _scale_train(sdir / "train.csv", run_dir / "train_scaled.csv")
     argv = moses_argv(job, run_dir, n_train)
-    if _const_opt(job["argv"]) == "polish":
-        # server round 3: polish keeps a tuned program only if the validation
-        # NMSE is not worse; it reads the validation split, scaled like train
+    if _const_opt(job["argv"]) == "polish" or _const_opt_guard(job["argv"]) == "val":
+        # server rounds 3 and 5: polish and the LM guard keep a tuned program only
+        # if the validation NMSE is not worse; they read the validation split,
+        # scaled like train
         _scale_like_train(sdir / "val.csv", run_dir / "val_scaled.csv", mean, sd)
         argv += ["--const-opt-val", str(run_dir / "val_scaled.csv")]
     seed_rec = None
@@ -363,12 +364,25 @@ def _const_opt(argv: list) -> str:
     return "none"
 
 
+def _const_opt_guard(argv: list) -> str:
+    """The `--const-opt-guard` value an arm's argv selects ("none" without it)."""
+    argv = [str(x) for x in argv]
+    for i, tok in enumerate(argv):
+        if tok == "--const-opt-guard" and i + 1 < len(argv):
+            return argv[i + 1]
+        if tok.startswith("--const-opt-guard="):
+            return tok.split("=", 1)[1]
+    return "none"
+
+
 def const_opt_summary(events: Path, n_evals: int | None) -> dict | None:
     """Server round 3: the run's constant-tuning telemetry from the GOMEA log
     (the `const_opt` record of every deme's "end" event and the "polish"
     event), or `None` when the run did no tuning. `lm_improved_share` is the
     share of LM calls that lowered the training error; `tuning_share` the share
-    of the run's evaluations that tuning used."""
+    of the run's evaluations that tuning used. With the guard (server round 5) it
+    also has `lm_guard_checked` (LM results that the guard compared on the
+    validation rows), `lm_guard_rejected` and their ratio `lm_guard_rejected_share`."""
     if not events.exists():
         return None
     ends, polish = [], None
@@ -397,6 +411,14 @@ def const_opt_summary(events: Path, n_evals: int | None) -> dict | None:
         out["polish_accepted"] = bool(polish.get("accepted"))
         out["tuning_evals"] += int(polish.get("evals", 0))
     out["tuning_share"] = out["tuning_evals"] / n_evals if n_evals else None
+    guards = [e for e in ends if e.get("guard")]
+    if guards:
+        out["guard"] = guards[0]["guard"]
+        out["lm_guard_checked"] = sum(int(e.get("lm_guard_checked", 0)) for e in guards)
+        out["lm_guard_rejected"] = sum(int(e.get("lm_guard_rejected", 0)) for e in guards)
+        out["lm_guard_rejected_share"] = (
+            out["lm_guard_rejected"] / out["lm_guard_checked"] if out["lm_guard_checked"] else None
+        )
     return out
 
 

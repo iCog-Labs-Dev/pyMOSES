@@ -2,7 +2,9 @@
 
 NOT A PORT (pyMoses extension; no C++ counterpart). See
 ``docs/gomea/SERVER-ROUND3-PREREGISTRATION.md`` for the design and
-``docs/gomea/USAGE.md`` for the flags. Three modes use this module:
+``docs/gomea/USAGE.md`` for the flags. Server round 5 adds the validation guard of
+``lm`` (``guard_accepts``, ``docs/gomea/SERVER-ROUND5-PREREGISTRATION.md``). Three modes
+use this module:
 
 * ``lm``: at the end of each GOMEA deme, Levenberg-Marquardt (LM) on the
   numeric constants of the deme's best program (``levenberg_marquardt``);
@@ -40,6 +42,7 @@ from pymoses.moses.representation.scored_instance import scored_instance
 from pymoses.moses.scoring.bscores import contin_bscore, linear_scaling
 
 CONST_OPT_MODES = ("none", "lm", "mutate", "polish")
+CONST_OPT_GUARDS = ("none", "val")
 
 # LM settings (pre-registration, "The constant-tuning code").
 LM_MAX_ITERATIONS = 10
@@ -340,6 +343,27 @@ def validation_nmse(tr: combo_tree, train: RegressionRows, val: RegressionRows) 
     var = math.fsum((y - mean) ** 2 for y in val.targets) / n
     e = mse(r)
     return e / var if var > 0 else e
+
+
+def guard_accepts(
+    old: combo_tree,
+    new: combo_tree,
+    train: RegressionRows,
+    val: RegressionRows,
+    charge: Callable[[], None],
+) -> dict:
+    """NOT A PORT (``--const-opt-guard val``, server round 5): is the validation
+    NMSE of the tuned program ``new`` not worse than that of ``old``? Each of
+    the two validation passes calls ``charge()`` once before it runs, and
+    ``BudgetExhausted`` from ``charge`` goes to the caller. The linear scaling
+    comes from the training rows (``validation_nmse``). Its training pass is not
+    charged: LM already paid for that pass at the same constants. Returns
+    ``accepted``, ``val_nmse_old`` and ``val_nmse_new``."""
+    charge()
+    v_old = validation_nmse(old, train, val)
+    charge()
+    v_new = validation_nmse(new, train, val)
+    return {"accepted": v_new <= v_old, "val_nmse_old": v_old, "val_nmse_new": v_new}
 
 
 def load_rows(path: str, labels: Sequence[str], scaled: bool) -> RegressionRows:
