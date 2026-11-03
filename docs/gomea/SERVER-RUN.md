@@ -277,8 +277,8 @@ Smoke test: `bash tools/server/start.sh --plan smoke4` runs a miniature of the s
 `tests/server` and the knob-cap tests, the mux11 reproducibility run, then 1as in
 `configs/gomea/server-smoke4-1as`: mux6, Con, EnH and Air, 2 seeds or splits, 15 s per run) with its
 state in `../gomea-results/server-run4-smoke/`. With 2 pairs no problem extends, so the smoke plan does
-not run the `*-ext-*` manifests. It sets the `commit` of the smoke Boolean manifests to HEAD, so
-`git checkout configs/gomea/server-smoke4-1as` afterwards.
+not run the `*-ext-*` manifests. The smoke Boolean manifests name the same `commit` as the real ones
+(see "Round 5"), and the smoke plan does not change them.
 
 ## Round 5 and the chain from round 4
 
@@ -355,6 +355,7 @@ Smoke test: `bash tools/server/start.sh --plan smoke4` runs the miniature of rou
 state is in `server-run4-smoke/` and `server-run5-smoke/`.
 
 **Boolean manifests of round 4.** The guard changed `pymoses`, so the `commit` of the Boolean manifests
-of 1as moved to the commit with the guard. The name of the result folder holds a hash of the manifest,
+of 1as and of its smoke test moved to the commit with the guard. If `pymoses`, `benchmarks` or
+`pyproject.toml` change again, `check_code_commit` refuses these runs until the `commit` moves too. The name of the result folder holds a hash of the manifest,
 so runs under an older `commit` are not reused: `1/phase1as-bool-<new hash>/` starts empty.
 
