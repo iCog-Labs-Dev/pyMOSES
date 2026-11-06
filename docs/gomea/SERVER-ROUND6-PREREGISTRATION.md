@@ -1,6 +1,6 @@
 # Server round 6: pre-registration (2026-11-06)
 
-**Status:** the design is approved by the user (see `APPROVALS.md`). Not implemented yet.
+**Status:** the design is approved by the user (see `APPROVALS.md`). Implemented in `f2aaef2` to `aab55a6`. Not run yet.
 
 **Question:** two follow-ups to rounds 4 and 5 (`BACKLOG.md`, section 7): does LM-VAL still help
 with no per-deme cap, and does PEN125 make LM-VAL's programs smaller?

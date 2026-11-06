@@ -1,6 +1,6 @@
 # Server round 7: pre-registration (2026-11-06)
 
-**Status:** the design is approved by the user (see `APPROVALS.md`). Not implemented yet.
+**Status:** the design is approved by the user (see `APPROVALS.md`). Implemented in `09fbaf0` to `aab55a6`. Not run yet.
 
 **Question:** a confirmation round. On data that no earlier selection used, does the final
 combined setting beat MOSES hill climbing, and does it beat plain GOMEA-LS?
