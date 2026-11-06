@@ -1,0 +1,178 @@
+{
+  "name": "server-smoke6-1az-sr-ext-Air",
+  "datasets_dir": "../gomea-results/phase1f/datasets",
+  "datasets": [
+    "Air"
+  ],
+  "splits": [
+    3,
+    4
+  ],
+  "wall_cap_s": 300,
+  "mem_limit_mb": 3072,
+  "arms": {
+    "NOCAP-DYN": {
+      "binary": ".venv/bin/moses",
+      "budget": {
+        "time_s": 15
+      },
+      "argv": [
+        "-a",
+        "gomea",
+        "--gomea-fos",
+        "lt-b",
+        "{DYN}",
+        "--gomea-skip-inactive",
+        "0",
+        "--gomea-genotype-memo",
+        "1",
+        "--gomea-contin",
+        "copy",
+        "--knob-probe-baseline",
+        "reduced",
+        "--linear-scaling",
+        "1"
+      ]
+    },
+    "K8-DYN": {
+      "binary": ".venv/bin/moses",
+      "budget": {
+        "time_s": 15
+      },
+      "argv": [
+        "-a",
+        "gomea",
+        "--gomea-fos",
+        "lt-b",
+        "{DYN}",
+        "--gomea-skip-inactive",
+        "0",
+        "--gomea-genotype-memo",
+        "1",
+        "--gomea-contin",
+        "copy",
+        "--knob-probe-baseline",
+        "reduced",
+        "--linear-scaling",
+        "1",
+        "--gomea-knob-cap",
+        "8",
+        "--gomea-knob-select",
+        "explore",
+        "--gomea-knob-rank0",
+        "contrast"
+      ]
+    },
+    "K16-DYN": {
+      "binary": ".venv/bin/moses",
+      "budget": {
+        "time_s": 15
+      },
+      "argv": [
+        "-a",
+        "gomea",
+        "--gomea-fos",
+        "lt-b",
+        "{DYN}",
+        "--gomea-skip-inactive",
+        "0",
+        "--gomea-genotype-memo",
+        "1",
+        "--gomea-contin",
+        "copy",
+        "--knob-probe-baseline",
+        "reduced",
+        "--linear-scaling",
+        "1",
+        "--gomea-knob-cap",
+        "16",
+        "--gomea-knob-select",
+        "explore",
+        "--gomea-knob-rank0",
+        "contrast"
+      ]
+    },
+    "K32-DYN": {
+      "binary": ".venv/bin/moses",
+      "budget": {
+        "time_s": 15
+      },
+      "argv": [
+        "-a",
+        "gomea",
+        "--gomea-fos",
+        "lt-b",
+        "{DYN}",
+        "--gomea-skip-inactive",
+        "0",
+        "--gomea-genotype-memo",
+        "1",
+        "--gomea-contin",
+        "copy",
+        "--knob-probe-baseline",
+        "reduced",
+        "--linear-scaling",
+        "1",
+        "--gomea-knob-cap",
+        "32",
+        "--gomea-knob-select",
+        "explore",
+        "--gomea-knob-rank0",
+        "contrast"
+      ]
+    },
+    "K64-DYN": {
+      "binary": ".venv/bin/moses",
+      "budget": {
+        "time_s": 15
+      },
+      "argv": [
+        "-a",
+        "gomea",
+        "--gomea-fos",
+        "lt-b",
+        "{DYN}",
+        "--gomea-skip-inactive",
+        "0",
+        "--gomea-genotype-memo",
+        "1",
+        "--gomea-contin",
+        "copy",
+        "--knob-probe-baseline",
+        "reduced",
+        "--linear-scaling",
+        "1",
+        "--gomea-knob-cap",
+        "64",
+        "--gomea-knob-select",
+        "explore",
+        "--gomea-knob-rank0",
+        "contrast"
+      ]
+    },
+    "NOCAP-N16": {
+      "binary": ".venv/bin/moses",
+      "budget": {
+        "time_s": 15
+      },
+      "argv": [
+        "-a",
+        "gomea",
+        "--gomea-fos",
+        "lt-b",
+        "--gomea-pop-size",
+        "16",
+        "--gomea-skip-inactive",
+        "0",
+        "--gomea-genotype-memo",
+        "1",
+        "--gomea-contin",
+        "copy",
+        "--knob-probe-baseline",
+        "reduced",
+        "--linear-scaling",
+        "1"
+      ]
+    }
+  }
+}

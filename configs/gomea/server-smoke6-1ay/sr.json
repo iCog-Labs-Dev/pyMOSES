@@ -1,0 +1,220 @@
+{
+  "name": "server-smoke6-1ay-sr",
+  "datasets_dir": "../gomea-results/phase1f/datasets",
+  "datasets": [
+    "Con",
+    "EnH"
+  ],
+  "splits": [
+    1,
+    2
+  ],
+  "wall_cap_s": 300,
+  "mem_limit_mb": 3072,
+  "arms": {
+    "N16-LTB": {
+      "binary": ".venv/bin/moses",
+      "budget": {
+        "time_s": 15
+      },
+      "argv": [
+        "-a",
+        "gomea",
+        "--gomea-fos",
+        "lt-b",
+        "--gomea-pop-size",
+        "16",
+        "--gomea-skip-inactive",
+        "0",
+        "--gomea-genotype-memo",
+        "1",
+        "--gomea-contin",
+        "copy",
+        "--knob-probe-baseline",
+        "reduced",
+        "--linear-scaling",
+        "1"
+      ]
+    },
+    "N16-RT": {
+      "binary": ".venv/bin/moses",
+      "budget": {
+        "time_s": 15
+      },
+      "argv": [
+        "-a",
+        "gomea",
+        "--gomea-fos",
+        "rt",
+        "--gomea-pop-size",
+        "16",
+        "--gomea-skip-inactive",
+        "0",
+        "--gomea-genotype-memo",
+        "1",
+        "--gomea-contin",
+        "copy",
+        "--knob-probe-baseline",
+        "reduced",
+        "--linear-scaling",
+        "1"
+      ]
+    },
+    "DYN2-LTB": {
+      "binary": ".venv/bin/moses",
+      "budget": {
+        "time_s": 15
+      },
+      "argv": [
+        "-a",
+        "gomea",
+        "--gomea-fos",
+        "lt-b",
+        "--gomea-pop-size",
+        "dynamic",
+        "--hc-fraction-of-nn",
+        "2.0",
+        "--gomea-skip-inactive",
+        "0",
+        "--gomea-genotype-memo",
+        "1",
+        "--gomea-contin",
+        "copy",
+        "--knob-probe-baseline",
+        "reduced",
+        "--linear-scaling",
+        "1"
+      ]
+    },
+    "DYN2-RT": {
+      "binary": ".venv/bin/moses",
+      "budget": {
+        "time_s": 15
+      },
+      "argv": [
+        "-a",
+        "gomea",
+        "--gomea-fos",
+        "rt",
+        "--gomea-pop-size",
+        "dynamic",
+        "--hc-fraction-of-nn",
+        "2.0",
+        "--gomea-skip-inactive",
+        "0",
+        "--gomea-genotype-memo",
+        "1",
+        "--gomea-contin",
+        "copy",
+        "--knob-probe-baseline",
+        "reduced",
+        "--linear-scaling",
+        "1"
+      ]
+    },
+    "DYN025-LTB": {
+      "binary": ".venv/bin/moses",
+      "budget": {
+        "time_s": 15
+      },
+      "argv": [
+        "-a",
+        "gomea",
+        "--gomea-fos",
+        "lt-b",
+        "--gomea-pop-size",
+        "dynamic",
+        "--hc-fraction-of-nn",
+        "0.25",
+        "--gomea-skip-inactive",
+        "0",
+        "--gomea-genotype-memo",
+        "1",
+        "--gomea-contin",
+        "copy",
+        "--knob-probe-baseline",
+        "reduced",
+        "--linear-scaling",
+        "1"
+      ]
+    },
+    "DYN025-RT": {
+      "binary": ".venv/bin/moses",
+      "budget": {
+        "time_s": 15
+      },
+      "argv": [
+        "-a",
+        "gomea",
+        "--gomea-fos",
+        "rt",
+        "--gomea-pop-size",
+        "dynamic",
+        "--hc-fraction-of-nn",
+        "0.25",
+        "--gomea-skip-inactive",
+        "0",
+        "--gomea-genotype-memo",
+        "1",
+        "--gomea-contin",
+        "copy",
+        "--knob-probe-baseline",
+        "reduced",
+        "--linear-scaling",
+        "1"
+      ]
+    },
+    "DYN005-LTB": {
+      "binary": ".venv/bin/moses",
+      "budget": {
+        "time_s": 15
+      },
+      "argv": [
+        "-a",
+        "gomea",
+        "--gomea-fos",
+        "lt-b",
+        "--gomea-pop-size",
+        "dynamic",
+        "--hc-fraction-of-nn",
+        "0.05",
+        "--gomea-skip-inactive",
+        "0",
+        "--gomea-genotype-memo",
+        "1",
+        "--gomea-contin",
+        "copy",
+        "--knob-probe-baseline",
+        "reduced",
+        "--linear-scaling",
+        "1"
+      ]
+    },
+    "DYN005-RT": {
+      "binary": ".venv/bin/moses",
+      "budget": {
+        "time_s": 15
+      },
+      "argv": [
+        "-a",
+        "gomea",
+        "--gomea-fos",
+        "rt",
+        "--gomea-pop-size",
+        "dynamic",
+        "--hc-fraction-of-nn",
+        "0.05",
+        "--gomea-skip-inactive",
+        "0",
+        "--gomea-genotype-memo",
+        "1",
+        "--gomea-contin",
+        "copy",
+        "--knob-probe-baseline",
+        "reduced",
+        "--linear-scaling",
+        "1"
+      ]
+    }
+  }
+}

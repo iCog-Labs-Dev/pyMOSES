@@ -1,0 +1,49 @@
+{
+  "name": "server-round6-2026-11",
+  "description": "SERVER-ROUND6-PREREGISTRATION.md: S0, then 1ay (population size and linkage), then set_population.py chooses POP and DYN from the final 1ay report and writes the resolved 1az manifests into the state directory, then 1az (the knob caps of round 4 with the dynamic population DYN). Then round 7 (plan7.json, \"then\") without a pause.",
+  "then": "round7",
+  "state_dir": "server-run6",
+  "steps": [
+    {
+      "id": "S0",
+      "type": "check",
+      "pytest": {},
+      "repro": {}
+    },
+    {
+      "id": "phase1ay",
+      "type": "phase",
+      "phase": "phase1ay",
+      "requires": [
+        "datasets:Con,EnH"
+      ]
+    },
+    {
+      "id": "choose-population",
+      "type": "choice",
+      "argv": [
+        ".venv/bin/python",
+        "tools/gomea/set_population.py",
+        "choose",
+        "--results",
+        "{results}",
+        "--source",
+        "phase1ay",
+        "--target",
+        "phase1az",
+        "--out",
+        "{state}/phase1az-config"
+      ],
+      "record": "{state}/phase1az-config/population-choice.json"
+    },
+    {
+      "id": "phase1az",
+      "type": "phase",
+      "phase": "phase1az",
+      "config_dir": "{state}/phase1az-config",
+      "requires": [
+        "datasets:Con,EnH,Air"
+      ]
+    }
+  ]
+}

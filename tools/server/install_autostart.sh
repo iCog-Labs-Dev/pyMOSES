@@ -4,7 +4,7 @@
 # tools/server/start.sh in the background unless this plan and each later plan of its chain are
 # DONE. start.sh goes on with the first plan that is not DONE, and it refuses when an
 # orchestrator of the chain is already running. Undo: uninstall_autostart.sh.
-#   bash tools/server/install_autostart.sh [--plan round|smoke|round2|smoke2|round3|smoke3|round4|smoke4|round5|smoke5|round7|smoke7|round8|smoke8|FILE]
+#   bash tools/server/install_autostart.sh [--plan round|smoke|round2|smoke2|round3|smoke3|round4|smoke4|round5|smoke5|round6|smoke6|round7|smoke7|round8|smoke8|FILE]
 set -u
 source "$(dirname "${BASH_SOURCE[0]}")/_common.sh"
 CFG=${JUPYTER_CONFIG_DIR:-$HOME/.jupyter}/jupyter_server_config.py

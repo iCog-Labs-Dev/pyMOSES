@@ -1,0 +1,60 @@
+{
+  "name": "server-round6-smoke",
+  "description": "Smoke test of the round-6 plan: limited pytest, the mux11 repro run, then 1ay in miniature (configs/gomea/server-smoke6-1ay: 2 splits or seeds, 15 s per regression run, 60 s per mux11 run, mux11 at F = 2.0 included), the choice of POP and DYN from that report, then 1az in miniature (configs/gomea/server-smoke6-1az). Uses its own state dir, so it never marks real steps done. Then smoke7 (\"then\").",
+  "then": "smoke7",
+  "state_dir": "server-run6-smoke",
+  "steps": [
+    {
+      "id": "S0",
+      "type": "check",
+      "pytest": {
+        "args": [
+          "tests/server",
+          "tests/gomea/test_pop_size_dynamic.py",
+          "tests/gomea/test_set_population.py",
+          "tests/gomea/test_phase_report.py"
+        ]
+      },
+      "repro": {
+        "only": [
+          "1ae-mux11-GOMEA-s3001"
+        ]
+      }
+    },
+    {
+      "id": "smoke6-1ay",
+      "type": "phase",
+      "phase": "server-smoke6-1ay",
+      "requires": [
+        "datasets:Con,EnH"
+      ]
+    },
+    {
+      "id": "choose-population",
+      "type": "choice",
+      "argv": [
+        ".venv/bin/python",
+        "tools/gomea/set_population.py",
+        "choose",
+        "--results",
+        "{results}",
+        "--source",
+        "server-smoke6-1ay",
+        "--target",
+        "server-smoke6-1az",
+        "--out",
+        "{state}/server-smoke6-1az-config"
+      ],
+      "record": "{state}/server-smoke6-1az-config/population-choice.json"
+    },
+    {
+      "id": "smoke6-1az",
+      "type": "phase",
+      "phase": "server-smoke6-1az",
+      "config_dir": "{state}/server-smoke6-1az-config",
+      "requires": [
+        "datasets:Con,EnH,Air"
+      ]
+    }
+  ]
+}

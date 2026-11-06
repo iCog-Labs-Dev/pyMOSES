@@ -270,10 +270,16 @@ def test_s0_of_the_smoke_runs_the_round_6_tests():
     assert s0["repro"] == {"only": ["1ae-mux11-GOMEA-s3001"]}
 
 
-def test_no_plan_chains_to_round_6():
-    """Round 7 starts by itself; a later round may follow, but no "then" is set yet."""
+def test_only_round_6_chains_to_round_7():
+    """Round 6 (the population round) starts round 7 when it ends; no other plan does."""
     for f in SERVER.glob("plan*.json"):
-        assert load(f).get("then") not in ("round7", "smoke7"), f.name
+        then = load(f).get("then")
+        if f.name == "plan6.json":
+            assert then == "round7"
+        elif f.name == "plan6-smoke.json":
+            assert then == "smoke7"
+        else:
+            assert then not in ("round7", "smoke7"), f.name
 
 
 @pytest.mark.parametrize("name, plan", [("round7", "plan7.json"), ("smoke7", "plan7-smoke.json")])
