@@ -1,6 +1,6 @@
 {
   "name": "server-round7-2026-11",
-  "description": "SERVER-ROUND7-PREREGISTRATION.md: S0, then 1aw (LM-VAL with no per-deme cap, and LM-VAL with PEN125). One phase. Then round 8 (plan8.json, \"then\") without a pause.",
+  "description": "SERVER-ROUND7-PREREGISTRATION.md with the changes of SERVER-ROUND6-PREREGISTRATION.md: S0, then set_population.py applies POP and the control population of round 6 to the 1aw templates (into the state directory), then 1aw (LM-VAL with no per-deme cap, LM-VAL with PEN125, and the control arm LMVAL-DYN). Runs after round 6 (plan6.json, \"then\"). Then round 8 (plan8.json, \"then\") without a pause.",
   "then": "round8",
   "state_dir": "server-run7",
   "steps": [
@@ -11,12 +11,29 @@
       "repro": {}
     },
     {
+      "id": "apply-population",
+      "type": "choice",
+      "argv": [
+        ".venv/bin/python",
+        "tools/gomea/set_population.py",
+        "apply",
+        "--choice",
+        "{results}/server-run6/phase1az-config/population-choice.json",
+        "--target",
+        "phase1aw",
+        "--out",
+        "{state}/phase1aw-config"
+      ],
+      "record": "{state}/phase1aw-config/population-applied.json"
+    },
+    {
       "id": "phase1aw",
       "type": "phase",
       "phase": "phase1aw",
       "requires": [
         "datasets:WiR,Con,EnH,Air,Yac,Tow"
-      ]
+      ],
+      "config_dir": "{state}/phase1aw-config"
     }
   ]
 }

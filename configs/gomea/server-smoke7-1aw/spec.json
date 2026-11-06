@@ -178,6 +178,48 @@
       "LMVAL-PEN125",
       "LMVAL",
       "test_nmse"
+    ],
+    [
+      "WiR",
+      "lmval-dyn-vs-lmval",
+      "LMVAL-DYN",
+      "LMVAL",
+      "test_nmse"
+    ],
+    [
+      "Con",
+      "lmval-dyn-vs-lmval",
+      "LMVAL-DYN",
+      "LMVAL",
+      "test_nmse"
+    ],
+    [
+      "EnH",
+      "lmval-dyn-vs-lmval",
+      "LMVAL-DYN",
+      "LMVAL",
+      "test_nmse"
+    ],
+    [
+      "Air",
+      "lmval-dyn-vs-lmval",
+      "LMVAL-DYN",
+      "LMVAL",
+      "test_nmse"
+    ],
+    [
+      "Yac",
+      "lmval-dyn-vs-lmval",
+      "LMVAL-DYN",
+      "LMVAL",
+      "test_nmse"
+    ],
+    [
+      "Tow",
+      "lmval-dyn-vs-lmval",
+      "LMVAL-DYN",
+      "LMVAL",
+      "test_nmse"
     ]
   ]
 }

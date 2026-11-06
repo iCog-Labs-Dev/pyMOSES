@@ -186,6 +186,23 @@ def test_resolved_1az_manifests(tmp_path):
     assert (out / "spec.json").read_text() == (q / "spec.json").read_text()
 
 
+def test_apply_resolves_another_phase(tmp_path):
+    _report(tmp_path / R1, {("Con", "DYN2-LTB"): "A better", ("EnH", "DYN2-LTB"): "A better"},
+            _med(DYN2=1, DYN025=2, DYN005=3))
+    rc, out = _choose(tmp_path)
+    assert rc == 0
+    aw = tmp_path / "state7" / "phase1aw-config"
+    rc = sp.main(["apply", "--choice", str(out / "population-choice.json"), "--target",
+                  "phase1aw", "--out", str(aw)])
+    assert rc == 0
+    m = json.loads((aw / "sr.json").read_text())
+    pop = ["--gomea-pop-size", "dynamic", "--hc-fraction-of-nn", "2.0"]
+    assert m["arms"]["NOCAP"]["argv"][4:8] == pop
+    assert m["arms"]["LMVAL-DYN"]["argv"][4:6] == ["--gomea-pop-size", "16"]  # POP == DYN
+    rec = json.loads((aw / "population-applied.json").read_text())
+    assert rec["pop"]["name"] == "DYN2" and rec["control"]["name"] == "N16"
+
+
 def test_missing_report_writes_nothing(tmp_path):
     rc, out = _choose(tmp_path)
     assert rc == 1 and not out.exists()

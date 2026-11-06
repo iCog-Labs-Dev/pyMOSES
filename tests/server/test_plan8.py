@@ -1,6 +1,8 @@
 """Server round 8: the plans (plan8.json, plan8-smoke.json), the configuration of 1ax, the chain
 from round 7, and the orchestrator's `choice` step and `config_dir`, as
-SERVER-ROUND8-PREREGISTRATION.md registers them."""
+SERVER-ROUND8-PREREGISTRATION.md registers them, with the changes of
+SERVER-ROUND6-PREREGISTRATION.md: NOCAP uses POP (`{POP}`), and the control arm FINAL-DYN is
+FINAL with the control population (set_final.py writes both)."""
 
 import json
 import os
@@ -17,7 +19,7 @@ REPO = Path(__file__).resolve().parents[2]
 CONFIGS = REPO / "configs" / "gomea"
 SERVER = REPO / "tools" / "server"
 
-NOCAP = ["-a", "gomea", "--gomea-fos", "lt-b", "--gomea-pop-size", "16",
+NOCAP = ["-a", "gomea", "--gomea-fos", "lt-b", "{POP}",
          "--gomea-skip-inactive", "0", "--gomea-genotype-memo", "1", "--gomea-contin", "copy",
          "--knob-probe-baseline", "reduced", "--linear-scaling", "1"]
 HC = ["-a", "hc", "--knob-probe-baseline", "reduced", "--linear-scaling", "1"]
@@ -30,7 +32,7 @@ def load(path):
 
 
 def test_nocap_is_the_nocap_arm_of_1aw():
-    assert load(CONFIGS / "phase1aw" / "sr.json")["arms"]["NOCAP"]["argv"] == NOCAP
+    assert load(CONFIGS / "phase1aw" / "template.json")["arms"]["NOCAP"]["argv"] == NOCAP
 
 
 def test_template_of_1ax():
@@ -41,7 +43,7 @@ def test_template_of_1ax():
     assert m["wall_cap_s"] == ar["wall_cap_s"] == 2400
     assert m["mem_limit_mb"] == ar["mem_limit_mb"] == 3072
     assert m["datasets_dir"] == "../gomea-results/phase1f/datasets"
-    assert list(m["arms"]) == ["FINAL", "NOCAP", "HC-LS"]
+    assert list(m["arms"]) == ["FINAL", "NOCAP", "HC-LS", "FINAL-DYN"]
     for spec in m["arms"].values():
         assert spec["budget"] == {"time_s": 1000} and spec["binary"] == ".venv/bin/moses"
         assert set(spec) == {"binary", "budget", "argv"}
@@ -55,6 +57,7 @@ def test_final_waits_for_the_choice(prefix):
     directory; no tracked sr.json exists, so phase_run.sh refuses the tracked directory."""
     q = CONFIGS / f"{prefix}1ax"
     assert load(q / "template.json")["arms"]["FINAL"]["argv"] is None
+    assert load(q / "template.json")["arms"]["FINAL-DYN"]["argv"] is None
     assert not (q / "sr.json").exists()
     assert sorted(f.name for f in q.iterdir()) == ["spec.json", "template.json"]
 
@@ -76,10 +79,10 @@ def test_no_extension(prefix):
 
 
 def test_fresh_splits_only():
-    """Rounds 1 to 6 used splits 1-20 only; 1ax uses 21-30, which exist for every dataset."""
+    """Rounds 1 to 7 used splits 1-20 only; 1ax uses 21-30, which exist for every dataset."""
     m = load(CONFIGS / "phase1ax" / "template.json")
     assert min(m["splits"]) == 21 and max(m["splits"]) == 30
-    for f in CONFIGS.glob("phase1a[a-w]/*.json"):
+    for f in CONFIGS.glob("phase1a[a-wyz]/*.json"):
         d = load(f)
         if "splits" in d:
             assert max(d["splits"]) <= 20, f
@@ -96,6 +99,7 @@ def test_spec_of_1ax(prefix):
         [[d, "final-vs-hc", "FINAL", "HC-LS", "test_nmse"] for d in D10]
         + [[d, "final-vs-nocap", "FINAL", "NOCAP", "test_nmse"] for d in D10])
     assert s["secondary_verdicts"] is False and "descriptive" not in s
+    assert s["pooled_secondary"] == [["final-dyn-vs-final", "FINAL-DYN", "FINAL", "test_nmse"]]
 
 
 def test_secondary_cannot_give_a_verdict():
@@ -106,7 +110,8 @@ def test_secondary_cannot_give_a_verdict():
 
 def test_registered_run_count():
     m = load(CONFIGS / "phase1ax" / "template.json")
-    assert len(m["arms"]) * len(m["datasets"]) * len(m["splits"]) == 300
+    # 300 of the pre-registration, plus the control arm FINAL-DYN
+    assert len(m["arms"]) * len(m["datasets"]) * len(m["splits"]) == 400
 
 
 def test_smoke_has_the_same_arms_and_is_small():
@@ -121,12 +126,15 @@ def test_smoke_has_the_same_arms_and_is_small():
         assert spec["budget"] == {"time_s": 15}
 
 
-@pytest.mark.parametrize("plan, name, state_dir, source, target, sid", [
-    ("plan8.json", "server-round8-2026-11", "server-run8", "phase1aw", "phase1ax", "phase1ax"),
+@pytest.mark.parametrize("plan, name, state_dir, source, target, sid, sd6, sd7, az", [
+    ("plan8.json", "server-round8-2026-11", "server-run8", "phase1aw", "phase1ax", "phase1ax",
+     "server-run6", "server-run7", "phase1az"),
     ("plan8-smoke.json", "server-round8-smoke", "server-run8-smoke", "server-smoke7-1aw",
-     "server-smoke8-1ax", "smoke8-1ax"),
+     "server-smoke8-1ax", "smoke8-1ax", "server-run6-smoke", "server-run7-smoke",
+     "server-smoke6-1az"),
 ])
-def test_plan_is_s0_then_the_choice_then_1ax(plan, name, state_dir, source, target, sid):
+def test_plan_is_s0_then_the_choice_then_1ax(plan, name, state_dir, source, target, sid, sd6,
+                                              sd7, az):
     p = load(SERVER / plan)
     assert p["name"] == name and p["state_dir"] == state_dir
     assert [s["type"] for s in p["steps"]] == ["check", "choice", "phase"]
@@ -134,7 +142,13 @@ def test_plan_is_s0_then_the_choice_then_1ax(plan, name, state_dir, source, targ
     assert [s["id"] for s in p["steps"]] == ["S0", "choose-final", sid]
     cfg = f"{{state}}/{target}-config"
     assert ch["argv"] == [".venv/bin/python", "tools/gomea/set_final.py", "--results",
-                          "{results}", "--source", source, "--target", target, "--out", cfg]
+                          "{results}", "--source", source, "--target", target, "--out", cfg,
+                          "--source-dir", f"{{results}}/{sd7}/{source}-config",
+                          "--population",
+                          f"{{results}}/{sd6}/{az}-config/population-choice.json"]
+    # the resolved 1aw is where round 7 writes it
+    p7 = load(SERVER / plan.replace("plan8", "plan7"))
+    assert p7["state_dir"] == sd7 and p7["steps"][2]["config_dir"] == f"{{state}}/{source}-config"
     assert ch["record"] == f"{cfg}/final-choice.json"
     assert ph["phase"] == target and ph["config_dir"] == cfg
     assert ph["requires"] == [f"datasets:{','.join(D10)}"]

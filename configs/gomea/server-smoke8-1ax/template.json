@@ -37,8 +37,7 @@
         "gomea",
         "--gomea-fos",
         "lt-b",
-        "--gomea-pop-size",
-        "16",
+        "{POP}",
         "--gomea-skip-inactive",
         "0",
         "--gomea-genotype-memo",
@@ -64,6 +63,13 @@
         "--linear-scaling",
         "1"
       ]
+    },
+    "FINAL-DYN": {
+      "binary": ".venv/bin/moses",
+      "budget": {
+        "time_s": 15
+      },
+      "argv": null
     }
   }
 }

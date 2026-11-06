@@ -1,28 +1,35 @@
 {
-  "name": "server-smoke7-1aw-sr-ext-Yac",
+  "name": "phase1aw-sr-ext-Air",
   "datasets": [
-    "Yac"
+    "Air"
   ],
   "splits": [
-    3,
-    4
+    11,
+    12,
+    13,
+    14,
+    15,
+    16,
+    17,
+    18,
+    19,
+    20
   ],
   "datasets_dir": "../gomea-results/phase1f/datasets",
-  "wall_cap_s": 300,
+  "wall_cap_s": 2400,
   "mem_limit_mb": 3072,
   "arms": {
     "NOCAP": {
       "binary": ".venv/bin/moses",
       "budget": {
-        "time_s": 15
+        "time_s": 1000
       },
       "argv": [
         "-a",
         "gomea",
         "--gomea-fos",
         "lt-b",
-        "--gomea-pop-size",
-        "16",
+        "{POP}",
         "--gomea-skip-inactive",
         "0",
         "--gomea-genotype-memo",
@@ -38,15 +45,14 @@
     "LMVAL": {
       "binary": ".venv/bin/moses",
       "budget": {
-        "time_s": 15
+        "time_s": 1000
       },
       "argv": [
         "-a",
         "gomea",
         "--gomea-fos",
         "lt-b",
-        "--gomea-pop-size",
-        "16",
+        "{POP}",
         "--gomea-skip-inactive",
         "0",
         "--gomea-genotype-memo",
@@ -66,15 +72,14 @@
     "LMVAL-PEN125": {
       "binary": ".venv/bin/moses",
       "budget": {
-        "time_s": 15
+        "time_s": 1000
       },
       "argv": [
         "-a",
         "gomea",
         "--gomea-fos",
         "lt-b",
-        "--gomea-pop-size",
-        "16",
+        "{POP}",
         "--gomea-skip-inactive",
         "0",
         "--gomea-genotype-memo",
@@ -98,19 +103,45 @@
     "LMVAL-C250": {
       "binary": ".venv/bin/moses",
       "budget": {
-        "time_s": 15
+        "time_s": 1000
       },
       "argv": [
         "-a",
         "gomea",
         "--gomea-fos",
         "lt-b",
-        "--gomea-pop-size",
-        "16",
+        "{POP}",
         "--gomea-skip-inactive",
         "0",
         "--gomea-max-evals-per-deme",
         "250",
+        "--gomea-genotype-memo",
+        "1",
+        "--gomea-contin",
+        "copy",
+        "--knob-probe-baseline",
+        "reduced",
+        "--linear-scaling",
+        "1",
+        "--const-opt",
+        "lm",
+        "--const-opt-guard",
+        "val"
+      ]
+    },
+    "LMVAL-DYN": {
+      "binary": ".venv/bin/moses",
+      "budget": {
+        "time_s": 1000
+      },
+      "argv": [
+        "-a",
+        "gomea",
+        "--gomea-fos",
+        "lt-b",
+        "{CONTROL}",
+        "--gomea-skip-inactive",
+        "0",
         "--gomea-genotype-memo",
         "1",
         "--gomea-contin",

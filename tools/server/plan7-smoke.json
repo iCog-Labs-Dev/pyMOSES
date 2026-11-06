@@ -1,6 +1,6 @@
 {
   "name": "server-round7-smoke",
-  "description": "Smoke test of the round-7 plan: limited pytest, the mux11 repro run, then 1aw in miniature (configs/gomea/server-smoke7-1aw: 2 splits, 15 s per run). Uses its own state dir, so it never marks real steps done.",
+  "description": "Smoke test of the round-7 plan: limited pytest, the mux11 repro run, the population of the smoke round 6 applied to the 1aw templates, then 1aw in miniature (configs/gomea/server-smoke7-1aw: 2 splits, 15 s per run). Uses its own state dir, so it never marks real steps done. Runs after smoke6 (plan6-smoke.json, \"then\"), then smoke8.",
   "then": "smoke8",
   "state_dir": "server-run7-smoke",
   "steps": [
@@ -12,7 +12,8 @@
           "tests/server",
           "tests/gomea/test_const_opt.py",
           "tests/gomea/test_const_opt_guard.py",
-          "tests/gomea/test_phase_report.py"
+          "tests/gomea/test_phase_report.py",
+          "tests/gomea/test_set_population.py"
         ]
       },
       "repro": {
@@ -22,12 +23,29 @@
       }
     },
     {
+      "id": "apply-population",
+      "type": "choice",
+      "argv": [
+        ".venv/bin/python",
+        "tools/gomea/set_population.py",
+        "apply",
+        "--choice",
+        "{results}/server-run6-smoke/server-smoke6-1az-config/population-choice.json",
+        "--target",
+        "server-smoke7-1aw",
+        "--out",
+        "{state}/server-smoke7-1aw-config"
+      ],
+      "record": "{state}/server-smoke7-1aw-config/population-applied.json"
+    },
+    {
       "id": "smoke7-1aw",
       "type": "phase",
       "phase": "server-smoke7-1aw",
       "requires": [
         "datasets:WiR,Con,EnH,Air,Yac,Tow"
-      ]
+      ],
+      "config_dir": "{state}/server-smoke7-1aw-config"
     }
   ]
 }

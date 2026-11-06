@@ -169,5 +169,13 @@
       "test_nmse"
     ]
   ],
-  "secondary_verdicts": false
+  "secondary_verdicts": false,
+  "pooled_secondary": [
+    [
+      "final-dyn-vs-final",
+      "FINAL-DYN",
+      "FINAL",
+      "test_nmse"
+    ]
+  ]
 }

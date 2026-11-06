@@ -18,6 +18,7 @@ SPEC_JSON (one per phase, `configs/gomea/<phase>/spec.json`)::
      "secondary":   [[...], ...],
      "descriptive": [[...], ...],          # optional
      "pooled_primary": [[name, arm_a, arm_b, metric], ...],   # optional (server round 8)
+     "pooled_secondary": [[name, arm_a, arm_b, metric], ...], # optional (server round 8)
      "secondary_verdicts": false}          # optional (server round 8), default true
 
 A contrast takes its problem's metric, or the optional fifth element (server round 3,
@@ -44,6 +45,11 @@ exp(median r) <= 0.9, "A worse" if Holm p < ALPHA and exp(median r) >= 1/0.9, el
 "extend". The rows have problem "pooled", family "primary", metric "log_ratio:<metric>",
 `median_log_ratio` and `ratio` = exp(median r). A spec with pooled primary contrasts must have
 no per-problem primary ones.
+
+Pooled secondary contrasts (`pooled_secondary`, the control arm of round 8 after the population
+round): the same pooled test and verdict rule, with their own Holm family (separate from the
+pooled primary and the per-problem secondary contrasts), and family "secondary". They never
+extend.
 
 Rule (each look at ALPHA = 0.025): Holm p < ALPHA and a median at least 10 % lower is
 "A better" (mirror: "A worse"); primary contrasts at stage 1 with ALPHA <= Holm p <
@@ -375,7 +381,8 @@ def main(argv: list[str] | None = None) -> int:
     if pooled and families["primary"]:
         print("spec has both pooled and per-problem primary contrasts", file=sys.stderr)
         return 2
-    for c in pooled:
+    pooled2 = spec.get("pooled_secondary", [])
+    for c in pooled + pooled2:
         if len(c) != 4 or c[3] not in METRICS:
             print(f"bad pooled contrast {c} (want [name, arm_a, arm_b, metric])", file=sys.stderr)
             return 2
@@ -392,6 +399,10 @@ def main(argv: list[str] | None = None) -> int:
     if spec.get("secondary_verdicts", True) is False:
         for r in rows["secondary"]:
             r["verdict"] = None
+    if pooled2:
+        prows = [_pooled_contrast(n, a, b, runs, list(metrics), m) for n, a, b, m in pooled2]
+        _decide_pooled(prows)
+        rows["secondary"] += prows
     for r in rows["descriptive"]:
         r["p_holm"], r["verdict"] = None, None
     for k, rs in rows.items():

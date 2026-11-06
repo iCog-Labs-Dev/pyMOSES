@@ -4,7 +4,8 @@ Usage (from the repository root, after `tools/gomea/phase_run.sh phase1aw`; the 
 runs it as its `choice` step)::
 
     .venv/bin/python tools/gomea/set_final.py --out DIR [--results DIR] [--configs DIR]
-        [--source PHASE] [--target PHASE] [--dry-run] [--force]
+        [--source PHASE] [--target PHASE] [--source-dir DIR] [--population FILE]
+        [--dry-run] [--force]
 
 `SERVER-ROUND8-PREREGISTRATION.md`, "The choice of FINAL": if rule 2 of 1aw passes (LMVAL-PEN125
 is better than LMVAL on size on at least 4 of 6 datasets, and its median test NMSE is at most
@@ -24,6 +25,15 @@ Rules 1 and 3 of 1aw do not change FINAL. This script
 5. writes DIR/sr.json: `CONFIGS/TARGET/template.json` with the FINAL arm's `argv` set to the
    exact argv of the chosen arm of `CONFIGS/SOURCE/sr.json`; DIR/spec.json: a copy of
    `CONFIGS/TARGET/spec.json`; and DIR/final-choice.json: the rule, the numbers and the choice.
+
+**After the population round** (`SERVER-ROUND6-PREREGISTRATION.md`, "Changes to rounds 7 and
+8"): `--source-dir` is the directory of the resolved SOURCE manifest (round 7 writes it into its
+state directory with `set_population.py apply`; default `CONFIGS/SOURCE`), so FINAL gets the
+argv with POP applied. `--population` is the `population-choice.json` of round 6. With it, the
+tokens `{POP}`, `{DYN}` and `{CONTROL}` of the template are resolved (NOCAP gets POP), and the arm
+FINAL-DYN (`"argv": null` in the template) gets the argv of FINAL with its population flags
+replaced by the control population (DYN, or N = 16 if POP equals DYN). A template with a token
+or with FINAL-DYN needs `--population`.
 
 DIR is in the round's state directory (the plan passes `{state}/phase1ax-config`), and
 phase_run.sh reads the phase from there (PHASE_CONFIG_DIR). So the choice never changes a
@@ -49,6 +59,7 @@ from pathlib import Path
 REPO = Path(__file__).resolve().parents[2]
 
 PEN, LMVAL, FINAL = "LMVAL-PEN125", "LMVAL", "FINAL"
+FINAL_DYN = "FINAL-DYN"
 MIN_BETTER = 4
 MAX_RATIO = 1.10
 CAP = "--gomea-max-evals-per-deme"
@@ -140,6 +151,31 @@ def evaluate(rep: dict) -> dict:
             "per_dataset": per_ds, "chosen_arm": PEN if passes else LMVAL}
 
 
+def _apply_population(manifest: dict, template: dict, final_argv: list[str],
+                      choice_file: str) -> dict:
+    """Resolve the population tokens of the manifest and fill FINAL-DYN (server round 6,
+    "Changes to rounds 7 and 8"). Returns the record of what it did."""
+    from set_population import resolve_argv, swap_population  # noqa: PLC0415 (a cycle)
+
+    choice = _read_json(Path(choice_file))
+    for k in ("pop", "dyn", "control"):
+        if not isinstance(choice.get(k), dict) or not choice[k].get("argv"):
+            raise ChoiceError(f"{choice_file} has no {k}")
+    for arm, spec in manifest["arms"].items():
+        if arm not in (FINAL, FINAL_DYN):
+            spec["argv"] = resolve_argv(spec.get("argv"), choice)
+    rec = {"choice_file": str(Path(choice_file).resolve()),
+           **{k: choice[k] for k in ("pop", "dyn", "control")}}
+    if FINAL_DYN in template["arms"]:
+        if template["arms"][FINAL_DYN].get("argv") is not None:
+            raise ChoiceError(f"want arm {FINAL_DYN} with argv null in the template")
+        dyn_argv = swap_population(final_argv, choice["control"])
+        manifest["arms"][FINAL_DYN] = {k: v for k, v in template["arms"][FINAL_DYN].items()
+                                       if k in ("binary", "budget")} | {"argv": dyn_argv}
+        rec["final_dyn_argv"] = dyn_argv
+    return rec
+
+
 def _json_safe(x):
     if isinstance(x, float) and not math.isfinite(x):
         return "nan" if math.isnan(x) else ("inf" if x > 0 else "-inf")
@@ -157,18 +193,25 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--configs", default=str(REPO / "configs" / "gomea"))
     ap.add_argument("--source", default="phase1aw")
     ap.add_argument("--target", default="phase1ax")
+    ap.add_argument("--source-dir", default=None)
+    ap.add_argument("--population", default=None)
     ap.add_argument("--dry-run", action="store_true")
     ap.add_argument("--force", action="store_true")
     a = ap.parse_args(argv)
     results, configs, out = Path(a.results).resolve(), Path(a.configs).resolve(), Path(a.out)
+    src_dir = Path(a.source_dir) if a.source_dir else configs / a.source
+    population = None
     try:
         rep = final_report(results, configs, a.source)
         ev = evaluate(rep)
-        src = _read_json(configs / a.source / "sr.json")
+        src = _read_json(src_dir / "sr.json")
         chosen = src["arms"].get(ev["chosen_arm"])
         if chosen is None:
-            raise ChoiceError(f"{configs / a.source / 'sr.json'} has no arm {ev['chosen_arm']}")
+            raise ChoiceError(f"{src_dir / 'sr.json'} has no arm {ev['chosen_arm']}")
         final_argv = list(chosen["argv"])
+        if any("{" in x for x in final_argv):
+            raise ChoiceError(f"the argv of {ev['chosen_arm']} in {src_dir / 'sr.json'} has an "
+                              f"unresolved token: {final_argv}")
         if CAP in final_argv or any(t.startswith(CAP + "=") for t in final_argv):
             raise ChoiceError(f"the argv of {ev['chosen_arm']} has {CAP}: {final_argv}")
         template = _read_json(configs / a.target / "template.json")
@@ -176,13 +219,20 @@ def main(argv: list[str] | None = None) -> int:
             raise ChoiceError(f"{configs / a.target / 'template.json'}: want arm {FINAL} "
                               "with argv null")
         spec_text = (configs / a.target / "spec.json").read_text()
+        manifest = json.loads(json.dumps(template))
+        manifest["arms"][FINAL] = {k: v for k, v in template["arms"][FINAL].items()
+                                   if k in ("binary", "budget")} | {"argv": final_argv}
+        needs = FINAL_DYN in template["arms"] or any(
+            "{" in x for s in template["arms"].values() for x in (s.get("argv") or []))
+        if needs and not a.population:
+            raise ChoiceError(f"{configs / a.target / 'template.json'} has population tokens "
+                              f"or {FINAL_DYN}: pass --population")
+        if a.population:
+            population = _apply_population(manifest, template, final_argv, a.population)
     except (ChoiceError, OSError, KeyError, TypeError, ValueError) as exc:
         print(f"set_final: {exc}", file=sys.stderr)
         print("set_final: nothing written", file=sys.stderr)
         return 1
-    manifest = json.loads(json.dumps(template))
-    manifest["arms"][FINAL] = {k: v for k, v in template["arms"][FINAL].items()
-                               if k in ("binary", "budget")} | {"argv": final_argv}
     text = json.dumps(manifest, indent=2) + "\n"
     for d, v in ev["per_dataset"].items():
         print(f"{d}: size {v['size_verdict']} (Holm p {v['size_p_holm']}); median test NMSE "
@@ -198,8 +248,13 @@ def main(argv: list[str] | None = None) -> int:
         "rule": RULE, "source": a.source, "target": a.target,
         "report_stage": rep["stage"], "report": rep["report"],
         "extended_at_stage1": rep["extended"], **ev, "final_argv": final_argv,
-        "manifest": str(out / "sr.json"),
+        "source_manifest": str(src_dir / "sr.json"), "manifest": str(out / "sr.json"),
     }
+    if population is not None:
+        record["population"] = population
+        if population.get("final_dyn_argv"):
+            print(f"-> {FINAL_DYN} (control {population['control']['name']}): "
+                  f"{' '.join(population['final_dyn_argv'])}")
     if a.dry_run:
         return 0
     if (out / "sr.json").exists() and (out / "sr.json").read_text() != text and not a.force:

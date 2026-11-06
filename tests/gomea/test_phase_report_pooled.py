@@ -169,3 +169,36 @@ def test_spec_without_the_new_keys_is_unchanged(tmp_path):
     assert rows[("P1", "f-vs-n")]["verdict"] == "A better"
     assert rows[("P1", "f-vs-h")]["verdict"] == "A better"
     assert "median_log_ratio" not in rows[("P1", "f-vs-n")]
+
+
+# ---- after the population round: the pooled secondary contrast (FINAL-DYN vs FINAL)
+
+
+def test_pooled_secondary_has_its_own_holm_and_a_verdict(tmp_path):
+    """D = 0.5 F on all 10 pairs: p = 2 / 1024; Holm over the 1 pooled secondary contrast
+    keeps it (0.00195 < 0.025), ratio 0.5 -> "A better", family secondary. The pooled primary
+    Holm family stays the 2 primary contrasts (4 / 1024)."""
+    spec = {**SPEC, "pooled_secondary": [["d-vs-f", "D", "F", "test_nmse"]]}
+    runs = {}
+    for p in ("P1", "P2"):
+        for s in range(1, 6):
+            runs[(p, "F", s)] = 0.5
+            runs[(p, "N", s)] = 1.0
+            runs[(p, "H", s)] = 0.25
+            runs[(p, "D", s)] = 0.25
+    rc, rows, out = _report(tmp_path, runs, spec)
+    assert rc == 0
+    d = rows[("pooled", "d-vs-f")]
+    assert d["family"] == "secondary" and int(d["pairs"]) == 10
+    assert float(d["p_holm"]) == pytest.approx(2 / 1024)
+    assert d["verdict"] == "A better" and float(d["ratio"]) == pytest.approx(0.5)
+    assert float(rows[("pooled", "f-vs-n")]["p_holm"]) == pytest.approx(4 / 1024)
+    sec = [r for r in rows.values() if r["family"] == "secondary" and r["problem"] != "pooled"]
+    assert len(sec) == 4 and all(r["verdict"] == "" for r in sec)
+    assert json.loads((out / "verdict.json").read_text())["pooled:d-vs-f"] == "A better"
+
+
+def test_a_bad_pooled_secondary_contrast_is_refused(tmp_path):
+    spec = {**SPEC, "pooled_secondary": [["d-vs-f", "D", "F"]]}
+    rc, _, _ = _report(tmp_path, _runs(), spec)
+    assert rc == 2

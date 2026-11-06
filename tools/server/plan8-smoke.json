@@ -1,6 +1,6 @@
 {
   "name": "server-round8-smoke",
-  "description": "Smoke test of the round-8 plan: limited pytest, the mux11 repro run, the choice from the smoke 1aw report, then 1ax in miniature (configs/gomea/server-smoke8-1ax: 2 splits, 15 s per run). Uses its own state dir, so it never marks real steps done. Runs after smoke7 (plan7-smoke.json, \"then\").",
+  "description": "Smoke test of the round-8 plan: limited pytest, the mux11 repro run, the choice from the smoke 1aw report (with the smoke population of round 6), then 1ax in miniature (configs/gomea/server-smoke8-1ax: 2 splits, 15 s per run). Uses its own state dir, so it never marks real steps done. Runs after smoke7 (plan7-smoke.json, \"then\").",
   "state_dir": "server-run8-smoke",
   "steps": [
     {
@@ -33,7 +33,11 @@
         "--target",
         "server-smoke8-1ax",
         "--out",
-        "{state}/server-smoke8-1ax-config"
+        "{state}/server-smoke8-1ax-config",
+        "--source-dir",
+        "{results}/server-run7-smoke/server-smoke7-1aw-config",
+        "--population",
+        "{results}/server-run6-smoke/server-smoke6-1az-config/population-choice.json"
       ],
       "record": "{state}/server-smoke8-1ax-config/final-choice.json"
     },
