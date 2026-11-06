@@ -204,3 +204,9 @@ chain from round 4 to round 5, which are still to be written.
 all agent-written). The user answered: "Yes I think for the next one, we should run the follow up
 exepriments and the one last confirmation round of the combined settings." User-approved: the
 design in `SERVER-ROUND6-PREREGISTRATION.md`. Not yet designed or approved: the confirmation round.
+
+**Server round 7 (2026-11-06):** the agent proposed the confirmation round 1ax (fresh splits 21–30,
+the pooled primary test, the choice of FINAL, all agent-written) and asked if the chain should stop
+after round 6 for a decision. The user answered: "Yes I approve, and keep the chain without a
+pause". User-approved: the design in `SERVER-ROUND7-PREREGISTRATION.md`. Not user-approved: the
+code of the choice script and of the pooled test, which are still to be written.
