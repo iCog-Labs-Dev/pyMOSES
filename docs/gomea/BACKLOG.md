@@ -533,6 +533,16 @@ stable conclusion (user). Order: tier 1 first, then tier 2. Citation counts are 
    subsampling code (`--ss-*`, `--fs-subsampling-ratio`). Boosting (`--boost`) is related, but
    the regression scorer has no `get_error`, so it needs work first. The evidence is for parent
    selection in population GP, not for MOSES exemplar selection.
+4. **B4a. Least squares on the top-level terms (user, 2026-11-06).** Many MOSES regression programs
+   are a sum of terms. Fit one weight per top-level term with least squares in the scorer, in place
+   of the single `a + b·f` of linear scaling. It reuses the representation, the scorer and the
+   linear-scaling code. Basis: ITEA (de França and Aldeia, ECJ 2021, DOI 10.1162/evco_a_00285),
+   which fits per-term weights by least squares; SRBench (La Cava et al. 2021) puts ITEA in the top
+   10 of 21 methods on the real-world sets, "not significantly different from RandomForest or
+   AdaBoost" (exact rank not in the text). Related: MRGP (Arnaldo, Krawiec, O'Reilly, GECCO 2014;
+   not checked). Risk: overfitting and collinear terms; use the validation guard and, if needed,
+   regularization. Also a candidate **alternative to LM if LM does not scale**: one linear solve per
+   evaluation (rows × terms²) against up to 10 LM iterations (rows × constants² each).
 
 **Low priority: only if we run out of options (user, 2026-11-06)**
 - **A3. Intron-masked MI** (Koch et al. 2026, arXiv 2602.02311): give inactive knob values (under a
@@ -550,17 +560,38 @@ stable conclusion (user). Order: tier 1 first, then tier 2. Citation counts are 
 6. **B2. Semantic backpropagation with a subtree library** (Pawlak et al., TEVC 2015; with linear
    scaling, Virgolin et al., GECCO 2019): a new knob type that puts in the library subtree closest
    to the output a node should give.
-7. **B4. ITEA** (de França and Aldeia, ECJ 2021, DOI 10.1162/evco_a_00285): pending the user's
-   decision.
-8. **B6. Modular GP-GOMEA** (2025, arXiv 2505.01262): several small template trees that call each
+7. **B4-split. LM on the inner constants of each term, then least squares for the term weights
+   (user, 2026-11-06).** Basis: Aldeia and de França, GECCO 2022 Companion, DOI
+   10.1145/3520304.3533987, and Aldeia's thesis (arXiv 2512.01682, chapter 3). With two inner
+   parameters per IT term, `t(θ0 + θ1·∏ x^k)`, four methods were compared on Airfoil, Concrete,
+   Energy cooling and heating, Wine red and Yacht. Per-term LM then least squares ("LM+OLS") had the
+   lowest or tied test NMSE; LM on all parameters together was the worst (overparameterization,
+   start values); least squares alone was "a compelling choice" for accuracy against cost. LM+OLS
+   gave larger expressions and more run time than least squares alone. The column labels of the
+   thesis tables do not match its text in our extracted copy, so use only the text claims. For us:
+   compare against our current joint LM (LM-VAL), after B4a.
+8. **B4b. A full IT representation as a deme type.** Knobs: one integer power per (term, feature),
+   one transformation per term, one on/off per term; weights by least squares. A fixed-length,
+   fully discrete genome, where the powers of a term are a natural group for linkage. Invalid terms
+   are dropped after evaluation on the training rows (ITEA, sections 4.2 and 4.5); the power range
+   and the maximum number of terms limit the search beforehand. Later step: TIR (de França, GECCO
+   2022, arXiv 2205.06807), a rational form; its "state-of-the-art" SRBench claim is the author's
+   own and not checked.
+9. **B6. Modular GP-GOMEA** (2025, arXiv 2505.01262): several small template trees that call each
    other. Possible hints for multiple demes in GP-GOMEA. **The user reads and validates the paper
    first. No experiment before that.**
-9. **B7. Higher-arity GP-GOMEA** (GECCO 2024, arXiv 2402.09854): semantic subtree inheritance and
-   greedy child selection. Needs a tree template.
+10. **B7. Higher-arity GP-GOMEA** (GECCO 2024, arXiv 2402.09854): semantic subtree inheritance and
+    greedy child selection. Needs a tree template.
 
 **Control**
-10. **hBOA as a deme optimizer (user, 2026-11-06):** a control against GOMEA, as in the original
-    MOSES (Looks 2006). The `-a` choices are hc, sa, un, ps (and our gomea variants), so no hBOA
-    optimizer is wired in. But `pymoses/moses/eda/` has the ported BOA machinery
-    (`local_structure.py`: "Bayesian Optimization Algorithm (BOA) machinery"), so a BOA deme
-    optimizer may reuse it. Check how much is missing before a design.
+11. **hBOA as a deme optimizer (user, 2026-11-06):** a control against GOMEA, as in the original
+    MOSES (Looks 2006). Checked 2026-11-06: classic C++ MOSES (`moses/eda/local_structure.h` in
+    `OpenCog/asmoses` and `OpenCog/Moses`) has only the BOA scaffolding: the dependency-tree model
+    (`dtree`, `split`), sampling, and probability learning. The structure-learning step is a
+    commented-out stub (`bde_local_structure_learning`, "XXX implement this"). The only structure
+    policy is `univariate`, used by `-a un`. pyMOSES ports exactly this (`pymoses/moses/eda/`,
+    `univariate.py`). So neither has BOA dependency learning. A BOA control needs a new
+    structure-learning policy (for example greedy decision-tree splits scored by BDe or BIC, as in
+    Pelikan's BOA/hBOA and Looks 2006), on top of the existing dtree, split, sampling and
+    probability code. `-a un` (univariate EDA, no dependencies) can serve as a no-code control now;
+    none of our phases ran it.
