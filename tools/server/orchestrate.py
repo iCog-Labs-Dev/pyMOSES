@@ -35,13 +35,19 @@ does not either. RETRY_FAILED and REPRO_ONLY do not pass to the next plan. Each 
 a chain holds the chain's lock (`chain.lock`), so no two of them run at the same time.
 
 Step types: `check` (S0: pytest and the reproducibility check; failures are flagged, never
-fatal) and `phase` (optionally `requires: ["gpgomea"]`, `["knob-cap:PILOT"]` (PILOT's
+fatal), `choice` (server round 7: `argv`, a command run once from the repository root, with
+`{repo}`, `{results}` and `{state}` replaced; done when it exits 0, else failed; its
+`record` file, a JSON object that the command writes, goes into the `choice` event) and
+`phase` (optionally `requires: ["gpgomea"]`, `["knob-cap:PILOT"]` (PILOT's
 `knob-cap.json`, written by tools/gomea/set_knob_cap.py), `["const-opt:PHASE"]` (round 3:
 PHASE's `const-opt-choice.json`, written by tools/gomea/set_const_opt.py) or
 `["datasets:A,B,..."]` (round 3: each dataset built and verified by setup.sh under
 phase1f/datasets/), and a `pilot` phase plus an
 `after_pilot` command that must succeed before the phase). A phase step's `set_commit_in`
-manifests get the current HEAD as `commit` before its pilot and phase run. A phase runs as
+manifests get the current HEAD as `commit` before its pilot and phase run. A phase step's optional
+`config_dir` (round 7; `{state}` and `{results}` replaced) is passed to phase_run.sh as
+PHASE_CONFIG_DIR, and the step is skipped while that directory has no spec.json and sr.json
+(for example when the choice step failed). A phase runs as
 `WORKERS=W tools/gomea/phase_run.sh PHASE >> ../gomea-results/PHASE.log`, W from
 resources.py at the phase's start; a non-zero exit is retried once, then the step is
 marked failed and the round goes on. A step whose requirement or configuration is missing
@@ -368,7 +374,7 @@ class Round:
                 bad += 1
         return {"runs_ok": ok, "runs_failed": bad}
 
-    def run_phase(self, phase: str, st: dict) -> int:
+    def run_phase(self, phase: str, st: dict, config_dir: Path | None = None) -> int:
         """Run one phase through phase_run.sh, retrying once on a non-zero exit."""
         w = self.workers(phase)
         st.setdefault("workers", []).append(w)
@@ -383,9 +389,12 @@ class Round:
             self.log(f"{phase}: attempt {attempt} (log {logp})")
             self.current = {"phase": phase, "attempt": attempt, "workers": w}
             with logp.open("a") as lf:
+                env = {k: v for k, v in os.environ.items() if k != "PHASE_CONFIG_DIR"}
+                if config_dir is not None:
+                    env["PHASE_CONFIG_DIR"] = str(config_dir)
                 p = subprocess.Popen(["bash", "tools/gomea/phase_run.sh", phase], cwd=REPO,
                                      stdout=lf, stderr=subprocess.STDOUT,
-                                     env={**os.environ, "WORKERS": str(w)})
+                                     env={**env, "WORKERS": str(w)})
                 rc = p.wait()
             self.scan()
             self.log(f"{phase}: attempt {attempt} exited rc={rc}")
@@ -472,6 +481,12 @@ class Round:
         for p in [step.get("pilot"), phase]:
             if p and not (REPO / "configs" / "gomea" / p / "spec.json").exists():
                 return self.skip(sid, st, f"no configs/gomea/{p}/spec.json in this checkout")
+        config_dir = None
+        if step.get("config_dir"):
+            config_dir = Path(self.fmt(step["config_dir"]))
+            if not ((config_dir / "spec.json").is_file() and (config_dir / "sr.json").is_file()):
+                return self.skip(sid, st, f"no spec.json and sr.json in {config_dir} "
+                                 "(did the choice step fail?)")
         self.set_commit(step)  # before the pilot too, whose manifests it may name
         if step.get("pilot"):
             pst = st.setdefault("pilot", {})
@@ -505,10 +520,38 @@ class Round:
                 if ast["status"] != "done":
                     return self.skip(sid, st, f"after-pilot command failed (rc={ast.get('rc')}): "
                                      f"{(ast.get('stderr') or '').strip()[-300:]}")
-        rc = self.run_phase(phase, st)
+        rc = self.run_phase(phase, st, config_dir)
         st.update(status="done" if rc == 0 else "failed", rc=rc, end=utc(),
                   **self.run_counts(phase))
         self.save_state()
+
+    def fmt(self, text: str) -> str:
+        return text.format(repo=REPO, results=RES, state=self.sd)
+
+    def do_choice(self, step: dict, st: dict) -> None:
+        """Round 7: run the step's command once; log its record file as the `choice` event."""
+        sid = step["id"]
+        argv = [self.fmt(a) for a in step["argv"]]
+        try:
+            r = subprocess.run(argv, cwd=REPO, capture_output=True, text=True, timeout=3600)
+            rc, out, err = r.returncode, r.stdout, r.stderr
+        except (OSError, subprocess.TimeoutExpired) as exc:
+            rc, out, err = -1, "", f"{type(exc).__name__}: {exc}"
+        record = None
+        if step.get("record"):
+            rp = Path(self.fmt(step["record"]))
+            try:
+                record = json.loads(rp.read_text())
+            except (OSError, ValueError) as exc:
+                record = None
+                if rc == 0:
+                    rc, err = -2, err + f"\nno readable record {rp}: {type(exc).__name__}: {exc}"
+        st.update(status="done" if rc == 0 else "failed", rc=rc, argv=argv,
+                  stdout=out[-20000:], stderr=err[-5000:], end=utc())
+        self.save_state()
+        self.event("choice", step=sid, argv=argv, rc=rc, record=record, stdout=out[-20000:],
+                   stderr=err[-5000:])
+        self.log(f"{sid}: choice command rc={rc}: {out.strip()[-2000:]} {err.strip()[-500:]}")
 
     def do_check(self, step: dict, st: dict) -> None:
         sid = step["id"]
@@ -644,6 +687,8 @@ class Round:
                     self.do_check(step, st)
                 elif step["type"] == "phase":
                     self.do_phase(step, st)
+                elif step["type"] == "choice":
+                    self.do_choice(step, st)
                 else:
                     self.skip(sid, st, f"unknown step type {step['type']!r}")
             except Stopped:
@@ -732,6 +777,11 @@ class Round:
         if pp:
             L += ["", "## Pilot", ""] + [f"* `{' '.join(e['argv'][1:])}` rc={e['rc']}:\n\n```\n"
                                            f"{e['stdout'].strip()[-3000:]}\n```" for e in pp]
+        ch = [e for e in events if e["event"] == "choice"]
+        if ch:
+            L += ["", "## Choice", ""] + [f"* `{e['step']}` rc={e['rc']}:\n\n```\n"
+                                            f"{(e.get('stdout') or '').strip()[-3000:]}\n```"
+                                            for e in ch]
         L += ["", "## Verdicts (contrasts.csv)", ""]
         for phase in self.phases:
             for stage in (1, 2):

@@ -1,6 +1,7 @@
 {
   "name": "server-round6-2026-11",
-  "description": "SERVER-ROUND6-PREREGISTRATION.md: S0, then 1aw (LM-VAL with no per-deme cap, and LM-VAL with PEN125). One phase.",
+  "description": "SERVER-ROUND6-PREREGISTRATION.md: S0, then 1aw (LM-VAL with no per-deme cap, and LM-VAL with PEN125). One phase. Then round 7 (plan7.json, \"then\") without a pause.",
+  "then": "round7",
   "state_dir": "server-run6",
   "steps": [
     {

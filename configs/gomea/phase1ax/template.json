@@ -1,0 +1,77 @@
+{
+  "name": "phase1ax-sr",
+  "datasets": [
+    "Air",
+    "Bos",
+    "Con",
+    "Dow",
+    "EnC",
+    "EnH",
+    "Tow",
+    "WiR",
+    "WiW",
+    "Yac"
+  ],
+  "splits": [
+    21,
+    22,
+    23,
+    24,
+    25,
+    26,
+    27,
+    28,
+    29,
+    30
+  ],
+  "datasets_dir": "../gomea-results/phase1f/datasets",
+  "wall_cap_s": 2400,
+  "mem_limit_mb": 3072,
+  "arms": {
+    "FINAL": {
+      "binary": ".venv/bin/moses",
+      "budget": {
+        "time_s": 1000
+      },
+      "argv": null
+    },
+    "NOCAP": {
+      "binary": ".venv/bin/moses",
+      "budget": {
+        "time_s": 1000
+      },
+      "argv": [
+        "-a",
+        "gomea",
+        "--gomea-fos",
+        "lt-b",
+        "--gomea-pop-size",
+        "16",
+        "--gomea-skip-inactive",
+        "0",
+        "--gomea-genotype-memo",
+        "1",
+        "--gomea-contin",
+        "copy",
+        "--knob-probe-baseline",
+        "reduced",
+        "--linear-scaling",
+        "1"
+      ]
+    },
+    "HC-LS": {
+      "binary": ".venv/bin/moses",
+      "budget": {
+        "time_s": 1000
+      },
+      "argv": [
+        "-a",
+        "hc",
+        "--knob-probe-baseline",
+        "reduced",
+        "--linear-scaling",
+        "1"
+      ]
+    }
+  }
+}

@@ -387,3 +387,51 @@ Arms and files:
 
 Smoke test: `bash tools/server/start.sh --plan smoke6` (`configs/gomea/server-smoke6-1aw`: 2 splits,
 15 s per run). The state is in `server-run6-smoke/`.
+
+## Round 7 and the chain from round 6
+
+The seventh round (`SERVER-ROUND7-PREREGISTRATION.md`: the confirmation round on splits 21-30) has
+its own plan, `tools/server/plan7.json`: S0, then the choice of FINAL, then phase 1ax. Its state is in
+`../gomea-results/server-run7/`. `plan6.json` has `"then": "round7"`, so one command runs both
+rounds, one after the other, without a pause:
+
+    bash tools/server/start.sh --plan round6
+
+The chain works as in "Round 5 and the chain from round 4": two summaries, two final bundles, one
+chain lock (`server-run6/chain.lock`). Bring back both bundles.
+
+**The choice of FINAL.** The step `choose-final` (step type `choice`) runs `tools/gomea/set_final.py`:
+
+1. It reads the final 1aw report: `report-stage2` if a primary contrast was "extend" at stage 1,
+   else `report-stage1`. Only an "extend" contrast takes its verdict from stage 2.
+2. Rule 2 of 1aw passes if LMVAL-PEN125 vs LMVAL on `program_size` is "A better" on at least 4 of
+   6 datasets, and the median test NMSE of LMVAL-PEN125 / LMVAL is at most 1.10 on each dataset.
+3. FINAL gets the exact argv of the LMVAL-PEN125 arm of 1aw if rule 2 passes, else of the LMVAL arm.
+4. It writes `server-run7/phase1ax-config/`: `sr.json` (the resolved manifest), `spec.json` (a copy)
+   and `final-choice.json` (the rule, the numbers and the choice). The orchestrator logs
+   `final-choice.json` as the `choice` event, and `round-summary.md` has a "Choice" section.
+
+The choice never writes a tracked file. `configs/gomea/phase1ax/` has only `template.json` (FINAL has
+`"argv": null`) and `spec.json`. The phase step has `"config_dir": "{state}/phase1ax-config"`, and the
+orchestrator gives it to `phase_run.sh` as `PHASE_CONFIG_DIR`. So the tree stays clean, and no later S0
+test fails because of the choice (round 3 had this problem with `set_const_opt.py`). If the choice
+fails, the step is failed, and phase 1ax is skipped with the reason in the log. A second run of
+`set_final.py` with another result refuses to replace `sr.json` (use `--force` only by hand).
+
+Arms and files:
+
+* `configs/gomea/phase1ax/`: FINAL, NOCAP, HC-LS on Air, Bos, Con, Dow, EnC, EnH, Tow, WiR, WiW, Yac,
+  splits 21-30, 1,000 s, wall cap 2,400 s, 3,072 MB (as 1ar). 300 runs. No arm has a per-deme cap:
+  HC-LS is `-a hc`, not `hc-capped`. There is no extension.
+* `spec.json` has `pooled_primary`: FINAL vs HC-LS and FINAL vs NOCAP, each pooled over the 100
+  (dataset, split) pairs. `phase_report.py` tests r = log(NMSE_A / NMSE_B) with a paired Wilcoxon
+  signed-rank test and Holm across the 2. A failed run gets the largest rank against it. Verdict:
+  "A better" if Holm p < 0.025 and exp(median r) <= 0.9, "A worse" if exp(median r) >= 1/0.9. The rows
+  have problem `pooled`, `median_log_ratio` and `ratio`.
+* The 20 secondary contrasts (each contrast on each dataset) have Holm across the 20 but no verdict
+  (`"secondary_verdicts": false`).
+* The phase has a `datasets:` requirement for all 10 datasets. `setup.sh` downloads Dow and Tow.
+
+Smoke test: `bash tools/server/start.sh --plan smoke6` runs the miniature of round 6, then `smoke7`
+(`configs/gomea/server-smoke7-1ax`: splits 21-22, 15 s per run; the choice reads the smoke 1aw
+report). The state is in `server-run6-smoke/` and `server-run7-smoke/`.

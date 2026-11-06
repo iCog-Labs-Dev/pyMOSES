@@ -1,0 +1,69 @@
+{
+  "name": "server-smoke7-1ax-sr",
+  "datasets": [
+    "Air",
+    "Bos",
+    "Con",
+    "Dow",
+    "EnC",
+    "EnH",
+    "Tow",
+    "WiR",
+    "WiW",
+    "Yac"
+  ],
+  "splits": [
+    21,
+    22
+  ],
+  "datasets_dir": "../gomea-results/phase1f/datasets",
+  "wall_cap_s": 300,
+  "mem_limit_mb": 3072,
+  "arms": {
+    "FINAL": {
+      "binary": ".venv/bin/moses",
+      "budget": {
+        "time_s": 15
+      },
+      "argv": null
+    },
+    "NOCAP": {
+      "binary": ".venv/bin/moses",
+      "budget": {
+        "time_s": 15
+      },
+      "argv": [
+        "-a",
+        "gomea",
+        "--gomea-fos",
+        "lt-b",
+        "--gomea-pop-size",
+        "16",
+        "--gomea-skip-inactive",
+        "0",
+        "--gomea-genotype-memo",
+        "1",
+        "--gomea-contin",
+        "copy",
+        "--knob-probe-baseline",
+        "reduced",
+        "--linear-scaling",
+        "1"
+      ]
+    },
+    "HC-LS": {
+      "binary": ".venv/bin/moses",
+      "budget": {
+        "time_s": 15
+      },
+      "argv": [
+        "-a",
+        "hc",
+        "--knob-probe-baseline",
+        "reduced",
+        "--linear-scaling",
+        "1"
+      ]
+    }
+  }
+}

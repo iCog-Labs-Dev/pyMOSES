@@ -9,13 +9,16 @@
 # the extension of every problem with an "extend" primary contrast (one at a time), and
 # reports stage 2 over all result directories.
 #   [WORKERS=N] setsid nohup tools/gomea/phase_run.sh PHASE > ../gomea-results/PHASE.log 2>&1 &
+# PHASE_CONFIG_DIR=DIR reads the manifests and spec.json from DIR, not configs/gomea/PHASE
+# (server round 7: tools/gomea/set_final.py writes the resolved 1ax manifest into the state
+# directory, so the choice never changes a tracked file). The results stay under PHASE.
 set -u
 [ $# -eq 1 ] || { echo "usage: $0 PHASE" >&2; exit 2; }
 P=$1
 cd "$(dirname "$0")/../.."
 R=../gomea-results
 PY=.venv/bin/python
-Q=configs/gomea/$P
+Q=${PHASE_CONFIG_DIR:-configs/gomea/$P}
 W=${WORKERS:-16}
 [ -f "$Q/spec.json" ] || { echo "no $Q/spec.json" >&2; exit 2; }
 [ -f "$Q/bool.json" ] || [ -f "$Q/sr.json" ] || { echo "no $Q/bool.json or $Q/sr.json" >&2; exit 2; }

@@ -241,12 +241,12 @@ def test_no_boolean_manifest_so_no_commit_to_set(prefix):
     assert not list((CONFIGS / f"{prefix}1aw").glob("gp*.json"))
 
 
-@pytest.mark.parametrize("plan, name, state_dir, phase, sid", [
-    ("plan6.json", "server-round6-2026-11", "server-run6", "phase1aw", "phase1aw"),
+@pytest.mark.parametrize("plan, name, state_dir, phase, sid, then", [
+    ("plan6.json", "server-round6-2026-11", "server-run6", "phase1aw", "phase1aw", "round7"),
     ("plan6-smoke.json", "server-round6-smoke", "server-run6-smoke", "server-smoke6-1aw",
-     "smoke6-1aw"),
+     "smoke6-1aw", "smoke7"),
 ])
-def test_plan_is_s0_then_1aw(plan, name, state_dir, phase, sid):
+def test_plan_is_s0_then_1aw(plan, name, state_dir, phase, sid, then):
     p = load(SERVER / plan)
     assert p["name"] == name and p["state_dir"] == state_dir
     assert [s["type"] for s in p["steps"]] == ["check", "phase"]
@@ -256,7 +256,7 @@ def test_plan_is_s0_then_1aw(plan, name, state_dir, phase, sid):
     assert s["requires"] == [f"datasets:{','.join(D6)}"]
     assert not s.get("pilot") and not s.get("set_commit_in") and not s.get("after_pilot")
     assert (CONFIGS / phase / "spec.json").exists() and (CONFIGS / phase / "sr.json").exists()
-    assert "then" not in p
+    assert p["then"] == then  # round 7, the confirmation round, follows without a pause
 
 
 def test_s0_of_the_round_is_complete():

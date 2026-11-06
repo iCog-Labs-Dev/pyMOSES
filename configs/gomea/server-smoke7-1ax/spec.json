@@ -1,0 +1,173 @@
+{
+  "phase": "smoke7-1ax",
+  "metrics": {
+    "Air": "test_nmse",
+    "Bos": "test_nmse",
+    "Con": "test_nmse",
+    "Dow": "test_nmse",
+    "EnC": "test_nmse",
+    "EnH": "test_nmse",
+    "Tow": "test_nmse",
+    "WiR": "test_nmse",
+    "WiW": "test_nmse",
+    "Yac": "test_nmse"
+  },
+  "primary": [],
+  "pooled_primary": [
+    [
+      "final-vs-hc",
+      "FINAL",
+      "HC-LS",
+      "test_nmse"
+    ],
+    [
+      "final-vs-nocap",
+      "FINAL",
+      "NOCAP",
+      "test_nmse"
+    ]
+  ],
+  "secondary": [
+    [
+      "Air",
+      "final-vs-hc",
+      "FINAL",
+      "HC-LS",
+      "test_nmse"
+    ],
+    [
+      "Bos",
+      "final-vs-hc",
+      "FINAL",
+      "HC-LS",
+      "test_nmse"
+    ],
+    [
+      "Con",
+      "final-vs-hc",
+      "FINAL",
+      "HC-LS",
+      "test_nmse"
+    ],
+    [
+      "Dow",
+      "final-vs-hc",
+      "FINAL",
+      "HC-LS",
+      "test_nmse"
+    ],
+    [
+      "EnC",
+      "final-vs-hc",
+      "FINAL",
+      "HC-LS",
+      "test_nmse"
+    ],
+    [
+      "EnH",
+      "final-vs-hc",
+      "FINAL",
+      "HC-LS",
+      "test_nmse"
+    ],
+    [
+      "Tow",
+      "final-vs-hc",
+      "FINAL",
+      "HC-LS",
+      "test_nmse"
+    ],
+    [
+      "WiR",
+      "final-vs-hc",
+      "FINAL",
+      "HC-LS",
+      "test_nmse"
+    ],
+    [
+      "WiW",
+      "final-vs-hc",
+      "FINAL",
+      "HC-LS",
+      "test_nmse"
+    ],
+    [
+      "Yac",
+      "final-vs-hc",
+      "FINAL",
+      "HC-LS",
+      "test_nmse"
+    ],
+    [
+      "Air",
+      "final-vs-nocap",
+      "FINAL",
+      "NOCAP",
+      "test_nmse"
+    ],
+    [
+      "Bos",
+      "final-vs-nocap",
+      "FINAL",
+      "NOCAP",
+      "test_nmse"
+    ],
+    [
+      "Con",
+      "final-vs-nocap",
+      "FINAL",
+      "NOCAP",
+      "test_nmse"
+    ],
+    [
+      "Dow",
+      "final-vs-nocap",
+      "FINAL",
+      "NOCAP",
+      "test_nmse"
+    ],
+    [
+      "EnC",
+      "final-vs-nocap",
+      "FINAL",
+      "NOCAP",
+      "test_nmse"
+    ],
+    [
+      "EnH",
+      "final-vs-nocap",
+      "FINAL",
+      "NOCAP",
+      "test_nmse"
+    ],
+    [
+      "Tow",
+      "final-vs-nocap",
+      "FINAL",
+      "NOCAP",
+      "test_nmse"
+    ],
+    [
+      "WiR",
+      "final-vs-nocap",
+      "FINAL",
+      "NOCAP",
+      "test_nmse"
+    ],
+    [
+      "WiW",
+      "final-vs-nocap",
+      "FINAL",
+      "NOCAP",
+      "test_nmse"
+    ],
+    [
+      "Yac",
+      "final-vs-nocap",
+      "FINAL",
+      "NOCAP",
+      "test_nmse"
+    ]
+  ],
+  "secondary_verdicts": false
+}

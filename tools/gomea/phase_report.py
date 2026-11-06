@@ -16,7 +16,9 @@ SPEC_JSON (one per phase, `configs/gomea/<phase>/spec.json`)::
      "metrics": {"mux11": "cpu_to_target", "Con": "test_nmse"},
      "primary":     [[problem, name, arm_a, arm_b(, metric)], ...],
      "secondary":   [[...], ...],
-     "descriptive": [[...], ...]}          # optional
+     "descriptive": [[...], ...],          # optional
+     "pooled_primary": [[name, arm_a, arm_b, metric], ...],   # optional (server round 7)
+     "secondary_verdicts": false}          # optional (server round 7), default true
 
 A contrast takes its problem's metric, or the optional fifth element (server round 3,
 1ap: program size as the primary metric and test NMSE as the secondary one for the same
@@ -29,7 +31,19 @@ problem). Metrics, paired by seed (a regression run's seed is its split); lower 
   a failed run = infinite.
 
 Families: Holm over all primary contrasts, and separately over all secondary ones.
-Descriptive contrasts take no verdict (raw p only).
+Descriptive contrasts take no verdict (raw p only). With `"secondary_verdicts": false` the
+secondary contrasts keep their Holm p but take no verdict (`None`).
+
+Pooled primary contrasts (server round 7, `SERVER-ROUND7-PREREGISTRATION.md`): each one pools
+the pairs (problem, seed) of all problems in `metrics`. Its statistic is
+r = log(metric_A / metric_B) per pair, with a paired Wilcoxon signed-rank test (two-sided) on r.
+A failed run (metric infinite) gets the largest rank against it: r = +1e12 when only A failed,
+-1e12 when only B failed, and 0 (dropped from the ranks, a tie in the median) when both
+failed. Holm covers the pooled contrasts only. Verdict: "A better" if Holm p < ALPHA and
+exp(median r) <= 0.9, "A worse" if Holm p < ALPHA and exp(median r) >= 1/0.9, else "tie"; never
+"extend". The rows have problem "pooled", family "primary", metric "log_ratio:<metric>",
+`median_log_ratio` and `ratio` = exp(median r). A spec with pooled primary contrasts must have
+no per-problem primary ones.
 
 Rule (each look at ALPHA = 0.025): Holm p < ALPHA and a median at least 10 % lower is
 "A better" (mirror: "A worse"); primary contrasts at stage 1 with ALPHA <= Holm p <
@@ -126,6 +140,52 @@ def _contrast(problem, name, a, b, arms, metric) -> dict:
         "median_b": statistics.median(xb) if xb else float("nan"),
         "p": wilcoxon_signed_rank(d)[1] if any(d) else 1.0,
     }
+
+
+BIG = 1e12  # the difference of a pair with one failed run: larger than any finite one
+
+
+def _log(x: float) -> float:
+    return -math.inf if x == 0 else math.log(x)
+
+
+def _pooled_contrast(name, a, b, runs, problems, metric) -> dict:
+    """Server round 7: the pairs (problem, seed) of all problems, r = log(A / B)."""
+    xa, xb, r = [], [], []
+    for p in problems:
+        ra, rb = runs.get(p, {}).get(a, {}), runs.get(p, {}).get(b, {})
+        for k in sorted(set(ra) & set(rb)):
+            va, vb = _value(metric, ra[k]), _value(metric, rb[k])
+            xa.append(va)
+            xb.append(vb)
+            la, lb = _log(va), _log(vb)
+            d = la - lb if math.isfinite(la) and math.isfinite(lb) else (
+                0.0 if la == lb else (BIG if la > lb else -BIG))
+            r.append(d)
+    med = statistics.median(r) if r else float("nan")
+    return {
+        "problem": "pooled", "contrast": name, "a": a, "b": b,
+        "metric": f"log_ratio:{metric}", "pairs": len(r),
+        "a_lower": sum(x < 0 for x in r), "ties": sum(x == 0 for x in r),
+        "b_lower": sum(x > 0 for x in r),
+        "median_a": statistics.median(xa) if xa else float("nan"),
+        "median_b": statistics.median(xb) if xb else float("nan"),
+        "median_log_ratio": med,
+        "ratio": math.exp(med) if abs(med) < 700 else (math.inf if med > 0 else 0.0),
+        "p": wilcoxon_signed_rank(r)[1] if any(r) else 1.0,
+    }
+
+
+def _decide_pooled(rows) -> None:
+    for r, ph in zip(rows, holm([r["p"] for r in rows]), strict=True):
+        r["p_holm"] = ph
+        m = r["median_log_ratio"]
+        if ph < ALPHA and m <= math.log(0.9):
+            r["verdict"] = "A better"
+        elif ph < ALPHA and m >= math.log(1 / 0.9):
+            r["verdict"] = "A worse"
+        else:
+            r["verdict"] = "tie"
 
 
 def _decide(rows, stage, can_extend) -> None:
@@ -302,11 +362,27 @@ def main(argv: list[str] | None = None) -> int:
             if len(c) == 5 and c[4] not in METRICS:
                 print(f"unknown metric {c[4]!r} in contrast {c}", file=sys.stderr)
                 return 2
+    pooled = spec.get("pooled_primary", [])
+    if pooled and families["primary"]:
+        print("spec has both pooled and per-problem primary contrasts", file=sys.stderr)
+        return 2
+    for c in pooled:
+        if len(c) != 4 or c[3] not in METRICS:
+            print(f"bad pooled contrast {c} (want [name, arm_a, arm_b, metric])", file=sys.stderr)
+            return 2
     rows = {k: [_contrast(p, n, a, b, runs.get(p, {}), m[0] if m else metrics[p])
                 for p, n, a, b, *m in f]
             for k, f in families.items()}
-    _decide(rows["primary"], stage, can_extend=True)
+    if pooled:
+        rows["primary"] = [_pooled_contrast(n, a, b, runs, list(metrics), m)
+                           for n, a, b, m in pooled]
+        _decide_pooled(rows["primary"])
+    else:
+        _decide(rows["primary"], stage, can_extend=True)
     _decide(rows["secondary"], stage, can_extend=False)
+    if spec.get("secondary_verdicts", True) is False:
+        for r in rows["secondary"]:
+            r["verdict"] = None
     for r in rows["descriptive"]:
         r["p_holm"], r["verdict"] = None, None
     for k, rs in rows.items():

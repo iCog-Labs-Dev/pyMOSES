@@ -1,6 +1,7 @@
 {
   "name": "server-round6-smoke",
   "description": "Smoke test of the round-6 plan: limited pytest, the mux11 repro run, then 1aw in miniature (configs/gomea/server-smoke6-1aw: 2 splits, 15 s per run). Uses its own state dir, so it never marks real steps done.",
+  "then": "smoke7",
   "state_dir": "server-run6-smoke",
   "steps": [
     {
