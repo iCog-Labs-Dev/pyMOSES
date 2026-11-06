@@ -210,3 +210,22 @@ the pooled primary test, the choice of FINAL, all agent-written) and asked if th
 after round 6 for a decision. The user answered: "Yes I approve, and keep the chain without a
 pause". User-approved: the design in `SERVER-ROUND7-PREREGISTRATION.md`. Not user-approved: the
 code of the choice script and of the pooled test, which are still to be written.
+
+**Population round and new order (2026-11-06):** the user asked: "I want the N=16 and a no
+population size capped version. I also want a re-run of the round 4 which was trying to test the
+knob cap with a limited population size when we raised the evaluation cap. We need to make sure
+that the search isn't being constrainted with a limited population size from now on." On how to
+size the population, the user said: "NOt an upper limit. Isn't there a constant we can tune in the
+hill climbing to reduce the number of population we get by sampling? ... we need to reuse every
+piece of code at our disposal in the classic and make the number of population size dynamic." The
+agent proposed `--gomea-pop-size dynamic` from the classic hill-climbing count with
+`--hc-fraction-of-nn`. On the order, the user said: "Yes yes we do that first. Then after that we
+can make the remaining run next." On a control arm: "I would like to have one control experiment in
+the Rounds 7 and 8 with the dynamic population. Not as dynamic as the previous runs but just to make
+the comparison realistic for us." To the agent's reading of that request and the round 6 design,
+the user answered: "Yes, that's what I mean, and I approve round 6". User-approved: the design in
+`SERVER-ROUND6-PREREGISTRATION.md` (1ay, 1az, the pick rules, option A for rounds 7 and 8, the
+control arms). The renumbering puts the LM-VAL round (1aw) as round 7 and the confirmation (1ax) as
+round 8. Agent-written, not user-approved in detail: the fractions 2.0, 0.25 and 0.05, the
+median-rank rule and the tie rule. Not user-approved: the code of the dynamic population, still to
+be written.
