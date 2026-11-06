@@ -359,3 +359,31 @@ of 1as and of its smoke test moved to the commit with the guard. If `pymoses`, `
 `pyproject.toml` change again, `check_code_commit` refuses these runs until the `commit` moves too. The name of the result folder holds a hash of the manifest,
 so runs under an older `commit` are not reused: `1/phase1as-bool-<new hash>/` starts empty.
 
+
+## Round 6
+
+The sixth round (`SERVER-ROUND6-PREREGISTRATION.md`: LM-VAL with no per-deme cap, and LM-VAL with
+PEN125) has its own plan, `tools/server/plan6.json`: S0, then phase 1aw. Its state is in
+`../gomea-results/server-run6/`. There is no pilot and no value to set during the run.
+
+    bash tools/server/start.sh --plan round6
+
+Round 6 starts by itself. No earlier plan has `"then": "round6"`.
+
+Arms and files:
+
+* `configs/gomea/phase1aw/`: NOCAP, LMVAL, LMVAL-PEN125, LMVAL-C250 on WiR, Con, EnH, Air, Yac, Tow,
+  1,000 s, wall cap 2,400 s. Only LMVAL-C250 has `--gomea-max-evals-per-deme 250`. Its argv is the
+  LM-VAL argv of 1at.
+* `spec.json` has 12 primary contrasts with two metrics: `test_nmse` for LMVAL vs NOCAP and
+  `program_size` for LMVAL-PEN125 vs LMVAL. Each contrast names its metric (the fifth element).
+  Holm covers all 12.
+* A dataset extends (`sr-ext-<dataset>.json`, splits 11-20, all four arms) when one of its two
+  primary contrasts is "extend" at stage 1. Then both contrasts of that dataset have 20 pairs at
+  stage 2. Only a contrast that was "extend" at stage 1 takes its verdict from stage 2.
+* The runner gives the validation split (`--const-opt-val`) to each arm with
+  `--const-opt-guard val`, so to LMVAL, LMVAL-PEN125 and LMVAL-C250.
+* The phase has a `datasets:` requirement. Run `setup.sh` after `git pull`.
+
+Smoke test: `bash tools/server/start.sh --plan smoke6` (`configs/gomea/server-smoke6-1aw`: 2 splits,
+15 s per run). The state is in `server-run6-smoke/`.

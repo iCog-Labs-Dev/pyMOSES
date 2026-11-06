@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Start (or resume) the server round in the background and return at once.
-#   bash tools/server/start.sh [--plan round|smoke|round2|smoke2|round3|smoke3|round4|smoke4|round5|smoke5|FILE] [--force]
+#   bash tools/server/start.sh [--plan round|smoke|round2|smoke2|round3|smoke3|round4|smoke4|round5|smoke5|round6|smoke6|FILE] [--force]
 # A plan with "then" starts a chain (round4, then round5; docs/gomea/SERVER-RUN.md). If this plan
 # is DONE, this script starts or resumes the first later plan that is not DONE.
 # --force starts this plan even if it is DONE (it then only rewrites the summary and bundles),
