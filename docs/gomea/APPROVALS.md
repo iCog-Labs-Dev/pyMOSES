@@ -190,3 +190,12 @@ not user-approved in detail: the adoption rule of 1as and the two secondary cont
 and 5 report their results separately. The agent wrote the design and the adoption rules. The user
 answered: "Yes, I approve the round 5 design". Not user-approved: the code of the guard and of the
 chain from round 4 to round 5, which are still to be written.
+
+**Decisions on rounds 4 and 5 (2026-11-06):** the agent presented the results phase by phase.
+* No evaluation cap: "lets make the no cap the default for all problems for now and move on to the
+  LM option." This is against the 1as adoption rule, which kept BASE. The code default of
+  `--gomea-max-evals-per-deme` is already no cap, so only the base arm of later rounds changes.
+* LM-VAL: "Okay let's keep the LM-Val version as a good one and keep the experiment to test that
+  with no evalaution cap one of the next experiments." LM stays not the default (2026-11-03).
+* PEN125: "Keep PEN125, now go to the next experiment"
+* LM with a penalty: "Add LM-VAL with PEN125 to the backlog that could be the next thing to test."

@@ -473,3 +473,16 @@ penalty that is weaker than R 0.005.
    are out of any other ideas"). It compared none, LM, mutation and polish at equal CPU on all 10
    datasets, splits 11–30. Also not selected: real-valued genes in place of the step knobs, because
    100 % of the genes in the Con, EnH and Air demes of 1ao are contin knobs (weight 0 removes a term).
+
+## 7. Open items after server rounds 4 and 5 (2026-11-06)
+
+The user's decisions on rounds 4 and 5 are in `APPROVALS.md`. No evaluation cap is now the base for
+all problems. LM-VAL and PEN125 (R 0.125) are the preferred settings, and neither is a default.
+Rounds 4 and 5 used the cap of 250 in all arms.
+
+1. **LM-VAL with PEN125, the next candidate (user, 2026-11-06).** 1av tested LM with R 0.005 and
+   0.025 only: 16–27 % smaller programs than LM, NMSE −2 % to +4 %, better on size on Air only
+   (EnH Holm p 0.028). 1au chose PEN125 later. No run combines the guard with a penalty.
+2. **LM-VAL with no evaluation cap (user, 2026-11-06).** LM runs once per deme. Without the cap,
+   regression runs built 5.5–7 demes in 1,000 s (NOCAP, 1as) against 35.5–45 with the cap, so a
+   run gets far fewer LM calls. The 1at result can change.
