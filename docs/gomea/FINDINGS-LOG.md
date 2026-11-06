@@ -57,7 +57,9 @@ in `DECISIONS.md`.**
    * the knob-collapse fix as an accuracy lever (1q, tie);
    * near-constant simplification (1z, never fires);
    * re-seeding on stagnation (1ab, tie).
-9. **Keep the defaults:** a deme cap of 250 (1x), `-B 2` (1aa) and N = 16.
+9. **Keep the defaults:** `-B 2` (1aa) and N = 16. The deme cap of 250 (1x) was the base until
+   2026-11-06. Since then no cap is the base for all problems (user decision after 1as, see item
+   11).
 10. **Server rounds (2026-10-26 to 2026-10-30; `SERVER-ROUND-FINDINGS.md`,
     `SERVER-ROUND2-FINDINGS.md`):**
     * Regression at equal time: GOMEA beats capped HC on Air, EnC and EnH; ties on Bos and
@@ -69,6 +71,15 @@ in `DECISIONS.md`.**
       optimal mixing, not learned linkage.
     * Boolean: seeding does not close the time gap to HC (1aj). Long demes do not help (1af).
       Cap 1,000 makes GOMEA faster on mux11 (1ae).
+11. **Server rounds 4 and 5 (2026-11-03 to 2026-11-04; `SERVER-ROUND4-FINDINGS.md`,
+    `SERVER-ROUND5-FINDINGS.md`):**
+    * No evaluation cap solves mux11 2.7× faster in CPU, with 3× the evaluations. On regression it
+      ties, with higher medians (1as). Knob caps do not help (1as). The user chose no cap as the
+      base for all problems (2026-11-06), against the registered rule.
+    * The validation guard lowers LM's overfitting on WiR and Con at no accuracy cost (1at).
+      PEN125 halves program size on EnH and Air at +3–8 % NMSE (1au). A penalty on LM gives
+      16–27 % smaller programs, but not on enough datasets to qualify (1av).
+    * All arms of rounds 4 and 5 except NOCAP and K8–K64 used the cap of 250.
 
 ## Phase register
 
@@ -118,6 +129,10 @@ in `DECISIONS.md`.**
 | 1ap | 2026-10-30 (server 3) | Acceptance penalty with linear scaling, R 0.005 and 0.001 (0.001 is the stronger) | **Programs 56–83 % smaller, but neither strength qualifies:** test NMSE +6 to +29 %, limit +10 %. A weaker penalty is untested. [SERVER-ROUND3-FINDINGS.md](SERVER-ROUND3-FINDINGS.md) |
 | 1aq | 2026-10-30 (server 3) | Uniform start with linear scaling | **Tie on Con, EnH, EnC** (Holm p 1), programs 1.3–2.2× larger. [SERVER-ROUND3-FINDINGS.md](SERVER-ROUND3-FINDINGS.md) |
 | 1ar | 2026-11-02 (server 3) | Equal CPU on Yac, Dow, Tow, WiR, WiW | **GOMEA-LS vs HC-LS: all ties.** LM vs GOMEA-LS (secondary): better on Yac and Tow, tie on Dow, WiR, WiW; LM overfits on WiR (gap 9.7). [SERVER-ROUND3-FINDINGS.md](SERVER-ROUND3-FINDINGS.md) |
+| 1as | 2026-11-04 (server 4) | No evaluation cap (NOCAP) and knob caps K8–K64 without it, against cap 250 (BASE) | **No arm qualifies; the rule keeps BASE.** mux11: NOCAP **better** (225 against 619 s CPU to solve, 18/20; 14,841 against 5,166 evaluations); K8, K16 **worse**; K32, K64 tie. Regression: all ties, all medians higher (NOCAP +2 to +10 %). Demes ran 5–17 generations against 1. The user chose no cap as the base. [SERVER-ROUND4-FINDINGS.md](SERVER-ROUND4-FINDINGS.md) |
+| 1at | 2026-11-04 (server 5) | LM with a validation guard (LM-VAL) against LM, 6 datasets, 1,000 s | **LM-VAL qualifies.** All 6 accuracy contrasts tie. WiR gap 9.69 → 4.04 (8/10), Con 5.50 → 3.73. LM-VAL better than GOMEA-LS on EnH, Air, Yac, Tow. [SERVER-ROUND5-FINDINGS.md](SERVER-ROUND5-FINDINGS.md) |
+| 1au | 2026-11-04 (server 5) | Weaker penalties R 0.025, 0.125, 0.625 at 10,000 evaluations | **PEN125 qualifies:** size −58 % on EnH, −48 % on Air, tie on Con; NMSE −1 to +8 %. PEN25 fails the 10 % limit; PEN625 is better on size on EnH only. [SERVER-ROUND5-FINDINGS.md](SERVER-ROUND5-FINDINGS.md) |
+| 1av | 2026-11-04 (server 5) | LM with R 0.005 and 0.025, 1,000 s | **Neither qualifies:** size −16 to −27 % against LM, better only on Air (EnH Holm p 0.028 for LM-PEN5); NMSE −2 to +4 %, all ties. [SERVER-ROUND5-FINDINGS.md](SERVER-ROUND5-FINDINGS.md) |
 
 ## Descriptive comparisons (not pre-registered)
 
@@ -132,12 +147,15 @@ in `DECISIONS.md`.**
 |---|---|---|---|
 | `--knob-probe-baseline reduced` (knob-collapse fix) | **Code default since 2026-10-21** (backlog item 15, branch `feat/linear-scaling`; a disclosed DIVERGENCE from C++ MOSES; `--knob-probe-baseline classic` restores classic probing). Candidate default (user, 2026-10-19) before that. | Phase 1q removed all collapsed demes (35 → 0 on mux11, 367 → 0 on pa5), with accuracy and CPU unchanged (Holm p 1.0). It was not tested on regression, where `disc_probe` is not used, or together with PEN or seeding. | Off in 1s and 1t, because 1s pools Phase 1o's runs. **On for every arm, GOMEA and HC alike, in later phases.** Watch for chain effects (larger demes, different exemplar growth) and record them here. Make it the code default after it has run in at least two more phases without a loss. |
 | `--gomea-radii uniform` (regression) | **Not recommended** (1aq, 2026-10-30). | Phase 1v: Con test NMSE 37.1 → 29.2 without linear scaling. With linear scaling (1aq): ties on Con, EnH and EnC, with programs 1.3–2.2× larger. | Keep off. |
-| `--const-opt lm` (regression, with linear scaling) | **Not the default** (user, 2026-11-03). | 1ao: better than GOMEA-LS on Con, EnH and Air at equal CPU, with smaller programs. 1ar: better on Yac and Tow, tie on the others; gap 9.7 on WiR. | Follow-ups in `SERVER-ROUND5-PREREGISTRATION.md`. |
+| `--const-opt lm` (regression, with linear scaling) | **Not the default** (user, 2026-11-03). **Preferred variant: with `--const-opt-guard val`** (user, 2026-11-06). | 1ao: better than GOMEA-LS on Con, EnH and Air at equal CPU, with smaller programs. 1ar: better on Yac and Tow, tie on the others; gap 9.7 on WiR. 1at: the guard cuts the WiR gap to 4.04 at no accuracy cost. | Test with no cap and with PEN125 (`BACKLOG.md`, section 7). |
+| No per-deme cap (`--gomea-max-evals-per-deme` not set) | **The base for all problems** (user, 2026-11-06). The code default was already no cap. | 1as: mux11 better at equal CPU; regression ties with higher medians. 1ae: cap 1,000 better on mux11, worse on Con. | Base arm of later rounds. |
+| `--gomea-accept-complexity-ratio 0.125 --gomea-deme-store accepted` (PEN125) | **Preferred penalty strength, not a default** (user, 2026-11-06). | 1au: size −58 % on EnH and −48 % on Air, NMSE at most +8 %, no size gain on Con. | Test with LM-VAL (`BACKLOG.md`, section 7). |
 
 ## Open questions (see `BACKLOG.md`)
 
 * ~~Does seeding close the Boolean time gap? (item 14)~~ Answered by 1aj: no.
 * ~~GOMEA-LS against HC-LS at equal time; why GOMEA loses on Yac~~ Answered by 1ao and 1ar.
-* Size control with a weaker penalty, and LM with a penalty (section 6).
+* ~~Size control with a weaker penalty, and LM with a penalty (section 6)~~ Answered by 1au and
+  1av. Open: LM-VAL with PEN125, and both with no cap (section 7).
 * Does PEN beat unpenalized GOMEA on mux11 at equal time, under a registered test?
 * Cheaper knob building (items 1.x).

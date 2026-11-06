@@ -195,6 +195,18 @@ Three server rounds (2026-10-26 to 2026-11-02) give the current status
   (`--gomea-knob-cap`, off by default, not recommended) let demes run 3–5 generations. The
   gain comes from optimal mixing, not from learned linkage.
 
+Rounds 4 and 5 (2026-11-03 to 2026-11-04;
+[`docs/gomea/SERVER-ROUND4-FINDINGS.md`](docs/gomea/SERVER-ROUND4-FINDINGS.md),
+[`docs/gomea/SERVER-ROUND5-FINDINGS.md`](docs/gomea/SERVER-ROUND5-FINDINGS.md)):
+
+* **Per-deme cap:** without `--gomea-max-evals-per-deme`, GOMEA solved mux11 2.7× faster in
+  CPU, and tied on regression with higher medians. No cap is now the base for all problems
+  (user decision). The cap of 250 in the commands above is from Phase 1e.
+* **Constant tuning:** `--const-opt lm --const-opt-guard val` (with `--const-opt-val FILE`) keeps
+  LM's accuracy and cuts its overfitting on WiR. It is the preferred LM variant, not a default.
+* **Size:** `--gomea-accept-complexity-ratio 0.125 --gomea-deme-store accepted` halves program
+  size on EnH and Air at +3–8 % test NMSE. It is not a default.
+
 ## Run the tests
 
 The test suite is self-contained: it diffs against C++ **golden fixtures committed to

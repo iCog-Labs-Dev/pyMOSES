@@ -52,6 +52,11 @@ merges the best of them back into the metapopulation as usual.
 > ([`PHASE1D-FINDINGS.md`](PHASE1D-FINDINGS.md)). Uncapped, prefer `--gomea-fos uni`
 > ([`PHASE1-FINDINGS.md`](PHASE1-FINDINGS.md)).
 >
+> **Update (2026-11-06):** no per-deme cap is now the base for all problems. At equal CPU it
+> solved mux11 2.7× faster than cap 250 and tied on regression
+> ([`SERVER-ROUND4-FINDINGS.md`](SERVER-ROUND4-FINDINGS.md)). The text below is the record of
+> Phase 1e, which counted evaluations.
+>
 > **Best setup found (Phase 1e):**
 > `-a gomea --gomea-fos lt-b --gomea-max-evals-per-deme 250 --gomea-genotype-memo 1`.
 > On mux11 it solved all 20 seeds in a median of 4,633 evaluations against HC's 8,757.
