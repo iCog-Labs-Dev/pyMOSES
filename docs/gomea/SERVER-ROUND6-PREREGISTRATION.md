@@ -1,6 +1,6 @@
 # Server round 6: pre-registration (2026-11-06)
 
-**Status:** the design is approved by the user (see `APPROVALS.md`). Not implemented yet.
+**Status:** the design is approved by the user (see `APPROVALS.md`). Implemented in `0e8dfa2` to `5f936fe`, documented in `SERVER-RUN.md` in the next commit. Not run yet.
 
 **Question:** is the fixed GOMEA population of 16 a bottleneck? Two phases: population size and
 linkage (1ay), then the knob caps of round 4 again with a dynamic population (1az).

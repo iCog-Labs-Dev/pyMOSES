@@ -359,35 +359,116 @@ of 1as and of its smoke test moved to the commit with the guard. If `pymoses`, `
 `pyproject.toml` change again, `check_code_commit` refuses these runs until the `commit` moves too. The name of the result folder holds a hash of the manifest,
 so runs under an older `commit` are not reused: `1/phase1as-bool-<new hash>/` starts empty.
 
+The dynamic population of round 6 changed `pymoses` again, so the `commit` of these manifests moved
+to `0e8dfa2`, the code commit of round 6. The 1ay and 1az manifests name the same commit.
+
+
+## Round 6 and the chain 6, 7, 8
+
+The sixth round (`SERVER-ROUND6-PREREGISTRATION.md`: is the fixed GOMEA population of 16 a
+bottleneck?) has its own plan, `tools/server/plan6.json`: S0, then phase 1ay, then the choice of
+the population, then phase 1az. Its state is in `../gomea-results/server-run6/`. Round 6 runs
+first. `plan6.json` has `"then": "round7"` and `plan7.json` has `"then": "round8"`, so one command
+runs the three rounds, one after the other, without a pause:
+
+    bash tools/server/start.sh --plan round6
+
+The chain works as in "Round 5 and the chain from round 4": three summaries, three final bundles,
+one chain lock (`server-run6/chain.lock`). Bring back the three bundles. Rounds 7 and 8 read the
+choice of round 6 from `server-run6/`, so do not start round 7 alone before round 6 is DONE.
+
+**New code: `--gomea-pop-size dynamic`.** N for each deme is the number of new instances that
+classic hill climbing takes at distance 1: `hill_climbing.estimate_neighborhood(1, fields)`, then
+`n_new_instances(1, ...)` with `--hc-fraction-of-nn F` (default 2.0), `--hc-max-nn-evals`
+(default 20,000), the classic minimum of 100 and the evaluations left of the deme. The population
+builder draws N programs as before. With `--gomea-pop-size 16` (or no option) the output is
+byte-identical to the code before (`tests/gomea/test_pop_size_identity.py`). The telemetry has
+`deme_pop_size` and `deme_budget` on `invocation_start`, and `pop_size_dynamic` on `end`, only with
+`dynamic`. `aggregate.csv` has `median_pop_size`, `min_pop_size` and `max_pop_size` for each arm
+(from `pop_size_effective` of each deme with evaluations).
+
+**The choice of the population.** The step `choose-population` runs
+`tools/gomea/set_population.py choose`:
+
+1. It reads the final 1ay report, with the stage rule of `set_final.py`.
+2. POP (rounds 7 and 8): a fraction qualifies if its LT-B arm is "A better" than N16-LTB on at
+   least 2 of the 3 problems and "A worse" on none. Of several, the best median rank. If none
+   qualifies, POP is N = 16.
+3. DYN (1az and the control arms): the fraction with the best median rank, qualified or not.
+4. Median rank: on each problem, the 3 dynamic LT-B arms ranked by `median_metric` of the
+   report's `aggregate.csv` (equal medians: the smaller F first). Then the median of the 3 ranks.
+   Equal median ranks go to the smaller F.
+5. The control population is DYN, or N = 16 if POP equals DYN.
+6. It writes `server-run6/phase1az-config/`: the resolved 1az manifests, `spec.json` and
+   `population-choice.json` (the rules, the numbers, POP, DYN and the control). The orchestrator
+   logs it as the `choice` event.
+
+**Templates.** A phase whose argv depends on the choice has `template.json` (resolved to `sr.json`)
+and `template-<name>.json` (resolved to `<name>.json`). In an argv, the token `{POP}`, `{DYN}` or
+`{CONTROL}` becomes `--gomea-pop-size 16` or `--gomea-pop-size dynamic --hc-fraction-of-nn F`.
+The choices write only into the state directories, never into tracked files.
+
+Arms and files:
+
+* `configs/gomea/phase1ay/`: N16, DYN2 (F = 2.0), DYN025 (F = 0.25) and DYN005 (F = 0.05), each with
+  `--gomea-fos lt-b` (`-LTB`) and `rt` (`-RT`). mux11 (`bool.json`, seeds 3001-3010, 3,600 s, wall cap
+  5,400 s), Con and EnH (`sr.json`, splits 1-10, 1,000 s, wall cap 2,400 s). Extensions:
+  `bool-ext-mux11.json` (seeds 3011-3020) and `sr-ext-{Con,EnH}.json` (splits 11-20). No arm has an
+  evaluation cap. 240 runs (+ up to 240).
+* `spec.json` of 1ay: 9 primary contrasts (each dynamic LT-B arm against N16-LTB, on each problem)
+  and 12 secondary (LT-B against RT at each population, on each problem). With 10 pairs, Holm over
+  9 can give a verdict at stage 1.
+* `configs/gomea/phase1az/`: templates only. NOCAP-DYN, K8-DYN, K16-DYN, K32-DYN, K64-DYN (knob flags
+  as in 1as) and NOCAP-N16, all LT-B. mux11, Con, EnH, Air, as in 1as. 16 primary and 4 secondary
+  contrasts. With 16 contrasts, stage 1 gives no primary verdict, so a large effect extends (as in
+  round 4). 240 runs (+ up to 240).
+* The Boolean manifests of 1ay and 1az name the code commit of the dynamic population. If
+  `pymoses`, `benchmarks` or `pyproject.toml` change again, move that `commit` (and the one of the
+  round 4 manifests) too.
+
+**Memory.** At F = 2.0, N on mux11 can be several thousand. The smoke test runs mux11 at F = 2.0
+for 60 s. The real runs have the usual limit of 3,072 MB per run.
+
+Smoke test: `bash tools/server/start.sh --plan smoke6` runs the miniature of round 6
+(`configs/gomea/server-smoke6-1ay` and `server-smoke6-1az`: 2 splits or seeds, 15 s per regression
+run, 60 s per mux11 run in 1ay and 20 s in 1az), then `smoke7` and `smoke8`. The state is in
+`server-run6-smoke/`, `server-run7-smoke/` and `server-run8-smoke/`. With 2 pairs nothing is
+"A better", so the smoke choice gives POP = N16.
 
 ## Round 7
 
 The seventh round (`SERVER-ROUND7-PREREGISTRATION.md`: LM-VAL with no per-deme cap, and LM-VAL with
-PEN125) has its own plan, `tools/server/plan7.json`: S0, then phase 1aw. Its state is in
-`../gomea-results/server-run7/`. There is no pilot and no value to set during the run.
+PEN125) has its own plan, `tools/server/plan7.json`: S0, then the step `apply-population`, then
+phase 1aw. Its state is in `../gomea-results/server-run7/`. Round 6 starts it (see "Round 6 and the
+chain 6, 7, 8"). When round 7 ends, it starts round 8 (see "Round 8 and the chain from round 7").
 
-    bash tools/server/start.sh --plan round7
-
-Round 7 starts by itself. No earlier plan has `"then": "round7"`. When round 7 ends, it starts
-round 8 (see "Round 8 and the chain from round 7").
+**The population (round 6).** Every GOMEA arm of 1aw uses POP. The step `apply-population` runs
+`tools/gomea/set_population.py apply` with `server-run6/phase1az-config/population-choice.json` and
+writes the resolved manifests into `server-run7/phase1aw-config/` (with
+`population-applied.json`). The phase step reads them from there (`config_dir`). If round 6 has no
+choice, the step fails and 1aw is skipped.
 
 Arms and files:
 
-* `configs/gomea/phase1aw/`: NOCAP, LMVAL, LMVAL-PEN125, LMVAL-C250 on WiR, Con, EnH, Air, Yac, Tow,
-  1,000 s, wall cap 2,400 s. Only LMVAL-C250 has `--gomea-max-evals-per-deme 250`. Its argv is the
-  LM-VAL argv of 1at.
+* `configs/gomea/phase1aw/`: templates only (`template.json`, `template-sr-ext-<dataset>.json`).
+  NOCAP, LMVAL, LMVAL-PEN125, LMVAL-C250 and the control arm LMVAL-DYN (LMVAL with the control
+  population) on WiR, Con, EnH, Air, Yac, Tow, 1,000 s, wall cap 2,400 s. Only LMVAL-C250 has
+  `--gomea-max-evals-per-deme 250`. With POP = N16 its argv is the LM-VAL argv of 1at. 300 runs
+  (+ up to 300).
 * `spec.json` has 12 primary contrasts with two metrics: `test_nmse` for LMVAL vs NOCAP and
   `program_size` for LMVAL-PEN125 vs LMVAL. Each contrast names its metric (the fifth element).
-  Holm covers all 12.
-* A dataset extends (`sr-ext-<dataset>.json`, splits 11-20, all four arms) when one of its two
+  Holm covers all 12. 18 secondary contrasts: the 12 of the pre-registration and test NMSE,
+  LMVAL-DYN vs LMVAL, on each dataset.
+* A dataset extends (`sr-ext-<dataset>.json`, splits 11-20, all five arms) when one of its two
   primary contrasts is "extend" at stage 1. Then both contrasts of that dataset have 20 pairs at
   stage 2. Only a contrast that was "extend" at stage 1 takes its verdict from stage 2.
 * The runner gives the validation split (`--const-opt-val`) to each arm with
   `--const-opt-guard val`, so to LMVAL, LMVAL-PEN125 and LMVAL-C250.
 * The phase has a `datasets:` requirement. Run `setup.sh` after `git pull`.
 
-Smoke test: `bash tools/server/start.sh --plan smoke7` (`configs/gomea/server-smoke7-1aw`: 2 splits,
-15 s per run). The state is in `server-run7-smoke/`.
+Smoke test: `configs/gomea/server-smoke7-1aw` (2 splits, 15 s per run), as part of
+`bash tools/server/start.sh --plan smoke6`, because it reads the smoke choice of round 6. The state
+is in `server-run7-smoke/`.
 
 ## Round 8 and the chain from round 7
 
@@ -408,7 +489,11 @@ chain lock (`server-run7/chain.lock`). Bring back both bundles.
 2. Rule 2 of 1aw passes if LMVAL-PEN125 vs LMVAL on `program_size` is "A better" on at least 4 of
    6 datasets, and the median test NMSE of LMVAL-PEN125 / LMVAL is at most 1.10 on each dataset.
 3. FINAL gets the exact argv of the LMVAL-PEN125 arm of 1aw if rule 2 passes, else of the LMVAL arm.
-4. It writes `server-run8/phase1ax-config/`: `sr.json` (the resolved manifest), `spec.json` (a copy)
+   It reads that argv from the resolved 1aw of round 7 (`--source-dir
+   server-run7/phase1aw-config`), so FINAL has POP.
+4. With `--population server-run6/phase1az-config/population-choice.json` it gives NOCAP the
+   population POP, and the control arm FINAL-DYN the argv of FINAL with the control population.
+5. It writes `server-run8/phase1ax-config/`: `sr.json` (the resolved manifest), `spec.json` (a copy)
    and `final-choice.json` (the rule, the numbers and the choice). The orchestrator logs
    `final-choice.json` as the `choice` event, and `round-summary.md` has a "Choice" section.
 
@@ -421,9 +506,9 @@ fails, the step is failed, and phase 1ax is skipped with the reason in the log. 
 
 Arms and files:
 
-* `configs/gomea/phase1ax/`: FINAL, NOCAP, HC-LS on Air, Bos, Con, Dow, EnC, EnH, Tow, WiR, WiW, Yac,
-  splits 21-30, 1,000 s, wall cap 2,400 s, 3,072 MB (as 1ar). 300 runs. No arm has a per-deme cap:
-  HC-LS is `-a hc`, not `hc-capped`. There is no extension.
+* `configs/gomea/phase1ax/`: FINAL, NOCAP, HC-LS and FINAL-DYN on Air, Bos, Con, Dow, EnC, EnH, Tow,
+  WiR, WiW, Yac, splits 21-30, 1,000 s, wall cap 2,400 s, 3,072 MB (as 1ar). 400 runs. No arm has a
+  per-deme cap: HC-LS is `-a hc`, not `hc-capped`, and keeps its flags. There is no extension.
 * `spec.json` has `pooled_primary`: FINAL vs HC-LS and FINAL vs NOCAP, each pooled over the 100
   (dataset, split) pairs. `phase_report.py` tests r = log(NMSE_A / NMSE_B) with a paired Wilcoxon
   signed-rank test and Holm across the 2. A failed run gets the largest rank against it. Verdict:
@@ -431,8 +516,11 @@ Arms and files:
   have problem `pooled`, `median_log_ratio` and `ratio`.
 * The 20 secondary contrasts (each contrast on each dataset) have Holm across the 20 but no verdict
   (`"secondary_verdicts": false`).
+* `pooled_secondary`: FINAL-DYN vs FINAL, pooled over the 100 pairs with the test of the primary
+  contrasts, its own Holm family (of 1) and a verdict. It changes no rule and not the choice of
+  FINAL.
 * The phase has a `datasets:` requirement for all 10 datasets. `setup.sh` downloads Dow and Tow.
 
-Smoke test: `bash tools/server/start.sh --plan smoke7` runs the miniature of round 7, then `smoke8`
-(`configs/gomea/server-smoke8-1ax`: splits 21-22, 15 s per run; the choice reads the smoke 1aw
-report). The state is in `server-run7-smoke/` and `server-run8-smoke/`.
+Smoke test: `bash tools/server/start.sh --plan smoke6` runs the miniatures of rounds 6 and 7, then
+`smoke8` (`configs/gomea/server-smoke8-1ax`: splits 21-22, 15 s per run; the choice reads the smoke
+1aw report and the smoke population of round 6). The state is in `server-run8-smoke/`.
