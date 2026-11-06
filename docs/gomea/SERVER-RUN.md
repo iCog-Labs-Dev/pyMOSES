@@ -368,7 +368,8 @@ PEN125) has its own plan, `tools/server/plan6.json`: S0, then phase 1aw. Its sta
 
     bash tools/server/start.sh --plan round6
 
-Round 6 starts by itself. No earlier plan has `"then": "round6"`.
+Round 6 starts by itself. No earlier plan has `"then": "round6"`. When round 6 ends, it starts
+round 7 (see "Round 7 and the chain from round 6").
 
 Arms and files:
 
