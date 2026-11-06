@@ -483,6 +483,84 @@ Rounds 4 and 5 used the cap of 250 in all arms.
 1. **LM-VAL with PEN125, the next candidate (user, 2026-11-06).** 1av tested LM with R 0.005 and
    0.025 only: 16–27 % smaller programs than LM, NMSE −2 % to +4 %, better on size on Air only
    (EnH Holm p 0.028). 1au chose PEN125 later. No run combines the guard with a penalty.
+   **Planned:** round 7 (1aw, `SERVER-ROUND7-PREREGISTRATION.md` after the renumbering).
 2. **LM-VAL with no evaluation cap (user, 2026-11-06).** LM runs once per deme. Without the cap,
    regression runs built 5.5–7 demes in 1,000 s (NOCAP, 1as) against 35.5–45 with the cap, so a
-   run gets far fewer LM calls. The 1at result can change.
+   run gets far fewer LM calls. The 1at result can change. **Planned:** round 7 (1aw).
+3. **LT-B against RT with no cap (user, 2026-11-06).** Partly covered by round 6 (1ay
+   secondary contrasts: LT-B vs RT at N 16 and at three dynamic population sizes). Keep this item
+   until 1ay reports; close it if 1ay answers it.
+4. **One GOMEA run with all the good findings combined (user, 2026-11-06).** One MOSES-GOMEA
+   setting that combines every setting that helped, from the local phases and the server rounds,
+   tested against MOSES hill climbing and plain GOMEA. Candidates to review when it is designed:
+   no per-deme cap, linear scaling (1ag), `--knob-probe-baseline reduced` (1q), LM with the
+   validation guard (1at), PEN125 (1au), the population setting from 1ay, and seeding with
+   GP-GOMEA elites (1r, 1u: lower error on EnH and less CPU, but 15–20 % higher error on Con).
+   Settings that did not help stay out (uniform start with linear scaling, knob caps, long demes,
+   top-k FOS, `-B 3`). Round 8 (confirmation) covers part of this; the difference is the local
+   findings, seeding first of all. **Seeding is an arm pair in this experiment:** the combined
+   setting with and without GP-GOMEA seeds. Its result (item 5) decides if the final setting uses
+   seeding (user, 2026-11-06).
+5. **GP-GOMEA seeding with the current settings (user, 2026-11-06).** Run stand-alone GP-GOMEA
+   first and start MOSES from its elites instead of the empty program (item 2.9). It was the
+   biggest lever of the local phases: 1r (lower error on EnH; GOMEA CPU 4–6× lower, programs 7–8×
+   smaller), 1u (mux11 CPU to solve −41 %). But on Con GOMEA's error stayed 15–20 % higher (1y,
+   1ab), and on mux11 at equal time it lost to plain HC (1aj). All seeding phases ran before linear
+   scaling, LM, no cap and PEN125, so the result can differ now. Test seeded against unseeded with
+   the current base, with the seeding cost in the budget. Tools: `tools/gomea/gpgomea_seed.py`,
+   `tools/gomea/build_gpgomea_seed.sh`, the `seed` block of the runners. The result decides if
+   item 4 uses seeding.
+
+## 8. Future directions from the literature search (2026-11-06)
+
+Source: the literature search of 2026-11-06 (`docs/gomea/LITERATURE-2026-11-06.md`). Start only after rounds 6 to 8 give a
+stable conclusion (user). Order: tier 1 first, then tier 2. Citation counts are OpenAlex,
+2026-11-06.
+
+**Tier 1: simple experiments**
+1. **A1. Node-proximity linkage** (Koch, Alderliesten, Bosman, GECCO 2026, arXiv 2602.02311): the
+   FOS from the tree distance between knob positions in the exemplar, not from population data.
+   Reported P ≈ 0.80 better than MI, bias-adjusted MI and RT on 5 SR sets, at N 1,024 and 10^7
+   evaluations, no runtime cost. Not tested at N 16 or on Boolean. First test: against RT and UNI.
+2. **A2. LM during the search** (Kommenda et al., GPEM 2020, DOI 10.1007/s10710-019-09371-3):
+   tune constants on accepted improvements inside the deme, not only at deme end. Test at equal
+   CPU against LM-VAL.
+3. **A4. Case-based exemplar selection** (ε-lexicase with down-sampling: La Cava et al., GECCO
+   2016, DOI 10.1145/2908812.2908898; Geiger et al. 2025, arXiv 2407.21632). Arms: classic
+   Boltzmann selection; `--diversity-pressure` (classic, no new code, never run in our phases);
+   ε-lexicase exemplar selection (a small new rule in `select_exemplar`, `metapopulation.py`,
+   from the per-case behavioural scores). Down-sampling can reuse the table weights and the
+   subsampling code (`--ss-*`, `--fs-subsampling-ratio`). Boosting (`--boost`) is related, but
+   the regression scorer has no `get_error`, so it needs work first. The evidence is for parent
+   selection in population GP, not for MOSES exemplar selection.
+
+**Low priority: only if we run out of options (user, 2026-11-06)**
+- **A3. Intron-masked MI** (Koch et al. 2026, arXiv 2602.02311): give inactive knob values (under a
+  disabled parent, or contin at 0) a "masked" label before the MI step. Disallowed settings need
+  no mask: they are not in the knob's domain (`multiplicity`), so they never enter the population.
+  Input: the inactivity check of `--gomea-skip-inactive` (check that it covers contin at 0). Signs
+  of a small effect: skip-inactive "skips almost nothing" (`USAGE.md`), and 1q changed the
+  disallowed settings with no accuracy change. Not compatible with the LT-B bias correction. Test
+  only after A1, and only if A1 shows that a better linkage helps.
+
+**Tier 2: harder, needs new representation or deme code**
+5. **B1. GP-RV-GOMEA** (Koch et al., PPSN 2024, DOI 10.1007/978-3-031-70055-2_15): real-valued
+   GOMEA on the constants of the whole population, together with the structure. Blocker: our
+   contin knobs are discrete steps.
+6. **B2. Semantic backpropagation with a subtree library** (Pawlak et al., TEVC 2015; with linear
+   scaling, Virgolin et al., GECCO 2019): a new knob type that puts in the library subtree closest
+   to the output a node should give.
+7. **B4. ITEA** (de França and Aldeia, ECJ 2021, DOI 10.1162/evco_a_00285): pending the user's
+   decision.
+8. **B6. Modular GP-GOMEA** (2025, arXiv 2505.01262): several small template trees that call each
+   other. Possible hints for multiple demes in GP-GOMEA. **The user reads and validates the paper
+   first. No experiment before that.**
+9. **B7. Higher-arity GP-GOMEA** (GECCO 2024, arXiv 2402.09854): semantic subtree inheritance and
+   greedy child selection. Needs a tree template.
+
+**Control**
+10. **hBOA as a deme optimizer (user, 2026-11-06):** a control against GOMEA, as in the original
+    MOSES (Looks 2006). The `-a` choices are hc, sa, un, ps (and our gomea variants), so no hBOA
+    optimizer is wired in. But `pymoses/moses/eda/` has the ported BOA machinery
+    (`local_structure.py`: "Bayesian Optimization Algorithm (BOA) machinery"), so a BOA deme
+    optimizer may reuse it. Check how much is missing before a design.
