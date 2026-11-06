@@ -199,3 +199,8 @@ chain from round 4 to round 5, which are still to be written.
   with no evalaution cap one of the next experiments." LM stays not the default (2026-11-03).
 * PEN125: "Keep PEN125, now go to the next experiment"
 * LM with a penalty: "Add LM-VAL with PEN125 to the backlog that could be the next thing to test."
+
+**Server round 6 (2026-11-06):** the agent proposed phase 1aw (arms, contrasts and adoption rules,
+all agent-written). The user answered: "Yes I think for the next one, we should run the follow up
+exepriments and the one last confirmation round of the combined settings." User-approved: the
+design in `SERVER-ROUND6-PREREGISTRATION.md`. Not yet designed or approved: the confirmation round.
