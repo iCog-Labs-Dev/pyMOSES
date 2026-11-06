@@ -1,4 +1,4 @@
-"""tools/gomea/set_final.py (server round 7): the choice of FINAL from fake 1aw reports, on both
+"""tools/gomea/set_final.py (server round 8): the choice of FINAL from fake 1aw reports, on both
 branches of rule 2, with stage 2, failed runs and the refusals."""
 
 import csv
@@ -186,13 +186,13 @@ def test_the_choice_leaves_the_tracked_tree_unchanged(tmp_path):
 
 
 def test_smoke_source_and_target(tmp_path):
-    """The smoke plan reads server-smoke6-1aw and writes the smoke 1ax manifest."""
-    _report(tmp_path / "res" / "server-smoke6-1aw" / "report-stage1",
+    """The smoke plan reads server-smoke7-1aw and writes the smoke 1ax manifest."""
+    _report(tmp_path / "res" / "server-smoke7-1aw" / "report-stage1",
             dict.fromkeys(D6, "tie"), GOOD)
-    rc, out = _run(tmp_path, "--source", "server-smoke6-1aw", "--target", "server-smoke7-1ax")
+    rc, out = _run(tmp_path, "--source", "server-smoke7-1aw", "--target", "server-smoke8-1ax")
     assert rc == 0
     m = json.loads((out / "sr.json").read_text())
-    assert m["name"] == "server-smoke7-1ax-sr"
-    smoke = json.loads((CONFIGS / "server-smoke6-1aw" / "sr.json").read_text())
+    assert m["name"] == "server-smoke8-1ax-sr"
+    smoke = json.loads((CONFIGS / "server-smoke7-1aw" / "sr.json").read_text())
     assert m["arms"]["FINAL"]["argv"] == smoke["arms"]["LMVAL"]["argv"]
     assert m["arms"]["FINAL"]["budget"] == {"time_s": 15}

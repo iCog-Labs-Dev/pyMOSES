@@ -1,6 +1,7 @@
 {
   "name": "server-round7-smoke",
-  "description": "Smoke test of the round-7 plan: limited pytest, the mux11 repro run, the choice from the smoke 1aw report, then 1ax in miniature (configs/gomea/server-smoke7-1ax: 2 splits, 15 s per run). Uses its own state dir, so it never marks real steps done. Runs after smoke6 (plan6-smoke.json, \"then\").",
+  "description": "Smoke test of the round-7 plan: limited pytest, the mux11 repro run, then 1aw in miniature (configs/gomea/server-smoke7-1aw: 2 splits, 15 s per run). Uses its own state dir, so it never marks real steps done.",
+  "then": "smoke8",
   "state_dir": "server-run7-smoke",
   "steps": [
     {
@@ -9,8 +10,8 @@
       "pytest": {
         "args": [
           "tests/server",
-          "tests/gomea/test_set_final.py",
-          "tests/gomea/test_phase_report_pooled.py",
+          "tests/gomea/test_const_opt.py",
+          "tests/gomea/test_const_opt_guard.py",
           "tests/gomea/test_phase_report.py"
         ]
       },
@@ -21,29 +22,11 @@
       }
     },
     {
-      "id": "choose-final",
-      "type": "choice",
-      "argv": [
-        ".venv/bin/python",
-        "tools/gomea/set_final.py",
-        "--results",
-        "{results}",
-        "--source",
-        "server-smoke6-1aw",
-        "--target",
-        "server-smoke7-1ax",
-        "--out",
-        "{state}/server-smoke7-1ax-config"
-      ],
-      "record": "{state}/server-smoke7-1ax-config/final-choice.json"
-    },
-    {
-      "id": "smoke7-1ax",
+      "id": "smoke7-1aw",
       "type": "phase",
-      "phase": "server-smoke7-1ax",
-      "config_dir": "{state}/server-smoke7-1ax-config",
+      "phase": "server-smoke7-1aw",
       "requires": [
-        "datasets:Air,Bos,Con,Dow,EnC,EnH,Tow,WiR,WiW,Yac"
+        "datasets:WiR,Con,EnH,Air,Yac,Tow"
       ]
     }
   ]

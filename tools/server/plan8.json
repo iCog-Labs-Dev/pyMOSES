@@ -1,0 +1,39 @@
+{
+  "name": "server-round8-2026-11",
+  "description": "SERVER-ROUND8-PREREGISTRATION.md: S0, then set_final.py chooses FINAL from the final 1aw report and writes the resolved 1ax manifest into the state directory, then 1ax (confirmation on splits 21-30, no extension). Runs after round 7 (plan7.json, \"then\").",
+  "state_dir": "server-run8",
+  "steps": [
+    {
+      "id": "S0",
+      "type": "check",
+      "pytest": {},
+      "repro": {}
+    },
+    {
+      "id": "choose-final",
+      "type": "choice",
+      "argv": [
+        ".venv/bin/python",
+        "tools/gomea/set_final.py",
+        "--results",
+        "{results}",
+        "--source",
+        "phase1aw",
+        "--target",
+        "phase1ax",
+        "--out",
+        "{state}/phase1ax-config"
+      ],
+      "record": "{state}/phase1ax-config/final-choice.json"
+    },
+    {
+      "id": "phase1ax",
+      "type": "phase",
+      "phase": "phase1ax",
+      "config_dir": "{state}/phase1ax-config",
+      "requires": [
+        "datasets:Air,Bos,Con,Dow,EnC,EnH,Tow,WiR,WiW,Yac"
+      ]
+    }
+  ]
+}

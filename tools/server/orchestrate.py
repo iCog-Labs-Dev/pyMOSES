@@ -35,7 +35,7 @@ does not either. RETRY_FAILED and REPRO_ONLY do not pass to the next plan. Each 
 a chain holds the chain's lock (`chain.lock`), so no two of them run at the same time.
 
 Step types: `check` (S0: pytest and the reproducibility check; failures are flagged, never
-fatal), `choice` (server round 7: `argv`, a command run once from the repository root, with
+fatal), `choice` (server round 8: `argv`, a command run once from the repository root, with
 `{repo}`, `{results}` and `{state}` replaced; done when it exits 0, else failed; its
 `record` file, a JSON object that the command writes, goes into the `choice` event) and
 `phase` (optionally `requires: ["gpgomea"]`, `["knob-cap:PILOT"]` (PILOT's
@@ -45,7 +45,7 @@ PHASE's `const-opt-choice.json`, written by tools/gomea/set_const_opt.py) or
 phase1f/datasets/), and a `pilot` phase plus an
 `after_pilot` command that must succeed before the phase). A phase step's `set_commit_in`
 manifests get the current HEAD as `commit` before its pilot and phase run. A phase step's optional
-`config_dir` (round 7; `{state}` and `{results}` replaced) is passed to phase_run.sh as
+`config_dir` (round 8; `{state}` and `{results}` replaced) is passed to phase_run.sh as
 PHASE_CONFIG_DIR, and the step is skipped while that directory has no spec.json and sr.json
 (for example when the choice step failed). A phase runs as
 `WORKERS=W tools/gomea/phase_run.sh PHASE >> ../gomea-results/PHASE.log`, W from
@@ -529,7 +529,7 @@ class Round:
         return text.format(repo=REPO, results=RES, state=self.sd)
 
     def do_choice(self, step: dict, st: dict) -> None:
-        """Round 7: run the step's command once; log its record file as the `choice` event."""
+        """Round 8: run the step's command once; log its record file as the `choice` event."""
         sid = step["id"]
         argv = [self.fmt(a) for a in step["argv"]]
         try:

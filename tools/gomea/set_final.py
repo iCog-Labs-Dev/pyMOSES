@@ -1,12 +1,12 @@
-"""Choose the FINAL arm of 1ax from the final 1aw report (server round 7).
+"""Choose the FINAL arm of 1ax from the final 1aw report (server round 8).
 
-Usage (from the repository root, after `tools/gomea/phase_run.sh phase1aw`; the round-7 plan
+Usage (from the repository root, after `tools/gomea/phase_run.sh phase1aw`; the round-8 plan
 runs it as its `choice` step)::
 
     .venv/bin/python tools/gomea/set_final.py --out DIR [--results DIR] [--configs DIR]
         [--source PHASE] [--target PHASE] [--dry-run] [--force]
 
-`SERVER-ROUND7-PREREGISTRATION.md`, "The choice of FINAL": if rule 2 of 1aw passes (LMVAL-PEN125
+`SERVER-ROUND8-PREREGISTRATION.md`, "The choice of FINAL": if rule 2 of 1aw passes (LMVAL-PEN125
 is better than LMVAL on size on at least 4 of 6 datasets, and its median test NMSE is at most
 10 % higher on each), FINAL is the LMVAL-PEN125 arm of 1aw; otherwise it is the LMVAL arm.
 Rules 1 and 3 of 1aw do not change FINAL. This script

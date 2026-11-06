@@ -17,8 +17,8 @@ SPEC_JSON (one per phase, `configs/gomea/<phase>/spec.json`)::
      "primary":     [[problem, name, arm_a, arm_b(, metric)], ...],
      "secondary":   [[...], ...],
      "descriptive": [[...], ...],          # optional
-     "pooled_primary": [[name, arm_a, arm_b, metric], ...],   # optional (server round 7)
-     "secondary_verdicts": false}          # optional (server round 7), default true
+     "pooled_primary": [[name, arm_a, arm_b, metric], ...],   # optional (server round 8)
+     "secondary_verdicts": false}          # optional (server round 8), default true
 
 A contrast takes its problem's metric, or the optional fifth element (server round 3,
 1ap: program size as the primary metric and test NMSE as the secondary one for the same
@@ -34,7 +34,7 @@ Families: Holm over all primary contrasts, and separately over all secondary one
 Descriptive contrasts take no verdict (raw p only). With `"secondary_verdicts": false` the
 secondary contrasts keep their Holm p but take no verdict (`None`).
 
-Pooled primary contrasts (server round 7, `SERVER-ROUND7-PREREGISTRATION.md`): each one pools
+Pooled primary contrasts (server round 8, `SERVER-ROUND8-PREREGISTRATION.md`): each one pools
 the pairs (problem, seed) of all problems in `metrics`. Its statistic is
 r = log(metric_A / metric_B) per pair, with a paired Wilcoxon signed-rank test (two-sided) on r.
 A failed run (metric infinite) gets the largest rank against it: r = +1e12 when only A failed,
@@ -150,7 +150,7 @@ def _log(x: float) -> float:
 
 
 def _pooled_contrast(name, a, b, runs, problems, metric) -> dict:
-    """Server round 7: the pairs (problem, seed) of all problems, r = log(A / B)."""
+    """Server round 8: the pairs (problem, seed) of all problems, r = log(A / B)."""
     xa, xb, r = [], [], []
     for p in problems:
         ra, rb = runs.get(p, {}).get(a, {}), runs.get(p, {}).get(b, {})

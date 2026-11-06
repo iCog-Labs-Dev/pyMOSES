@@ -1,0 +1,50 @@
+{
+  "name": "server-round8-smoke",
+  "description": "Smoke test of the round-8 plan: limited pytest, the mux11 repro run, the choice from the smoke 1aw report, then 1ax in miniature (configs/gomea/server-smoke8-1ax: 2 splits, 15 s per run). Uses its own state dir, so it never marks real steps done. Runs after smoke7 (plan7-smoke.json, \"then\").",
+  "state_dir": "server-run8-smoke",
+  "steps": [
+    {
+      "id": "S0",
+      "type": "check",
+      "pytest": {
+        "args": [
+          "tests/server",
+          "tests/gomea/test_set_final.py",
+          "tests/gomea/test_phase_report_pooled.py",
+          "tests/gomea/test_phase_report.py"
+        ]
+      },
+      "repro": {
+        "only": [
+          "1ae-mux11-GOMEA-s3001"
+        ]
+      }
+    },
+    {
+      "id": "choose-final",
+      "type": "choice",
+      "argv": [
+        ".venv/bin/python",
+        "tools/gomea/set_final.py",
+        "--results",
+        "{results}",
+        "--source",
+        "server-smoke7-1aw",
+        "--target",
+        "server-smoke8-1ax",
+        "--out",
+        "{state}/server-smoke8-1ax-config"
+      ],
+      "record": "{state}/server-smoke8-1ax-config/final-choice.json"
+    },
+    {
+      "id": "smoke8-1ax",
+      "type": "phase",
+      "phase": "server-smoke8-1ax",
+      "config_dir": "{state}/server-smoke8-1ax-config",
+      "requires": [
+        "datasets:Air,Bos,Con,Dow,EnC,EnH,Tow,WiR,WiW,Yac"
+      ]
+    }
+  ]
+}

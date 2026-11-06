@@ -1,5 +1,5 @@
 {
-  "phase": "smoke6-1aw",
+  "phase": "smoke7-1aw",
   "metrics": {
     "WiR": "test_nmse",
     "Con": "test_nmse",

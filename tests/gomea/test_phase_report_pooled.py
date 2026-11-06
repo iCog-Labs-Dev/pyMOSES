@@ -1,4 +1,4 @@
-"""phase_report.py, server round 7: the pooled primary test (r = log(NMSE_A / NMSE_B) over all
+"""phase_report.py, server round 8: the pooled primary test (r = log(NMSE_A / NMSE_B) over all
 (problem, seed) pairs, Holm across the pooled contrasts) and secondary contrasts without
 verdicts. The expected p values are computed by hand from the exact Wilcoxon distribution."""
 
