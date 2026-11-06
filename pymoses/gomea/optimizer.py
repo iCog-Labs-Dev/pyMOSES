@@ -52,6 +52,7 @@ from pymoses.gomea.population import (
 from pymoses.gomea.schema import CONTIN_MODES, FrozenSchema
 from pymoses.gomea.stats import CONTIN_STATS_MODES, contin_symbols
 from pymoses.gomea.telemetry import TelemetrySink
+from pymoses.moses.moses.optimization.hill_climbing import hc_parameters, hill_climbing
 from pymoses.moses.moses.optimization.optimization import (
     deme_t,
     optim_parameters,
@@ -62,12 +63,46 @@ from pymoses.util.rng import MT19937RandGen, randGen
 
 __all__ = [
     "DEME_STORE_MODES",
+    "DYNAMIC_POP_SIZE",
     "TERMINATION_REASONS",
     "accept_worse",
     "gomea_optimization",
     "gomea_parameters",
     "population_diversity",
 ]
+
+# GOMEA extension, server round 6 (``--gomea-pop-size dynamic``): the ``pop_size``
+# value that sizes each deme's population with classic hill climbing's count.
+DYNAMIC_POP_SIZE = "dynamic"
+
+
+def dynamic_pop_size(fields, evals_left: int, fraction_of_nn: float, max_nn_evals: int) -> int:
+    """GOMEA extension, server round 6: the population size of a deme under
+    ``--gomea-pop-size dynamic``.
+
+    The count is the number of new instances classic hill climbing takes at
+    distance 1 from the exemplar: ``hill_climbing.estimate_neighborhood(1, fields)``
+    and then ``hill_climbing.n_new_instances(1, ...)``, with ``fraction_of_nn``
+    (``--hc-fraction-of-nn``), ``max_nn_evals`` (``--hc-max-nn-evals``), the classic
+    minimum (``_MINIMUM_DEME_SIZE``) and the evaluations left. The classic functions
+    are called, not copied, on an ``hc_parameters`` whose two fields are assigned as
+    ``problem_params`` assigns them (so a value the CLI accepts is accepted here).
+
+    DIVERGENCE (from classic hill climbing's own call, hill-climbing.cc:110): classic
+    passes ``current_number_of_evals`` = the evaluations its deme already spent (1,
+    the exemplar, at its first distance-1 step). A GOMEA deme has spent none when its
+    population is sized, so this passes 0 and ``evals_left`` is all of the deme's
+    budget. The result is at least 2, because GOM needs a donor (as
+    ``--gomea-pop-fraction`` does); classic's count is below 2 only when fewer than
+    2 evaluations are left.
+    """
+    hc = hc_parameters()
+    hc.fraction_of_nn = fraction_of_nn
+    hc.max_nn_evals = max_nn_evals
+    climber = hill_climbing(None, hc)
+    nn = climber.estimate_neighborhood(1, fields)
+    return max(2, climber.n_new_instances(1, max(0, evals_left), 0, nn))
+
 
 FOS_MODES = ("lt-b", "lt-mi", "rt", "uni")
 
@@ -180,7 +215,15 @@ class gomea_parameters:
     4)``) and the generation-0 score ``knob_rank0`` (``"contrast"``,
     ``"entropy"`` or ``"random"``); see ``pymoses.gomea.knob_cap``. Its draws
     come from a fourth stream, seeded from ``randGen()`` after the other three
-    and only when K > 0, so a K = 0 run draws exactly as before."""
+    and only when K > 0, so a K = 0 run draws exactly as before.
+
+    GOMEA extension, dynamic population (server round 6, off by default): ``pop_size``
+    ``"dynamic"`` sizes each deme's population with classic hill climbing's count at
+    distance 1 (``dynamic_pop_size``), from the deme's field set, its budget
+    (``deme_budget``), ``hc_fraction_of_nn`` and ``hc_max_nn_evals``. The two ``hc_``
+    options are left out of ``as_dict`` unless ``pop_size`` is ``"dynamic"``, so a
+    fixed-N run's telemetry is unchanged. ``"dynamic"`` refuses ``pop_fraction``
+    (both size the population)."""
 
     def __init__(
         self,
@@ -217,8 +260,17 @@ class gomea_parameters:
         const_opt: str = "none",
         const_opt_val: str = "",
         const_opt_guard: str = "none",
+        hc_fraction_of_nn: float = 2.0,
+        hc_max_nn_evals: int = 20000,
     ) -> None:
-        if pop_size < 2:
+        if pop_size == DYNAMIC_POP_SIZE:
+            if pop_fraction > 0:
+                raise ValueError(
+                    "pop_size 'dynamic' and pop_fraction both size the population: choose one"
+                )
+        elif not isinstance(pop_size, int) or isinstance(pop_size, bool):
+            raise ValueError(f"pop_size must be an integer >= 2 or 'dynamic', got {pop_size!r}")
+        elif pop_size < 2:
             raise ValueError(f"pop_size must be >= 2, got {pop_size}")
         if fos not in FOS_MODES:
             raise ValueError(f"fos must be one of {FOS_MODES}, got {fos!r}")
@@ -337,6 +389,8 @@ class gomea_parameters:
         self.const_opt = const_opt
         self.const_opt_val = const_opt_val
         self.const_opt_guard = const_opt_guard
+        self.hc_fraction_of_nn = hc_fraction_of_nn
+        self.hc_max_nn_evals = hc_max_nn_evals
 
     # The opt-in options, left out of ``as_dict`` while at their default
     # (off), so a default run's telemetry is unchanged.
@@ -360,6 +414,10 @@ class gomea_parameters:
     # (off), all kept otherwise.
     _KNOB_KEYS = ("knob_cap", "knob_select", "knob_explore", "knob_rank0")
 
+    # The dynamic-population options: left out of ``as_dict`` unless ``pop_size`` is
+    # ``"dynamic"`` (server round 6).
+    _DYNAMIC_KEYS = ("hc_fraction_of_nn", "hc_max_nn_evals")
+
     def as_dict(self) -> dict:
         d = dict(vars(self))
         for k, default in self._OPTIONAL_DEFAULTS.items():
@@ -368,7 +426,14 @@ class gomea_parameters:
         if self.knob_cap == 0:
             for k in self._KNOB_KEYS:
                 del d[k]
+        if not self.dynamic():
+            for k in self._DYNAMIC_KEYS:
+                del d[k]
         return d
+
+    def dynamic(self) -> bool:
+        """Whether ``pop_size`` is ``"dynamic"`` (server round 6)."""
+        return self.pop_size == DYNAMIC_POP_SIZE
 
     def budget_derived(self) -> bool:
         """Whether any budget-derived option (``pop_fraction``,
@@ -383,12 +448,22 @@ class gomea_parameters:
             return max_evals
         return min(max_evals, self.max_evals_per_deme)
 
-    def deme_pop_size(self, max_evals: int) -> int:
+    def deme_pop_size(self, max_evals: int, fields=None) -> int:
         """The population size N of a deme handed ``max_evals``: ``pop_size``
         when ``pop_fraction`` is off, else ``max(2, floor(pop_fraction *
         deme_budget(max_evals)))`` clamped to ``pop_max`` when set. The
         product is taken exactly (on the decimal value of ``pop_fraction``),
-        so 0.29 x 100 is 29, not 28."""
+        so 0.29 x 100 is 29, not 28.
+
+        With ``pop_size`` ``"dynamic"`` (server round 6), N is
+        ``dynamic_pop_size(fields, deme_budget(max_evals), ...)``; ``fields`` (the
+        deme's ``field_set``) is then required."""
+        if self.dynamic():
+            if fields is None:
+                raise ValueError("pop_size 'dynamic' needs the deme's field set")
+            return dynamic_pop_size(
+                fields, self.deme_budget(max_evals), self.hc_fraction_of_nn, self.hc_max_nn_evals
+            )
         if self.pop_fraction <= 0:
             return self.pop_size
         budget = max(0, self.deme_budget(max_evals))
@@ -606,6 +681,8 @@ class gomea_optimization(optimizer_base):
         self._rng_mut: MT19937RandGen | None = None
         self._co: dict = _new_const_opt_counts()
         self._val_rows: RegressionRows | None = None
+        # GOMEA extension, server round 6: the N of the current deme.
+        self._deme_n: int | None = None
 
     def prepare_deme(self, mp, exemplar) -> None:
         """GOMEA extension, Phase 1af: called by ``expand_deme`` once the
@@ -641,7 +718,8 @@ class gomea_optimization(optimizer_base):
         sink = TelemetrySink(gp.telemetry_path)
         oracle = self._make_oracle(schema, iscorer, deme, max_evals, max_time)
         ev = _OracleEvaluator(oracle, schema, gp.skip_inactive, gp.accept_complexity_ratio)
-        n = gp.deme_pop_size(max_evals)
+        n = gp.deme_pop_size(max_evals, schema.fields)
+        self._deme_n = n
         self._emit_start(sink, schema, deme, max_evals, max_time)
 
         t0 = time.perf_counter()
@@ -689,7 +767,8 @@ class gomea_optimization(optimizer_base):
         prior = [(schema.to_genotype(si.first), si.second) for si in deme]
         oracle.preload(prior, deme.n_evals)
         ev = _OracleEvaluator(oracle, schema, gp.skip_inactive, gp.accept_complexity_ratio)
-        n = gp.deme_pop_size(max_evals)
+        n = gp.deme_pop_size(max_evals, schema.fields)
+        self._deme_n = n
         self._emit_start(sink, schema, deme, max_evals, max_time, prior_evals=deme.n_evals)
 
         t0 = time.perf_counter()
@@ -766,6 +845,11 @@ class gomea_optimization(optimizer_base):
             extra["deme_budget"] = gp.deme_budget(max_evals)
             extra["deme_cap"] = gp.max_evals_per_deme
             extra["deme_pop_size"] = gp.deme_pop_size(max_evals)
+        if gp.dynamic():
+            # GOMEA extension, server round 6: this deme's budget and dynamic N
+            # (absent with a fixed N).
+            extra["deme_budget"] = gp.deme_budget(max_evals)
+            extra["deme_pop_size"] = gp.deme_pop_size(max_evals, schema.fields)
         if self.long_deme is not None:
             # GOMEA extension, Phase 1af (absent when the option is off).
             extra.update(self._long_deme_record())
@@ -981,6 +1065,10 @@ class gomea_optimization(optimizer_base):
         if self.long_deme is not None:
             # GOMEA extension, Phase 1af (absent when the option is off).
             self.last_result.update(self._long_deme_record())
+        if self.gomea_params.dynamic():
+            # GOMEA extension, server round 6: the dynamic N of this deme (absent
+            # with a fixed N; ``pop_size_effective`` is the size actually drawn).
+            self.last_result["pop_size_dynamic"] = self._deme_n
         if self.gomea_params.knob_cap > 0:
             # GOMEA extension, knob cap (absent when the option is off).
             knobs = engine.knobs if engine is not None else None

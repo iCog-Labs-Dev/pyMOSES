@@ -199,6 +199,7 @@ from pymoses.comboreduct.combo.vertex import builtin
 from pymoses.comboreduct.reduct.contin_reduction import contin_reduction
 from pymoses.comboreduct.reduct.logical_reduction import logical_reduction
 from pymoses.gomea import gomea_parameters
+from pymoses.gomea.optimizer import DYNAMIC_POP_SIZE
 from pymoses.moses.deme.deme_params import deme_parameters
 from pymoses.moses.deme.feature_selector import feature_selector_parameters
 from pymoses.moses.metapopulation.metapop_params import (
@@ -272,15 +273,34 @@ _SUPPORTED_OPT_ALGOS = frozenset({"hc", "sa", "un", "ps", "gomea", "hc-gomea", "
 # {16, 32, 64} under a 20k-evaluation budget
 # (docs/gomea/pilot-a/aggregate_results.csv) -- larger N spends more per
 # generation (about N x 2 x knobs evals) and converges prematurely.
+#
+# Server round 6: `--gomea-pop-size dynamic` sizes each deme's population with
+# classic hill climbing's count at distance 1 (`pymoses.gomea.optimizer.
+# dynamic_pop_size`), from `--hc-fraction-of-nn` and `--hc-max-nn-evals`.
 _GOMEA_FOS_CHOICES = ("lt-b", "lt-mi", "rt", "uni")
+
+
+def _gomea_pop_size_arg(text: str) -> int | str:
+    """GOMEA extension, server round 6: the value of `--gomea-pop-size`, an
+    integer or the word `dynamic`."""
+    if text == DYNAMIC_POP_SIZE:
+        return DYNAMIC_POP_SIZE
+    return int(text)
+
+
+_gomea_pop_size_arg.__name__ = "integer or 'dynamic'"  # argparse's error message
+
 _GOMEA_OPTIONS = (
     (
         "--gomea-pop-size",
         "gomea_pop_size",
-        int,
+        _gomea_pop_size_arg,
         16,
         "GOMEA population per deme (default 16). Each generation costs about "
-        "N x 2 x knobs evaluations.",
+        "N x 2 x knobs evaluations. 'dynamic': N for each deme is the number of "
+        "new instances classic hill climbing takes at distance 1 "
+        "(--hc-fraction-of-nn, --hc-max-nn-evals, at least 100, at most the "
+        "evaluations left).",
     ),
     (
         "--gomea-fos",
@@ -713,6 +733,11 @@ def _gomea_params_from_args(args: argparse.Namespace) -> gomea_parameters:
         raise ValueError(f"--gomea-pop-max must be 0 (no limit) or >= 2, got {v['gomea_pop_max']}")
     if v["gomea_pop_max"] and not pop_fraction:
         raise ValueError("--gomea-pop-max needs --gomea-pop-fraction")
+    if v["gomea_pop_size"] == DYNAMIC_POP_SIZE and pop_fraction:
+        raise ValueError(
+            "--gomea-pop-size dynamic and --gomea-pop-fraction both size the population; "
+            "choose one of them"
+        )
     ratio = v["gomea_accept_complexity_ratio"]
     if not (ratio >= 0 and math.isfinite(ratio)):
         raise ValueError(
@@ -762,6 +787,9 @@ def _gomea_params_from_args(args: argparse.Namespace) -> gomea_parameters:
         const_opt=v["const_opt"],
         const_opt_val=v["const_opt_val"],
         const_opt_guard=v["const_opt_guard"],
+        # server round 6: read only by --gomea-pop-size dynamic
+        hc_fraction_of_nn=getattr(args, "hc_frac_of_nn", 2.0),
+        hc_max_nn_evals=getattr(args, "hc_max_nn", 20000),
     )
 
 

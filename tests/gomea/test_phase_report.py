@@ -398,3 +398,34 @@ def test_scores_now_still_reads_a_report(tmp_path):
                        env={"GOMEA_RESULTS": str(res), "PATH": "/usr/bin:/bin"})
     assert r.returncode == 0, r.stderr
     assert "A vs B" in r.stdout and "stage 1 verdicts" in r.stdout
+
+
+# ---- server round 6: the population size of each deme (D1)
+
+
+def test_pop_size_columns_pool_the_demes_with_evaluations(tmp_path):
+    a = [_reg("A", s, 1.0 + s) for s in (1, 2, 3)]
+    b = [_reg("B", s, 2.0 + s) for s in (1, 2, 3)]
+    d = _write(tmp_path, "r", a + b)
+    sized = lambda req, n: dict(_end(req), pop_size_effective=n)  # noqa: E731
+    empty = dict(_end(0, 0, "time_limit"), pop_size_effective=5000)  # not a real deme
+    _events(tmp_path, "r", a[0], [sized(10, 100), sized(9, 160), empty])
+    _events(tmp_path, "r", a[1], [sized(10, 2000)])
+    _events(tmp_path, "r", a[2], [sized(10, 100), sized(5, 120), empty])
+    for s in b:
+        _events(tmp_path, "r", s, [sized(10, 16), sized(10, 16)])
+    rc, out, _ = _run(tmp_path, REG_SPEC, [d])
+    assert rc == 0
+    agg = {r["arm"]: r for r in _rows(out, "aggregate.csv")}
+    assert float(agg["A"]["median_pop_size"]) == 120  # of 100 160 2000 100 120
+    assert (agg["A"]["min_pop_size"], agg["A"]["max_pop_size"]) == ("100", "2000")
+    assert float(agg["B"]["median_pop_size"]) == 16
+    assert (agg["B"]["min_pop_size"], agg["B"]["max_pop_size"]) == ("16", "16")
+
+
+def test_pop_size_columns_are_empty_without_telemetry(tmp_path):
+    d = _write(tmp_path, "r", [_reg("A", s, 1.0) for s in (1, 2)] + [_reg("B", s, 2.0)
+                                                                   for s in (1, 2)])
+    _, out, _ = _run(tmp_path, REG_SPEC, [d])
+    agg = {r["arm"]: r for r in _rows(out, "aggregate.csv")}
+    assert agg["A"]["median_pop_size"] == "" and agg["A"]["max_pop_size"] == ""

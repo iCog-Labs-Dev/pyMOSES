@@ -64,7 +64,10 @@ when the time is spent ends at once with 0 evaluations; it is not a real deme:
 * `median_deme_count`: a regression run counts these demes. A Boolean run keeps the
   runner's own `deme_count`, the scorers with at least one call;
 * `median_generations_per_deme`: pooled over the demes of the arm's runs;
-* `deme_end_share_<reason>`: share of the arm's demes with that `termination_reason`.
+* `deme_end_share_<reason>`: share of the arm's demes with that `termination_reason`;
+* `median_pop_size`, `min_pop_size`, `max_pop_size` (server round 6, D1): the population size
+  of each deme (`pop_size_effective` of its "end" event, the size drawn), pooled over the demes
+  of the arm's runs. A fixed N gives N three times; `--gomea-pop-size dynamic` gives its spread.
 
 A run without `events.jsonl` (a stand-alone GP-GOMEA or classic run) gives no deme values.
 """
@@ -263,6 +266,12 @@ def _deme_columns(v: list[dict], reg: bool) -> dict:
         reasons[r] = reasons.get(r, 0) + 1
     for r in sorted(reasons):
         row[f"deme_end_share_{r}"] = reasons[r] / len(pooled)
+    # server round 6 (D1): the population size of each deme
+    sizes = [e["pop_size_effective"] for e in pooled
+             if isinstance(e.get("pop_size_effective"), int)]
+    row["median_pop_size"] = _med(sizes)
+    row["min_pop_size"] = min(sizes) if sizes else None
+    row["max_pop_size"] = max(sizes) if sizes else None
     return row
 
 
