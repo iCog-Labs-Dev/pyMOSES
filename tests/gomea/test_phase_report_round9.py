@@ -123,3 +123,92 @@ def test_extend_false_keeps_better(tmp_path):
                + [_reg("B", k, nmse=0.5 + k / 100) for k in SPLITS])
     v, _ = _run(tmp_path, _spec("test_nmse", extend=False), d)
     assert v == {"Con:ab": "A better"}
+
+
+# ---- the spec key "secondary_families" (1bc: N16-C250 vs N16 is its own Holm family)
+
+D6 = ["Con", "Tow", "Yac", "WiR", "Bos", "EnC"]
+
+
+def _bc_spec(**kw):
+    def c(name, a, b, metric):
+        return [[d, name, a, b, metric] for d in D6]
+    return dict({"phase": "t", "metrics": dict.fromkeys(D6, "test_nmse"),
+                 "primary": c("c250-vs-base", "BASE-C250", "BASE", "test_nmse"),
+                 "secondary": c("n16c250-vs-n16", "N16-C250", "N16", "test_nmse")
+                 + c("c250-vs-base-size", "BASE-C250", "BASE", "program_size")
+                 + c("c250-vs-base-lm", "BASE-C250", "BASE", "lm_calls"),
+                 "extend": False}, **kw)
+
+
+def _bc_dir(tmp_path):
+    """N16-C250 has a 50 % lower test NMSE than N16 on every split of every dataset (raw p
+    2/1024). BASE-C250 and BASE are equal in NMSE and size, and BASE-C250 has fewer LM calls
+    on 6 of 10 splits and more on 4 (a large raw p)."""
+    out = []
+    for d in D6:
+        for k in SPLITS:
+            out += [_reg("N16-C250", k, nmse=0.1 + k / 100, task=d),
+                    _reg("N16", k, nmse=0.3 + k / 100, task=d),
+                    _reg("BASE", k, nmse=0.2, lm=100, task=d),
+                    _reg("BASE-C250", k, nmse=0.2, lm=90 if k <= 6 else 120, task=d)]
+    return _write(tmp_path, out)
+
+
+def _bc_run(tmp_path, spec):
+    sp = tmp_path / "spec.json"
+    sp.write_text(json.dumps(spec))
+    out = tmp_path / "out"
+    assert phase_report.main(["--stage", "1", str(sp), str(out), _bc_dir(tmp_path)]) == 0
+    rows = list(csv.DictReader((out / "contrasts.csv").open()))
+    return json.loads((out / "verdict.json").read_text()), rows
+
+
+def test_default_keeps_one_secondary_family_of_18(tmp_path):
+    v, rows = _bc_run(tmp_path, _bc_spec())
+    fam = [r for r in rows if r["contrast"] == "n16c250-vs-n16"]
+    assert len(fam) == 6
+    for r in fam:
+        assert float(r["p"]) == pytest.approx(2 / 1024)
+        assert float(r["p_holm"]) == pytest.approx(18 * 2 / 1024)  # 0.035: no verdict
+        assert v[f"{r['problem']}:n16c250-vs-n16"] == "tie"
+    assert "holm_family" not in rows[0]
+
+
+def test_own_family_of_6_gives_a_verdict(tmp_path):
+    v, rows = _bc_run(tmp_path, _bc_spec(secondary_families=[["n16c250-vs-n16"]]))
+    fam = [r for r in rows if r["contrast"] == "n16c250-vs-n16"]
+    assert len(fam) == 6
+    for r in fam:
+        assert float(r["p_holm"]) == pytest.approx(6 * 2 / 1024)  # 0.0117 < ALPHA
+        assert float(r["p_holm"]) < phase_report.ALPHA
+        assert r["family"] == "secondary" and r["holm_family"] == "secondary/n16c250-vs-n16"
+        assert v[f"{r['problem']}:n16c250-vs-n16"] == "A better"
+
+
+def test_the_other_12_secondary_contrasts_form_the_second_family(tmp_path):
+    _, rows = _bc_run(tmp_path, _bc_spec(secondary_families=[["n16c250-vs-n16"]]))
+    rest = [r for r in rows if r["family"] == "secondary" and r["contrast"] != "n16c250-vs-n16"]
+    assert len(rest) == 12 and {r["holm_family"] for r in rest} == {"secondary"}
+    want = phase_report.holm([float(r["p"]) for r in rest])
+    assert [float(r["p_holm"]) for r in rest] == pytest.approx(want)
+    prim = [r for r in rows if r["family"] == "primary"]
+    assert len(prim) == 6
+    assert [float(r["p_holm"]) for r in prim] == pytest.approx(
+        phase_report.holm([float(r["p"]) for r in prim]))
+
+
+def test_the_row_order_and_the_verdict_keys_do_not_change(tmp_path):
+    v0, r0 = _bc_run(tmp_path, _bc_spec())
+    v1, r1 = _bc_run(tmp_path, _bc_spec(secondary_families=[["n16c250-vs-n16"]]))
+    assert [(r["problem"], r["contrast"]) for r in r0] == [(r["problem"], r["contrast"]) for r in r1]
+    assert list(v0) == list(v1)
+
+
+@pytest.mark.parametrize("bad", [[["nope"]], [["c250-vs-base"]],
+                                 [["n16c250-vs-n16"], ["n16c250-vs-n16"]], ["n16c250-vs-n16"]])
+def test_bad_secondary_families_are_refused(tmp_path, bad):
+    sp = tmp_path / "spec.json"
+    sp.write_text(json.dumps(_bc_spec(secondary_families=bad)))
+    assert phase_report.main(["--stage", "1", str(sp), str(tmp_path / "o"),
+                              _bc_dir(tmp_path)]) == 2

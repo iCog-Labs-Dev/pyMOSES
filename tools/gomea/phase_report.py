@@ -20,7 +20,8 @@ SPEC_JSON (one per phase, `configs/gomea/<phase>/spec.json`)::
      "pooled_primary": [[name, arm_a, arm_b, metric], ...],   # optional (server round 8)
      "pooled_secondary": [[name, arm_a, arm_b, metric], ...], # optional (server round 8)
      "secondary_verdicts": false,          # optional (server round 8), default true
-     "extend": false}                      # optional (server round 9), default true
+     "extend": false,                      # optional (server round 9), default true
+     "secondary_families": [[name, ...], ...]}  # optional (server round 9, 1bc)
 
 A contrast takes its problem's metric, or the optional fifth element (server round 3,
 1ap: program size as the primary metric and test NMSE as the secondary one for the same
@@ -41,6 +42,11 @@ problem). Metrics, paired by seed (a regression run's seed is its split); lower 
 Families: Holm over all primary contrasts, and separately over all secondary ones.
 Descriptive contrasts take no verdict (raw p only). With `"secondary_verdicts": false` the
 secondary contrasts keep their Holm p but take no verdict (`None`).
+With `"secondary_families"` (server round 9, 1bc) each inner list of secondary contrast names
+is a Holm family of its own, and the other secondary contrasts form one more family. The rows
+keep family "secondary" and get the column `holm_family`: "secondary/<names joined by +>" or
+"secondary". Each name must be a secondary contrast, in one list only. Without the key the
+secondary contrasts are one family, as before.
 
 Pooled primary contrasts (server round 8, `SERVER-ROUND8-PREREGISTRATION.md`): each one pools
 the pairs (problem, seed) of all problems in `metrics`. Its statistic is
@@ -410,7 +416,23 @@ def main(argv: list[str] | None = None) -> int:
         _decide_pooled(rows["primary"])
     else:
         _decide(rows["primary"], stage, can_extend=spec.get("extend", True) is not False)
-    _decide(rows["secondary"], stage, can_extend=False)
+    groups = spec.get("secondary_families")
+    if groups is None:
+        _decide(rows["secondary"], stage, can_extend=False)
+    else:
+        names = {c[1] for c in families["secondary"]}
+        flat = [n for g in groups if isinstance(g, list) for n in g]
+        if (not all(isinstance(g, list) and g for g in groups) or len(flat) != len(set(flat))
+                or not set(flat) <= names):
+            print(f"bad secondary_families {groups} (want lists of distinct secondary "
+                  f"contrast names from {sorted(names)})", file=sys.stderr)
+            return 2
+        label = {n: "secondary/" + "+".join(g) for g in groups for n in g}
+        for r in rows["secondary"]:
+            r["holm_family"] = label.get(r["contrast"], "secondary")
+        for fam in dict.fromkeys(r["holm_family"] for r in rows["secondary"]):
+            _decide([r for r in rows["secondary"] if r["holm_family"] == fam], stage,
+                    can_extend=False)
     if spec.get("secondary_verdicts", True) is False:
         for r in rows["secondary"]:
             r["verdict"] = None
