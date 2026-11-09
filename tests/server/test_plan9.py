@@ -194,21 +194,35 @@ def test_spec(prefix, p, n1, n2):
     assert s["primary"] == SPECS[p][0] and len(s["primary"]) == n1
     assert s["secondary"] == SPECS[p][1] and len(s["secondary"]) == n2
     assert "pooled_primary" not in s and "secondary_verdicts" not in s
+    # 1bc: N16-C250 vs N16 is its own Holm family; the other 12 secondary ones are a second
+    assert s.get("secondary_families") == ([["n16c250-vs-n16"]] if p == "1bc" else None)
     assert s.get("extend", True) is (p != "1bc")
     for c in s["primary"] + s["secondary"]:
         assert c[4] in phase_report.METRICS
 
 
 def test_holm_families_at_10_pairs():
-    """With 10 pairs the smallest two-sided p is 2/1024. Holm over 8, 4 and 6 primary
-    contrasts can give a verdict at stage 1. Holm over the 24 secondary contrasts of 1ba and
-    the 18 of 1bc cannot (1bc has no stage 2)."""
+    """With 10 pairs the smallest two-sided p is 2/1024. Holm over the 8, 4 and 6 primary
+    contrasts can give a verdict at stage 1. In 1bc, Holm over the own family of the 6
+    N16-C250 vs N16 contrasts gives at least 6 * 2/1024 = 0.0117, so a verdict is possible;
+    so does the second family of 12 (size and LM calls, 0.0234). One family of 18 (the first
+    draft) could not (0.035), and neither can the 24 secondary contrasts of 1ba."""
     p = wilcoxon_signed_rank([float(i + 1) for i in range(10)])[1]
     assert p == pytest.approx(2 / 1024)
-    for n in (8, 4, 6, 8):
+    for n in (8, 4, 6, 6, 12):
         assert holm([p] * n)[0] < phase_report.ALPHA
+    assert holm([p] * 6)[0] == pytest.approx(6 * 2 / 1024)
     for n in (24, 18):
         assert holm([p] * n)[0] > phase_report.ALPHA
+
+
+@pytest.mark.parametrize("prefix", PREFIXES)
+def test_1bc_families_cover_the_secondary_contrasts(prefix):
+    s = load(CONFIGS / f"{prefix}1bc" / "spec.json")
+    names = [c[1] for c in s["secondary"]]
+    own = s["secondary_families"][0]
+    assert sum(n in own for n in names) == 6
+    assert sum(n not in own for n in names) == 12
 
 
 @pytest.mark.parametrize("plan, name, state_dir, prefix, sid", [

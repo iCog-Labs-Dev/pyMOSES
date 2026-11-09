@@ -180,5 +180,10 @@
       "lm_calls"
     ]
   ],
-  "extend": false
+  "extend": false,
+  "secondary_families": [
+    [
+      "n16c250-vs-n16"
+    ]
+  ]
 }
