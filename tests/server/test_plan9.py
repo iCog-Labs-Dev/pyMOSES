@@ -344,7 +344,7 @@ def test_plan_gives_each_manifest_the_per_run_mb_of_its_memory_limit(plan, prefi
     equal the manifests' mem_limit_mb, so W follows from the limit of the runs it starts."""
     steps = load(SERVER / plan)["steps"]
     assert "per_run_mb" not in steps[0] and "manifest_per_run_mb" not in steps[0]
-    for st, x in zip(steps[1:], PHASES):
+    for st, x in zip(steps[1:], PHASES, strict=True):
         assert st["per_run_mb"] == OTHER_MB
         per = st.get("manifest_per_run_mb", {})
         assert per == (dict.fromkeys(DOW_MANIFESTS, DOW_MB) if x == "1ba" else {})

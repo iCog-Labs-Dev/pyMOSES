@@ -201,7 +201,9 @@ def test_the_other_12_secondary_contrasts_form_the_second_family(tmp_path):
 def test_the_row_order_and_the_verdict_keys_do_not_change(tmp_path):
     v0, r0 = _bc_run(tmp_path, _bc_spec())
     v1, r1 = _bc_run(tmp_path, _bc_spec(secondary_families=[["n16c250-vs-n16"]]))
-    assert [(r["problem"], r["contrast"]) for r in r0] == [(r["problem"], r["contrast"]) for r in r1]
+    def keys(rows):
+        return [(r["problem"], r["contrast"]) for r in rows]
+    assert keys(r0) == keys(r1)
     assert list(v0) == list(v1)
 
 
