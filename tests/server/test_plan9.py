@@ -3,6 +3,8 @@ and 1bc, as SERVER-ROUND9-PREREGISTRATION.md registers them: the new base BASE, 
 budget of 20,000 with no time limit, three independent phases, no choice step and no chain."""
 
 import json
+import os
+import shutil
 import subprocess
 import sys
 from pathlib import Path
@@ -127,14 +129,35 @@ def test_datasets_and_splits_of_1ba_and_1bb():
             assert m["name"] == f"phase{p}-sr-ext-{d}"
 
 
+DOW_MANIFESTS = ("sr-Dow.json", "sr-ext-Dow.json")
+DOW_MB, OTHER_MB = 8192, 5120  # "Before the round: Dow memory", Outcome
+
+
 def test_dow_of_1ba_has_a_manifest_of_its_own():
     q = CONFIGS / "phase1ba"
     assert "Dow" not in load(q / "sr.json")["datasets"]
-    for f in ("sr-Dow.json", "sr-ext-Dow.json"):
+    for f in DOW_MANIFESTS:
         m = load(q / f)
-        assert m["datasets"] == ["Dow"] and m["mem_limit_mb"] == 3072
-    for f in stage1(q) + ext(q):
-        assert load(f)["mem_limit_mb"] == 3072
+        assert m["datasets"] == ["Dow"] and m["mem_limit_mb"] == DOW_MB
+
+
+@pytest.mark.parametrize("prefix", PREFIXES)
+def test_memory_limits_of_the_outcome(prefix):
+    """Dow (1ba stage 1 and extension): 8,192 MB. Every other manifest: 5,120 MB."""
+    seen = 0
+    for p, f, m in all_manifests(prefix):
+        dow = p == "1ba" and f.name in DOW_MANIFESTS
+        assert m["mem_limit_mb"] == (DOW_MB if dow else OTHER_MB), f
+        seen += 1
+    assert seen == (2 + 8 + 1 + 4 + 2 if prefix == "phase" else 2 + 1 + 2)
+
+
+@pytest.mark.parametrize("prefix", PREFIXES)
+def test_dow_never_shares_a_manifest_with_another_dataset(prefix):
+    """phase_run.sh runs one manifest at a time, so the Dow runs never run beside others."""
+    for p, f, m in all_manifests(prefix):
+        if "Dow" in m["datasets"]:
+            assert p == "1ba" and f.name in DOW_MANIFESTS and m["datasets"] == ["Dow"], f
 
 
 def test_1bc_uses_only_the_listed_splits_and_no_extension():
@@ -310,3 +333,150 @@ def test_smoke_has_the_same_arms_and_is_small(p):
 def test_smoke_has_a_dow_run_and_a_seeded_arm():
     assert load(CONFIGS / "server-smoke9-1ba" / "sr-Dow.json")["datasets"] == ["Dow"]
     assert "seed" in load(CONFIGS / "server-smoke9-1bb" / "sr.json")["arms"]["BASE-S"]
+
+
+# ---- W for each manifest: the plan keys "per_run_mb" and "manifest_per_run_mb"
+
+@pytest.mark.parametrize("plan, prefix", [("plan9.json", "phase"), ("plan9-smoke.json",
+                                                                     "server-smoke9-")])
+def test_plan_gives_each_manifest_the_per_run_mb_of_its_memory_limit(plan, prefix):
+    """The step's per_run_mb (5,120) and, for the Dow manifests, manifest_per_run_mb (8,192)
+    equal the manifests' mem_limit_mb, so W follows from the limit of the runs it starts."""
+    steps = load(SERVER / plan)["steps"]
+    assert "per_run_mb" not in steps[0] and "manifest_per_run_mb" not in steps[0]
+    for st, x in zip(steps[1:], PHASES):
+        assert st["per_run_mb"] == OTHER_MB
+        per = st.get("manifest_per_run_mb", {})
+        assert per == (dict.fromkeys(DOW_MANIFESTS, DOW_MB) if x == "1ba" else {})
+        q = CONFIGS / f"{prefix}{x}"
+        for f in stage1(q) + ext(q):
+            assert per.get(f.name, st["per_run_mb"]) == load(f)["mem_limit_mb"], f
+        if prefix == "phase":
+            assert all((q / n).exists() for n in per)
+
+
+def test_earlier_plans_have_no_per_run_mb_key():
+    """Plans 2 to 8 keep W from the environment (PER_RUN_MB), as before round 9."""
+    for f in sorted(SERVER.glob("plan*.json")):
+        if f.name.startswith("plan9"):
+            continue
+        for st in load(f)["steps"]:
+            assert "per_run_mb" not in st and "manifest_per_run_mb" not in st, f
+
+
+def _server(tmp_path, cores=12, mem_mb=65536):
+    """A fake /sys and /proc: `cores` physical cores, a cgroup memory limit of `mem_mb`."""
+    sys.path.insert(0, str(SERVER))
+    import resources
+    s, pr = tmp_path / "sys", tmp_path / "proc"
+    for c in range(cores):
+        t = s / f"devices/system/cpu/cpu{c}/topology"
+        t.mkdir(parents=True)
+        (t / "core_id").write_text(f"{c}\n")
+        (t / "physical_package_id").write_text("0\n")
+    (s / "fs/cgroup").mkdir(parents=True)
+    (s / "fs/cgroup/memory.max").write_text(f"{mem_mb * 2**20}\n")
+    pr.mkdir()
+    (pr / "meminfo").write_text(f"MemTotal: {4 * mem_mb * 1024} kB\n")
+    (pr / "self").mkdir()
+    (pr / "self/cgroup").write_text("0::/\n")
+    return lambda mb: resources.decide(s, pr, affinity=set(range(cores)),
+                                       env={"PER_RUN_MB": str(mb)})
+
+
+def test_server_workers_are_7_for_dow_and_11_otherwise(tmp_path):
+    d = _server(tmp_path)
+    dow, other = d(DOW_MB), d(OTHER_MB)
+    assert (dow["mem_mb"], dow["reserve_mb"]) == (65536, 6553)
+    assert (dow["workers"], dow["limited_by"]) == (7, "memory")
+    assert (other["workers"], other["limited_by"]) == (11, "cpu")
+
+
+FAKE_SR = r"""import json, os, sys
+from pathlib import Path
+w = sys.argv[sys.argv.index("--workers") + 1]
+with open(Path(__file__).resolve().parents[3] / "gomea-results" / "trace.jsonl", "a") as fh:
+    fh.write(json.dumps({"manifest": Path(sys.argv[1]).name, "workers": int(w)}) + "\n")
+"""
+FAKE_REPORT = r"""import json, sys
+from pathlib import Path
+spec, out = json.loads(Path(sys.argv[3]).read_text()), Path(sys.argv[4])
+out.mkdir(parents=True, exist_ok=True)
+v = {f"{c[0]}:{c[1]}": "extend" if sys.argv[2] == "1" else "tie" for c in spec["primary"]}
+(out / "verdict.json").write_text(json.dumps(v))
+"""
+
+
+def _rig9(tmp_path, step, env_extra):
+    """The real orchestrate.py and phase_run.sh on the real 1ba configs; the runner and the
+    report are fakes. The fake report gives "extend" to every primary contrast at stage 1, so
+    every extension manifest runs. Returns the trace of the runner and the events."""
+    repo, res = tmp_path / "pyMoses", tmp_path / "gomea-results"
+    (repo / "tools" / "server").mkdir(parents=True)
+    res.mkdir()
+    for f in SERVER.iterdir():
+        if f.suffix in (".py", ".sh"):
+            shutil.copy(f, repo / "tools" / "server" / f.name)
+    g = repo / "tools" / "gomea"
+    g.mkdir()
+    shutil.copy(REPO / "tools" / "gomea" / "phase_run.sh", g / "phase_run.sh")
+    (g / "moses_sr_runner.py").write_text(FAKE_SR)
+    (g / "phase_report.py").write_text(FAKE_REPORT)
+    (repo / ".venv" / "bin").mkdir(parents=True)
+    (repo / ".venv" / "bin" / "python").symlink_to(sys.executable)
+    shutil.copytree(CONFIGS / "phase1ba", repo / "configs" / "gomea" / "phase1ba")
+    plan = {"name": "t9", "state_dir": "server-run9-t", "steps": [step]}
+    (repo / "tools" / "server" / "plan-t9.json").write_text(json.dumps(plan))
+    env = {k: v for k, v in os.environ.items()
+           if k not in ("RETRY_FAILED", "REPRO_ONLY", "PLAN", "ORCH_CHAINED", "MAX_WORKERS",
+                        "PHASE_CONFIG_DIR", "PER_RUN_MB", "RESERVE_MB", "MANIFEST_WORKERS")}
+    env.update(ORCH_NO_CHAIN="1", ORCH_POLL_S="1", ORCH_SCORES_S="100000",
+               ORCH_BUNDLE_S="100000", **env_extra)
+    subprocess.run([sys.executable, "tools/server/orchestrate.py", "--plan",
+                    "tools/server/plan-t9.json"], cwd=repo, env=env, capture_output=True,
+                   text=True, timeout=120, check=True)
+    trace = [json.loads(x) for x in (res / "trace.jsonl").read_text().splitlines()]
+    sd = res / "server-run9-t"
+    events = [json.loads(x) for x in (sd / "events.jsonl").read_text().splitlines()]
+    assert load(sd / "state.json")["steps"][step["id"]]["status"] == "done"
+    return trace, events
+
+
+def _w(mb):
+    sys.path.insert(0, str(SERVER))
+    import resources
+    return resources.decide(env={"PER_RUN_MB": str(mb)})["workers"]
+
+
+ORDER_1BA = ["sr.json", "sr-Dow.json"] + [f"sr-ext-{d}.json" for d in sorted(D1BA)]
+
+
+def test_dow_manifests_run_with_their_own_workers(tmp_path):
+    step = dict(load(SERVER / "plan9.json")["steps"][1])
+    step.pop("requires")
+    # PER_RUN_MB in the environment does not override the plan's values
+    trace, events = _rig9(tmp_path, step, {"PER_RUN_MB": "3072",
+                                           "MANIFEST_WORKERS": "sr.json=99"})
+    assert [t["manifest"] for t in trace] == ORDER_1BA
+    for t in trace:
+        assert t["workers"] == _w(DOW_MB if t["manifest"] in DOW_MANIFESTS else OTHER_MB), t
+    wd = [e for e in events if e["event"] == "workers_decision"]
+    assert [(e.get("manifest"), e["per_run_mb"]) for e in wd] == [
+        (None, OTHER_MB), ("sr-Dow.json", DOW_MB), ("sr-ext-Dow.json", DOW_MB)]
+    assert {e["phase"] for e in wd} == {"phase1ba"}
+    att = [e for e in events if e["event"] == "phase_attempt"]
+    assert att[0]["manifest_workers"] == {n: _w(DOW_MB) for n in DOW_MANIFESTS}
+
+
+def test_a_step_without_the_keys_behaves_as_before(tmp_path):
+    """A step of plans 2 to 8: one decision from the environment's PER_RUN_MB for every
+    manifest, and nothing from MANIFEST_WORKERS in the environment."""
+    step = {"id": "phase1ba", "type": "phase", "phase": "phase1ba"}
+    trace, events = _rig9(tmp_path, step, {"PER_RUN_MB": "8192",
+                                           "MANIFEST_WORKERS": "sr.json=99 sr-Dow.json=98"})
+    assert [t["manifest"] for t in trace] == ORDER_1BA
+    assert {t["workers"] for t in trace} == {_w(8192)}
+    wd = [e for e in events if e["event"] == "workers_decision"]
+    assert len(wd) == 1 and "manifest" not in wd[0] and wd[0]["per_run_mb"] == 8192
+    att = [e for e in events if e["event"] == "phase_attempt"]
+    assert "manifest_workers" not in att[0]

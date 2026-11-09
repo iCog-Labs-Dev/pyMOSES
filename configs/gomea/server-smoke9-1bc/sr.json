@@ -12,7 +12,7 @@
     12
   ],
   "wall_cap_s": 300,
-  "mem_limit_mb": 3072,
+  "mem_limit_mb": 5120,
   "arms": {
     "BASE": {
       "binary": ".venv/bin/moses",

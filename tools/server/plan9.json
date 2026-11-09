@@ -15,7 +15,12 @@
       "phase": "phase1ba",
       "requires": [
         "datasets:Air,Bos,Dow,EnC,Tow,WiR,WiW,Yac"
-      ]
+      ],
+      "per_run_mb": 5120,
+      "manifest_per_run_mb": {
+        "sr-Dow.json": 8192,
+        "sr-ext-Dow.json": 8192
+      }
     },
     {
       "id": "phase1bb",
@@ -24,7 +29,8 @@
       "requires": [
         "gpgomea",
         "datasets:Con,EnH,Air,Yac"
-      ]
+      ],
+      "per_run_mb": 5120
     },
     {
       "id": "phase1bc",
@@ -32,7 +38,8 @@
       "phase": "phase1bc",
       "requires": [
         "datasets:Con,Tow,Yac,WiR,Bos,EnC"
-      ]
+      ],
+      "per_run_mb": 5120
     }
   ]
 }
