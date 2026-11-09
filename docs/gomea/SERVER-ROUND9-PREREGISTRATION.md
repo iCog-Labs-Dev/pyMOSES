@@ -2,7 +2,9 @@
 
 **Status:** the design is approved by the user (see `APPROVALS.md`, 2026-11-09). Implemented in be758a9 and a2ba7dd. Not run yet.
 Agent-written, not user-approved in detail: the evaluation budget of 20,000, the datasets,
-the splits and the adoption rules.
+the splits and the adoption rules. Changed on 2026-11-09 after the Dow memory check (user-approved,
+see `APPROVALS.md`): the memory limits in "Before the round: Dow memory" and the Holm families of
+1bc. Not implemented yet.
 
 **Question:** three stage 1 tasks of `ROADMAP.md`, all with the new base that the user chose on
 2026-11-09:
@@ -85,8 +87,13 @@ the splits and the adoption rules.
   Con, Tow, Yac, WiR on splits 11–20; Bos and EnC on splits 1–10. **No extension:** it would reuse
   1aw's data.
 * **Primary (6):** test NMSE, BASE-C250 vs BASE, on each dataset.
-* **Secondary (18):** test NMSE, N16-C250 vs N16, on each dataset (the 1aw hint on new data);
-  program size and LM calls per run, BASE-C250 vs BASE, on each dataset.
+* **Secondary, family A (6, own Holm family):** test NMSE, N16-C250 vs N16, on each dataset (the
+  1aw hint on new data). With 10 pairs the smallest p is 2/1024, so Holm over 6 gives at least
+  0.012, and a verdict is possible. (The first draft had one family of 18; there the smallest Holm
+  p was 0.035, so no verdict was possible.)
+* **Secondary, family B (12):** program size and LM calls per run, BASE-C250 vs BASE, on each
+  dataset. "Better" for LM calls means fewer; the hypothesis expects more, so the report reads
+  this verdict as a direction only.
 * **Adoption rule:** the cap of 250 joins the base for regression if BASE-C250 is better on at
   least 2 of 6 datasets and worse on none. If only N16-C250 vs N16 is better, the report says so,
   and the user decides.
@@ -104,6 +111,17 @@ about 12,000 evaluations. With 20,000 evaluations the use can be higher. Dow is 
    `resources.py` with that limit.
 
 The user approves the outcome of step 1 before the round starts.
+
+**Outcome (2026-11-09, user-approved):**
+* Cause: the reduced-candidate cache (`representation.py:59`, 10,000 entries per deme). Each key
+  holds the unreduced tree, so an entry is 185–520 KB in Dow demes of 600–1,800 knobs. A pure
+  cache: with it off, the output of one run was identical. On Dow it had 0 hits in the search.
+* Decision: step 3, the cache stays (the same code for GOMEA and HC). Limits:
+  * Dow (1ba stage 1 and extension): `mem_limit_mb` 8,192, in its own plan step with
+    `PER_RUN_MB` 8192, so W = floor((65,536 − 6,553) / 8,192) = 7.
+  * Every other round 9 manifest: `mem_limit_mb` 5,120. Bos reached 2,609 MB at about 12,000
+    evaluations in 1ax. W = floor(58,983 / 5,120) = 11, so W stays 11 (the CPU limit).
+* Limit: the Dow need (about 7 GB) is an extrapolation from one split.
 
 ## Implementation (by a subagent, in a separate clone)
 

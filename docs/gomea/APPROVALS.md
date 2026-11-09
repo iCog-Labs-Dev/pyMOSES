@@ -256,3 +256,18 @@ but we shouldn't cap it at a time limit. 2. Yes add one more arm. 3. Yes I appro
 * User-approved: the design in `SERVER-ROUND9-PREREGISTRATION.md`. Agent-written, not
   user-approved in detail: the budget of 20,000, the second N = 16 arm, the datasets, splits and
   adoption rules. Not user-approved: the outcome of the Dow memory check.
+
+**Round 9, Dow memory outcome (2026-11-09):** the agent reported that the reduced-candidate cache
+(`representation.py`, `REDUCED_CANDIDATE_CACHE_SIZE`) holds most of the memory of GOMEA demes on
+Dow (0 hits in the search; with the cache off, the output of one run was identical). It proposed
+three options. The user first answered: "Yes, go with option 1" (the cache off for GOMEA only).
+The agent explained why the cache exists and that it only changes CPU and memory. The user then
+said: "So I guess instead of removing the cache, we should increase the memory limit for it."
+* Option 1 is cancelled. The cache stays on for GOMEA and HC. No change under `pymoses`.
+* The agent proposed the limits, and found a flaw in its own pre-registration (1bc: the secondary
+  family of 18 can never give a verdict with 10 pairs). The user answered: "Yes to both, go ahead
+  with your proposals".
+  * `mem_limit_mb` 5,120 in every round 9 manifest except Dow (W stays 11); 8,192 for Dow (1ba
+    and its extension) in its own plan step with `PER_RUN_MB` 8192 (W = 7).
+  * 1bc: the 6 contrasts N16-C250 vs N16 form their own Holm family.
+* Not user-approved: the code of the per-step `PER_RUN_MB`, still to be written.
