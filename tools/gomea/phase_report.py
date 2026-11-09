@@ -19,7 +19,8 @@ SPEC_JSON (one per phase, `configs/gomea/<phase>/spec.json`)::
      "descriptive": [[...], ...],          # optional
      "pooled_primary": [[name, arm_a, arm_b, metric], ...],   # optional (server round 8)
      "pooled_secondary": [[name, arm_a, arm_b, metric], ...], # optional (server round 8)
-     "secondary_verdicts": false}          # optional (server round 8), default true
+     "secondary_verdicts": false,          # optional (server round 8), default true
+     "extend": false}                      # optional (server round 9), default true
 
 A contrast takes its problem's metric, or the optional fifth element (server round 3,
 1ap: program size as the primary metric and test NMSE as the secondary one for the same
@@ -29,7 +30,13 @@ problem). Metrics, paired by seed (a regression run's seed is its split); lower 
 * `evals_to_target`: evaluations to a solution; a failed or unsolved run = infinite;
 * `test_nmse`: test NMSE of the reported program; a failed run = infinite;
 * `program_size`: size of the reported program (`_size`; server round 3, 1ap);
-  a failed run = infinite.
+  a failed run = infinite;
+* `train_test_gap`: test NMSE minus training NMSE of the reported program (`_gap`;
+  server round 9); a failed run = infinite;
+* `cpu_s`: CPU seconds of the run (`cpu_s`; for a seeded run it includes GP-GOMEA's CPU;
+  server round 9); a failed run = infinite;
+* `lm_calls`: LM calls of the run (`const_opt.lm_calls`; server round 9); a failed run,
+  or a run without that value, = infinite.
 
 Families: Holm over all primary contrasts, and separately over all secondary ones.
 Descriptive contrasts take no verdict (raw p only). With `"secondary_verdicts": false` the
@@ -53,7 +60,8 @@ extend.
 
 Rule (each look at ALPHA = 0.025): Holm p < ALPHA and a median at least 10 % lower is
 "A better" (mirror: "A worse"); primary contrasts at stage 1 with ALPHA <= Holm p <
-EXTEND_BELOW are "extend"; otherwise "tie". At stage 2 the Holm family stays complete and
+EXTEND_BELOW are "extend"; otherwise "tie". With `"extend": false` (server round 9, 1bc:
+a phase with no extension) no primary contrast is "extend"; such a contrast is "tie". At stage 2 the Holm family stays complete and
 only contrasts that were "extend" at stage 1 take a stage-2 verdict (see the phase's
 pre-registration and `docs/gomea/QUEUE.md`).
 
@@ -93,7 +101,8 @@ from benchmarks.gomea.stats import holm, wilcoxon_signed_rank  # noqa: E402
 
 ALPHA = 0.025
 EXTEND_BELOW = 0.25
-METRICS = ("cpu_to_target", "evals_to_target", "test_nmse", "program_size")
+METRICS = ("cpu_to_target", "evals_to_target", "test_nmse", "program_size",
+           "train_test_gap", "cpu_s", "lm_calls")
 
 
 def _load(dirs: str, into: dict) -> None:
@@ -118,6 +127,12 @@ def _value(metric: str, s: dict) -> float:
         v = _size(s)
     elif metric == "test_nmse":
         v = s.get("test_nmse")
+    elif metric == "train_test_gap":
+        v = _gap(s)
+    elif metric == "cpu_s":
+        v = s.get("cpu_s")
+    elif metric == "lm_calls":
+        v = (s.get("const_opt") or {}).get("lm_calls")
     else:
         v = s.get(metric) if s.get("success") else None
     return math.inf if v is None else float(v)
@@ -394,7 +409,7 @@ def main(argv: list[str] | None = None) -> int:
                            for n, a, b, m in pooled]
         _decide_pooled(rows["primary"])
     else:
-        _decide(rows["primary"], stage, can_extend=True)
+        _decide(rows["primary"], stage, can_extend=spec.get("extend", True) is not False)
     _decide(rows["secondary"], stage, can_extend=False)
     if spec.get("secondary_verdicts", True) is False:
         for r in rows["secondary"]:
