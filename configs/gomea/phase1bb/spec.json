@@ -1,0 +1,97 @@
+{
+  "phase": "1bb",
+  "metrics": {
+    "Con": "test_nmse",
+    "EnH": "test_nmse",
+    "Air": "test_nmse",
+    "Yac": "test_nmse"
+  },
+  "primary": [
+    [
+      "Con",
+      "seeded-vs-base",
+      "BASE-S",
+      "BASE",
+      "test_nmse"
+    ],
+    [
+      "EnH",
+      "seeded-vs-base",
+      "BASE-S",
+      "BASE",
+      "test_nmse"
+    ],
+    [
+      "Air",
+      "seeded-vs-base",
+      "BASE-S",
+      "BASE",
+      "test_nmse"
+    ],
+    [
+      "Yac",
+      "seeded-vs-base",
+      "BASE-S",
+      "BASE",
+      "test_nmse"
+    ]
+  ],
+  "secondary": [
+    [
+      "Con",
+      "seeded-vs-base-size",
+      "BASE-S",
+      "BASE",
+      "program_size"
+    ],
+    [
+      "EnH",
+      "seeded-vs-base-size",
+      "BASE-S",
+      "BASE",
+      "program_size"
+    ],
+    [
+      "Air",
+      "seeded-vs-base-size",
+      "BASE-S",
+      "BASE",
+      "program_size"
+    ],
+    [
+      "Yac",
+      "seeded-vs-base-size",
+      "BASE-S",
+      "BASE",
+      "program_size"
+    ],
+    [
+      "Con",
+      "seeded-vs-base-cpu",
+      "BASE-S",
+      "BASE",
+      "cpu_s"
+    ],
+    [
+      "EnH",
+      "seeded-vs-base-cpu",
+      "BASE-S",
+      "BASE",
+      "cpu_s"
+    ],
+    [
+      "Air",
+      "seeded-vs-base-cpu",
+      "BASE-S",
+      "BASE",
+      "cpu_s"
+    ],
+    [
+      "Yac",
+      "seeded-vs-base-cpu",
+      "BASE-S",
+      "BASE",
+      "cpu_s"
+    ]
+  ]
+}

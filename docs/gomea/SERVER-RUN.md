@@ -524,3 +524,66 @@ Arms and files:
 Smoke test: `bash tools/server/start.sh --plan smoke6` runs the miniatures of rounds 6 and 7, then
 `smoke8` (`configs/gomea/server-smoke8-1ax`: splits 21-22, 15 s per run; the choice reads the smoke
 1aw report and the smoke population of round 6). The state is in `server-run8-smoke/`.
+
+## Round 9
+
+The ninth round (`SERVER-ROUND9-PREREGISTRATION.md`: the new base on other datasets, seeding with
+the new base, and the cap of 250 with LM-VAL) has its own plan, `tools/server/plan9.json`: S0, then
+phases 1ba, 1bb and 1bc. Its state is in `../gomea-results/server-run9/`. Start it with:
+
+    bash tools/server/start.sh --plan round9
+
+The three phases are independent. There is no choice step, and no plan chains to or from round 9.
+Round 9 never overlaps with another round. One summary and one final bundle. Bring back the bundle.
+
+**Budget.** Each run gets 20,000 evaluations (`"budget": {"evals": 20000}`, so `-m 20000`) and no
+`--max-time`. The wall cap of 36,000 s per run is only a guard against a hung process. CPU time is
+measured, not capped.
+
+**The new base (BASE).** `-a gomea --gomea-fos lt-b --gomea-pop-size dynamic --hc-fraction-of-nn 0.05
+--gomea-skip-inactive 0 --gomea-genotype-memo 1 --gomea-contin copy --knob-probe-baseline reduced
+--linear-scaling 1 --const-opt lm --const-opt-guard val --gomea-accept-complexity-ratio 0.125
+--gomea-deme-store accepted`. BASE-N16 has `--gomea-pop-size 16` in place of the two dynamic flags.
+The manifests are resolved: no `{POP}` token and no template.
+
+Arms and files:
+
+* `configs/gomea/phase1ba/`: BASE and BASE-N16 on Air, Bos, Dow, EnC, Tow, WiR, WiW, Yac, splits
+  1-10. `sr.json` has the 7 datasets without Dow. `sr-Dow.json` has Dow alone, so that its
+  `mem_limit_mb` can change without a change to the other manifests. Extensions:
+  `sr-ext-<dataset>.json` (splits 11-20), with `sr-ext-Dow.json` for Dow. 160 runs (+ up to 160).
+* `spec.json` of 1ba: 8 primary contrasts (test NMSE, BASE vs BASE-N16, on each dataset) and 24
+  secondary (program size, train-test gap and CPU, on each dataset).
+* `configs/gomea/phase1bb/`: BASE and BASE-S on Con, EnH, Air, Yac, splits 1-10, extensions
+  `sr-ext-<dataset>.json` (splits 11-20). BASE-S has the seed block of GOMEA-S in 1ab (`share` 0.2,
+  so 4,000 of the 20,000 evaluations go to GP-GOMEA, height 3, k 5, functions `+_-_*`, the empty
+  program kept). 80 runs (+ up to 80). The phase needs the GP-GOMEA build of `setup.sh`
+  (requirement `gpgomea`). Without it, 1bb is skipped with the reason in the log.
+* `spec.json` of 1bb: 4 primary contrasts (test NMSE, BASE-S vs BASE) and 8 secondary (program size
+  and CPU; a seeded run's `cpu_s` includes GP-GOMEA's CPU).
+* `configs/gomea/phase1bc/`: BASE, BASE-C250, N16 and N16-C250 (the C250 arms add
+  `--gomea-max-evals-per-deme 250`). `sr.json`: Con, Tow, Yac, WiR on splits 11-20.
+  `sr-BosEnC.json`: Bos and EnC on splits 1-10. This is data that 1aw did not use. There is no
+  extension. 240 runs.
+* `spec.json` of 1bc: 6 primary contrasts (test NMSE, BASE-C250 vs BASE) and 18 secondary (test NMSE,
+  N16-C250 vs N16; program size and LM calls, BASE-C250 vs BASE). It has `"extend": false`, so a
+  primary contrast with Holm p in [0.025, 0.25) is "tie", not "extend".
+
+**New report metrics.** `phase_report.py` has three new contrast metrics for the secondary
+contrasts: `train_test_gap` (test NMSE minus training NMSE), `cpu_s` (the run's CPU) and `lm_calls`
+(`const_opt.lm_calls`). Lower is better for each, and a failed run is infinitely bad.
+
+**Dow memory.** The memory limit of Dow in 1ba is `mem_limit_mb` in
+`configs/gomea/phase1ba/sr-Dow.json` (stage 1) and `configs/gomea/phase1ba/sr-ext-Dow.json` (the
+extension). Both are 3,072 MB now. The user approves the outcome of the Dow memory check before the
+round starts. If the limit changes, change both files. W comes from `resources.py`
+(`PER_RUN_MB`), not from the manifest.
+
+**Size and time.** Stage 1 is 480 runs, about 16 hours at W = 11, plus S0. With all extensions, up to
+720 runs.
+
+Smoke test: `bash tools/server/start.sh --plan smoke9` runs the limited S0 and the miniatures
+`configs/gomea/server-smoke9-1ba`, `-1bb` and `-1bc`. They have the same manifests, arms and flags,
+2 splits each, a wall cap of 300 s and no extension manifests. The budget is `-m 300`, and
+`-m 1000` in 1bb, because the first GP-GOMEA generation alone costs about 600 evaluations. The smoke
+includes the Dow run and the seeded arm. The state is in `server-run9-smoke/`.

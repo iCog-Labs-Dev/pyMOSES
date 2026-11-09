@@ -1,0 +1,38 @@
+{
+  "name": "server-round9-2026-11",
+  "description": "SERVER-ROUND9-PREREGISTRATION.md: S0, then 1ba (the new base BASE, dynamic population, against BASE-N16 on the 8 datasets that 1ay did not use), 1bb (GP-GOMEA seeding with the new base) and 1bc (LM-VAL with the cap of 250). The three phases are independent: no choice step. Budget 20,000 evaluations per run, no time limit. No chain to another round.",
+  "state_dir": "server-run9",
+  "steps": [
+    {
+      "id": "S0",
+      "type": "check",
+      "pytest": {},
+      "repro": {}
+    },
+    {
+      "id": "phase1ba",
+      "type": "phase",
+      "phase": "phase1ba",
+      "requires": [
+        "datasets:Air,Bos,Dow,EnC,Tow,WiR,WiW,Yac"
+      ]
+    },
+    {
+      "id": "phase1bb",
+      "type": "phase",
+      "phase": "phase1bb",
+      "requires": [
+        "gpgomea",
+        "datasets:Con,EnH,Air,Yac"
+      ]
+    },
+    {
+      "id": "phase1bc",
+      "type": "phase",
+      "phase": "phase1bc",
+      "requires": [
+        "datasets:Con,Tow,Yac,WiR,Bos,EnC"
+      ]
+    }
+  ]
+}
