@@ -244,3 +244,15 @@ improvements still for not too much of compute."
   change the code defaults: `--const-opt-guard val` needs a validation file, which the runners
   make, so a code default needs its own design. The three settings never ran together. The
   closest arm is FINAL-DYN of 1ax, without PEN125.
+
+**Server round 9 (2026-11-09):** the agent proposed a draft with phases 1ba, 1bb and 1bc and three
+open points. The user answered: "1. Remove the time limit, we should measure the time it took yes
+but we shouldn't cap it at a time limit. 2. Yes add one more arm. 3. Yes I approve."
+* Point 1: no time limit. The agent chose an evaluation budget of 20,000 per run in its place (no
+  run can stop without one), and kept a wall cap of 36,000 s only as a guard against a hung
+  process.
+* Point 2: the user approved one more arm in 1bc, with the cap at N = 16. The agent added two arms
+  (N16 and N16-C250), because one arm alone cannot separate the cap from the population.
+* User-approved: the design in `SERVER-ROUND9-PREREGISTRATION.md`. Agent-written, not
+  user-approved in detail: the budget of 20,000, the second N = 16 arm, the datasets, splits and
+  adoption rules. Not user-approved: the outcome of the Dow memory check.
