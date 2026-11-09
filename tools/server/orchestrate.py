@@ -49,9 +49,14 @@ manifests get the current HEAD as `commit` before its pilot and phase run. A pha
 PHASE_CONFIG_DIR, and the step is skipped while that directory has no spec.json and sr.json
 (for example when the choice step failed). A phase runs as
 `WORKERS=W tools/gomea/phase_run.sh PHASE >> ../gomea-results/PHASE.log`, W from
-resources.py at the phase's start; a non-zero exit is retried once, then the step is
-marked failed and the round goes on. A step whose requirement or configuration is missing
-is skipped with the reason logged.
+resources.py at the phase's start. A phase step's optional `per_run_mb` (server round 9) is the
+PER_RUN_MB of that decision, in place of the environment's. Its optional `manifest_per_run_mb`
+({manifest file name: MB}) gives each named manifest a W of its own, decided with that
+PER_RUN_MB and passed as MANIFEST_WORKERS="name=W ..." (phase_run.sh runs one manifest at a
+time, so the runs of such a manifest never run beside others). Without the keys nothing
+changes; a MANIFEST_WORKERS in the environment never reaches phase_run.sh. A non-zero exit
+is retried once, then the step is marked failed and the round goes on. A step whose
+requirement or configuration is missing is skipped with the reason logged.
 
 Single instance (flock on `orchestrator.lock`); `orchestrator.pid` records the PID and the
 process group, which stop.sh signals. The orchestrator never commits or pushes.
@@ -349,16 +354,25 @@ class Round:
             self.stop.wait(POLL_S)
 
     # ---- steps
-    def workers(self, phase: str) -> int:
+    def workers(self, phase: str, per_run_mb: int | None = None,
+                manifest: str | None = None) -> int:
+        """W from resources.py. `per_run_mb` (a plan key, server round 9) replaces the
+        environment's PER_RUN_MB for this decision; `manifest` names the manifest it is for."""
+        env = dict(os.environ)
+        if per_run_mb is not None:
+            env["PER_RUN_MB"] = str(int(per_run_mb))
         try:
-            r = subprocess.run([str(PY), "tools/server/resources.py"], cwd=REPO,
+            r = subprocess.run([str(PY), "tools/server/resources.py"], cwd=REPO, env=env,
                                capture_output=True, text=True, timeout=60)
             d = json.loads(r.stdout)
         except (OSError, ValueError, subprocess.TimeoutExpired) as exc:
             d = {"workers": 1, "error": str(exc)}
-        self.event("workers_decision", phase=phase, **d)
-        self.log(f"{phase}: workers W={d['workers']} (limited by {d.get('limited_by')}; "
-                 f"usable CPUs {d.get('usable_cpus')}, memory {d.get('mem_mb')} MB)")
+        extra = {"manifest": manifest} if manifest is not None else {}
+        self.event("workers_decision", phase=phase, **extra, **d)
+        what = f"{phase} {manifest}" if manifest else phase
+        mb = "" if per_run_mb is None else f", per run {d.get('per_run_mb')} MB"
+        self.log(f"{what}: workers W={d['workers']} (limited by {d.get('limited_by')}; "
+                 f"usable CPUs {d.get('usable_cpus')}, memory {d.get('mem_mb')} MB{mb})")
         return int(d["workers"])
 
     def run_counts(self, phase: str) -> dict:
@@ -374,10 +388,18 @@ class Round:
                 bad += 1
         return {"runs_ok": ok, "runs_failed": bad}
 
-    def run_phase(self, phase: str, st: dict, config_dir: Path | None = None) -> int:
-        """Run one phase through phase_run.sh, retrying once on a non-zero exit."""
-        w = self.workers(phase)
+    def run_phase(self, phase: str, st: dict, config_dir: Path | None = None,
+                  step: dict | None = None) -> int:
+        """Run one phase through phase_run.sh, retrying once on a non-zero exit. The step's
+        optional `per_run_mb` sets PER_RUN_MB for W, and `manifest_per_run_mb` ({manifest
+        file name: MB}) gives those manifests a W of their own (MANIFEST_WORKERS)."""
+        step = step or {}
+        w = self.workers(phase, step.get("per_run_mb"))
+        mw = {name: self.workers(phase, mb, manifest=name)
+              for name, mb in step.get("manifest_per_run_mb", {}).items()}
         st.setdefault("workers", []).append(w)
+        if mw:
+            st.setdefault("manifest_workers", []).append(mw)
         rc = None
         for attempt in (1, 2):
             st["attempts"] = st.get("attempts", 0) + 1
@@ -385,13 +407,17 @@ class Round:
             logp = RES / f"{phase}.log"
             with logp.open("a") as lf:
                 lf.write(f"\n=== orchestrator: {phase} attempt {attempt}, WORKERS={w}, {utc()}\n")
-            self.event("phase_attempt", phase=phase, attempt=attempt, workers=w, log=str(logp))
+            self.event("phase_attempt", phase=phase, attempt=attempt, workers=w, log=str(logp),
+                       **({"manifest_workers": mw} if mw else {}))
             self.log(f"{phase}: attempt {attempt} (log {logp})")
             self.current = {"phase": phase, "attempt": attempt, "workers": w}
             with logp.open("a") as lf:
-                env = {k: v for k, v in os.environ.items() if k != "PHASE_CONFIG_DIR"}
+                env = {k: v for k, v in os.environ.items()
+                       if k not in ("PHASE_CONFIG_DIR", "MANIFEST_WORKERS")}
                 if config_dir is not None:
                     env["PHASE_CONFIG_DIR"] = str(config_dir)
+                if mw:
+                    env["MANIFEST_WORKERS"] = " ".join(f"{k}={v}" for k, v in mw.items())
                 p = subprocess.Popen(["bash", "tools/gomea/phase_run.sh", phase], cwd=REPO,
                                      stdout=lf, stderr=subprocess.STDOUT,
                                      env={**env, "WORKERS": str(w)})
@@ -520,7 +546,7 @@ class Round:
                 if ast["status"] != "done":
                     return self.skip(sid, st, f"after-pilot command failed (rc={ast.get('rc')}): "
                                      f"{(ast.get('stderr') or '').strip()[-300:]}")
-        rc = self.run_phase(phase, st, config_dir)
+        rc = self.run_phase(phase, st, config_dir, step)
         st.update(status="done" if rc == 0 else "failed", rc=rc, end=utc(),
                   **self.run_counts(phase))
         self.save_state()

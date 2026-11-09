@@ -12,6 +12,9 @@
 # PHASE_CONFIG_DIR=DIR reads the manifests and spec.json from DIR, not configs/gomea/PHASE
 # (server round 8: tools/gomea/set_final.py writes the resolved 1ax manifest into the state
 # directory, so the choice never changes a tracked file). The results stay under PHASE.
+# MANIFEST_WORKERS="NAME=N ..." (server round 9: the orchestrator sets it from the plan key
+# manifest_per_run_mb) runs the manifest file NAME with N workers, not WORKERS; the manifests
+# run one at a time, so its runs never run beside the runs of another manifest.
 set -u
 [ $# -eq 1 ] || { echo "usage: $0 PHASE" >&2; exit 2; }
 P=$1
@@ -29,17 +32,25 @@ dir_of() {  # result directory of a manifest
         sr*|gp*) echo "$R/$P/$($PY -c 'import json,sys; print(json.load(open(sys.argv[1]))["name"])' "$1")" ;;
     esac
 }
-bench() { $PY -m benchmarks.gomea.runner "$1" --workers "$W" --recursion-limit 100000 \
+wfor() {  # workers of a manifest: its MANIFEST_WORKERS entry, else W
+    local kv
+    for kv in ${MANIFEST_WORKERS:-}; do
+        [ "${kv%%=*}" = "$(basename "$1")" ] && { echo "${kv#*=}"; return; }
+    done
+    echo "$W"
+}
+wnote() { [ -n "${MANIFEST_WORKERS:-}" ] && echo " workers $(wfor "$1")"; }  # log only
+bench() { $PY -m benchmarks.gomea.runner "$1" --workers "$(wfor "$1")" --recursion-limit 100000 \
             --mem-limit-mb 3072 >> "$R/$P-bench.log" 2>&1; }
-sr() { $PY tools/gomea/moses_sr_runner.py "$1" "$R/$P" --workers "$W" >> "$R/$P-sr.log" 2>&1; }
-gp() { $PY tools/gomea/gpgomea_sr_runner.py "$1" "$R/$P" --workers "$W" >> "$R/$P-gp.log" 2>&1; }
+sr() { $PY tools/gomea/moses_sr_runner.py "$1" "$R/$P" --workers "$(wfor "$1")" >> "$R/$P-sr.log" 2>&1; }
+gp() { $PY tools/gomea/gpgomea_sr_runner.py "$1" "$R/$P" --workers "$(wfor "$1")" >> "$R/$P-gp.log" 2>&1; }
 run() { case "$(basename "$1")" in bool*) bench "$1" ;; sr*) sr "$1" ;; gp*) gp "$1" ;; esac; }
 echo "start $(date -Is)"
 D1=""
 for m in "$Q/bool.json" "$Q/sr.json" "$Q"/sr-*.json "$Q/gp.json"; do
     [ -f "$m" ] || continue
     case "$(basename "$m")" in sr-ext-*) continue ;; esac  # extensions run at stage 2
-    echo "run $m $(date -Is)"
+    echo "run $m $(date -Is)$(wnote "$m")"
     run "$m"
     D1="${D1:+$D1,}$(dir_of "$m")"
 done
@@ -56,7 +67,7 @@ D2=$D1; EXT=no
 for t in $EXTP; do
     for m in "$Q/bool-ext-$t.json" "$Q/sr-ext-$t.json" "$Q/gp-ext-$t.json"; do
         [ -f "$m" ] || continue
-        echo "extend $t: $m $(date -Is)"
+        echo "extend $t: $m $(date -Is)$(wnote "$m")"
         run "$m"
         D2="$D2,$(dir_of "$m")"; EXT=yes
     done
