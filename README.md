@@ -207,6 +207,20 @@ Rounds 4 and 5 (2026-11-03 to 2026-11-04;
 * **Size:** `--gomea-accept-complexity-ratio 0.125 --gomea-deme-store accepted` halves program
   size on EnH and Air at +3–8 % test NMSE. It is not a default.
 
+Rounds 6 to 8 (2026-11-06 to 2026-11-08;
+[`docs/gomea/SERVER-ROUND6-FINDINGS.md`](docs/gomea/SERVER-ROUND6-FINDINGS.md),
+[`docs/gomea/SERVER-ROUND7-FINDINGS.md`](docs/gomea/SERVER-ROUND7-FINDINGS.md),
+[`docs/gomea/SERVER-ROUND8-FINDINGS.md`](docs/gomea/SERVER-ROUND8-FINDINGS.md)):
+
+* **Population:** `--gomea-pop-size dynamic --hc-fraction-of-nn F` sizes each deme's population
+  with classic hill climbing's count. It was worse than N = 16 on mux11 and Con and tied on EnH,
+  with programs about half the size. The user chose it for later experiments (F = 0.05).
+* **LM-VAL with no cap:** better than plain GOMEA on EnH, Air and Yac, worse on none. On fresh
+  splits it was lower than plain GOMEA in 72 of 100 pairs and than HC with linear scaling in 73,
+  by 6–7.5 % (a tie under the 10 % rule). It is the default of later regression experiments; the
+  code default is unchanged.
+* **PEN125 with LM-VAL:** smaller programs only on Air; kept in the base by the user.
+
 ## Run the tests
 
 The test suite is self-contained: it diffs against C++ **golden fixtures committed to

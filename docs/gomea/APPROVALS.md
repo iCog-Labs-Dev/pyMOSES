@@ -229,3 +229,18 @@ control arms). The renumbering puts the LM-VAL round (1aw) as round 7 and the co
 round 8. Agent-written, not user-approved in detail: the fractions 2.0, 0.25 and 0.05, the
 median-rank rule and the tie rule. Not user-approved: the code of the dynamic population, still to
 be written.
+
+**Decisions on rounds 6 to 8 (2026-11-09):** the agent presented the results of 1ay, 1az, 1aw and
+1ax (`SERVER-ROUND6-FINDINGS.md` to `SERVER-ROUND8-FINDINGS.md`) and asked four questions. The user
+answered: "No, I want the population to stay dynanmic, we will test it on other datasets as well.
+Yes keep the LM-VAL as the default and we also would like to keep the PEN125 as it showed small
+improvements still for not too much of compute."
+* Population: dynamic. This is against the 1ay pick rule, which chose N = 16 (no fraction
+  qualified). The user plans tests on other datasets.
+* LM-VAL: the default.
+* PEN125: kept.
+* Agent's reading, not confirmed by the user: these three settings form the base of later
+  regression experiments (dynamic with F = 0.05, the DYN pick of 1ay; LM-VAL; PEN125). They do not
+  change the code defaults: `--const-opt-guard val` needs a validation file, which the runners
+  make, so a code default needs its own design. The three settings never ran together. The
+  closest arm is FINAL-DYN of 1ax, without PEN125.

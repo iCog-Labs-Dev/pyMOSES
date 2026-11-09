@@ -12,26 +12,28 @@ Use it like this:
 2. Follow the checklist in "How to run an experiment" for that task.
 3. When the task ends, mark it here (date, verdict, findings file) and update the backlog.
 
-## Where we are (2026-11-06)
+## Where we are (2026-11-09)
 
 | Setting | Status | Evidence |
 |---|---|---|
 | No per-deme evaluation cap | The base for all problems (user decision) | 1as, 1ae |
 | Linear scaling (`--linear-scaling 1`) | Used in every regression arm | 1ag |
 | `--knob-probe-baseline reduced` | Code default | 1q |
-| LM with the validation guard (LM-VAL) | Preferred LM variant, not a default | 1at |
-| PEN125 (`--gomea-accept-complexity-ratio 0.125 --gomea-deme-store accepted`) | Preferred penalty, not a default | 1au |
-| Population N = 16 | Under test (round 6) | 1ay, 1az |
-| Learned linkage (LT-B) | No gain over a random tree at our scale | 1g, 1m, 1al, round 2 check |
-| Knob caps | Not recommended | 1ak, 1as |
+| LM with the validation guard (LM-VAL) | The default of later regression experiments (user, 2026-11-09); code default unchanged | 1at, 1aw, 1ax |
+| PEN125 (`--gomea-accept-complexity-ratio 0.125 --gomea-deme-store accepted`) | Kept in the base (user, 2026-11-09) | 1au, 1aw |
+| Dynamic population (`--gomea-pop-size dynamic --hc-fraction-of-nn 0.05`) | The population of later experiments (user, 2026-11-09), against the 1ay rule; to test on other datasets | 1ay, 1aw, 1ax |
+| Learned linkage (LT-B) | No gain over a random tree at our scale, also with no cap | 1g, 1m, 1al, 1ay |
+| Knob caps | Not recommended | 1ak, 1as, 1az |
 
-## Stage 0: running now (rounds 6 to 8, one chain)
+**The new base (dynamic population + LM-VAL + PEN125) never ran together.**
 
-| Task | Content | Pre-registration |
-|---|---|---|
-| R6 | Population size and linkage (1ay); round 4 again with a dynamic population (1az) | `SERVER-ROUND6-PREREGISTRATION.md` |
-| R7 | LM-VAL with no cap; LM-VAL + PEN125; control arm LMVAL-DYN (1aw) | `SERVER-ROUND7-PREREGISTRATION.md` |
-| R8 | Confirmation on fresh splits 21–30, all 10 datasets; control arm FINAL-DYN (1ax) | `SERVER-ROUND8-PREREGISTRATION.md` |
+## Stage 0: done (rounds 6 to 8, 2026-11-06 to 2026-11-08)
+
+| Task | Content | Verdict | Findings |
+|---|---|---|---|
+| R6 | Population size and linkage (1ay); knob caps with a dynamic population (1az) | N = 16 by rule; the user chose dynamic. No knob cap. LT-B = RT. | `SERVER-ROUND6-FINDINGS.md` |
+| R7 | LM-VAL with no cap; LM-VAL + PEN125 (1aw) | LM-VAL qualifies; PEN125 + LM-VAL does not (the user kept it) | `SERVER-ROUND7-FINDINGS.md` |
+| R8 | Confirmation on fresh splits 21–30, 10 datasets (1ax) | Tie under the 10 % rule; FINAL lower in 73/100 pairs vs HC-LS | `SERVER-ROUND8-FINDINGS.md` |
 
 **For each round when it ends:**
 
@@ -49,9 +51,12 @@ with LM-VAL, and the confirmed final setting.
 
 | Task | Goal | Prerequisites | Backlog |
 |---|---|---|---|
-| T1.1 | GP-GOMEA seeding with the current base: seeded against unseeded, seeding cost in the budget | Stage 0 | 7.5 |
-| T1.2 | One GOMEA run with all good findings combined, with and without seeding, against HC and plain GOMEA | T1.1 | 7.4 |
-| T1.3 | LT-B against RT with no cap | Only if 1ay leaves it open | 7.3 |
+| T1.0 | Engineering before the next round: Dow memory with no cap; optional time check inside a generation | Stage 0 | 9.4, 9.5 |
+| T1.1 | GP-GOMEA seeding with the new base: seeded against unseeded, seeding cost in the budget | Stage 0 | 7.5 |
+| T1.1b | LM-VAL with the cap of 250 against no cap (more demes, more LM calls) | Stage 0; can share a round with T1.1 | 9.1 |
+| T1.2 | One GOMEA run with all good findings combined, with and without seeding, against HC and plain GOMEA | T1.1, T1.1b | 7.4 |
+| T1.4 | The dynamic population on other datasets (user) | Stage 0; can share a round with T1.1 | 9.2 |
+| ~~T1.3~~ | ~~LT-B against RT with no cap~~ | Closed by 1ay: 12 ties | 7.3 |
 
 * **T1.1 questions:** does seeding still help when linear scaling, LM-VAL, no cap and PEN125 are in
   use? Does the Con loss of 1y and 1ab remain? Use the existing tools (`tools/gomea/gpgomea_seed.py`,

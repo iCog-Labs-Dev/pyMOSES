@@ -483,18 +483,20 @@ Rounds 4 and 5 used the cap of 250 in all arms.
 1. **LM-VAL with PEN125, the next candidate (user, 2026-11-06).** 1av tested LM with R 0.005 and
    0.025 only: 16–27 % smaller programs than LM, NMSE −2 % to +4 %, better on size on Air only
    (EnH Holm p 0.028). 1au chose PEN125 later. No run combines the guard with a penalty.
-   **Planned:** round 7 (1aw, `SERVER-ROUND7-PREREGISTRATION.md` after the renumbering).
+   **Done:** 1aw (round 7). PEN125 with LM-VAL did not qualify (size better on Air only), but
+   the user kept it in the base (2026-11-09).
 2. **LM-VAL with no evaluation cap (user, 2026-11-06).** LM runs once per deme. Without the cap,
    regression runs built 5.5–7 demes in 1,000 s (NOCAP, 1as) against 35.5–45 with the cap, so a
-   run gets far fewer LM calls. The 1at result can change. **Planned:** round 7 (1aw).
+   run gets far fewer LM calls. The 1at result can change. **Done:** 1aw. LM-VAL qualifies with
+   no cap. See section 9, item 1 for the cap-250 hint.
 3. **LT-B against RT with no cap (user, 2026-11-06).** Partly covered by round 6 (1ay
-   secondary contrasts: LT-B vs RT at N 16 and at three dynamic population sizes). Keep this item
-   until 1ay reports; close it if 1ay answers it.
+   secondary contrasts: LT-B vs RT at N 16 and at three dynamic population sizes). **Closed by
+   1ay:** all 12 contrasts tie.
 4. **One GOMEA run with all the good findings combined (user, 2026-11-06).** One MOSES-GOMEA
    setting that combines every setting that helped, from the local phases and the server rounds,
    tested against MOSES hill climbing and plain GOMEA. Candidates to review when it is designed:
    no per-deme cap, linear scaling (1ag), `--knob-probe-baseline reduced` (1q), LM with the
-   validation guard (1at), PEN125 (1au), the population setting from 1ay, and seeding with
+   validation guard (1at), PEN125 (1au), the dynamic population (user, 2026-11-09), and seeding with
    GP-GOMEA elites (1r, 1u: lower error on EnH and less CPU, but 15–20 % higher error on Con).
    Settings that did not help stay out (uniform start with linear scaling, knob caps, long demes,
    top-k FOS, `-B 3`). Round 8 (confirmation) covers part of this; the difference is the local
@@ -510,6 +512,35 @@ Rounds 4 and 5 used the cap of 250 in all arms.
    the current base, with the seeding cost in the budget. Tools: `tools/gomea/gpgomea_seed.py`,
    `tools/gomea/build_gpgomea_seed.sh`, the `seed` block of the runners. The result decides if
    item 4 uses seeding.
+
+## 9. Open items after server rounds 6 to 8 (2026-11-09)
+
+The user's decisions are in `APPROVALS.md` (2026-11-09): the population stays dynamic (F 0.05),
+LM-VAL is the default and PEN125 is kept. The agent reads these as the base of later regression
+experiments; the code defaults do not change. These three settings never ran together.
+
+1. **LM-VAL with the cap of 250 against no cap (agent, from 1aw).** In 1aw the C250 arm tied with
+   LMVAL on all 6 datasets (secondary), but its medians were lower on 4 of 6 (Con 19.3 against
+   23.0, EnH 6.03 against 6.74, Tow 11.3 against 17.6 in 10 of 10 splits). A run with the cap has
+   11.5–107.5 demes against 2–28 without it, and LM runs once per deme end, so it gets many more
+   LM calls. Test it as a primary contrast. Related: A2 (LM during the search, section 8), which
+   gives more LM calls without the cap.
+2. **The dynamic population on other datasets (user, 2026-11-09).** 1ay tested only mux11, Con
+   and EnH at one budget. In 1ax, FINAL-DYN was within 3 % of FINAL (pooled ratio 1.03), with
+   25–70 % smaller programs on all 10 datasets. A larger budget gives a large population more demes.
+3. **The new base never ran together.** Dynamic population + LM-VAL + PEN125. The first round with
+   this base needs a reference arm for it.
+4. **Dow memory with no cap (from 1ax).** 3 of 30 Dow runs of the GOMEA arms ended with an error at
+   a peak RSS of 3.07–3.11 GB (limit 3,072 MB). Dow has 57 inputs. Check where the memory goes
+   (deme store, genotype memo, LT-B statistics) before the next 10-dataset round, or raise the
+   limit for Dow.
+5. **The time limit inside a generation (from 1ay).** With a large N, one GOMEA generation is longer
+   than the time left, so runs pass `--max-time` (regression: median CPU up to 1,810 s for 1,000 s;
+   mux11 DYN2: the hard stop at 5,400 s). A time check inside the generation would make equal-time
+   comparisons fair. It changes results only when the limit is reached.
+6. **A small report fix (from 1aw and 1ax).** `set_final.py` prints the stage-2 Holm p next to the
+   stage-1 verdict when a contrast was not extended (EnH size: "tie (Holm p 0.009)"). Print the p
+   of the stage that gives the verdict.
 
 ## 8. Future directions from the literature search (2026-11-06)
 
