@@ -1,7 +1,7 @@
 # Server round 9: pre-registration (2026-11-09)
 
-**Status:** the design is approved by the user (see `APPROVALS.md`, 2026-11-09). Not implemented
-yet. Agent-written, not user-approved in detail: the evaluation budget of 20,000, the datasets,
+**Status:** the design is approved by the user (see `APPROVALS.md`, 2026-11-09). Implemented in be758a9 and a2ba7dd. Not run yet.
+Agent-written, not user-approved in detail: the evaluation budget of 20,000, the datasets,
 the splits and the adoption rules.
 
 **Question:** three stage 1 tasks of `ROADMAP.md`, all with the new base that the user chose on
