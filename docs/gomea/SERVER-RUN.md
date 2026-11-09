@@ -565,25 +565,50 @@ Arms and files:
   `--gomea-max-evals-per-deme 250`). `sr.json`: Con, Tow, Yac, WiR on splits 11-20.
   `sr-BosEnC.json`: Bos and EnC on splits 1-10. This is data that 1aw did not use. There is no
   extension. 240 runs.
-* `spec.json` of 1bc: 6 primary contrasts (test NMSE, BASE-C250 vs BASE) and 18 secondary (test NMSE,
-  N16-C250 vs N16; program size and LM calls, BASE-C250 vs BASE). It has `"extend": false`, so a
-  primary contrast with Holm p in [0.025, 0.25) is "tie", not "extend".
+* `spec.json` of 1bc: 6 primary contrasts (test NMSE, BASE-C250 vs BASE) and 18 secondary in two
+  Holm families. Family A (6): test NMSE, N16-C250 vs N16. Family B (12): program size and LM
+  calls, BASE-C250 vs BASE. The key `"secondary_families": [["n16c250-vs-n16"]]` sets this. It has
+  `"extend": false`, so a primary contrast with Holm p in [0.025, 0.25) is "tie", not "extend".
 
 **New report metrics.** `phase_report.py` has three new contrast metrics for the secondary
 contrasts: `train_test_gap` (test NMSE minus training NMSE), `cpu_s` (the run's CPU) and `lm_calls`
 (`const_opt.lm_calls`). Lower is better for each, and a failed run is infinitely bad.
+The spec key `secondary_families` (a list of lists of secondary contrast names) makes each list a
+Holm family of its own. The other secondary contrasts form one more family. In `contrasts.csv`
+the column `holm_family` shows the family. Without the key, all secondary contrasts are one
+family, as before.
 
-**Dow memory.** The memory limit of Dow in 1ba is `mem_limit_mb` in
-`configs/gomea/phase1ba/sr-Dow.json` (stage 1) and `configs/gomea/phase1ba/sr-ext-Dow.json` (the
-extension). Both are 3,072 MB now. The user approves the outcome of the Dow memory check before the
-round starts. If the limit changes, change both files. W comes from `resources.py`
-(`PER_RUN_MB`), not from the manifest.
+**Memory and workers.** The Dow memory check found that the use is real (the reduced-candidate
+cache). So the memory limits (`mem_limit_mb`) are:
 
-**Size and time.** Stage 1 is 480 runs, about 16 hours at W = 11, plus S0. With all extensions, up to
+| Manifests | `mem_limit_mb` | W on the server (cgroup 65,536 MB, 12 CPUs) |
+|---|---|---|
+| `phase1ba/sr-Dow.json`, `phase1ba/sr-ext-Dow.json` | 8,192 | floor((65,536 - 6,553) / 8,192) = 7 |
+| every other round 9 manifest (1ba, 1bb, 1bc) | 5,120 | min(12 - 1, floor(58,983 / 5,120) = 11) = 11 |
+
+W comes from `resources.py`, as before. Two plan keys on a phase step set its `PER_RUN_MB`:
+
+* `per_run_mb` (5120 on the steps of 1ba, 1bb and 1bc): the `PER_RUN_MB` of the decision for the
+  phase. It replaces `PER_RUN_MB` from the environment.
+* `manifest_per_run_mb` (1ba only: `{"sr-Dow.json": 8192, "sr-ext-Dow.json": 8192}`): the
+  orchestrator makes one more decision for each named manifest. It gives these W values to
+  `phase_run.sh` in `MANIFEST_WORKERS="sr-Dow.json=7 sr-ext-Dow.json=7"`.
+
+`phase_run.sh` runs one manifest at a time, and only the Dow manifests have Dow runs. So never
+more than the Dow W of Dow runs run at the same time, and Dow runs never run beside other runs.
+The 1ba report and its Holm family still hold all 8 datasets, and the Dow extension works as
+before. `events.jsonl` has one `workers_decision` for the phase and one for each Dow manifest
+(field `manifest`, with `per_run_mb` 8192). `phase_attempt` has `manifest_workers`. Plans 2 to 8
+have neither key, so their W comes from the environment, as before. If you change a limit,
+change the manifests and the plan key together (`tests/server/test_plan9.py` checks this).
+`MAX_WORKERS` caps each decision.
+
+**Size and time.** Stage 1 is 480 runs, about 16 hours at W = 11 (the 20 Dow runs at W = 7), plus S0. With all extensions, up to
 720 runs.
 
 Smoke test: `bash tools/server/start.sh --plan smoke9` runs the limited S0 and the miniatures
 `configs/gomea/server-smoke9-1ba`, `-1bb` and `-1bc`. They have the same manifests, arms and flags,
 2 splits each, a wall cap of 300 s and no extension manifests. The budget is `-m 300`, and
 `-m 1000` in 1bb, because the first GP-GOMEA generation alone costs about 600 evaluations. The smoke
-includes the Dow run and the seeded arm. The state is in `server-run9-smoke/`.
+includes the Dow run and the seeded arm. The state is in `server-run9-smoke/`. The smoke plan has the
+same `per_run_mb` and `manifest_per_run_mb` keys, so the smoke Dow run also gets its own W.

@@ -4,7 +4,9 @@
 Agent-written, not user-approved in detail: the evaluation budget of 20,000, the datasets,
 the splits and the adoption rules. Changed on 2026-11-09 after the Dow memory check (user-approved,
 see `APPROVALS.md`): the memory limits in "Before the round: Dow memory" and the Holm families of
-1bc. Not implemented yet.
+1bc. Implemented in 13c9f63, 8b519d3, 16ce6d6 and e97d27f. Dow does not get a plan step of its
+own: the 1ba step gives the two Dow manifests their own W (plan key `manifest_per_run_mb`, 8,192),
+so the 1ba report keeps all 8 datasets in one Holm family. Not run yet.
 
 **Question:** three stage 1 tasks of `ROADMAP.md`, all with the new base that the user chose on
 2026-11-09:
