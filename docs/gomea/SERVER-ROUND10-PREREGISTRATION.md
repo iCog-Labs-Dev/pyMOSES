@@ -1,6 +1,6 @@
 # Server round 10 (T1.2): pre-registration (2026-11-10)
 
-**Status:** the design is approved by the user (see `APPROVALS.md`, 2026-11-10). Implemented in 9e86f08, b120bf3, e6040ab, 9f9660d, 61ce435 and 60ca594.
+**Status:** the design is approved by the user (see `APPROVALS.md`, 2026-11-10). Implemented in 9e86f08, b120bf3, e6040ab, 9f9660d, 61ce435 and 60ca594. The LM reserve for HC-LM-W (see "Code change") is not implemented yet.
 Agent-written, not user-approved in detail: splits 1–10, the contrasts and the Holm families.
 
 **Question:** roadmap task T1.2, the last task of stage 1. How does the new base compare with MOSES
@@ -37,7 +37,7 @@ main result uses only the unseeded base, so a weak seeding result cannot lower i
 | **HC-LM** | `-a hc --knob-probe-baseline reduced --linear-scaling 1 --const-opt lm --const-opt-guard val`, no cap (the same cap as GOMEA) |
 | **HC-LM-W** | HC-LM + `--hc-widen-search 1` (`-T`): when a step does not improve, HC searches at a larger distance and does not end the deme |
 
-* Datasets: Air, Bos, Con, Dow, EnC, EnH, Tow, WiR, WiW, Yac. Splits 31–40.
+* Datasets: Air, Bos, Con, Dow, EnC, EnH, Tow, WiR, WiW, Yac. Splits 1–10.
 * **Fair comparison (user, 2026-11-10):** both GOMEA and HC get linear scaling and LM-VAL. Round 8
   compared GOMEA with LM against HC with linear scaling only.
 * **What stays different:** PEN125 (`--gomea-accept-complexity-ratio`) and the dynamic population
@@ -103,6 +103,14 @@ bias contrast 2.
   and events of a fixed HC run, before and after the change).
 * **Tests:** HC with LM on a small regression task: LM runs at each deme end, the evaluation count
   includes the LM passes, and the guard rejects a change that makes the validation error worse.
+* **LM reserve with widen search (user, 2026-11-10):** with widen search, HC does not end a deme at
+  a local optimum. A local check at 20,000 evaluations (Air, Bos, Tow, Yac, split 1) showed 1 deme
+  that used all 20,000 evaluations, so the one LM call got no budget. HC-LM in the same check had
+  14–28 demes and used at most 465 LM evaluations in one deme. The fix:
+  * Only with `-a hc --const-opt lm --hc-widen-search 1`: the climb gets the deme budget minus a
+    reserve of min(500, budget // 2) evaluations. LM then runs on the best program with the rest.
+  * If LM leaves evaluations unused, MOSES starts the next deme as usual.
+  * HC-LM (no widen search) and HC without `--const-opt` stay byte-identical.
 * **Not included:** the other `--const-opt` modes (`mutate`, `polish`) for HC.
 
 ## Implementation (by a subagent, in a separate clone)

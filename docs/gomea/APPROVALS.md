@@ -302,3 +302,9 @@ experiment as we don't want to get a lower score only because of an oversight."
     the memory limits (Dow 16,384 MB, Tow 8,192 MB); no adoption rule.
   * The agent's reading, not confirmed: "the new hill climbing option" is LM for `-a hc`, so the
     code change is approved. The agent chose splits 1–10.
+* **Review of the implementation (2026-11-10):** HC-LM-W did no LM. With widen search, HC used all
+  20,000 evaluations in 1 deme, so LM had no budget (local check on Air, Bos, Tow and Yac). The agent
+  asked what to do with HC-LM-W. The user chose the option "Reserve LM budget (Recommended)": with
+  widen search plus LM, HC stops 500 evaluations early, so LM runs once on the best program.
+  * Agent-written, not user-approved: the reserve is min(500, budget // 2), so a small smoke budget
+    still leaves evaluations for the climb.
