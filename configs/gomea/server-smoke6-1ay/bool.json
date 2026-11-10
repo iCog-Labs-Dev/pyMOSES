@@ -2,7 +2,7 @@
   "schema_version": 1,
   "name": "server-smoke6-1ay-bool",
   "phase": 1,
-  "commit": "0e8dfa29a2121905696943b320c3852eead15fd0",
+  "commit": "b120bf33e13bae6cf3f443394a0f42c2c21c0a1c",
   "common_argv": [
     "-l",
     "WARN"
