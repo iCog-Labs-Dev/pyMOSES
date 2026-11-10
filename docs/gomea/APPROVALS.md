@@ -289,3 +289,8 @@ experiment as we don't want to get a lower score only because of an oversight."
 * BASE-S is a control arm with its own Holm family. The main result uses BASE only.
 * Not user-approved: the rest of `SERVER-ROUND10-PREREGISTRATION.md` (arms, splits 31–40, memory
   limits, adoption rule).
+* The user then said: "It's not fair to test the GOMEA with LM and the HC with LS. We need to make
+  that fair for HC as well. Also we need to add another run for the HC with the widen search
+  enabled, historically on another experiment, that gave a small rise to the result."
+  * The HC arms get LM-VAL (HC-LM), which needs `--const-opt lm` for `-a hc` (a code change under
+    `pymoses`). A second HC arm adds widen search (HC-LM-W).
