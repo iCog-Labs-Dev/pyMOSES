@@ -54,7 +54,7 @@ with LM-VAL, and the confirmed final setting.
 | T1.0 | Engineering before the next round: Dow memory with no cap; optional time check inside a generation | Done for Dow memory (limits raised, round 9); the time check is not needed with an evaluation budget | 9.4, 9.5 |
 | ~~T1.1~~ | ~~GP-GOMEA seeding with the new base~~ | Done (1bb, round 9): better on Yac only; BASE-S joins T1.2 (user) | 7.5 |
 | ~~T1.1b~~ | ~~LM-VAL with the cap of 250 against no cap~~ | Done (1bc, round 9): better on Tow only; left out | 9.1 |
-| T1.2 | One GOMEA run with the base (dynamic N, LM-VAL, PEN125), BASE and BASE-S, against HC and plain GOMEA | Next | 7.4 |
+| T1.2 | One GOMEA run with the base (dynamic N, LM-VAL, PEN125) against HC and plain GOMEA; BASE-S as a separate seeding control | Next: `SERVER-ROUND10-PREREGISTRATION.md` (draft) | 7.4 |
 | ~~T1.4~~ | ~~The dynamic population on other datasets (user)~~ | Done (1ba, round 9): kept | 9.2 |
 | ~~T1.3~~ | ~~LT-B against RT with no cap~~ | Closed by 1ay: 12 ties | 7.3 |
 

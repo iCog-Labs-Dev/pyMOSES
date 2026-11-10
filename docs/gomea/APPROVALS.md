@@ -281,3 +281,11 @@ BASE-S please."
 * Seeding: BASE-S is an arm of T1.2, against the 1bb rule (better on 1 of 4).
 * Cap of 250: left out, by the 1bc rule.
 * Memory at N = 16: no backlog item for the cache size.
+
+**Round 10 (T1.2) draft (2026-11-10):** the user asked: "Yes, push it and write the T1.2
+pre-registration". While the agent wrote it, the user added: "Wait if seeding didn't help quite as
+we hopped it would, please add it as a separate control experiment on the next integration
+experiment as we don't want to get a lower score only because of an oversight."
+* BASE-S is a control arm with its own Holm family. The main result uses BASE only.
+* Not user-approved: the rest of `SERVER-ROUND10-PREREGISTRATION.md` (arms, splits 31–40, memory
+  limits, adoption rule).
