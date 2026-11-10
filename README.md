@@ -221,6 +221,15 @@ Rounds 6 to 8 (2026-11-06 to 2026-11-08;
   code default is unchanged.
 * **PEN125 with LM-VAL:** smaller programs only on Air; kept in the base by the user.
 
+Round 9 (2026-11-09; [`docs/gomea/SERVER-ROUND9-FINDINGS.md`](docs/gomea/SERVER-ROUND9-FINDINGS.md)),
+at 20,000 evaluations with the new base (dynamic population, LM-VAL, PEN125):
+
+* **Dynamic population against N = 16 (8 datasets):** worse on Air only. Medians 1–20 % higher,
+  programs 30–85 % smaller, CPU 1.3–6× lower. It stays the base.
+* **GP-GOMEA seeding:** better on Yac only, medians lower on all 4 datasets. The user keeps the
+  seeded arm for the combined run (T1.2).
+* **Cap of 250 evaluations per deme:** better on Tow only, with larger programs. Left out.
+
 ## Run the tests
 
 The test suite is self-contained: it diffs against C++ **golden fixtures committed to

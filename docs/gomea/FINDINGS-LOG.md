@@ -137,6 +137,9 @@ in `DECISIONS.md`.**
 | 1az | 2026-11-07 (server 6) | Knob caps K8–K64 with the dynamic population (F 0.05) | **No cap qualifies.** All worse on mux11 (0–1 of 20), all tie on Con, EnH, Air. NOCAP-DYN worse than NOCAP-N16 on mux11 (724 against 228 s). [SERVER-ROUND6-FINDINGS.md](SERVER-ROUND6-FINDINGS.md) |
 | 1aw | 2026-11-08 (server 7) | LM-VAL with no cap; LM-VAL + PEN125; cap 250 and dynamic N as secondary arms | **LM-VAL qualifies** (better on EnH 8.43 → 6.74, Air 41.1 → 33.5, Yac 1.21 → 0.58; worse on none). **PEN125 + LM-VAL does not** (size better on Air only; NMSE −4 to +2 %). LMVAL-C250: 6 ties, medians lower on 4 of 6 (Tow 10/10). LMVAL-DYN worse on EnH and Air. [SERVER-ROUND7-FINDINGS.md](SERVER-ROUND7-FINDINGS.md) |
 | 1ax | 2026-11-08 (server 8) | Confirmation on fresh splits 21–30, 10 datasets: FINAL (LM-VAL, no cap, N 16) vs HC-LS and NOCAP, pooled | **Both tie under the 10 % rule.** FINAL lower in 73/100 pairs vs HC-LS (ratio 0.925, Holm p 9.5e-7) and 72/100 vs NOCAP (ratio 0.939). Big wins on Yac and Air; loses on Con. FINAL-DYN vs FINAL: tie (ratio 1.03), programs 25–70 % smaller. 3 Dow runs hit the 3 GB memory limit. [SERVER-ROUND8-FINDINGS.md](SERVER-ROUND8-FINDINGS.md) |
+| 1ba | 2026-11-09 (server 9) | New base (dynamic N, LM-VAL, PEN125) against the same with N = 16, 8 other datasets, 20,000 evaluations | **Dynamic stays (rule).** BASE worse on Air only (39.1 against 32.7); medians higher on all 8 (1–20 %), programs 30–85 % smaller, CPU 1.3–6× lower. 4 Dow and 2 Tow N16 runs failed on memory (8 GB, 5 GB). [SERVER-ROUND9-FINDINGS.md](SERVER-ROUND9-FINDINGS.md) |
+| 1bb | 2026-11-09 (server 9) | GP-GOMEA seeding (share 0.2) with the new base | **Better on Yac only** (18/20); medians lower on all 4 (Con 36.1 → 30.9), CPU about equal. The rule leaves seeding out; the user keeps BASE-S as an arm of T1.2. [SERVER-ROUND9-FINDINGS.md](SERVER-ROUND9-FINDINGS.md) |
+| 1bc | 2026-11-09 (server 9) | Cap of 250 evaluations per deme with the new base and with N = 16 | **Better on Tow only** (19.0 → 12.4, 10/10); medians lower on 5 of 6, programs 30–220 % larger, CPU 1.1–3.9×. Left out (rule, user). [SERVER-ROUND9-FINDINGS.md](SERVER-ROUND9-FINDINGS.md) |
 
 ## Descriptive comparisons (not pre-registered)
 
@@ -154,7 +157,7 @@ in `DECISIONS.md`.**
 | `--const-opt lm` (regression, with linear scaling) | **The default for later regression experiments, with `--const-opt-guard val` (LM-VAL)** (user, 2026-11-09; the code default stays `none`, see `APPROVALS.md`). Not the default before (user, 2026-11-03). | 1ao: better than GOMEA-LS on Con, EnH and Air at equal CPU, with smaller programs. 1ar: better on Yac and Tow, tie on the others; gap 9.7 on WiR. 1at: the guard cuts the WiR gap to 4.04 at no accuracy cost. | Test with no cap and with PEN125 (`BACKLOG.md`, section 7). |
 | No per-deme cap (`--gomea-max-evals-per-deme` not set) | **The base for all problems** (user, 2026-11-06). The code default was already no cap. | 1as: mux11 better at equal CPU; regression ties with higher medians. 1ae: cap 1,000 better on mux11, worse on Con. | Base arm of later rounds. |
 | `--gomea-accept-complexity-ratio 0.125 --gomea-deme-store accepted` (PEN125) | **Kept in the base of later regression experiments** (user, 2026-11-09). Preferred strength before (user, 2026-11-06). | 1au: size −58 % on EnH and −48 % on Air, NMSE at most +8 %, no size gain on Con. 1aw: with LM-VAL, size better on Air only, NMSE −4 to +2 %. | Base arm of later rounds. |
-| `--gomea-pop-size dynamic --hc-fraction-of-nn 0.05` | **The population of later experiments** (user, 2026-11-09), against the 1ay pick rule. | 1ay: worse than N = 16 on mux11 and Con, tie on EnH, programs 42–66 % smaller. 1aw, 1ax: the DYN control arms were worse or equal, with smaller programs. | Test on other datasets (user). |
+| `--gomea-pop-size dynamic --hc-fraction-of-nn 0.05` | **The population of later experiments** (user, 2026-11-09), against the 1ay pick rule. | 1ay: worse than N = 16 on mux11 and Con, tie on EnH, programs 42–66 % smaller. 1aw, 1ax: the DYN control arms were worse or equal, with smaller programs. | Tested in 1ba: kept (2026-11-10). |
 
 ## Open questions (see `BACKLOG.md`)
 
@@ -162,7 +165,8 @@ in `DECISIONS.md`.**
 * ~~GOMEA-LS against HC-LS at equal time; why GOMEA loses on Yac~~ Answered by 1ao and 1ar.
 * ~~Size control with a weaker penalty, and LM with a penalty (section 6)~~ Answered by 1au and
   1av. ~~LM-VAL with PEN125, and both with no cap (section 7)~~ Answered by 1aw.
-* Does LM-VAL gain from more demes (the cap of 250) or from LM during the search? (1aw hint)
-* The dynamic population on other datasets (user, 2026-11-09).
+* ~~Does LM-VAL gain from more demes (the cap of 250)?~~ 1bc: better on Tow only; left out. LM
+  during the search (A2) is still open.
+* ~~The dynamic population on other datasets (user, 2026-11-09).~~ 1ba: kept.
 * Does PEN beat unpenalized GOMEA on mux11 at equal time, under a registered test?
 * Cheaper knob building (items 1.x).

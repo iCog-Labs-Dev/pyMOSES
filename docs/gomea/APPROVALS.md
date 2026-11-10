@@ -271,3 +271,13 @@ said: "So I guess instead of removing the cache, we should increase the memory l
     and its extension) in its own plan step with `PER_RUN_MB` 8192 (W = 7).
   * 1bc: the 6 contrasts N16-C250 vs N16 form their own Holm family.
 * Not user-approved: the code of the per-step `PER_RUN_MB`, still to be written.
+
+**Decisions on round 9 (2026-11-10):** the agent presented the results of 1ba, 1bb and 1bc
+(`SERVER-ROUND9-FINDINGS.md`) and asked four questions. The user answered: "1. Yes I agree with
+the rule. Lets keep the dynamic population. 2. What do you mean by T1.2? 3. Leave it out. 4. Never
+mind we have enough data." The agent explained T1.2 (`ROADMAP.md`). The user answered: "I want the
+BASE-S please."
+* Population: dynamic (F 0.05) stays the base, by the 1ba rule.
+* Seeding: BASE-S is an arm of T1.2, against the 1bb rule (better on 1 of 4).
+* Cap of 250: left out, by the 1bc rule.
+* Memory at N = 16: no backlog item for the cache size.

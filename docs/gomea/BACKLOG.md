@@ -503,7 +503,7 @@ Rounds 4 and 5 used the cap of 250 in all arms.
    findings, seeding first of all. **Seeding is an arm pair in this experiment:** the combined
    setting with and without GP-GOMEA seeds. Its result (item 5) decides if the final setting uses
    seeding (user, 2026-11-06).
-5. **GP-GOMEA seeding with the current settings (user, 2026-11-06).** Run stand-alone GP-GOMEA
+5. **Done (1bb, 2026-11-10): better on Yac only, medians lower on all 4; BASE-S joins T1.2 (user).** **GP-GOMEA seeding with the current settings (user, 2026-11-06).** Run stand-alone GP-GOMEA
    first and start MOSES from its elites instead of the empty program (item 2.9). It was the
    biggest lever of the local phases: 1r (lower error on EnH; GOMEA CPU 4–6× lower, programs 7–8×
    smaller), 1u (mux11 CPU to solve −41 %). But on Con GOMEA's error stayed 15–20 % higher (1y,
@@ -519,18 +519,18 @@ The user's decisions are in `APPROVALS.md` (2026-11-09): the population stays dy
 LM-VAL is the default and PEN125 is kept. The agent reads these as the base of later regression
 experiments; the code defaults do not change. These three settings never ran together.
 
-1. **LM-VAL with the cap of 250 against no cap (agent, from 1aw).** In 1aw the C250 arm tied with
+1. **Done (1bc, 2026-11-10): better on Tow only, left out.** **LM-VAL with the cap of 250 against no cap (agent, from 1aw).** In 1aw the C250 arm tied with
    LMVAL on all 6 datasets (secondary), but its medians were lower on 4 of 6 (Con 19.3 against
    23.0, EnH 6.03 against 6.74, Tow 11.3 against 17.6 in 10 of 10 splits). A run with the cap has
    11.5–107.5 demes against 2–28 without it, and LM runs once per deme end, so it gets many more
    LM calls. Test it as a primary contrast. Related: A2 (LM during the search, section 8), which
    gives more LM calls without the cap.
-2. **The dynamic population on other datasets (user, 2026-11-09).** 1ay tested only mux11, Con
+2. **Done (1ba, 2026-11-10): kept.** **The dynamic population on other datasets (user, 2026-11-09).** 1ay tested only mux11, Con
    and EnH at one budget. In 1ax, FINAL-DYN was within 3 % of FINAL (pooled ratio 1.03), with
    25–70 % smaller programs on all 10 datasets. A larger budget gives a large population more demes.
 3. **The new base never ran together.** Dynamic population + LM-VAL + PEN125. The first round with
    this base needs a reference arm for it.
-4. **Dow memory with no cap (from 1ax).** 3 of 30 Dow runs of the GOMEA arms ended with an error at
+4. **Done (2026-11-09): the reduced-candidate cache; limits raised, see `SERVER-ROUND9-PREREGISTRATION.md`. N = 16 still failed at 8 GB on Dow in 1ba.** **Dow memory with no cap (from 1ax).** 3 of 30 Dow runs of the GOMEA arms ended with an error at
    a peak RSS of 3.07–3.11 GB (limit 3,072 MB). Dow has 57 inputs. Check where the memory goes
    (deme store, genotype memo, LT-B statistics) before the next 10-dataset round, or raise the
    limit for Dow.
