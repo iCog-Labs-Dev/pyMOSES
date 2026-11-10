@@ -21,7 +21,8 @@ SPEC_JSON (one per phase, `configs/gomea/<phase>/spec.json`)::
      "pooled_secondary": [[name, arm_a, arm_b, metric], ...], # optional (server round 8)
      "secondary_verdicts": false,          # optional (server round 8), default true
      "extend": false,                      # optional (server round 9), default true
-     "secondary_families": [[name, ...], ...]}  # optional (server round 9, 1bc)
+     "secondary_families": [[name, ...], ...],  # optional (server round 9, 1bc)
+     "pooled_secondary_families": [[name, ...], ...]}  # optional (server round 10, 1bd)
 
 A contrast takes its problem's metric, or the optional fifth element (server round 3,
 1ap: program size as the primary metric and test NMSE as the secondary one for the same
@@ -63,6 +64,11 @@ Pooled secondary contrasts (`pooled_secondary`, the control arm of round 8 after
 round): the same pooled test and verdict rule, with their own Holm family (separate from the
 pooled primary and the per-problem secondary contrasts), and family "secondary". They never
 extend.
+With `"pooled_secondary_families"` (server round 10, 1bd) each inner list of pooled secondary
+contrast names is a Holm family of its own, and the other pooled secondary contrasts form one
+more family. These rows get the column `holm_family`: "pooled_secondary/<names joined by +>"
+or "pooled_secondary". Each name must be a pooled secondary contrast, in one list only.
+Without the key the pooled secondary contrasts are one family, as before.
 
 Rule (each look at ALPHA = 0.025): Holm p < ALPHA and a median at least 10 % lower is
 "A better" (mirror: "A worse"); primary contrasts at stage 1 with ALPHA <= Holm p <
@@ -436,9 +442,26 @@ def main(argv: list[str] | None = None) -> int:
     if spec.get("secondary_verdicts", True) is False:
         for r in rows["secondary"]:
             r["verdict"] = None
+    groups2 = spec.get("pooled_secondary_families")
+    if groups2 is not None:
+        # server round 10 (1bd): Holm families of pooled secondary contrasts
+        names2 = {c[0] for c in pooled2}
+        flat2 = [n for g in groups2 if isinstance(g, list) for n in g]
+        if (not all(isinstance(g, list) and g for g in groups2)
+                or len(flat2) != len(set(flat2)) or not set(flat2) <= names2):
+            print(f"bad pooled_secondary_families {groups2} (want lists of distinct pooled "
+                  f"secondary contrast names from {sorted(names2)})", file=sys.stderr)
+            return 2
     if pooled2:
         prows = [_pooled_contrast(n, a, b, runs, list(metrics), m) for n, a, b, m in pooled2]
-        _decide_pooled(prows)
+        if groups2 is None:
+            _decide_pooled(prows)
+        else:
+            label2 = {n: "pooled_secondary/" + "+".join(g) for g in groups2 for n in g}
+            for r in prows:
+                r["holm_family"] = label2.get(r["contrast"], "pooled_secondary")
+            for fam in dict.fromkeys(r["holm_family"] for r in prows):
+                _decide_pooled([r for r in prows if r["holm_family"] == fam])
         rows["secondary"] += prows
     for r in rows["descriptive"]:
         r["p_holm"], r["verdict"] = None, None
