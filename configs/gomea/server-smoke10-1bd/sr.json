@@ -1,0 +1,159 @@
+{
+  "name": "server-smoke10-1bd-sr",
+  "datasets_dir": "../gomea-results/phase1f/datasets",
+  "datasets": [
+    "Air",
+    "Bos",
+    "Con",
+    "EnC",
+    "EnH",
+    "WiR",
+    "WiW",
+    "Yac"
+  ],
+  "splits": [
+    1,
+    2
+  ],
+  "wall_cap_s": 300,
+  "mem_limit_mb": 5120,
+  "arms": {
+    "BASE": {
+      "binary": ".venv/bin/moses",
+      "budget": {
+        "evals": 1000
+      },
+      "argv": [
+        "-a",
+        "gomea",
+        "--gomea-fos",
+        "lt-b",
+        "--gomea-pop-size",
+        "dynamic",
+        "--hc-fraction-of-nn",
+        "0.05",
+        "--gomea-skip-inactive",
+        "0",
+        "--gomea-genotype-memo",
+        "1",
+        "--gomea-contin",
+        "copy",
+        "--knob-probe-baseline",
+        "reduced",
+        "--linear-scaling",
+        "1",
+        "--const-opt",
+        "lm",
+        "--const-opt-guard",
+        "val",
+        "--gomea-accept-complexity-ratio",
+        "0.125",
+        "--gomea-deme-store",
+        "accepted"
+      ]
+    },
+    "BASE-S": {
+      "binary": ".venv/bin/moses",
+      "budget": {
+        "evals": 1000
+      },
+      "argv": [
+        "-a",
+        "gomea",
+        "--gomea-fos",
+        "lt-b",
+        "--gomea-pop-size",
+        "dynamic",
+        "--hc-fraction-of-nn",
+        "0.05",
+        "--gomea-skip-inactive",
+        "0",
+        "--gomea-genotype-memo",
+        "1",
+        "--gomea-contin",
+        "copy",
+        "--knob-probe-baseline",
+        "reduced",
+        "--linear-scaling",
+        "1",
+        "--const-opt",
+        "lm",
+        "--const-opt-guard",
+        "val",
+        "--gomea-accept-complexity-ratio",
+        "0.125",
+        "--gomea-deme-store",
+        "accepted"
+      ],
+      "seed": {
+        "binary": "../gomea-results/gpgomea-seed-build/gpgomea-seed",
+        "share": 0.2,
+        "height": 3,
+        "k": 5,
+        "functions": "+_-_*"
+      }
+    },
+    "NOCAP": {
+      "binary": ".venv/bin/moses",
+      "budget": {
+        "evals": 1000
+      },
+      "argv": [
+        "-a",
+        "gomea",
+        "--gomea-fos",
+        "lt-b",
+        "--gomea-pop-size",
+        "16",
+        "--gomea-skip-inactive",
+        "0",
+        "--gomea-genotype-memo",
+        "1",
+        "--gomea-contin",
+        "copy",
+        "--knob-probe-baseline",
+        "reduced",
+        "--linear-scaling",
+        "1"
+      ]
+    },
+    "HC-LM": {
+      "binary": ".venv/bin/moses",
+      "budget": {
+        "evals": 1000
+      },
+      "argv": [
+        "-a",
+        "hc",
+        "--knob-probe-baseline",
+        "reduced",
+        "--linear-scaling",
+        "1",
+        "--const-opt",
+        "lm",
+        "--const-opt-guard",
+        "val"
+      ]
+    },
+    "HC-LM-W": {
+      "binary": ".venv/bin/moses",
+      "budget": {
+        "evals": 1000
+      },
+      "argv": [
+        "-a",
+        "hc",
+        "--knob-probe-baseline",
+        "reduced",
+        "--linear-scaling",
+        "1",
+        "--const-opt",
+        "lm",
+        "--const-opt-guard",
+        "val",
+        "--hc-widen-search",
+        "1"
+      ]
+    }
+  }
+}

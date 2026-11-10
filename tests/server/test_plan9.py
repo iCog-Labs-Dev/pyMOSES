@@ -358,7 +358,7 @@ def test_plan_gives_each_manifest_the_per_run_mb_of_its_memory_limit(plan, prefi
 def test_earlier_plans_have_no_per_run_mb_key():
     """Plans 2 to 8 keep W from the environment (PER_RUN_MB), as before round 9."""
     for f in sorted(SERVER.glob("plan*.json")):
-        if f.name.startswith("plan9"):
+        if f.name.startswith(("plan9", "plan10")):  # rounds 9 and 10 set the keys
             continue
         for st in load(f)["steps"]:
             assert "per_run_mb" not in st and "manifest_per_run_mb" not in st, f

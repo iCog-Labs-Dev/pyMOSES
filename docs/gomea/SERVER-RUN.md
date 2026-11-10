@@ -612,3 +612,82 @@ Smoke test: `bash tools/server/start.sh --plan smoke9` runs the limited S0 and t
 `-m 1000` in 1bb, because the first GP-GOMEA generation alone costs about 600 evaluations. The smoke
 includes the Dow run and the seeded arm. The state is in `server-run9-smoke/`. The smoke plan has the
 same `per_run_mb` and `manifest_per_run_mb` keys, so the smoke Dow run also gets its own W.
+
+## Round 10
+
+The tenth round (`SERVER-ROUND10-PREREGISTRATION.md`, roadmap task T1.2: the new base against MOSES
+hill climbing with LM-VAL and against plain GOMEA) has its own plan, `tools/server/plan10.json`:
+S0, then phase 1bd. Its state is in `../gomea-results/server-run10/`. Start it with:
+
+    bash tools/server/start.sh --plan round10
+
+There is no choice step, no extension and no adoption rule: the round only reports the results.
+No plan chains to or from round 10. Round 10 never overlaps with another round. Bring back the
+final bundle.
+
+**Budget.** Each run gets 20,000 evaluations (`"budget": {"evals": 20000}`, so `-m 20000`) and no
+`--max-time`. LM passes, guard passes and GP-GOMEA seed evaluations count. The wall cap of 36,000 s
+per run is only a guard against a hung process.
+
+**Arms** (`configs/gomea/phase1bd/`, the same five arms in each manifest):
+
+| Arm | Flags |
+|---|---|
+| BASE | the round 9 base (as in 1bb) |
+| BASE-S | BASE with the seed block of 1bb (`share` 0.2, height 3, k 5, functions `+_-_*`) |
+| NOCAP | `-a gomea --gomea-fos lt-b --gomea-pop-size 16 --gomea-skip-inactive 0 --gomea-genotype-memo 1 --gomea-contin copy --knob-probe-baseline reduced --linear-scaling 1` (round 8) |
+| HC-LM | `-a hc --knob-probe-baseline reduced --linear-scaling 1 --const-opt lm --const-opt-guard val` |
+| HC-LM-W | HC-LM + `--hc-widen-search 1` |
+
+* HC-LM and HC-LM-W use the new LM for hill climbing (`pymoses/gomea/hc_lm.py`): at the end of each
+  HC deme, LM on the deme's best program, with the same code and rule as GOMEA. The runner gives
+  them `--const-opt-val` (the scaled validation split) and `--gomea-log RUN_DIR/events.jsonl`, as
+  for the GOMEA arms. Each HC deme writes one "end" event, so the summary has `const_opt` (LM
+  calls, guard rejections) and the report has the deme count and the steps per deme.
+* Datasets: all 10 (Air, Bos, Con, Dow, EnC, EnH, Tow, WiR, WiW, Yac), splits 1-10. 500 runs.
+* The phase needs the GP-GOMEA build of `setup.sh` (requirement `gpgomea`, for BASE-S). Without it,
+  1bd is skipped with the reason in the log.
+
+**Report** (`spec.json` of 1bd; the pooled test of round 8: paired Wilcoxon on
+r = log(NMSE_A / NMSE_B) over the 100 pairs, a failed run gets the largest rank against it):
+
+* Primary, pooled, one Holm family (3): BASE vs HC-LM, BASE vs HC-LM-W, BASE vs NOCAP
+  (`pooled_primary`).
+* Seeding control, pooled, its own Holm family (4): BASE-S vs BASE, HC-LM, HC-LM-W and NOCAP.
+* Widen search, pooled, its own Holm family (1): HC-LM-W vs HC-LM.
+* Secondary, pooled, one Holm family (10): program size and CPU for BASE vs HC-LM, BASE vs HC-LM-W,
+  BASE vs NOCAP, BASE-S vs BASE and HC-LM-W vs HC-LM.
+* Per dataset, descriptive (40): contrasts 1 to 4 on each dataset, Holm across the 40, no verdict
+  (`secondary` with `"secondary_verdicts": false`).
+
+The control, widen and size/CPU contrasts are `pooled_secondary` rows. The new spec key
+`pooled_secondary_families` (`[[the 4 control names], ["hclmw-vs-hclm"]]`) makes each inner list a
+Holm family of its own; the other pooled secondary contrasts form one more family. In
+`contrasts.csv` the column `holm_family` shows the family of each pooled secondary row
+(`pooled_secondary/<names>` or `pooled_secondary`). Without the key nothing changes for other
+phases. The verdicts describe the data only.
+
+**Memory and workers.** Round 9 showed that N = 16 needs much memory at 20,000 evaluations. Each of
+Dow and Tow has a manifest of its own:
+
+| Manifest | `mem_limit_mb` | W on the server (cgroup 65,536 MB, 12 CPUs, reserve 6,553 MB) |
+|---|---|---|
+| `phase1bd/sr-Dow.json` | 16,384 | floor(58,983 / 16,384) = 3 |
+| `phase1bd/sr-Tow.json` | 8,192 | floor(58,983 / 8,192) = 7 |
+| `phase1bd/sr.json` (the 8 other datasets) | 5,120 | min(11, 11) = 11 |
+
+The plan step has `per_run_mb` 5120 and `manifest_per_run_mb`
+`{"sr-Dow.json": 16384, "sr-Tow.json": 8192}` (the round 9 mechanism). `events.jsonl` has one
+`workers_decision` for the phase and one for each of the two manifests. `phase_run.sh` runs one
+manifest at a time (`sr.json`, then `sr-Dow.json`, then `sr-Tow.json`). If a NOCAP run still fails
+on memory, the report counts it as a BASE win; the findings then give contrast 3 with and without
+the failed pairs.
+
+**Size and time.** 500 runs, about 12-17 hours at W = 11, plus about 1.3 hours for S0. The 50 Dow
+runs at W = 3 add about 1-2 hours.
+
+Smoke test: `bash tools/server/start.sh --plan smoke10` runs the limited S0 (with the new tests)
+and `configs/gomea/server-smoke10-1bd`: the same three manifests, arms and flags, splits 1 and 2,
+`-m 1000` (the first GP-GOMEA generation alone costs about 600 evaluations), a wall cap of 300 s
+and no extension. 100 runs. The state is in `server-run10-smoke/`. The smoke plan has the same
+`per_run_mb` and `manifest_per_run_mb` keys, so the smoke Dow and Tow runs also get their own W.

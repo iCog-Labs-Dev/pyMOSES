@@ -1,0 +1,41 @@
+{
+  "name": "server-round10-smoke",
+  "description": "Smoke test of the round-10 plan: limited pytest, the mux11 repro run, then 1bd in miniature (configs/gomea/server-smoke10-1bd: the same three manifests, arms and flags, 2 splits, -m 1000, so that the GP-GOMEA seed share of 200 evaluations covers a few generations; the Dow and Tow runs, the seeded arm and the HC-LM arms included; no extension). Uses its own state dir, so it never marks real steps done. No chain.",
+  "state_dir": "server-run10-smoke",
+  "steps": [
+    {
+      "id": "S0",
+      "type": "check",
+      "pytest": {
+        "args": [
+          "tests/server",
+          "tests/gomea/test_phase_report.py",
+          "tests/gomea/test_phase_report_pooled.py",
+          "tests/gomea/test_phase_report_round9.py",
+          "tests/gomea/test_phase_report_round10.py",
+          "tests/gomea/test_hc_lm.py",
+          "tests/gomea/test_hc_lm_identity.py"
+        ]
+      },
+      "repro": {
+        "only": [
+          "1ae-mux11-GOMEA-s3001"
+        ]
+      }
+    },
+    {
+      "id": "smoke10-1bd",
+      "type": "phase",
+      "phase": "server-smoke10-1bd",
+      "requires": [
+        "gpgomea",
+        "datasets:Air,Bos,Con,Dow,EnC,EnH,Tow,WiR,WiW,Yac"
+      ],
+      "per_run_mb": 5120,
+      "manifest_per_run_mb": {
+        "sr-Dow.json": 16384,
+        "sr-Tow.json": 8192
+      }
+    }
+  ]
+}

@@ -1,0 +1,27 @@
+{
+  "name": "server-round10-2026-11",
+  "description": "SERVER-ROUND10-PREREGISTRATION.md (T1.2): S0, then 1bd (BASE against HC-LM, HC-LM-W and NOCAP on the 10 datasets, splits 1-10; BASE-S as a separate seeding control). Budget 20,000 evaluations per run, no time limit, no extension, no choice step, no adoption rule. The Dow manifest (16,384 MB) and the Tow manifest (8,192 MB) get a W of their own. No chain to or from another round.",
+  "state_dir": "server-run10",
+  "steps": [
+    {
+      "id": "S0",
+      "type": "check",
+      "pytest": {},
+      "repro": {}
+    },
+    {
+      "id": "phase1bd",
+      "type": "phase",
+      "phase": "phase1bd",
+      "requires": [
+        "gpgomea",
+        "datasets:Air,Bos,Con,Dow,EnC,EnH,Tow,WiR,WiW,Yac"
+      ],
+      "per_run_mb": 5120,
+      "manifest_per_run_mb": {
+        "sr-Dow.json": 16384,
+        "sr-Tow.json": 8192
+      }
+    }
+  ]
+}
