@@ -1,10 +1,12 @@
 # Server round 10 (T1.2): pre-registration (2026-11-10)
 
-**Status:** a draft by the agent. Not approved by the user. Not implemented.
+**Status:** the design is approved by the user (see `APPROVALS.md`, 2026-11-10). Not implemented.
+Agent-written, not user-approved in detail: splits 1–10, the contrasts and the Holm families.
 
-**Question:** roadmap task T1.2, the last task of stage 1. On splits that no earlier round used,
-how does the new base compare with MOSES hill climbing and with plain GOMEA? The result fixes the
-reference setting for stage 2. **Seeding is a separate control experiment** (user, 2026-11-10): the
+**Question:** roadmap task T1.2, the last task of stage 1. How does the new base compare with MOSES
+hill climbing (with the same linear scaling and LM-VAL) and with plain GOMEA? This round only
+reports the results. The user and the agent discuss the reference setting for stage 2 when it
+ends (user, 2026-11-10). **Seeding is a separate control experiment** (user, 2026-11-10): the
 main result uses only the unseeded base, so a weak seeding result cannot lower it.
 
 ## Rules
@@ -14,9 +16,8 @@ main result uses only the unseeded base, so a weak seeding result cannot lower i
 * **Budget: evaluations, no time limit (user, 2026-11-09).** Each run gets 20,000 evaluations
   (`-m 20000`), as in round 9. LM passes and GP-GOMEA seed evaluations count. CPU is measured and
   reported, not capped. A wall cap of 36,000 s per run is only a guard against a hung process.
-* **Fresh splits 31–40** on all 10 datasets. Rounds 1 to 9 used splits 1–30. The split builder
-  (`tools/gomea/sr_datasets.py`) makes seeds 1–30 today; seeds 31–40 use the same rule
-  (`random.Random("<Abbr>-s<seed>")`). This is a change in `tools`, not in `pymoses`.
+* **Splits 1–10** on all 10 datasets (user, 2026-11-10: "No fresh splits necessary"). Earlier
+  rounds used these splits for selection, so this round is not a confirmation.
 * **No extension:** the primary contrasts pool 100 pairs.
 * **Statistics:** see "Contrasts". Failed runs count as infinitely bad.
 * **Reported (D1):** test NMSE, program size, train–test gap, CPU, evaluations used, LM calls and
@@ -70,16 +71,11 @@ main result uses only the unseeded base, so a weak seeding result cannot lower i
   test NMSE, Holm across the 40. These give no verdicts (the lowest Holm p is above 0.025). They
   show where each arm wins or loses.
 
-## Reference setting for stage 2 (adoption rule)
+## No adoption rule
 
-| Result of contrast 4 (BASE-S vs BASE) | Reference for stage 2 |
-|---|---|
-| "better" | BASE-S |
-| "tie" or "worse" | BASE (no GP-GOMEA build needed) |
-
-The headline result of T1.2 is contrasts 1, 2 and 3, with BASE. Contrast 8 states if HC should
-use widen search in later HC baselines. They do not change the reference.
-The user decides in all cases.
+The user asked for results only (2026-11-10). The verdicts above describe the data. The reference
+setting for stage 2, seeding, and widen search for HC baselines are decided after the round. The
+main result is contrasts 1, 2 and 3, with BASE.
 
 ## Memory
 
@@ -111,8 +107,6 @@ bias contrast 2.
 
 ## Implementation (by a subagent, in a separate clone)
 
-* `tools/gomea/sr_datasets.py` and `setup.sh`: splits 31–40. The splits 1–30 must stay
-  byte-identical (the `splits.json` check).
 * `configs/gomea/phase1bd/`: manifests (one each for Dow and Tow, one for the 8 others), spec with
   pooled contrasts, budget `{"evals": 20000}`, wall cap 36,000 s.
 * `tools/server/plan10.json` (S0, 1bd), a smoke plan, tests, and the SERVER-RUN section.
@@ -131,17 +125,16 @@ bias contrast 2.
 ## Limits
 
 * One evaluation budget. Equal evaluations are not equal CPU; CPU is reported for each arm.
-* The fresh splits are new partitions of the same rows. They are new for selection, but the rows
-  are the same as in earlier rounds.
+* Splits 1–10 are selection data: earlier rounds chose settings on them. The results do not
+  confirm the base on new data.
 * HC with LM is new code. Its first use is in this round, after local tests only.
 * The decision to test BASE-S came from 1bb, where seeding was better on 1 of 4 datasets (the user
   chose it against the rule, 2026-11-10). It is a control arm for this reason.
 
-## Open points for the user
+## The user's answers (2026-11-10)
 
-1. **Arms:** BASE, NOCAP, HC-LM and HC-LM-W in the main experiment, and BASE-S as the seeding
-   control, as above?
-2. **Splits:** fresh splits 31–40 (a tools change)?
-3. **Memory:** Dow 16,384 MB (W = 3) and Tow 8,192 MB (W = 7)?
-4. **Adoption rule:** the reference is BASE-S only if contrast 4 gives "better"?
-5. **LM for HC:** the code change above, opt-in, with an identity test?
+1. Arms: yes, with the new hill climbing option (HC with LM-VAL) and widen search.
+2. Splits: no fresh splits; splits 1–10.
+3. Memory: Dow 16,384 MB, Tow 8,192 MB.
+4. No adoption rule; results only.
+5. LM for HC: the agent reads answer 1 ("with the new hill climbing option also added") as approval.

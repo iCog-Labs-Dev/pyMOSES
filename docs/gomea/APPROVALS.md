@@ -294,3 +294,11 @@ experiment as we don't want to get a lower score only because of an oversight."
   enabled, historically on another experiment, that gave a small rise to the result."
   * The HC arms get LM-VAL (HC-LM), which needs `--const-opt lm` for `-a hc` (a code change under
     `pymoses`). A second HC arm adds widen search (HC-LM-W).
+* The user answered the open points: "1. Yes. With the new hill climbing option also added. 2. No
+  fresh splits necessary. 3. Sure that works. The server has 64GB so I think that's fine. 4. No why
+  do we need to establish that rule? I just want to see the results this time, we will talk about it
+  when it's finished."
+  * User-approved: the arms BASE, NOCAP, HC-LM, HC-LM-W and the control BASE-S; no fresh splits;
+    the memory limits (Dow 16,384 MB, Tow 8,192 MB); no adoption rule.
+  * The agent's reading, not confirmed: "the new hill climbing option" is LM for `-a hc`, so the
+    code change is approved. The agent chose splits 1–10.
