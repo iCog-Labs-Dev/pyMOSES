@@ -2,7 +2,7 @@
 [WARN] WARNING: This version of MOSES does NOT have MPI support!
 
 [INFO] Command line: moses -i DATA/train.csv -u y -r 1 -n sin -n exp -n log -v 2400 -c 10 -V1 -l WARN -m 800 -a hc --knob-probe-baseline reduced --linear-scaling 1 -l INFO -f moses.log
-[INFO] Read data file /home/yab/Documents/Projects/iCog/HyperonRelated/MOSES/pyMoses-round10/tests/gomea/data/const_opt_none/train.csv
+[INFO] Read data file DATA/train.csv
 [INFO] Number of rows in tables = 40
 [INFO] Inferred arity = 2
 [INFO] Table signature ->(contin contin contin)

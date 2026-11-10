@@ -12,9 +12,11 @@ fixed regression setup of ``tools/gomea/moses_sr_runner.py`` (plain, with
 INFO, and with a ``--gomea-log`` that ``-a hc`` must not write), and one Boolean ``-a hc``
 run (``-H pa -k 3``). Compared: the full MOSES stdout, the MOSES log (``-f``) and the
 ``--gomea-log`` file (absent = empty). The log comparison leaves out the time stamp of each
-line, the host name, the wall-clock columns (``elapsed`` of the "Stats:" rows, both
-microsecond columns of the "DemesHill:" rows) and the RAM share of the "DemesHill:" rows,
-which depends on the machine's memory.
+line, the host name, the path of the test data (replaced by DATA), the wall-clock columns
+(``elapsed`` of the "Stats:" rows, both microsecond columns of the "DemesHill:" rows) and the
+RAM share of the "DemesHill:" rows, which depends on the machine's memory. The reference of
+``hc-ls-info`` first held the path of the capture clone in its "Read data file" line; that
+path alone was later replaced by DATA, as the comparison does.
 """
 
 from __future__ import annotations
@@ -28,7 +30,7 @@ from pathlib import Path
 import pytest
 
 REPO = Path(__file__).resolve().parents[2]
-DATA =Path(__file__).resolve().parent / "data" / "const_opt_none"
+DATA = Path(__file__).resolve().parent / "data" / "const_opt_none"
 REF = Path(__file__).resolve().parent / "data" / "hc_lm_ec02194"
 TRAIN = DATA / "train.csv"
 
@@ -60,8 +62,7 @@ def canonical_log(text: str) -> str:
         line = _STAMP.sub("", line)
         if line.startswith("[INFO] hostname:"):
             continue
-        if line.startswith("[INFO] Command line:"):
-            line = line.replace(str(DATA), "DATA")
+        line = line.replace(str(DATA), "DATA")  # the clone's path (command line, data file)
         for tag, cols in (("Stats: ", (2,)), ("DemesHill: ", (4, 6, 9))):
             head, sep, rest = line.partition(tag)
             if sep and not rest.startswith("#"):
