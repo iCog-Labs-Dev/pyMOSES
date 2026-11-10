@@ -235,6 +235,52 @@ def test_widen_search_with_lm(tmp_path):
     assert _n_evals(out) == sum(e["ledger"]["requests"] for e in ends)
 
 
+def _widen_lm(tmp_path, m="800"):
+    return _reg(tmp_path, m) + _HC + ["--hc-widen-search", "1"] + _LM + _guard(tmp_path)
+
+
+def test_widen_search_reserve_value():
+    """The reserve is min(LM_RESERVE, max_evals // 2), with LM_RESERVE = 500."""
+    from pymoses.gomea.hc_lm import LM_RESERVE, lm_reserve
+
+    assert LM_RESERVE == 500
+    assert lm_reserve(800) == 400
+    assert lm_reserve(120) == 60
+    assert lm_reserve(1) == 0
+    assert lm_reserve(20000) == 500
+
+
+def test_widen_search_keeps_a_reserve_for_lm(tmp_path):
+    """With widen search HC does not stop at a local optimum. The climb gets the deme budget
+    minus the reserve, so LM gets evaluations (status is not "budget")."""
+    from pymoses.gomea.hc_lm import lm_reserve
+
+    out, events = _run(_widen_lm(tmp_path), tmp_path)
+    ends = _ends(events)
+    first = ends[0]
+    reserve = lm_reserve(first["max_evals"])
+    assert first["lm_reserve"] == reserve > 0
+    assert first["hc_evals"] <= first["max_evals"] - reserve
+    assert first["const_opt"]["lm"]["status"] != "budget"
+    assert first["const_opt"]["tuning_evals"] > 0
+    assert all(e["lm_reserve"] == lm_reserve(e["max_evals"]) for e in ends)
+    assert _n_evals(out) <= 800
+    assert _n_evals(out) == sum(e["ledger"]["requests"] for e in ends)
+
+
+def test_no_reserve_without_widen_search(tmp_path):
+    """HC-LM without widen search: no "lm_reserve" key, and the climb can use the full deme
+    budget (the event fields are as before)."""
+    _, events = _run(_reg(tmp_path) + _HC + _LM + _guard(tmp_path), tmp_path)
+    ends = _ends(events)
+    assert ends
+    keys = {"deme_id", "deme_index", "optimizer", "termination_reason", "generations",
+            "max_evals", "hc_evals", "ledger", "const_opt"}
+    for e in ends:
+        assert "lm_reserve" not in e
+        assert keys <= set(e)
+
+
 # ---- the runner
 
 

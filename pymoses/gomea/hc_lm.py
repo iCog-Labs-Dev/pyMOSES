@@ -20,6 +20,13 @@ The deme's best program is the first entry with the highest penalized score, the
 fields ``phase_report.py`` and ``moses_sr_runner.const_opt_summary`` read: ``ledger``,
 ``generations``, ``termination_reason``, ``const_opt``) plus ``hc_evals``.
 
+LM reserve with widen search (user, 2026-11-10): with ``--hc-widen-search 1`` HC ends a deme
+only at the max search distance or at the budget, so it can use the whole deme budget and
+leave LM nothing. With widen search only, the climb gets ``max_evals - lm_reserve(max_evals)``
+and LM gets the rest of the deme budget; the "end" event then also has ``lm_reserve``. If LM
+leaves evaluations unused, MOSES starts the next deme as usual. Without widen search the climb
+gets the full deme budget, as before.
+
 Without ``--const-opt`` this class is never built and ``-a hc`` is unchanged
 (``tests/gomea/test_hc_lm_identity.py``).
 """
@@ -44,7 +51,15 @@ from pymoses.moses.moses.optimization.optimization import (
 )
 from pymoses.moses.representation.instance import instance
 
-__all__ = ["hc_lm_optimization"]
+__all__ = ["LM_RESERVE", "hc_lm_optimization", "lm_reserve"]
+
+# The largest number of evaluations of a widen-search deme that the climb leaves for LM.
+LM_RESERVE = 500
+
+
+def lm_reserve(max_evals: int) -> int:
+    """The evaluations a widen-search deme keeps for LM: min(LM_RESERVE, max_evals // 2)."""
+    return min(LM_RESERVE, max_evals // 2)
 
 
 class _Ledger:
@@ -128,9 +143,12 @@ class hc_lm_optimization(optimizer_base):
 
     def __call__(self, deme: deme_t, iscorer, max_evals: int, max_time: int) -> None:
         start = time.monotonic()
-        self.hc(deme, iscorer, max_evals, max_time)
+        widen = bool(self.hc.hc_params.widen_search)
+        reserve = lm_reserve(max_evals) if widen else 0
+        climb_evals = max_evals - reserve
+        self.hc(deme, iscorer, climb_evals, max_time)
         hc_evals = deme.n_evals
-        reason = self._hc_stop(deme, hc_evals, max_evals)
+        reason = self._hc_stop(deme, hc_evals, climb_evals)
         self._co = _new_const_opt_counts()
         oracle = _HcDemeOracle(deme, iscorer, max_evals, max_time, start)
         self._tune_best(deme, oracle, _HcSchema(iscorer))
@@ -160,5 +178,7 @@ class hc_lm_optimization(optimizer_base):
                        "tuning_requests": oracle.ledger.tuning_requests},
             "const_opt": co,
         }
+        if widen:
+            self.last_result["lm_reserve"] = reserve
         self._deme_index += 1
         TelemetrySink(self.gomea_params.telemetry_path).emit("end", **self.last_result)
