@@ -1,0 +1,99 @@
+[INFO] moses version "3"."7"."0"
+[WARN] WARNING: This version of MOSES does NOT have MPI support!
+
+[INFO] Command line: moses -i DATA/train.csv -u y -r 1 -n sin -n exp -n log -v 2400 -c 10 -V1 -l WARN -m 800 -a hc --knob-probe-baseline reduced --linear-scaling 1 -l INFO -f moses.log
+[INFO] Read data file /home/yab/Documents/Projects/iCog/HyperonRelated/MOSES/pyMoses-round10/tests/gomea/data/const_opt_none/train.csv
+[INFO] Number of rows in tables = 40
+[INFO] Inferred arity = 2
+[INFO] Table signature ->(contin contin contin)
+[INFO] Inferred output type: contin
+[INFO] Alphabet size = 7 output = contin
+[INFO] BScore complexity ratio = 3.5
+[INFO] Cache composite scores
+[INFO] MOSES starts, max_evals=800 max_gens=-1 max_time=2147483647
+[INFO] Stats: # 
+Stats: # Stats are tab-separated, ready for graphing.
+Stats: # You can also use the script parse_log.py to extract a CSV file given a moses log file.
+Stats: # Column explanation:
+Stats: # 
+Stats: # gen is the generation number.
+Stats: # num_evals is the number of scoring function evaluations so far.
+Stats: # elapsed is the wall-clock time, in seconds, since start.
+Stats: # metapop_size is the size of the metapopulation.
+Stats: # best_score is the highest raw score seen, of all exemplars.
+Stats: # complexity is in bits, of the highest-composite score exemplar.
+Stats: # field_set_size is the ESTIMATED number of bits in all the knobs.
+Stats: # optim_steps is the number of steps the optimizer took.
+Stats: # over_budget is bool, T if search exceeded scoring func eval budget.
+Stats: # 
+Stats: # gen	num_evals	elapsed	metapop_size	best_score	complexity	field_set_size	optim_steps	over_budget
+[INFO] Start knob building, rep size=1 complexity=1
+[INFO] After knob building, rep size=21 complexity=5
+[INFO] Total number of field specs: 8
+[INFO] Number of contin knobs mapped: 8
+[INFO] Field set, in bytes: 1504
+[INFO] One instance, in bytes: 40
+[INFO] DemesHill: # demeID	iteration	total_steps	total_evals	microseconds	new_instances	num_instances	inst_RAM	num_evals	has_improved	best_weighted_score	delta_weighted	best_raw	delta_raw	complexity
+[INFO] DemesHill: 1	1	1	1	T	20000	T	1	1	T	1	1	-111.835	3.40282e+38	-111.549	3.40282e+38	1
+[INFO] DemesHill: 1	2	2	17	T	20000	T	16	17	T	17	1	-100.89	10.9445	-100.605	10.9445	1
+[INFO] DemesHill: 1	3	3	35	T	20000	T	18	35	T	35	1	-99.3893	1.50117	-98.8179	1.78688	2
+[INFO] DemesHill: 1	4	4	55	T	20000	T	20	55	T	55	0	-99.3893	0	-98.8179	0	2
+[INFO] DemesHill: 1	5	5	154	T	20000	T	99	154	T	154	0	-99.3893	0	-98.8179	0	2
+[INFO] Expansion 1 done
+[INFO] Total number of evaluations so far: 154
+[INFO] The following candidate(s) have the best score [score=-98.81787109375, penalized score=-99.3892974853515625, complexity=2, complexity penalty=0.571428596973419189, uniformity penalty=0]
+[INFO] -98.8179 +($1 $2)
+[INFO] Stats: 1	154	T	75	-98.8179	2	0	5	0
+[INFO] Start knob building, rep size=6 complexity=4
+[INFO] After knob building, rep size=41 complexity=9
+[INFO] Total number of field specs: 14
+[INFO] Number of contin knobs mapped: 14
+[INFO] Field set, in bytes: 2464
+[INFO] One instance, in bytes: 48
+[INFO] DemesHill: # demeID	iteration	total_steps	total_evals	microseconds	new_instances	num_instances	inst_RAM	num_evals	has_improved	best_weighted_score	delta_weighted	best_raw	delta_raw	complexity
+[INFO] DemesHill: 2	1	6	155	T	20000	T	1	1	T	1	1	-100.486	3.40282e+38	-99.3428	3.40282e+38	4
+[INFO] DemesHill: 2	2	7	183	T	20000	T	28	29	T	29	1	-100.055	0.431114	-98.9117	0.431114	4
+[INFO] DemesHill: 2	3	8	213	T	20000	T	30	59	T	59	1	-99.675	0.379532	-98.8179	0.093811	3
+[INFO] DemesHill: 2	4	9	244	T	20000	T	31	90	T	90	1	-99.3893	0.285713	-98.8009	0.0169907	2
+[INFO] DemesHill: 2	5	10	277	T	20000	T	33	123	T	123	0	-99.3893	0	-98.8009	0	2
+[INFO] DemesHill: 2	6	11	389	T	20000	T	112	235	T	235	0	-99.3893	0	-98.8009	0	2
+[INFO] Expansion 2 done
+[INFO] Total number of evaluations so far: 389
+[INFO] The following candidate(s) have the best score [score=-98.8008804321289062, penalized score=-99.65802001953125, complexity=3, complexity penalty=0.857142925262451172, uniformity penalty=0]
+[INFO] -98.8009 +(*(1.25 $2) $1)
+[INFO] Stats: 2	389	T	191	-98.8009	3	0	6	0
+[INFO] Start knob building, rep size=12 complexity=7
+[INFO] After knob building, rep size=59 complexity=12
+[INFO] Total number of field specs: 20
+[INFO] Number of contin knobs mapped: 20
+[INFO] Field set, in bytes: 3424
+[INFO] One instance, in bytes: 56
+[INFO] DemesHill: # demeID	iteration	total_steps	total_evals	microseconds	new_instances	num_instances	inst_RAM	num_evals	has_improved	best_weighted_score	delta_weighted	best_raw	delta_raw	complexity
+[INFO] DemesHill: 3	1	12	390	T	20000	T	1	1	T	1	1	-113.127	3.40282e+38	-111.127	3.40282e+38	7
+[INFO] DemesHill: 3	2	13	430	T	20000	T	40	41	T	41	1	-100.486	12.6416	-99.3428	11.7845	4
+[INFO] DemesHill: 3	3	14	472	T	20000	T	42	83	T	83	1	-100.055	0.431114	-98.9117	0.431114	4
+[INFO] DemesHill: 3	4	15	516	T	20000	T	44	127	T	127	1	-99.675	0.379532	-98.8179	0.093811	3
+[INFO] DemesHill: 3	5	16	561	T	20000	T	45	172	T	172	1	-99.3893	0.285713	-98.8009	0.0169907	2
+[INFO] DemesHill: 3	6	17	608	T	20000	T	47	219	T	219	0	-99.3893	0	-98.8009	0	2
+[INFO] DemesHill: 3	7	18	728	T	20000	T	120	339	T	339	0	-99.3893	0	-98.8009	0	2
+[INFO] Expansion 3 done
+[INFO] Total number of evaluations so far: 728
+[INFO] The following candidate(s) have the best score [score=-98.8008804321289062, penalized score=-99.65802001953125, complexity=3, complexity penalty=0.857142925262451172, uniformity penalty=0]
+[INFO] -98.8009 +(*(1.25 $2) $1)
+[INFO] Stats: 3	728	T	260	-98.8009	3	0	7	0
+[INFO] Start knob building, rep size=9 complexity=5
+[INFO] After knob building, rep size=59 complexity=12
+[INFO] Total number of field specs: 20
+[INFO] Number of contin knobs mapped: 20
+[INFO] Field set, in bytes: 3424
+[INFO] One instance, in bytes: 56
+[INFO] DemesHill: # demeID	iteration	total_steps	total_evals	microseconds	new_instances	num_instances	inst_RAM	num_evals	has_improved	best_weighted_score	delta_weighted	best_raw	delta_raw	complexity
+[INFO] DemesHill: 4	1	19	729	T	20000	T	1	1	T	1	1	-103.878	3.40282e+38	-102.449	3.40282e+38	5
+[INFO] DemesHill: 4	2	20	769	T	20000	T	40	41	T	41	1	-100.094	3.78339	-98.0941	4.35481	7
+[INFO] DemesHill: 4	3	21	800	T	20000	T	31	72	T	72	1	-100.001	0.0936356	-97.7148	0.379349	8
+[INFO] Expansion 4 done
+[INFO] Total number of evaluations so far: 800
+[INFO] The following candidate(s) have the best score [score=-97.7147903442382812, penalized score=-100.000503540039062, complexity=8, complexity penalty=2.28571438789367676, uniformity penalty=0]
+[INFO] -97.7148 +(*(2 $2) *(+(1 *(+(2 *(-1 $2)) $2)) $1))
+[INFO] Stats: 4	800	T	304	-97.7148	8	0	3	1
+[INFO] Cache composite scores hits=455 misses=346
