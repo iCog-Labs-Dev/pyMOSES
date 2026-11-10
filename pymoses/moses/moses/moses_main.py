@@ -215,6 +215,7 @@ from pymoses.gomea import (
     hc_gomea_optimization,
 )
 from pymoses.gomea.capped_hc import hc_capped_optimization
+from pymoses.gomea.hc_lm import hc_lm_optimization
 from pymoses.moses.deme.deme_expander import Simplifier, deme_expander
 from pymoses.moses.deme.deme_params import deme_parameters
 from pymoses.moses.metapopulation.metapop_params import (
@@ -703,6 +704,11 @@ def metapop_moses_results_b(
     # the name silently would be worse than either.
     if opt_params.opt_algo == "hc":
         optimizer: optimizer_base = hill_climbing(opt_params, hc_params)
+        # NOT A PORT (pyMoses extension, server round 10): `-a hc --const-opt lm`,
+        # hill climbing with LM at the end of each deme (`pymoses.gomea.hc_lm`).
+        # `gomea_kwargs` passes `gomea_params` for `-a hc` only with `--const-opt`.
+        if gomea_params is not None and gomea_params.const_opt == "lm":
+            optimizer = hc_lm_optimization(opt_params, hc_params, gomea_params)
     elif opt_params.opt_algo == "sa":
         optimizer = simulated_annealing(opt_params)
     elif opt_params.opt_algo == "un":
@@ -801,6 +807,10 @@ def gomea_kwargs(pms: object) -> dict[str, object]:
     optimizer's call is exactly classic's."""
     if getattr(pms, "opt_algo", None) in _GOMEA_ALGOS:
         return {"gomea_params": getattr(pms, "gomea_params", None)}
+    # server round 10: `-a hc --const-opt lm` (without `--const-opt`, `-a hc` gets nothing)
+    gp = getattr(pms, "gomea_params", None)
+    if getattr(pms, "opt_algo", None) == "hc" and getattr(gp, "const_opt", "none") != "none":
+        return {"gomea_params": gp}
     return {}
 
 

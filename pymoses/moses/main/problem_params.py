@@ -596,7 +596,8 @@ _PORT_OPTIONS = (
         "const_opt",
         str,
         "none",
-        "regression with -a gomea or hc-gomea only: tune numeric constants. "
+        "regression with -a gomea or hc-gomea only (lm: also -a hc): tune numeric "
+        "constants. "
         "none; lm (at the end of each deme, Levenberg-Marquardt on the deme's "
         "best program, kept if the training error is lower); mutate (after "
         "each GOM step, one Gaussian change to each constant, kept if the "
@@ -801,7 +802,11 @@ def _check_const_opt(v: dict, opt_algo: str | None) -> None:
         raise ValueError(
             f"--const-opt {mode} is not recognized. Supported: {', '.join(_CONST_OPT_CHOICES)}."
         )
-    if mode != "none" and opt_algo not in ("gomea", "hc-gomea"):
+    # server round 10: `lm` also for `-a hc` (pymoses/gomea/hc_lm.py)
+    if mode != "none" and opt_algo not in ("gomea", "hc-gomea") and (mode, opt_algo) != (
+        "lm",
+        "hc",
+    ):
         raise ValueError(f"--const-opt {mode} needs -a gomea or -a hc-gomea, got -a {opt_algo}")
     if mode == "mutate" and v["gomea_contin"] != "copy":
         raise ValueError("--const-opt mutate needs --gomea-contin copy")

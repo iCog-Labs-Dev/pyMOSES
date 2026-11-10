@@ -32,7 +32,10 @@ So, per run, the runner:
 `--gomea-log RUN_DIR/events.jsonl`, as the Boolean runner (`benchmarks.gomea.manifest`)
 does, so each run writes the per-deme "invocation_start", "generation" and "end" events
 (`events_argv`). It is on by default; `"events": false` on an arm turns it off. The log is a
-side file: MOSES's output is the same with or without it.
+side file: MOSES's output is the same with or without it. A pyMoses `-a hc` arm with
+`--const-opt` (server round 10: LM for hill climbing) gets the same log, so its "end" events
+give `const_opt` (LM calls, guard rejections) and the deme columns of `phase_report.py`;
+`-a hc` without `--const-opt` gets no log, as before.
 
 The MOSES seed is the split number. Runs are resumable: an existing `summary.json` is
 kept.
@@ -157,6 +160,17 @@ def _selects_gomea(argv: list[str]) -> bool:
     return False
 
 
+def _selects_hc(argv: list[str]) -> bool:
+    """Whether `argv` selects `-a hc` (server round 10)."""
+    for i, tok in enumerate(argv):
+        tok = str(tok)
+        if tok in ("-a", "--opt-algo") and i + 1 < len(argv) and str(argv[i + 1]) == "hc":
+            return True
+        if tok in ("--opt-algo=hc", "-ahc"):
+            return True
+    return False
+
+
 def events_argv(job: dict, run_dir: Path) -> list[str]:
     """`["--gomea-log", RUN_DIR/events.jsonl]` for a pyMoses GOMEA arm, as the Boolean
     runner passes it, so every regression run writes the same per-deme telemetry
@@ -165,7 +179,8 @@ def events_argv(job: dict, run_dir: Path) -> list[str]:
     argv = [str(x) for x in job["argv"]]
     if not job.get("events", True) or not _is_pymoses(job["binary"]):
         return []
-    if not _selects_gomea(argv) or any(
+    hc_lm = _selects_hc(argv) and _const_opt(argv) != "none"  # server round 10
+    if not (_selects_gomea(argv) or hc_lm) or any(
         x == "--gomea-log" or x.startswith("--gomea-log=") for x in argv
     ):
         return []
