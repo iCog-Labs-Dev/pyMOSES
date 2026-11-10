@@ -644,6 +644,8 @@ per run is only a guard against a hung process.
   them `--const-opt-val` (the scaled validation split) and `--gomea-log RUN_DIR/events.jsonl`, as
   for the GOMEA arms. Each HC deme writes one "end" event, so the summary has `const_opt` (LM
   calls, guard rejections) and the report has the deme count and the steps per deme.
+* HC-LM-W keeps an LM reserve: in each deme the climb gets the deme budget minus
+  min(500, budget // 2) evaluations, and LM gets the rest (the "end" event has `lm_reserve`).
 * Datasets: all 10 (Air, Bos, Con, Dow, EnC, EnH, Tow, WiR, WiW, Yac), splits 1-10. 500 runs.
 * The phase needs the GP-GOMEA build of `setup.sh` (requirement `gpgomea`, for BASE-S). Without it,
   1bd is skipped with the reason in the log.

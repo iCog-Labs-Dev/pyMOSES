@@ -1,6 +1,6 @@
 # Server round 10 (T1.2): pre-registration (2026-11-10)
 
-**Status:** the design is approved by the user (see `APPROVALS.md`, 2026-11-10). Implemented in 9e86f08, b120bf3, e6040ab, 9f9660d, 61ce435 and 60ca594. The LM reserve for HC-LM-W (see "Code change") is not implemented yet.
+**Status:** the design is approved by the user (see `APPROVALS.md`, 2026-11-10). Implemented in 9e86f08, b120bf3, e6040ab, 9f9660d, 61ce435 and 60ca594. The LM reserve for HC-LM-W is implemented in 493d2b8.
 Agent-written, not user-approved in detail: splits 1–10, the contrasts and the Holm families.
 
 **Question:** roadmap task T1.2, the last task of stage 1. How does the new base compare with MOSES
