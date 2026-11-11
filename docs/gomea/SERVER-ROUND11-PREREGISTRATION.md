@@ -2,7 +2,8 @@
 
 **Status:** the user approved the direction and answered all four questions (2026-11-11, see
 `APPROVALS.md`). Agent-written, not user-approved in detail: the BASE-R rule, the contrasts and
-the Holm families, the pilot gate and the memory limits. Not implemented.
+the Holm families, the pilot gate and the memory limits. Implemented in ab5047d, 3398504,
+709b27f, e730598, 9e7cc39, 5ee8c83 and 102d79e; pilot result in 98c0a8c (the gate passed).
 
 **Question:** do shorter GOMEA demes (more demes in each run) make the base more accurate? How much
 larger do the programs get? HC-LM is the accuracy baseline (user, 2026-11-11).
