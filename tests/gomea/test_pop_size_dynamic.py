@@ -207,3 +207,24 @@ def test_end_to_end_runs_and_logs_each_deme(algo, fraction, tmp_path):
         assert s["params"]["hc_fraction_of_nn"] == float(fraction)
         assert e["pop_size_dynamic"] == s["deme_pop_size"] >= 2
         assert s["deme_pop_size"] <= max(2, s["deme_budget"])
+
+
+def test_dynamic_with_a_deme_share_runs_and_logs_the_capped_population(tmp_path):
+    """Server round 11 (the arms BASE-D5, -D10 and -D20): ``--gomea-pop-size dynamic`` with
+    ``--gomea-deme-share D``. Before the fix, the telemetry of the budget-derived options
+    asked for N without the deme's field set and the run stopped with a ValueError. N is the
+    dynamic N of the capped deme budget, as with ``--gomea-max-evals-per-deme``."""
+    log = tmp_path / "g.jsonl"
+    rc, stdout = _run(["-H", "maj", "-k", "3", "-a", "gomea", "--gomea-pop-size", "dynamic",
+                       "--gomea-deme-share", "5", "-m", "1500", "-r", "1",
+                       "--gomea-log", str(log)])  # fmt: skip
+    assert rc == 0 and stdout
+    events = [json.loads(line) for line in log.read_text().splitlines()]
+    starts = [e for e in events if e["type"] == "invocation_start"]
+    ends = [e for e in events if e["type"] == "end"]
+    assert len(starts) == len(ends) >= 2
+    for s, e in zip(starts, ends, strict=True):
+        assert s["params"]["deme_share"] == 5 and s["deme_cap"] == 300
+        assert s["deme_budget"] == min(300, s["max_evals"])
+        assert e["pop_size_dynamic"] == s["deme_pop_size"] <= max(2, s["deme_budget"])
+        assert e["ledger"]["requests"] <= 300

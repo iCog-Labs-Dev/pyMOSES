@@ -886,7 +886,9 @@ class gomea_optimization(optimizer_base):
             # budget, cap and population (absent when the options are off).
             extra["deme_budget"] = gp.deme_budget(max_evals)
             extra["deme_cap"] = gp.max_evals_per_deme
-            extra["deme_pop_size"] = gp.deme_pop_size(max_evals)
+            # The field set is read only by --gomea-pop-size dynamic (server round 11:
+            # dynamic N with --gomea-deme-share, the arms BASE-D5, -D10 and -D20).
+            extra["deme_pop_size"] = gp.deme_pop_size(max_evals, schema.fields)
         if gp.dynamic():
             # GOMEA extension, server round 6: this deme's budget and dynamic N
             # (absent with a fixed N).
