@@ -42,7 +42,8 @@ fatal), `choice` (server round 8: `argv`, a command run once from the repository
 `knob-cap.json`, written by tools/gomea/set_knob_cap.py), `["const-opt:PHASE"]` (round 3:
 PHASE's `const-opt-choice.json`, written by tools/gomea/set_const_opt.py) or
 `["datasets:A,B,..."]` (round 3: each dataset built and verified by setup.sh under
-phase1f/datasets/), and a `pilot` phase plus an
+phase1f/datasets/; round 11: `"datasets:A,B,...:LO-HI"` also needs the splits LO to HI of
+each dataset), and a `pilot` phase plus an
 `after_pilot` command that must succeed before the phase). A phase step's `set_commit_in`
 manifests get the current HEAD as `commit` before its pilot and phase run. A phase step's optional
 `config_dir` (round 8; `{state}` and `{results}` replaced) is passed to phase_run.sh as
@@ -480,15 +481,28 @@ class Round:
                 return f"const-opt choice not set: {j} has choice {d.get('choice')!r}"
             return None
         if req.startswith("datasets:"):
-            # round 3: datasets that setup.sh builds (Dow and Tow are downloaded)
-            bad = []
-            for a in req.split(":", 1)[1].split(","):
+            # round 3: datasets that setup.sh builds (Dow and Tow are downloaded). Round 11:
+            # "datasets:A,B,...:LO-HI" also needs the splits sLO..sHI of each dataset (their
+            # train, val and test tables); setup.sh builds splits 1-40.
+            names, _, span = req.split(":", 1)[1].partition(":")
+            splits = []
+            if span:
+                lo, _, hi = span.partition("-")
+                splits = range(int(lo), int(hi or lo) + 1)
+            bad, short = [], []
+            for a in names.split(","):
                 d = RES / "phase1f" / "datasets" / a
                 if not (d / "full.csv").is_file() or not (d / "splits" / "splits.json").is_file():
                     bad.append(a)
+                elif any(not (d / "splits" / f"s{k}" / f"{t}.csv").is_file()
+                         for k in splits for t in ("train", "val", "test")):
+                    short.append(a)
             if bad:
                 return (f"dataset(s) {', '.join(bad)} missing under {RES / 'phase1f' / 'datasets'} "
                         "(setup.sh failed to build them; see server-run/setup.log)")
+            if short:
+                return (f"dataset(s) {', '.join(short)} under {RES / 'phase1f' / 'datasets'} have "
+                        f"not all splits {span} (run setup.sh again; see server-run/setup.log)")
             return None
         return f"unknown requirement {req!r}"
 

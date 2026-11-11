@@ -88,3 +88,31 @@ def test_datasets_requirement_names_the_missing_ones(round_in, tmp_path):
     why = round_in.requirement("datasets:Yac,Dow,Tow,WiR")
     assert why and "Dow, Tow" in why and "Yac" not in why
     assert round_in.requirement("datasets:Yac,WiR") is None
+
+
+def test_datasets_requirement_with_a_split_range(round_in, tmp_path):
+    """Round 11: "datasets:A,B:LO-HI" also needs the train, val and test tables of the splits
+    LO to HI of each dataset (a set built before round 11 has splits 1-30 only)."""
+    for a in ("Yac", "WiR"):
+        d = tmp_path / "phase1f" / "datasets" / a
+        for k in range(1, 31):
+            (d / "splits" / f"s{k}").mkdir(parents=True)
+            for t in ("train", "val", "test"):
+                (d / "splits" / f"s{k}" / f"{t}.csv").write_text("x1,y\n")
+        (d / "full.csv").write_text("x1,y\n")
+        (d / "splits" / "splits.json").write_text("{}")
+    assert round_in.requirement("datasets:Yac,WiR:1-10") is None
+    why = round_in.requirement("datasets:Yac,WiR:31-40")
+    assert why and "Yac, WiR" in why and "31-40" in why and "setup.sh" in why
+    why = round_in.requirement("datasets:Yac,Dow:31-40")
+    assert why and "Dow" in why and "missing" in why
+    s = tmp_path / "phase1f" / "datasets" / "Yac" / "splits"
+    for k in range(31, 41):
+        (s / f"s{k}").mkdir()
+        for t in ("train", "val"):
+            (s / f"s{k}" / f"{t}.csv").write_text("x1,y\n")
+    assert "Yac" in round_in.requirement("datasets:Yac:31-40")  # no test.csv
+    for k in range(31, 41):
+        (s / f"s{k}" / "test.csv").write_text("x1,y\n")
+    assert round_in.requirement("datasets:Yac:31-40") is None
+    assert round_in.requirement("datasets:Yac:31") is None
