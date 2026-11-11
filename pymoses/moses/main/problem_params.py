@@ -626,6 +626,16 @@ _PORT_OPTIONS = (
         "training rows; each validation pass counts as one evaluation). "
         "Default none.",
     ),
+    # NOT A PORT, server round 11 (off by default: a default run is unchanged).
+    (
+        "--const-opt-reserve",
+        "const_opt_reserve",
+        int,
+        0,
+        "with -a gomea --const-opt lm: GOMEA in each deme stops at the deme "
+        "budget minus min(R, deme budget // 2), so that LM on the deme's best "
+        "program can use the evaluations that are left. 0 = off. Default 0.",
+    ),
 )
 _GOMEA_INIT_CHOICES = ("sampler", "uniform")
 _GOMEA_ACCEPT_CHOICES = ("nonworse", "strict")
@@ -694,6 +704,7 @@ def _gomea_params_from_args(args: argparse.Namespace) -> gomea_parameters:
     v["const_opt"] = getattr(args, "const_opt", "none")
     v["const_opt_val"] = getattr(args, "const_opt_val", "")
     v["const_opt_guard"] = getattr(args, "const_opt_guard", "none")
+    v["const_opt_reserve"] = getattr(args, "const_opt_reserve", 0)  # server round 11
     if v["gomea_fos"] not in _GOMEA_FOS_CHOICES:
         raise ValueError(
             f"--gomea-fos {v['gomea_fos']} is not recognized. "
@@ -788,6 +799,7 @@ def _gomea_params_from_args(args: argparse.Namespace) -> gomea_parameters:
         const_opt=v["const_opt"],
         const_opt_val=v["const_opt_val"],
         const_opt_guard=v["const_opt_guard"],
+        const_opt_reserve=v["const_opt_reserve"],
         # server round 6: read only by --gomea-pop-size dynamic
         hc_fraction_of_nn=getattr(args, "hc_frac_of_nn", 2.0),
         hc_max_nn_evals=getattr(args, "hc_max_nn", 20000),
@@ -826,6 +838,14 @@ def _check_const_opt(v: dict, opt_algo: str | None) -> None:
         raise ValueError(
             "--const-opt-val is used by --const-opt polish and --const-opt-guard val only"
         )
+    # NOT A PORT, server round 11: the LM reserve of a GOMEA deme
+    reserve = v["const_opt_reserve"]
+    if reserve < 0:
+        raise ValueError(f"--const-opt-reserve must be >= 0 (0 = off), got {reserve}")
+    if reserve > 0 and mode != "lm":
+        raise ValueError(f"--const-opt-reserve needs --const-opt lm, got --const-opt {mode}")
+    if reserve > 0 and opt_algo != "gomea":
+        raise ValueError(f"--const-opt-reserve needs -a gomea, got -a {opt_algo}")
 
 
 def _check_knob_cap(v: dict) -> int | None:

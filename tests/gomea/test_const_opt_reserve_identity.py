@@ -119,10 +119,13 @@ def run_case(argv: list[str], workdir: Path) -> tuple[str, str, str]:
 
 
 @pytest.mark.parametrize("case", sorted(CASES))
-def test_round_11_arms_without_the_reserve_are_byte_identical_to_5da6731(case, tmp_path):
-    stdout, log, events = run_case(CASES[case], tmp_path)
+@pytest.mark.parametrize("extra", [[], ["--const-opt-reserve", "0"]], ids=["absent", "zero"])
+def test_round_11_arms_without_the_reserve_are_byte_identical_to_5da6731(case, extra, tmp_path):
+    """``--const-opt-reserve 0`` (off) is the same as no option; only the command line in
+    the INFO log names it."""
+    stdout, log, events = run_case(CASES[case] + extra, tmp_path)
     assert stdout == (REF / f"{case}.out").read_text()
-    assert log == (REF / f"{case}.log").read_text()
+    assert log.replace(" --const-opt-reserve 0", "") == (REF / f"{case}.log").read_text()
     assert events == (REF / f"{case}.events.jsonl").read_text()
 
 

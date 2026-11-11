@@ -223,7 +223,14 @@ class gomea_parameters:
     (``deme_budget``), ``hc_fraction_of_nn`` and ``hc_max_nn_evals``. The two ``hc_``
     options are left out of ``as_dict`` unless ``pop_size`` is ``"dynamic"``, so a
     fixed-N run's telemetry is unchanged. ``"dynamic"`` refuses ``pop_fraction``
-    (both size the population)."""
+    (both size the population).
+
+    NOT A PORT, LM reserve (server round 11, off by default, and then left out of
+    ``as_dict``): with ``const_opt`` ``"lm"`` and ``const_opt_reserve`` R > 0, the search
+    of each deme stops at the deme budget minus ``lm_reserve(deme budget)`` = min(R,
+    deme budget // 2) evaluations, so that LM on the deme's best program can use the
+    evaluations that are left (the rule of ``hc_lm.lm_reserve``). A deme that ends
+    before that point is not changed. N still comes from the full deme budget."""
 
     def __init__(
         self,
@@ -262,6 +269,7 @@ class gomea_parameters:
         const_opt_guard: str = "none",
         hc_fraction_of_nn: float = 2.0,
         hc_max_nn_evals: int = 20000,
+        const_opt_reserve: int = 0,
     ) -> None:
         if pop_size == DYNAMIC_POP_SIZE:
             if pop_fraction > 0:
@@ -354,6 +362,13 @@ class gomea_parameters:
             raise ValueError(
                 "const_opt_val is used by const_opt 'polish' and const_opt_guard 'val' only"
             )
+        if (not isinstance(const_opt_reserve, int) or isinstance(const_opt_reserve, bool)
+                or const_opt_reserve < 0):
+            raise ValueError(
+                f"const_opt_reserve must be an integer >= 0 (0 = off), got {const_opt_reserve!r}"
+            )
+        if const_opt_reserve > 0 and const_opt != "lm":
+            raise ValueError("const_opt_reserve needs const_opt 'lm'")
         parse_radii(radii)
 
         self.pop_size = pop_size
@@ -391,6 +406,7 @@ class gomea_parameters:
         self.const_opt_guard = const_opt_guard
         self.hc_fraction_of_nn = hc_fraction_of_nn
         self.hc_max_nn_evals = hc_max_nn_evals
+        self.const_opt_reserve = const_opt_reserve
 
     # The opt-in options, left out of ``as_dict`` while at their default
     # (off), so a default run's telemetry is unchanged.
@@ -408,6 +424,7 @@ class gomea_parameters:
         "const_opt": "none",
         "const_opt_val": "",
         "const_opt_guard": "none",
+        "const_opt_reserve": 0,
     }
 
     # The knob-cap options: all left out of ``as_dict`` while ``knob_cap`` is 0
@@ -447,6 +464,12 @@ class gomea_parameters:
         if self.max_evals_per_deme is None:
             return max_evals
         return min(max_evals, self.max_evals_per_deme)
+
+    def lm_reserve(self, budget: int) -> int:
+        """NOT A PORT, server round 11: the evaluations of a deme with budget ``budget``
+        that the search leaves for LM, min(``const_opt_reserve``, budget // 2); 0 when the
+        reserve is off."""
+        return min(self.const_opt_reserve, max(0, budget) // 2)
 
     def deme_pop_size(self, max_evals: int, fields=None) -> int:
         """The population size N of a deme handed ``max_evals``: ``pop_size``
@@ -683,6 +706,10 @@ class gomea_optimization(optimizer_base):
         self._val_rows: RegressionRows | None = None
         # GOMEA extension, server round 6: the N of the current deme.
         self._deme_n: int | None = None
+        # NOT A PORT, server round 11 (``const_opt_reserve``): the current deme's LM
+        # reserve and the run budget the oracle gets back before LM.
+        self._reserve = 0
+        self._call_max_evals = 0
 
     def prepare_deme(self, mp, exemplar) -> None:
         """GOMEA extension, Phase 1af: called by ``expand_deme`` once the
@@ -805,13 +832,28 @@ class gomea_optimization(optimizer_base):
         self, schema: FrozenSchema, iscorer, deme: deme_t, max_evals: int, max_time: float
     ) -> EvaluationOracle:
         gp = self.gomea_params
+        cap = self.deme_cap()
+        search_evals = max_evals
+        self._reserve = 0
+        self._call_max_evals = max_evals
+        if gp.const_opt_reserve > 0:
+            # NOT A PORT, server round 11: the search stops at the deme budget minus the
+            # reserve. The limit that sets the deme budget is lowered, so the termination
+            # reason stays "global_budget" or "inner_budget"; ``_finish`` gives the oracle
+            # back the full ``max_evals`` before LM (``charge_tuning`` ignores the cap).
+            budget = max_evals if cap is None else min(max_evals, cap)
+            self._reserve = gp.lm_reserve(budget)
+            if cap is not None and cap < max_evals:
+                cap -= self._reserve
+            else:
+                search_evals = max_evals - self._reserve
         return EvaluationOracle(
             schema,
             iscorer,
             deme,
-            max_evals,
+            search_evals,
             max_time,
-            inner_cap=self.deme_cap(),
+            inner_cap=cap,
             genotype_memo=gp.genotype_memo,
             stall_evals=gp.stall_evals,
             stall_worse=self._accept_worse(),
@@ -1023,6 +1065,8 @@ class gomea_optimization(optimizer_base):
         emit the ``end`` event."""
         oracle.finalize()
         if _const_opt_mode(self) == "lm" and reason != "interrupted":
+            if self._reserve:
+                oracle.max_evals = self._call_max_evals  # server round 11: LM gets the rest
             self._tune_best(deme, oracle, schema)
         result = engine.last_result if engine is not None else None
         history = result.history if result is not None else []
@@ -1086,6 +1130,9 @@ class gomea_optimization(optimizer_base):
                     lm_guard_checked=self._co.get("lm_guard_checked", 0),
                     lm_guard_rejected=self._co.get("lm_guard_rejected", 0),
                 )
+        if self.gomea_params.const_opt_reserve > 0:
+            # NOT A PORT, server round 11: this deme's LM reserve (absent when off).
+            self.last_result["const_opt_reserve"] = self._reserve
         sink.emit("end", **self.last_result)
 
     # GOMEA extension (``--const-opt mutate``): coefficient mutation.
