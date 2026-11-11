@@ -1,4 +1,4 @@
-"""Build the Phase 1f symbolic-regression datasets and their 30 train/val/test splits.
+"""Build the Phase 1f symbolic-regression datasets and their 40 train/val/test splits.
 
 The ten real-world datasets of Virgolin et al. (2021), "Improving Model-based Genetic
 Programming for Symbolic Regression of Small Expressions", Evolutionary Computation 29(2),
@@ -13,7 +13,7 @@ Usage: .venv/bin/python tools/gomea/sr_datasets.py DATASETS [ABBR ...] [--no-spl
 `--from-full SRC_DIR` (the server set-up, `tools/server/setup.sh`) needs no raw files: it
 takes `SRC_DIR/<Abbr>/full.csv` (e.g. the committed copies in `data/gomea-sr/`), checks
 its SHA-256 against `SRC_DIR/SHA256SUMS`, copies it to `DATASETS/<Abbr>/full.csv` and
-writes the 30 splits from it as in step 3 below. It then checks that the regenerated
+writes the 40 splits from it as in step 3 below. It then checks that the regenerated
 `splits.json` equals `SRC_DIR/<Abbr>/splits.json` (or `SRC_DIR/<Abbr>/splits/splits.json`)
 exactly, and exits non-zero on any mismatch. full.csv prints every value with its
 shortest round-trip repr, so re-reading it gives the same floats and the same split files,
@@ -36,7 +36,7 @@ For every requested dataset (default: all ten) it
    al. 2018 fold-0 train+test files, grantdick/gpzgd, MultiGPG, GPFormulasInterpretability;
    see PROVENANCE.md): the multisets of rows must be identical after rounding every value to
    6 significant digits, except the investigated entries of KNOWN_XCHECK_DIFFS;
-3. writes, for split seeds 1..30, `DATASETS/<Abbr>/splits/s<seed>/` containing
+3. writes, for split seeds 1..40, `DATASETS/<Abbr>/splits/s<seed>/` containing
    `train`, `val`, `test` and `trainval` (train rows followed by val rows, in that order),
    each as `.csv` (MOSES format: header `x1,...,xk,y`, comma separated) and as `.dat`
    (GP-GOMEA format: no header, space separated, target in the last column; GP-GOMEA reads
@@ -67,7 +67,9 @@ import zipfile
 from collections import Counter
 from pathlib import Path
 
-SEEDS = range(1, 31)
+# Split seeds 1-30 since Phase 1f; 31-40 added for server round 11 (fresh splits). The
+# split of a seed depends only on the dataset and the seed, so splits 1-30 are unchanged.
+SEEDS = range(1, 41)
 
 
 def _num(tok: str) -> float:
