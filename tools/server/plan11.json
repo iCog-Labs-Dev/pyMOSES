@@ -1,0 +1,25 @@
+{
+  "name": "server-round11-2026-11",
+  "description": "SERVER-ROUND11-PREREGISTRATION.md: S0, then 1be (BASE against BASE-R, BASE-D5, BASE-D10 and BASE-D20, with HC-LM as the accuracy baseline, on the 10 datasets, fresh splits 31-40). Budget 20,000 evaluations per run, no time limit, no extension, no choice step, no adoption rule. The Dow manifest (8,192 MB) gets a W of its own. The phase needs splits 31-40 of every dataset (setup.sh builds them). No chain to or from another round.",
+  "state_dir": "server-run11",
+  "steps": [
+    {
+      "id": "S0",
+      "type": "check",
+      "pytest": {},
+      "repro": {}
+    },
+    {
+      "id": "phase1be",
+      "type": "phase",
+      "phase": "phase1be",
+      "requires": [
+        "datasets:Air,Bos,Con,Dow,EnC,EnH,Tow,WiR,WiW,Yac:31-40"
+      ],
+      "per_run_mb": 5120,
+      "manifest_per_run_mb": {
+        "sr-Dow.json": 8192
+      }
+    }
+  ]
+}

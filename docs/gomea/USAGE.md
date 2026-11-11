@@ -144,6 +144,7 @@ to, so an invalid value is always rejected.
 | `--const-opt {none,lm,mutate,polish}` | `none` | Regression with `-a gomea` or `-a hc-gomea` only: tune numeric constants (server round 3). `lm`: Levenberg-Marquardt on each deme's best program; `mutate`: Gaussian coefficient mutation after each GOM step (needs `--gomea-contin copy`); `polish`: LM once on the final best program (needs `--const-opt-val`). Every pass over the training rows counts as one evaluation. See [Constant tuning](#constant-tuning---const-opt). |
 | `--const-opt-val FILE` | none | With `--const-opt polish` or `--const-opt-guard val` only: the validation table (the training columns, target `y`). `tools/gomea/moses_sr_runner.py` writes and passes it (`val_scaled.csv`). |
 | `--const-opt-guard {none,val}` | `none` | With `--const-opt lm` only (server round 5). `val`: the tuned constants replace the old ones only if the training error is lower and the validation NMSE is not worse. Needs `--const-opt-val`. See [Constant tuning](#constant-tuning---const-opt). |
+| `--const-opt-reserve R` | `0` | With `-a gomea --const-opt lm` only (server round 11; not a port). The search of each deme stops at the deme budget minus min(R, deme budget // 2), so that LM on the deme's best program can use the evaluations that are left. `0` = off. See [Constant tuning](#constant-tuning---const-opt). |
 
 The default population was 64 during development. It became 16 after the pilot
 (`docs/gomea/pilot-a/`); the confirmatory runs passed 16 explicitly.
@@ -387,6 +388,15 @@ linear scaling when `--linear-scaling 1` is on, else the plain training MSE.
   before the comparison ends, the old program stays and the guard does not count the call as
   checked. With `none`, every output is the same as before the flag existed
   (`tests/gomea/test_const_opt_guard.py`). `--const-opt polish` does not change.
+* **`lm` with `--const-opt-reserve R`** (server round 11, `SERVER-ROUND11-PREREGISTRATION.md`;
+  not a port; `-a gomea` only). Without it, a deme that uses all of its budget leaves LM no
+  evaluations. With R > 0, the search of each deme stops at the deme budget minus
+  min(R, deme budget // 2); the deme budget is what is left of `-m`, or the deme cap when it
+  is smaller. LM then uses the run's budget as usual. A deme that ends before that point does
+  not change. If LM does not use all of the reserve, MOSES starts the next deme. The `end`
+  event gets `const_opt_reserve` (the reserve of that deme). With `0` (the default), every
+  output is the same as before the flag existed
+  (`tests/gomea/test_const_opt_reserve_identity.py`).
 
 Every pass over the training rows (one residual vector, one Jacobian column, one trial step,
 one final score, one mutation) is one evaluation: it is in `n_evals`, in the deme's ledger

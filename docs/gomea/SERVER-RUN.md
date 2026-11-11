@@ -693,3 +693,87 @@ and `configs/gomea/server-smoke10-1bd`: the same three manifests, arms and flags
 `-m 1000` (the first GP-GOMEA generation alone costs about 600 evaluations), a wall cap of 300 s
 and no extension. 100 runs. The state is in `server-run10-smoke/`. The smoke plan has the same
 `per_run_mb` and `manifest_per_run_mb` keys, so the smoke Dow and Tow runs also get their own W.
+
+## Round 11
+
+The eleventh round (`SERVER-ROUND11-PREREGISTRATION.md`: do shorter GOMEA demes make the base
+more accurate, and how much larger do the programs get) has its own plan,
+`tools/server/plan11.json`: S0, then phase 1be. Its state is in `../gomea-results/server-run11/`.
+
+**Before the round, run `bash tools/server/setup.sh` again.** Round 11 uses the fresh splits
+31-40. A dataset set from an earlier round has splits 1-30 only, so set-up rebuilds it (splits
+1-30 do not change). Then start the round with:
+
+    bash tools/server/start.sh --plan round11
+
+There is no choice step, no extension and no adoption rule: the round only reports the results.
+No plan chains to or from round 11. Round 11 never overlaps with another round. Bring back the
+final bundle.
+
+**Budget.** Each run gets 20,000 evaluations (`"budget": {"evals": 20000}`, so `-m 20000`) and no
+`--max-time`. LM passes and guard passes count. The wall cap of 36,000 s per run is only a guard
+against a hung process.
+
+**Arms** (`configs/gomea/phase1be/`, the same six arms in each manifest):
+
+| Arm | Flags |
+|---|---|
+| BASE | the round 10 BASE (as in 1bd) |
+| BASE-R | BASE + `--const-opt-reserve 500` |
+| BASE-D5 | BASE + `--gomea-deme-share 5` (a deme cap of 4,000 evaluations) |
+| BASE-D10 | BASE + `--gomea-deme-share 10` (a deme cap of 2,000 evaluations) |
+| BASE-D20 | BASE + `--gomea-deme-share 20` (a deme cap of 1,000 evaluations) |
+| HC-LM | the round 10 HC-LM (as in 1bd) |
+
+* `--const-opt-reserve R` is new (`pymoses/gomea/optimizer.py`, opt-in): with `-a gomea
+  --const-opt lm`, the search of each deme stops at the deme budget minus min(R, deme budget
+  // 2). LM on the deme's best program can then use the evaluations that are left. A deme
+  that ends by stagnation before that point does not change. The "end" event of each deme has
+  `const_opt_reserve` (the reserve of that deme). If LM does not use all of the reserve, MOSES
+  starts the next deme with the evaluations that are left, as for HC-LM-W in round 10.
+* `--gomea-deme-share D` with `--gomea-pop-size dynamic` stopped with a `ValueError` before
+  this round (the telemetry asked for N without the deme's field set). Commit 709b27f
+  corrected this; N and the search do not change.
+* All six arms use `--const-opt-guard val`, so the runner gives each one `--const-opt-val`
+  and `--gomea-log RUN_DIR/events.jsonl`.
+* Datasets: all 10 (Air, Bos, Con, Dow, EnC, EnH, Tow, WiR, WiW, Yac), splits 31-40. 600 runs.
+* The phase needs the datasets with splits 31-40 (requirement
+  `datasets:Air,...,Yac:31-40`). Without them, 1be is skipped with the reason in the log.
+  There is no seeded arm, so the phase does not need the GP-GOMEA build.
+
+**Report** (`spec.json` of 1be; the pooled test of round 8: paired Wilcoxon on
+r = log(NMSE_A / NMSE_B) over the 100 pairs, a failed run gets the largest rank against it):
+
+* Primary, pooled, one Holm family (4): BASE-R, BASE-D5, BASE-D10 and BASE-D20, each vs BASE
+  (`pooled_primary`).
+* The gap to HC-LM, pooled, its own Holm family (5): BASE, BASE-R, BASE-D5, BASE-D10 and
+  BASE-D20, each vs HC-LM (`pooled_secondary_families`).
+* Size and CPU, pooled, one Holm family (8): program size and CPU for contrasts 1 to 4.
+* Per dataset, descriptive (40): contrasts 1 to 4 on each dataset, Holm across the 40, no
+  verdict (`secondary` with `"secondary_verdicts": false`).
+
+The verdicts describe the data only. For the trade-off table of the pre-registration,
+`contrasts.csv` has the pooled ratios (`ratio` = exp(median r)) of test NMSE against BASE and
+against HC-LM and of program size against BASE. `aggregate.csv` has, for each dataset and arm,
+the median demes in a run (`median_deme_count`) and the median LM share of the evaluations
+(`median_tuning_share`).
+
+**Memory and workers.** Dow has a manifest of its own:
+
+| Manifest | `mem_limit_mb` | W on the server (cgroup 65,536 MB, 12 CPUs, reserve 6,553 MB) |
+|---|---|---|
+| `phase1be/sr-Dow.json` | 8,192 | floor(58,983 / 8,192) = 7 |
+| `phase1be/sr.json` (the 9 other datasets) | 5,120 | min(11, 11) = 11 |
+
+The plan step has `per_run_mb` 5120 and `manifest_per_run_mb` `{"sr-Dow.json": 8192}`.
+`events.jsonl` has one `workers_decision` for the phase and one for the Dow manifest.
+`phase_run.sh` runs one manifest at a time (`sr.json`, then `sr-Dow.json`).
+
+**Size and time.** 600 runs, about 12-18 hours at W = 11 (W = 7 for Dow), plus about 1.3 hours
+for S0.
+
+Smoke test: `bash tools/server/start.sh --plan smoke11` runs the limited S0 (with the new tests)
+and `configs/gomea/server-smoke11-1be`: the same two manifests, arms and flags, splits 31 and 32,
+`-m 1000` (so that the reserve of BASE-R and the caps of the D arms apply), a wall cap of 300 s
+and no extension. 120 runs. The state is in `server-run11-smoke/`. The smoke plan has the same
+`requires`, `per_run_mb` and `manifest_per_run_mb` keys.

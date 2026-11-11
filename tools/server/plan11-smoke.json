@@ -1,0 +1,40 @@
+{
+  "name": "server-round11-smoke",
+  "description": "Smoke test of the round-11 plan: limited pytest, the mux11 repro run, then 1be in miniature (configs/gomea/server-smoke11-1be: the same two manifests, arms and flags, splits 31 and 32, -m 1000, so that the LM reserve of BASE-R (500) and the deme caps of the D arms (200, 100, 50) apply; the Dow run included; no extension). Uses its own state dir, so it never marks real steps done. No chain.",
+  "state_dir": "server-run11-smoke",
+  "steps": [
+    {
+      "id": "S0",
+      "type": "check",
+      "pytest": {
+        "args": [
+          "tests/server",
+          "tests/gomea/test_phase_report.py",
+          "tests/gomea/test_phase_report_pooled.py",
+          "tests/gomea/test_phase_report_round10.py",
+          "tests/gomea/test_const_opt_reserve.py",
+          "tests/gomea/test_const_opt_reserve_identity.py",
+          "tests/gomea/test_pop_size_dynamic.py",
+          "tests/gomea/test_sr_datasets.py"
+        ]
+      },
+      "repro": {
+        "only": [
+          "1ae-mux11-GOMEA-s3001"
+        ]
+      }
+    },
+    {
+      "id": "smoke11-1be",
+      "type": "phase",
+      "phase": "server-smoke11-1be",
+      "requires": [
+        "datasets:Air,Bos,Con,Dow,EnC,EnH,Tow,WiR,WiW,Yac:31-40"
+      ],
+      "per_run_mb": 5120,
+      "manifest_per_run_mb": {
+        "sr-Dow.json": 8192
+      }
+    }
+  ]
+}

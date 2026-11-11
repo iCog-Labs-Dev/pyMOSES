@@ -1,0 +1,219 @@
+{
+  "name": "phase1be-sr-Dow",
+  "datasets_dir": "../gomea-results/phase1f/datasets",
+  "datasets": [
+    "Dow"
+  ],
+  "splits": [
+    31,
+    32,
+    33,
+    34,
+    35,
+    36,
+    37,
+    38,
+    39,
+    40
+  ],
+  "wall_cap_s": 36000,
+  "mem_limit_mb": 8192,
+  "arms": {
+    "BASE": {
+      "binary": ".venv/bin/moses",
+      "budget": {
+        "evals": 20000
+      },
+      "argv": [
+        "-a",
+        "gomea",
+        "--gomea-fos",
+        "lt-b",
+        "--gomea-pop-size",
+        "dynamic",
+        "--hc-fraction-of-nn",
+        "0.05",
+        "--gomea-skip-inactive",
+        "0",
+        "--gomea-genotype-memo",
+        "1",
+        "--gomea-contin",
+        "copy",
+        "--knob-probe-baseline",
+        "reduced",
+        "--linear-scaling",
+        "1",
+        "--const-opt",
+        "lm",
+        "--const-opt-guard",
+        "val",
+        "--gomea-accept-complexity-ratio",
+        "0.125",
+        "--gomea-deme-store",
+        "accepted"
+      ]
+    },
+    "BASE-R": {
+      "binary": ".venv/bin/moses",
+      "budget": {
+        "evals": 20000
+      },
+      "argv": [
+        "-a",
+        "gomea",
+        "--gomea-fos",
+        "lt-b",
+        "--gomea-pop-size",
+        "dynamic",
+        "--hc-fraction-of-nn",
+        "0.05",
+        "--gomea-skip-inactive",
+        "0",
+        "--gomea-genotype-memo",
+        "1",
+        "--gomea-contin",
+        "copy",
+        "--knob-probe-baseline",
+        "reduced",
+        "--linear-scaling",
+        "1",
+        "--const-opt",
+        "lm",
+        "--const-opt-guard",
+        "val",
+        "--gomea-accept-complexity-ratio",
+        "0.125",
+        "--gomea-deme-store",
+        "accepted",
+        "--const-opt-reserve",
+        "500"
+      ]
+    },
+    "BASE-D5": {
+      "binary": ".venv/bin/moses",
+      "budget": {
+        "evals": 20000
+      },
+      "argv": [
+        "-a",
+        "gomea",
+        "--gomea-fos",
+        "lt-b",
+        "--gomea-pop-size",
+        "dynamic",
+        "--hc-fraction-of-nn",
+        "0.05",
+        "--gomea-skip-inactive",
+        "0",
+        "--gomea-genotype-memo",
+        "1",
+        "--gomea-contin",
+        "copy",
+        "--knob-probe-baseline",
+        "reduced",
+        "--linear-scaling",
+        "1",
+        "--const-opt",
+        "lm",
+        "--const-opt-guard",
+        "val",
+        "--gomea-accept-complexity-ratio",
+        "0.125",
+        "--gomea-deme-store",
+        "accepted",
+        "--gomea-deme-share",
+        "5"
+      ]
+    },
+    "BASE-D10": {
+      "binary": ".venv/bin/moses",
+      "budget": {
+        "evals": 20000
+      },
+      "argv": [
+        "-a",
+        "gomea",
+        "--gomea-fos",
+        "lt-b",
+        "--gomea-pop-size",
+        "dynamic",
+        "--hc-fraction-of-nn",
+        "0.05",
+        "--gomea-skip-inactive",
+        "0",
+        "--gomea-genotype-memo",
+        "1",
+        "--gomea-contin",
+        "copy",
+        "--knob-probe-baseline",
+        "reduced",
+        "--linear-scaling",
+        "1",
+        "--const-opt",
+        "lm",
+        "--const-opt-guard",
+        "val",
+        "--gomea-accept-complexity-ratio",
+        "0.125",
+        "--gomea-deme-store",
+        "accepted",
+        "--gomea-deme-share",
+        "10"
+      ]
+    },
+    "BASE-D20": {
+      "binary": ".venv/bin/moses",
+      "budget": {
+        "evals": 20000
+      },
+      "argv": [
+        "-a",
+        "gomea",
+        "--gomea-fos",
+        "lt-b",
+        "--gomea-pop-size",
+        "dynamic",
+        "--hc-fraction-of-nn",
+        "0.05",
+        "--gomea-skip-inactive",
+        "0",
+        "--gomea-genotype-memo",
+        "1",
+        "--gomea-contin",
+        "copy",
+        "--knob-probe-baseline",
+        "reduced",
+        "--linear-scaling",
+        "1",
+        "--const-opt",
+        "lm",
+        "--const-opt-guard",
+        "val",
+        "--gomea-accept-complexity-ratio",
+        "0.125",
+        "--gomea-deme-store",
+        "accepted",
+        "--gomea-deme-share",
+        "20"
+      ]
+    },
+    "HC-LM": {
+      "binary": ".venv/bin/moses",
+      "budget": {
+        "evals": 20000
+      },
+      "argv": [
+        "-a",
+        "hc",
+        "--knob-probe-baseline",
+        "reduced",
+        "--linear-scaling",
+        "1",
+        "--const-opt",
+        "lm",
+        "--const-opt-guard",
+        "val"
+      ]
+    }
+  }
+}
