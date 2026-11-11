@@ -308,3 +308,14 @@ experiment as we don't want to get a lower score only because of an oversight."
   widen search plus LM, HC stops 500 evaluations early, so LM runs once on the best program.
   * Agent-written, not user-approved: the reserve is min(500, budget // 2), so a small smoke budget
     still leaves evaluations for the climb.
+
+**Round 10 results and the next round (2026-11-11):** the agent presented the 1bd results and the
+deme counts and sizes. The agent recommended: "1. Keep BASE as the compact reference. 2. Use HC-LM
+as the accuracy baseline that every GOMEA change must be compared with. 3. Make the next experiment
+test the deme count in GOMEA, with the program size controlled." The user answered: "Agreed to the
+1 and 2. Not sure what you meant by 3". The agent explained point 3. The user answered: "Yes, check
+the code and write the draft".
+* User-approved: BASE stays the compact reference; HC-LM is the accuracy baseline.
+* User-approved: a draft for a round on the deme count in GOMEA.
+* Not user-approved: the content of `SERVER-ROUND11-PREREGISTRATION.md` (arms, values, splits 31–40,
+  contrasts, verdicts, pilot gate, memory limits).
