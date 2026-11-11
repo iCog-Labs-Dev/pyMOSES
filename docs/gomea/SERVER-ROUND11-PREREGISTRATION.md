@@ -109,6 +109,38 @@ Round 10 (`SERVER-ROUND10-FINDINGS.md`, splits 1–10) and round 9 (`SERVER-ROUN
 * **Gate:** BASE-R has LM evaluations > 0 on Dow and Tow; each D arm has at least D / 2 demes. If a
   check fails, the agent reports to the user before the server run.
 
+## Pilot result (2026-11-11, agent): the gate passed
+
+Local machine, the clone's code (709b27f), split 1, `-m 20000`, nice 19, 4 jobs, the datasets of
+the local `phase1f/datasets`. The NMSE was not read. "Demes" counts the demes with evaluations.
+
+| Dataset | Arm | Demes | LM evaluations | LM calls without budget | Gate |
+|---|---|---|---|---|---|
+| Dow | BASE | 1 | 0 | 1 of 1 | (reference) |
+| Dow | BASE-R | 5 | 92 | 0 of 5 | LM > 0: pass |
+| Tow | BASE | 2 | 13 | 1 of 2 | (reference) |
+| Tow | BASE-R | 6 | 83 | 0 of 6 | LM > 0: pass |
+| Air | BASE-D5 | 6 | 486 | 1 of 6 | ≥ 2.5 demes: pass |
+| Con | BASE-D5 | 6 | 591 | 1 of 6 | ≥ 2.5 demes: pass |
+| Air | BASE-D10 | 10 | 1,395 | 1 of 10 | ≥ 5 demes: pass |
+| Con | BASE-D10 | 10 | 835 | 1 of 10 | ≥ 5 demes: pass |
+| Air | BASE-D20 | 17 | 3,000 | 0 of 17 | ≥ 10 demes: pass |
+| Con | BASE-D20 | 18 | 2,297 | 1 of 18 | ≥ 10 demes: pass |
+
+Observations (not part of the gate, not tested):
+
+* **BASE-R adds small demes.** In the first deme, LM used only 28 (Dow) and 13 (Tow) of the 500
+  reserved evaluations. MOSES then started more demes with the rest of the budget, as for HC-LM-W in
+  round 10: 4 on Dow and 5 on Tow, with 0 or 1 generation each and a reserve that halves each time.
+  Each of these demes also got an LM call. Thus BASE-R also has more demes and more LM calls than
+  BASE. On Tow the first deme ended by stagnation before the stop point and was the same as in BASE.
+* **The D arms have very short demes.** Generations in a deme: D5 1–9, D10 1–2, D20 always 1. One
+  generation with N = 100 costs about N × 2 × knobs evaluations, so a cap of 1,000 or 2,000 gives
+  about 1 generation, as C250 did in round 9.
+* **LM share of the evaluations:** D5 2–3 %, D10 4–7 %, D20 12–15 %; BASE and BASE-R below 1 %.
+* **Code:** at 5da6731 the D arms stopped with a `ValueError` (`--gomea-deme-share` with
+  `--gomea-pop-size dynamic`). Commit 709b27f corrected this without a change to N or the search.
+
 ## Contrasts
 
 The user asked for results only: no adoption rule. The report gives the verdict column of round 10
