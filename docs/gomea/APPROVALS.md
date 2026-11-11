@@ -330,3 +330,16 @@ the code and write the draft".
   * User-approved: the arms BASE-D5, BASE-D10 and BASE-D20; BASE-STALL1 leaves the round.
   * Not user-approved: the BASE-R rule (`--const-opt-reserve 500`, the HC-LM-W formula), the
     contrasts and Holm families, the pilot gate and the memory limits.
+* **Review of the round 11 implementation (2026-11-11):** the pilot gate passed. The agent's RV16
+  review found two errors in its own pre-registration text: after the first deme, every D10 and
+  D20 deme stops inside generation 0, as C250 did; and BASE-R also adds a few tiny demes with
+  repeated LM, so it does not change only the LM budget. The agent asked two questions. The user
+  chose the options "Run as built (Recommended)" for the D arms and "Keep, fix the text
+  (Recommended)" for BASE-R.
+  * User-approved: run BASE-D5, BASE-D10 and BASE-D20 as built; keep BASE-R; correct the
+    pre-registration text.
+  * Agent-written, not user-approved: the wording of the corrections in
+    `SERVER-ROUND11-PREREGISTRATION.md`.
+  * Not user-approved by this answer: the unplanned code changes 709b27f (the deme-share fix under
+    `pymoses`) and 5ee8c83 (the split-range requirement in `orchestrate.py`). The agent reported
+    them in the review.

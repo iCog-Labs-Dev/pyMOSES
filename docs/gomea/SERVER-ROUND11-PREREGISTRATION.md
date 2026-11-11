@@ -4,6 +4,9 @@
 `APPROVALS.md`). Agent-written, not user-approved in detail: the BASE-R rule, the contrasts and
 the Holm families, the pilot gate and the memory limits. Implemented in ab5047d, 3398504,
 709b27f, e730598, 9e7cc39, 5ee8c83 and 102d79e; pilot result in 98c0a8c (the gate passed).
+After the pilot, the user decided to run the D arms as built and to keep BASE-R with the text
+corrected (2026-11-11, see `APPROVALS.md`). The "Arms", "Code change" and "Limits" sections now
+state what the pilot showed.
 
 **Question:** do shorter GOMEA demes (more demes in each run) make the base more accurate? How much
 larger do the programs get? HC-LM is the accuracy baseline (user, 2026-11-11).
@@ -78,11 +81,24 @@ Round 10 (`SERVER-ROUND10-FINDINGS.md`, splits 1–10) and round 9 (`SERVER-ROUN
 | **BASE-D20** | BASE + `--gomea-deme-share 20`: each deme gets at most 1,000 evaluations |
 | **HC-LM** | the round 10 HC-LM flags (the accuracy baseline, user 2026-11-11) |
 
-* **BASE-R** changes only the LM budget. It shows how much of the gap comes from LM that had no
-  budget (user, 2026-11-11: "Yes let's go with that").
-* **BASE-D5, BASE-D10, BASE-D20** change only the deme length (user, 2026-11-11: "All three").
-  Three caps show whether the effect grows with the number of demes. A run gets at least about
-  5, 10 or 20 demes. The caps are much longer than C250 (250).
+* **BASE-R** gives LM a budget in each deme (user, 2026-11-11: "Yes let's go with that"). It does
+  not change only the LM budget (pilot, corrected 2026-11-11). LM on the first deme's best program
+  used only 13–28 of the 500 reserved evaluations. MOSES gave the rest to 4–5 tiny demes (0–1
+  generations), each with an LM call, mostly on the same best program. Thus BASE-R = BASE + LM on
+  the main deme's best program + a few tiny demes with repeated LM. The user kept the arm on these
+  terms (2026-11-11: "Keep, fix the text (Recommended)").
+* **BASE-D5, BASE-D10, BASE-D20** change only the deme cap (user, 2026-11-11: "All three"). Three
+  caps show whether the effect grows with the number of demes. A run gets at least about 5, 10 or
+  20 demes (pilot: 6, 10 and 17–18), which is in the HC-LM range of round 10 (9.5–25.5), not in
+  the C250 range of round 9 (50–60).
+* **Correction (pilot, 2026-11-11):** the draft said that the caps are "much longer than C250
+  (250)". That is true in evaluations, but not in generations. After the first deme, the knob count
+  grows (Air 14 → 56–157, Con 20 → 65–334). Then one generation costs more than the cap. So every
+  D10 and D20 deme after the first stops inside generation 0 (the first GOM pass), as C250 did. In
+  D5, the same occurred, except 1 deme on Con (8 generations). Thus an accuracy gain in the D arms
+  comes mostly from restarts and LM calls, not from model-based search inside a deme. At 20,000
+  evaluations with N = 100, a cap that allows full generations gives only 1–2 demes. The user kept
+  the arms (2026-11-11: "Run as built (Recommended)").
 * The D arms have no LM reserve. Round 9 showed that LM runs after a capped deme (99 % of the
   calls had budget). Only the last deme of a run can lose its LM call.
 * **BASE-STALL1 is not in the round.** `--gomea-stall-gens 1` saves only about 3 % of the budget
@@ -99,7 +115,10 @@ Round 10 (`SERVER-ROUND10-FINDINGS.md`, splits 1–10) and round 9 (`SERVER-ROUN
 * **Opt-in:** without the option, GOMEA runs stay byte-identical. An identity test proves it
   (reference output captured before the change).
 * **Tests:** a run where one deme would use the whole budget gets LM evaluations > 0 with R > 0;
-  the total evaluations never pass `-m`; the option is refused without `--const-opt lm`.
+  the total evaluations never pass `-m`; the option is refused without `--const-opt lm`. The code
+  also refuses it with `-a hc` and with the hc-gomea hybrid (implementation, agent).
+* The `const_opt_reserve` value in a deme's `end` event is that deme's reserve, min(R, deme
+  budget // 2), not R.
 
 ## Local pilot before the server (a gate, not a selection)
 
@@ -137,7 +156,8 @@ Observations (not part of the gate, not tested):
   BASE. On Tow the first deme ended by stagnation before the stop point and was the same as in BASE.
 * **The D arms have very short demes.** Generations in a deme: D5 1–9, D10 1–2, D20 always 1. One
   generation with N = 100 costs about N × 2 × knobs evaluations, so a cap of 1,000 or 2,000 gives
-  about 1 generation, as C250 did in round 9.
+  about 1 generation, as C250 did in round 9. (Reviewer check: more than 1 generation occurred
+  only in the first deme of a run, and in 1 later deme on Con in D5.)
 * **LM share of the evaluations:** D5 2–3 %, D10 4–7 %, D20 12–15 %; BASE and BASE-R below 1 %.
 * **Code:** at 5da6731 the D arms stopped with a `ValueError` (`--gomea-deme-share` with
   `--gomea-pop-size dynamic`). Commit 709b27f corrected this without a change to N or the search.
@@ -201,6 +221,10 @@ There is no N = 16 arm, so the round 9 memory risk does not apply.
 * One budget (20,000 evaluations).
 * A cap can change N as well as the deme length, on a dataset where N would pass the cap.
 * Three cap values show a direction, not the best value.
-* The D arms also make more LM calls. BASE-R shows the effect of LM budget alone, but not of more
-  LM calls.
+* The D arms also make more LM calls. BASE-R does not show the effect of LM budget alone: it also
+  adds a few tiny demes with repeated LM (see "Arms").
+* After the first deme, the D arms stop inside the first generation. They test restarts plus LM in
+  the HC-LM deme range, with a short GOMEA search in each deme (see "Arms").
+* Nobody measured the memory of the D arms at 20,000 evaluations. Later demes have up to 334 knobs
+  (the tiny BASE-R demes up to 1,277). Round 9 C250 stayed below 1 GB.
 * `--const-opt-reserve` is new code. Its first use is in this round, after local tests only.
