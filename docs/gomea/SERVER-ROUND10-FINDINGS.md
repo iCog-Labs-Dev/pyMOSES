@@ -2,7 +2,7 @@
 
 **Pre-registration:** `SERVER-ROUND10-PREREGISTRATION.md`. **Results:** bundle
 `bundle-final-20261111T091824Z.tar.gz` (local copy: `../server-results-round10/`). **Code:**
-`f022395`. **Decisions:** pending (the user and the agent discuss the results; no adoption rule).
+`f022395`. **Decisions:** `APPROVALS.md`, 2026-11-11 (no adoption rule; see "User decisions").
 
 Test NMSE in the tables is × 100 and is the median over the splits 1–10. "Pairs" is the number of
 splits where A is lower / where B is lower. "Ratio" is exp(median of log(A / B)) over the pairs:
@@ -356,4 +356,11 @@ Facts only. This round does not test them, and they give no recommendation.
 
 ## User decisions
 
-Pending.
+The pre-registration has no adoption rule. On 2026-11-11 the agent recommended three points. The
+user answered: "Agreed to the 1 and 2. Not sure what you meant by 3". After an explanation of
+point 3, the user answered: "Yes, check the code and write the draft".
+
+* **BASE stays the compact reference** for stage 2.
+* **HC-LM is the accuracy baseline.** Every GOMEA change is compared with it.
+* **Next round:** a test of the deme count in GOMEA (`SERVER-ROUND11-PREREGISTRATION.md`, a draft
+  that the user has not approved).

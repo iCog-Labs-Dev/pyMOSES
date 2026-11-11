@@ -22,6 +22,10 @@ Round 10 (`SERVER-ROUND10-FINDINGS.md`, splits 1–10) and round 9 (`SERVER-ROUN
 * BASE ends a deme after 5 generations without improvement (`--gomea-stall-gens`, default 5). It
   has 4–10 generations in a deme (round 10). One generation costs about N × 2 × knobs
   evaluations, with N about 100, so a deme uses much of the budget.
+* **BASE often got no LM (round 10 findings, observation 2):** one deme used the whole budget, so
+  the LM call at its end got 0 evaluations. This occurred in 17 of 100 BASE runs (Dow 10 of 10,
+  Tow 7 of 10) and in 36 of 100 BASE-S runs. HC-LM-W had the same fault before the LM reserve.
+  More demes also give more LM calls, so this round cannot separate the two effects.
 * C250 is an extreme case: the cap of 250 evaluations is smaller than one generation, so each deme
   had 1 generation only. The user left C250 out because of the program size (2026-11-10).
 
@@ -100,6 +104,9 @@ Round 10 (`SERVER-ROUND10-FINDINGS.md`, splits 1–10) and round 9 (`SERVER-ROUN
 2. **Values:** `--gomea-stall-gens 1` and `--gomea-deme-share 10`, or other values? A third arm,
    for example `--gomea-deme-share 20`, adds 100 runs and about 3 hours.
 3. **Fresh splits 31–40:** recommended, because splits 1–10 are selection data.
+4. **LM reserve for GOMEA:** add an arm BASE-R, BASE with an LM reserve as in HC-LM-W, so that the
+   last deme always gets LM? It separates "more LM" from "more demes". It needs a code change
+   under `pymoses` and adds 100 runs. Recommendation: yes, because LM did nothing in 17 BASE runs.
 
 ## Memory
 
