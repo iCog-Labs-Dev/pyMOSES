@@ -1,7 +1,7 @@
 # Server round 11: pre-registration draft (2026-11-11)
 
-**Status:** draft. Agent-written, not user-approved. The user approved the direction (2026-11-11,
-see `APPROVALS.md`). Not implemented.
+**Status:** draft. The user approved the direction and answered questions 1, 3 and 4 (2026-11-11,
+see `APPROVALS.md`). Question 2 (the values) is open. Not implemented.
 
 **Question:** do shorter GOMEA demes (more demes in each run) make the base more accurate? How much
 larger do the programs get? HC-LM is the accuracy baseline (user, 2026-11-11).
@@ -29,7 +29,7 @@ Round 10 (`SERVER-ROUND10-FINDINGS.md`, splits 1–10) and round 9 (`SERVER-ROUN
 * C250 is an extreme case: the cap of 250 evaluations is smaller than one generation, so each deme
   had 1 generation only. The user left C250 out because of the program size (2026-11-10).
 
-## Code check (2026-11-11): no change under `pymoses`
+## Code check (2026-11-11)
 
 | Need | Existing option | Where |
 |---|---|---|
@@ -37,6 +37,15 @@ Round 10 (`SERVER-ROUND10-FINDINGS.md`, splits 1–10) and round 9 (`SERVER-ROUN
 | Give a run about D demes | `--gomea-deme-share D`: cap = max(1, floor(-m / D)) | `problem_params.py:439`, `:880` |
 | Other end conditions (not used) | `--gomea-max-gens`, `--gomea-stall-evals`, `--gomea-max-evals-per-deme` | `problem_params.py:338`, `:393`, `:352` |
 
+* **Measured in round 10 (BASE, all demes):** a deme spends almost all of its evaluations while it
+  improves. After the last improving generation, the median deme spent only 3.0 % more (per
+  dataset 0–5.9 %, Yac 8.2 %). On Dow and Tow the one deme was still improving at the budget.
+  Because of the genotype memo, a generation with no improvement costs almost no evaluations.
+  Thus `--gomea-stall-gens 1` saves about 3 % of the budget and gives almost no extra demes.
+  Script: `scratchpad/r10res/gen_cost.py` (session scratchpad, not in the repo).
+* **LM in capped demes (round 9, 1bc):** BASE-C250 made 3,320 LM calls, and only 38 (1 %) had no
+  budget. The cap limits GOMEA only; LM runs after the cap and uses the run budget. LM used
+  375,107 evaluations in the 60 BASE-C250 runs, about 31 % of their budget.
 * The stagnation test uses the penalized score (PEN125) when `--gomea-accept-complexity-ratio` is
   set, as in BASE.
 * With the dynamic population, N comes from the deme budget (at least 100, at most the evaluations
@@ -63,11 +72,14 @@ Round 10 (`SERVER-ROUND10-FINDINGS.md`, splits 1–10) and round 9 (`SERVER-ROUN
 | **BASE** | the round 10 BASE flags (`configs/gomea/phase1bd/`) |
 | **BASE-STALL1** | BASE + `--gomea-stall-gens 1`: the deme ends after the first generation with no improvement |
 | **BASE-D10** | BASE + `--gomea-deme-share 10`: each deme gets at most 2,000 evaluations, so a run gets about 10 or more demes |
+| **BASE-R** | BASE + an LM reserve (new opt-in flag): a deme that has the rest of the run budget keeps min(500, budget // 2) evaluations for LM, as HC-LM-W does |
 | **HC-LM** | the round 10 HC-LM flags (accuracy baseline) |
 
 * BASE-STALL1 changes only the end rule. A deme still runs full generations.
 * BASE-D10 sets a deme length that does not depend on the search. On a dataset with many knobs,
   2,000 evaluations can be less than one generation, as in C250.
+* BASE-R changes only the LM budget of the last deme. It shows how much of the gap comes from LM
+  that had no budget (user, 2026-11-11: "Yes let's go with that").
 * BASE-S and HC-LM-W are not in this round. Seeding is a separate question. Widen search was worse
   in round 10.
 
@@ -93,7 +105,16 @@ Round 10 (`SERVER-ROUND10-FINDINGS.md`, splits 1–10) and round 9 (`SERVER-ROUN
 * **Trade-off table:** for each arm, the median pair ratio of test NMSE against BASE and against
   HC-LM, and the median size ratio against BASE.
 
-## Open questions for the user
+## The user's answers (2026-11-11)
+
+1. Verdicts: "Results only." There is no adoption rule and no verdict rule beyond the pooled test.
+2. Values: open. The user asked for an explanation.
+3. Splits: "Yes let's do split this time." Fresh splits 31–40.
+4. LM reserve for GOMEA: "Yes let's go with that." The arm BASE-R joins the round. It needs a code
+   change under `pymoses`: opt-in, with an identity test that BASE without the flag is
+   byte-identical.
+
+## Open questions for the user (as first asked)
 
 1. **Verdicts:**
    * (a) results only, as in round 10;
@@ -127,7 +148,7 @@ There is no N = 16 arm, so the round 9 memory risk does not apply.
 
 ## Size and time
 
-* 400 runs (4 arms × 10 datasets × 10 splits).
+* 500 runs (5 arms × 10 datasets × 10 splits), with BASE-R.
 * CPU for each run in round 10: BASE median 430 s, HC-LM 674 s. C250 used 1.1–3.9× the CPU of
   BASE, so the variants can cost more.
 * About 10–16 hours at W = 11, plus about 1.3 hours for S0. The local pilot takes about 1 hour.

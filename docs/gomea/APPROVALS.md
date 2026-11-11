@@ -319,3 +319,8 @@ the code and write the draft".
 * User-approved: a draft for a round on the deme count in GOMEA.
 * Not user-approved: the content of `SERVER-ROUND11-PREREGISTRATION.md` (arms, values, splits 31–40,
   contrasts, verdicts, pilot gate, memory limits).
+* The agent asked four questions on the round 11 draft. The user answered: "1. Results only. 2.
+  Explain what you mean by that. 3. Yes let's do split this time. 4. Yes let's go with that."
+  * User-approved: results only (no adoption rule); fresh splits 31–40; the arm BASE-R (an LM
+    reserve for GOMEA, a code change under `pymoses`).
+  * Open: the values of the deme-length arms (question 2).
