@@ -324,3 +324,9 @@ the code and write the draft".
   * User-approved: results only (no adoption rule); fresh splits 31–40; the arm BASE-R (an LM
     reserve for GOMEA, a code change under `pymoses`).
   * Open: the values of the deme-length arms (question 2).
+* The agent explained question 2 and showed that `--gomea-stall-gens 1` saves only about 3 % of the
+  budget. It proposed deme caps D5 and D10 in place of BASE-STALL1, and offered D20. The user
+  answered: "All three."
+  * User-approved: the arms BASE-D5, BASE-D10 and BASE-D20; BASE-STALL1 leaves the round.
+  * Not user-approved: the BASE-R rule (`--const-opt-reserve 500`, the HC-LM-W formula), the
+    contrasts and Holm families, the pilot gate and the memory limits.
