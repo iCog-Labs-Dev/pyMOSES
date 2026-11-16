@@ -356,7 +356,8 @@ def test_setup_builds_every_dataset_of_the_plan_with_the_fresh_splits():
     built = text.split("DATASETS=(", 1)[1].split(")", 1)[0].split()
     assert set(DATASETS) - {"Tow", "Dow"} <= set(built)
     assert '"Tow tower ' in text and '"Dow dowchem ' in text
-    assert f'-eq {8 * len(sr_datasets.SEEDS)} ]' in text and max(sr_datasets.SEEDS) == 40
+    # round 12 adds splits 41-50 (SEEDS 1-50); round 11 needs that set-up builds 31-40
+    assert f'-eq {8 * len(sr_datasets.SEEDS)} ]' in text and set(SPLITS) <= set(sr_datasets.SEEDS)
 
 
 def test_smoke_has_the_same_arms_and_is_small():
