@@ -155,16 +155,17 @@ NMSE ratio against HC-LM come from `contrasts.csv`. The rows marked * are agent 
 
 | Arm | NMSE vs BASE | NMSE vs HC-LM | Size vs BASE | CPU vs BASE | Demes | Knobs per deme | Total knobs | LM share |
 |---|---|---|---|---|---|---|---|---|
-| BASE | 1 | 1.056 | 1 | 1 | 2 | 60 | 217 | 0.2 % |
-| BASE-R | 0.984 | 1.040 | 1.040 | 1.005 | 5 | 123 | 785 | 1.5 % |
-| BASE-D5 | 0.961 | 1.018 | 1.490 | 1.658 | 5 | 121 | 822 | 1.9 % |
-| BASE-D10 | 0.915 | 0.973 | 1.462 | 1.764 | 10 | 160 | 1,741 | 4.9 % |
-| BASE-D20 | 0.899 | 0.971 | 1.711 | 2.121 | 18 | 206 | 4,116 | 10.0 % |
+| BASE | 1 | 1.056 | 1 | 1 | 2 | 74 | 217 | 0.2 % |
+| BASE-R | 0.984 | 1.040 | 1.040 | 1.005 | 5 | 170 | 785 | 1.5 % |
+| BASE-D5 | 0.961 | 1.018 | 1.490 | 1.658 | 5 | 181 | 822 | 1.9 % |
+| BASE-D10 | 0.915 | 0.973 | 1.462 | 1.764 | 10 | 196 | 1,741 | 4.9 % |
+| BASE-D20 | 0.899 | 0.971 | 1.711 | 2.121 | 18 | 246 | 4,116 | 10.0 % |
 | HC-LM | 0.947* | 1 | 1.606* | 1.247* | 18 | – | – | 11.3 % |
 
 * HC-LM NMSE vs BASE is 1 / 1.056 (the inverse of BASE vs HC-LM).
-* "Knobs per deme" is the median over all demes of the ok runs. "Total knobs" is the sum of the
-  knob counts of a run's demes, median over the ok runs. HC-LM logs no knob count (its "end"
+* "Knobs per deme" is, for each run, the median knob count of its demes, and then the median over
+  the ok runs. "Total knobs" is the sum of the knob counts of a run's demes, median over the ok
+  runs. The private chart page of 2026-11-16 (not in the repo) uses the same definitions. HC-LM logs no knob count (its "end"
   events have no `dim` field, and the bundle has no MOSES logs).
 
 ## Per dataset (exact values)
@@ -263,20 +264,21 @@ The count includes only demes with evaluations (`ledger.requests` > 0).
 
 HC-LM logs no knob count, so its column is empty.
 
-Knobs per deme (median over all demes):
+Knobs per deme (for each run, the median knob count of its demes; then the median over the runs;
+rounded to whole knobs):
 
 | Dataset | BASE | BASE-R | BASE-D5 | BASE-D10 | BASE-D20 | HC-LM |
 |---|---|---|---|---|---|---|
-| Air | 56 | 110 | 90.5 | 105.5 | 120.5 | – |
-| Bos | 121 | 184 | 142 | 226 | 255 | – |
-| Con | 74 | 119 | 163.5 | 156 | 192.5 | – |
-| Dow | 118 | 755 | 640 (9) | 2,087 | 2,088 (9) | – |
-| EnC | 56 | 118 | 75 | 132.5 | 173 | – |
-| EnH | 56 | 115.5 | 124.5 | 92.5 | 165 | – |
-| Tow | 54 | 430 | 392 (8) | 1,043 | 885 | – |
-| WiR | 133 | 163.5 | 146 | 176.5 | 233 | – |
-| WiW | 38 | 121.5 | 224 | 219 | 255 | – |
-| Yac | 55.5 | 72 | 58.5 | 65 | 67 | – |
+| Air | 56 | 106 | 109 | 135 | 124 | – |
+| Bos | 117 | 184 | 233 | 235 | 283 | – |
+| Con | 56 | 219 | 223 | 193 | 298 | – |
+| Dow | 118 | 813 | 814 (9) | 2,147 | 2,319 (9) | – |
+| EnC | 61 | 134 | 118 | 179 | 190 | – |
+| EnH | 61 | 120 | 143 | 93 | 202 | – |
+| Tow | 125 | 430 | 418 (8) | 1,127 | 950 | – |
+| WiR | 92 | 168 | 187 | 202 | 249 | – |
+| WiW | 56 | 185 | 372 | 225 | 277 | – |
+| Yac | 72 | 86 | 74 | 64 | 71 | – |
 
 Total knobs per run (sum over the demes, median over the runs):
 
