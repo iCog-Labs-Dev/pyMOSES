@@ -207,7 +207,7 @@ from pymoses.moses.main.problem import (
     problem_base,
     problem_manager,
 )
-from pymoses.moses.main.problem_params import problem_params
+from pymoses.moses.main.problem_params import LINEAR_SCALING_TERMS, problem_params
 from pymoses.moses.moses.moses_main import gomea_kwargs, metapop_moses_results
 from pymoses.moses.scoring.behave_cscore import behave_cscore
 from pymoses.moses.scoring.bscores import (
@@ -741,7 +741,11 @@ class table_problem_base(problem_base):
                     "--linear-scaling is a least-squares fit and needs squared error; "
                     "it cannot be combined with --it-abs-err"
                 )
-            bscore.set_linear_scaling(True)
+            if pms.linear_scaling == LINEAR_SCALING_TERMS:
+                # NOT A PORT, server round 12 (T2.2): per-term least-squares weights.
+                bscore.set_linear_scaling_terms(True)
+            else:
+                bscore.set_linear_scaling(True)
         if pms.meta_params.do_boosting:
             bscore.use_weighted_scores()
         # When boosting, cache must not be used, as otherwise, stale

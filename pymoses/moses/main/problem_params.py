@@ -559,6 +559,23 @@ _GOMEA_OPTIONS = (
         "population) or random. Default contrast.",
     ),
 )
+# NOT A PORT (server round 12, T2.2): the `--linear-scaling` value for per-term weights.
+LINEAR_SCALING_TERMS = "terms"
+
+
+def _linear_scaling_value(text: str) -> int | str:
+    """The argparse type of `--linear-scaling`: `terms`, else an integer, as before
+    (`parse_options` accepts 0 and 1 only)."""
+    if text == LINEAR_SCALING_TERMS:
+        return text
+    try:
+        return int(text)
+    except ValueError:
+        raise argparse.ArgumentTypeError(
+            f"invalid value {text!r} (0, 1 or {LINEAR_SCALING_TERMS})"
+        ) from None
+
+
 # NOT A PORT (pyMoses extension, no C++ counterpart; not GOMEA-specific): options
 # registered with the GOMEA ones (after every classic option), off by default.
 _PORT_OPTIONS = (
@@ -587,12 +604,16 @@ _PORT_OPTIONS = (
     (
         "--linear-scaling",
         "linear_scaling",
-        int,
+        _linear_scaling_value,
         0,
         "regression (contin output, squared error) only: 1 = score each "
         "program f on a + b*f, where (a, b) is the least-squares fit of f to "
         "the training target (b = cov(y, f) / var(f), a = mean(y) - b mean(f); "
-        "b = 0 for a constant f). 0 = off (classic MOSES). Default 0.",
+        "b = 0 for a constant f). terms = split f at a top-level + into terms "
+        "t_i (else one term) and score w_0 + sum w_i t_i, fitted by least "
+        "squares on the training rows (a program with a constant or collinear "
+        "term, or a term output that is not finite, gets the a + b*f score); "
+        "only with --const-opt none. 0 = off (classic MOSES). Default 0.",
     ),
     # Constant tuning, server round 3 (off by default: a default run is
     # unchanged; pymoses/gomea/const_opt.py).
@@ -1645,8 +1666,13 @@ class problem_params:
         # NOT A PORT (pyMoses extension): `--linear-scaling`, read by the
         # regression problems (`table_problems._regression`).
         ls = getattr(args, "linear_scaling", 0)
-        if ls not in (0, 1):
-            raise ValueError(f"--linear-scaling must be 0 or 1, got {ls}")
+        if ls not in (0, 1, LINEAR_SCALING_TERMS):
+            raise ValueError(f"--linear-scaling must be 0, 1 or terms, got {ls}")
+        # NOT A PORT, server round 12: LM, polish, the guard and the reserve all
+        # assume the a + b*f fit, so per-term weights run without them.
+        co = getattr(args, "const_opt", "none")
+        if ls == LINEAR_SCALING_TERMS and co != "none":
+            raise ValueError(f"--linear-scaling terms needs --const-opt none, got --const-opt {co}")
         self.linear_scaling = ls
 
         # -- Set depth (C++: :2371-2372 `set_depth(contin_depth)`) --

@@ -92,11 +92,12 @@ from pymoses.comboreduct.combo.vertex import (
     builtin,
     combo_tree,
     get_contin,
+    is_contin,
     negate_vertex,
     vertex,
     vertex_equal,
 )
-from pymoses.comboreduct.interpreter.interpreter import interpreter_visitor
+from pymoses.comboreduct.interpreter.interpreter import interpreter_visitor, mixed_interpreter
 from pymoses.comboreduct.table.table import (
     CTable,
     ITable,
@@ -114,6 +115,7 @@ from pymoses.moses.moses.types import (
     very_best_score,
     very_worst_score,
 )
+from pymoses.moses.scoring.least_squares import FALLBACK_CONSTANT, TermFit, fit_terms
 from pymoses.moses.scoring.scoring_base import (
     _copy_ctable,
     _cpp_reciprocal,
@@ -471,6 +473,10 @@ class contin_bscore(bscore_base):
         # `__call__` is then exactly classic's. See `set_linear_scaling`.
         self._linear_scaling = False
         self._target_values: list[float] | None = None
+        # NOT A PORT (pyMoses extension, `--linear-scaling terms`, server round 12): score
+        # per-term least-squares weights. Off by default. See `set_linear_scaling_terms`.
+        self._linear_scaling_terms = False
+        self._terms_stats: dict[str, int] | None = None
 
     def init(self, eft: contin_bscore.err_function_type = err_function_type.squared_error) -> None:
         """C++: moses/moses/scoring/bscores.h:186 contin_bscore::init
@@ -530,6 +536,8 @@ class contin_bscore(bscore_base):
         iv = interpreter_visitor(tr)
         if getattr(self, "_linear_scaling", False):
             return self._scaled_bscore(tr, iv)
+        if getattr(self, "_linear_scaling_terms", False):
+            return self._terms_bscore(tr, iv)
         bs: behavioral_score = []
         for row, target_v in zip(self._cti, self._target, strict=True):
             tar = get_contin(target_v)
@@ -569,6 +577,104 @@ class contin_bscore(bscore_base):
         a, b = linear_scaling(targets, preds)
         bs: behavioral_score = [
             -self._err_func(a + b * res, tar) for res, tar in zip(preds, targets, strict=True)
+        ]
+        log_candidate_bscore(tr, bs)  # C++: bscores.cc:158
+        return bs
+
+    def set_linear_scaling_terms(self, on: bool = True) -> None:
+        """NOT A PORT (pyMoses extension, `--linear-scaling terms`, server round 12, T2.2;
+        no C++ counterpart).
+
+        With it on, a program is split into terms (`top_level_terms`: the children of a
+        root `+`, else the whole program is one term) and scored on `w_0 + sum_i w_i t_i`.
+        The weights are the least-squares fit of the term outputs to the target on this
+        scorer's own rows (`least_squares.fit_terms`; `tools/gomea/sr_eval.py` refits them
+        by the same rule for the report). The behavioural score keeps its shape: one
+        `-err_func(fitted, tar)` per row.
+
+        The program gets exactly the score of `--linear-scaling 1` (`_scaled_bscore`, the
+        plain a + b*f fit) when it has one term, and when the per-term fit falls back:
+        a term is a numeric leaf or is constant on the rows, the terms are collinear, a
+        term output or a number of the fit is not finite (`least_squares`), or a term
+        cannot be evaluated (the plain path then fails in the same way). The score is
+        still a pure function of the program, so caches keyed by program stay valid.
+        `_terms_stats` counts the calls by outcome (`TERMS_STATS_KEYS`); it exists only
+        while the option is on. Turning this on turns `set_linear_scaling` off.
+        """
+        self._linear_scaling_terms = bool(on)
+        if self._linear_scaling_terms:
+            self._linear_scaling = False
+        self._target_values = (
+            [get_contin(v) for v in self._target] if self._linear_scaling_terms else None
+        )
+        self._terms_stats = (
+            dict.fromkeys(TERMS_STATS_KEYS, 0) if self._linear_scaling_terms else None
+        )
+
+    def term_fit(self, tr: combo_tree) -> tuple[int, TermFit | None]:
+        """NOT A PORT: `(number of terms, fit)` of `tr` on this scorer's rows, as
+        `--linear-scaling terms` scores it. `fit` is `None` for one term; for a fallback,
+        `fit.weights` is `None` and `fit.reason` gives the cause (`least_squares`, or
+        `FALLBACK_ERROR` when a term cannot be evaluated)."""
+        return self._term_fit(tr, interpreter_visitor(tr))
+
+    def _term_fit(self, tr: combo_tree, iv: interpreter_visitor) -> tuple[int, TermFit | None]:
+        targets = self._target_values
+        if targets is None:
+            targets = self._target_values = [get_contin(v) for v in self._target]
+        if len(self._cti) != len(targets):
+            raise ValueError("contin_bscore: input and target row counts differ")
+        nodes = top_level_terms(tr)
+        if len(nodes) < 2:
+            return len(nodes), None
+        if any(is_contin(n.data) for n in nodes):
+            # A numeric leaf is a constant term: no need to evaluate the terms.
+            return len(nodes), TermFit(None, FALLBACK_CONSTANT)
+        # Each term is evaluated with the interpreter that the whole program uses on that
+        # row, row by row and in term order, as the root `+` evaluates its children.
+        visitors = None
+        cols: list[list[float]] = [[] for _ in nodes]
+        try:
+            for row in self._cti:
+                r = list(row)
+                if r and all(is_contin(x) for x in r):
+                    # A row of contin inputs: `interpreter_visitor`'s choice for it
+                    # (table.h:332-336), made once for all the terms of the row.
+                    interp = mixed_interpreter.from_contin_inputs(r)
+                    for col, n in zip(cols, nodes, strict=True):
+                        col.append(get_contin(interp(n)))
+                    continue
+                if visitors is None:  # any other row: one visitor for each term
+                    visitors = []
+                    for n in nodes:
+                        v = interpreter_visitor(combo_tree(n))
+                        v.mixed = iv.mixed
+                        visitors.append(v)
+                for col, v in zip(cols, visitors, strict=True):
+                    col.append(get_contin(v(r)))
+        except Exception:  # any evaluation error: the plain path gives the score
+            return len(nodes), TermFit(None, FALLBACK_ERROR)
+        return len(nodes), fit_terms(targets, cols)
+
+    def _terms_bscore(self, tr: combo_tree, iv: interpreter_visitor) -> behavioral_score:
+        """NOT A PORT: `__call__` with `--linear-scaling terms` (see
+        `set_linear_scaling_terms`)."""
+        k, fit = self._term_fit(tr, iv)
+        stats = self._terms_stats
+        if stats is not None:
+            stats["calls"] += 1
+            stats["terms"] += k
+            if fit is None:
+                stats["one_term"] += 1
+            elif fit.weights is None:
+                stats["fallback_" + fit.reason] += 1
+            else:
+                stats["fitted"] += 1
+        if fit is None or fit.fitted is None:
+            return self._scaled_bscore(tr, iv)
+        bs: behavioral_score = [
+            -self._err_func(f, tar)
+            for f, tar in zip(fit.fitted, self._target_values, strict=True)
         ]
         log_candidate_bscore(tr, bs)  # C++: bscores.cc:158
         return bs
@@ -673,6 +779,40 @@ def linear_scaling(y: Sequence[float], p: Sequence[float]) -> tuple[float, float
     if not math.isfinite(b):
         return my, 0.0
     return my - b * mp_, b
+
+
+# NOT A PORT (`--linear-scaling terms`): the fallback reason when a term cannot be
+# evaluated, and the counters of `contin_bscore._terms_stats` (`terms` is the sum of
+# the term counts of the scored programs).
+FALLBACK_ERROR = "error"
+TERMS_STATS_KEYS = (
+    "calls",
+    "terms",
+    "one_term",
+    "fitted",
+    "fallback_constant",
+    "fallback_singular",
+    "fallback_nonfinite",
+    "fallback_error",
+)
+
+
+def top_level_terms(tr: combo_tree) -> list:
+    """NOT A PORT (`--linear-scaling terms`, server round 12): the top-level terms of
+    `tr`, as nodes of `tr`: the children of the root when the root is `+`, else the root
+    alone (one term). An empty tree has no terms."""
+    root = tr.begin()
+    if root is None:
+        return []
+    v = root.data
+    if isinstance(v, builtin) and v is builtin.plus and root.first_child is not None:
+        kids = []
+        child = root.first_child
+        while child is not None:
+            kids.append(child)
+            child = child.next_sibling
+        return kids
+    return [root]
 
 
 def _c_div(x: score_t, y: score_t) -> score_t:
