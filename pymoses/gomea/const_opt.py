@@ -47,6 +47,9 @@ from pymoses.moses.scoring.least_squares import PIVOT_TOL, solve  # noqa: F401
 
 CONST_OPT_MODES = ("none", "lm", "mutate", "polish")
 CONST_OPT_GUARDS = ("none", "val")
+# NOT A PORT, server round 12 (``--const-opt-during``): ``none`` (off) or ``elite`` (LM on
+# each offspring that becomes a new deme best, during the search).
+CONST_OPT_DURING_MODES = ("none", "elite")
 
 # LM settings (pre-registration, "The constant-tuning code").
 LM_MAX_ITERATIONS = 10

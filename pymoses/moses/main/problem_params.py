@@ -674,6 +674,18 @@ _PORT_OPTIONS = (
         "placeholder) is new. Each one as the best one (guard, write-back, every "
         "pass counts). 0 = off. Default 0.",
     ),
+    # NOT A PORT, server round 12, T2.3 (off by default: a default run is unchanged).
+    (
+        "--const-opt-during",
+        "const_opt_during",
+        str,
+        "none",
+        "with -a gomea --const-opt lm --gomea-contin copy: none; elite (during the "
+        "search, LM on each offspring that becomes a new deme best, on the "
+        "constants of its unreduced program; the tuned constants go back into its "
+        "genes, kept if not worse in the deme; each pass counts and obeys the deme "
+        "cap). Not with --const-opt-top-k. Default none.",
+    ),
 )
 _GOMEA_INIT_CHOICES = ("sampler", "uniform")
 _GOMEA_ACCEPT_CHOICES = ("nonworse", "strict")
@@ -685,6 +697,7 @@ _GOMEA_LONG_DEME_RULE_CHOICES = ("top", "random")
 _GOMEA_KNOB_SELECT_CHOICES = ("explore", "static", "random")
 _CONST_OPT_CHOICES = ("none", "lm", "mutate", "polish")
 _CONST_OPT_GUARD_CHOICES = ("none", "val")
+_CONST_OPT_DURING_CHOICES = ("none", "elite")  # server round 12
 _GOMEA_KNOB_RANK0_CHOICES = ("contrast", "entropy", "random")
 
 
@@ -744,6 +757,7 @@ def _gomea_params_from_args(args: argparse.Namespace) -> gomea_parameters:
     v["const_opt_guard"] = getattr(args, "const_opt_guard", "none")
     v["const_opt_reserve"] = getattr(args, "const_opt_reserve", 0)  # server round 11
     v["const_opt_top_k"] = getattr(args, "const_opt_top_k", 0)  # server round 12
+    v["const_opt_during"] = getattr(args, "const_opt_during", "none")  # server round 12
     if v["gomea_fos"] not in _GOMEA_FOS_CHOICES:
         raise ValueError(
             f"--gomea-fos {v['gomea_fos']} is not recognized. "
@@ -844,6 +858,7 @@ def _gomea_params_from_args(args: argparse.Namespace) -> gomea_parameters:
         const_opt_guard=v["const_opt_guard"],
         const_opt_reserve=v["const_opt_reserve"],
         const_opt_top_k=v["const_opt_top_k"],
+        const_opt_during=v["const_opt_during"],
         # server round 6: read only by --gomea-pop-size dynamic
         hc_fraction_of_nn=getattr(args, "hc_frac_of_nn", 2.0),
         hc_max_nn_evals=getattr(args, "hc_max_nn", 20000),
@@ -898,6 +913,23 @@ def _check_const_opt(v: dict, opt_algo: str | None) -> None:
         raise ValueError(f"--const-opt-top-k needs --const-opt lm, got --const-opt {mode}")
     if top_k > 0 and opt_algo != "gomea":
         raise ValueError(f"--const-opt-top-k needs -a gomea, got -a {opt_algo}")
+    # NOT A PORT, server round 12 (T2.3): LM on new deme bests during the GOMEA search
+    during = v["const_opt_during"]
+    if during not in _CONST_OPT_DURING_CHOICES:
+        raise ValueError(
+            f"--const-opt-during {during} is not recognized. "
+            f"Supported: {', '.join(_CONST_OPT_DURING_CHOICES)}."
+        )
+    if during != "none" and mode != "lm":
+        raise ValueError(
+            f"--const-opt-during {during} needs --const-opt lm, got --const-opt {mode}"
+        )
+    if during != "none" and opt_algo != "gomea":
+        raise ValueError(f"--const-opt-during {during} needs -a gomea, got -a {opt_algo}")
+    if during != "none" and v["gomea_contin"] != "copy":
+        raise ValueError(f"--const-opt-during {during} needs --gomea-contin copy")
+    if during != "none" and top_k > 0:
+        raise ValueError(f"--const-opt-during {during} and --const-opt-top-k exclude each other")
 
 
 def _check_knob_cap(v: dict) -> int | None:

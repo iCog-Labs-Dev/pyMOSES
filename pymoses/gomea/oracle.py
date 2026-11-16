@@ -342,6 +342,19 @@ class EvaluationOracle:
         self.ledger.requests += 1
         self.ledger.tuning_requests += 1
 
+    def charge_search_tuning(self) -> None:
+        """NOT A PORT, server round 12 (``--const-opt-during elite``): charge one evaluation
+        (one pass over the training rows by LM during the deme's search). Unlike
+        ``charge_tuning``, every rule of ``check`` applies: the run's budget, the deme's cap
+        (``inner_cap``), the time limit and the stall rule. Raises ``BudgetExhausted`` with
+        the reason of ``check`` first. Counted in ``ledger.requests`` and
+        ``ledger.tuning_requests``."""
+        reason = self.check()
+        if reason is not None:
+            raise BudgetExhausted(reason)
+        self.ledger.requests += 1
+        self.ledger.tuning_requests += 1
+
     def best_genotype(self) -> tuple[int, ...] | None:
         """GOMEA extension: the genotype of ``best_so_far`` (``None`` when it
         came from ``preload`` or nothing was evaluated)."""

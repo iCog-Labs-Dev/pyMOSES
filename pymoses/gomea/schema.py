@@ -34,7 +34,7 @@ import copy
 import hashlib
 from collections.abc import Sequence
 
-from pymoses.comboreduct.combo.vertex import combo_tree
+from pymoses.comboreduct.combo.vertex import combo_tree, is_contin
 from pymoses.moses.representation.field_set import contin_spec, contin_stepper, field_set
 from pymoses.moses.representation.instance import _PACKED_MASK, bits_per_packed_t, instance
 from pymoses.moses.representation.representation import representation
@@ -330,6 +330,60 @@ class FrozenSchema:
             new_parent = cand.append_child(parent_dst, copy.copy(src.data))
         for child in rep._exemplar.children(src):
             self._candidate_rec(rep, inst, free, visited, child, new_parent, cand)
+
+    # NOT A PORT, server round 12 (``--const-opt-during elite``, T2.3).
+    def candidate_genes(self, g: Sequence[int]) -> tuple[combo_tree, list[int | None]]:
+        """``(tree, genes)``: the unreduced program of ``g`` (the tree ``candidate(g, False)``
+        gives) and, for each constant of it (each ``contin_t`` leaf, in pre-order, the order
+        of ``const_opt.constant_nodes``), the contin gene whose knob put that leaf there, or
+        ``None`` for a leaf that no contin knob put there.
+
+        The walk is ``_candidate_rec``'s, with each node that a contin knob appends marked.
+        ``clean_combo_tree`` (not reducing) only removes nodes, so a marked node that is still
+        in the tree is the same object; a leaf that is not a marked object gets ``None``."""
+        rep = self.rep
+        inst = self.to_instance(g)
+        free = self.free_values(g)
+        cand = combo_tree()
+        made: dict[int, tuple] = {}
+        root = rep._exemplar.begin()
+        if root is not None:
+            self._candidate_rec_marked(rep, inst, free, made, root, None, cand)
+        rep.clean_combo_tree(cand, False)
+        genes: list[int | None] = []
+        for node in cand:
+            if is_contin(node.data):
+                hit = made.get(id(node))
+                genes.append(hit[1] if hit is not None and hit[0] is node else None)
+        return cand, genes
+
+    def _candidate_rec_marked(self, rep, inst, free, made, src, parent_dst, cand) -> None:
+        """``_candidate_rec`` (a copy, so that it stays unchanged) that also records, in
+        ``made``, each node a contin knob appends: ``id(node) -> (node, gene)``. The dict
+        holds the node, so its ``id`` is not used again while the dict exists."""
+        knob = rep.find_disc_knob(src)
+        if knob is not None:
+            raw = self.fields.get_raw(inst, rep._it_disc_idx[src])
+            new_src, new_parent = knob.append_to(cand, parent_dst, raw)
+            if new_src is not None:
+                for child in rep._exemplar.children(new_src):
+                    self._candidate_rec_marked(rep, inst, free, made, child, new_parent, cand)
+            return
+        contin_kb = rep.find_contin_knob(src)
+        if contin_kb is not None:
+            idx = rep._it_contin_idx[src]
+            value = free.get(idx)
+            if value is None:
+                value = self.fields.get_contin(inst, idx)
+            node = contin_kb.append_to(cand, parent_dst, value)
+            made[id(node)] = (node, idx)
+            return
+        if cand.empty():
+            new_parent = cand.set_head(src.data)
+        else:
+            new_parent = cand.append_child(parent_dst, copy.copy(src.data))
+        for child in rep._exemplar.children(src):
+            self._candidate_rec_marked(rep, inst, free, made, child, new_parent, cand)
 
     def active_contin(self, g: Sequence[int]) -> list[int]:
         """The contin genes of ``g`` whose constant is in its (unreduced)

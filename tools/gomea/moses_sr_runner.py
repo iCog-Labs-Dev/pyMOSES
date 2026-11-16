@@ -448,6 +448,13 @@ def const_opt_summary(events: Path, n_evals: int | None) -> dict | None:
         out["polish_accepted"] = bool(polish.get("accepted"))
         out["tuning_evals"] += int(polish.get("evals", 0))
     out["tuning_share"] = out["tuning_evals"] / n_evals if n_evals else None
+    elite = [e for e in ends if "lm_elite_calls" in e]
+    if elite:
+        # server round 12 (--const-opt-during elite): the LM calls during the search, which
+        # lm_calls and tuning_evals above also count (absent without the option)
+        for k in ("lm_elite_calls", "lm_elite_evals", "lm_elite_kept", "lm_elite_worse",
+                  "lm_elite_guard_rejected", "lm_elite_not_knob"):
+            out[k] = sum(int(e.get(k, 0)) for e in elite)
     guards = [e for e in ends if e.get("guard")]
     if guards:
         out["guard"] = guards[0]["guard"]

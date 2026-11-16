@@ -112,6 +112,7 @@ class GomeaEngine:
         fitness: Callable[[Score], float] | None = None,
         mutate: Callable[[Individual], Individual] | None = None,
         distance: Callable[[Sequence[int]], list[list[int]]] | None = None,
+        tune_elite: Callable[[Individual], Individual] | None = None,
     ) -> None:
         self.domains = list(domains)
         self.params = params
@@ -147,6 +148,11 @@ class GomeaEngine:
         # Server round 12 (``--gomea-fos np``): the knob tree distance of
         # ``LinkageModel`` mode ``"np"`` (``None`` = not given; only ``np`` reads it).
         self.distance = distance
+        # NOT A PORT, server round 12 (``--const-opt-during elite``): called with each GOM
+        # offspring after ``mutate``, returns it, or its copy with tuned constants when it is
+        # a new deme best (``None`` = off). It raises ``GomInterrupted`` when the budget runs
+        # out.
+        self.tune_elite = tune_elite
 
     def best_of(self, pop: Sequence[Individual]) -> Individual:
         """The best individual; ties go to the lowest index."""
@@ -291,6 +297,10 @@ def perform_generation(
     another knob. ``fos_size`` is then the size of that FOS, and the record
     gains the ``knob_*`` fields of ``KnobSelector.record``. With K = 0 the FOS
     is ``model.learn``'s and the record is unchanged.
+
+    NOT A PORT, server round 12 (``--const-opt-during elite``): ``eng.tune_elite``, when
+    set, is called with each GOM offspring after ``eng.mutate`` and before the elite
+    update and FI, and its return value is the offspring. ``None`` changes nothing.
     """
     t0 = time.perf_counter()
     donors = list(P)
@@ -350,6 +360,9 @@ def perform_generation(
             mutate = getattr(eng, "mutate", None)
             if mutate is not None:
                 off = mutate(off)
+            tune = getattr(eng, "tune_elite", None)  # server round 12 (None = off)
+            if tune is not None:
+                off = tune(off)
             eng.offer_elite(off)
             if (
                 eng.params.forced_improvement

@@ -25,9 +25,11 @@ from collections.abc import Hashable, Sequence
 from fractions import Fraction
 
 from pymoses.gomea.const_opt import (
+    CONST_OPT_DURING_MODES,
     CONST_OPT_GUARDS,
     CONST_OPT_MODES,
     RegressionRows,
+    constant_nodes,
     find_contin_bscore,
     gaussian,
     guard_accepts,
@@ -250,7 +252,17 @@ class gomea_parameters:
     program (the one that K = 0 tunes), then the deme entries in MOSES score order (ties:
     entry order) whose structure (``const_opt.structure_key`` of the reduced tree) is new,
     until K structures are taken. Each one gets the LM, guard, charges and write-back of
-    ``_tune_best``. ``-a gomea`` only."""
+    ``_tune_best``. ``-a gomea`` only.
+
+    NOT A PORT, server round 12 (T2.3, off by default, and then left out of ``as_dict``):
+    with ``const_opt`` ``"lm"``, ``contin`` ``"copy"`` and ``const_opt_during`` ``"elite"``,
+    each GOM offspring that is a new deme best (a strict improvement under the MOSES score)
+    gets LM with the guard during the search (``_elite_tuner``). LM tunes the constants of its
+    unreduced program, which are its contin genes; the tuned values go back into its genotype
+    as free contin codes, and the tuned offspring replaces it if it is not worse under the
+    deme's comparator. These passes obey the deme cap and the stall rule
+    (``EvaluationOracle.charge_search_tuning``). LM at the end of the deme does not change.
+    ``-a gomea`` only; not with ``const_opt_top_k``."""
 
     def __init__(
         self,
@@ -291,6 +303,7 @@ class gomea_parameters:
         hc_max_nn_evals: int = 20000,
         const_opt_reserve: int = 0,
         const_opt_top_k: int = 0,
+        const_opt_during: str = "none",
     ) -> None:
         if pop_size == DYNAMIC_POP_SIZE:
             if pop_fraction > 0:
@@ -399,6 +412,22 @@ class gomea_parameters:
             )
         if const_opt_top_k > 0 and const_opt != "lm":
             raise ValueError("const_opt_top_k needs const_opt 'lm'")
+        if const_opt_during not in CONST_OPT_DURING_MODES:
+            raise ValueError(
+                f"const_opt_during must be one of {CONST_OPT_DURING_MODES}, "
+                f"got {const_opt_during!r}"
+            )
+        if const_opt_during != "none":
+            if const_opt != "lm":
+                raise ValueError("const_opt_during 'elite' needs const_opt 'lm'")
+            if contin != "copy":
+                raise ValueError(
+                    "const_opt_during 'elite' needs contin 'copy' (constants as genes)"
+                )
+            if const_opt_top_k > 0:
+                raise ValueError(
+                    "const_opt_during 'elite' and const_opt_top_k > 0 exclude each other"
+                )
         parse_radii(radii)
 
         self.pop_size = pop_size
@@ -438,6 +467,7 @@ class gomea_parameters:
         self.hc_max_nn_evals = hc_max_nn_evals
         self.const_opt_reserve = const_opt_reserve
         self.const_opt_top_k = const_opt_top_k
+        self.const_opt_during = const_opt_during
 
     # The opt-in options, left out of ``as_dict`` while at their default
     # (off), so a default run's telemetry is unchanged.
@@ -457,6 +487,7 @@ class gomea_parameters:
         "const_opt_guard": "none",
         "const_opt_reserve": 0,
         "const_opt_top_k": 0,
+        "const_opt_during": "none",
     }
 
     # The knob-cap options: all left out of ``as_dict`` while ``knob_cap`` is 0
@@ -561,6 +592,18 @@ def _new_const_opt_counts() -> dict:
         "tuning_evals": 0,
         "lm": None,
     }
+
+
+# NOT A PORT, server round 12 (``--const-opt-during elite``): the counts of LM during the
+# search, added to ``const_opt`` (the "end" event) only when the option is on.
+ELITE_COUNT_KEYS = (
+    "lm_elite_calls",
+    "lm_elite_evals",
+    "lm_elite_kept",
+    "lm_elite_worse",
+    "lm_elite_guard_rejected",
+    "lm_elite_not_knob",
+)
 
 
 def _const_opt_mode(opt) -> str:
@@ -1040,6 +1083,7 @@ class gomea_optimization(optimizer_base):
                     fitness=self._fitness(),
                     mutate=self._mutator(schema, oracle, ev),
                     distance=distance_fn(schema) if gp.fos == "np" else None,
+                    tune_elite=self._elite_tuner(schema, oracle, ev),
                 )
                 reason = engine.run(population).termination_reason
         except KeyboardInterrupt:
@@ -1174,6 +1218,12 @@ class gomea_optimization(optimizer_base):
         if self.gomea_params.const_opt_top_k > 0:
             # NOT A PORT, server round 12: the records of the top-K LM calls (absent when off).
             self.last_result["const_opt"].setdefault("lm_topk", [])
+        if self.gomea_params.const_opt_during != "none":
+            # NOT A PORT, server round 12: the counts and records of LM during the search
+            # (absent when off).
+            for k in ELITE_COUNT_KEYS:
+                self.last_result["const_opt"].setdefault(k, 0)
+            self.last_result["const_opt"].setdefault("lm_elite", [])
         sink.emit("end", **self.last_result)
 
     # GOMEA extension (``--const-opt mutate``): coefficient mutation.
@@ -1219,6 +1269,156 @@ class gomea_optimization(optimizer_base):
             return Individual(cur_g, cur_s, cur_k)
 
         return mutate
+
+    # NOT A PORT, server round 12 (``--const-opt-during elite``, T2.3).
+    def _elite_tuner(self, schema: FrozenSchema, oracle: EvaluationOracle, ev: _OracleEvaluator):
+        """The engine's ``tune_elite`` hook, or ``None`` (nothing built, nothing drawn) unless
+        ``const_opt_during`` is ``"elite"``.
+
+        The hook gets each GOM offspring (after ``mutate``). The offspring is a new deme best
+        when the deme's best under the MOSES score (``oracle.best_genotype``, the program LM
+        tunes at the end of the deme) strictly improved since the previous call of the hook
+        (or since the initial population, for the first call) and the offspring is that best
+        program. Only then ``_tune_elite`` runs LM on it; else the offspring is returned as it
+        is. The hook draws no random numbers."""
+        if self.gomea_params.const_opt_during != "elite":
+            return None
+        co = self._co
+        for k in ELITE_COUNT_KEYS:
+            co.setdefault(k, 0)
+        co.setdefault("lm_elite", [])
+        keep = oracle.keep if self.gomea_params.deme_store == "accepted" else None
+        cscorer = oracle.iscorer._cscorer
+        rows = RegressionRows.of_bscore(find_contin_bscore(cscorer))
+        val = None
+        if self.gomea_params.const_opt_guard == "val":
+            val = self._guard_rows(cscorer, rows)
+        state = {"at": oracle.evals_at_best()}
+
+        def tune(ind: Individual) -> Individual:
+            at = oracle.evals_at_best()
+            new_best = at != state["at"] and oracle.best_genotype() == ind.genotype
+            state["at"] = at
+            if not new_best:
+                return ind
+            try:
+                return self._tune_elite(ind, schema, oracle, ev, rows, val, keep)
+            finally:
+                state["at"] = oracle.evals_at_best()
+
+        return tune
+
+    def _tune_elite(
+        self,
+        ind: Individual,
+        schema: FrozenSchema,
+        oracle: EvaluationOracle,
+        ev: _OracleEvaluator,
+        rows: RegressionRows,
+        val: RegressionRows | None,
+        keep,
+    ) -> Individual:
+        """LM with the guard on the offspring ``ind`` (a new deme best) during the search.
+
+        1. LM tunes every constant of the UNREDUCED program of ``ind``
+           (``FrozenSchema.candidate_genes``): each one is the value of one contin gene. If
+           a constant is not the value of a contin gene (or a gene gives two constants), the
+           offspring is returned as it is (``lm_elite_not_knob``).
+        2. With ``const_opt_guard`` ``"val"``, ``guard_accepts`` compares the old and the
+           tuned unreduced program on the validation rows; a worse validation NMSE keeps the
+           offspring.
+        3. Each tuned value that differs from the gene's value becomes a free contin code of
+           that gene (``FrozenSchema.register_contin_value``, as ``--const-opt mutate``
+           does). The new genotype is scored through the oracle (one evaluation). It
+           replaces the offspring only if it is not worse under the deme's comparator
+           (``ev.worse``), and it is then marked with ``keep`` (``--gomea-deme-store
+           accepted``).
+
+        Every LM and guard pass is charged by ``oracle.charge_search_tuning`` (the run's
+        budget, the deme cap, the time limit, the stall rule). When one of them stops a pass,
+        or the scoring, ``GomInterrupted`` is raised with the offspring ``ind`` (the last
+        kept state), as ``_mutator`` does. The call counts in ``lm_calls``, ``lm_<status>``,
+        ``tuning_evals`` (its LM and guard passes and the scoring) and the guard counts, and
+        in the ``ELITE_COUNT_KEYS``; its record goes to ``const_opt.lm_elite``."""
+        co = self._co
+        g, score0 = ind.genotype, ind.score
+        tree, genes = schema.candidate_genes(g)
+        if None in genes or len(set(genes)) != len(genes):
+            co["lm_elite_not_knob"] += 1
+            return ind
+        stop: list[str] = []
+
+        def charge() -> None:
+            try:
+                oracle.charge_search_tuning()
+            except BudgetExhausted as exc:
+                stop.append(exc.reason)
+                raise
+
+        before = oracle.ledger.requests
+        lm = levenberg_marquardt(tree, rows, charge)
+        rec = lm.record()
+        reduced = schema.candidate(g, getattr(oracle.iscorer, "_reduce", True))
+        rec["n_constants_reduced"] = len(constant_nodes(reduced))
+        rec["written_back"] = False
+        try:
+            if stop:
+                rec["outcome"] = "budget"
+                raise GomInterrupted(ind, stop[0])
+            if lm.tree is None:
+                rec["outcome"] = "not_improved"
+                return ind
+            if val is not None:
+                try:
+                    verdict = guard_accepts(tree, lm.tree, rows, val, charge)
+                except BudgetExhausted as exc:
+                    rec["budget"] = True
+                    rec["outcome"] = "budget"
+                    raise GomInterrupted(ind, exc.reason) from exc
+                rec.update(
+                    guard="accepted" if verdict["accepted"] else "rejected",
+                    val_nmse_old=verdict["val_nmse_old"],
+                    val_nmse_new=verdict["val_nmse_new"],
+                )
+                co["lm_guard_checked"] = co.get("lm_guard_checked", 0) + 1
+                if not verdict["accepted"]:
+                    co["lm_guard_rejected"] = co.get("lm_guard_rejected", 0) + 1
+                    co["lm_elite_guard_rejected"] += 1
+                    rec["outcome"] = "guard_rejected"
+                    return ind
+            new = list(g)
+            for p, v in zip(genes, lm.values, strict=True):
+                if v != schema.contin_value(p, g[p]):
+                    new[p] = schema.register_contin_value(p, v)
+            trial = tuple(new)
+            if trial == g:
+                rec["outcome"] = "unchanged"
+                return ind
+            try:
+                score = ev.evaluate(trial)
+            except BudgetExhausted as exc:
+                rec["budget"] = True
+                rec["outcome"] = "budget"
+                raise GomInterrupted(ind, exc.reason) from exc
+            if ev.worse(score, score0):
+                co["lm_elite_worse"] += 1
+                rec["outcome"] = "worse"
+                return ind
+            co["lm_elite_kept"] += 1
+            rec["outcome"] = "kept"
+            rec["written_back"] = True
+            if keep is not None:
+                keep(trial)
+            return Individual(trial, score, ev.phenotype_key(trial))
+        finally:
+            used = oracle.ledger.requests - before
+            rec["evals"] = used
+            co["lm_calls"] += 1
+            co["lm_" + lm.status] += 1
+            co["tuning_evals"] += used
+            co["lm_elite_calls"] += 1
+            co["lm_elite_evals"] += used
+            co["lm_elite"].append(rec)
 
     # NOT A PORT (``--const-opt-guard val``, server round 5).
     def _guard_rows(self, cscorer, rows: RegressionRows) -> RegressionRows:
