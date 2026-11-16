@@ -111,6 +111,7 @@ class GomeaEngine:
         rng_knob: MT19937RandGen | None = None,
         fitness: Callable[[Score], float] | None = None,
         mutate: Callable[[Individual], Individual] | None = None,
+        distance: Callable[[Sequence[int]], list[list[int]]] | None = None,
     ) -> None:
         self.domains = list(domains)
         self.params = params
@@ -143,6 +144,9 @@ class GomeaEngine:
         # offspring, returns it with its constants mutated (``None`` = off).
         # It raises ``GomInterrupted`` when the budget runs out.
         self.mutate = mutate
+        # Server round 12 (``--gomea-fos np``): the knob tree distance of
+        # ``LinkageModel`` mode ``"np"`` (``None`` = not given; only ``np`` reads it).
+        self.distance = distance
 
     def best_of(self, pop: Sequence[Individual]) -> Individual:
         """The best individual; ties go to the lowest index."""
@@ -189,10 +193,12 @@ class GomeaEngine:
         P = self._pop
         if any(self.target_met(ind) for ind in P):
             return "target_reached"
+        # Passed only when set, so the call is unchanged without it.
+        extra = {} if self.distance is None else {"distance": self.distance}
         if self.symbolize is None:
-            model = LinkageModel(self.params.fos_mode, self.rng_link)
+            model = LinkageModel(self.params.fos_mode, self.rng_link, **extra)
         else:
-            model = LinkageModel(self.params.fos_mode, self.rng_link, self.symbolize)
+            model = LinkageModel(self.params.fos_mode, self.rng_link, self.symbolize, **extra)
         model.calibrate([ind.genotype for ind in P], self.domains)
         self.model = model
         # N < 2 needs no check of its own: a single individual makes every

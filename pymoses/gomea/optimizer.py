@@ -40,6 +40,7 @@ from pymoses.gomea.fos import FOS_TOPK_MODES
 from pymoses.gomea.gom import ACCEPTANCE_MODES, GomInterrupted, Individual
 from pymoses.gomea.knob_cap import KNOB_RANK0_MODES, KNOB_SELECT_MODES, default_explore
 from pymoses.gomea.long_deme import LONG_DEME_RULES, LongDemePolicy
+from pymoses.gomea.node_proximity import distance_fn
 from pymoses.gomea.oracle import BudgetExhausted, EvaluationOracle
 from pymoses.gomea.population import (
     INIT_MODES,
@@ -104,7 +105,8 @@ def dynamic_pop_size(fields, evals_left: int, fraction_of_nn: float, max_nn_eval
     return max(2, climber.n_new_instances(1, max(0, evals_left), 0, nn))
 
 
-FOS_MODES = ("lt-b", "lt-mi", "rt", "uni")
+# ``np`` (server round 12): node-proximity linkage, see ``fos.LinkageModel``.
+FOS_MODES = ("lt-b", "lt-mi", "rt", "uni", "np")
 
 # GOMEA extension, ``--gomea-deme-store``: which evaluated trials the deme
 # hands back to MOSES (see ``gomea_parameters``).
@@ -197,9 +199,17 @@ class gomea_parameters:
     out of ``as_dict``): ``fos_topk`` K > 0 makes every generation's GOM
     (and forced improvement) visit only K FOS subsets, chosen by
     ``fos_topk_mode``: ``"linkage"`` (the K linkage-tree merges with the
-    highest UPGMA similarity; needs ``fos`` ``lt-b`` or ``lt-mi``) or
-    ``"random"`` (K drawn uniformly each generation). See
+    highest UPGMA similarity; needs ``fos`` ``lt-b``, ``lt-mi`` or ``np``)
+    or ``"random"`` (K drawn uniformly each generation). See
     ``fos.select_fos_topk`` and ``engine.perform_generation``.
+
+    NOT A PORT, node-proximity linkage (server round 12, T2.1): ``fos``
+    ``"np"`` builds each deme's FOS once, as a linkage tree on the tree
+    distance between the exemplar nodes of the knobs (``fos.LinkageModel``,
+    ``pymoses.gomea.node_proximity``). It refuses ``knob_cap`` > 0 (the
+    knob cap picks the knobs of each generation from population statistics,
+    so the FOS would not be static). With top-k ``"linkage"`` it keeps the
+    K merges with the smallest mean distance.
 
     GOMEA extension, long demes for promising exemplars (Phase 1af, off by
     default, and then left out of ``as_dict``): ``long_deme_cap`` C > 0
@@ -321,7 +331,7 @@ class gomea_parameters:
             )
         if fos_topk > 0 and fos_topk_mode == "linkage" and fos in ("uni", "rt"):
             raise ValueError(
-                f"fos_topk_mode 'linkage' needs a linkage-tree fos (lt-b, lt-mi), got {fos!r}"
+                f"fos_topk_mode 'linkage' needs a linkage-tree fos (lt-b, lt-mi, np), got {fos!r}"
             )
         if long_deme_cap < 0:
             raise ValueError(f"long_deme_cap must be >= 0 (0 = off), got {long_deme_cap}")
@@ -333,6 +343,8 @@ class gomea_parameters:
             raise ValueError(f"long_deme_prob must be in [0, 1], got {long_deme_prob}")
         if knob_cap < 0:
             raise ValueError(f"knob_cap must be >= 0 (0 = off), got {knob_cap}")
+        if knob_cap > 0 and fos == "np":
+            raise ValueError("fos 'np' (a static FOS) does not support knob_cap > 0")
         if knob_select not in KNOB_SELECT_MODES:
             raise ValueError(f"knob_select must be one of {KNOB_SELECT_MODES}, got {knob_select!r}")
         if knob_rank0 not in KNOB_RANK0_MODES:
@@ -1007,6 +1019,7 @@ class gomea_optimization(optimizer_base):
                     rng_knob=self._rng_knob,
                     fitness=self._fitness(),
                     mutate=self._mutator(schema, oracle, ev),
+                    distance=distance_fn(schema) if gp.fos == "np" else None,
                 )
                 reason = engine.run(population).termination_reason
         except KeyboardInterrupt:

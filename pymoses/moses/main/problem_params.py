@@ -277,7 +277,10 @@ _SUPPORTED_OPT_ALGOS = frozenset({"hc", "sa", "un", "ps", "gomea", "hc-gomea", "
 # Server round 6: `--gomea-pop-size dynamic` sizes each deme's population with
 # classic hill climbing's count at distance 1 (`pymoses.gomea.optimizer.
 # dynamic_pop_size`), from `--hc-fraction-of-nn` and `--hc-max-nn-evals`.
-_GOMEA_FOS_CHOICES = ("lt-b", "lt-mi", "rt", "uni")
+#
+# Server round 12 (T2.1): `--gomea-fos np` is node-proximity linkage (a static
+# linkage tree on the tree distance between the knobs; `pymoses.gomea.fos`).
+_GOMEA_FOS_CHOICES = ("lt-b", "lt-mi", "rt", "uni", "np")
 
 
 def _gomea_pop_size_arg(text: str) -> int | str:
@@ -308,7 +311,9 @@ _GOMEA_OPTIONS = (
         str,
         "lt-b",
         "linkage model: lt-b (bias-corrected MI linkage tree), lt-mi (MI linkage "
-        "tree), rt (random tree), uni (no linkage). Default lt-b.",
+        "tree), rt (random tree), uni (no linkage), np (node-proximity linkage "
+        "tree: one static tree for each deme, from the number of edges between "
+        "the knobs in the exemplar; not with --gomea-knob-cap). Default lt-b.",
     ),
     (
         "--gomea-fi",
@@ -483,7 +488,7 @@ _GOMEA_OPTIONS = (
         str,
         "linkage",
         "with --gomea-fos-topk K: linkage (the K linkage-tree merges with the "
-        "strongest linkage; needs --gomea-fos lt-b or lt-mi) or random (K "
+        "strongest linkage; needs --gomea-fos lt-b, lt-mi or np) or random (K "
         "subsets drawn uniformly each generation). Default linkage.",
     ),
     # Long demes for promising exemplars (Phase 1af; off by default: a
@@ -760,9 +765,13 @@ def _gomea_params_from_args(args: argparse.Namespace) -> gomea_parameters:
     linkage_topk = v["gomea_fos_topk"] and v["gomea_fos_topk_mode"] == "linkage"
     if linkage_topk and v["gomea_fos"] in ("uni", "rt"):
         raise ValueError(
-            "--gomea-fos-topk-mode linkage needs --gomea-fos lt-b or lt-mi, "
+            "--gomea-fos-topk-mode linkage needs --gomea-fos lt-b, lt-mi or np, "
             f"got --gomea-fos {v['gomea_fos']}"
         )
+    if v["gomea_fos"] == "np" and v["gomea_knob_cap"] > 0:
+        # Server round 12: the knob cap picks the knobs of each generation from
+        # population statistics, so the FOS of np would not be static.
+        raise ValueError("--gomea-fos np does not support --gomea-knob-cap")
     _check_long_deme(v, cap, getattr(args, "opt_algo", None))
     _check_const_opt(v, getattr(args, "opt_algo", None))
     knob_explore = _check_knob_cap(v)

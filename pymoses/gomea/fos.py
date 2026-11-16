@@ -235,21 +235,42 @@ class LinkageModel:
     strongly linked); ``None`` for a singleton and for every subset of the
     ``uni`` and ``rt`` modes, which take no statistics. Recording it draws
     nothing from ``rng`` and does not change the FOS.
+
+    NOT A PORT, server round 12 (``--gomea-fos np``, node-proximity linkage,
+    Koch, Alderliesten and Bosman, GECCO 2026): mode ``'np'`` builds the
+    linkage tree as ``lt-b`` does (``linkage_tree_fos``, the same tie rule,
+    the order from one ``_random_order`` draw on ``rng``, the root dropped),
+    but on S(i, j) = -d(i, j), where ``distance(positions)`` gives d, the
+    number of edges between the exemplar nodes of the knobs
+    (``pymoses.gomea.node_proximity``). It takes no statistics: like ``uni``
+    and ``rt`` it ignores ``symbolize`` and links every search position. The
+    FOS is static: the first ``learn`` builds it, and every later ``learn``
+    returns the same FOS and ``last_strengths`` (the merge similarities:
+    minus the UPGMA mean distance) and draws nothing. ``learn_subset`` (the
+    knob cap) refuses it. ``distance`` is required for ``'np'`` and not read by
+    the other modes.
     """
 
-    MODES = ("uni", "rt", "lt-mi", "lt-b")
+    MODES = ("uni", "rt", "lt-mi", "lt-b", "np")
 
     def __init__(
         self,
         mode: str,
         rng: MT19937RandGen,
         symbolize: Callable[[Sequence[tuple[int, ...]]], list[tuple[int, ...]]] | None = None,
+        distance: Callable[[Sequence[int]], list[list[int]]] | None = None,
     ) -> None:
         if mode not in self.MODES:
             raise ValueError(f"unknown linkage mode {mode!r}; expected one of {self.MODES}")
+        if mode == "np" and distance is None:
+            raise ValueError("linkage mode 'np' needs distance (the knob tree distance)")
         self.mode = mode
         self.rng = rng
         self.symbolize = symbolize
+        # Server round 12 (``'np'``): the knob tree distance, and the static FOS with its
+        # strengths after the first ``learn`` (see the class docstring).
+        self.distance = distance
+        self._static: tuple[list[list[int]], list[float | None]] | None = None
         self.search_positions: tuple[int, ...] = ()
         self.constant_positions: tuple[int, ...] = ()
         # GOMEA extension: the search positions in the linkage tree, and the
@@ -326,6 +347,8 @@ class LinkageModel:
         elif self.mode == "rt":
             local = random_tree_fos(d, self.rng)
             self.last_strengths = [None] * len(local)
+        elif self.mode == "np":
+            return self._learn_static()
         elif self.symbolize is not None:
             return self._learn_symbolized(pop, first)
         else:
@@ -342,6 +365,19 @@ class LinkageModel:
         strengths: list[float | None] = [None] * d
         strengths.extend(sims)
         return tree[:-1], strengths[: len(tree) - 1]
+
+    # NOT A PORT, server round 12: the node-proximity linkage tree (``'np'``).
+    def _learn_static(self) -> list[list[int]]:
+        """The static FOS of mode ``'np'`` (at least two search positions): built on the
+        first call, then the same FOS and strengths on every call, with no draw."""
+        if self._static is None:
+            search = self.search_positions
+            S = [[-float(x) for x in row] for row in self.distance(search)]
+            local, strengths = self._tree(S, len(search))
+            self._static = ([[search[i] for i in s] for s in local], strengths)
+        fos, strengths = self._static
+        self.last_strengths = list(strengths)
+        return [list(s) for s in fos]
 
     # GOMEA extension: the linkage tree over recoded constants.
     def _learn_symbolized(
@@ -419,6 +455,8 @@ class LinkageModel:
         ``rng``) equals ``learn``'s. Sets ``last_strengths`` like ``learn``."""
         if self._length is None or self._H0 is None:
             raise RuntimeError("LinkageModel.learn_subset called before calibrate")
+        if self.mode == "np":
+            raise ValueError("linkage mode 'np' has a static FOS; the knob cap is not supported")
         self._check_pop(pop, self._length)
         first, self._first_learn = self._first_learn, None
         search = set(self.search_positions)

@@ -152,11 +152,24 @@ def _covered(fos):
     return sorted({p for s in fos for p in s})
 
 
+def _chain_distance(positions):
+    """A knob tree distance for mode ``np`` (server round 12): the positions are the nodes
+    of a chain, so p and q are |p - q| edges apart."""
+    return [[abs(p - q) for q in positions] for p in positions]
+
+
+def _model(mode, rng, *symbolize):
+    """``LinkageModel(mode, rng, *symbolize)``; mode ``np`` also gets ``_chain_distance``."""
+    if mode == "np":
+        return LinkageModel(mode, rng, *symbolize, distance=_chain_distance)
+    return LinkageModel(mode, rng, *symbolize)
+
+
 @pytest.mark.parametrize("mode", LinkageModel.MODES)
 def test_learn_covers_search_positions_and_excludes_root(mode):
     pop = _dependent_pop(7)
     domains = [3, 3, 1, 2, 2, 4, 3]
-    model = LinkageModel(mode, MT19937RandGen(11))
+    model = _model(mode, MT19937RandGen(11))
     model.calibrate(pop, domains)
     fos = model.learn(pop)
     search = list(model.search_positions)
@@ -177,7 +190,7 @@ def test_constant_fields_excluded_from_search_positions():
 @pytest.mark.parametrize("mode", LinkageModel.MODES)
 def test_single_search_position(mode):
     pop = [(0, 1, 2), (0, 0, 2), (0, 1, 2)]
-    model = LinkageModel(mode, MT19937RandGen(3))
+    model = _model(mode, MT19937RandGen(3))
     model.calibrate(pop, [1, 2, 3])
     assert model.search_positions == (1,)
     assert model.learn(pop) == [[1]]
@@ -186,7 +199,7 @@ def test_single_search_position(mode):
 @pytest.mark.parametrize("mode", LinkageModel.MODES)
 def test_no_search_positions(mode):
     pop = [(0, 1), (0, 1)]
-    model = LinkageModel(mode, MT19937RandGen(3))
+    model = _model(mode, MT19937RandGen(3))
     model.calibrate(pop, [1, 2])
     assert model.search_positions == ()
     assert model.learn(pop) == []
@@ -199,7 +212,7 @@ def test_seeded_learning_is_deterministic(mode):
     pop = [(a, a, b, b, c, c) for a, b, c in rows] * 2
     runs = []
     for _ in range(2):
-        model = LinkageModel(mode, MT19937RandGen(42))
+        model = _model(mode, MT19937RandGen(42))
         model.calibrate(pop, [2] * 6)
         runs.append([model.learn(pop) for _ in range(3)])
     assert runs[0] == runs[1]
@@ -321,7 +334,7 @@ def test_first_learn_reuse_gives_the_identical_fos_and_rng_state(mode, symbolize
         runs = []
         for reuse in (True, False):
             rng = MT19937RandGen(13)
-            model = LinkageModel(mode, rng, symbolize)
+            model = _model(mode, rng, symbolize)
             model.calibrate(pop0, doms)
             if not reuse:
                 _without_reuse(model)
