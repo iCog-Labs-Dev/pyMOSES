@@ -26,7 +26,10 @@ So, per run, the runner:
 3. scores each printed candidate with `sr_eval.py` on the ORIGINAL train, val and test
    splits (linear scaling fitted on train), and selects the candidate with the lowest
    validation NMSE. The summary reports that candidate (`test_nmse`, ...) and also the
-   first, best-training-score candidate (`first_*`).
+   first, best-training-score candidate (`first_*`). An arm with `--linear-scaling terms`
+   (server round 12) is scored with the per-term weights refitted on train
+   (`sr_eval.evaluate(..., terms=True)`); each candidate and the summary then get a
+   `terms` record (`n_terms`, `fallback`, `reason`, `weights`) of that refit.
 
 **Telemetry.** A pyMoses GOMEA arm (`-a gomea` or `-a hc-gomea` in its argv) also gets
 `--gomea-log RUN_DIR/events.jsonl`, as the Boolean runner (`benchmarks.gomea.manifest`)
@@ -286,11 +289,12 @@ def _run_one(job: dict) -> dict:
     train = sr_eval.read_table(str(sdir / "train.csv"))
     val = sr_eval.read_table(str(sdir / "val.csv"))
     test = sr_eval.read_table(str(sdir / "test.csv"))
+    terms = _linear_scaling(job["argv"]) == "terms"  # server round 12
     scored = []
     for _score, prog in cands:
         try:
-            on_val = sr_eval.evaluate(prog, train, val)
-            on_test = sr_eval.evaluate(prog, train, test)
+            on_val = sr_eval.evaluate(prog, train, val, terms=terms)
+            on_test = sr_eval.evaluate(prog, train, test, terms=terms)
         except Exception as exc:  # never let one unscorable candidate kill the pool
             scored.append(
                 {
@@ -310,6 +314,8 @@ def _run_one(job: dict) -> dict:
                 "test_nmse": on_test["test"]["nmse_scaled"],
             }
         )
+        if terms:
+            scored[-1]["terms"] = on_val["terms"]
     (run_dir / "candidates.json").write_text(json.dumps(scored, indent=2))
     if status == "ok" and not scored:
         status, error = "error", "no candidate parsed"
@@ -342,6 +348,9 @@ def _run_one(job: dict) -> dict:
         "first_test_nmse": first.get("test_nmse"),
         **seeding,
     }
+    if terms:
+        # server round 12: the per-term refit of the reported program
+        summary["terms"] = best.get("terms")
     co = const_opt_summary(run_dir / "events.jsonl", summary["n_evals"])
     if co is not None:
         summary["const_opt"] = co
@@ -377,6 +386,19 @@ def _const_opt(argv: list) -> str:
         if tok.startswith("--const-opt="):
             return tok.split("=", 1)[1]
     return "none"
+
+
+def _linear_scaling(argv: list) -> str:
+    """The `--linear-scaling` value an arm's argv selects ("0" without it; the last one
+    wins, as in MOSES's own parser)."""
+    argv = [str(x) for x in argv]
+    value = "0"
+    for i, tok in enumerate(argv):
+        if tok == "--linear-scaling" and i + 1 < len(argv):
+            value = argv[i + 1]
+        elif tok.startswith("--linear-scaling="):
+            value = tok.split("=", 1)[1]
+    return value
 
 
 def _const_opt_guard(argv: list) -> str:

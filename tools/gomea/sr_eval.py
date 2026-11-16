@@ -28,6 +28,15 @@ Reported metrics, per split, with `var` the population variance of that split's 
   linear scaling of the predictions `p` fitted on TRAIN only (Keijzer 2003):
   b = cov(y, p) / var(p), a = mean(y) - b * mean(p); b = 0 when var(p) == 0.
 * `nmse_raw` = 100 * MSE(y, p) / var(y), the unscaled program (what MOSES optimises).
+
+`--terms` (`evaluate(..., terms=True)`; server round 12, the arm with `--linear-scaling
+terms`): `nmse_scaled` is that of the per-term model instead. The program is split at a
+top-level `+` into terms t_i (else one term), and w_0 + sum w_i t_i is fitted on TRAIN
+only, by the rule and the code of the pyMoses scorer (`bscores.top_level_terms`,
+`least_squares.fit_terms`). A program with one term, or whose per-term fit falls back (a
+constant or collinear term, a term output that is not finite), keeps the (a, b) fit above.
+The result then has a `terms` record: `n_terms`, `fallback`, `reason` and `weights`
+((w_0, ..., w_k), or (a, b) for one term or a fallback).
 """
 
 from __future__ import annotations
@@ -42,11 +51,18 @@ from collections.abc import Sequence
 from dataclasses import dataclass
 
 from pymoses.comboreduct.combo.iostream_combo import str_to_combo_tree
-from pymoses.comboreduct.combo.vertex import builtin
+from pymoses.comboreduct.combo.vertex import builtin, is_contin
 from pymoses.comboreduct.crutil.exception import OverflowException
 from pymoses.comboreduct.interpreter.interpreter import mixed_interpreter
 from pymoses.comboreduct.table.table_io import infer_type_from_token2
 from pymoses.comboreduct.type_checker.type_signature import type_node
+from pymoses.moses.scoring.bscores import top_level_terms
+from pymoses.moses.scoring.least_squares import (
+    FALLBACK_CONSTANT,
+    TermFit,
+    fit_terms,
+    predict_terms,
+)
 
 _LABEL_RE = re.compile(r"(!?)\$([^\s()$]+)")
 _FLOAT_RE = re.compile(r"^[-+]?(\d+\.?\d*|\.\d+)([eE][-+]?\d+)?$|^[-+]?(inf|nan)$", re.I)
@@ -227,8 +243,75 @@ def nmse(y: Sequence[float], p: Sequence[float], a: float = 0.0, b: float = 1.0)
     return 100.0 * mse / vy if vy > 0 else (0.0 if mse == 0 else math.inf)
 
 
-def evaluate(program: str, train: Table, test: Table | None = None) -> dict:
-    """Train-fitted linear scaling, then scaled and raw NMSE on each split."""
+def term_columns(
+    program: str,
+    tables: Sequence[Table],
+    bool_cols: frozenset[int] = frozenset(),
+) -> tuple[int, list[list[list[float]]] | None]:
+    """`(number of terms, columns)`: the output of each top-level term of `program`
+    (`bscores.top_level_terms`) on every row of each table, with `predict`'s semantics
+    (`nan` on overflow; `bool_cols` as in `predict`). `columns[t][i][r]` is term i on row r
+    of `tables[t]`. The columns are `None` when there is only one term, or when a term is a
+    numeric leaf (a constant term; it is not evaluated)."""
+    tr = str_to_combo_tree(relabel(program, tables[0].labels) if tables[0].labels else program)
+    nodes = top_level_terms(tr)
+    if len(nodes) < 2 or any(is_contin(n.data) for n in nodes):
+        return len(nodes), None
+    interp = mixed_interpreter.from_contin_inputs([])
+    if bool_cols:
+        interp = mixed_interpreter([])
+    out = []
+    for table in tables:
+        cols: list[list[float]] = [[] for _ in nodes]
+        for row in table.X:
+            if bool_cols:
+                interp._mixed_inputs = [
+                    (builtin.logical_true if x != 0 else builtin.logical_false)
+                    if j in bool_cols
+                    else float(x)
+                    for j, x in enumerate(row)
+                ]
+            else:
+                interp.contin_inputs = list(row)
+            for col, it in zip(cols, nodes, strict=True):
+                try:
+                    v = float(interp.contin_eval(it))
+                except OverflowException:
+                    v = math.nan
+                col.append(v)
+        out.append(cols)
+    return len(nodes), out
+
+
+def _apply_terms(res: dict, program: str, train: Table, test: Table | None) -> None:
+    """`evaluate(..., terms=True)`: replace `nmse_scaled` by that of the per-term model
+    fitted on `train` (unless the fit falls back) and add the `terms` record."""
+    tables = [train] if test is None else [train, test]
+    k, cols = term_columns(program, tables, train.bool_cols)
+    if k < 2:
+        fit = None
+    elif cols is None:
+        fit = TermFit(None, FALLBACK_CONSTANT)
+    else:
+        fit = fit_terms(train.y, cols[0])
+    if fit is not None and fit.weights is not None:
+        res["train"]["nmse_scaled"] = nmse(train.y, fit.fitted)
+        if test is not None:
+            res["test"]["nmse_scaled"] = nmse(test.y, predict_terms(fit.weights, cols[1]))
+        weights = list(fit.weights)
+    else:
+        weights = [res["a"], res["b"]]
+    res["terms"] = {
+        "n_terms": k,
+        "fallback": fit is not None and fit.weights is None,
+        "reason": None if fit is None else fit.reason,
+        "weights": weights,
+    }
+
+
+def evaluate(program: str, train: Table, test: Table | None = None, terms: bool = False) -> dict:
+    """Train-fitted linear scaling, then scaled and raw NMSE on each split. With
+    `terms`, the per-term model gives `nmse_scaled` (see the module docstring)."""
     p_tr = predict(program, train.X, train.labels, train.bool_cols)
     a, b = linear_scaling(train.y, p_tr)
     res = {
@@ -251,6 +334,8 @@ def evaluate(program: str, train: Table, test: Table | None = None) -> dict:
             "nmse_raw": nmse(test.y, p_te),
             "n_nonfinite": sum(not math.isfinite(x) for x in p_te),
         }
+    if terms:
+        _apply_terms(res, program, train, test)
     return res
 
 
@@ -264,6 +349,11 @@ def main(argv: Sequence[str] | None = None) -> int:
     src.add_argument("--program", help="combo program, optionally preceded by its score")
     src.add_argument("--moses-output", help="file with MOSES stdout ('-' for stdin)")
     ap.add_argument("--all", action="store_true", help="score every candidate line")
+    ap.add_argument(
+        "--terms",
+        action="store_true",
+        help="refit per-term weights on train (--linear-scaling terms; see above)",
+    )
     args = ap.parse_args(argv)
 
     train = read_table(args.train, args.target, args.ignore_feature)
@@ -280,7 +370,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         return 2
     results = []
     for score, prog in cands if args.all else cands[:1]:
-        r = evaluate(prog, train, test)
+        r = evaluate(prog, train, test, terms=args.terms)
         r["moses_score"] = score
         results.append(r)
     json.dump(results if args.all else results[0], sys.stdout, indent=2)
