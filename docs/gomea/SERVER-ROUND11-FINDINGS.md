@@ -470,7 +470,8 @@ scratchpad (`r11res/t15_*.py`); the Bos split 35 tables were rebuilt from `data/
 * On the other 6 datasets, the BASE-R pair ratio against BASE is 0.97–1.00.
 * The train–test gap of BASE-R is about the same as BASE on Air, Con and Tow, and larger on Dow
   (2.91 against 1.29).
-* Step 3 (the user's decision) is open.
+* **Step 3, the user's decision (2026-11-16):** "BASE stays, BASE-R as an arm". BASE stays the
+  reference, and BASE-R runs again on fresh splits in round 12 to confirm it.
 
 ## User decisions
 

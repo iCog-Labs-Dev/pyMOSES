@@ -230,6 +230,26 @@ at 20,000 evaluations with the new base (dynamic population, LM-VAL, PEN125):
   seeded arm for the combined run (T1.2).
 * **Cap of 250 evaluations per deme:** better on Tow only, with larger programs. Left out.
 
+Round 10 (2026-11-11; [`docs/gomea/SERVER-ROUND10-FINDINGS.md`](docs/gomea/SERVER-ROUND10-FINDINGS.md)),
+10 datasets, splits 1–10:
+
+* **The base against hill climbing with LM (HC-LM):** a tie under the 10 % rule, but HC-LM is lower
+  in 81 of 100 pairs (BASE 6 % higher at the median pair). BASE programs are smaller (47 against
+  75.5) and use less CPU. The user keeps BASE as the compact reference and HC-LM as the accuracy
+  baseline.
+* **Widen search for HC-LM:** worse than HC-LM. **No cap, N = 16:** a tie, with programs 4 times
+  larger.
+
+Round 11 (2026-11-12; [`docs/gomea/SERVER-ROUND11-FINDINGS.md`](docs/gomea/SERVER-ROUND11-FINDINGS.md)),
+10 datasets, fresh splits 31–40:
+
+* **More demes per run lower the test NMSE:** deme caps of 4,000, 2,000 and 1,000 evaluations give
+  ratios 0.96, 0.92 and 0.90 against BASE, with programs 1.5–1.7 times larger and 1.7–2.1 times the
+  CPU. The cap of 1,000 ties with HC-LM.
+* **LM reserve (`--const-opt-reserve 500`, BASE-R):** lower than BASE in 62 of 82 pairs that differ,
+  at the same CPU; large gains on Air, Con, Dow and Tow. It joins the next round as an arm.
+* The user keeps BASE as the default, with HC-LM next in line.
+
 ## Run the tests
 
 The test suite is self-contained: it diffs against C++ **golden fixtures committed to

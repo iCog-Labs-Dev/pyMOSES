@@ -542,6 +542,30 @@ experiments; the code defaults do not change. These three settings never ran tog
    stage-1 verdict when a contrast was not extended (EnH size: "tie (Holm p 0.009)"). Print the p
    of the stage that gives the verdict.
 
+## 10. Open items after server rounds 9 to 11 (2026-11-16)
+
+The user's decisions are in `APPROVALS.md` (2026-11-11 and 2026-11-16): BASE is the reference,
+HC-LM the accuracy baseline; round 12 runs T1.6, BASE-R and T2.1–T2.4 (`ROADMAP.md`).
+
+1. **Poles in LM-tuned programs (from 1be, T1.5).** The one very bad BASE-R run (Bos split 35, test
+   NMSE 60,309) has a denominator that crosses zero just outside the training range of one input.
+   The validation guard cannot see a pole that no validation row comes near. Possible safeguards
+   (agent ideas, not tested): a check of the tuned program on a box around the training inputs,
+   or a clip of the predictions to a range around the training targets. Report any run with an
+   extreme test NMSE in round 12.
+2. **Single bad runs (from 1be).** Four runs had a test NMSE above 100 with normal training and
+   validation NMSE (Bos BASE-R, WiR and WiW BASE-D10, Con HC-LM). The medians hide them.
+3. **Knob growth on Dow and Tow (from 1be).** With short demes, the knob count of a deme grew to
+   thousands (up to 25,216 on Dow). This caused the memory failures and long runs of the D arms.
+4. **No knob count for HC (user question, 2026-11-16).** The HC-LM events log no knob count, so
+   HC and GOMEA deme sizes cannot be compared. A small logging change: add the deme's knob count to
+   the HC-LM "end" event.
+5. **What a deme hands back (local probe, 2026-11-16).** A BASE deme on Con handed back 1,237–1,635
+   programs; 288–746 passed the score window (0.3 × `-v`, with `-v` = 60 × training rows) and
+   entered the metapopulation. Many are near-copies that differ in one constant. LM tunes only the
+   best one (T1.6 tests more).
+6. **Still open from section 9:** item 6 (the `set_final.py` report fix).
+
 ## 8. Future directions from the literature search (2026-11-06)
 
 Source: the literature search of 2026-11-06 (`docs/gomea/LITERATURE-2026-11-06.md`). Start only after rounds 6 to 8 give a

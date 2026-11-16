@@ -368,3 +368,20 @@ user confirms it.
   programs of each deme. The user answered: "Yes, add it to the roadmap after T1.5".
   * User-approved: task T1.6 in `ROADMAP.md`, after T1.5.
   * Agent-written, not user-approved: the T1.6 proposal (k = 5, the arms, the datasets, the measures).
+* **T1.5 and round 12 (2026-11-16):** the user wrote: "Okay good. Go ahead with the T1.5 and T1.6.
+  And if possible I would also like for us to set up a sequential test for the next tier of ideas,
+  the T2.* ideas. Can you tell me how we can do both so the final run can finish both in the end?"
+  The agent did T1.5 steps 1 and 2 (`SERVER-ROUND11-FINDINGS.md`, "Follow-up: T1.5"), proposed one
+  round 12 plan, and asked four questions. The user chose:
+  1. Reference: "BASE stays, BASE-R as an arm".
+  2. T2 reference: "Fixed now (Recommended)".
+  3. Splits: "Fresh splits 41–50 (Recommended)".
+  4. Scope: "T1.6 and all of T2.1–T2.4 (Recommended)".
+  * User-approved: BASE stays the reference; BASE-R is an arm of round 12; one fixed reference for
+    all arms; fresh splits 41–50; round 12 includes T1.6 and T2.1–T2.4; an idea whose code is not
+    ready leaves the round.
+  * Agent-written, not user-approved: the round 12 layout (one regression phase with 8 arms and a
+    mux11 phase for T2.1), the code grouping for the subagents, and the time estimate. The round 12
+    pre-registration needs the user's approval before the implementation.
+  * Agent reading, not confirmed: "Okay good" approves the update of the out-of-date records
+    (findings log, roadmap status, backlog, README) before T1.5.

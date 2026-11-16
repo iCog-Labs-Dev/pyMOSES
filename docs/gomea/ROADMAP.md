@@ -12,7 +12,7 @@ Use it like this:
 2. Follow the checklist in "How to run an experiment" for that task.
 3. When the task ends, mark it here (date, verdict, findings file) and update the backlog.
 
-## Where we are (2026-11-09)
+## Where we are (2026-11-16)
 
 | Setting | Status | Evidence |
 |---|---|---|
@@ -24,8 +24,13 @@ Use it like this:
 | Dynamic population (`--gomea-pop-size dynamic --hc-fraction-of-nn 0.05`) | The population of later experiments (user, 2026-11-09), against the 1ay rule; to test on other datasets | 1ay, 1aw, 1ax |
 | Learned linkage (LT-B) | No gain over a random tree at our scale, also with no cap | 1g, 1m, 1al, 1ay |
 | Knob caps | Not recommended | 1ak, 1as, 1az |
+| **BASE** = dynamic population + LM-VAL + PEN125 | The reference and the default for the time being (user, 2026-11-11 and 2026-11-16) | 1bd, 1be |
+| HC-LM (hill climbing with LM-VAL) | The accuracy baseline, next in line (user, 2026-11-11 and 2026-11-16) | 1bd, 1be |
+| LM reserve (`--const-opt-reserve 500`, BASE-R) | An arm of round 12, not the reference (user, 2026-11-16, T1.5) | 1be |
+| Deme caps (`--gomea-deme-share` 5, 10, 20) | Not adopted: lower NMSE, but larger programs and more CPU | 1be |
 
-**The new base (dynamic population + LM-VAL + PEN125) never ran together.**
+**Next server round (round 12):** T1.6, BASE-R and T2.1–T2.4 in one plan, against the fixed
+reference BASE, on fresh splits 41–50 (user, 2026-11-16). The pre-registration comes first.
 
 ## Stage 0: done (rounds 6 to 8, 2026-11-06 to 2026-11-08)
 
@@ -54,11 +59,11 @@ with LM-VAL, and the confirmed final setting.
 | T1.0 | Engineering before the next round: Dow memory with no cap; optional time check inside a generation | Done for Dow memory (limits raised, round 9); the time check is not needed with an evaluation budget | 9.4, 9.5 |
 | ~~T1.1~~ | ~~GP-GOMEA seeding with the new base~~ | Done (1bb, round 9): better on Yac only; BASE-S joins T1.2 (user) | 7.5 |
 | ~~T1.1b~~ | ~~LM-VAL with the cap of 250 against no cap~~ | Done (1bc, round 9): better on Tow only; left out | 9.1 |
-| T1.2 | One GOMEA run with the base (dynamic N, LM-VAL, PEN125) against HC and plain GOMEA; BASE-S as a separate seeding control | Next: `SERVER-ROUND10-PREREGISTRATION.md` (approved; results only) | 7.4 |
+| ~~T1.2~~ | ~~One GOMEA run with the base (dynamic N, LM-VAL, PEN125) against HC and plain GOMEA; BASE-S as a separate seeding control~~ | Done (1bd, round 10; 1be, round 11): BASE is the compact reference, HC-LM the accuracy baseline (user) | 7.4 |
 | ~~T1.4~~ | ~~The dynamic population on other datasets (user)~~ | Done (1ba, round 9): kept | 9.2 |
 | ~~T1.3~~ | ~~LT-B against RT with no cap~~ | Closed by 1ay: 12 ties | 7.3 |
-| T1.5 | BASE-R as a replacement for BASE (user, 2026-11-16): explain the BASE-R failure case, and check BASE-R on the datasets where BASE is weak | Next. Round 11 data (`SERVER-ROUND11-FINDINGS.md`); no new server run for steps 1 and 2 | – |
-| T1.6 | Elite-only LM (user, 2026-11-16): at the end of each deme, LM on the top k distinct programs before they go to the metapopulation, not only on the best one | After T1.5. A new opt-in option under `pymoses`; design and pre-registration first | – |
+| ~~T1.5~~ | ~~BASE-R as a replacement for BASE (user, 2026-11-16): explain the BASE-R failure case, and check BASE-R on the datasets where BASE is weak~~ | Done (2026-11-16, `SERVER-ROUND11-FINDINGS.md`, "Follow-up: T1.5"): BASE stays the reference; BASE-R runs again as an arm of round 12 (user) | – |
+| T1.6 | Elite-only LM (user, 2026-11-16): at the end of each deme, LM on the top k distinct programs before they go to the metapopulation, not only on the best one | Next: in round 12 with T2.1–T2.4. A new opt-in option under `pymoses`; pre-registration first | – |
 
 * **T1.1 questions:** does seeding still help when linear scaling, LM-VAL, no cap and PEN125 are in
   use? Does the Con loss of 1y and 1ab remain? Use the existing tools (`tools/gomea/gpgomea_seed.py`,
@@ -96,6 +101,10 @@ with LM-VAL, and the confirmed final setting.
 ## Stage 2: tier 1 ideas (small code, reuse what exists)
 
 Run them in this order. Each task compares against the stage 1 base.
+
+**Update (user, 2026-11-16):** T2.1–T2.4 run together in round 12, in one phase with T1.6 and
+BASE-R, against the fixed reference BASE and the accuracy baseline HC-LM. T2.1 also gets a mux11
+phase. An idea whose code is not ready leaves the round; the others still run.
 
 | Task | Idea | Code needed | Backlog |
 |---|---|---|---|
