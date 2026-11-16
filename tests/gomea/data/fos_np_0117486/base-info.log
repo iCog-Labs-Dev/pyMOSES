@@ -1,0 +1,52 @@
+[INFO] moses version "3"."7"."0"
+[WARN] WARNING: This version of MOSES does NOT have MPI support!
+
+[INFO] Command line: moses -i DATA/train.csv -u y -r 1 -n sin -n exp -n log -v 2400 -c 10 -V1 -l WARN -m 1500 -a gomea --gomea-fos lt-b --gomea-pop-size dynamic --hc-fraction-of-nn 0.05 --gomea-skip-inactive 0 --gomea-genotype-memo 1 --gomea-contin copy --knob-probe-baseline reduced --linear-scaling 1 --const-opt lm --const-opt-guard val --gomea-accept-complexity-ratio 0.125 --gomea-deme-store accepted --const-opt-val DATA/train.csv -l INFO --gomea-log events.jsonl -f moses.log
+[INFO] Read data file DATA/train.csv
+[INFO] Number of rows in tables = 40
+[INFO] Inferred arity = 2
+[INFO] Table signature ->(contin contin contin)
+[INFO] Inferred output type: contin
+[INFO] Alphabet size = 7 output = contin
+[INFO] BScore complexity ratio = 3.5
+[INFO] Cache composite scores
+[INFO] MOSES starts, max_evals=1500 max_gens=-1 max_time=2147483647
+[INFO] Stats: # 
+Stats: # Stats are tab-separated, ready for graphing.
+Stats: # You can also use the script parse_log.py to extract a CSV file given a moses log file.
+Stats: # Column explanation:
+Stats: # 
+Stats: # gen is the generation number.
+Stats: # num_evals is the number of scoring function evaluations so far.
+Stats: # elapsed is the wall-clock time, in seconds, since start.
+Stats: # metapop_size is the size of the metapopulation.
+Stats: # best_score is the highest raw score seen, of all exemplars.
+Stats: # complexity is in bits, of the highest-composite score exemplar.
+Stats: # field_set_size is the ESTIMATED number of bits in all the knobs.
+Stats: # optim_steps is the number of steps the optimizer took.
+Stats: # over_budget is bool, T if search exceeded scoring func eval budget.
+Stats: # 
+Stats: # gen	num_evals	elapsed	metapop_size	best_score	complexity	field_set_size	optim_steps	over_budget
+[INFO] Start knob building, rep size=1 complexity=1
+[INFO] After knob building, rep size=21 complexity=5
+[INFO] Total number of field specs: 8
+[INFO] Number of contin knobs mapped: 8
+[INFO] Field set, in bytes: 1504
+[INFO] One instance, in bytes: 40
+[INFO] Expansion 1 done
+[INFO] Total number of evaluations so far: 974
+[INFO] The following candidate(s) have the best score [score=-98.81787109375, penalized score=-99.3892974853515625, complexity=2, complexity penalty=0.571428596973419189, uniformity penalty=0]
+[INFO] -98.8179 +($1 $2)
+[INFO] Stats: 1	974	T	77	-98.8179	2	0	5	0
+[INFO] Start knob building, rep size=17 complexity=11
+[INFO] After knob building, rep size=80 complexity=17
+[INFO] Total number of field specs: 27
+[INFO] Number of contin knobs mapped: 27
+[INFO] Field set, in bytes: 4544
+[INFO] One instance, in bytes: 64
+[INFO] Expansion 2 done
+[INFO] Total number of evaluations so far: 1500
+[INFO] The following candidate(s) have the best score [score=-77.0896530151367188, penalized score=-79.9467926025390625, complexity=10, complexity penalty=2.85714292526245117, uniformity penalty=0]
+[INFO] -77.0897 +(-1 /(+(*(-2 $1) *(2 $2)) +(2 *(+(1 $1) $1))))
+[INFO] Stats: 2	1500	T	238	-77.0897	10	0	1	1
+[INFO] Cache composite scores hits=687 misses=813

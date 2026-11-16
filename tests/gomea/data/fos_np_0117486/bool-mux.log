@@ -1,0 +1,47 @@
+[INFO] moses version "3"."7"."0"
+[WARN] WARNING: This version of MOSES does NOT have MPI support!
+
+[INFO] Command line: moses -H mux -k 2 -r 5 -m 10000 -a gomea --gomea-pop-size dynamic --hc-fraction-of-nn 0.05 --gomea-skip-inactive 0 --gomea-max-evals-per-deme 0 --gomea-genotype-memo 1 --knob-probe-baseline reduced --gomea-log events.jsonl -f moses.log
+[INFO] Alphabet size = 9 output = boolean
+[INFO] BScore complexity ratio = 3.5
+[INFO] Cache composite scores
+[INFO] MOSES starts, max_evals=10000 max_gens=-1 max_time=2147483647
+[INFO] Stats: # 
+Stats: # Stats are tab-separated, ready for graphing.
+Stats: # You can also use the script parse_log.py to extract a CSV file given a moses log file.
+Stats: # Column explanation:
+Stats: # 
+Stats: # gen is the generation number.
+Stats: # num_evals is the number of scoring function evaluations so far.
+Stats: # elapsed is the wall-clock time, in seconds, since start.
+Stats: # metapop_size is the size of the metapopulation.
+Stats: # best_score is the highest raw score seen, of all exemplars.
+Stats: # complexity is in bits, of the highest-composite score exemplar.
+Stats: # field_set_size is the ESTIMATED number of bits in all the knobs.
+Stats: # optim_steps is the number of steps the optimizer took.
+Stats: # over_budget is bool, T if search exceeded scoring func eval budget.
+Stats: # 
+Stats: # gen	num_evals	elapsed	metapop_size	best_score	complexity	field_set_size	optim_steps	over_budget
+[INFO] Start knob building, rep size=1 complexity=0
+[INFO] After knob building, rep size=148 complexity=0
+[INFO] Total number of field specs: 48
+[INFO] Number of contin knobs mapped: 0
+[INFO] Field set, in bytes: 1568
+[INFO] One instance, in bytes: 40
+[INFO] Expansion 1 done
+[INFO] Total number of evaluations so far: 9125
+[INFO] The following candidate(s) have the best score [score=-6, penalized score=-8.57142829895019531, complexity=9, complexity penalty=2.57142877578735352, uniformity penalty=0]
+[INFO] -6 or(and(or(!$1 $4) or($1 $3) or(!$2 $6)) and(!$1 $2 $5))
+[INFO] Stats: 1	9125	T	9	-6	9	0	9	0
+[INFO] Start knob building, rep size=15 complexity=9
+[INFO] After knob building, rep size=470 complexity=9
+[INFO] Total number of field specs: 154
+[INFO] Number of contin knobs mapped: 0
+[INFO] Field set, in bytes: 4536
+[INFO] One instance, in bytes: 56
+[INFO] Expansion 2 done
+[INFO] Total number of evaluations so far: 10000
+[INFO] The following candidate(s) have the best score [score=-2, penalized score=-4.85714292526245117, complexity=10, complexity penalty=2.85714292526245117, uniformity penalty=0]
+[INFO] -2 or(and(or(!$1 $2 $4) or($1 $3) or(!$2 $6)) and(!$1 $2 $5))
+[INFO] Stats: 2	10000	T	12	-2	10	0	1	1
+[INFO] Cache composite scores hits=0 misses=0
