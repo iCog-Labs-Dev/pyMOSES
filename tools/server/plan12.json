@@ -1,0 +1,31 @@
+{
+  "name": "server-round12-2026-11",
+  "description": "SERVER-ROUND12-PREREGISTRATION.md: S0, then 1bf (BASE against BASE-R, BASE-NP, BASE-TLS, BASE-LME and BASE-DIV, and BASE-K5 against BASE-R, with HC-LM as the accuracy baseline, on the 10 datasets, fresh splits 41-50, 20,000 evaluations per run, no time limit), then 1bg (mux11: NP against RT, UNI and LTB, fresh seeds 3101-3110, 3,600 s per run). No extension, no choice step, no adoption rule. The Dow manifest (8,192 MB) gets a W of its own. 1bf needs splits 41-50 of every dataset (setup.sh builds them). No chain to or from another round.",
+  "state_dir": "server-run12",
+  "steps": [
+    {
+      "id": "S0",
+      "type": "check",
+      "pytest": {},
+      "repro": {}
+    },
+    {
+      "id": "phase1bf",
+      "type": "phase",
+      "phase": "phase1bf",
+      "requires": [
+        "datasets:Air,Bos,Con,Dow,EnC,EnH,Tow,WiR,WiW,Yac:41-50"
+      ],
+      "per_run_mb": 5120,
+      "manifest_per_run_mb": {
+        "sr-Dow.json": 8192
+      }
+    },
+    {
+      "id": "phase1bg",
+      "type": "phase",
+      "phase": "phase1bg",
+      "per_run_mb": 3072
+    }
+  ]
+}

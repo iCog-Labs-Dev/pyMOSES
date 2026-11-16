@@ -1,0 +1,127 @@
+{
+  "schema_version": 1,
+  "name": "phase1bg-bool",
+  "phase": 1,
+  "commit": "defa8fe7db6974f1b5334207da17a448e7d51bca",
+  "common_argv": [
+    "-l",
+    "WARN"
+  ],
+  "tasks": {
+    "mux11": {
+      "argv": [
+        "-H",
+        "mux",
+        "-k",
+        "3"
+      ],
+      "target_raw": 0
+    }
+  },
+  "arms": {
+    "NP": {
+      "argv": [
+        "-a",
+        "gomea",
+        "--gomea-fos",
+        "np",
+        "--gomea-pop-size",
+        "dynamic",
+        "--hc-fraction-of-nn",
+        "0.05",
+        "--gomea-skip-inactive",
+        "0",
+        "--gomea-max-evals-per-deme",
+        "0",
+        "--gomea-genotype-memo",
+        "1",
+        "--knob-probe-baseline",
+        "reduced"
+      ]
+    },
+    "LTB": {
+      "argv": [
+        "-a",
+        "gomea",
+        "--gomea-fos",
+        "lt-b",
+        "--gomea-pop-size",
+        "dynamic",
+        "--hc-fraction-of-nn",
+        "0.05",
+        "--gomea-skip-inactive",
+        "0",
+        "--gomea-max-evals-per-deme",
+        "0",
+        "--gomea-genotype-memo",
+        "1",
+        "--knob-probe-baseline",
+        "reduced"
+      ]
+    },
+    "RT": {
+      "argv": [
+        "-a",
+        "gomea",
+        "--gomea-fos",
+        "rt",
+        "--gomea-pop-size",
+        "dynamic",
+        "--hc-fraction-of-nn",
+        "0.05",
+        "--gomea-skip-inactive",
+        "0",
+        "--gomea-max-evals-per-deme",
+        "0",
+        "--gomea-genotype-memo",
+        "1",
+        "--knob-probe-baseline",
+        "reduced"
+      ]
+    },
+    "UNI": {
+      "argv": [
+        "-a",
+        "gomea",
+        "--gomea-fos",
+        "uni",
+        "--gomea-pop-size",
+        "dynamic",
+        "--hc-fraction-of-nn",
+        "0.05",
+        "--gomea-skip-inactive",
+        "0",
+        "--gomea-max-evals-per-deme",
+        "0",
+        "--gomea-genotype-memo",
+        "1",
+        "--knob-probe-baseline",
+        "reduced"
+      ]
+    }
+  },
+  "seeds": [
+    3101,
+    3102,
+    3103,
+    3104,
+    3105,
+    3106,
+    3107,
+    3108,
+    3109,
+    3110
+  ],
+  "budget": {
+    "argv": [
+      "--max-time",
+      "3600",
+      "-m",
+      "1000000000"
+    ],
+    "kind": "wall_time"
+  },
+  "wall_cap_s": 5400,
+  "workers": 16,
+  "output_root": "../gomea-results"
+}

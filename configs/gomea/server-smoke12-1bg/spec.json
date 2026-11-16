@@ -1,0 +1,28 @@
+{
+  "phase": "smoke12-1bg",
+  "metrics": {
+    "mux11": "cpu_to_target"
+  },
+  "primary": [
+    [
+      "mux11",
+      "np-vs-rt",
+      "NP",
+      "RT"
+    ],
+    [
+      "mux11",
+      "np-vs-uni",
+      "NP",
+      "UNI"
+    ],
+    [
+      "mux11",
+      "np-vs-ltb",
+      "NP",
+      "LTB"
+    ]
+  ],
+  "secondary": [],
+  "extend": false
+}

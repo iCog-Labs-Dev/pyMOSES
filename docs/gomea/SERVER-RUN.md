@@ -777,3 +777,118 @@ and `configs/gomea/server-smoke11-1be`: the same two manifests, arms and flags, 
 `-m 1000` (so that the reserve of BASE-R and the caps of the D arms apply), a wall cap of 300 s
 and no extension. 120 runs. The state is in `server-run11-smoke/`. The smoke plan has the same
 `requires`, `per_run_mb` and `manifest_per_run_mb` keys.
+
+## Round 12
+
+The twelfth round (`SERVER-ROUND12-PREREGISTRATION.md`: does LM on the top 5 programs of each
+deme, or one of the four tier 1 ideas, make BASE more accurate at the same budget, at what cost
+in program size and CPU, and does BASE-R confirm its round 11 result) has its own plan,
+`tools/server/plan12.json`: S0, then phase 1bf (regression), then phase 1bg (mux11). Its state
+is in `../gomea-results/server-run12/`.
+
+**One-time server steps before the round:**
+
+1. Make sure that no other round runs (`bash tools/server/status.sh --plan round11` shows
+   "not running"). Round 12 never overlaps with another round.
+2. Update the clone to the branch commit that has this section (`git pull --ff-only`).
+3. Run `bash tools/server/setup.sh` again. Round 12 uses the fresh splits 41-50. A dataset set
+   from an earlier round has splits 1-40 only, so set-up rebuilds it (splits 1-40 do not
+   change; Dow and Tow are built again from their raw files). It must end with `SETUP OK`.
+   Each dataset then has 400 split files (50 splits x 8 files).
+4. Start the round:
+
+       bash tools/server/start.sh --plan round12
+
+There is no choice step, no extension and no adoption rule: the round only reports the results.
+No plan chains to or from round 12. Bring back the final bundle.
+
+**Phase 1bf: budget.** Each run gets 20,000 evaluations (`"budget": {"evals": 20000}`, so
+`-m 20000`) and no `--max-time`. LM passes and guard passes count. The wall cap of 36,000 s per
+run is only a guard against a hung process.
+
+**Phase 1bf: arms** (`configs/gomea/phase1bf/`, the same eight arms in each manifest):
+
+| Arm | Task | Flags |
+|---|---|---|
+| BASE | reference | the round 11 BASE (as in 1be) |
+| HC-LM | accuracy baseline | the round 11 HC-LM (as in 1be) |
+| BASE-R | T1.5 | BASE + `--const-opt-reserve 500` (as in 1be) |
+| BASE-K5 | T1.6 | BASE + `--const-opt-reserve 500 --const-opt-top-k 5` |
+| BASE-NP | T2.1 | BASE with `--gomea-fos np` in place of `lt-b` |
+| BASE-TLS | T2.2 | BASE with `--linear-scaling terms` and `--const-opt none`, without `--const-opt-guard val` |
+| BASE-LME | T2.3 | BASE + `--const-opt-during elite` |
+| BASE-DIV | T2.4 | BASE + `--diversity-pressure {6*n_train} --diversity-autoscale 0` |
+
+* The four new options are opt-in (`docs/gomea/USAGE.md`). Without them, the output of every
+  existing setting does not change (the identity tests in `tests/gomea/`).
+* BASE-TLS has no LM and no guard, so the runner gives it no `--const-opt-val` (the CLI
+  refuses that table without the guard). It scores each candidate with the per-term weights
+  refitted on the training split, and its summaries have a `terms` record. All other arms
+  use `--const-opt-guard val`, so the runner gives them `--const-opt-val`. All eight arms get
+  `--gomea-log RUN_DIR/events.jsonl`.
+* BASE-DIV: P = 6 x the training rows of the run's dataset. The runner puts the integer in the
+  place of `{6*n_train}` (`moses_sr_runner.resolve_argv`); no other arm has a placeholder.
+
+  | Dataset | Air | Bos | Con | Dow | EnC | EnH | Tow | WiR | WiW | Yac |
+  |---|---|---|---|---|---|---|---|---|---|---|
+  | Training rows | 753 | 254 | 516 | 534 | 384 | 384 | 2,501 | 801 | 2,450 | 154 |
+  | P | 4,518 | 1,524 | 3,096 | 3,204 | 2,304 | 2,304 | 15,006 | 4,806 | 14,700 | 924 |
+
+* Datasets: all 10, splits 41-50. 800 runs. The phase needs the datasets with splits 41-50
+  (requirement `datasets:Air,...,Yac:41-50`). Without them, 1bf is skipped with the reason in
+  the log.
+
+**Phase 1bf: report** (`spec.json` of 1bf; the pooled test of round 8: paired Wilcoxon on
+r = log(NMSE_A / NMSE_B) over the 100 pairs, a failed run gets the largest rank against it):
+
+* Primary, pooled, one Holm family (6): BASE-R, BASE-NP, BASE-TLS, BASE-LME and BASE-DIV, each
+  vs BASE, and BASE-K5 vs BASE-R (`pooled_primary`).
+* The gap to HC-LM, pooled, its own Holm family (7): BASE and the 6 arms, each vs HC-LM.
+* Size and CPU, pooled, one Holm family (12): program size and CPU for the 6 primary
+  contrasts (BASE-K5 against BASE-R).
+* BASE-K5 vs BASE (test NMSE, pooled): **descriptive** (both changes together). It is a Holm
+  family of one in `pooled_secondary_families`, so `contrasts.csv` gives it a p, a Holm p and a
+  verdict. Read that verdict as a description only.
+* Per dataset, descriptive (60): the 6 primary contrasts on each dataset, Holm across the 60, no
+  verdict (`secondary` with `"secondary_verdicts": false`).
+
+The verdicts describe the data only. For the trade-off table, `contrasts.csv` has the pooled
+ratios (`ratio` = exp(median r)) of test NMSE against BASE and against HC-LM, and of program size
+and CPU against BASE. `aggregate.csv` has, for each dataset and arm, the median demes in a run and
+the median LM share of the evaluations.
+
+**Phase 1bg (mux11)** (`configs/gomea/phase1bg/`): four arms with the Boolean setting of round 6
+(`-a gomea --gomea-pop-size dynamic --hc-fraction-of-nn 0.05 --gomea-skip-inactive 0
+--gomea-max-evals-per-deme 0 --gomea-genotype-memo 1 --knob-probe-baseline reduced`) and
+`--gomea-fos` `np` (NP), `lt-b` (LTB), `rt` (RT) or `uni` (UNI). Fresh seeds 3101-3110, a wall-time
+budget of 3,600 s per run (`--max-time 3600 -m 1000000000`), a wall cap of 5,400 s. 40 runs.
+Metric: CPU to solve (an unsolved run is infinite). Primary, one Holm family (3): NP vs RT, NP vs
+UNI and NP vs LTB. No extension.
+
+* The manifest names the code commit defa8fe (`"commit"`), as the Boolean manifests of rounds 4
+  and 6 do, and the plan has no `set_commit_in`. The Boolean runner refuses to start if code under
+  `pymoses/`, `benchmarks/` or `pyproject.toml` changed after that commit, or if the clone has
+  local changes there. Then 1bg fails with the reason in `../gomea-results/phase1bg-bench.log`.
+
+**Memory and workers:**
+
+| Manifest | `mem_limit_mb` | W on the server (cgroup 65,536 MB, 12 CPUs, reserve 6,553 MB) |
+|---|---|---|
+| `phase1bf/sr-Dow.json` | 8,192 | floor(58,983 / 8,192) = 7 |
+| `phase1bf/sr.json` (the 9 other datasets) | 5,120 | min(11, 11) = 11 |
+| `phase1bg/bool.json` (mux11) | 3,072 (`phase_run.sh`) | min(11, 19) = 11 |
+
+The 1bf step has `per_run_mb` 5120 and `manifest_per_run_mb` `{"sr-Dow.json": 8192}`; the 1bg
+step has `per_run_mb` 3072. `events.jsonl` has one `workers_decision` for each phase and one
+for the Dow manifest. `phase_run.sh` runs one manifest at a time.
+
+**Size and time.** 1bf: 800 runs, about 160 CPU-hours, about 15 hours at W = 11 (W = 7 for Dow).
+1bg: at most 40 CPU-hours, at most 4 hours (4 waves of 3,600 s at W = 11). S0: about 1.3 hours.
+About 17 to 20 hours in total.
+
+Smoke test: `bash tools/server/start.sh --plan smoke12` runs the limited S0 (with the tests of
+the round 12 options), then `configs/gomea/server-smoke12-1bf` (the same two manifests, arms and
+flags, splits 41 and 42, `-m 1000`, so that the reserve of BASE-R and BASE-K5 applies, a wall cap
+of 300 s; 160 runs) and `configs/gomea/server-smoke12-1bg` (the same four arms, seeds 3101 and
+3102, `--max-time 120`; 8 runs). The state is in `server-run12-smoke/`. The smoke plan has the
+same `requires`, `per_run_mb` and `manifest_per_run_mb` keys.

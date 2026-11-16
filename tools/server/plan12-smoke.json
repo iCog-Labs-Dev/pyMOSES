@@ -1,0 +1,56 @@
+{
+  "name": "server-round12-smoke",
+  "description": "Smoke test of the round-12 plan: limited pytest (with the tests of the round 12 options), the mux11 repro run, then 1bf in miniature (configs/gomea/server-smoke12-1bf: the same two manifests, arms and flags, splits 41 and 42, -m 1000, so that the LM reserve of BASE-R and BASE-K5 (500) applies; the Dow run included), then 1bg in miniature (configs/gomea/server-smoke12-1bg: the same four arms, seeds 3101 and 3102, 120 s per run). No extension. Uses its own state dir, so it never marks real steps done. No chain.",
+  "state_dir": "server-run12-smoke",
+  "steps": [
+    {
+      "id": "S0",
+      "type": "check",
+      "pytest": {
+        "args": [
+          "tests/server",
+          "tests/gomea/test_phase_report.py",
+          "tests/gomea/test_phase_report_pooled.py",
+          "tests/gomea/test_phase_report_round10.py",
+          "tests/gomea/test_sr_datasets.py",
+          "tests/gomea/test_sr_runner_n_train.py",
+          "tests/gomea/test_pop_size_dynamic.py",
+          "tests/gomea/test_const_opt_reserve.py",
+          "tests/gomea/test_const_opt_reserve_identity.py",
+          "tests/gomea/test_const_opt_topk.py",
+          "tests/gomea/test_const_opt_during.py",
+          "tests/gomea/test_const_opt_topk_during_identity.py",
+          "tests/gomea/test_fos_np.py",
+          "tests/gomea/test_fos_np_identity.py",
+          "tests/gomea/test_linear_scaling_terms_identity.py",
+          "tests/gomea/test_sr_eval_terms.py",
+          "tests/moses/scoring/test_least_squares.py",
+          "tests/moses/scoring/test_linear_scaling_terms.py"
+        ]
+      },
+      "repro": {
+        "only": [
+          "1ae-mux11-GOMEA-s3001"
+        ]
+      }
+    },
+    {
+      "id": "smoke12-1bf",
+      "type": "phase",
+      "phase": "server-smoke12-1bf",
+      "requires": [
+        "datasets:Air,Bos,Con,Dow,EnC,EnH,Tow,WiR,WiW,Yac:41-50"
+      ],
+      "per_run_mb": 5120,
+      "manifest_per_run_mb": {
+        "sr-Dow.json": 8192
+      }
+    },
+    {
+      "id": "smoke12-1bg",
+      "type": "phase",
+      "phase": "server-smoke12-1bg",
+      "per_run_mb": 3072
+    }
+  ]
+}
