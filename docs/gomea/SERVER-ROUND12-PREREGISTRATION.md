@@ -1,10 +1,10 @@
 # Server round 12: pre-registration draft (2026-11-16)
 
-**Status:** a draft for the user's approval. The user decided the frame (2026-11-16, `APPROVALS.md`):
-BASE stays the reference, BASE-R runs again as an arm, one fixed reference for all arms, fresh
-splits 41–50, and the round includes T1.6 and T2.1–T2.4. Everything else in this file is
-agent-written and not user-approved: the option rules, the arm details, the contrasts, the pilot
-gate and the time estimate. Not implemented.
+**Status:** approved by the user on 2026-11-16 ("I approve.", `APPROVALS.md`). The user decided
+the frame earlier the same day: BASE stays the reference, BASE-R runs again as an arm, one fixed
+reference for all arms, fresh splits 41–50, and the round includes T1.6 and T2.1–T2.4. The
+details below (option rules, arms, contrasts, pilot gate, time estimate) are agent-written and
+approved as a whole with this draft. Not implemented.
 
 **Questions:**
 

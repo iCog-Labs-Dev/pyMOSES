@@ -385,3 +385,10 @@ user confirms it.
     pre-registration needs the user's approval before the implementation.
   * Agent reading, not confirmed: "Okay good" approves the update of the out-of-date records
     (findings log, roadmap status, backlog, README) before T1.5.
+* **Round 12 pre-registration (2026-11-16):** the agent presented the draft
+  (`SERVER-ROUND12-PREREGISTRATION.md`, commit f87b782) with its own choices listed (BASE-TLS
+  without LM, BASE-LME with genotype write-back, P = 6 × training rows for BASE-DIV, the mux11
+  phase, results only, the pilot gate, about 17–20 h). The user answered: "I approve."
+  * User-approved: the round 12 pre-registration as drafted, and the start of the implementation by
+    subagents in separate clones.
+  * Not approved by this answer: any push.
