@@ -357,3 +357,7 @@ user confirms it.
     the datasets where BASE is weak).
   * Agent-written, not user-approved: the steps of T1.5 and the choice of Con, Air, Tow and Dow as
     the datasets where BASE is weak.
+* The user confirmed: "Yes, record the decision and push the commits."
+  * User-approved: BASE stays the default for the time being; HC-LM is next in line if GOMEA finds
+    no further improvements.
+  * User-approved: the push of the round 11 findings, the T1.5 roadmap task and this record.

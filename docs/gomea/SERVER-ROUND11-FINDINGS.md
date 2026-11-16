@@ -437,4 +437,13 @@ Facts only. This round does not test them, and they give no recommendation.
 
 ## User decisions
 
-The pre-registration has no adoption rule. The user has not decided on the round 11 results yet.
+The pre-registration has no adoption rule. On 2026-11-16 the user asked: "Due to a lower program
+size and a better running time, is it fair to pick the base configuration for the time being? While
+the HC-LM being next in line incase the GOMEA can't find further tailored improvements?" The agent
+answered yes, with the limits above (large losses on Con, Air and Tow; no LM budget in 12 BASE runs
+on Dow and Tow). The user confirmed: "Yes, record the decision".
+
+* **BASE stays the default** for the time being: smaller programs and less CPU than HC-LM.
+* **HC-LM is next in line** if GOMEA finds no further improvements for these problems.
+* **Next action:** task T1.5 in `ROADMAP.md`. Explain the BASE-R failure case (Bos split 35), and
+  check BASE-R as a replacement for BASE on the datasets where BASE is weak (user, 2026-11-16).
