@@ -343,3 +343,17 @@ the code and write the draft".
   * Not user-approved by this answer: the unplanned code changes 709b27f (the deme-share fix under
     `pymoses`) and 5ee8c83 (the split-range requirement in `orchestrate.py`). The agent reported
     them in the review.
+
+**Round 11 results (2026-11-16):** the agent presented the results and the per-dataset values. The
+user asked: "Due to a lower program size and a better running time, is it fair to pick the base
+configuration for the time being? While the HC-LM being next in line incase the GOMEA can't find
+further tailored improvements?" The agent answered yes, with limits (large losses on Con, Air and
+Tow; no LM budget in 12 BASE runs on Dow and Tow), and offered to record the decision once the
+user confirms it.
+* Not yet a decision: the user has not confirmed "BASE stays the default, HC-LM next in line".
+* The user then wrote: "Check the BASE-R failure case to consider it as a replacement for Base if it
+  works really well on datasets that BASE is now failing. Add this to the next set of actions."
+  * User-approved: task T1.5 in `ROADMAP.md` (explain the BASE-R failure case; compare BASE-R on
+    the datasets where BASE is weak).
+  * Agent-written, not user-approved: the steps of T1.5 and the choice of Con, Air, Tow and Dow as
+    the datasets where BASE is weak.

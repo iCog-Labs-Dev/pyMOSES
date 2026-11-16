@@ -57,6 +57,7 @@ with LM-VAL, and the confirmed final setting.
 | T1.2 | One GOMEA run with the base (dynamic N, LM-VAL, PEN125) against HC and plain GOMEA; BASE-S as a separate seeding control | Next: `SERVER-ROUND10-PREREGISTRATION.md` (approved; results only) | 7.4 |
 | ~~T1.4~~ | ~~The dynamic population on other datasets (user)~~ | Done (1ba, round 9): kept | 9.2 |
 | ~~T1.3~~ | ~~LT-B against RT with no cap~~ | Closed by 1ay: 12 ties | 7.3 |
+| T1.5 | BASE-R as a replacement for BASE (user, 2026-11-16): explain the BASE-R failure case, and check BASE-R on the datasets where BASE is weak | Next. Round 11 data (`SERVER-ROUND11-FINDINGS.md`); no new server run for steps 1 and 2 | – |
 
 * **T1.1 questions:** does seeding still help when linear scaling, LM-VAL, no cap and PEN125 are in
   use? Does the Con loss of 1y and 1ab remain? Use the existing tools (`tools/gomea/gpgomea_seed.py`,
@@ -64,6 +65,16 @@ with LM-VAL, and the confirmed final setting.
 * **T1.2:** arms BASE and BASE-S (user, 2026-11-10, against the 1bb rule), with HC and plain GOMEA.
   Splits 1–10, no fresh splits, no adoption rule (user, 2026-11-10). HC gets LM-VAL too (HC-LM),
   and a second HC arm adds widen search. Round 9 results: `SERVER-ROUND9-FINDINGS.md`.
+
+* **T1.5 (user, 2026-11-16: "Check the BASE-R failure case to consider it as a replacement for
+  Base if it works really well on datasets that BASE is now failing"):**
+  1. Explain the failure case: Bos BASE-R split 35 has test NMSE 60,308.97 against training NMSE
+     14.65 and validation NMSE 22.90. Find which deme gave the final program, whether LM wrote it
+     back, and which test rows give the large errors.
+  2. Compare BASE-R with BASE and HC-LM on the datasets where BASE is weak against HC-LM: Con, Air,
+     Tow and Dow (round 11 pair ratios of BASE against HC-LM 1.17–1.57).
+  3. Give the result to the user. The user decides whether BASE-R replaces BASE, or whether a
+     server run is needed first.
 
 **Stage 1 is done when** one base setting is chosen and recorded as the reference for stage 2.
 
