@@ -41,6 +41,10 @@ from pymoses.gomea.oracle import BudgetExhausted
 from pymoses.moses.representation.scored_instance import scored_instance
 from pymoses.moses.scoring.bscores import contin_bscore, linear_scaling
 
+# ``solve`` and ``PIVOT_TOL`` moved to ``least_squares`` in server round 12 (unchanged), so
+# that the scorer can use the solver too. They stay importable from here.
+from pymoses.moses.scoring.least_squares import PIVOT_TOL, solve  # noqa: F401
+
 CONST_OPT_MODES = ("none", "lm", "mutate", "polish")
 CONST_OPT_GUARDS = ("none", "val")
 
@@ -59,8 +63,8 @@ FD_STEP = 1.4901161193847656e-08  # sqrt(2 ** -52)
 # finite-difference noise (for example an additive or multiplicative constant
 # that linear scaling absorbs), and LM holds it fixed.
 INERT_TOL = 1e-7
-# A pivot below PIVOT_TOL times the largest diagonal entry is "singular".
-PIVOT_TOL = 1e-12
+# A pivot below PIVOT_TOL times the largest diagonal entry is "singular" (``PIVOT_TOL``,
+# 1e-12, is defined in ``least_squares``, with ``solve``).
 
 # ``mutate``: sigma = max(SIGMA_REL * |c|, SIGMA_MIN).
 SIGMA_REL = 0.1
@@ -140,31 +144,6 @@ def mse(r: Sequence[float]) -> float:
 def constant_nodes(tr: combo_tree) -> list:
     """The ``contin_t`` leaves of ``tr`` in pre-order."""
     return [n for n in tr if is_contin(n.data)]
-
-
-def solve(a: list[list[float]], b: list[float]) -> list[float] | None:
-    """``a x = b`` by Gaussian elimination with partial pivoting; ``None``
-    when a pivot is below ``PIVOT_TOL`` times the largest diagonal entry
-    (numerically singular) or the result is not finite."""
-    n = len(b)
-    m = [row[:] + [b[i]] for i, row in enumerate(a)]
-    scale = max((abs(a[i][i]) for i in range(n)), default=0.0)
-    if not (scale > 0 and math.isfinite(scale)):
-        return None
-    for c in range(n):
-        p = max(range(c, n), key=lambda r: abs(m[r][c]))
-        if abs(m[p][c]) <= PIVOT_TOL * scale:
-            return None
-        m[c], m[p] = m[p], m[c]
-        for r in range(c + 1, n):
-            f = m[r][c] / m[c][c]
-            if f:
-                for k in range(c, n + 1):
-                    m[r][k] -= f * m[c][k]
-    x = [0.0] * n
-    for c in range(n - 1, -1, -1):
-        x[c] = (m[c][n] - math.fsum(m[c][k] * x[k] for k in range(c + 1, n))) / m[c][c]
-    return x if all(math.isfinite(v) for v in x) else None
 
 
 @dataclass
