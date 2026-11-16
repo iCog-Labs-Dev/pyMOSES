@@ -10,7 +10,11 @@ A manifest (JSON) has these keys:
 * `name`, `datasets_dir` (built by `sr_datasets.py`), `datasets`, `splits`,
   `wall_cap_s`, and optionally `mem_limit_mb` (RLIMIT_AS per run);
 * `arms`: `{arm: {"binary": path, "argv": [extra MOSES flags], "budget": {"evals": N} |
-  {"time_s": T}}}`.
+  {"time_s": T}}}`. An argv element may hold the placeholder `{K*n_train}` (K a positive
+  integer; server round 12): the runner puts the integer K times the number of training rows
+  of the run's split in its place (`resolve_argv`), so one arm can pass a value that scales
+  with the dataset (BASE-DIV: `--diversity-pressure {6*n_train}`). An element without the
+  placeholder goes to MOSES unchanged.
 
 **MOSES regression setup** (Phase 1f; see `PHASE1F-PREREGISTRATION.md`). MOSES scores a
 regression candidate by raw squared error (pyMoses: of the least-squares
@@ -132,10 +136,25 @@ def _limit(mem_mb):
     return fn
 
 
+# Server round 12: the placeholder `{K*n_train}` in an arm's argv (K a positive integer).
+_N_TRAIN_PLACEHOLDER = re.compile(r"\{([1-9][0-9]*)\*n_train\}")
+
+
+def resolve_argv(argv: list, n_train: int) -> list:
+    """`argv` with every `{K*n_train}` replaced by the integer K * `n_train` (server round 12,
+    opt-in). An element without the placeholder (or not a string) is returned as it is."""
+    return [
+        _N_TRAIN_PLACEHOLDER.sub(lambda m: str(int(m.group(1)) * n_train), x)
+        if isinstance(x, str) and _N_TRAIN_PLACEHOLDER.search(x) else x
+        for x in argv
+    ]
+
+
 def moses_argv(job: dict, run_dir: Path, n_train: int) -> list[str]:
     """The MOSES command line of one run (before seeding rewrites `-m`): the fixed
-    regression setup, the budget, the arm's argv, then `--gomea-log RUN_DIR/events.jsonl`
-    when `events_argv` asks for it."""
+    regression setup, the budget, the arm's argv (with `{K*n_train}` replaced,
+    `resolve_argv`), then `--gomea-log RUN_DIR/events.jsonl` when `events_argv` asks for
+    it."""
     argv = [job["binary"], "-i", str(run_dir / "train_scaled.csv"), "-u", "y"]
     argv += ["-r", str(job["seed"]), "-n", "sin", "-n", "exp", "-n", "log"]
     argv += ["-v", str(60 * n_train), "-c", "10", "-V1", "-l", "WARN"]
@@ -144,7 +163,7 @@ def moses_argv(job: dict, run_dir: Path, n_train: int) -> list[str]:
     argv += ["-m", str(b["evals"])] if "evals" in b else ["--max-time", str(b["time_s"])]
     if "evals" not in b:
         argv += ["-m", "1000000000"]
-    argv += job["argv"]
+    argv += resolve_argv(job["argv"], n_train)
     return argv + events_argv(job, run_dir)
 
 
