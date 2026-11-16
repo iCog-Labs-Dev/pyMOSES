@@ -58,6 +58,7 @@ with LM-VAL, and the confirmed final setting.
 | ~~T1.4~~ | ~~The dynamic population on other datasets (user)~~ | Done (1ba, round 9): kept | 9.2 |
 | ~~T1.3~~ | ~~LT-B against RT with no cap~~ | Closed by 1ay: 12 ties | 7.3 |
 | T1.5 | BASE-R as a replacement for BASE (user, 2026-11-16): explain the BASE-R failure case, and check BASE-R on the datasets where BASE is weak | Next. Round 11 data (`SERVER-ROUND11-FINDINGS.md`); no new server run for steps 1 and 2 | – |
+| T1.6 | Elite-only LM (user, 2026-11-16): at the end of each deme, LM on the top k distinct programs before they go to the metapopulation, not only on the best one | After T1.5. A new opt-in option under `pymoses`; design and pre-registration first | – |
 
 * **T1.1 questions:** does seeding still help when linear scaling, LM-VAL, no cap and PEN125 are in
   use? Does the Con loss of 1y and 1ab remain? Use the existing tools (`tools/gomea/gpgomea_seed.py`,
@@ -75,6 +76,20 @@ with LM-VAL, and the confirmed final setting.
      Tow and Dow (round 11 pair ratios of BASE against HC-LM 1.17–1.57).
   3. Give the result to the user. The user decides whether BASE-R replaces BASE, or whether a
      server run is needed first.
+* **T1.6 (user, 2026-11-16: "Yes, add it to the roadmap after T1.5"):** the question is whether LM
+  on more than one program of each deme improves accuracy at the same budget.
+  * **Why limited to k programs:** LM on every kept program would cost about 48,000–160,000
+    evaluations in one run, 2.5–8 times the 20,000 budget (LM call median 34–115 evaluations in
+    round 11; 288–746 programs kept per deme in a local Con probe run, 2026-11-16). The literature
+    report (`reports/Constant optimization in symbolic regression.md`, not committed) recommends LM
+    on the top k programs at deme end.
+  * **Proposal (agent, not user-approved):** k = 5 distinct programs (by structure, not constants),
+    every LM evaluation charged to the run budget, the validation guard on. Arms: BASE, BASE + top-k
+    LM, HC-LM. First on Con, Air, Tow and Dow (where BASE is weak against HC-LM). Report test NMSE,
+    program size, the train–test gap, CPU, LM share and the guard rejection rate.
+  * **Risks to measure:** less search budget for GOMEA, larger programs, overfitting (the guard
+    rejected 20–26 % of LM results in round 11).
+  * Different from T2.3, which runs LM on accepted improvements during the search.
 
 **Stage 1 is done when** one base setting is chosen and recorded as the reference for stage 2.
 

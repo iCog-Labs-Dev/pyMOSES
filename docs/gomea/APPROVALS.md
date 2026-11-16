@@ -361,3 +361,10 @@ user confirms it.
   * User-approved: BASE stays the default for the time being; HC-LM is next in line if GOMEA finds
     no further improvements.
   * User-approved: the push of the round 11 findings, the T1.5 roadmap task and this record.
+* **LM on more programs of a deme (2026-11-16):** the user asked: "What would happen if we actually
+  make sure that every unique population that is about to get merged into the meta population gets
+  it's own LM tunning? Instead of only one? Would that improve accuracy?" The agent answered that
+  LM on every kept program would cost 2.5–8 times the run budget, and proposed LM on the top k
+  programs of each deme. The user answered: "Yes, add it to the roadmap after T1.5".
+  * User-approved: task T1.6 in `ROADMAP.md`, after T1.5.
+  * Agent-written, not user-approved: the T1.6 proposal (k = 5, the arms, the datasets, the measures).
