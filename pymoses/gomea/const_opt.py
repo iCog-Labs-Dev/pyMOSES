@@ -146,6 +146,27 @@ def constant_nodes(tr: combo_tree) -> list:
     return [n for n in tr if is_contin(n.data)]
 
 
+def structure_key(tr: combo_tree) -> tuple:
+    """NOT A PORT, server round 12 (``--const-opt-top-k``): a key of the structure of ``tr``.
+    Two trees have the same key iff they are the same tree when every constant (``contin_t``
+    leaf) is replaced by one placeholder. Each other vertex keeps its type and value, as in
+    ``behave_cscore._cache_key``."""
+    root = tr.begin()
+    if root is None:
+        return ()
+
+    def walk(node) -> tuple:
+        children = []
+        child = node.first_child
+        while child is not None:
+            children.append(walk(child))
+            child = child.next_sibling
+        data = node.data
+        return (type(data), None if is_contin(data) else data, tuple(children))
+
+    return walk(root)
+
+
 @dataclass
 class LMResult:
     """One LM call. ``status``: ``improved`` (the training MSE went down),

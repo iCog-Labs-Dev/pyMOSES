@@ -18,6 +18,7 @@ from __future__ import annotations
 
 import copy
 import math
+import operator
 import time
 from collections import Counter
 from collections.abc import Hashable, Sequence
@@ -34,6 +35,7 @@ from pymoses.gomea.const_opt import (
     load_rows,
     mutation_sigma,
     scored_tree_instance,
+    structure_key,
 )
 from pymoses.gomea.engine import EngineParams, GomeaEngine
 from pymoses.gomea.fos import FOS_TOPK_MODES
@@ -240,7 +242,15 @@ class gomea_parameters:
     of each deme stops at the deme budget minus ``lm_reserve(deme budget)`` = min(R,
     deme budget // 2) evaluations, so that LM on the deme's best program can use the
     evaluations that are left (the rule of ``hc_lm.lm_reserve``). A deme that ends
-    before that point is not changed. N still comes from the full deme budget."""
+    before that point is not changed. N still comes from the full deme budget.
+
+    NOT A PORT, server round 12 (T1.6, off by default, and then left out of ``as_dict``):
+    with ``const_opt`` ``"lm"`` and ``const_opt_top_k`` K > 0, LM at the end of each deme
+    tunes up to K programs in place of the best one (``_tune_top_k``): the deme's best
+    program (the one that K = 0 tunes), then the deme entries in MOSES score order (ties:
+    entry order) whose structure (``const_opt.structure_key`` of the reduced tree) is new,
+    until K structures are taken. Each one gets the LM, guard, charges and write-back of
+    ``_tune_best``. ``-a gomea`` only."""
 
     def __init__(
         self,
@@ -280,6 +290,7 @@ class gomea_parameters:
         hc_fraction_of_nn: float = 2.0,
         hc_max_nn_evals: int = 20000,
         const_opt_reserve: int = 0,
+        const_opt_top_k: int = 0,
     ) -> None:
         if pop_size == DYNAMIC_POP_SIZE:
             if pop_fraction > 0:
@@ -381,6 +392,13 @@ class gomea_parameters:
             )
         if const_opt_reserve > 0 and const_opt != "lm":
             raise ValueError("const_opt_reserve needs const_opt 'lm'")
+        if (not isinstance(const_opt_top_k, int) or isinstance(const_opt_top_k, bool)
+                or const_opt_top_k < 0):
+            raise ValueError(
+                f"const_opt_top_k must be an integer >= 0 (0 = off), got {const_opt_top_k!r}"
+            )
+        if const_opt_top_k > 0 and const_opt != "lm":
+            raise ValueError("const_opt_top_k needs const_opt 'lm'")
         parse_radii(radii)
 
         self.pop_size = pop_size
@@ -419,6 +437,7 @@ class gomea_parameters:
         self.hc_fraction_of_nn = hc_fraction_of_nn
         self.hc_max_nn_evals = hc_max_nn_evals
         self.const_opt_reserve = const_opt_reserve
+        self.const_opt_top_k = const_opt_top_k
 
     # The opt-in options, left out of ``as_dict`` while at their default
     # (off), so a default run's telemetry is unchanged.
@@ -437,6 +456,7 @@ class gomea_parameters:
         "const_opt_val": "",
         "const_opt_guard": "none",
         "const_opt_reserve": 0,
+        "const_opt_top_k": 0,
     }
 
     # The knob-cap options: all left out of ``as_dict`` while ``knob_cap`` is 0
@@ -1082,7 +1102,10 @@ class gomea_optimization(optimizer_base):
         if _const_opt_mode(self) == "lm" and reason != "interrupted":
             if self._reserve:
                 oracle.max_evals = self._call_max_evals  # server round 11: LM gets the rest
-            self._tune_best(deme, oracle, schema)
+            if self.gomea_params.const_opt_top_k > 0:
+                self._tune_top_k(deme, oracle, schema)  # server round 12
+            else:
+                self._tune_best(deme, oracle, schema)
         result = engine.last_result if engine is not None else None
         history = result.history if result is not None else []
         generations = result.generations if result is not None else 0
@@ -1148,6 +1171,9 @@ class gomea_optimization(optimizer_base):
         if self.gomea_params.const_opt_reserve > 0:
             # NOT A PORT, server round 11: this deme's LM reserve (absent when off).
             self.last_result["const_opt_reserve"] = self._reserve
+        if self.gomea_params.const_opt_top_k > 0:
+            # NOT A PORT, server round 12: the records of the top-K LM calls (absent when off).
+            self.last_result["const_opt"].setdefault("lm_topk", [])
         sink.emit("end", **self.last_result)
 
     # GOMEA extension (``--const-opt mutate``): coefficient mutation.
@@ -1220,6 +1246,126 @@ class gomea_optimization(optimizer_base):
         g = oracle.best_genotype()
         if g is None:
             return
+        iscorer = oracle.iscorer
+        cscorer = iscorer._cscorer
+        rows = RegressionRows.of_bscore(find_contin_bscore(cscorer))
+        tree = schema.candidate(g, getattr(iscorer, "_reduce", True))
+        before = oracle.ledger.requests
+        lm = levenberg_marquardt(tree, rows, oracle.charge_tuning)
+        rec = lm.record()
+        if lm.tree is not None:
+            try:
+                if self.gomea_params.const_opt_guard == "val":
+                    verdict = guard_accepts(
+                        tree, lm.tree, rows, self._guard_rows(cscorer, rows), oracle.charge_tuning
+                    )
+                    rec.update(
+                        guard="accepted" if verdict["accepted"] else "rejected",
+                        val_nmse_old=verdict["val_nmse_old"],
+                        val_nmse_new=verdict["val_nmse_new"],
+                    )
+                    co["lm_guard_checked"] = co.get("lm_guard_checked", 0) + 1
+                    if not verdict["accepted"]:
+                        co["lm_guard_rejected"] = co.get("lm_guard_rejected", 0) + 1
+                        rec["written_back"] = False
+                        return self._close_tuning(deme, oracle, lm, rec, before)
+                oracle.charge_tuning()
+                score = cscorer.get_cscore(lm.tree)
+            except BudgetExhausted:
+                rec["budget"] = True
+                rec["written_back"] = False
+            else:
+                inst = schema.to_instance(g)
+                deme[:] = [
+                    si
+                    for si in deme
+                    if not (si.first == inst and getattr(si, "tree", None) is None)
+                ]
+                deme.append(scored_tree_instance(inst, score, lm.tree))
+                rec["written_back"] = True
+        self._close_tuning(deme, oracle, lm, rec, before)
+
+    # NOT A PORT, server round 12 (``--const-opt-top-k K``, T1.6).
+    def _tune_top_k(self, deme: deme_t, oracle: EvaluationOracle, schema: FrozenSchema) -> None:
+        """LM on up to K programs of the deme (``_top_k_genotypes``), after
+        ``oracle.finalize``, in place of ``_tune_best``. Each program gets exactly what
+        ``_tune_best`` does for the best one (``_tune_program``): the same LM, guard, charges
+        (``oracle.charge_tuning``, the run's budget) and Lamarckian write-back. The first
+        program is the one ``_tune_best`` tunes, so K = 1 is the same as K = 0. After a call
+        that ran out of the budget or the time limit, no more calls are made.
+
+        Telemetry (only with K > 0): ``const_opt.lm_topk`` (the record of each call, in
+        order), ``lm_topk_picked`` (the programs picked, at most K) and
+        ``lm_topk_best_in_deme`` (whether the deme's best program still has an entry in the
+        deme; see ``_top_k_genotypes``). ``const_opt.lm`` is the record of the first call,
+        the one on the deme's best program; ``lm_calls`` and the other counts include every
+        call."""
+        co = self._co
+        picks, in_deme = self._top_k_genotypes(deme, oracle, schema)
+        records = []
+        for g in picks:
+            self._tune_program(deme, oracle, schema, g)
+            records.append(co["lm"])
+            if co["lm"]["budget"]:
+                break
+        if records:
+            co["lm"] = records[0]
+        co["lm_topk"] = records
+        co["lm_topk_picked"] = len(picks)
+        co["lm_topk_best_in_deme"] = in_deme
+
+    def _top_k_genotypes(
+        self, deme: deme_t, oracle: EvaluationOracle, schema: FrozenSchema
+    ) -> tuple[list[tuple[int, ...]], bool]:
+        """``(picks, best_in_deme)``: the genotypes of the K programs that ``_tune_top_k``
+        tunes, and whether the deme's best program has an entry in the deme.
+
+        The first pick is ``oracle.best_genotype()``, the program ``_tune_best`` tunes. Then
+        the deme entries, sorted by the MOSES score (``composite_score``'s ``<``; ties keep
+        the entry order), are walked from the best down, and each entry whose structure
+        (``structure_key`` of its reduced tree, the tree ``_tune_best`` gives LM) is not
+        taken yet is picked, until there are K picks.
+
+        With ``--gomea-accept-complexity-ratio`` R > 0 and ``--gomea-deme-store accepted``,
+        the best program under the MOSES score can be missing from the kept deme (GOM can
+        reject it under the penalized comparison). It is still the first pick, as for
+        ``_tune_best``; when it is in the deme, it is also the first entry of the sorted
+        deme, so the rule is the same in both cases. No pick when nothing was evaluated."""
+        best = oracle.best_genotype()
+        if best is None:
+            return [], False
+        k = self.gomea_params.const_opt_top_k
+        reduce = getattr(oracle.iscorer, "_reduce", True)
+        order = sorted(
+            range(len(deme)), key=lambda i: _WorseKey(deme[i].second, operator.lt), reverse=True
+        )
+        best_inst = schema.to_instance(best)
+        in_deme = any(si.first == best_inst for si in deme)
+        picks = [best]
+        keys = {structure_key(schema.candidate(best, reduce))}
+        seen = {best}
+        for i in order:
+            if len(picks) >= k:
+                break
+            g = schema.to_genotype(deme[i].first)
+            if g in seen:
+                continue
+            seen.add(g)
+            key = structure_key(schema.candidate(g, reduce))
+            if key in keys:
+                continue
+            keys.add(key)
+            picks.append(g)
+        return picks, in_deme
+
+    def _tune_program(
+        self, deme: deme_t, oracle: EvaluationOracle, schema: FrozenSchema, g: tuple[int, ...]
+    ) -> None:
+        """``_tune_best`` on the program of genotype ``g`` in place of the deme's best one:
+        the same LM, guard, charges, Lamarckian write-back and record. A copy of its body,
+        because HC-LM borrows ``_tune_best`` as it is (``hc_lm.py``) and ``_tune_best`` stays
+        byte-identical."""
+        co = self._co
         iscorer = oracle.iscorer
         cscorer = iscorer._cscorer
         rows = RegressionRows.of_bscore(find_contin_bscore(cscorer))

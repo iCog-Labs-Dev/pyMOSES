@@ -58,6 +58,9 @@ class hc_gomea_optimization(optimizer_base):
         if gp is not None and gp.const_opt_reserve > 0:
             # server round 11: the reserve is defined for -a gomea demes only
             raise ValueError("const_opt_reserve needs -a gomea, not the hc-gomea hybrid")
+        if gp is not None and gp.const_opt_top_k > 0:
+            # server round 12: top-K LM is defined for -a gomea demes only
+            raise ValueError("const_opt_top_k needs -a gomea, not the hc-gomea hybrid")
         self.hc = hill_climbing(self.opt_params, hc if hc is not None else hc_parameters())
         self.gomea = gomea_optimization(self.opt_params, gp)
         self.gomea_params = self.gomea.gomea_params

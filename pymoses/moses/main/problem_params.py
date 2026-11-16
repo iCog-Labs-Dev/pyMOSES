@@ -662,6 +662,18 @@ _PORT_OPTIONS = (
         "budget minus min(R, deme budget // 2), so that LM on the deme's best "
         "program can use the evaluations that are left. 0 = off. Default 0.",
     ),
+    # NOT A PORT, server round 12, T1.6 (off by default: a default run is unchanged).
+    (
+        "--const-opt-top-k",
+        "const_opt_top_k",
+        int,
+        0,
+        "with -a gomea --const-opt lm: at the end of each deme, LM on up to K "
+        "programs: the deme's best program, then the next deme entries by score "
+        "whose structure (the reduced program with each constant replaced by one "
+        "placeholder) is new. Each one as the best one (guard, write-back, every "
+        "pass counts). 0 = off. Default 0.",
+    ),
 )
 _GOMEA_INIT_CHOICES = ("sampler", "uniform")
 _GOMEA_ACCEPT_CHOICES = ("nonworse", "strict")
@@ -731,6 +743,7 @@ def _gomea_params_from_args(args: argparse.Namespace) -> gomea_parameters:
     v["const_opt_val"] = getattr(args, "const_opt_val", "")
     v["const_opt_guard"] = getattr(args, "const_opt_guard", "none")
     v["const_opt_reserve"] = getattr(args, "const_opt_reserve", 0)  # server round 11
+    v["const_opt_top_k"] = getattr(args, "const_opt_top_k", 0)  # server round 12
     if v["gomea_fos"] not in _GOMEA_FOS_CHOICES:
         raise ValueError(
             f"--gomea-fos {v['gomea_fos']} is not recognized. "
@@ -830,6 +843,7 @@ def _gomea_params_from_args(args: argparse.Namespace) -> gomea_parameters:
         const_opt_val=v["const_opt_val"],
         const_opt_guard=v["const_opt_guard"],
         const_opt_reserve=v["const_opt_reserve"],
+        const_opt_top_k=v["const_opt_top_k"],
         # server round 6: read only by --gomea-pop-size dynamic
         hc_fraction_of_nn=getattr(args, "hc_frac_of_nn", 2.0),
         hc_max_nn_evals=getattr(args, "hc_max_nn", 20000),
@@ -876,6 +890,14 @@ def _check_const_opt(v: dict, opt_algo: str | None) -> None:
         raise ValueError(f"--const-opt-reserve needs --const-opt lm, got --const-opt {mode}")
     if reserve > 0 and opt_algo != "gomea":
         raise ValueError(f"--const-opt-reserve needs -a gomea, got -a {opt_algo}")
+    # NOT A PORT, server round 12 (T1.6): LM on the top K programs of a GOMEA deme
+    top_k = v["const_opt_top_k"]
+    if top_k < 0:
+        raise ValueError(f"--const-opt-top-k must be >= 0 (0 = off), got {top_k}")
+    if top_k > 0 and mode != "lm":
+        raise ValueError(f"--const-opt-top-k needs --const-opt lm, got --const-opt {mode}")
+    if top_k > 0 and opt_algo != "gomea":
+        raise ValueError(f"--const-opt-top-k needs -a gomea, got -a {opt_algo}")
 
 
 def _check_knob_cap(v: dict) -> int | None:

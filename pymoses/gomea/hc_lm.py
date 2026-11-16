@@ -136,6 +136,9 @@ class hc_lm_optimization(optimizer_base):
         if self.gomea_params.const_opt != "lm":
             raise ValueError(f"hc_lm_optimization needs const_opt 'lm', got "
                              f"{self.gomea_params.const_opt!r}")
+        if self.gomea_params.const_opt_top_k > 0:
+            # server round 12: top-K LM is defined for -a gomea demes only
+            raise ValueError("const_opt_top_k needs -a gomea, not -a hc")
         self._val_rows = None
         self._co: dict = _new_const_opt_counts()
         self._deme_index = 0

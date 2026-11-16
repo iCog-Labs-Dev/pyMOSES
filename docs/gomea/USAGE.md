@@ -145,6 +145,7 @@ to, so an invalid value is always rejected.
 | `--const-opt-val FILE` | none | With `--const-opt polish` or `--const-opt-guard val` only: the validation table (the training columns, target `y`). `tools/gomea/moses_sr_runner.py` writes and passes it (`val_scaled.csv`). |
 | `--const-opt-guard {none,val}` | `none` | With `--const-opt lm` only (server round 5). `val`: the tuned constants replace the old ones only if the training error is lower and the validation NMSE is not worse. Needs `--const-opt-val`. See [Constant tuning](#constant-tuning---const-opt). |
 | `--const-opt-reserve R` | `0` | With `-a gomea --const-opt lm` only (server round 11; not a port). The search of each deme stops at the deme budget minus min(R, deme budget // 2), so that LM on the deme's best program can use the evaluations that are left. `0` = off. See [Constant tuning](#constant-tuning---const-opt). |
+| `--const-opt-top-k K` | `0` | With `-a gomea --const-opt lm` only (server round 12, T1.6; not a port). At the end of each deme, LM on up to K programs in place of the best one: the deme's best program (the one that `0` tunes), then the deme entries in MOSES score order whose structure (the reduced program with each constant replaced by one placeholder) is new. Each one gets the LM, guard, charges and write-back of the best one. `0` = off. See [Constant tuning](#constant-tuning---const-opt). |
 
 The default population was 64 during development. It became 16 after the pilot
 (`docs/gomea/pilot-a/`); the confirmatory runs passed 16 explicitly.
@@ -398,6 +399,21 @@ linear scaling when `--linear-scaling 1` is on, else the plain training MSE.
   event gets `const_opt_reserve` (the reserve of that deme). With `0` (the default), every
   output is the same as before the flag existed
   (`tests/gomea/test_const_opt_reserve_identity.py`).
+* **`lm` with `--const-opt-top-k K`** (server round 12, T1.6, `SERVER-ROUND12-PREREGISTRATION.md`;
+  not a port; `-a gomea` only). At the end of each deme, after the deme is finalized, LM runs on
+  up to K programs, one after the other. The first is the deme's best program under the MOSES
+  score, the one that LM tunes without the option. With `--gomea-accept-complexity-ratio` and
+  `--gomea-deme-store accepted`, that program can be missing from the kept deme; it is still the
+  first. Then the deme entries, sorted by the MOSES score (ties keep the entry order), are
+  walked from the best down, and each entry whose structure is new is taken. The structure is
+  the reduced program with each constant replaced by one placeholder
+  (`const_opt.structure_key`). Each program gets the LM, guard, charges (the run's budget) and
+  Lamarckian write-back of the best one, so `K = 1` gives the same output as `0`. After a call
+  that runs out of the budget or the time limit, no more calls are made. `const_opt` in the
+  `end` event then also has `lm_topk` (the record of each call, in order), `lm_topk_picked`
+  and `lm_topk_best_in_deme`; `lm` is the record of the first call, and `lm_calls`,
+  `tuning_evals` and the other counts include every call. With `0` (the default), every output
+  is the same as before the flag existed (`tests/gomea/test_const_opt_topk_during_identity.py`).
 
 Every pass over the training rows (one residual vector, one Jacobian column, one trial step,
 one final score, one mutation) is one evaluation: it is in `n_evals`, in the deme's ledger
