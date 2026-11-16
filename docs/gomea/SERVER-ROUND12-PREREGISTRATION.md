@@ -4,7 +4,10 @@
 the frame earlier the same day: BASE stays the reference, BASE-R runs again as an arm, one fixed
 reference for all arms, fresh splits 41–50, and the round includes T1.6 and T2.1–T2.4. The
 details below (option rules, arms, contrasts, pilot gate, time estimate) are agent-written and
-approved as a whole with this draft. Not implemented.
+approved as a whole with this draft. Implemented in 21c76e7, a0bae79 and 60ac792 (T2.1);
+57354d3, b9c0f81, e82c78f, 575cee8 and 369a346 (T2.2); 79d0332, 8eb6359, 9e55e25, defa8fe and
+99f1394 (T1.6 and T2.3); ae876e7, db0059b, 4a77b7d and 91b68aa (Boolean manifest commits,
+splits 41-50, the runner placeholder for P, configs, plans, tests and the SERVER-RUN section).
 
 **Changes after the implementation review (user, 2026-11-16):** BASE-K5 also gets the LM reserve,
 and its main contrast is against BASE-R ("Add the reserve to BASE-K5 (Recommended)"); BASE-LME
