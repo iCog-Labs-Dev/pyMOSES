@@ -110,7 +110,7 @@ to, so an invalid value is always rejected.
 | Option | Default | Meaning |
 |---|---|---|
 | `--gomea-pop-size N` | `16` | Population size per deme. Each generation costs about `N × 2 × (number of knobs)` trial evaluations. The pilot found 16 best of {16, 32, 64} under a 20k-evaluation budget; larger populations run out of budget after very few generations. |
-| `--gomea-fos {lt-b,lt-mi,rt,uni}` | `lt-b` | How knobs are grouped for mixing. `lt-b` is a linkage tree built from initialization-bias-corrected mutual information (Virgolin et al. 2021, Eq. 2). `lt-mi` uses ordinary mutual information. `rt` is a random hierarchical tree (a control). `uni` mixes one knob at a time (no linkage). |
+| `--gomea-fos {lt-b,lt-mi,rt,uni,np}` | `lt-b` | How knobs are grouped for mixing. `lt-b` is a linkage tree built from initialization-bias-corrected mutual information (Virgolin et al. 2021, Eq. 2). `lt-mi` uses ordinary mutual information. `rt` is a random hierarchical tree (a control). `uni` mixes one knob at a time (no linkage). `np` (server round 12, not a port) is node-proximity linkage (Koch, Alderliesten and Bosman, GECCO 2026): the `lt-b` linkage tree builder on the similarity −d, where d is the number of edges between the exemplar nodes of two knobs (through their lowest common ancestor). It uses no population statistics, links every knob that varies in the initial population (it ignores `--gomea-contin-stats`), and is built once for each deme. Not with `--gomea-knob-cap`. |
 | `--gomea-fi {0,1}` | `0` | Forced improvements: when an individual stagnates, mix it with the best-so-far solution. This is a labelled reconstruction; neither GP-GOMEA nor gpg ships it. |
 | `--gomea-radii SPEC` | `1:0.4,2:0.3,4:0.2,max:0.1` | The mixture of neighbourhood distances used for the initial population, as `radius:weight` pairs. `max` means "all knobs". `uniform` (or a `uniform:<weight>` component) makes every distance from 1 to all knobs equally likely. |
 | `--gomea-max-evals-per-deme N` | `0` (no cap) | The evaluation cap per deme. With no cap a deme may spend the whole remaining `-m` budget. If it stops, it is because it converged or stagnated. **Recommended: 250 with `--gomea-fos lt-b --gomea-genotype-memo 1`** (the Phase 1e winner); 500 was the Phase 1d fix. |
@@ -131,7 +131,7 @@ to, so an invalid value is always rejected.
 | `--gomea-deme-store {all,accepted}` | `all` | Which evaluated GOMEA trials the deme hands back to MOSES: `all` of them (the default), or `accepted`: only the initial population and the trials GOM or forced improvement accepted. Every evaluation is still charged to `-m` and counted. |
 | `--simplify-exemplar-numeric TOL` | `0` (off) | Port-only, regression only, any optimizer: before knobs are built, replace exemplar subtrees whose training-output range is below `TOL × sd(target)` by their mean, keeping a replacement only if the training score is not worse. See [Numerical simplification of exemplars](#numerical-simplification-of-exemplars---simplify-exemplar-numeric). |
 | `--gomea-fos-topk K` | `0` (off) | Each generation, GOM (and forced improvement) visits only K FOS subsets instead of all of them (about 2 per knob), so a generation costs about `N × K` trials instead of `N × 2 × knobs`. See [Top-K FOS subsets](#top-k-fos-subsets---gomea-fos-topk). |
-| `--gomea-fos-topk-mode {linkage,random}` | `linkage` | With `--gomea-fos-topk K`: `linkage` keeps the K linkage-tree merges with the strongest linkage (needs `--gomea-fos lt-b` or `lt-mi`); `random` draws K subsets uniformly each generation (the control). |
+| `--gomea-fos-topk-mode {linkage,random}` | `linkage` | With `--gomea-fos-topk K`: `linkage` keeps the K linkage-tree merges with the strongest linkage (needs `--gomea-fos lt-b`, `lt-mi` or `np`); `random` draws K subsets uniformly each generation (the control). |
 | `--gomea-long-deme-cap C` | `0` (off) | With `-a gomea` and a per-deme cap: a deme chosen by `--gomea-long-deme-rule` runs with cap C instead of `--gomea-max-evals-per-deme`, still bounded by the evaluations left; N is unchanged. See [Long demes](#long-demes-for-promising-exemplars---gomea-long-deme-cap). |
 | `--gomea-long-deme-rule {top,random}` | `top` | `top`: a deme is long when its exemplar has the metapopulation's highest penalized score when chosen (ties count) and has not had a long deme before. `random`: each deme is long with probability `--gomea-long-deme-prob p`, drawn from the run's RNG. |
 | `--gomea-long-deme-prob p` | `0` | With `--gomea-long-deme-rule random`. p = 0 (and p = 1) draws nothing. |
@@ -233,13 +233,14 @@ linkage from a selected population).
   two or more knobs the tree builds (the root, the set of all knobs, is already left out of
   the FOS). Each merge's strength is the UPGMA similarity, at the moment of merging, between
   the two clusters it joins: the cardinality-weighted average of the pairwise similarities
-  the tree is built from (`lt-b`: initialization-bias-corrected MI; `lt-mi`: MI). Higher is
+  the tree is built from (`lt-b`: initialization-bias-corrected MI; `lt-mi`: MI; `np`: minus
+  the number of edges between the knobs, so the strength is minus the mean distance). Higher is
   more strongly linked. The K merges with the highest strength are kept, ties going to the
   earlier merge. Singletons are not candidates: they carry no linkage, and GOM over a
   singleton is univariate mixing. Since UPGMA never inverts, a kept merge's sub-merges are
   kept too (barring ties), so the selection is the bottom of the tree: its tightest
   clusters. If the tree has fewer than K merges (fewer than K + 2 knobs), the remaining
-  slots go to singletons in FOS order. Needs `--gomea-fos lt-b` or `lt-mi`.
+  slots go to singletons in FOS order. Needs `--gomea-fos lt-b`, `lt-mi` or `np`.
   **Caveat (`lt-b`, first generation):** the bias-corrected similarity is measured against
   the initial population, so in a deme's first generation every pair scores 0 (up to
   rounding) and every merge has strength 0. The first generation's K merges are therefore
