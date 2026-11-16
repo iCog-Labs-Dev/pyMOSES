@@ -168,6 +168,29 @@ and UNI first.
   penalty of BASE-DIV is at least 1 % of the selection window. If a check fails, the agent reports
   to the user before the server run.
 
+## Pilot result (2026-11-16): the gate passed, with one user decision
+
+Local machine, split 1, 20,000 evaluations, nice 19, several jobs in parallel (the CPU values are
+noisy). The NMSE was not read. Runs by the clone subagents (A: BASE-R, BASE-K5, BASE-LME, after the
+changes of 2026-11-16; B: BASE-TLS; C: BASE-NP and mux11) and by the agent (BASE-DIV).
+
+| Arm | Dataset | Demes | Mechanism measure | CPU s | Peak RSS MB |
+|---|---|---|---|---|---|
+| BASE-R | Con / Dow | 4 / 5 | LM share 2.17 % / 0.46 % | 858 / 563 | 879 / 583 |
+| BASE-K5 | Con / Dow | 3 / 3 | LM calls per deme 5,5,3 / 5,5,3; LM share 6.14 % / 1.38 % | 865 / 538 | 797 / 583 |
+| BASE-LME | Con / Dow | 3 / 1 | LM share 1.69 % / 1.31 %; program after the elite tunings 31 / 31 tokens (Dow: 9 inputs; before the change of 2026-11-16: 347 tokens, 57 inputs) | 844 / 581 | 579 / 544 |
+| BASE-TLS | Con / Dow | 2 / 1 | terms of the selected program 11 / 28; fallback share 6.7 % / 2.0 %; CPU per evaluation 0.81× / 1.19× BASE | 1,182 / 1,030 | 464 / 540 |
+| BASE-NP | Con / Dow | 2 / 1 | FOS static in every deme; linkage about 0.1 ms per generation (LT-B 104–1,029 ms) | 721 / 797 | 367 / 517 |
+| BASE-DIV | Con / Dow | 2 / 1 | median diversity penalty / selection window: 2.4 % and 10.8 % / **0.10 %** | 942 / 554 | 412 / 537 |
+| NP, LT-B (mux11, 600 s check) | seed 3001 | 1 / 4 | both ran; NP: one deme of 40,505 evaluations, then about 250 s outside the deme | 571 / 601 | 149 / 238 |
+
+* **Gate:** every run ended ok. The LM share of BASE-LME is 1.69 % and 1.31 % (limit 50 %). The
+  BASE-DIV penalty passes on Con and fails on Dow: Dow has one deme, so no later exemplar is chosen,
+  and no value of P can change that. The agent reported it. The user chose "Run BASE-DIV as built
+  (Recommended)" (2026-11-16): the report states that BASE-DIV cannot act on one-deme datasets.
+* The highest peak memory is 909 MB (BASE on Con, clone B pilot), far below the limits.
+* The CPU of the new arms is close to BASE in this pilot, so the time estimate stays at 17–20 h.
+
 ## Memory
 
 As in round 11: Dow 8,192 MB, all other datasets 5,120 MB. No arm of phase A shortens the demes,

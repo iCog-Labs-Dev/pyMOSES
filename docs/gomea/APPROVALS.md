@@ -401,3 +401,9 @@ user confirms it.
     500` + `--const-opt-top-k 5`, with its main contrast against BASE-R.
   * The agent said that it would fix the T2.3 deme-end fault (removal of wrong deme entries) in a
     separate code path for that arm, unless the user objects. The user did not object.
+* **Round 12 pilot gate (2026-11-16):** all pilot runs ended ok and BASE-LME stayed far below the
+  50 % LM limit. The BASE-DIV penalty passed on Con (median 2.4–10.8 % of the selection window) and
+  failed on Dow (0.10 %), because Dow has one deme. The agent asked. The user chose "Run BASE-DIV
+  as built (Recommended)".
+  * User-approved: BASE-DIV runs with P = 6 × training rows; the report states that it cannot act
+    on one-deme datasets.
