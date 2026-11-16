@@ -392,3 +392,12 @@ user confirms it.
   * User-approved: the round 12 pre-registration as drafted, and the start of the implementation by
     subagents in separate clones.
   * Not approved by this answer: any push.
+* **Round 12 implementation review (2026-11-16):** the three code clones reported. Clone A found
+  that T2.3 also tunes the zero coefficients that knob building inserts (very large programs), and
+  that T1.6 gets no LM budget when the last deme uses the whole budget. The agent asked two
+  questions. The user chose "Tune non-zero constants only (Recommended)" and "Add the reserve to
+  BASE-K5 (Recommended)".
+  * User-approved: BASE-LME tunes only non-zero constants; BASE-K5 = BASE + `--const-opt-reserve
+    500` + `--const-opt-top-k 5`, with its main contrast against BASE-R.
+  * The agent said that it would fix the T2.3 deme-end fault (removal of wrong deme entries) in a
+    separate code path for that arm, unless the user objects. The user did not object.

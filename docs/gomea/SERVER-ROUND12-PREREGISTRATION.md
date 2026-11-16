@@ -6,6 +6,11 @@ reference for all arms, fresh splits 41–50, and the round includes T1.6 and T2
 details below (option rules, arms, contrasts, pilot gate, time estimate) are agent-written and
 approved as a whole with this draft. Not implemented.
 
+**Changes after the implementation review (user, 2026-11-16):** BASE-K5 also gets the LM reserve,
+and its main contrast is against BASE-R ("Add the reserve to BASE-K5 (Recommended)"); BASE-LME
+tunes only the constants that are not zero ("Tune non-zero constants only (Recommended)"). See
+the two option sections.
+
 **Questions:**
 
 1. Does LM on the top 5 programs of each deme (T1.6) make BASE more accurate at the same budget?
@@ -54,7 +59,7 @@ setting stays byte-identical (identity tests).
 | **BASE** | reference | the round 11 BASE flags (`configs/gomea/phase1be/`) |
 | **HC-LM** | accuracy baseline | the round 11 HC-LM flags |
 | **BASE-R** | T1.5 | BASE + `--const-opt-reserve 500` |
-| **BASE-K5** | T1.6 | BASE + `--const-opt-top-k 5` (new) |
+| **BASE-K5** | T1.6 | BASE + `--const-opt-reserve 500` + `--const-opt-top-k 5` (new) |
 | **BASE-NP** | T2.1 | BASE with `--gomea-fos np` (new) in place of `lt-b` |
 | **BASE-TLS** | T2.2 | BASE with `--linear-scaling terms` (new) and `--const-opt none` (no LM, no guard) |
 | **BASE-LME** | T2.3 | BASE + `--const-opt-during elite` (new) |
@@ -73,6 +78,10 @@ setting stays byte-identical (identity tests).
   `-a hc-gomea`, and without `--const-opt lm`.
 * Expected cost: about 4 × (34–115) extra evaluations for each deme (round 11 LM call medians),
   plus 3 guard and scoring passes for each call.
+* **Change (user, 2026-11-16):** the pilot showed that the top-k walk gets no budget when the last
+  deme uses the whole budget (Dow: one deme, LM at deme end with 0 evaluations; in round 11, 100 of
+  BASE's 277 LM calls had no budget). So BASE-K5 also has `--const-opt-reserve 500`, and its main
+  contrast is against BASE-R, which differs from it only by the top-k walk.
 
 ### T2.1: `--gomea-fos np` (BASE-NP)
 
@@ -103,6 +112,13 @@ setting stays byte-identical (identity tests).
   worse under the GOM comparator (ratio 0.125), and mark it with `keep`.
 * These LM passes go through a charge function that obeys the deme cap and the stall rule.
 * The LM call at deme end stays, as in BASE.
+* **Change (user, 2026-11-16):** LM tunes only the constants of the unreduced tree that are not
+  zero. The zero coefficients that knob building inserts (inactive terms) keep the value 0. The
+  pilot showed that tuning them made very large programs (Dow: 347 tokens and all 57 inputs,
+  against 30 tokens for BASE).
+* With the option on, the deme-end LM uses a separate code path that does not remove the plain
+  entries of a different program when the best program has free contin codes (a fault found in
+  the implementation review). `_tune_best` stays unchanged for all other arms.
 * If the genotype write-back cannot be built in time (it needs a map from the constants of the
   unreduced tree to the genes), this arm leaves the round (user rule, 2026-11-16).
 
@@ -126,11 +142,13 @@ and UNI first.
 
 ## Contrasts
 
-* **Phase A primary (6), pooled over 100 pairs, test NMSE, Holm across the 6:** BASE-R, BASE-K5,
-  BASE-NP, BASE-TLS, BASE-LME and BASE-DIV, each against BASE. Paired Wilcoxon signed-rank on
+* **Phase A primary (6), pooled over 100 pairs, test NMSE, Holm across the 6:** BASE-R, BASE-NP,
+  BASE-TLS, BASE-LME and BASE-DIV, each against BASE; and BASE-K5 against BASE-R (change of
+  2026-11-16). Paired Wilcoxon signed-rank on
   log(NMSE_A / NMSE_B), two-sided, α = 0.025.
 * **The gap to HC-LM (7), its own Holm family:** BASE and the 6 arms, each against HC-LM.
 * **Size and CPU (12), one Holm family:** program size and CPU for the 6 primary contrasts.
+* **Descriptive:** BASE-K5 against BASE (both changes together).
 * **Per dataset, descriptive (60):** the 6 primary contrasts on each dataset, no verdicts.
 * **Phase B (3), Holm across the 3:** NP against RT, UNI and LT-B, CPU to solve.
 * **Trade-off table:** for each arm, the NMSE ratio against BASE and against HC-LM, the size and
