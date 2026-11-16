@@ -198,14 +198,18 @@ def deme_spy(monkeypatch):
     """Record, at the end of each deme (before LM), the schema, the deme and the best
     genotype; the wrapped method is called unchanged."""
     demes: list[dict] = []
-    orig = gomea_optimization._tune_best
 
-    def _tune_best(self, deme, oracle, schema):
-        demes.append({"schema": schema, "best": oracle.best_genotype(),
-                      "entries": [(si.first, getattr(si, "tree", None)) for si in deme]})
-        return orig(self, deme, oracle, schema)
+    def wrap(orig):
+        def tune(self, deme, oracle, schema):
+            demes.append({"schema": schema, "best": oracle.best_genotype(),
+                          "entries": [(si.first, getattr(si, "tree", None)) for si in deme]})
+            return orig(self, deme, oracle, schema)
 
-    monkeypatch.setattr(gomea_optimization, "_tune_best", _tune_best)
+        return tune
+
+    # _tune_best without the option, _tune_deme_best with it
+    for name in ("_tune_best", "_tune_deme_best"):
+        monkeypatch.setattr(gomea_optimization, name, wrap(getattr(gomea_optimization, name)))
     return demes
 
 
@@ -306,7 +310,8 @@ def test_the_population_gets_the_tuned_constants(hook_spy, deme_spy, tmp_path):
     other genes unchanged), its unreduced program holds the tuned constants, its score is not
     worse under the deme's comparator (here the MOSES score: no complexity ratio), it is in
     the next population (checked by the spy), and its deme entry, which carries its program,
-    is kept."""
+    is kept. Only the constants that are not 0 are LM parameters: each constant with value 0
+    (an inactive coefficient that knob building inserts) keeps the value 0 and its code."""
     from pymoses.gomea.const_opt import constant_nodes
 
     _, events = _run(_lme("3000", ratio=False), tmp_path)
@@ -321,13 +326,147 @@ def test_the_population_gets_the_tuned_constants(hook_spy, deme_spy, tmp_path):
         assert genes_new == genes
         free = schema.free_values(new.genotype)
         changed = [p for p in range(len(old.genotype)) if old.genotype[p] != new.genotype[p]]
-        assert changed and set(changed) <= set(genes) and set(changed) == set(free)
+        # each tuned gene now holds a free code (an older free code can be inherited)
+        assert changed and set(changed) <= set(genes) and set(changed) <= set(free)
         values = [float(n.data) for n in constant_nodes(tree)]
         assert [values[genes.index(p)] for p in changed] == [free[p] for p in changed]
         assert not new.score < old.score
+        old_tree, _ = schema.candidate_genes(old.genotype)
+        old_values = [float(n.data) for n in constant_nodes(old_tree)]
+        zero = [p for p, v in zip(genes, old_values, strict=True) if v == 0.0]
+        active = [p for p, v in zip(genes, old_values, strict=True) if v != 0.0]
+        for p in zero:
+            assert new.genotype[p] == old.genotype[p]
+            assert values[genes.index(p)] == 0.0
+        assert set(changed) <= set(active)
+        assert c["record"]["n_constants"] == len(active)
+        assert c["record"]["n_constants_unreduced"] == len(genes)
+    assert any(c["record"]["n_constants_unreduced"] > c["record"]["n_constants"] for c in kept), (
+        "no kept LM result with an inactive zero coefficient")
     assert sum(e["const_opt"]["lm_elite_kept"] for e in _ends(events)) == len(kept)
     trees = sum(1 for d in deme_spy for _, tree in d["entries"] if tree is not None)
     assert trees >= 1
+
+
+def test_lm_with_a_mask_tunes_only_the_flagged_constants():
+    """``levenberg_marquardt(..., tune=...)``: a constant that is not flagged keeps its value
+    (here the 0 of an inactive term); the flagged one is tuned. Without the mask both are
+    tuned."""
+    from pymoses.comboreduct.combo.iostream_combo import str_to_combo_tree
+    from pymoses.gomea.const_opt import RegressionRows, constant_nodes, levenberg_marquardt
+
+    x = [[0.1 * i, (i * 7) % 5 + 0.5] for i in range(30)]
+    rows = RegressionRows(x, [2.5 * a + 3.0 * b for a, b in x], False)
+    tree = str_to_combo_tree("+(*(0 $2) *(1 $1))")
+    masked = levenberg_marquardt(tree, rows, lambda: None, tune=[False, True])
+    assert masked.status == "improved" and masked.n_constants == 1
+    assert [float(n.data) for n in constant_nodes(masked.tree)][0] == 0.0
+    assert len(masked.values) == 1 and masked.values[0] != 1.0
+    full = levenberg_marquardt(tree, rows, lambda: None)
+    assert full.n_constants == 2
+    assert [float(n.data) for n in constant_nodes(full.tree)][0] != 0.0
+
+
+class _EndOracle:
+    """The part of ``EvaluationOracle`` that LM at the end of a deme uses."""
+
+    def __init__(self, iscorer, best):
+        from types import SimpleNamespace
+
+        self.iscorer = iscorer
+        self._best = best
+        self.ledger = SimpleNamespace(requests=0, tuning_requests=0)
+
+    def best_genotype(self):
+        return self._best
+
+    def charge_tuning(self):
+        self.ledger.requests += 1
+        self.ledger.tuning_requests += 1
+
+
+def test_the_deme_end_lm_of_a_free_code_best_replaces_only_its_own_entries(tmp_path,
+                                                                           monkeypatch):
+    """With the option on, the deme's best program can have free contin codes. Its deme
+    entries carry their program, with the placeholder instance (code 0 at the free genes).
+    LM at the end of the deme (``_tune_deme_best``) replaces only the entry of that program:
+    the plain entry of the placeholder instance (another program) and the entry of another
+    free genotype stay. ``_tune_best`` (every other arm) removes the plain entry and keeps
+    the stale one, which is why the option has its own path."""
+    from pymoses.gomea.const_opt import constant_nodes, scored_tree_instance
+    from pymoses.gomea.optimizer import _new_const_opt_counts
+    from pymoses.moses.representation.instance_set import instance_set
+    from pymoses.moses.representation.scored_instance import scored_instance
+
+    got: dict = {}
+    orig = gomea_optimization._tune_best
+
+    def spy(self, deme, oracle, schema):
+        got.setdefault("iscorer", oracle.iscorer)
+        got.setdefault("schema", schema)
+        got.setdefault("best", oracle.best_genotype())
+        return orig(self, deme, oracle, schema)
+
+    monkeypatch.setattr(gomea_optimization, "_tune_best", spy)
+    _run(_reg("1500") + _BASE + _VAL, tmp_path)
+    monkeypatch.undo()
+    schema, iscorer, g = got["schema"], got["iscorer"], got["best"]
+    cscorer = iscorer._cscorer
+
+    def entry(geno, tree_entry):
+        tree = schema.candidate(geno, True)
+        score = cscorer.get_cscore(tree)
+        inst = schema.to_instance(geno)
+        return scored_tree_instance(inst, score, tree) if tree_entry else scored_instance(
+            inst, score)
+
+    tree, genes = schema.candidate_genes(g)
+    written = 0
+    for p, node in zip(genes, constant_nodes(tree), strict=True):
+        v = float(node.data)
+        if v == 0.0:
+            continue
+        g_free = g[:p] + (schema.register_contin_value(p, v + 0.75),) + g[p + 1 :]
+        g_other = g[:p] + (schema.register_contin_value(p, v - 0.5),) + g[p + 1 :]
+        g_zero = g[:p] + (0,) + g[p + 1 :]  # the plain genotype of the placeholder
+        inst = schema.to_instance(g_free)
+        assert inst == schema.to_instance(g_other) == schema.to_instance(g_zero)
+        key = _cache_key(schema.candidate(g_free, True))
+
+        def deme_of(g_zero=g_zero, g_free=g_free, g_other=g_other):
+            d = instance_set(schema.fields)
+            d.append(entry(g_zero, False))
+            d.append(entry(g_free, True))
+            d.append(entry(g_other, True))
+            return d
+
+        def tuned(path, g_free=g_free, deme_of=deme_of):
+            opt = gomea_optimization(gp=gomea_parameters(
+                const_opt="lm", contin="copy", const_opt_guard="val",
+                const_opt_val=str(TRAIN), const_opt_during="elite"))
+            opt._co = _new_const_opt_counts()
+            d = deme_of()
+            getattr(opt, path)(d, _EndOracle(iscorer, g_free), schema)
+            return d, opt._co["lm"]
+
+        new, rec = tuned("_tune_deme_best")
+        plain = [si for si in new if si.first == inst and getattr(si, "tree", None) is None]
+        stale = [si for si in new if getattr(si, "tree", None) is not None
+                 and _cache_key(si.tree) == key]
+        other = [si for si in new if getattr(si, "tree", None) is not None
+                 and _cache_key(si.tree) == _cache_key(schema.candidate(g_other, True))]
+        assert len(plain) == 1 and len(other) == 1
+        if not rec.get("written_back"):
+            assert len(new) == 3 and len(stale) == 1
+            continue
+        written += 1
+        assert not stale and len(new) == 3  # the stale entry out, the tuned one in
+        old, rec_old = tuned("_tune_best")
+        assert rec_old["written_back"]
+        assert not [si for si in old if getattr(si, "tree", None) is None]  # plain entry lost
+        assert [si for si in old if getattr(si, "tree", None) is not None
+                and _cache_key(si.tree) == key]  # stale entry kept
+    assert written, "no constant of the best program could be tuned"
 
 
 def test_the_deme_cap_is_respected(tmp_path):

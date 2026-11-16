@@ -682,9 +682,9 @@ _PORT_OPTIONS = (
         "none",
         "with -a gomea --const-opt lm --gomea-contin copy: none; elite (during the "
         "search, LM on each offspring that becomes a new deme best, on the "
-        "constants of its unreduced program; the tuned constants go back into its "
-        "genes, kept if not worse in the deme; each pass counts and obeys the deme "
-        "cap). Not with --const-opt-top-k. Default none.",
+        "non-zero constants of its unreduced program; the tuned constants go back "
+        "into its genes, kept if not worse in the deme; each pass counts and obeys "
+        "the deme cap). Not with --const-opt-top-k. Default none.",
     ),
 )
 _GOMEA_INIT_CHOICES = ("sampler", "uniform")

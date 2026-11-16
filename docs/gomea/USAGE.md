@@ -146,7 +146,7 @@ to, so an invalid value is always rejected.
 | `--const-opt-guard {none,val}` | `none` | With `--const-opt lm` only (server round 5). `val`: the tuned constants replace the old ones only if the training error is lower and the validation NMSE is not worse. Needs `--const-opt-val`. See [Constant tuning](#constant-tuning---const-opt). |
 | `--const-opt-reserve R` | `0` | With `-a gomea --const-opt lm` only (server round 11; not a port). The search of each deme stops at the deme budget minus min(R, deme budget // 2), so that LM on the deme's best program can use the evaluations that are left. `0` = off. See [Constant tuning](#constant-tuning---const-opt). |
 | `--const-opt-top-k K` | `0` | With `-a gomea --const-opt lm` only (server round 12, T1.6; not a port). At the end of each deme, LM on up to K programs in place of the best one: the deme's best program (the one that `0` tunes), then the deme entries in MOSES score order whose structure (the reduced program with each constant replaced by one placeholder) is new. Each one gets the LM, guard, charges and write-back of the best one. `0` = off. See [Constant tuning](#constant-tuning---const-opt). |
-| `--const-opt-during {none,elite}` | `none` | With `-a gomea --const-opt lm --gomea-contin copy` only (server round 12, T2.3; not a port). `elite`: during the search, each GOM offspring that becomes a new deme best (the best program of the deme under the MOSES score, strictly better than the best before it) gets LM, with the guard, on the constants of its unreduced program. The tuned constants go back into its genes as free contin codes, and the tuned offspring replaces it if it is not worse under the deme's comparator. These passes obey the deme cap and the stall rule. LM at the end of the deme does not change. Not with `--const-opt-top-k`. See [Constant tuning](#constant-tuning---const-opt). |
+| `--const-opt-during {none,elite}` | `none` | With `-a gomea --const-opt lm --gomea-contin copy` only (server round 12, T2.3; not a port). `elite`: during the search, each GOM offspring that becomes a new deme best (the best program of the deme under the MOSES score, strictly better than the best before it) gets LM, with the guard, on the non-zero constants of its unreduced program. The tuned constants go back into its genes as free contin codes, and the tuned offspring replaces it if it is not worse under the deme's comparator. These passes obey the deme cap and the stall rule. LM at the end of the deme does not change. Not with `--const-opt-top-k`. See [Constant tuning](#constant-tuning---const-opt). |
 
 The default population was 64 during development. It became 16 after the pilot
 (`docs/gomea/pilot-a/`); the confirmatory runs passed 16 explicitly.
@@ -421,9 +421,11 @@ linear scaling when `--linear-scaling 1` is on, else the plain training MSE.
   the offspring gets LM when it is a new deme best: the deme's best program under the MOSES
   score (the program that LM at the end of the deme tunes; all evaluated trials count)
   strictly improved since the previous offspring (or since the initial population), and the
-  offspring is that program. LM then tunes every constant of the offspring's UNREDUCED
-  program (`FrozenSchema.candidate_genes`); each such constant is the value of one contin
-  gene. With the guard, the old and the tuned unreduced program are compared on the
+  offspring is that program. LM then tunes the constants of the offspring's UNREDUCED
+  program (`FrozenSchema.candidate_genes`) whose value is not 0; each such constant is the
+  value of one contin gene. A constant with value 0 (an inactive coefficient that knob
+  building inserts, for example the 0 of an absent linear term) is not an LM parameter: it
+  keeps the value 0 and its code (user decision, 2026-11-16). With the guard, the old and the tuned unreduced program are compared on the
   validation rows. Each tuned value that differs from its gene's value becomes a free contin
   code of that gene (as with `mutate`), and the new genotype is scored through the deme's
   oracle (one evaluation). It replaces the offspring in the population only if it is not
@@ -432,12 +434,15 @@ linear scaling when `--linear-scaling 1` is on, else the plain training MSE.
   guard pass is one evaluation charged by `EvaluationOracle.charge_search_tuning`: unlike LM
   at the end of a deme, it obeys the deme cap and the stall rule, as well as `-m` and the time
   limit. When one of them stops a pass, the deme ends with the offspring as it was. LM at the
-  end of the deme does not change. The unreduced program has more constants than the reduced
-  one (for example the zero coefficients of the linear terms that knob building adds), so a
-  call costs more passes than LM at the end of a deme. `const_opt` in the `end` event then
+  end of the deme is the usual one, with one difference in the write-back: when the deme's
+  best program has free contin codes, the tuned program replaces only the deme entry of that
+  program (its entry carries its tree, with the placeholder instance), not the plain entries
+  of the placeholder instance, which are another program (`_tune_deme_best`). `const_opt` in
+  the `end` event then
   also has `lm_elite_calls`, `lm_elite_evals`, `lm_elite_kept`, `lm_elite_worse`,
   `lm_elite_guard_rejected`, `lm_elite_not_knob` and `lm_elite` (the record of each call:
-  the LM record, `n_constants_reduced`, `outcome` and `written_back`); `lm_calls`,
+  the LM record, where `n_constants` counts the LM parameters, `n_constants_unreduced`,
+  `n_constants_reduced`, `outcome` and `written_back`); `lm_calls`,
   `lm_<status>`, `tuning_evals` and the guard counts include these calls, while `lm` stays
   the record of LM at the end of the deme. With `none` (the default), every output is the
   same as before the flag existed (`tests/gomea/test_const_opt_topk_during_identity.py`).

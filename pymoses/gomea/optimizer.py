@@ -64,6 +64,7 @@ from pymoses.moses.moses.optimization.optimization import (
     optimizer_base,
 )
 from pymoses.moses.moses.types import composite_score
+from pymoses.moses.scoring.behave_cscore import _cache_key
 from pymoses.util.rng import MT19937RandGen, randGen
 
 __all__ = [
@@ -258,11 +259,12 @@ class gomea_parameters:
     with ``const_opt`` ``"lm"``, ``contin`` ``"copy"`` and ``const_opt_during`` ``"elite"``,
     each GOM offspring that is a new deme best (a strict improvement under the MOSES score)
     gets LM with the guard during the search (``_elite_tuner``). LM tunes the constants of its
-    unreduced program, which are its contin genes; the tuned values go back into its genotype
-    as free contin codes, and the tuned offspring replaces it if it is not worse under the
-    deme's comparator. These passes obey the deme cap and the stall rule
-    (``EvaluationOracle.charge_search_tuning``). LM at the end of the deme does not change.
-    ``-a gomea`` only; not with ``const_opt_top_k``."""
+    unreduced program that are not 0, which are its contin genes; the tuned values go back
+    into its genotype as free contin codes, and the tuned offspring replaces it if it is not
+    worse under the deme's comparator. These passes obey the deme cap and the stall rule
+    (``EvaluationOracle.charge_search_tuning``). LM at the end of the deme is that of
+    ``_tune_best``, with a write-back that also handles a best program with free contin codes
+    (``_tune_deme_best``). ``-a gomea`` only; not with ``const_opt_top_k``."""
 
     def __init__(
         self,
@@ -1148,6 +1150,8 @@ class gomea_optimization(optimizer_base):
                 oracle.max_evals = self._call_max_evals  # server round 11: LM gets the rest
             if self.gomea_params.const_opt_top_k > 0:
                 self._tune_top_k(deme, oracle, schema)  # server round 12
+            elif self.gomea_params.const_opt_during != "none":
+                self._tune_deme_best(deme, oracle, schema)  # server round 12
             else:
                 self._tune_best(deme, oracle, schema)
         result = engine.last_result if engine is not None else None
@@ -1320,10 +1324,13 @@ class gomea_optimization(optimizer_base):
     ) -> Individual:
         """LM with the guard on the offspring ``ind`` (a new deme best) during the search.
 
-        1. LM tunes every constant of the UNREDUCED program of ``ind``
-           (``FrozenSchema.candidate_genes``): each one is the value of one contin gene. If
-           a constant is not the value of a contin gene (or a gene gives two constants), the
-           offspring is returned as it is (``lm_elite_not_knob``).
+        1. LM tunes the constants of the UNREDUCED program of ``ind``
+           (``FrozenSchema.candidate_genes``) whose value is not 0: each one is the value of
+           one contin gene. A constant with value 0 (an inactive coefficient that knob
+           building inserts, for example the 0 of an absent linear term) is not an LM
+           parameter: it keeps the value 0 and its gene keeps its code (user decision,
+           2026-11-16). If a constant is not the value of a contin gene (or a gene gives two
+           constants), the offspring is returned as it is (``lm_elite_not_knob``).
         2. With ``const_opt_guard`` ``"val"``, ``guard_accepts`` compares the old and the
            tuned unreduced program on the validation rows; a worse validation NMSE keeps the
            offspring.
@@ -1355,9 +1362,11 @@ class gomea_optimization(optimizer_base):
                 stop.append(exc.reason)
                 raise
 
+        tune = [float(n.data) != 0.0 for n in constant_nodes(tree)]
         before = oracle.ledger.requests
-        lm = levenberg_marquardt(tree, rows, charge)
+        lm = levenberg_marquardt(tree, rows, charge, tune=tune)
         rec = lm.record()
+        rec["n_constants_unreduced"] = len(genes)
         reduced = schema.candidate(g, getattr(oracle.iscorer, "_reduce", True))
         rec["n_constants_reduced"] = len(constant_nodes(reduced))
         rec["written_back"] = False
@@ -1387,7 +1396,8 @@ class gomea_optimization(optimizer_base):
                     rec["outcome"] = "guard_rejected"
                     return ind
             new = list(g)
-            for p, v in zip(genes, lm.values, strict=True):
+            tuned = [p for p, t in zip(genes, tune, strict=True) if t]
+            for p, v in zip(tuned, lm.values, strict=True):
                 if v != schema.contin_value(p, g[p]):
                     new[p] = schema.register_contin_value(p, v)
             trial = tuple(new)
@@ -1558,13 +1568,33 @@ class gomea_optimization(optimizer_base):
             picks.append(g)
         return picks, in_deme
 
+    # NOT A PORT, server round 12 (``--const-opt-during elite``, T2.3).
+    def _tune_deme_best(
+        self, deme: deme_t, oracle: EvaluationOracle, schema: FrozenSchema
+    ) -> None:
+        """LM at the end of a deme with ``const_opt_during`` on: ``_tune_best`` with the
+        write-back of ``_tune_program``, which also handles a best program with free contin
+        codes (``_tune_best`` stays byte-identical for every other arm)."""
+        g = oracle.best_genotype()
+        if g is None:
+            return
+        self._tune_program(deme, oracle, schema, g)
+
     def _tune_program(
         self, deme: deme_t, oracle: EvaluationOracle, schema: FrozenSchema, g: tuple[int, ...]
     ) -> None:
         """``_tune_best`` on the program of genotype ``g`` in place of the deme's best one:
         the same LM, guard, charges, Lamarckian write-back and record. A copy of its body,
         because HC-LM borrows ``_tune_best`` as it is (``hc_lm.py``) and ``_tune_best`` stays
-        byte-identical."""
+        byte-identical.
+
+        Server round 12 (T2.3): if ``g`` has free contin codes (``--const-opt-during
+        elite``), its deme entries carry their program (``scored_tree_instance``, with the
+        placeholder instance ``to_instance(g)``). The write-back then removes the entries
+        with that instance whose program is the program of ``g`` (the tree LM started from),
+        and keeps the plain entries of the placeholder instance, which are another program.
+        For ``g`` without free codes (every top-K pick), the write-back is that of
+        ``_tune_best``."""
         co = self._co
         iscorer = oracle.iscorer
         cscorer = iscorer._cscorer
@@ -1596,11 +1626,23 @@ class gomea_optimization(optimizer_base):
                 rec["written_back"] = False
             else:
                 inst = schema.to_instance(g)
-                deme[:] = [
-                    si
-                    for si in deme
-                    if not (si.first == inst and getattr(si, "tree", None) is None)
-                ]
+                if schema.free_values(g):
+                    key = _cache_key(tree)
+                    deme[:] = [
+                        si
+                        for si in deme
+                        if not (
+                            si.first == inst
+                            and getattr(si, "tree", None) is not None
+                            and _cache_key(si.tree) == key
+                        )
+                    ]
+                else:
+                    deme[:] = [
+                        si
+                        for si in deme
+                        if not (si.first == inst and getattr(si, "tree", None) is None)
+                    ]
                 deme.append(scored_tree_instance(inst, score, lm.tree))
                 rec["written_back"] = True
         self._close_tuning(deme, oracle, lm, rec, before)

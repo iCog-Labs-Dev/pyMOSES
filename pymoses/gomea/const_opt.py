@@ -210,6 +210,7 @@ def levenberg_marquardt(
     charge: Callable[[], None],
     max_iterations: int = LM_MAX_ITERATIONS,
     rel_tol: float = LM_REL_TOL,
+    tune: Sequence[bool] | None = None,
 ) -> LMResult:
     """LM on every constant of ``tr`` (a copy; ``tr`` is not changed),
     minimising the training MSE of ``rows`` (after linear scaling when the
@@ -224,9 +225,17 @@ def levenberg_marquardt(
     additive constant that linear scaling absorbs) is held fixed. Stops after
     ``max_iterations`` iterations or when an
     accepted step lowers the MSE by less than ``rel_tol`` relative to the
-    MSE before it."""
+    MSE before it.
+
+    NOT A PORT, server round 12 (``--const-opt-during elite``): ``tune``, when given, has one
+    flag for each constant of ``tr`` (``constant_nodes`` order). Only the flagged constants
+    are LM parameters; the others keep their values. ``n_constants`` and ``values`` then
+    count only the flagged constants. ``None`` (the default) tunes every constant, as
+    before."""
     work = combo_tree(tr.begin())
     nodes = constant_nodes(work)
+    if tune is not None:
+        nodes = [n for n, t in zip(nodes, tune, strict=True) if t]
     k = len(nodes)
     theta = [float(get_contin(n.data)) for n in nodes]
     res = LMResult("budget", k, math.inf, math.inf)
