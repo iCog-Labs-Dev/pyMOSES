@@ -410,7 +410,10 @@ linear scaling when `--linear-scaling 1` is on, else the plain training MSE.
   the reduced program with each constant replaced by one placeholder
   (`const_opt.structure_key`). Each program gets the LM, guard, charges (the run's budget) and
   Lamarckian write-back of the best one, so `K = 1` gives the same output as `0`. After a call
-  that runs out of the budget or the time limit, no more calls are made. `const_opt` in the
+  that runs out of the budget or the time limit, no more calls are made. It works with
+  `--const-opt-reserve R`: the search of each deme then stops R evaluations early (see above),
+  and the walk uses what is left of the run's budget; `K = 1` with the reserve gives the same
+  output as the reserve alone. `const_opt` in the
   `end` event then also has `lm_topk` (the record of each call, in order), `lm_topk_picked`
   and `lm_topk_best_in_deme`; `lm` is the record of the first call, and `lm_calls`,
   `tuning_evals` and the other counts include every call. With `0` (the default), every output

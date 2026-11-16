@@ -356,3 +356,66 @@ def test_each_accepted_program_is_written_back(monkeypatch, tmp_path):
             assert not plain and len(tuned) == 1
         else:
             assert not tuned
+
+
+# ---- with the LM reserve (user decision 2026-11-16: the arm BASE-K5 is BASE +
+# --const-opt-reserve 500 + --const-opt-top-k 5)
+
+
+def _reserve(r: int) -> list[str]:
+    return ["--const-opt-reserve", str(r)]
+
+
+def _search(end):
+    """The evaluations of the GOMEA search of a deme (LM passes left out)."""
+    return end["ledger"]["requests"] - end["ledger"].get("tuning_requests", 0)
+
+
+def test_the_parameters_accept_top_k_with_the_reserve():
+    from pymoses.gomea.optimizer import gomea_parameters
+
+    d = gomea_parameters(const_opt="lm", const_opt_top_k=5, const_opt_reserve=500).as_dict()
+    assert d["const_opt_top_k"] == 5 and d["const_opt_reserve"] == 500
+
+
+def test_with_the_reserve_the_walk_gets_the_evaluations_that_are_left(tmp_path):
+    """At -m 600 the one deme of BASE ends at the budget, so LM gets no evaluations
+    (``test_const_opt_reserve.py``). With R = 500 the search stops at 300 (the deme budget
+    600 minus min(500, 300)), and the top-K walk uses the evaluations that are left."""
+    out, events = _run(_reg("600") + _BASE + _reserve(500) + _k(5), tmp_path)
+    first = _ends(events)[0]
+    assert first["const_opt_reserve"] == 300
+    assert _search(first) == 300
+    co = first["const_opt"]
+    assert len(co["lm_topk"]) >= 2 and co["lm_topk"][0]["status"] != "budget"
+    assert co["lm_calls"] == len(co["lm_topk"])
+    assert co["tuning_evals"] == sum(r["evals"] for r in co["lm_topk"]) > 0
+    assert _n_evals(out) <= 600
+
+
+def test_k1_with_the_reserve_is_base_r(tmp_path):
+    """K = 1 with the reserve is BASE-R: the same output, and the same events except the
+    option's own telemetry."""
+    out_r, base_r = _run(_reg("1500") + _BASE + _reserve(500), tmp_path)
+    out_1, k1 = _run(_reg("1500") + _BASE + _reserve(500) + _k(1), tmp_path)
+    assert out_1 == out_r
+    assert _without_topk(k1) == _without_topk(base_r)
+
+
+@pytest.mark.parametrize("m", ["600", "1500", "3000"])
+def test_with_the_reserve_the_evaluations_never_pass_m(m, tmp_path):
+    out, events = _run(_reg(m) + _BASE + _reserve(500) + _k(5), tmp_path)
+    ends = _ends(events)
+    starts = [e for e in events if e["type"] == "invocation_start"]
+    n = _n_evals(out)
+    assert n <= int(m)
+    assert n == sum(e["ledger"]["requests"] for e in ends)
+    for start, end in zip(starts, ends, strict=True):
+        budget = start["max_evals"]  # no deme cap: the deme budget is what is left of -m
+        assert end["const_opt_reserve"] == min(500, budget // 2)
+        assert _search(end) <= budget - end["const_opt_reserve"]
+        assert end["ledger"]["requests"] <= budget
+        co = end["const_opt"]
+        assert co["tuning_evals"] == sum(r["evals"] for r in co["lm_topk"])
+        # a call that ran out of the budget is the last one
+        assert not any(r["budget"] for r in co["lm_topk"][:-1])
