@@ -435,6 +435,43 @@ Facts only. This round does not test them, and they give no recommendation.
 * `--const-opt-reserve` and the deme-share fix (709b27f) are new code. This round is their first
   use, after local tests only.
 
+## Follow-up: T1.5, BASE-R as a replacement for BASE (2026-11-16)
+
+Agent analysis of the round 11 data (`ROADMAP.md`, T1.5). No new runs. Scripts in the session
+scratchpad (`r11res/t15_*.py`); the Bos split 35 tables were rebuilt from `data/gomea-sr` with
+`tools/gomea/sr_datasets.py --from-full`.
+
+**Step 1: the failure case (Bos BASE-R, split 35, test NMSE 60,308.97).**
+
+* The first 3 demes of BASE and BASE-R are identical: they ended by stagnation before the stop
+  point of the reserve. In deme 4, BASE had no LM budget; BASE-R ran LM (100 evaluations), and the
+  guard accepted it (validation NMSE 0.267 → 0.255). The tiny deme 5 then ran LM again, accepted
+  (0.283 → 0.235).
+* The final program has fractional constants (for example −9.501, −2.618, 5.401), as LM writes
+  them. The BASE program of the same split has only small whole-number constants.
+* **One test row carries more than 99 % of the test error.** Row 60 has x8 = 1.202, below the
+  training range of x8 (1.316–9.223). BASE-R predicts −2,414 for it (target 50); BASE predicts 70.1.
+  Row 120 (x8 = 1.13, also below the range) gives 222.4 for BASE-R and 33.2 for BASE.
+* **The program has a pole.** With the other inputs of row 60 fixed, the BASE-R prediction goes
+  from −7,560 at x8 = 1.25 to 6,122 at x8 = 1.30 (sign change), and is still 3,879 at x8 = 1.316.
+  A denominator crosses zero near x8 ≈ 1.27. The BASE prediction stays at 68–70 over the same
+  values.
+* No training or validation row comes near the pole, so the validation guard could not see it.
+
+**Step 2: BASE-R on the datasets where BASE is weak against HC-LM.**
+
+| Dataset | Test NMSE BASE / BASE-R / HC-LM | Share of the BASE–HC-LM gap that BASE-R closes | Pairs (BASE-R lower / BASE lower, ties) | Size BASE / BASE-R / HC-LM | CPU s BASE / BASE-R |
+|---|---|---|---|---|---|
+| Air | 42.09 / 38.35 / 33.26 | 42 % | 9/0 (1) | 70.5 / 78.5 / 144.5 | 640 / 622 |
+| Con | 30.91 / 23.33 / 18.89 | 63 % | 9/1 | 53.5 / 81 / 53 | 449 / 445 |
+| Dow | 39.29 / 35.04 / 33.70 | 76 % | 8/1 (1) | 26 / 29 / 55 | 338 / 353 |
+| Tow | 18.36 / 16.14 / 13.92 | 50 % | 7/1 (2) | 32.5 / 35 / 58.5 | 1,100 / 1,100 |
+
+* On the other 6 datasets, the BASE-R pair ratio against BASE is 0.97–1.00.
+* The train–test gap of BASE-R is about the same as BASE on Air, Con and Tow, and larger on Dow
+  (2.91 against 1.29).
+* Step 3 (the user's decision) is open.
+
 ## User decisions
 
 The pre-registration has no adoption rule. On 2026-11-16 the user asked: "Due to a lower program
