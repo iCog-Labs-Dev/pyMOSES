@@ -178,6 +178,17 @@ def test_each_new_arm_changes_only_its_own_flags():
     assert pairs(ARMS["BASE-PS"]) == pairs(BASE) + [("--const-opt-pole-check", "box")]
 
 
+@pytest.mark.parametrize("prefix", PREFIXES)
+def test_every_manifest_asks_for_the_clipped_test_nmse(prefix):
+    """The manifest key "clip_test_nmse": true ("Descriptive for every arm"); expand() gives
+    it to every run, so every summary of the phase has test_nmse_clipped."""
+    for f in stage1(CONFIGS / prefix):
+        m = load(f)
+        assert m["clip_test_nmse"] is True
+        jobs = runner.expand(m, Path("/o"), REPO)
+        assert jobs and all(j["clip_test_nmse"] is True for j in jobs)
+
+
 def test_budget_is_evaluations_with_no_time_limit():
     for f in stage1(CONFIGS / "phase1bh"):
         m = load(f)
@@ -563,6 +574,7 @@ def test_smoke_has_the_same_arms_and_is_small():
         assert m["datasets"] == fm["datasets"] and m["splits"] == [51, 52]
         assert m["wall_cap_s"] <= 300 and m["mem_limit_mb"] == fm["mem_limit_mb"]
         assert m["datasets_dir"] == fm["datasets_dir"]
+        assert m["clip_test_nmse"] is fm["clip_test_nmse"] is True
         assert list(m["arms"]) == list(fm["arms"])
         for a, s in m["arms"].items():
             assert {k: v for k, v in s.items() if k != "budget"} == {

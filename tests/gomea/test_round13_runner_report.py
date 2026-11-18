@@ -3,7 +3,8 @@
 
 * ``sr_eval.evaluate(..., plain=True, clip=True)``: the plain a + b*f values and the test NMSE
   with clipped predictions; without the keywords the result does not change.
-* ``moses_sr_runner.py``: ``test_nmse_clipped`` for every arm, the plain-scaling fields of a
+* ``moses_sr_runner.py``: ``test_nmse_clipped`` for every arm of a manifest with
+  ``"clip_test_nmse": true`` (absent without the key), the plain-scaling fields of a
   ``--linear-scaling terms`` arm, and the TLS-G guard (``"terms_guard": "val"``): for each
   candidate the lower validation NMSE of the per-term model and the plain a + b*f (a tie keeps
   plain), ``terms.guard`` in the summary and in each candidate.
@@ -166,7 +167,7 @@ def test_the_clipped_nmse_clips_the_scaled_predictions_to_the_train_range(tmp_pa
 
 
 def test_every_arm_gets_the_clipped_test_nmse_of_the_reported_candidate(tmp_path):
-    s = runner._run_one(_job(tmp_path, PLAIN))
+    s = runner._run_one(_job(tmp_path, PLAIN, clip_test_nmse=True))
     train, _, test = _tables(tmp_path)
     want = sr_eval.evaluate(s["final_program"], train, test, clip=True)["test"]
     assert s["test_nmse"] == want["nmse_scaled"]
@@ -177,8 +178,21 @@ def test_every_arm_gets_the_clipped_test_nmse_of_the_reported_candidate(tmp_path
                for c in _cands(tmp_path))
 
 
+@pytest.mark.parametrize("argv, guard", [(PLAIN, None), (TLS, None), (TLS, "val")])
+def test_without_the_manifest_key_there_is_no_clipped_test_nmse(argv, guard, tmp_path):
+    kw = {"terms_guard": guard} if guard else {}
+    off = runner._run_one(_job(tmp_path / "off", argv, **kw))
+    on = runner._run_one(_job(tmp_path / "on", argv, clip_test_nmse=True, **kw))
+    assert "test_nmse_clipped" not in off and "test_nmse_clipped" in on
+    assert json.loads((tmp_path / "off" / "run" / "summary.json").read_text()).keys() == (
+        set(on) - {"test_nmse_clipped"})
+    for k in ("final_program", "train_nmse", "val_nmse", "test_nmse"):
+        assert off[k] == on[k]
+    assert _cands(tmp_path / "off") == _cands(tmp_path / "on")
+
+
 def test_a_tls_arm_gets_the_plain_fields(tmp_path):
-    s = runner._run_one(_job(tmp_path, TLS))
+    s = runner._run_one(_job(tmp_path, TLS, clip_test_nmse=True))
     train, val, test = _tables(tmp_path)
     for c in _cands(tmp_path):
         assert c["plain_val_nmse"] == sr_eval.evaluate(c["program"], train, val)["test"][
@@ -197,7 +211,7 @@ def test_a_tls_arm_gets_the_plain_fields(tmp_path):
 
 def test_the_guard_keeps_the_lower_validation_nmse_and_plain_on_a_tie(tmp_path):
     ref = runner._run_one(_job(tmp_path / "tls", TLS))
-    s = runner._run_one(_job(tmp_path / "g", TLS, terms_guard="val"))
+    s = runner._run_one(_job(tmp_path / "g", TLS, terms_guard="val", clip_test_nmse=True))
     train, val, test = _tables(tmp_path / "g")
     seen = set()
     for c, r in zip(_cands(tmp_path / "g"), _cands(tmp_path / "tls"), strict=True):
@@ -265,6 +279,14 @@ def test_expand_carries_the_guard_key_and_refuses_a_wrong_one(tmp_path):
     assert jobs["TLS-G"]["argv"] == jobs["BASE-TLS"]["argv"]
     assert runner.moses_argv(jobs["TLS-G"], tmp_path, 100) == runner.moses_argv(
         jobs["BASE-TLS"], tmp_path, 100)
+    assert all("clip_test_nmse" not in j for j in jobs.values())
+    on = runner.expand({**m, "clip_test_nmse": True}, tmp_path, tmp_path)
+    assert all(j["clip_test_nmse"] is True for j in on)
+    off = runner.expand({**m, "clip_test_nmse": False}, tmp_path, tmp_path)
+    assert all("clip_test_nmse" not in j for j in off)
+    for v in ("yes", 1, None):
+        with pytest.raises(ValueError, match="clip_test_nmse must be true or false"):
+            runner.expand({**m, "clip_test_nmse": v}, tmp_path, tmp_path)
     for bad, why in [({**arm, "argv": PLAIN, "terms_guard": "val"}, "--linear-scaling terms"),
                      ({**arm, "argv": ["-a", "gomea"], "terms_guard": "val"},
                       "--linear-scaling terms"),
@@ -327,7 +349,7 @@ def test_the_runner_output_is_byte_identical_apart_from_the_new_fields(argv, tmp
     _run_in(TOOLS, jn)
     co, cn = (Path(j["run_dir"]) / "candidates.json" for j in (jo, jn))
     so, sn = (json.loads((Path(j["run_dir"]) / "summary.json").read_text()) for j in (jo, jn))
-    new_s = {"test_nmse_clipped"}
+    new_s = set()  # no "clip_test_nmse" in the job: no test_nmse_clipped
     if argv is TLS:
         new_c = ("plain_val_nmse", "plain_test_nmse")
         strip = [{k: v for k, v in c.items() if k not in new_c} for c in json.loads(cn.read_text())]

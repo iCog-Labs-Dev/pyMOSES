@@ -185,7 +185,8 @@ def same_search_rows(runs: dict, a: str, b: str, problems: list[str]) -> list[di
                 row["result"] = "same" if pa == pb else "differ"
                 if pa != pb:
                     row["first_difference"] = next(
-                        (i for i, (x, y) in enumerate(zip(pa, pb)) if x != y), min(len(pa), len(pb)))
+                        (i for i, (x, y) in enumerate(zip(pa, pb, strict=False)) if x != y),
+                        min(len(pa), len(pb)))
             rows.append(row)
     return rows
 

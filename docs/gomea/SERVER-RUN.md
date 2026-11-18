@@ -948,7 +948,8 @@ of 36,000 s per run is only a guard against a hung process.
   every arm. The summary has `terms.guard` (`terms` or `plain`); `candidates.json` has the choice
   of each candidate. The runner refuses `terms_guard` on an arm without `--linear-scaling terms`.
 * New fields in the summaries (no other value changes): `test_nmse_clipped` for every arm (the
-  test NMSE with the predictions clipped to [min − 0.1·R, max + 0.1·R] of the training target);
+  test NMSE with the predictions clipped to [min − 0.1·R, max + 0.1·R] of the training target;
+  the runner writes it because the manifests of 1bh have `"clip_test_nmse": true`);
   `plain_val_nmse` and `plain_test_nmse` for the four TLS arms (the plain a + b·f, descriptive).
   BASE-PS summaries have `const_opt.lm_pole_checked` and `lm_pole_rejected`; BASE-LEX summaries
   have the `lexicase` block.
