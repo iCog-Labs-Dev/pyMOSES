@@ -2,7 +2,7 @@
   "schema_version": 1,
   "name": "phase1as-bool",
   "phase": 1,
-  "commit": "4a9d4fea736a091ba55809998121205d3be50379",
+  "commit": "b4ffc5b25a797219cc18e519cb126d5af15b030e",
   "common_argv": [
     "-l",
     "WARN"
