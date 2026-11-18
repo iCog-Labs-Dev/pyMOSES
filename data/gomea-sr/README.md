@@ -17,14 +17,15 @@ downloads; Dow and Tow are not committed (see "Dow and Tow" below):
     .venv/bin/python tools/gomea/sr_datasets.py ../gomea-results/phase1f/datasets \
         Air Bos Con EnC EnH WiR WiW Yac --from-full data/gomea-sr
 
-which checks each `full.csv` against `SHA256SUMS`, writes the 50 splits and fails unless
+which checks each `full.csv` against `SHA256SUMS`, writes the 60 splits and fails unless
 the regenerated `splits.json` equals the committed one. On the local machine the rebuilt
 `splits/` directories (s1..s30, `.csv` and `.dat`) were byte-identical to the originals
 (`diff -r`, 2026-10-25). Splits 31..40 (the fresh splits of server round 11) were added on
 2026-11-11; the `splits.json` files gained their entries, and splits 1..30 did not change
 (`tests/gomea/test_sr_datasets.py`). Splits 41..50 (the fresh splits of server round 12) were
 added on 2026-11-16 in the same way (Dow and Tow from the local raw files with `--from-raw`);
-splits 1..40 did not change.
+splits 1..40 did not change. Splits 51..60 (the fresh splits of server round 13) were added on
+2026-11-18 in the same way; splits 1..50 did not change.
 
 ## Licences and citations
 

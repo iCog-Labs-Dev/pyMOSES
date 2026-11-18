@@ -71,8 +71,8 @@ The SHA-256 of every raw and xcheck file can be reproduced with
 
 ## Splits
 
-For each seed s = 1..50 (31..40 since server round 11, 41..50 since server round 12),
-`<Abbr>/splits/s<s>/` holds `{train,val,test,trainval}.{csv,dat}`.
+For each seed s = 1..60 (31..40 since server round 11, 41..50 since server round 12,
+51..60 since server round 13), `<Abbr>/splits/s<s>/` holds `{train,val,test,trainval}.{csv,dat}`.
 `idx = list(range(n)); random.Random(f"{abbr}-s{s}").shuffle(idx)`. With q = n // 4, the
 first n - 2q indices are train, the next q are val, and the last q are test. `trainval` is
 train followed by val. The `.csv` files are MOSES format (header, commas). The `.dat` files
