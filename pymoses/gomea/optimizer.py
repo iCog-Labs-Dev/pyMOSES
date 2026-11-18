@@ -28,6 +28,7 @@ from pymoses.gomea.const_opt import (
     CONST_OPT_DURING_MODES,
     CONST_OPT_GUARDS,
     CONST_OPT_MODES,
+    POLE_CHECK_MODES,
     RegressionRows,
     constant_nodes,
     find_contin_bscore,
@@ -36,6 +37,8 @@ from pymoses.gomea.const_opt import (
     levenberg_marquardt,
     load_rows,
     mutation_sigma,
+    pole_check,
+    pole_probes,
     scored_tree_instance,
     structure_key,
 )
@@ -264,7 +267,22 @@ class gomea_parameters:
     worse under the deme's comparator. These passes obey the deme cap and the stall rule
     (``EvaluationOracle.charge_search_tuning``). LM at the end of the deme is that of
     ``_tune_best``, with a write-back that also handles a best program with free contin codes
-    (``_tune_deme_best``). ``-a gomea`` only; not with ``const_opt_top_k``."""
+    (``_tune_deme_best``). ``-a gomea`` only; not with ``const_opt_top_k``.
+
+    NOT A PORT, server round 13 (BASE-PS, off by default, and then left out of ``as_dict``):
+    with ``const_opt`` ``"lm"`` and ``const_opt_pole_check`` ``"box"``, after LM at the end of
+    a deme improves a program, ``const_opt.pole_check`` predicts the old and the tuned program
+    on 256 probe points in the box of the training inputs (each range widened by 10 % on each
+    side), each with its linear scaling fitted on the training rows. It rejects the tuned
+    program (the old one is kept, as for a guard rejection) if a probe prediction of it is not
+    finite while all of the old one are finite, or if its largest distance from the mean
+    training target is above 10 times the range of the training target and above that of the
+    old program. The check runs before the guard; each of its two probe passes is charged as
+    one evaluation, as the LM passes are. The probes are drawn once per optimizer (one run),
+    at its first LM call, from a new generator seeded by ``const_opt_pole_seed`` (the run seed,
+    ``-r``), so no other random stream changes. ``const_opt_pole_seed`` is left out of
+    ``as_dict`` while the check is off. ``-a gomea`` only; not with ``const_opt_top_k`` or
+    ``const_opt_during``."""
 
     def __init__(
         self,
@@ -306,6 +324,8 @@ class gomea_parameters:
         const_opt_reserve: int = 0,
         const_opt_top_k: int = 0,
         const_opt_during: str = "none",
+        const_opt_pole_check: str = "none",
+        const_opt_pole_seed: int = 0,
     ) -> None:
         if pop_size == DYNAMIC_POP_SIZE:
             if pop_fraction > 0:
@@ -430,6 +450,22 @@ class gomea_parameters:
                 raise ValueError(
                     "const_opt_during 'elite' and const_opt_top_k > 0 exclude each other"
                 )
+        if const_opt_pole_check not in POLE_CHECK_MODES:
+            raise ValueError(
+                f"const_opt_pole_check must be one of {POLE_CHECK_MODES}, "
+                f"got {const_opt_pole_check!r}"
+            )
+        if const_opt_pole_check != "none":
+            if const_opt != "lm":
+                raise ValueError(
+                    f"const_opt_pole_check {const_opt_pole_check!r} needs const_opt 'lm'"
+                )
+            if const_opt_top_k > 0:
+                raise ValueError("const_opt_pole_check and const_opt_top_k > 0 exclude each other")
+            if const_opt_during != "none":
+                raise ValueError("const_opt_pole_check and const_opt_during exclude each other")
+        if not isinstance(const_opt_pole_seed, int) or isinstance(const_opt_pole_seed, bool):
+            raise ValueError(f"const_opt_pole_seed must be an integer, got {const_opt_pole_seed!r}")
         parse_radii(radii)
 
         self.pop_size = pop_size
@@ -470,6 +506,8 @@ class gomea_parameters:
         self.const_opt_reserve = const_opt_reserve
         self.const_opt_top_k = const_opt_top_k
         self.const_opt_during = const_opt_during
+        self.const_opt_pole_check = const_opt_pole_check
+        self.const_opt_pole_seed = const_opt_pole_seed
 
     # The opt-in options, left out of ``as_dict`` while at their default
     # (off), so a default run's telemetry is unchanged.
@@ -490,6 +528,7 @@ class gomea_parameters:
         "const_opt_reserve": 0,
         "const_opt_top_k": 0,
         "const_opt_during": "none",
+        "const_opt_pole_check": "none",
     }
 
     # The knob-cap options: all left out of ``as_dict`` while ``knob_cap`` is 0
@@ -499,6 +538,10 @@ class gomea_parameters:
     # The dynamic-population options: left out of ``as_dict`` unless ``pop_size`` is
     # ``"dynamic"`` (server round 6).
     _DYNAMIC_KEYS = ("hc_fraction_of_nn", "hc_max_nn_evals")
+
+    # The seed of the pole check: left out of ``as_dict`` while ``const_opt_pole_check`` is
+    # ``"none"`` (server round 13).
+    _POLE_KEYS = ("const_opt_pole_seed",)
 
     def as_dict(self) -> dict:
         d = dict(vars(self))
@@ -510,6 +553,9 @@ class gomea_parameters:
                 del d[k]
         if not self.dynamic():
             for k in self._DYNAMIC_KEYS:
+                del d[k]
+        if self.const_opt_pole_check == "none":
+            for k in self._POLE_KEYS:
                 del d[k]
         return d
 
@@ -787,6 +833,9 @@ class gomea_optimization(optimizer_base):
         # reserve and the run budget the oracle gets back before LM.
         self._reserve = 0
         self._call_max_evals = 0
+        # NOT A PORT, server round 13 (``const_opt_pole_check``): the probe points of the run,
+        # drawn at the first LM call (``None`` before, and always when the check is off).
+        self._pole_probes: list[list[float]] | None = None
 
     def prepare_deme(self, mp, exemplar) -> None:
         """GOMEA extension, Phase 1af: called by ``expand_deme`` once the
@@ -1216,6 +1265,12 @@ class gomea_optimization(optimizer_base):
                     lm_guard_checked=self._co.get("lm_guard_checked", 0),
                     lm_guard_rejected=self._co.get("lm_guard_rejected", 0),
                 )
+            if self.gomea_params.const_opt_pole_check != "none":
+                # NOT A PORT, server round 13 (absent without the pole check).
+                self.last_result["const_opt"].update(
+                    lm_pole_checked=self._co.get("lm_pole_checked", 0),
+                    lm_pole_rejected=self._co.get("lm_pole_rejected", 0),
+                )
         if self.gomea_params.const_opt_reserve > 0:
             # NOT A PORT, server round 11: this deme's LM reserve (absent when off).
             self.last_result["const_opt_reserve"] = self._reserve
@@ -1451,7 +1506,11 @@ class gomea_optimization(optimizer_base):
         NOT A PORT (``--const-opt-guard val``, server round 5): between LM and
         that score, ``guard_accepts`` compares the old and the tuned program on
         the validation rows (two charged passes). A worse validation NMSE keeps
-        the old program."""
+        the old program.
+
+        NOT A PORT (``--const-opt-pole-check box``, server round 13): before the guard,
+        ``_pole_accepts`` checks the tuned program on the probe points (two charged passes).
+        A rejection keeps the old program, as a guard rejection does."""
         co = self._co
         g = oracle.best_genotype()
         if g is None:
@@ -1459,12 +1518,20 @@ class gomea_optimization(optimizer_base):
         iscorer = oracle.iscorer
         cscorer = iscorer._cscorer
         rows = RegressionRows.of_bscore(find_contin_bscore(cscorer))
+        if self.gomea_params.const_opt_pole_check != "none" and self._pole_probes is None:
+            # server round 13: the probes of the run, drawn once (their own generator)
+            self._pole_probes = pole_probes(rows, self.gomea_params.const_opt_pole_seed)
         tree = schema.candidate(g, getattr(iscorer, "_reduce", True))
         before = oracle.ledger.requests
         lm = levenberg_marquardt(tree, rows, oracle.charge_tuning)
         rec = lm.record()
         if lm.tree is not None:
             try:
+                if self.gomea_params.const_opt_pole_check != "none":
+                    # server round 13: the pole check, before the guard
+                    if not self._pole_accepts(tree, lm.tree, rows, oracle.charge_tuning, rec):
+                        rec["written_back"] = False
+                        return self._close_tuning(deme, oracle, lm, rec, before)
                 if self.gomea_params.const_opt_guard == "val":
                     verdict = guard_accepts(
                         tree, lm.tree, rows, self._guard_rows(cscorer, rows), oracle.charge_tuning
@@ -1494,6 +1561,25 @@ class gomea_optimization(optimizer_base):
                 deme.append(scored_tree_instance(inst, score, lm.tree))
                 rec["written_back"] = True
         self._close_tuning(deme, oracle, lm, rec, before)
+
+    # NOT A PORT, server round 13 (``--const-opt-pole-check box``, BASE-PS).
+    def _pole_accepts(self, old, new, rows: RegressionRows, charge, rec: dict) -> bool:
+        """``const_opt.pole_check`` of the tuned program ``new`` against ``old`` on the run's
+        probe points (two passes, each charged by ``charge``; ``BudgetExhausted`` goes to the
+        caller). Adds ``pole`` (``accepted`` or ``rejected``), ``pole_s_old`` and
+        ``pole_s_new`` to the call's record ``rec`` and counts ``lm_pole_checked`` and
+        ``lm_pole_rejected``. Returns whether the tuned program passes."""
+        verdict = pole_check(old, new, rows, self._pole_probes, charge)
+        rec.update(
+            pole="accepted" if verdict["accepted"] else "rejected",
+            pole_s_old=verdict["pole_s_old"],
+            pole_s_new=verdict["pole_s_new"],
+        )
+        co = self._co
+        co["lm_pole_checked"] = co.get("lm_pole_checked", 0) + 1
+        if not verdict["accepted"]:
+            co["lm_pole_rejected"] = co.get("lm_pole_rejected", 0) + 1
+        return verdict["accepted"]
 
     # NOT A PORT, server round 12 (``--const-opt-top-k K``, T1.6).
     def _tune_top_k(self, deme: deme_t, oracle: EvaluationOracle, schema: FrozenSchema) -> None:

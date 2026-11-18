@@ -689,6 +689,24 @@ _PORT_OPTIONS = (
         "into its genes, kept if not worse in the deme; each pass counts and obeys "
         "the deme cap). Not with --const-opt-top-k. Default none.",
     ),
+    # NOT A PORT, server round 13, BASE-PS (off by default: a default run is unchanged).
+    (
+        "--const-opt-pole-check",
+        "const_opt_pole_check",
+        str,
+        "none",
+        "with -a gomea --const-opt lm: none; box (after LM improves a program, "
+        "predict the old and the tuned program, each with a + b*f fitted on the "
+        "training rows, on 256 points drawn once for each run from a generator "
+        "seeded by the run seed, uniform in the box of the training inputs with "
+        "each range widened by 0.1 of it on each side; keep the old program if a "
+        "prediction of the tuned one is not finite while all of the old one are "
+        "finite, or if the largest distance of the tuned one from the mean "
+        "training target is above 10 times the range of the target and above "
+        "that of the old one; runs before the guard; each of its two passes "
+        "counts as one evaluation). Not with --const-opt-top-k, "
+        "--const-opt-during or --linear-scaling terms. Default none.",
+    ),
 )
 _GOMEA_INIT_CHOICES = ("sampler", "uniform")
 _GOMEA_ACCEPT_CHOICES = ("nonworse", "strict")
@@ -701,6 +719,7 @@ _GOMEA_KNOB_SELECT_CHOICES = ("explore", "static", "random")
 _CONST_OPT_CHOICES = ("none", "lm", "mutate", "polish")
 _CONST_OPT_GUARD_CHOICES = ("none", "val")
 _CONST_OPT_DURING_CHOICES = ("none", "elite")  # server round 12
+_CONST_OPT_POLE_CHECK_CHOICES = ("none", "box")  # server round 13
 _GOMEA_KNOB_RANK0_CHOICES = ("contrast", "entropy", "random")
 
 
@@ -761,6 +780,7 @@ def _gomea_params_from_args(args: argparse.Namespace) -> gomea_parameters:
     v["const_opt_reserve"] = getattr(args, "const_opt_reserve", 0)  # server round 11
     v["const_opt_top_k"] = getattr(args, "const_opt_top_k", 0)  # server round 12
     v["const_opt_during"] = getattr(args, "const_opt_during", "none")  # server round 12
+    v["const_opt_pole_check"] = getattr(args, "const_opt_pole_check", "none")  # round 13
     if v["gomea_fos"] not in _GOMEA_FOS_CHOICES:
         raise ValueError(
             f"--gomea-fos {v['gomea_fos']} is not recognized. "
@@ -862,6 +882,9 @@ def _gomea_params_from_args(args: argparse.Namespace) -> gomea_parameters:
         const_opt_reserve=v["const_opt_reserve"],
         const_opt_top_k=v["const_opt_top_k"],
         const_opt_during=v["const_opt_during"],
+        # server round 13: the probes of the pole check come from the run seed (-r)
+        const_opt_pole_check=v["const_opt_pole_check"],
+        const_opt_pole_seed=getattr(args, "rand_seed", 0),
         # server round 6: read only by --gomea-pop-size dynamic
         hc_fraction_of_nn=getattr(args, "hc_frac_of_nn", 2.0),
         hc_max_nn_evals=getattr(args, "hc_max_nn", 20000),
@@ -933,6 +956,26 @@ def _check_const_opt(v: dict, opt_algo: str | None) -> None:
         raise ValueError(f"--const-opt-during {during} needs --gomea-contin copy")
     if during != "none" and top_k > 0:
         raise ValueError(f"--const-opt-during {during} and --const-opt-top-k exclude each other")
+    # NOT A PORT, server round 13 (BASE-PS): the pole check after LM at the end of a GOMEA
+    # deme (`--linear-scaling terms` is refused with it where that option is read)
+    pole = v["const_opt_pole_check"]
+    if pole not in _CONST_OPT_POLE_CHECK_CHOICES:
+        raise ValueError(
+            f"--const-opt-pole-check {pole} is not recognized. "
+            f"Supported: {', '.join(_CONST_OPT_POLE_CHECK_CHOICES)}."
+        )
+    if pole != "none" and mode != "lm":
+        raise ValueError(
+            f"--const-opt-pole-check {pole} needs --const-opt lm, got --const-opt {mode}"
+        )
+    if pole != "none" and opt_algo != "gomea":
+        raise ValueError(f"--const-opt-pole-check {pole} needs -a gomea, got -a {opt_algo}")
+    if pole != "none" and top_k > 0:
+        raise ValueError(f"--const-opt-pole-check {pole} and --const-opt-top-k exclude each other")
+    if pole != "none" and during != "none":
+        raise ValueError(
+            f"--const-opt-pole-check {pole} and --const-opt-during {during} exclude each other"
+        )
 
 
 def _check_knob_cap(v: dict) -> int | None:
@@ -1741,6 +1784,12 @@ class problem_params:
             if during != "none":
                 raise ValueError(
                     f"--linear-scaling terms does not support --const-opt-during {during}"
+                )
+            # server round 13 (BASE-PS): the pole check is for the a + b*f fit only
+            pole = getattr(args, "const_opt_pole_check", "none")
+            if pole != "none":
+                raise ValueError(
+                    f"--linear-scaling terms does not support --const-opt-pole-check {pole}"
                 )
         self.linear_scaling = ls
 

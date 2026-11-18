@@ -142,6 +142,9 @@ class hc_lm_optimization(optimizer_base):
         if self.gomea_params.const_opt_during != "none":
             # server round 12: LM during the search is defined for -a gomea demes only
             raise ValueError("const_opt_during needs -a gomea, not -a hc")
+        if self.gomea_params.const_opt_pole_check != "none":
+            # server round 13: the pole check is defined for -a gomea demes only
+            raise ValueError("const_opt_pole_check needs -a gomea, not -a hc")
         self._val_rows = None
         self._co: dict = _new_const_opt_counts()
         self._deme_index = 0

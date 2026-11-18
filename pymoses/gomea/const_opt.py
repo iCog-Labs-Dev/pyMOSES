@@ -5,7 +5,9 @@ NOT A PORT (pyMoses extension; no C++ counterpart). See
 ``docs/gomea/USAGE.md`` for the flags. Server round 5 adds the validation guard of
 ``lm`` (``guard_accepts``, ``docs/gomea/SERVER-ROUND5-PREREGISTRATION.md``). Server round 13
 (T3.1) adds LM with ``--linear-scaling terms`` (``RegressionRows`` with ``terms``,
-``docs/gomea/T3.1-FEASIBILITY.md``). Three modes use this module:
+``docs/gomea/T3.1-FEASIBILITY.md``) and the pole check of ``lm`` (``pole_check``,
+``--const-opt-pole-check box``, BASE-PS, ``docs/gomea/SERVER-ROUND13-PREREGISTRATION.md``).
+Three modes use this module:
 
 * ``lm``: at the end of each GOMEA deme, Levenberg-Marquardt (LM) on the
   numeric constants of the deme's best program (``levenberg_marquardt``);
@@ -51,12 +53,21 @@ from pymoses.moses.scoring.bscores import (
 # ``solve`` and ``PIVOT_TOL`` moved to ``least_squares`` in server round 12 (unchanged), so
 # that the scorer can use the solver too. They stay importable from here.
 from pymoses.moses.scoring.least_squares import PIVOT_TOL, predict_terms, solve  # noqa: F401
+from pymoses.util.rng import MT19937RandGen
 
 CONST_OPT_MODES = ("none", "lm", "mutate", "polish")
 CONST_OPT_GUARDS = ("none", "val")
 # NOT A PORT, server round 12 (``--const-opt-during``): ``none`` (off) or ``elite`` (LM on
 # each offspring that becomes a new deme best, during the search).
 CONST_OPT_DURING_MODES = ("none", "elite")
+# NOT A PORT, server round 13 (BASE-PS, ``--const-opt-pole-check``): ``none`` (off) or
+# ``box`` (the pole check after LM, ``pole_check``). The number of probe points, the margin
+# of the probe box (a share of the range of each input) and the factor of the target range
+# (pre-registration, "BASE-PS").
+POLE_CHECK_MODES = ("none", "box")
+POLE_PROBES = 256
+POLE_MARGIN = 0.1
+POLE_FACTOR = 10.0
 
 # LM settings (pre-registration, "The constant-tuning code").
 LM_MAX_ITERATIONS = 10
@@ -440,6 +451,84 @@ def guard_accepts(
     charge()
     v_new = validation_nmse(new, train, val)
     return {"accepted": v_new <= v_old, "val_nmse_old": v_old, "val_nmse_new": v_new}
+
+
+def pole_probes(
+    rows: RegressionRows, seed: int, n: int = POLE_PROBES, margin: float = POLE_MARGIN
+) -> list[list[float]]:
+    """NOT A PORT, server round 13 (BASE-PS): ``n`` probe points, uniform in the box
+    ``[min_j - margin r_j, max_j + margin r_j]`` of each input ``j`` of ``rows``
+    (``r_j = max_j - min_j``). The draws come from a new ``MT19937RandGen(seed)``, point by
+    point and input by input (``lo + (hi - lo) * randdouble()``). Only that generator draws,
+    so no other random stream changes. ``ValueError`` when an input is not numeric."""
+    k = len(rows.inputs[0]) if rows.inputs else 0
+    box = []
+    for j in range(k):
+        col = [row[j] for row in rows.inputs]
+        if not all(is_contin(x) for x in col):
+            raise ValueError("--const-opt-pole-check box needs numeric inputs")
+        lo, hi = min(col), max(col)
+        r = hi - lo
+        box.append((lo - margin * r, hi + margin * r))
+    rng = MT19937RandGen(seed)
+    return [[lo + (hi - lo) * rng.randdouble() for lo, hi in box] for _ in range(n)]
+
+
+def probe_spread(
+    tr: combo_tree, rows: RegressionRows, probes: Sequence[Sequence[float]]
+) -> tuple[float, bool]:
+    """NOT A PORT, server round 13 (BASE-PS): ``(S, finite)`` of the program ``tr``. ``S`` is
+    the largest ``|a + b f(x) - mean(y)|`` over the probe points ``x``, with ``(a, b)`` the
+    linear scaling of ``tr`` fitted on the training ``rows`` (``linear_scaling``) and ``y``
+    the training target. A prediction that is not finite (or a probe where ``tr`` cannot be
+    evaluated) counts as ``+inf``. ``finite`` tells whether every prediction is finite. The
+    training predictions are not a charged pass: LM already paid for that pass."""
+    try:
+        p = rows.predictions(tr)
+    except Exception:  # any evaluation error makes it non-finite
+        return math.inf, False
+    a, b = linear_scaling(rows.targets, p)
+    mean = math.fsum(rows.targets) / len(rows.targets)
+    iv = interpreter_visitor(tr)
+    s, finite = 0.0, True
+    for x in probes:
+        try:
+            v = a + b * float(get_contin(iv(list(x))))
+        except Exception:  # any evaluation error (a pole, overflow, domain)
+            v = math.nan
+        if not math.isfinite(v):
+            s, finite = math.inf, False
+            continue
+        s = max(s, abs(v - mean))
+    return s, finite
+
+
+def pole_check(
+    old: combo_tree,
+    new: combo_tree,
+    rows: RegressionRows,
+    probes: Sequence[Sequence[float]],
+    charge: Callable[[], None],
+    factor: float = POLE_FACTOR,
+) -> dict:
+    """NOT A PORT, server round 13 (``--const-opt-pole-check box``, BASE-PS): does the tuned
+    program ``new`` keep away from poles on the probe points? Each of the two probe passes
+    (``old``, then ``new``) calls ``charge()`` once before it runs, and ``BudgetExhausted``
+    from ``charge`` goes to the caller.
+
+    With ``S`` from ``probe_spread`` and ``R`` = max - min of the training target, the tuned
+    program is rejected if (a) a probe prediction of ``new`` is not finite and all of those
+    of ``old`` are finite, or (b) ``S(new) > factor * R`` and ``S(new) > S(old)``. A
+    prediction that is not finite counts as ``+inf`` in ``S``; so when both programs have
+    one, (a) does not apply and (b) gives ``inf > inf``, false: the check accepts. Returns
+    ``accepted``, ``pole_s_old`` and ``pole_s_new``."""
+    charge()
+    s_old, finite_old = probe_spread(old, rows, probes)
+    charge()
+    s_new, finite_new = probe_spread(new, rows, probes)
+    r = max(rows.targets) - min(rows.targets)
+    reject = (not finite_new and finite_old) or (s_new > factor * r and s_new > s_old)
+    return {"accepted": not reject, "pole_s_old": s_old, "pole_s_new": s_new}
 
 
 def load_rows(path: str, labels: Sequence[str], scaled: bool) -> RegressionRows:

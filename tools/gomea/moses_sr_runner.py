@@ -438,7 +438,10 @@ def const_opt_summary(events: Path, n_evals: int | None) -> dict | None:
     share of LM calls that lowered the training error; `tuning_share` the share
     of the run's evaluations that tuning used. With the guard (server round 5) it
     also has `lm_guard_checked` (LM results that the guard compared on the
-    validation rows), `lm_guard_rejected` and their ratio `lm_guard_rejected_share`."""
+    validation rows), `lm_guard_rejected` and their ratio `lm_guard_rejected_share`. With
+    the pole check (server round 13, `--const-opt-pole-check box`) it also has
+    `lm_pole_checked` (LM results that the check compared on the probe points),
+    `lm_pole_rejected` and their ratio `lm_pole_rejected_share`."""
     if not events.exists():
         return None
     ends, polish = [], None
@@ -481,6 +484,14 @@ def const_opt_summary(events: Path, n_evals: int | None) -> dict | None:
         out["lm_guard_rejected"] = sum(int(e.get("lm_guard_rejected", 0)) for e in guards)
         out["lm_guard_rejected_share"] = (
             out["lm_guard_rejected"] / out["lm_guard_checked"] if out["lm_guard_checked"] else None
+        )
+    poles = [e for e in ends if "lm_pole_checked" in e]
+    if poles:
+        # server round 13 (--const-opt-pole-check box; absent without the option)
+        out["lm_pole_checked"] = sum(int(e.get("lm_pole_checked", 0)) for e in poles)
+        out["lm_pole_rejected"] = sum(int(e.get("lm_pole_rejected", 0)) for e in poles)
+        out["lm_pole_rejected_share"] = (
+            out["lm_pole_rejected"] / out["lm_pole_checked"] if out["lm_pole_checked"] else None
         )
     return out
 
