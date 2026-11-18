@@ -23,7 +23,7 @@ from types import SimpleNamespace
 import pytest
 
 from pymoses.comboreduct.combo.iostream_combo import combo_tree_to_str, str_to_combo_tree
-from pymoses.comboreduct.combo.vertex import combo_tree
+from pymoses.comboreduct.combo.vertex import builtin, combo_tree, enum_t, is_boolean
 from pymoses.comboreduct.table.table_io import loadTable
 from pymoses.gomea import optimizer as gomea_optimizer
 from pymoses.gomea.const_opt import (
@@ -47,7 +47,7 @@ from pymoses.moses.representation.instance import instance
 from pymoses.moses.representation.scored_instance import scored_instance
 from pymoses.moses.scoring.behave_cscore import behave_cscore
 from pymoses.moses.scoring.bscores import contin_bscore
-from pymoses.util.rng import randGen
+from pymoses.util.rng import MT19937RandGen, randGen
 
 REPO = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(REPO / "tools" / "gomea"))
@@ -113,6 +113,127 @@ def test_the_probes_need_numeric_inputs():
     rows = RegressionRows([[1.0, True], [2.0, False]], [0.0, 1.0], True)
     with pytest.raises(ValueError, match="numeric inputs"):
         pole_probes(rows, 1)
+
+
+# --- boolean inputs (a 0/1 column that the table loader types as boolean, e.g. Bos x4) ---
+
+# SHA-256 of json.dumps(pole_probes(rows, seed)) with the code of 1fcb749 (before the boolean
+# rule): "train" is the test table, "train3" the test table with a third numeric input
+# x1 * x2 + 0.5.
+PROBES_1FCB749 = {
+    ("train", 1): "ddef3f73333937803dedb8b3741fb850db6281a8761b9e02a8550a207382f0a5",
+    ("train", 2): "151f82cfaae4cc22482307cb342ba80c02afb6b97109322385617e524cfec1a8",
+    ("train", 3001): "232757cf8447eff88bef7f6ed03b4db3fc1be7dbbfc2e86a44a8f065c46db991",
+    ("train3", 1): "46fd1694f49d7c6f3150f05eff7185d08302ad1a96d7ef0b48d68bd8bbfd21af",
+    ("train3", 2): "8ceb064b8a955b26c1ce1e64d290029b23e0c1fc5575842b322c105bacbf38d5",
+    ("train3", 3001): "817e7aff68f93afa51c12829820c158faeced50fd3beeb78d97e66d544453f9a",
+}
+
+
+@pytest.mark.parametrize("table, seed", sorted(PROBES_1FCB749))
+def test_numeric_probes_are_byte_identical_to_1fcb749(table, seed):
+    import hashlib
+
+    rows = _rows()
+    if table == "train3":
+        rows = RegressionRows([r + [r[0] * r[1] + 0.5] for r in rows.inputs], rows.targets, True)
+    digest = hashlib.sha256(json.dumps(pole_probes(rows, seed)).encode()).hexdigest()
+    assert digest == PROBES_1FCB749[(table, seed)]
+
+
+def _bool_table(dst: Path) -> Path:
+    """The test table with a 0/1 column x2 between x1 and the old x2 (now x3); the target
+    gets 1.5 for each 1."""
+    lines = TRAIN.read_text().splitlines()
+    out = ["x1,x2,x3,y"]
+    for i, line in enumerate(lines[1:]):
+        a, b, y = line.split(",")
+        out.append(f"{a},{i % 2},{b},{float(y) + 1.5 * (i % 2)!r}")
+    dst.write_text("\n".join(out) + "\n")
+    return dst
+
+
+def _bool_rows(tmp_path) -> RegressionRows:
+    t = loadTable(str(_bool_table(tmp_path / "bool.csv")), "y")
+    b = contin_bscore(t.otable, t.itable)
+    b.set_linear_scaling(True)
+    return RegressionRows.of_bscore(b)
+
+
+def test_the_table_loader_types_a_0_1_column_as_boolean(tmp_path):
+    rows = _bool_rows(tmp_path)
+    assert all(is_boolean(r[1]) and isinstance(r[1], builtin) for r in rows.inputs)
+    assert {r[1] for r in rows.inputs} == {builtin.logical_true, builtin.logical_false}
+    assert all(isinstance(r[0], float) and isinstance(r[2], float) for r in rows.inputs)
+
+
+@pytest.mark.parametrize("seed", [1, 2, 3001])
+def test_a_boolean_input_gets_a_logical_value_from_its_own_draw(seed, tmp_path):
+    """One draw u for each input of each point, in order; a boolean input gets logical_true
+    if u < 0.5, else logical_false, and both values occur over 256 probes. The numeric
+    inputs keep their widened box."""
+    rows = _bool_rows(tmp_path)
+    probes = pole_probes(rows, seed)
+    assert len(probes) == POLE_PROBES
+    rng = MT19937RandGen(seed)
+    for p in probes:
+        u = [rng.randdouble() for _ in range(3)]
+        assert p[1] is (builtin.logical_true if u[1] < 0.5 else builtin.logical_false)
+        for j in (0, 2):
+            col = [r[j] for r in rows.inputs]
+            lo, hi = min(col), max(col)
+            m = 0.1 * (hi - lo)
+            assert p[j] == (lo - m) + ((hi + m) - (lo - m)) * u[j]
+    assert {p[1] for p in probes} == {builtin.logical_true, builtin.logical_false}
+    assert all(is_boolean(p[1]) for p in probes)
+
+
+@pytest.mark.parametrize(
+    "col",
+    [
+        [1.0, builtin.logical_true],  # mixed
+        [builtin.logical_false, 2.0],  # mixed
+        [enum_t("a"), enum_t("b")],  # enum
+        ["a", "b"],  # string
+        [True, False],  # Python bool
+        [builtin.logical_true, True],  # a logical value and a Python bool
+    ],
+)  # fmt: skip
+def test_any_other_input_is_still_refused(col):
+    rows = RegressionRows([[0.5, col[0]], [1.5, col[1]]], [0.0, 1.0], True)
+    with pytest.raises(ValueError, match="numeric inputs"):
+        pole_probes(rows, 1)
+
+
+@pytest.mark.parametrize("prog", [
+    "+($1 impulse($2) $3)",
+    "+(sin(*(1.3 $1)) *(1.5 impulse($2)) *(0.5 $3))",
+    "cond($2 $1 $3)",
+    "+($1 impulse(and($2 0<($3))))",
+])  # fmt: skip
+def test_the_spread_of_a_program_with_the_boolean_input(prog, tmp_path):
+    """probe_spread evaluates a program that uses the boolean input on the probes, with no
+    error and finite predictions."""
+    rows = _bool_rows(tmp_path)
+    tr = _t(prog)
+    s, finite = probe_spread(tr, rows, pole_probes(rows, 1))
+    assert finite and math.isfinite(s) and s >= 0
+
+
+def test_a_base_ps_run_on_a_table_with_a_boolean_input(tmp_path):
+    """BASE-PS end to end on the table with the 0/1 column: the run ends ok, LM improves,
+    and the check runs (before the boolean rule, the first check raised ValueError)."""
+    data = _bool_table(tmp_path / "bool.csv")
+    reg = ["-i", str(data), *_REG[2:]]
+    base = [*_BASE[:-1], str(data)]  # the validation table of the guard: the same table
+    argv = reg + ["-m", "3000"] + base + _PS + ["--gomea-max-evals-per-deme", "200"]
+    out, events, log = _run(argv, tmp_path, "ps-bool")
+    ends = _ends(events)
+    checked = sum(e["const_opt"]["lm_pole_checked"] for e in ends)
+    improved = sum(e["const_opt"]["lm_improved"] for e in ends)
+    assert 0 < checked <= improved
+    s = runner.const_opt_summary(log, int(out.strip().splitlines()[-1].split()[-1]))
+    assert s["lm_pole_checked"] == checked
 
 
 # --- the check -------------------------------------------------------------------------

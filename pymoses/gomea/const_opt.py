@@ -38,7 +38,7 @@ import math
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass, field
 
-from pymoses.comboreduct.combo.vertex import combo_tree, get_contin, is_contin
+from pymoses.comboreduct.combo.vertex import builtin, combo_tree, get_contin, is_boolean, is_contin
 from pymoses.comboreduct.interpreter.interpreter import interpreter_visitor
 from pymoses.gomea.oracle import BudgetExhausted
 from pymoses.moses.representation.scored_instance import scored_instance
@@ -455,27 +455,47 @@ def guard_accepts(
 
 def pole_probes(
     rows: RegressionRows, seed: int, n: int = POLE_PROBES, margin: float = POLE_MARGIN
-) -> list[list[float]]:
+) -> list[list]:
     """NOT A PORT, server round 13 (BASE-PS): ``n`` probe points, uniform in the box
-    ``[min_j - margin r_j, max_j + margin r_j]`` of each input ``j`` of ``rows``
+    ``[min_j - margin r_j, max_j + margin r_j]`` of each numeric input ``j`` of ``rows``
     (``r_j = max_j - min_j``). The draws come from a new ``MT19937RandGen(seed)``, point by
-    point and input by input (``lo + (hi - lo) * randdouble()``). Only that generator draws,
-    so no other random stream changes. ``ValueError`` when an input is not numeric."""
+    point and input by input: one draw ``u = randdouble()`` for each input of each point, and
+    the value ``lo + (hi - lo) * u``. Only that generator draws, so no other random stream
+    changes.
+
+    A boolean input (every value is ``logical_true`` or ``logical_false``, ``is_boolean``; the
+    table loader types a 0/1 column so, e.g. Bos ``x4``) also takes one draw ``u``, in the same
+    order: its value is ``logical_true`` if ``u < 0.5``, else ``logical_false``. The margin
+    does not apply to it. So the probes of a table with numeric inputs only are those of
+    the code without this rule (1fcb749). ``ValueError`` for any other input (mixed, enum,
+    a Python ``bool``, a string)."""
     k = len(rows.inputs[0]) if rows.inputs else 0
-    box = []
+    box: list[tuple[float, float] | None] = []  # None: a boolean input
     for j in range(k):
         col = [row[j] for row in rows.inputs]
-        if not all(is_contin(x) for x in col):
-            raise ValueError("--const-opt-pole-check box needs numeric inputs")
-        lo, hi = min(col), max(col)
-        r = hi - lo
-        box.append((lo - margin * r, hi + margin * r))
+        if all(is_contin(x) for x in col):
+            lo, hi = min(col), max(col)
+            r = hi - lo
+            box.append((lo - margin * r, hi + margin * r))
+        elif all(is_boolean(x) for x in col):
+            box.append(None)
+        else:
+            raise ValueError("--const-opt-pole-check box needs numeric inputs or boolean inputs")
     rng = MT19937RandGen(seed)
-    return [[lo + (hi - lo) * rng.randdouble() for lo, hi in box] for _ in range(n)]
+    return [[_probe_value(b, rng.randdouble()) for b in box] for _ in range(n)]
+
+
+def _probe_value(b: tuple[float, float] | None, u: float):
+    """One probe value from the draw ``u``: ``lo + (hi - lo) * u`` for a numeric input with
+    the range ``b = (lo, hi)``, else (a boolean input) ``logical_true`` if ``u < 0.5``."""
+    if b is None:
+        return builtin.logical_true if u < 0.5 else builtin.logical_false
+    lo, hi = b
+    return lo + (hi - lo) * u
 
 
 def probe_spread(
-    tr: combo_tree, rows: RegressionRows, probes: Sequence[Sequence[float]]
+    tr: combo_tree, rows: RegressionRows, probes: Sequence[Sequence]
 ) -> tuple[float, bool]:
     """NOT A PORT, server round 13 (BASE-PS): ``(S, finite)`` of the program ``tr``. ``S`` is
     the largest ``|a + b f(x) - mean(y)|`` over the probe points ``x``, with ``(a, b)`` the
@@ -507,7 +527,7 @@ def pole_check(
     old: combo_tree,
     new: combo_tree,
     rows: RegressionRows,
-    probes: Sequence[Sequence[float]],
+    probes: Sequence[Sequence],
     charge: Callable[[], None],
     factor: float = POLE_FACTOR,
 ) -> dict:
