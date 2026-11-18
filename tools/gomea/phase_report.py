@@ -22,7 +22,10 @@ SPEC_JSON (one per phase, `configs/gomea/<phase>/spec.json`)::
      "secondary_verdicts": false,          # optional (server round 8), default true
      "extend": false,                      # optional (server round 9), default true
      "secondary_families": [[name, ...], ...],  # optional (server round 9, 1bc)
-     "pooled_secondary_families": [[name, ...], ...]}  # optional (server round 10, 1bd)
+     "pooled_secondary_families": [[name, ...], ...],  # optional (server round 10, 1bd)
+     "size_terms": true,                   # optional (server round 13, 1bh), default false
+     "run_table": true,                    # optional (server round 13, 1bh), default false
+     "same_search": [[arm_a, arm_b], ...]}  # optional (server round 13, 1bh)
 
 A contrast takes its problem's metric, or the optional fifth element (server round 3,
 1ap: program size as the primary metric and test NMSE as the secondary one for the same
@@ -38,6 +41,9 @@ problem). Metrics, paired by seed (a regression run's seed is its split); lower 
 * `cpu_s`: CPU seconds of the run (`cpu_s`; for a seeded run it includes GP-GOMEA's CPU;
   server round 9); a failed run = infinite;
 * `lm_calls`: LM calls of the run (`const_opt.lm_calls`; server round 9); a failed run,
+  or a run without that value, = infinite;
+* `test_nmse_clipped`: test NMSE of the reported program with its predictions clipped to the
+  widened range of the training target (`moses_sr_runner.py`; server round 13); a failed run,
   or a run without that value, = infinite.
 
 Families: Holm over all primary contrasts, and separately over all secondary ones.
@@ -96,6 +102,23 @@ when the time is spent ends at once with 0 evaluations; it is not a real deme:
   of the arm's runs. A fixed N gives N three times; `--gomea-pop-size dynamic` gives its spread.
 
 A run without `events.jsonl` (a stand-alone GP-GOMEA or classic run) gives no deme values.
+
+Server round 13 (1bh; `run_table.py`). Three optional spec keys; without them the report does
+not change:
+
+* `"size_terms": true`: the program size of a summary whose final model uses the per-term fit
+  (`terms` record: 2 or more terms, no fallback, and for the TLS-G guard `terms.guard` =
+  "terms") is its node count plus `n_terms` (`run_table.terms_size`); every other summary keeps
+  the node count. `program_size`, `median_size` and the per-run `size` use it, and
+  `aggregate.csv` also has `median_nodes`, the node count.
+* `"run_table": true`: OUT_DIR/runs.csv, one row for each run (`run_table.RUN_FIELDS`: status,
+  test and clipped test NMSE, size and nodes, terms, guard, CPU, evaluations, demes, knobs per
+  deme and total knobs, LM, guard, pole and lexicase counts), and OUT_DIR/nmse_above_100.csv,
+  the ok runs with a test NMSE above 100 (with training and validation NMSE).
+* `"same_search": [[arm_a, arm_b], ...]`: OUT_DIR/same_search.csv, for each (dataset, split),
+  whether the two arms printed the same candidates (`candidates.json`, the same program strings
+  in the same order), and OUT_DIR/same_search.json, the counts for each pair of arms (pairs,
+  same, differ, missing).
 """
 
 from __future__ import annotations
@@ -111,10 +134,13 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 from benchmarks.gomea.stats import holm, wilcoxon_signed_rank  # noqa: E402
 
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import run_table  # noqa: E402
+
 ALPHA = 0.025
 EXTEND_BELOW = 0.25
 METRICS = ("cpu_to_target", "evals_to_target", "test_nmse", "program_size",
-           "train_test_gap", "cpu_s", "lm_calls")
+           "train_test_gap", "cpu_s", "lm_calls", "test_nmse_clipped")
 
 
 def _load(dirs: str, into: dict) -> None:
@@ -145,19 +171,31 @@ def _value(metric: str, s: dict) -> float:
         v = s.get("cpu_s")
     elif metric == "lm_calls":
         v = (s.get("const_opt") or {}).get("lm_calls")
+    elif metric == "test_nmse_clipped":
+        v = s.get("test_nmse_clipped")  # server round 13
     else:
         v = s.get(metric) if s.get("success") else None
     return math.inf if v is None else float(v)
 
 
-def _size(s: dict) -> int | None:
-    """Program size: for a MOSES combo program, its "(" plus its atoms. A GP-GOMEA summary
+def _nodes(s: dict) -> int | None:
+    """Node count: for a MOSES combo program, its "(" plus its atoms. A GP-GOMEA summary
     (`gpgomea_sr_runner.py`, infix output) gives GP-GOMEA's own node count instead
     (`final_program_nodes`, without its linear scaling), which is not the same count."""
     if s.get("final_program_nodes") is not None:
         return int(s["final_program_nodes"])
     p = s.get("final_program")
     return None if p is None else p.count("(") + len(p.replace("(", " ").replace(")", " ").split())
+
+
+def _size(s: dict) -> int | None:
+    """Program size: the node count (`_nodes`). With the spec key `"size_terms"` (server round
+    13; `main` marks each summary with `_size_terms`), plus `n_terms` when the final model uses
+    the per-term fit (`run_table.terms_size`)."""
+    n = _nodes(s)
+    if n is None or not s.get("_size_terms"):
+        return n
+    return n + run_table.terms_size(s)
 
 
 def _contrast(problem, name, a, b, arms, metric) -> dict:
@@ -329,6 +367,8 @@ def _aggregate(problem: str, arm: str, v: list[dict], metric: str) -> dict:
         "median_evals_used": _med(_evals(s) for s in v),
         "median_train_test_gap": _med(_gap(s) for s in v),
     }
+    if reg and any(s.get("_size_terms") for s in v):
+        row["median_nodes"] = _med(_nodes(s) for s in v)  # server round 13: the node count
     row.update(_deme_columns(v, reg))
     if any("const_opt" in s for s in v):
         # server round 3: constant tuning (moses_sr_runner.const_opt_summary)
@@ -384,6 +424,16 @@ def main(argv: list[str] | None = None) -> int:
     runs: dict = {}
     _load(argv[4], runs)
     metrics = spec["metrics"]
+    extra = _round13_keys(spec)
+    if extra is not None:
+        print(extra, file=sys.stderr)
+        return 2
+    if spec.get("size_terms"):
+        # server round 13: the program size of a TLS arm counts the term weights
+        for arms in runs.values():
+            for seeds in arms.values():
+                for s in seeds.values():
+                    s["_size_terms"] = True
     for m in metrics.values():
         if m not in METRICS:
             print(f"unknown metric {m!r} (choose from {METRICS})", file=sys.stderr)
@@ -481,7 +531,42 @@ def main(argv: list[str] | None = None) -> int:
     (out / "verdict.json").write_text(json.dumps(verdict, indent=2) + "\n")
     for r in agg + allrows:
         print(json.dumps(r))
+    _round13_tables(spec, runs, list(metrics), out)
     return 0
+
+
+def _round13_keys(spec: dict) -> str | None:
+    """Server round 13: an error message for a malformed `size_terms`, `run_table` or
+    `same_search` key, else `None`."""
+    for k in ("size_terms", "run_table"):
+        if k in spec and not isinstance(spec[k], bool):
+            return f"spec key {k!r} must be true or false, got {spec[k]!r}"
+    pairs = spec.get("same_search", [])
+    if not isinstance(pairs, list) or not all(
+            isinstance(p, list) and len(p) == 2 and all(isinstance(x, str) for x in p)
+            for p in pairs):
+        return f"bad same_search {pairs!r} (want [[arm_a, arm_b], ...])"
+    return None
+
+
+def _round13_tables(spec: dict, runs: dict, problems: list[str], out: Path) -> None:
+    """Server round 13: runs.csv, nmse_above_100.csv and the same-search check, when the spec
+    asks for them (`run_table.py`)."""
+    if spec.get("run_table"):
+        sub = {p: runs[p] for p in problems if p in runs}
+        _write_csv(out / "runs.csv", run_table.run_rows(sub, _size, _nodes),
+                   list(run_table.RUN_FIELDS))
+        above = run_table.above_100_rows(sub)
+        _write_csv(out / "nmse_above_100.csv", above, list(run_table.ABOVE_100_FIELDS))
+        print(json.dumps({"runs_with_test_nmse_above_100": len(above)}))
+    if spec.get("same_search"):
+        rows = [r for a, b in spec["same_search"]
+                for r in run_table.same_search_rows(runs, a, b, problems)]
+        _write_csv(out / "same_search.csv", rows, list(run_table.SAME_SEARCH_FIELDS))
+        summary = run_table.same_search_summary(rows)
+        (out / "same_search.json").write_text(json.dumps(summary, indent=2) + "\n")
+        for r in summary:
+            print(json.dumps({"same_search": r}))
 
 
 if __name__ == "__main__":

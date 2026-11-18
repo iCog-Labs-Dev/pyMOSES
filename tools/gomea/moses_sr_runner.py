@@ -14,7 +14,9 @@ A manifest (JSON) has these keys:
   integer; server round 12): the runner puts the integer K times the number of training rows
   of the run's split in its place (`resolve_argv`), so one arm can pass a value that scales
   with the dataset (BASE-DIV: `--diversity-pressure {6*n_train}`). An element without the
-  placeholder goes to MOSES unchanged.
+  placeholder goes to MOSES unchanged. An arm may also carry `"terms_guard": "val"` (server
+  round 13, TLS-G; see "TLS-G" below). `expand` refuses it on an arm without
+  `--linear-scaling terms` in its argv, and refuses any other value.
 
 **MOSES regression setup** (Phase 1f; see `PHASE1F-PREREGISTRATION.md`). MOSES scores a
 regression candidate by raw squared error (pyMoses: of the least-squares
@@ -34,6 +36,26 @@ So, per run, the runner:
    (server round 12) is scored with the per-term weights refitted on train
    (`sr_eval.evaluate(..., terms=True)`); each candidate and the summary then get a
    `terms` record (`n_terms`, `fallback`, `reason`, `weights`) of that refit.
+
+**Server round 13 (new fields only; the other values do not change).**
+
+* Every arm: the summary has `test_nmse_clipped`, the test NMSE of the reported candidate with
+  its scaled predictions clipped to [min - 0.1 R, max + 0.1 R] of the training target
+  (R = max - min; `sr_eval.evaluate(..., clip=True)`), in the target space of `test_nmse`.
+  candidates.json does not change.
+* An arm with `--linear-scaling terms`: each candidate and the summary also have
+  `plain_val_nmse` and `plain_test_nmse`, the NMSE of the plain a + b*f fitted on train
+  (descriptive).
+* **TLS-G** (`"terms_guard": "val"` on an arm with `--linear-scaling terms`; the argv and so
+  the search are those of BASE-TLS): for each candidate the runner compares the validation
+  NMSE of the per-term model with that of the plain a + b*f, both fitted on train. It keeps
+  the lower one; a tie keeps plain (the smaller model). The candidate's `train_nmse`,
+  `val_nmse` and `test_nmse` (and `test_nmse_clipped`) are then those of the kept scaling, and
+  the runner selects the candidate with the lowest `val_nmse`, as for every arm. Each
+  candidate's `terms` record gets `guard` (`"terms"` or `"plain"`), so the summary's `terms`
+  record has the guard of the reported candidate; each candidate also gets `terms_val_nmse`
+  and `terms_test_nmse`, the values of the per-term model. A one-term program or a fit that
+  falls back has the same value both ways, so its guard is `"plain"`.
 
 **Telemetry.** A pyMoses GOMEA arm (`-a gomea` or `-a hc-gomea` in its argv) also gets
 `--gomea-log RUN_DIR/events.jsonl`, as the Boolean runner (`benchmarks.gomea.manifest`)
@@ -311,11 +333,12 @@ def _run_one(job: dict) -> dict:
     val = sr_eval.read_table(str(sdir / "val.csv"))
     test = sr_eval.read_table(str(sdir / "test.csv"))
     terms = _linear_scaling(job["argv"]) == "terms"  # server round 12
-    scored = []
+    guard = job.get("terms_guard")  # server round 13 (TLS-G): "val" or None
+    scored, clipped = [], []  # clipped: test_nmse_clipped of each candidate (round 13)
     for _score, prog in cands:
         try:
-            on_val = sr_eval.evaluate(prog, train, val, terms=terms)
-            on_test = sr_eval.evaluate(prog, train, test, terms=terms)
+            on_val = sr_eval.evaluate(prog, train, val, terms=terms, plain=terms)
+            on_test = sr_eval.evaluate(prog, train, test, terms=terms, plain=terms, clip=True)
         except Exception as exc:  # never let one unscorable candidate kill the pool
             scored.append(
                 {
@@ -326,6 +349,9 @@ def _run_one(job: dict) -> dict:
                     "eval_error": f"{type(exc).__name__}: {exc}"[:300],
                 }
             )
+            if terms:
+                scored[-1].update(plain_val_nmse=math.inf, plain_test_nmse=math.inf)
+            clipped.append(math.inf)
             continue
         scored.append(
             {
@@ -335,12 +361,21 @@ def _run_one(job: dict) -> dict:
                 "test_nmse": on_test["test"]["nmse_scaled"],
             }
         )
+        clipped.append(on_test["test"]["nmse_clipped"])
         if terms:
-            scored[-1]["terms"] = on_val["terms"]
+            c = scored[-1]
+            c["terms"] = on_val["terms"]
+            # server round 13: the plain a + b*f values (descriptive)
+            c["plain_val_nmse"] = on_val["plain"]["test"]
+            c["plain_test_nmse"] = on_test["plain"]["test"]
+            if guard:
+                clipped[-1] = _terms_guard(c, on_val, on_test, clipped[-1])
     (run_dir / "candidates.json").write_text(json.dumps(scored, indent=2))
     if status == "ok" and not scored:
         status, error = "error", "no candidate parsed"
-    best = min(scored, key=lambda c: c["val_nmse"]) if scored else {}
+    # the first candidate with the lowest validation NMSE, as min() over `scored` gives it
+    i_best = min(range(len(scored)), key=lambda i: scored[i]["val_nmse"]) if scored else None
+    best = scored[i_best] if scored else {}
     first = scored[0] if scored else {}
     seeding = _seed_summary(seed_rec, run_dir, best.get("program"), train, val, test)
     summary = {
@@ -367,11 +402,17 @@ def _run_one(job: dict) -> dict:
         "final_program": best.get("program"),
         "first_train_nmse": first.get("train_nmse"),
         "first_test_nmse": first.get("test_nmse"),
+        # server round 13: the reported candidate's test NMSE with clipped predictions
+        "test_nmse_clipped": clipped[i_best] if scored else None,
         **seeding,
     }
     if terms:
-        # server round 12: the per-term refit of the reported program
+        # server round 12: the per-term refit of the reported program (round 13 TLS-G: with
+        # the guard's choice `guard`)
         summary["terms"] = best.get("terms")
+        # server round 13: the plain a + b*f values of the reported program (descriptive)
+        summary["plain_val_nmse"] = best.get("plain_val_nmse")
+        summary["plain_test_nmse"] = best.get("plain_test_nmse")
     co = const_opt_summary(run_dir / "events.jsonl", summary["n_evals"])
     if co is not None:
         summary["const_opt"] = co
@@ -399,6 +440,23 @@ def _run_one(job: dict) -> dict:
     tmp.write_text(json.dumps(summary, indent=2, sort_keys=True))
     os.replace(tmp, summary_path)
     return summary
+
+
+def _terms_guard(c: dict, on_val: dict, on_test: dict, clipped_terms: float) -> float:
+    """Server round 13 (TLS-G): keep the per-term model or the plain a + b*f of candidate `c`
+    (a scored record of a `--linear-scaling terms` arm), whichever has the lower validation
+    NMSE; a tie keeps plain. Rewrites `c`'s `train_nmse`, `val_nmse` and `test_nmse` to the
+    kept scaling, adds `terms_val_nmse`, `terms_test_nmse` and `c["terms"]["guard"]`, and
+    returns the kept scaling's test NMSE with clipped predictions."""
+    c["terms_val_nmse"], c["terms_test_nmse"] = c["val_nmse"], c["test_nmse"]
+    c["terms"] = {**c["terms"], "guard": "terms"}
+    if c["plain_val_nmse"] <= c["val_nmse"]:
+        c["terms"]["guard"] = "plain"
+        c["train_nmse"] = on_val["plain"]["train"]
+        c["val_nmse"] = c["plain_val_nmse"]
+        c["test_nmse"] = c["plain_test_nmse"]
+        return on_test["plain"]["test_clipped"]
+    return clipped_terms
 
 
 def _const_opt(argv: list) -> str:
@@ -603,8 +661,20 @@ def _seed_summary(rec, run_dir: Path, final_program, train, val, test) -> dict:
     return out
 
 
+def _check_terms_guard(arm: str, a: dict) -> None:
+    """Server round 13: `"terms_guard"` must be "val", on an arm with `--linear-scaling terms`."""
+    if "terms_guard" not in a:
+        return
+    if a["terms_guard"] != "val":
+        raise ValueError(f"arm {arm}: terms_guard must be \"val\", got {a['terms_guard']!r}")
+    if _linear_scaling(a.get("argv", [])) != "terms":
+        raise ValueError(f"arm {arm}: terms_guard needs --linear-scaling terms in the argv")
+
+
 def expand(manifest: dict, out_root: Path, repo: Path) -> list[dict]:
     ddir = (repo / manifest["datasets_dir"]).resolve()
+    for arm, a in manifest["arms"].items():
+        _check_terms_guard(arm, a)  # server round 13: refuse the manifest before any run
     jobs = []
     for ds in manifest["datasets"]:
         for arm, a in manifest["arms"].items():
@@ -626,6 +696,7 @@ def expand(manifest: dict, out_root: Path, repo: Path) -> list[dict]:
                         "mem_limit_mb": manifest.get("mem_limit_mb"),
                         "run_dir": str(out_root / manifest["name"] / "runs" / run_id),
                         **({"events": a["events"]} if "events" in a else {}),
+                        **({"terms_guard": a["terms_guard"]} if "terms_guard" in a else {}),
                     }
                 )
     return jobs

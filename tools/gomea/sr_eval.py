@@ -37,6 +37,18 @@ only, by the rule and the code of the pyMoses scorer (`bscores.top_level_terms`,
 constant or collinear term, a term output that is not finite), keeps the (a, b) fit above.
 The result then has a `terms` record: `n_terms`, `fallback`, `reason` and `weights`
 ((w_0, ..., w_k), or (a, b) for one term or a fallback).
+
+Two opt-in keywords of `evaluate` (server round 13, `moses_sr_runner.py`; off by default, so
+the result does not change without them):
+
+* `plain=True` (with `terms`): the result also has `plain` = `{"train": .., "test": ..}`, the
+  `nmse_scaled` of the plain (a, b) fit on train, before the per-term model replaces it.
+* `clip=True` (with a test table): `test` also has `nmse_clipped`, the NMSE of the model's
+  scaled test predictions clipped to [min - 0.1 R, max + 0.1 R] of the TRAIN target
+  (R = max - min; `clip_range`). A prediction of +inf or -inf becomes the bound; a `nan`
+  prediction stays `nan`, so the NMSE is `inf`. With `terms` and the per-term fit, the
+  per-term predictions are clipped. With `plain` too, `plain` also has `test_clipped`, the
+  same value for the plain (a, b) fit.
 """
 
 from __future__ import annotations
@@ -243,6 +255,19 @@ def nmse(y: Sequence[float], p: Sequence[float], a: float = 0.0, b: float = 1.0)
     return 100.0 * mse / vy if vy > 0 else (0.0 if mse == 0 else math.inf)
 
 
+def clip_range(y: Sequence[float]) -> tuple[float, float]:
+    """Server round 13: [min - 0.1 R, max + 0.1 R] of the target `y` (R = max - min)."""
+    lo, hi = min(y), max(y)
+    r = hi - lo
+    return lo - 0.1 * r, hi + 0.1 * r
+
+
+def nmse_clipped(y: Sequence[float], q: Sequence[float], lo: float, hi: float) -> float:
+    """Server round 13: `nmse(y, clip(q))`, each prediction clipped to [lo, hi]. A `nan`
+    prediction stays `nan` (the NMSE is then `inf`); +inf and -inf become the bounds."""
+    return nmse(y, [x if math.isnan(x) else min(max(x, lo), hi) for x in q])
+
+
 def term_columns(
     program: str,
     tables: Sequence[Table],
@@ -283,9 +308,11 @@ def term_columns(
     return len(nodes), out
 
 
-def _apply_terms(res: dict, program: str, train: Table, test: Table | None) -> None:
+def _apply_terms(res: dict, program: str, train: Table, test: Table | None) -> list | None:
     """`evaluate(..., terms=True)`: replace `nmse_scaled` by that of the per-term model
-    fitted on `train` (unless the fit falls back) and add the `terms` record."""
+    fitted on `train` (unless the fit falls back) and add the `terms` record. Returns the
+    per-term model's test predictions (`None` without a test table, or when the per-term
+    fit is not used)."""
     tables = [train] if test is None else [train, test]
     k, cols = term_columns(program, tables, train.bool_cols)
     if k < 2:
@@ -294,10 +321,12 @@ def _apply_terms(res: dict, program: str, train: Table, test: Table | None) -> N
         fit = TermFit(None, FALLBACK_CONSTANT)
     else:
         fit = fit_terms(train.y, cols[0])
+    q_test = None
     if fit is not None and fit.weights is not None:
         res["train"]["nmse_scaled"] = nmse(train.y, fit.fitted)
         if test is not None:
-            res["test"]["nmse_scaled"] = nmse(test.y, predict_terms(fit.weights, cols[1]))
+            q_test = predict_terms(fit.weights, cols[1])
+            res["test"]["nmse_scaled"] = nmse(test.y, q_test)
         weights = list(fit.weights)
     else:
         weights = [res["a"], res["b"]]
@@ -307,11 +336,20 @@ def _apply_terms(res: dict, program: str, train: Table, test: Table | None) -> N
         "reason": None if fit is None else fit.reason,
         "weights": weights,
     }
+    return q_test
 
 
-def evaluate(program: str, train: Table, test: Table | None = None, terms: bool = False) -> dict:
+def evaluate(
+    program: str,
+    train: Table,
+    test: Table | None = None,
+    terms: bool = False,
+    plain: bool = False,
+    clip: bool = False,
+) -> dict:
     """Train-fitted linear scaling, then scaled and raw NMSE on each split. With
-    `terms`, the per-term model gives `nmse_scaled` (see the module docstring)."""
+    `terms`, the per-term model gives `nmse_scaled`; `plain` and `clip` (server round 13)
+    add values (see the module docstring)."""
     p_tr = predict(program, train.X, train.labels, train.bool_cols)
     a, b = linear_scaling(train.y, p_tr)
     res = {
@@ -334,8 +372,22 @@ def evaluate(program: str, train: Table, test: Table | None = None, terms: bool 
             "nmse_raw": nmse(test.y, p_te),
             "n_nonfinite": sum(not math.isfinite(x) for x in p_te),
         }
-    if terms:
-        _apply_terms(res, program, train, test)
+    if terms and plain:
+        # server round 13: the plain (a, b) values, before the per-term model replaces them
+        res["plain"] = {"train": res["train"]["nmse_scaled"]}
+        if test is not None:
+            res["plain"]["test"] = res["test"]["nmse_scaled"]
+    q_terms = _apply_terms(res, program, train, test) if terms else None
+    if clip and test is not None:
+        # server round 13: the test NMSE with the predictions clipped to the widened range
+        # of the training target
+        lo, hi = clip_range(train.y)
+        q_plain = [a + b * x for x in p_te]
+        res["test"]["nmse_clipped"] = nmse_clipped(
+            test.y, q_plain if q_terms is None else q_terms, lo, hi
+        )
+        if "plain" in res:
+            res["plain"]["test_clipped"] = nmse_clipped(test.y, q_plain, lo, hi)
     return res
 
 
