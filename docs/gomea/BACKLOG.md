@@ -568,8 +568,9 @@ HC-LM the accuracy baseline; round 12 runs T1.6, BASE-R and T2.1–T2.4 (`ROADMA
 
 ## 11. Open items after server round 12 (2026-11-18)
 
-Results: `SERVER-ROUND12-FINDINGS.md`. No user decision on the settings yet; BASE stays the
-reference.
+Results: `SERVER-ROUND12-FINDINGS.md`. BASE stays the reference (user, 2026-11-18). Round 13
+(`SERVER-ROUND13-PREREGISTRATION.md`, draft) takes items 1, 2, 3, 5 and 7 below, ε-lexicase
+(item 6) and the pole safeguard (section 10, item 1).
 
 1. **Per-term least squares with LM (B4-split, T3.1).** BASE-TLS won without LM, and
    `--linear-scaling terms` refuses `--const-opt lm`. On Bos and Yac the final programs have one

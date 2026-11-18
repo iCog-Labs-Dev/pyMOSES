@@ -422,3 +422,19 @@ user confirms it.
   * Agent reading, not confirmed: "the next set of tests we had planned next" is the round that
     combines the round 12 winners (round 12 pre-registration, "Limits"). Its scope needs the
     user's choices before a pre-registration.
+* **Round 13 frame (2026-11-18):** after the round 12 records, the agent asked three questions. The
+  user chose:
+  1. Reference: "Keep BASE, confirm TLS (Recommended)".
+  2. Arms with BASE, HC-LM and BASE-TLS: "TLS + NP (Recommended), TLS + guard (Recommended), TLS
+     + LM per term (T3.1)".
+  3. Data: "Fresh splits 51–60 (Recommended)".
+  * The user then wrote: "I also want us to add few more ideas from the backlog so we can start
+    testing new ideas as well." The agent asked two more questions. The user chose "ε-lexicase
+    selection (Recommended), Pole safeguard (Recommended)" for round 13, and "No tier 2 note now".
+  * User-approved: BASE stays the reference and round 13 repeats BASE-TLS; round 13 arms TLS + NP,
+    TLS + guard, TLS + LM per term (T3.1), ε-lexicase selection and the pole safeguard; fresh
+    splits 51–60; no tier 2 feasibility note other than T3.1.
+  * Agent-written, not user-approved: `T3.1-FEASIBILITY.md` and the round 13 pre-registration draft
+    (`SERVER-ROUND13-PREREGISTRATION.md`: the option rules, the guard at the final choice, the
+    pole-check thresholds, the ε rule, the confirmation rule, the contrasts, the pilot gate and the
+    time estimate). Both need the user's decision before the implementation.

@@ -34,10 +34,11 @@ Use it like this:
 | Node-proximity linkage (`--gomea-fos np`) | Tie (1.058), CPU 0.74×; mux11 ties | 1bf, 1bg |
 | Diversity pressure (`--diversity-pressure 6 × rows`) | No gain (1.000), CPU 2.44× | 1bf |
 
-**Round 12 is done** (`SERVER-ROUND12-FINDINGS.md`). **Next:** the round that combines the
-winners (round 12 pre-registration, "Limits"). The user asked to set it up (2026-11-18). Only
-BASE-TLS passed the rule, and `--linear-scaling terms` cannot run with LM, so most combinations
-need new code (T3.1). The user decides the scope; the pre-registration comes first.
+**Round 12 is done** (`SERVER-ROUND12-FINDINGS.md`). **Next server round (round 13):** BASE stays
+the reference; BASE-TLS is repeated on fresh splits 51–60, with TLS + NP, TLS + guard, TLS + LM per
+term (T3.1), ε-lexicase selection (A4) and a pole safeguard (backlog 10.1) (user, 2026-11-18). The
+pre-registration draft (`SERVER-ROUND13-PREREGISTRATION.md`) and the T3.1 feasibility note
+(`T3.1-FEASIBILITY.md`) wait for the user's approval.
 
 ## Stage 0: done (rounds 6 to 8, 2026-11-06 to 2026-11-08)
 
@@ -139,7 +140,7 @@ is done when the user has decided on them.
 
 | Task | Idea | Prerequisites | Backlog |
 |---|---|---|---|
-| T3.1 | B4-split. LM on each term's inner constants, then least squares for the term weights | T2.2 | 8, B4-split |
+| T3.1 | B4-split. LM on each term's inner constants, then least squares for the term weights | T2.2 (done). Feasibility note written (`T3.1-FEASIBILITY.md`); arm TLS-LM of round 13 if the user approves | 8, B4-split |
 | T3.2 | B1. GP-RV-GOMEA: real-valued GOMEA on the constants, together with the structure | Stage 2 | 8, B1 |
 | T3.3 | B2. Semantic backpropagation with a subtree library: a new knob type | Stage 2 | 8, B2 |
 | T3.4 | B4b. A full IT representation as a deme type (later TIR) | T2.2, T3.1 | 8, B4b |
