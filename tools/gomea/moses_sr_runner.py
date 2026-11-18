@@ -42,7 +42,9 @@ does, so each run writes the per-deme "invocation_start", "generation" and "end"
 side file: MOSES's output is the same with or without it. A pyMoses `-a hc` arm with
 `--const-opt` (server round 10: LM for hill climbing) gets the same log, so its "end" events
 give `const_opt` (LM calls, guard rejections) and the deme columns of `phase_report.py`;
-`-a hc` without `--const-opt` gets no log, as before.
+`-a hc` without `--const-opt` gets no log, as before. With `--exemplar-selection lexicase`
+(server round 13) the log ends with one "lexicase" event, which the summary copies as
+`lexicase` (`lexicase_summary`).
 
 The MOSES seed is the split number. Runs are resumable: an existing `summary.json` is
 kept.
@@ -373,6 +375,9 @@ def _run_one(job: dict) -> dict:
     co = const_opt_summary(run_dir / "events.jsonl", summary["n_evals"])
     if co is not None:
         summary["const_opt"] = co
+    lex = lexicase_summary(run_dir / "events.jsonl")
+    if lex is not None:
+        summary["lexicase"] = lex  # server round 13 (absent without the option)
     if seed_rec is not None:
         summary["moses_cpu_s"] = summary["cpu_s"]
         summary["cpu_s"] += seed_rec["gpgomea"]["cpu_s"]
@@ -493,6 +498,26 @@ def const_opt_summary(events: Path, n_evals: int | None) -> dict | None:
         out["lm_pole_rejected_share"] = (
             out["lm_pole_rejected"] / out["lm_pole_checked"] if out["lm_pole_checked"] else None
         )
+    return out
+
+
+def lexicase_summary(events: Path) -> dict | None:
+    """Server round 13 (`--exemplar-selection lexicase`): the run's "lexicase" event of the
+    GOMEA log (`n_cases`, `selections`, `cases_used_mean`, `cases_used_max`,
+    `pool_size_mean`, `bscore_recomputes`, `bscore_recompute_cpu_s`; pyMoses writes it once,
+    at the end of the run), or `None` when the log has none (the option is off)."""
+    if not events.exists():
+        return None
+    out = None
+    for line in events.read_text().splitlines():
+        if '"lexicase"' not in line:
+            continue
+        try:
+            ev = json.loads(line)
+        except ValueError:
+            continue
+        if ev.get("type") == "lexicase":
+            out = {k: v for k, v in ev.items() if k != "type"}
     return out
 
 
