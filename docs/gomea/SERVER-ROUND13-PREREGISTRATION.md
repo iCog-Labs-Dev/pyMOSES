@@ -1,6 +1,7 @@
-# Server round 13: pre-registration draft (2026-11-18)
+# Server round 13: pre-registration (2026-11-18)
 
-**Status:** draft, not approved. The user decided the frame on 2026-11-18 (`APPROVALS.md`):
+**Status:** approved by the user on 2026-11-18 ("Yes.", `APPROVALS.md`), together with T3.1 as
+the arm TLS-LM. Not yet implemented. The user decided the frame on 2026-11-18:
 
 * Reference: "Keep BASE, confirm TLS (Recommended)".
 * Arms: "TLS + NP (Recommended), TLS + guard (Recommended), TLS + LM per term (T3.1)".
@@ -11,8 +12,7 @@
 * Tier 2: "No tier 2 note now" (only the T3.1 note, `T3.1-FEASIBILITY.md`).
 
 Everything else below (option rules, thresholds, contrasts, the confirmation rule, the pilot gate,
-the time estimate) is agent-written and needs the user's approval. The arm BASE-TLS-LM also needs
-the user's decision on `T3.1-FEASIBILITY.md`.
+the time estimate) is agent-written. The user approved it with the draft (commit 70a810a).
 
 **Questions:**
 

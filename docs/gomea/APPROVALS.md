@@ -438,3 +438,14 @@ user confirms it.
     (`SERVER-ROUND13-PREREGISTRATION.md`: the option rules, the guard at the final choice, the
     pole-check thresholds, the ε rule, the confirmation rule, the contrasts, the pilot gate and the
     time estimate). Both need the user's decision before the implementation.
+* **Round 13 pre-registration and T3.1 (2026-11-18):** the agent presented the draft
+  (`SERVER-ROUND13-PREREGISTRATION.md`, commit 70a810a) with its own choices listed (TLS-G guards
+  only the final choice; the pole check with 256 probes, a 10 % margin and the factor 10, one
+  evaluation for each probe pass; the MAD ε and the Boltzmann pool for ε-lexicase, recomputes not
+  counted; TLS size = nodes + terms; the confirmation rule; clipped test NMSE for all arms; about
+  15–18 h) and the T3.1 note (`T3.1-FEASIBILITY.md`). It asked: "Do you approve the round 13
+  pre-registration (`docs/gomea/SERVER-ROUND13-PREREGISTRATION.md`) and T3.1 as the arm TLS-LM?"
+  The user answered: "Yes."
+  * User-approved: the round 13 pre-registration as drafted; T3.1 as the arm TLS-LM; the start of
+    the implementation by subagents in separate clones (E, F, then G).
+  * Not approved by this answer: any push.
