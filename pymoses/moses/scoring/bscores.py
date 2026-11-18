@@ -624,37 +624,9 @@ class contin_bscore(bscore_base):
             targets = self._target_values = [get_contin(v) for v in self._target]
         if len(self._cti) != len(targets):
             raise ValueError("contin_bscore: input and target row counts differ")
-        nodes = top_level_terms(tr)
-        if len(nodes) < 2:
-            return len(nodes), None
-        if any(is_contin(n.data) for n in nodes):
-            # A numeric leaf is a constant term: no need to evaluate the terms.
-            return len(nodes), TermFit(None, FALLBACK_CONSTANT)
-        # Each term is evaluated with the interpreter that the whole program uses on that
-        # row, row by row and in term order, as the root `+` evaluates its children.
-        visitors = None
-        cols: list[list[float]] = [[] for _ in nodes]
-        try:
-            for row in self._cti:
-                r = list(row)
-                if r and all(is_contin(x) for x in r):
-                    # A row of contin inputs: `interpreter_visitor`'s choice for it
-                    # (table.h:332-336), made once for all the terms of the row.
-                    interp = mixed_interpreter.from_contin_inputs(r)
-                    for col, n in zip(cols, nodes, strict=True):
-                        col.append(get_contin(interp(n)))
-                    continue
-                if visitors is None:  # any other row: one visitor for each term
-                    visitors = []
-                    for n in nodes:
-                        v = interpreter_visitor(combo_tree(n))
-                        v.mixed = iv.mixed
-                        visitors.append(v)
-                for col, v in zip(cols, visitors, strict=True):
-                    col.append(get_contin(v(r)))
-        except Exception:  # any evaluation error: the plain path gives the score
-            return len(nodes), TermFit(None, FALLBACK_ERROR)
-        return len(nodes), fit_terms(targets, cols)
+        # Server round 13: the rule moved to `fit_program_terms` (unchanged), so that LM
+        # (`const_opt.RegressionRows`) fits the terms by the same code.
+        return fit_program_terms(tr, self._cti, targets, iv)
 
     def _terms_bscore(self, tr: combo_tree, iv: interpreter_visitor) -> behavioral_score:
         """NOT A PORT: `__call__` with `--linear-scaling terms` (see
@@ -813,6 +785,60 @@ def top_level_terms(tr: combo_tree) -> list:
             child = child.next_sibling
         return kids
     return [root]
+
+
+def term_columns(nodes: Sequence, rows: Iterable, iv: interpreter_visitor) -> list[list[float]]:
+    """NOT A PORT (`--linear-scaling terms`; server round 12, a shared function since server
+    round 13): the output of each term in `nodes` (`top_level_terms` of a program) on each
+    row of `rows`, as `columns[i][r]`. `iv` is the `interpreter_visitor` of the whole
+    program. An evaluation error goes to the caller.
+
+    Each term is evaluated with the interpreter that the whole program uses on that row, row
+    by row and in term order, as the root `+` evaluates its children."""
+    visitors = None
+    cols: list[list[float]] = [[] for _ in nodes]
+    for row in rows:
+        r = list(row)
+        if r and all(is_contin(x) for x in r):
+            # A row of contin inputs: `interpreter_visitor`'s choice for it
+            # (table.h:332-336), made once for all the terms of the row.
+            interp = mixed_interpreter.from_contin_inputs(r)
+            for col, n in zip(cols, nodes, strict=True):
+                col.append(get_contin(interp(n)))
+            continue
+        if visitors is None:  # any other row: one visitor for each term
+            visitors = []
+            for n in nodes:
+                v = interpreter_visitor(combo_tree(n))
+                v.mixed = iv.mixed
+                visitors.append(v)
+        for col, v in zip(cols, visitors, strict=True):
+            col.append(get_contin(v(r)))
+    return cols
+
+
+def fit_program_terms(
+    tr: combo_tree, rows: Iterable, targets: Sequence[float], iv: interpreter_visitor
+) -> tuple[int, TermFit | None]:
+    """NOT A PORT (`--linear-scaling terms`; server round 12, a shared function since server
+    round 13): `(number of terms, fit)` of the program `tr` on `rows` (the inputs) and
+    `targets`, the rule of `contin_bscore.term_fit`. `iv` is the `interpreter_visitor` of
+    `tr`. The scorer and LM (`const_opt.RegressionRows`) both call it.
+
+    `fit` is `None` for one term. A numeric leaf term gives the fallback `constant` (the
+    terms are not evaluated). A term that cannot be evaluated gives `FALLBACK_ERROR`. Else
+    `least_squares.fit_terms` gives the fit or its fallback reason."""
+    nodes = top_level_terms(tr)
+    if len(nodes) < 2:
+        return len(nodes), None
+    if any(is_contin(n.data) for n in nodes):
+        # A numeric leaf is a constant term: no need to evaluate the terms.
+        return len(nodes), TermFit(None, FALLBACK_CONSTANT)
+    try:
+        cols = term_columns(nodes, rows, iv)
+    except Exception:  # any evaluation error: the plain path gives the score
+        return len(nodes), TermFit(None, FALLBACK_ERROR)
+    return len(nodes), fit_terms(targets, cols)
 
 
 def _c_div(x: score_t, y: score_t) -> score_t:

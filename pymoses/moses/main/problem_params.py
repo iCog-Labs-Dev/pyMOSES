@@ -613,7 +613,10 @@ _PORT_OPTIONS = (
         "t_i (else one term) and score w_0 + sum w_i t_i, fitted by least "
         "squares on the training rows (a program with a constant or collinear "
         "term, or a term output that is not finite, gets the a + b*f score); "
-        "only with --const-opt none. 0 = off (classic MOSES). Default 0.",
+        "only with --const-opt none or lm (LM fits the weights again at each "
+        "pass and tunes the constants inside the terms; not with "
+        "--const-opt-top-k or --const-opt-during). 0 = off (classic MOSES). "
+        "Default 0.",
     ),
     # Constant tuning, server round 3 (off by default: a default run is
     # unchanged; pymoses/gomea/const_opt.py).
@@ -1722,11 +1725,23 @@ class problem_params:
         ls = getattr(args, "linear_scaling", 0)
         if ls not in (0, 1, LINEAR_SCALING_TERMS):
             raise ValueError(f"--linear-scaling must be 0, 1 or terms, got {ls}")
-        # NOT A PORT, server round 12: LM, polish, the guard and the reserve all
-        # assume the a + b*f fit, so per-term weights run without them.
+        # NOT A PORT, server round 12: mutate and polish assume the a + b*f fit, so
+        # per-term weights run without them. Server round 13 (T3.1): LM at the end of a
+        # deme (with the guard and the reserve) fits the weights again at each pass.
+        # Top-K LM and LM during the search stay refused (not in the scope of T3.1).
         co = getattr(args, "const_opt", "none")
-        if ls == LINEAR_SCALING_TERMS and co != "none":
-            raise ValueError(f"--linear-scaling terms needs --const-opt none, got --const-opt {co}")
+        if ls == LINEAR_SCALING_TERMS:
+            if co not in ("none", "lm"):
+                raise ValueError(
+                    f"--linear-scaling terms needs --const-opt none or lm, got --const-opt {co}"
+                )
+            if getattr(args, "const_opt_top_k", 0) > 0:
+                raise ValueError("--linear-scaling terms does not support --const-opt-top-k > 0")
+            during = getattr(args, "const_opt_during", "none")
+            if during != "none":
+                raise ValueError(
+                    f"--linear-scaling terms does not support --const-opt-during {during}"
+                )
         self.linear_scaling = ls
 
         # -- Set depth (C++: :2371-2372 `set_depth(contin_depth)`) --

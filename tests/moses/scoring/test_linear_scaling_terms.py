@@ -265,19 +265,17 @@ def test_cli_terms_runs_and_changes_scores(algo):
     assert out1 != out2
 
 
+# Server round 13 (T3.1): `--const-opt lm` is accepted with terms
+# (tests/gomea/test_const_opt_terms.py); mutate and polish stay refused.
 @pytest.mark.parametrize(
     "co",
     [
-        ["--const-opt", "lm"],
-        ["-a", "gomea", "--const-opt", "lm"],
-        ["-a", "gomea", "--const-opt", "lm", "--const-opt-guard", "val",
-         "--const-opt-val", str(_TRAIN)],
         ["-a", "gomea", "--gomea-contin", "copy", "--const-opt", "mutate"],
         ["-a", "gomea", "--const-opt", "polish", "--const-opt-val", str(_TRAIN)],
     ],
 )  # fmt: skip
 def test_cli_refuses_constant_tuning(co):
-    with pytest.raises(ValueError, match="--linear-scaling terms needs --const-opt none"):
+    with pytest.raises(ValueError, match="--linear-scaling terms needs --const-opt none or lm"):
         _run([*_REG, "--linear-scaling", "terms", *co])
 
 

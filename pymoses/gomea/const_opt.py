@@ -3,8 +3,9 @@
 NOT A PORT (pyMoses extension; no C++ counterpart). See
 ``docs/gomea/SERVER-ROUND3-PREREGISTRATION.md`` for the design and
 ``docs/gomea/USAGE.md`` for the flags. Server round 5 adds the validation guard of
-``lm`` (``guard_accepts``, ``docs/gomea/SERVER-ROUND5-PREREGISTRATION.md``). Three modes
-use this module:
+``lm`` (``guard_accepts``, ``docs/gomea/SERVER-ROUND5-PREREGISTRATION.md``). Server round 13
+(T3.1) adds LM with ``--linear-scaling terms`` (``RegressionRows`` with ``terms``,
+``docs/gomea/T3.1-FEASIBILITY.md``). Three modes use this module:
 
 * ``lm``: at the end of each GOMEA deme, Levenberg-Marquardt (LM) on the
   numeric constants of the deme's best program (``levenberg_marquardt``);
@@ -39,11 +40,17 @@ from pymoses.comboreduct.combo.vertex import combo_tree, get_contin, is_contin
 from pymoses.comboreduct.interpreter.interpreter import interpreter_visitor
 from pymoses.gomea.oracle import BudgetExhausted
 from pymoses.moses.representation.scored_instance import scored_instance
-from pymoses.moses.scoring.bscores import contin_bscore, linear_scaling
+from pymoses.moses.scoring.bscores import (
+    contin_bscore,
+    fit_program_terms,
+    linear_scaling,
+    term_columns,
+    top_level_terms,
+)
 
 # ``solve`` and ``PIVOT_TOL`` moved to ``least_squares`` in server round 12 (unchanged), so
 # that the scorer can use the solver too. They stay importable from here.
-from pymoses.moses.scoring.least_squares import PIVOT_TOL, solve  # noqa: F401
+from pymoses.moses.scoring.least_squares import PIVOT_TOL, predict_terms, solve  # noqa: F401
 
 CONST_OPT_MODES = ("none", "lm", "mutate", "polish")
 CONST_OPT_GUARDS = ("none", "val")
@@ -108,27 +115,58 @@ class RegressionRows:
     residuals of a program on them: ``(a + b f(x)) - y`` with the
     least-squares ``(a, b)`` when the scorer uses linear scaling, else
     ``f(x) - y``. ``scaling`` gives the ``(a, b)`` to use instead of a fit
-    (``polish`` scores validation rows with the training fit)."""
+    (``polish`` scores validation rows with the training fit).
 
-    def __init__(self, inputs: Sequence[Sequence], targets: Sequence[float], scaled: bool):
+    NOT A PORT, server round 13 (T3.1, ``--linear-scaling terms`` with ``--const-opt lm``):
+    with ``terms``, ``residuals`` uses the scorer's per-term rule
+    (``bscores.fit_program_terms``): ``w_0 + sum_i w_i t_i - y``, with the weights fitted on
+    these rows at each call. A program with one term, or whose per-term fit falls back, gets
+    the plain ``(a + b f(x)) - y`` (``scaled`` is then true), as the scorer does."""
+
+    def __init__(
+        self,
+        inputs: Sequence[Sequence],
+        targets: Sequence[float],
+        scaled: bool,
+        terms: bool = False,
+    ):
         self.inputs = [list(r) for r in inputs]
         self.targets = [float(y) for y in targets]
         self.scaled = scaled
+        self.terms = terms
         mean = math.fsum(self.targets) / len(self.targets) if self.targets else 0.0
         # the norm of the centred target, the scale of an inert column
         self.spread = math.sqrt(math.fsum((y - mean) ** 2 for y in self.targets))
 
     @classmethod
     def of_bscore(cls, b: contin_bscore) -> RegressionRows:
-        return cls(b._cti, [get_contin(v) for v in b._target], bool(b._linear_scaling))
+        targets = [get_contin(v) for v in b._target]
+        if getattr(b, "_linear_scaling_terms", False):
+            # Server round 13 (T3.1): the scorer's per-term rule. Its plain path is the
+            # a + b*f fit (``contin_bscore._scaled_bscore``).
+            return cls(b._cti, targets, True, terms=True)
+        return cls(b._cti, targets, bool(b._linear_scaling))
 
     def predictions(self, tr: combo_tree) -> list[float]:
         iv = interpreter_visitor(tr)
         return [float(get_contin(iv(list(row)))) for row in self.inputs]
 
-    def residuals(self, tr: combo_tree, scaling=None) -> tuple[list[float], tuple[float, float]]:
+    def term_fit(self, tr: combo_tree):
+        """NOT A PORT, server round 13: ``(number of terms, fit)`` of ``tr`` on these rows,
+        by the rule of the scorer (``bscores.fit_program_terms``)."""
+        return fit_program_terms(tr, self.inputs, self.targets, interpreter_visitor(tr))
+
+    def residuals(self, tr: combo_tree, scaling=None) -> tuple[list[float], tuple[float, ...]]:
         """``(residuals, (a, b))``; non-finite residuals when the program
-        cannot be evaluated on a row."""
+        cannot be evaluated on a row. With ``terms`` and no ``scaling``, the
+        per-term fit when it does not fall back: ``(residuals, (w_0, .., w_k))``."""
+        if self.terms and scaling is None:
+            _k, fit = self.term_fit(tr)
+            if fit is not None and fit.fitted is not None:
+                return (
+                    [f - y for f, y in zip(fit.fitted, self.targets, strict=True)],
+                    fit.weights,
+                )
         try:
             p = self.predictions(tr)
         except Exception:  # any evaluation error (overflow, domain) makes it non-finite
@@ -343,13 +381,39 @@ def gaussian(rng) -> float:
 def validation_nmse(tr: combo_tree, train: RegressionRows, val: RegressionRows) -> float:
     """NMSE of ``tr`` on the validation rows with the linear scaling fitted
     on the training rows (as ``tools/gomea/sr_eval.py`` scores a report),
-    divided by the variance of the validation target."""
+    divided by the variance of the validation target.
+
+    NOT A PORT, server round 13 (T3.1): when ``train`` uses ``terms``, the per-term weights
+    fitted on the training rows are applied to the terms on the validation rows (as
+    ``sr_eval.evaluate(..., terms=True)`` does). A program with one term, or whose per-term
+    fit falls back, gets the plain ``(a, b)`` above."""
+    if train.terms:
+        _k, fit = train.term_fit(tr)
+        if fit is not None and fit.weights is not None:
+            return _terms_validation_nmse(tr, fit.weights, val)
     try:
         p = train.predictions(tr)
     except Exception:  # any evaluation error makes it non-finite
         return math.inf
     a, b = linear_scaling(train.targets, p)
     r, _ = val.residuals(tr, (a, b))
+    n = len(val.targets)
+    mean = math.fsum(val.targets) / n
+    var = math.fsum((y - mean) ** 2 for y in val.targets) / n
+    e = mse(r)
+    return e / var if var > 0 else e
+
+
+def _terms_validation_nmse(tr: combo_tree, weights: Sequence[float], val: RegressionRows) -> float:
+    """NOT A PORT, server round 13 (T3.1): ``validation_nmse`` with the per-term ``weights``
+    (fitted on the training rows). A term that cannot be evaluated on a validation row
+    makes the NMSE infinite."""
+    try:
+        cols = term_columns(top_level_terms(tr), val.inputs, interpreter_visitor(tr))
+    except Exception:  # any evaluation error makes it non-finite
+        return math.inf
+    p = predict_terms(weights, cols)
+    r = [x - y for x, y in zip(p, val.targets, strict=True)]
     n = len(val.targets)
     mean = math.fsum(val.targets) / n
     var = math.fsum((y - mean) ** 2 for y in val.targets) / n
