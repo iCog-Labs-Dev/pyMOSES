@@ -4,7 +4,10 @@
 the arm TLS-LM. Implemented in 22b2a63, 30669d7 and 1fcb749 (T3.1 and the pole safeguard);
 6d81b98, 4a9d4fe and c106485 (ε-lexicase); cb1ccfe (Boolean manifest commits); 039ef88, fd7013a
 and eb16cb2 (splits 51-60, the runner and the report, configs, plans, tests and the SERVER-RUN
-section). The user decided the frame on 2026-11-18:
+section); b4ffc5b (boolean inputs of the pole check), 987da63 (Boolean manifest commits), 14145d7
+and 0f6d818 (`test_nmse_clipped` only with the manifest key `clip_test_nmse`). The section
+"Rules that the approved text did not cover" lists the agent's completions. The user decided the
+frame on 2026-11-18:
 
 * Reference: "Keep BASE, confirm TLS (Recommended)".
 * Arms: "TLS + NP (Recommended), TLS + guard (Recommended), TLS + LM per term (T3.1)".
@@ -149,6 +152,30 @@ setting stays byte-identical (identity tests).
 * Telemetry: `lm_pole_checked`, `lm_pole_rejected`.
 * **Agent choices:** 256 probes, the 10 % margin and the factor 10. The pilot reports the rejection
   share.
+
+### Rules that the approved text did not cover (agent, after the approval)
+
+These completions came during the implementation. None of them changes an arm, a contrast or a
+gate.
+
+* **Pole check, non-finite values:** a probe prediction that is not finite counts as +∞ in S. So
+  when the old and the tuned program both have a non-finite prediction, the check accepts the
+  tuning (+∞ is not greater than +∞).
+* **Pole check, boolean inputs:** MOSES types a 0/1 column as boolean (Bos `x4`). Such an input
+  gets false or true, each with probability 0.5, and the margin does not apply to it. Each input
+  of each probe still takes one draw, so the probes of a table with numeric inputs only do not
+  change. The smoke run found the gap: the two Bos runs of BASE-PS stopped with a `ValueError` at
+  b49d050. The fix is b4ffc5b.
+* **Pole check, seed:** the probe generator is seeded with the run seed (`-r`), as the text above
+  says. Its first draws are therefore correlated with the first draws of the main stream. The main
+  stream does not change.
+* **Clipped NMSE:** a prediction of +∞ or −∞ becomes the bound; a `nan` prediction stays `nan`, so
+  the NMSE is +∞. For TLS-G, the clip acts on the scaling that the guard keeps.
+* **TLS-G:** a one-term program, or a per-term fit that falls back, is a tie, so the guard keeps
+  plain.
+* **Descriptive contrasts:** the report puts the 9 descriptive pooled contrasts (TLS-NP, TLS-G and
+  TLS-LM against BASE; the 6 primary contrasts on the clipped NMSE) in their own Holm family. The
+  findings report them as descriptive, with no verdict.
 
 ## Contrasts
 
