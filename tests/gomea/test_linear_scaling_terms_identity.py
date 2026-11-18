@@ -23,11 +23,6 @@ script that prints the same fixed list. The splits are made from the same traini
 (``SPLIT_OF``). Compared: the ``evaluate`` results and the CLI output as JSON, the runner's
 ``candidates.json`` and its ``summary.json`` without the machine values (``RUN_CLOCK_KEYS``),
 with the path of the run replaced by TMP.
-
-Server round 13 adds one field to the summary of every arm, ``test_nmse_clipped``
-(``SERVER-ROUND13-PREREGISTRATION.md``, "Descriptive for every arm"). The summary comparison
-leaves out that field only (``ROUND13_NEW_KEYS``); every other field must still be identical,
-and the test checks that the new field is present.
 """
 
 from __future__ import annotations
@@ -108,8 +103,6 @@ CANDIDATES = (
     "n_evals: 1234\n"
 )
 RUN_CLOCK_KEYS = frozenset({"wall_s", "cpu_s", "ru_maxrss_kb"})
-# server round 13: the new summary field of every arm (not in the references of 0117486)
-ROUND13_NEW_KEYS = frozenset({"test_nmse_clipped"})
 
 
 def canonical_log(text: str) -> str:
@@ -204,8 +197,7 @@ def runner_report(work: Path, argv: list[str]) -> tuple[str, str]:
     }  # fmt: skip
     moses_sr_runner._run_one(job)
     summary = json.loads((run_dir / "summary.json").read_text())
-    summary = {k: v for k, v in summary.items()
-               if k not in RUN_CLOCK_KEYS and k not in ROUND13_NEW_KEYS}
+    summary = {k: v for k, v in summary.items() if k not in RUN_CLOCK_KEYS}
     text = json.dumps(summary, indent=2, sort_keys=True).replace(str(work), "TMP")
     return (run_dir / "candidates.json").read_text(), text + "\n"
 
@@ -239,9 +231,6 @@ def test_runner_default_is_byte_identical_to_0117486(tmp_path):
     cands, summary = runner_report(tmp_path, RUNNER_ARGV)
     assert cands == (REF / "runner.candidates.json").read_text()
     assert summary == (REF / "runner.summary.json").read_text()
-    # server round 13: the summary has the new field too (left out of the comparison above)
-    full = json.loads((tmp_path / "run" / "summary.json").read_text())
-    assert set(full) - set(json.loads(summary)) == RUN_CLOCK_KEYS | ROUND13_NEW_KEYS
 
 
 if __name__ == "__main__":
