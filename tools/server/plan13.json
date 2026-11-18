@@ -1,0 +1,25 @@
+{
+  "name": "server-round13-2026-11",
+  "description": "SERVER-ROUND13-PREREGISTRATION.md: S0, then 1bh (BASE-TLS against BASE again; TLS-NP, TLS-G and TLS-LM against BASE-TLS; BASE-LEX and BASE-PS against BASE; with HC-LM as the accuracy baseline, on the 10 datasets, fresh splits 51-60, 20,000 evaluations per run, no time limit). One phase, no Boolean phase. No extension, no choice step, no adoption rule. The Dow manifest (8,192 MB) gets a W of its own. 1bh needs splits 51-60 of every dataset (setup.sh builds them). No chain to or from another round.",
+  "state_dir": "server-run13",
+  "steps": [
+    {
+      "id": "S0",
+      "type": "check",
+      "pytest": {},
+      "repro": {}
+    },
+    {
+      "id": "phase1bh",
+      "type": "phase",
+      "phase": "phase1bh",
+      "requires": [
+        "datasets:Air,Bos,Con,Dow,EnC,EnH,Tow,WiR,WiW,Yac:51-60"
+      ],
+      "per_run_mb": 5120,
+      "manifest_per_run_mb": {
+        "sr-Dow.json": 8192
+      }
+    }
+  ]
+}

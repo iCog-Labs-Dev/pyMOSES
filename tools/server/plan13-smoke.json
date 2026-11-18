@@ -1,0 +1,40 @@
+{
+  "name": "server-round13-smoke",
+  "description": "Smoke test of the round-13 plan: limited pytest (tests/server, the split test, the tests of the round 13 options and of the round 13 runner and report changes), the mux11 repro run, then 1bh in miniature (configs/gomea/server-smoke13-1bh: the same two manifests, arms and flags, splits 51 and 52, -m 1000, a wall cap of 300 s; the Dow run included). No extension. Uses its own state dir, so it never marks real steps done. No chain.",
+  "state_dir": "server-run13-smoke",
+  "steps": [
+    {
+      "id": "S0",
+      "type": "check",
+      "pytest": {
+        "args": [
+          "tests/server",
+          "tests/gomea/test_sr_datasets.py",
+          "tests/gomea/test_round13_runner_report.py",
+          "tests/gomea/test_round13_lm_identity.py",
+          "tests/gomea/test_const_opt_terms.py",
+          "tests/gomea/test_const_opt_pole.py",
+          "tests/gomea/test_exemplar_selection_identity.py",
+          "tests/moses/metapopulation/test_lexicase.py"
+        ]
+      },
+      "repro": {
+        "only": [
+          "1ae-mux11-GOMEA-s3001"
+        ]
+      }
+    },
+    {
+      "id": "smoke13-1bh",
+      "type": "phase",
+      "phase": "server-smoke13-1bh",
+      "requires": [
+        "datasets:Air,Bos,Con,Dow,EnC,EnH,Tow,WiR,WiW,Yac:51-60"
+      ],
+      "per_run_mb": 5120,
+      "manifest_per_run_mb": {
+        "sr-Dow.json": 8192
+      }
+    }
+  ]
+}

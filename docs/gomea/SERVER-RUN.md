@@ -892,3 +892,115 @@ flags, splits 41 and 42, `-m 1000`, so that the reserve of BASE-R and BASE-K5 ap
 of 300 s; 160 runs) and `configs/gomea/server-smoke12-1bg` (the same four arms, seeds 3101 and
 3102, `--max-time 120`; 8 runs). The state is in `server-run12-smoke/`. The smoke plan has the
 same `requires`, `per_run_mb` and `manifest_per_run_mb` keys.
+
+## Round 13
+
+The thirteenth round (`SERVER-ROUND13-PREREGISTRATION.md`: does BASE-TLS beat BASE again on fresh
+splits, do node-proximity linkage, a validation guard or LM on the inner constants improve
+BASE-TLS, and do ε-lexicase exemplar selection and a pole safeguard improve BASE) has its own plan,
+`tools/server/plan13.json`: S0, then phase 1bh (regression). There is no Boolean phase. Its state
+is in `../gomea-results/server-run13/`.
+
+**One-time server steps before the round:**
+
+1. Make sure that no other round runs (`bash tools/server/status.sh --plan round12` shows
+   "not running"). Round 13 never overlaps with another round.
+2. Update the clone to the branch commit that has this section (`git pull --ff-only`).
+3. Run `bash tools/server/setup.sh` again. Round 13 uses the fresh splits 51-60. A dataset set
+   from an earlier round has splits 1-50 only, so set-up rebuilds it (splits 1-50 do not
+   change; Dow and Tow are built again from their raw files). It must end with `SETUP OK`.
+   Each dataset then has 480 split files (60 splits x 8 files).
+4. Start the round:
+
+       bash tools/server/start.sh --plan round13
+
+There is no choice step, no extension and no adoption rule: the round only reports the results
+(the confirmation rule for BASE-TLS is a proposal to the user after the round). No plan chains to
+or from round 13. Bring back the final bundle.
+
+**Phase 1bh: budget.** Each run gets 20,000 evaluations (`"budget": {"evals": 20000}`, so
+`-m 20000`) and no `--max-time`. LM passes, guard passes and pole-check passes count. The wall cap
+of 36,000 s per run is only a guard against a hung process.
+
+**Phase 1bh: arms** (`configs/gomea/phase1bh/`, the same eight arms in each manifest):
+
+| Arm | Task | Flags |
+|---|---|---|
+| BASE | reference | the round 12 BASE (as in 1bf) |
+| HC-LM | accuracy baseline | the round 12 HC-LM (as in 1bf) |
+| BASE-TLS | T2.2, confirmation | the round 12 BASE-TLS (as in 1bf): `--linear-scaling terms --const-opt none`, no guard |
+| TLS-NP | T2.1 + T2.2 | BASE-TLS with `--gomea-fos np` in place of `lt-b` |
+| TLS-G | TLS guard | the BASE-TLS argv, and the arm key `"terms_guard": "val"` (runner only) |
+| TLS-LM | T3.1 | BASE-TLS with `--const-opt lm --const-opt-guard val` in place of `--const-opt none` |
+| BASE-LEX | A4, ε-lexicase | BASE + `--exemplar-selection lexicase` |
+| BASE-PS | pole safeguard | BASE + `--const-opt-pole-check box` |
+
+* The new options are opt-in (`docs/gomea/USAGE.md`). Without them, the output of every existing
+  setting does not change (the identity tests in `tests/gomea/`).
+* BASE-TLS, TLS-NP and TLS-G have no LM and no guard, so the runner gives them no
+  `--const-opt-val` (the CLI refuses that table without the guard). TLS-LM and the other arms use
+  `--const-opt-guard val`, so the runner gives them `--const-opt-val`. All eight arms get
+  `--gomea-log RUN_DIR/events.jsonl`.
+* TLS-G: MOSES gets the same command line as BASE-TLS, so the search is the same. The runner
+  (`moses_sr_runner.py`) compares, for each printed candidate, the validation NMSE of the
+  per-term model and of the plain a + b·f (both fitted on the training rows), and keeps the lower
+  one; a tie keeps plain. Then it selects the candidate with the lowest validation NMSE, as for
+  every arm. The summary has `terms.guard` (`terms` or `plain`); `candidates.json` has the choice
+  of each candidate. The runner refuses `terms_guard` on an arm without `--linear-scaling terms`.
+* New fields in the summaries (no other value changes): `test_nmse_clipped` for every arm (the
+  test NMSE with the predictions clipped to [min − 0.1·R, max + 0.1·R] of the training target);
+  `plain_val_nmse` and `plain_test_nmse` for the four TLS arms (the plain a + b·f, descriptive).
+  BASE-PS summaries have `const_opt.lm_pole_checked` and `lm_pole_rejected`; BASE-LEX summaries
+  have the `lexicase` block.
+* Datasets: all 10, splits 51-60. 800 runs. The phase needs the datasets with splits 51-60
+  (requirement `datasets:Air,...,Yac:51-60`). Without them, 1bh is skipped with the reason in
+  the log.
+
+**Phase 1bh: report** (`spec.json` of 1bh; the pooled test of round 8: paired Wilcoxon on
+r = log(A / B) over the 100 pairs, a failed run gets the largest rank against it):
+
+* Primary, pooled, one Holm family (6), test NMSE: BASE-TLS vs BASE (the confirmation); TLS-NP,
+  TLS-G and TLS-LM, each vs BASE-TLS; BASE-LEX and BASE-PS, each vs BASE (`pooled_primary`).
+* The gap to HC-LM, pooled, its own Holm family (7): BASE and the 6 other arms, each vs HC-LM.
+* Size and CPU, pooled, one Holm family (12): program size and CPU for the 6 primary contrasts.
+  The program size of a TLS arm is its node count plus `n_terms` when the final model uses the
+  per-term fit (2 or more terms, no fallback; for TLS-G only when `terms.guard` is `terms`); a
+  final model with plain a + b·f adds 0 (spec key `"size_terms": true`). `aggregate.csv` also has
+  the node count (`median_nodes`).
+* **Descriptive**, pooled, a Holm family of its own (9): TLS-NP, TLS-G and TLS-LM, each vs BASE
+  (test NMSE), and the 6 primary contrasts on the clipped test NMSE (`test_nmse_clipped`).
+  `contrasts.csv` gives them a p, a Holm p and a verdict. Read those verdicts as a description
+  only.
+* Per dataset, descriptive (60): the 6 primary contrasts on each dataset, Holm across the 60, no
+  verdict (`secondary` with `"secondary_verdicts": false`).
+* `report-stage1/runs.csv` (spec key `"run_table": true`): one row for each run, with the status,
+  test and clipped test NMSE, training and validation NMSE, size and node count, `n_terms`,
+  fallback and guard (TLS arms), the TLS-G candidates that kept plain scaling, CPU, evaluations,
+  demes, knobs per deme (median of the run's demes) and total knobs (from `events.jsonl`), LM
+  calls and LM share, guard checks and rejections, pole checks and rejections, and the lexicase
+  values. `report-stage1/nmse_above_100.csv`: the ok runs with a test NMSE above 100, with the
+  training and validation NMSE.
+* `report-stage1/same_search.csv` and `same_search.json` (spec key `"same_search"`): for each
+  dataset and split, whether TLS-G and BASE-TLS printed the same candidates (the same programs in
+  the same order). `same_search.json` gives the number of pairs that differ; it must be 0.
+
+**Memory and workers:**
+
+| Manifest | `mem_limit_mb` | W on the server (cgroup 65,536 MB, 12 CPUs, reserve 6,553 MB) |
+|---|---|---|
+| `phase1bh/sr-Dow.json` | 8,192 | floor(58,983 / 8,192) = 7 |
+| `phase1bh/sr.json` (the 9 other datasets) | 5,120 | min(11, 11) = 11 |
+
+The 1bh step has `per_run_mb` 5120 and `manifest_per_run_mb` `{"sr-Dow.json": 8192}`.
+`events.jsonl` has one `workers_decision` for the phase and one for the Dow manifest.
+`phase_run.sh` runs one manifest at a time.
+
+**Size and time.** 1bh: 800 runs, about 140 to 160 CPU-hours, about 13 to 15 hours at W = 11
+(W = 7 for Dow). S0: about 1.3 hours. About 15 to 18 hours in total.
+
+Smoke test: `bash tools/server/start.sh --plan smoke13` runs the limited S0 (`tests/server`, the
+split test, the tests of the round 13 options and of the round 13 runner and report changes; the
+mux11 repro run), then `configs/gomea/server-smoke13-1bh` (the same two manifests, arms, flags and
+spec, splits 51 and 52, `-m 1000`, a wall cap of 300 s; 160 runs). The state is in
+`server-run13-smoke/`. The smoke plan has the same `requires`, `per_run_mb` and
+`manifest_per_run_mb` keys.
