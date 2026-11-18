@@ -202,6 +202,7 @@ from pymoses.gomea import gomea_parameters
 from pymoses.gomea.optimizer import DYNAMIC_POP_SIZE
 from pymoses.moses.deme.deme_params import deme_parameters
 from pymoses.moses.deme.feature_selector import feature_selector_parameters
+from pymoses.moses.metapopulation.lexicase import EXEMPLAR_SELECTION_CHOICES
 from pymoses.moses.metapopulation.metapop_params import (
     diversity_parameters,
     metapop_parameters,
@@ -600,6 +601,20 @@ _PORT_OPTIONS = (
         "descend from an initial exemplar that is the empty program (+ or and), "
         "by MOSES's normal selection restricted to them, falling back to the "
         "normal choice when none is selectable. 0 = off. Default 0.",
+    ),
+    # NOT A PORT, server round 13 (off by default: a default run is unchanged).
+    (
+        "--exemplar-selection",
+        "exemplar_selection",
+        str,
+        "boltzmann",
+        "how the next exemplar is selected from the metapopulation: boltzmann "
+        "(classic MOSES, by penalized score) or lexicase (epsilon lexicase on "
+        "the training errors of the same candidates, row by row: the rows in a "
+        "random order; on each row keep the candidates within the median "
+        "absolute deviation of the best one; then a random one; ignores the "
+        "complexity penalty; regression table problems only). Default "
+        "boltzmann.",
     ),
     (
         "--linear-scaling",
@@ -1763,6 +1778,17 @@ class problem_params:
         if k < 0:
             raise ValueError(f"--reserve-empty-every must be >= 0 (0 = off), got {k}")
         self.meta_params.reserve_empty_every = k
+        # NOT A PORT (pyMoses extension, server round 13): `--exemplar-selection`, read
+        # by the metapopulation (`metapopulation/lexicase.py`). `lexicase` is for
+        # regression only (`moses_exec` refuses a problem other than `-H it`, and
+        # `table_problems._regression` a scorer other than `contin_bscore`).
+        sel = getattr(args, "exemplar_selection", "boltzmann")
+        if sel not in EXEMPLAR_SELECTION_CHOICES:
+            raise ValueError(
+                f"--exemplar-selection must be one of {', '.join(EXEMPLAR_SELECTION_CHOICES)}, "
+                f"got {sel}"
+            )
+        self.meta_params.exemplar_selection = sel
         # NOT A PORT (pyMoses extension): `--linear-scaling`, read by the
         # regression problems (`table_problems._regression`).
         ls = getattr(args, "linear_scaling", 0)

@@ -195,6 +195,9 @@ own docstring.
   (`ostream_scored_combo_tree`'s `output_bscore` arm, types.py; the
   `output_bscore` constructor argument of `metapop_printer`,
   moses_main.py) was already ported and already wired from the flag.
+  NOT A PORT (server round 13): a fifth term, `--exemplar-selection
+  lexicase` (`lexicase.py`), comes after C++'s four; it keeps the
+  behavioural scores that epsilon-lexicase selection reads.
 * `_params.do_boosting` -- now REAL (P2 metapopulation task, `ensemble.py`):
   `merge_demes`'s `_ensemble.add_candidates(...)` call (merging.cc:344) is
   reached, not separately guarded, and now actually drives AdaBoost/expert
@@ -250,6 +253,7 @@ from __future__ import annotations
 
 import copy
 import math
+import time
 from typing import TYPE_CHECKING
 
 from pymoses.comboreduct.combo.iostream_combo import tree_to_stream_str
@@ -642,14 +646,23 @@ def merge_demes(
         len(pot_candidates) - len(candidates),
     )
 
+    # NOT A PORT (pyMoses extension, `--exemplar-selection lexicase`, server round
+    # 13): the fifth term. Epsilon-lexicase selection reads the behavioural scores of
+    # the metapopulation, so the recompute below keeps them. These scorer calls are
+    # not evaluations (no optimizer ledger counts them), as for the other four terms;
+    # their number and CPU time go to the lexicase telemetry. Off: `None`.
+    lexicase = getattr(self, "_lexicase", None)
     if (
         self.diversity_enabled()
         or self._params.do_boosting
         or self._params.discard_dominated
         or self._params.keep_bscore
+        or lexicase is not None
     ):
         # C++: merging.cc:266. `%d` fed an unsigned `size()` is classic's own.
         logger().debug("Compute behavioral score of %d selected candidates", len(candidates))
+        if lexicase is not None:
+            t_recompute, n_recompute = time.process_time(), len(candidates)
         new_pot = scored_combo_tree_set()
         for cand in candidates:
             bs = list(self._cscorer.get_bscore(cand.get_tree()))
@@ -667,6 +680,8 @@ def merge_demes(
             )
             new_pot.insert(sct)
         candidates = new_pot
+        if lexicase is not None:
+            lexicase.note_recompute(n_recompute, time.process_time() - t_recompute)
 
         if self._params.discard_dominated:
             logger().debug("Remove dominated candidates")

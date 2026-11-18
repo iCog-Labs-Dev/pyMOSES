@@ -144,6 +144,11 @@ import math
 from typing import TYPE_CHECKING
 
 from pymoses.comboreduct.combo.iostream_combo import tree_to_stream_str
+from pymoses.moses.metapopulation.lexicase import (
+    EXEMPLAR_SELECTION_LEXICASE,
+    lexicase_select,
+    lexicase_stats,
+)
 from pymoses.moses.metapopulation.lineage import exemplar_lineage
 from pymoses.moses.metapopulation.metapop_params import (
     diversity_parameters,
@@ -545,6 +550,11 @@ class metapopulation:
         # `empty_exemplars` (NOT A PORT): indices of the exemplars that were the
         # empty program before reduction; read only with lineage tracking on.
         self._empty_exemplars = empty_exemplars
+        # NOT A PORT (pyMoses extension, `--exemplar-selection lexicase`, server
+        # round 13): the telemetry of epsilon-lexicase selection (`lexicase.py`),
+        # only when the option is on. `None` means the classic Boltzmann rule.
+        sel = getattr(self._params, "exemplar_selection", "boltzmann")
+        self._lexicase = lexicase_stats() if sel == EXEMPLAR_SELECTION_LEXICASE else None
         self.init(bases)
 
     def init(self, exemplars: list[combo_tree]) -> None:
@@ -1029,6 +1039,15 @@ class metapopulation:
         NOT ported -- logging-only, no observable effect (module
         docstring's "no logging surface" convention); the POSITION/visit-
         count values it would print have no effect on control flow.
+
+        ## NOT A PORT: `--exemplar-selection lexicase` (server round 13)
+
+        With the option on (`self._lexicase` is not `None`), epsilon-lexicase
+        selection (`lexicase.py`, `_select_lexicase`) takes the place of the
+        Boltzmann roulette only. The pool is the same (the finite entries of
+        `probs`), the `size() == 1` shortcut and the "no exemplar found" arm are
+        the same, and the visit count changes in the same way. With the default
+        (`boltzmann`) the roulette runs as above and nothing else changes.
         """
         if self.empty():
             raise AssertionError("Empty metapopulation in select_exemplar().")
@@ -1094,22 +1113,27 @@ class metapopulation:
             self.log_selected_exemplar(None, 0)
             return None
 
-        inv_temp: score_t = _to_score_t(100.0 / self._params.complexity_temperature)
-        total: score_t = _to_score_t(0.0)
-        for i, p in enumerate(probs):
-            if math.isfinite(p):
-                val: score_t = _to_score_t(
-                    math.exp(_to_score_t(_to_score_t(p - highest_score) * inv_temp))
-                )
-            else:
-                val = _to_score_t(0.0)
-            probs[i] = val
-            total = _to_score_t(total + val)
+        if self._lexicase is not None:
+            # NOT A PORT (`--exemplar-selection lexicase`): epsilon-lexicase over
+            # the pool that the roulette below would use (finite entries of `probs`).
+            fwd = self._select_lexicase(ordered, probs)
+        else:
+            inv_temp: score_t = _to_score_t(100.0 / self._params.complexity_temperature)
+            total: score_t = _to_score_t(0.0)
+            for i, p in enumerate(probs):
+                if math.isfinite(p):
+                    val: score_t = _to_score_t(
+                        math.exp(_to_score_t(_to_score_t(p - highest_score) * inv_temp))
+                    )
+                else:
+                    val = _to_score_t(0.0)
+                probs[i] = val
+                total = _to_score_t(total + val)
 
-        if not (total > 0.0):
-            raise AssertionError("There is an internal bug, please fix it")
+            if not (total > 0.0):
+                raise AssertionError("There is an internal bug, please fix it")
 
-        fwd = roulette_select(probs, total, randGen())
+            fwd = roulette_select(probs, total, randGen())
         selex = ordered[fwd]
 
         self._visited_exemplars.increment(selex)
@@ -1122,6 +1146,20 @@ class metapopulation:
         self.log_selected_exemplar(selex, fwd + 1)
 
         return selex
+
+    def _select_lexicase(self, ordered: list[scored_combo_tree], probs: list[score_t]) -> int:
+        """NOT A PORT (pyMoses extension, `--exemplar-selection lexicase`, server
+        round 13; see `lexicase.py`): the index into `ordered` of the candidate that
+        epsilon-lexicase selects. The pool is the candidates whose entry in `probs` is
+        finite: exactly the ones the Boltzmann roulette may select. Their behavioural
+        scores come from `init`, `inject_candidates` or the merge's recompute
+        (`merging.merge_demes`). Draws from the run RNG; the caller updates the visit
+        count, as for the roulette."""
+        pool = [i for i, p in enumerate(probs) if math.isfinite(p)]
+        bscores = [ordered[i].get_bscore() for i in pool]
+        k, cases_used = lexicase_select(bscores, randGen())
+        self._lexicase.note_selection(cases_used, len(pool), len(bscores[0]))
+        return pool[k]
 
 
 # NOT A PORT (pyMoses extension, no C++ counterpart): add programs to the

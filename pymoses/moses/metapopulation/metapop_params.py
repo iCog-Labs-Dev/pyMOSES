@@ -449,3 +449,7 @@ class metapop_parameters:
         # expansion picks its exemplar from the empty program's lineage
         # (`lineage.py`). 0 = off, the classic behaviour.
         self.reserve_empty_every = 0
+        # NOT A PORT (pyMoses extension, `--exemplar-selection`, server round 13):
+        # `boltzmann` (classic MOSES) or `lexicase` (epsilon-lexicase on the per-row
+        # errors, `lexicase.py`). Read by `metapopulation.__init__`.
+        self.exemplar_selection = "boltzmann"

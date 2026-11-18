@@ -472,6 +472,14 @@ def moses_exec(argv: Sequence[str] | str) -> int:
                 "--linear-scaling applies to regression only "
                 f"(-H it on a table with a contin output), not to -H {pp.problem}"
             )
+        # NOT A PORT (server round 13): epsilon-lexicase reads the per-row errors of a
+        # regression table (`table_problems._regression` checks the scorer).
+        sel = getattr(pp.meta_params, "exemplar_selection", "boltzmann")
+        if sel == "lexicase" and probm.name() != "it":
+            raise ValueError(
+                "--exemplar-selection lexicase applies to regression only "
+                f"(-H it on a table with a contin output), not to -H {pp.problem}"
+            )
         probm.run(pp)
         return 0
 

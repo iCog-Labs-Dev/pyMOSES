@@ -781,6 +781,14 @@ def metapop_moses_results_b(
         ) from exc
     if polish:
         _polish(metapop, sc, moses_params, gomea_params, stats)
+    # NOT A PORT (pyMoses extension, `--exemplar-selection lexicase`, server round 13):
+    # the run's lexicase telemetry, one "lexicase" event in the GOMEA log (absent when
+    # the option is off, or without a GOMEA log).
+    lexicase = getattr(metapop, "_lexicase", None)
+    if lexicase is not None and gomea_params is not None:
+        from pymoses.gomea.telemetry import TelemetrySink
+
+        TelemetrySink(gomea_params.telemetry_path).emit("lexicase", **lexicase.report())
     printer(metapop, dex, stats)
 
 

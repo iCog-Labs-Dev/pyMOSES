@@ -208,6 +208,7 @@ from pymoses.moses.main.problem import (
     problem_manager,
 )
 from pymoses.moses.main.problem_params import LINEAR_SCALING_TERMS, problem_params
+from pymoses.moses.metapopulation.lexicase import EXEMPLAR_SELECTION_LEXICASE
 from pymoses.moses.moses.moses_main import gomea_kwargs, metapop_moses_results
 from pymoses.moses.scoring.behave_cscore import behave_cscore
 from pymoses.moses.scoring.bscores import (
@@ -746,6 +747,17 @@ class table_problem_base(problem_base):
                 bscore.set_linear_scaling_terms(True)
             else:
                 bscore.set_linear_scaling(True)
+        # NOT A PORT (pyMoses extension, `--exemplar-selection lexicase`, server round
+        # 13): epsilon-lexicase reads the per-row errors of `contin_bscore`.
+        sel = getattr(pms.meta_params, "exemplar_selection", "boltzmann")
+        if sel == EXEMPLAR_SELECTION_LEXICASE and (
+            self.output_type != type_node.contin_type or not isinstance(bscore, contin_bscore)
+        ):
+            raise ValueError(
+                "--exemplar-selection lexicase applies to regression only (a contin output "
+                "scored by contin_bscore); this problem has output type "
+                f"{self.output_type.name} and scorer {type(bscore).__name__}"
+            )
         if pms.meta_params.do_boosting:
             bscore.use_weighted_scores()
         # When boosting, cache must not be used, as otherwise, stale
