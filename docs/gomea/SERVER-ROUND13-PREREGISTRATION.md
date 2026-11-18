@@ -1,7 +1,10 @@
 # Server round 13: pre-registration (2026-11-18)
 
 **Status:** approved by the user on 2026-11-18 ("Yes.", `APPROVALS.md`), together with T3.1 as
-the arm TLS-LM. Not yet implemented. The user decided the frame on 2026-11-18:
+the arm TLS-LM. Implemented in 22b2a63, 30669d7 and 1fcb749 (T3.1 and the pole safeguard);
+6d81b98, 4a9d4fe and c106485 (ε-lexicase); cb1ccfe (Boolean manifest commits); 039ef88, fd7013a
+and eb16cb2 (splits 51-60, the runner and the report, configs, plans, tests and the SERVER-RUN
+section). The user decided the frame on 2026-11-18:
 
 * Reference: "Keep BASE, confirm TLS (Recommended)".
 * Arms: "TLS + NP (Recommended), TLS + guard (Recommended), TLS + LM per term (T3.1)".
