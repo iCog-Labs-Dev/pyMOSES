@@ -250,6 +250,19 @@ Round 11 (2026-11-12; [`docs/gomea/SERVER-ROUND11-FINDINGS.md`](docs/gomea/SERVE
   at the same CPU; large gains on Air, Con, Dow and Tow. It joins the next round as an arm.
 * The user keeps BASE as the default, with HC-LM next in line.
 
+Round 12 (2026-11-17; [`docs/gomea/SERVER-ROUND12-FINDINGS.md`](docs/gomea/SERVER-ROUND12-FINDINGS.md)),
+10 datasets, fresh splits 41–50, each idea against BASE:
+
+* **Per-term least squares (`--linear-scaling terms`, no LM):** 12 % lower test NMSE than BASE
+  (lower in 73 of 100 pairs), the only "better" verdict. It gains most on Dow, EnH, Tow and EnC and
+  loses on Yac. Programs are 18 % larger (40 % with the term weights). It ties with HC-LM.
+* **LM during the search (`--const-opt-during elite`):** 7 % lower, a tie, with 27 % larger
+  programs. **LM on the top 5 programs of a deme:** no gain over the LM reserve, which again gave
+  2 % (a tie).
+* **Node-proximity linkage (`--gomea-fos np`):** 26 % less CPU, 6 % higher NMSE (a tie); the
+  fastest median on mux11, but a tie. **Diversity pressure:** no gain, 2.4 times the CPU.
+* The user has not yet decided whether a setting changes the reference. BASE stays the default.
+
 ## Run the tests
 
 The test suite is self-contained: it diffs against C++ **golden fixtures committed to

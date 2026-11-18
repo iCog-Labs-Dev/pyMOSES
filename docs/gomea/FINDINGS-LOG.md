@@ -142,6 +142,8 @@ in `DECISIONS.md`.**
 | 1bc | 2026-11-09 (server 9) | Cap of 250 evaluations per deme with the new base and with N = 16 | **Better on Tow only** (19.0 → 12.4, 10/10); medians lower on 5 of 6, programs 30–220 % larger, CPU 1.1–3.9×. Left out (rule, user). [SERVER-ROUND9-FINDINGS.md](SERVER-ROUND9-FINDINGS.md) |
 | 1bd | 2026-11-11 (server 10) | The base (dynamic N, LM-VAL, PEN125) against HC-LM, HC-LM-W and NOCAP; BASE-S as a seeding control; 10 datasets, splits 1–10, 20,000 evaluations, results only | **All 3 primary contrasts tie** under the 10 % rule: BASE vs HC-LM 19/81 (ratio 1.06), vs HC-LM-W 70/30 (0.96), vs NOCAP 33/67 (1.03). **HC-LM-W worse than HC-LM** (13/87, 1.18). Size BASE 47, HC-LM 75.5, NOCAP 191; CPU 430, 674, 2,419 s. BASE got no LM budget in 17 runs (Dow, Tow). User: BASE is the compact reference, HC-LM the accuracy baseline. [SERVER-ROUND10-FINDINGS.md](SERVER-ROUND10-FINDINGS.md) |
 | 1be | 2026-11-12 (server 11) | Deme count: BASE against BASE-R (LM reserve 500) and deme caps D5, D10, D20; HC-LM as the accuracy baseline; 10 datasets, fresh splits 31–40, results only | **Test NMSE falls with the deme count:** ratios 0.984 (BASE-R), 0.961 (D5), 0.915 (D10), 0.899 (D20, the only "A better"). D10 and D20 tie with HC-LM (59/41, 60/40). D arms: programs 1.46–1.71×, CPU 1.66–2.12×, 4 memory failures on Dow and Tow. BASE-R: same CPU, size +4 %. User: BASE stays the default, HC-LM next in line; BASE-R joins round 12 as an arm (T1.5). [SERVER-ROUND11-FINDINGS.md](SERVER-ROUND11-FINDINGS.md) |
+| 1bf | 2026-11-17 (server 12) | T1.5, T1.6 and T2.1–T2.4 against BASE: BASE-R (LM reserve), BASE-K5 (LM on the top 5 of each deme, vs BASE-R), BASE-NP (node-proximity FOS), BASE-TLS (per-term least squares, no LM), BASE-LME (LM during the search), BASE-DIV (diversity pressure); HC-LM; 10 datasets, fresh splits 41–50, 20,000 evaluations, results only | **BASE-TLS better** (ratio 0.879, 73/27; Dow 0.39, EnH 0.40, Tow 0.44, EnC 0.51; worse on Yac 1.61), programs 1.18× (1.40× with the term weights), same CPU; tie with HC-LM (0.968). **Ties:** BASE-LME 0.929 (73/27, size 1.27×), BASE-R 0.979 (63/11, confirms round 11), BASE-K5 vs BASE-R 0.998, BASE-DIV 1.000 (CPU 2.44×), BASE-NP 1.058 (CPU 0.74×; worse than HC-LM, 1.167). BASE vs HC-LM 1.065. 800 ok, 0 failed. Settings not yet decided by the user. [SERVER-ROUND12-FINDINGS.md](SERVER-ROUND12-FINDINGS.md) |
+| 1bg | 2026-11-17 (server 12) | mux11: node-proximity FOS (NP) against RT, UNI and LT-B, CPU to solve, seeds 3101–3110, 3,600 s | **All 3 contrasts tie** (Holm p 0.041, 0.074, 0.49). All 40 runs solved. Median CPU to solve: NP 424 s, LT-B 547, UNI 815, RT 979. NP needs as many evaluations as LT-B but each costs less (0.0078 against 0.0121 s). [SERVER-ROUND12-FINDINGS.md](SERVER-ROUND12-FINDINGS.md) |
 
 ## Descriptive comparisons (not pre-registered)
 
@@ -167,8 +169,11 @@ in `DECISIONS.md`.**
 * ~~GOMEA-LS against HC-LS at equal time; why GOMEA loses on Yac~~ Answered by 1ao and 1ar.
 * ~~Size control with a weaker penalty, and LM with a penalty (section 6)~~ Answered by 1au and
   1av. ~~LM-VAL with PEN125, and both with no cap (section 7)~~ Answered by 1aw.
-* ~~Does LM-VAL gain from more demes (the cap of 250)?~~ 1bc: better on Tow only; left out. LM
-  during the search (A2) is still open.
+* ~~Does LM-VAL gain from more demes (the cap of 250)?~~ 1bc: better on Tow only; left out. ~~LM
+  during the search (A2)~~ 1bf: 7 % lower, a tie, with larger programs.
+* ~~Per-term least squares (B4a), node-proximity linkage (A1), diversity pressure (A4, first
+  arm)~~ Answered by 1bf and 1bg. Open: per-term least squares with LM on the inner constants
+  (B4-split, T3.1), a guard for per-term least squares, and ε-lexicase selection (A4, second arm).
 * ~~The dynamic population on other datasets (user, 2026-11-09).~~ 1ba: kept.
 * Does PEN beat unpenalized GOMEA on mux11 at equal time, under a registered test?
 * Cheaper knob building (items 1.x).

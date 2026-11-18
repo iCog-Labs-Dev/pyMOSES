@@ -407,3 +407,18 @@ user confirms it.
   as built (Recommended)".
   * User-approved: BASE-DIV runs with P = 6 × training rows; the report states that it cannot act
     on one-deme datasets.
+* **Round 12 push and server run (2026-11-16):** the agent gave the RV16 findings of the round 12
+  build, the smoke result and the test evidence, and asked: "Do you approve the push of these 25
+  commits to `origin/experiment/moses-gomea-discrete`?" The user answered: "Yes".
+  * User-approved: the push of `bdd056e..c26a3c5`. The user then ran the server steps, and round
+    12 ran at `c26a3c5` (2026-11-16 14:33Z to 2026-11-17 10:33Z).
+* **Round 12 results (2026-11-18):** the agent presented the results (`SERVER-ROUND12-FINDINGS.md`)
+  and asked whether to write the findings and update the records. The user answered: "Yes, write
+  the findings and update the records. And set up the next set of tests we had planned next."
+  * User-approved: the round 12 findings file and the record updates (findings log, roadmap,
+    backlog, README), committed locally; the set-up of the next tests.
+  * Not approved by this answer: any push; a change of the reference. BASE stays the reference
+    until the user decides (agent reading).
+  * Agent reading, not confirmed: "the next set of tests we had planned next" is the round that
+    combines the round 12 winners (round 12 pre-registration, "Limits"). Its scope needs the
+    user's choices before a pre-registration.

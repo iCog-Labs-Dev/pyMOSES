@@ -12,7 +12,7 @@ Use it like this:
 2. Follow the checklist in "How to run an experiment" for that task.
 3. When the task ends, mark it here (date, verdict, findings file) and update the backlog.
 
-## Where we are (2026-11-16)
+## Where we are (2026-11-18)
 
 | Setting | Status | Evidence |
 |---|---|---|
@@ -26,11 +26,18 @@ Use it like this:
 | Knob caps | Not recommended | 1ak, 1as, 1az |
 | **BASE** = dynamic population + LM-VAL + PEN125 | The reference and the default for the time being (user, 2026-11-11 and 2026-11-16) | 1bd, 1be |
 | HC-LM (hill climbing with LM-VAL) | The accuracy baseline, next in line (user, 2026-11-11 and 2026-11-16) | 1bd, 1be |
-| LM reserve (`--const-opt-reserve 500`, BASE-R) | An arm of round 12, not the reference (user, 2026-11-16, T1.5) | 1be |
+| LM reserve (`--const-opt-reserve 500`, BASE-R) | Tie again in round 12 (0.979, 63/11); no user decision yet | 1be, 1bf |
 | Deme caps (`--gomea-deme-share` 5, 10, 20) | Not adopted: lower NMSE, but larger programs and more CPU | 1be |
+| Per-term least squares (`--linear-scaling terms`, no LM, BASE-TLS) | **"A better"** (0.879), programs 1.18× (1.40× with weights), same CPU; no user decision yet | 1bf |
+| LM during the search (`--const-opt-during elite`, BASE-LME) | Tie (0.929, 73/27), programs 1.27×; no user decision yet | 1bf |
+| LM on the top 5 of a deme (`--const-opt-top-k 5`, BASE-K5) | No gain over the reserve (0.998) | 1bf |
+| Node-proximity linkage (`--gomea-fos np`) | Tie (1.058), CPU 0.74×; mux11 ties | 1bf, 1bg |
+| Diversity pressure (`--diversity-pressure 6 × rows`) | No gain (1.000), CPU 2.44× | 1bf |
 
-**Next server round (round 12):** T1.6, BASE-R and T2.1–T2.4 in one plan, against the fixed
-reference BASE, on fresh splits 41–50 (user, 2026-11-16). The pre-registration comes first.
+**Round 12 is done** (`SERVER-ROUND12-FINDINGS.md`). **Next:** the round that combines the
+winners (round 12 pre-registration, "Limits"). The user asked to set it up (2026-11-18). Only
+BASE-TLS passed the rule, and `--linear-scaling terms` cannot run with LM, so most combinations
+need new code (T3.1). The user decides the scope; the pre-registration comes first.
 
 ## Stage 0: done (rounds 6 to 8, 2026-11-06 to 2026-11-08)
 
@@ -63,7 +70,7 @@ with LM-VAL, and the confirmed final setting.
 | ~~T1.4~~ | ~~The dynamic population on other datasets (user)~~ | Done (1ba, round 9): kept | 9.2 |
 | ~~T1.3~~ | ~~LT-B against RT with no cap~~ | Closed by 1ay: 12 ties | 7.3 |
 | ~~T1.5~~ | ~~BASE-R as a replacement for BASE (user, 2026-11-16): explain the BASE-R failure case, and check BASE-R on the datasets where BASE is weak~~ | Done (2026-11-16, `SERVER-ROUND11-FINDINGS.md`, "Follow-up: T1.5"): BASE stays the reference; BASE-R runs again as an arm of round 12 (user) | – |
-| T1.6 | Elite-only LM (user, 2026-11-16): at the end of each deme, LM on the top k distinct programs before they go to the metapopulation, not only on the best one | Next: in round 12 with T2.1–T2.4. A new opt-in option under `pymoses`; pre-registration first | – |
+| ~~T1.6~~ | ~~Elite-only LM (user, 2026-11-16): at the end of each deme, LM on the top k distinct programs before they go to the metapopulation, not only on the best one~~ | Done (1bf, round 12): BASE-K5 ties with BASE-R (0.998); no gain from more LM at deme end | – |
 
 * **T1.1 questions:** does seeding still help when linear scaling, LM-VAL, no cap and PEN125 are in
   use? Does the Con loss of 1y and 1ab remain? Use the existing tools (`tools/gomea/gpgomea_seed.py`,
@@ -106,12 +113,15 @@ Run them in this order. Each task compares against the stage 1 base.
 BASE-R, against the fixed reference BASE and the accuracy baseline HC-LM. T2.1 also gets a mux11
 phase. An idea whose code is not ready leaves the round; the others still run.
 
-| Task | Idea | Code needed | Backlog |
-|---|---|---|---|
-| T2.1 | A1. Node-proximity linkage: a FOS from the tree distance between knob positions | A new FOS option | 8, A1 |
-| T2.2 | B4a. Least squares weights for each top-level term in the scorer | Extend the linear-scaling code | 8, B4a |
-| T2.3 | A2. LM during the search, on accepted improvements in the deme | Extend `const_opt` | 8, A2 |
-| T2.4 | A4. Case-based exemplar selection: classic, `--diversity-pressure`, ε-lexicase | A small rule in `select_exemplar` | 8, A4 |
+| Task | Idea | Code needed | Backlog | Round 12 result (1bf, 1bg) |
+|---|---|---|---|---|
+| T2.1 | A1. Node-proximity linkage: a FOS from the tree distance between knob positions | A new FOS option | 8, A1 | Tie (1.058), CPU 0.74×; mux11 ties |
+| T2.2 | B4a. Least squares weights for each top-level term in the scorer | Extend the linear-scaling code | 8, B4a | **"A better"** (0.879), size 1.18× |
+| T2.3 | A2. LM during the search, on accepted improvements in the deme | Extend `const_opt` | 8, A2 | Tie (0.929), size 1.27× |
+| T2.4 | A4. Case-based exemplar selection: classic, `--diversity-pressure`, ε-lexicase | A small rule in `select_exemplar` | 8, A4 | `--diversity-pressure`: no gain, CPU 2.44×. ε-lexicase not built |
+
+**Status (2026-11-18):** T2.1–T2.4 have registered verdicts (`SERVER-ROUND12-FINDINGS.md`). Stage 2
+is done when the user has decided on them.
 
 * **T2.1:** arms FOS = node proximity, RT, UNI, at the population setting of stage 1. Problems:
   mux11, Con, EnH. It needs no population data, so it can work at small N. The paper tested only
@@ -175,8 +185,8 @@ phase. An idea whose code is not ready leaves the round; the others still run.
 * **Budget:** say what is equal across arms, CPU time or evaluations, and why. Report both
   evaluations and CPU in the results. Round 4: the cap saved evaluations but cost CPU.
 * **Fair comparisons:** HC gets the same per-deme cap as GOMEA. Seeding counts against the same
-  budget. A selection step and its confirmation use different data (fresh splits 21–30 are used
-  by round 8; no later splits exist).
+  budget. A selection step and its confirmation use different data (splits 21–30, 31–40 and 41–50
+  are used by rounds 8, 11 and 12; no later splits exist yet).
 * **Statistics:** paired Wilcoxon signed-rank, Holm across the primary contrasts of a phase,
   α = 0.025. "Better" also needs a 10 % lower median. Holm p in [0.025, 0.25) at stage 1 extends.
   Secondary contrasts never extend. Failed runs count as infinitely bad.

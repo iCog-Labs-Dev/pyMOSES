@@ -566,6 +566,31 @@ HC-LM the accuracy baseline; round 12 runs T1.6, BASE-R and T2.1–T2.4 (`ROADMA
    best one (T1.6 tests more).
 6. **Still open from section 9:** item 6 (the `set_final.py` report fix).
 
+## 11. Open items after server round 12 (2026-11-18)
+
+Results: `SERVER-ROUND12-FINDINGS.md`. No user decision on the settings yet; BASE stays the
+reference.
+
+1. **Per-term least squares with LM (B4-split, T3.1).** BASE-TLS won without LM, and
+   `--linear-scaling terms` refuses `--const-opt lm`. On Bos and Yac the final programs have one
+   term, so BASE-TLS lost the LM step there (Yac 1.61). LM on the inner constants of each term,
+   then least squares for the term weights, would keep both.
+2. **A guard for per-term least squares (agent idea).** BASE-TLS has no validation guard. The WiW
+   gap was 11.93 against 2.21 for BASE, and the largest term weights reached 22,600 on Tow. Ideas:
+   fall back to `a + b·f` when the per-term fit is worse on the validation rows, or a small ridge
+   term in the solve.
+3. **Program size of BASE-TLS.** The node count does not include the term weights. Report the
+   size with the weights (node count + terms) in later rounds.
+4. **The fallback share of BASE-TLS during the search** is not in the telemetry.
+5. **Node-proximity linkage as a cost saver.** 26 % less CPU at 6 % higher NMSE on regression; the
+   fastest median on mux11. It combines with BASE-TLS without new code.
+6. **The diversity step costs CPU that is not counted as evaluations** (BASE-DIV 2.44× the CPU).
+   ε-lexicase selection (A4, second arm) is not built.
+7. **Report fix:** `phase_report.py` does not list the runs with a test NMSE above 100, and it has
+   no knob, term or `lm_elite` columns (RV16 finding 1 of the round 12 build).
+8. **Still open from section 10:** item 4 (knob count for HC) and item 6 (the `set_final.py` report
+   fix).
+
 ## 8. Future directions from the literature search (2026-11-06)
 
 Source: the literature search of 2026-11-06 (`docs/gomea/LITERATURE-2026-11-06.md`). Start only after rounds 6 to 8 give a
@@ -577,9 +602,11 @@ stable conclusion (user). Order: tier 1 first, then tier 2. Citation counts are 
    FOS from the tree distance between knob positions in the exemplar, not from population data.
    Reported P ≈ 0.80 better than MI, bias-adjusted MI and RT on 5 SR sets, at N 1,024 and 10^7
    evaluations, no runtime cost. Not tested at N 16 or on Boolean. First test: against RT and UNI.
+   **Round 12 (1bf, 1bg):** tie against BASE (1.058) with 0.74× the CPU; mux11 ties with RT, UNI
+   and LT-B.
 2. **A2. LM during the search** (Kommenda et al., GPEM 2020, DOI 10.1007/s10710-019-09371-3):
    tune constants on accepted improvements inside the deme, not only at deme end. Test at equal
-   CPU against LM-VAL.
+   CPU against LM-VAL. **Round 12 (1bf):** tie (0.929, lower in 73 of 100 pairs), programs 1.27×.
 3. **A4. Case-based exemplar selection** (ε-lexicase with down-sampling: La Cava et al., GECCO
    2016, DOI 10.1145/2908812.2908898; Geiger et al. 2025, arXiv 2407.21632). Arms: classic
    Boltzmann selection; `--diversity-pressure` (classic, no new code, never run in our phases);
@@ -587,7 +614,9 @@ stable conclusion (user). Order: tier 1 first, then tier 2. Citation counts are 
    from the per-case behavioural scores). Down-sampling can reuse the table weights and the
    subsampling code (`--ss-*`, `--fs-subsampling-ratio`). Boosting (`--boost`) is related, but
    the regression scorer has no `get_error`, so it needs work first. The evidence is for parent
-   selection in population GP, not for MOSES exemplar selection.
+   selection in population GP, not for MOSES exemplar selection. **Round 12 (1bf):**
+   `--diversity-pressure` (P = 6 × rows) gave no gain (1.000) at 2.44× the CPU. ε-lexicase is not
+   built.
 4. **B4a. Least squares on the top-level terms (user, 2026-11-06).** Many MOSES regression programs
    are a sum of terms. Fit one weight per top-level term with least squares in the scorer, in place
    of the single `a + b·f` of linear scaling. It reuses the representation, the scorer and the
@@ -597,7 +626,9 @@ stable conclusion (user). Order: tier 1 first, then tier 2. Citation counts are 
    AdaBoost" (exact rank not in the text). Related: MRGP (Arnaldo, Krawiec, O'Reilly, GECCO 2014;
    not checked). Risk: overfitting and collinear terms; use the validation guard and, if needed,
    regularization. Also a candidate **alternative to LM if LM does not scale**: one linear solve per
-   evaluation (rows × terms²) against up to 10 LM iterations (rows × constants² each).
+   evaluation (rows × terms²) against up to 10 LM iterations (rows × constants² each). **Round 12
+   (1bf):** "A better" without LM and without a guard (0.879; Dow 0.39, EnH 0.40, Tow 0.44, EnC
+   0.51; Yac 1.61), programs 1.18× in nodes, same CPU. See section 11.
 
 **Low priority: only if we run out of options (user, 2026-11-06)**
 - **A3. Intron-masked MI** (Koch et al. 2026, arXiv 2602.02311): give inactive knob values (under a
