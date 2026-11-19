@@ -21,6 +21,9 @@ Backlog 12.2 (the RV16 review of the round 13 build):
   ``--linear-scaling terms`` arm (also the BASE-TLS arm of the round 12 manifest) writes the
   output of cb1ccfe, and TLS-G still compares the plain values;
 * a missing reference commit fails the byte-identity tests (``_old_tool``); it never skips;
+* the spec key ``"pooled_descriptive"``: named pooled secondary contrasts keep their p, Holm p
+  and ratio and get the verdict "descriptive"; without the key the report is that of 0f6f2eb
+  (the commit before backlog 12.2).
 """
 
 from __future__ import annotations
@@ -325,18 +328,20 @@ def test_the_pole_counters_and_the_lexicase_block_reach_the_summary(tmp_path):
 # ---- byte identity against the code before the change (git)
 
 
-def _old_tool(tmp_path: Path, names) -> Path:
-    """The files `names` of tools/gomea/ at commit OLD, in a directory of their own."""
-    d = tmp_path / "old"
+def _old_tool(tmp_path: Path, names, commit: str | None = None) -> Path:
+    """The files `names` of tools/gomea/ at commit OLD (or `commit`), in a directory of their
+    own."""
+    commit = commit or OLD
+    d = tmp_path / f"old-{commit}"
     d.mkdir()
     for n in names:
-        r = subprocess.run(["git", "show", f"{OLD}:tools/gomea/{n}"], cwd=REPO,
+        r = subprocess.run(["git", "show", f"{commit}:tools/gomea/{n}"], cwd=REPO,
                            capture_output=True)
         if r.returncode != 0:
             # backlog 12.2: a missing reference must never let the test pass (no skip)
-            pytest.fail(f"git show {OLD}:tools/gomea/{n} failed: "
+            pytest.fail(f"git show {commit}:tools/gomea/{n} failed: "
                         f"{r.stderr.decode().strip()!r}. The byte-identity tests need the "
-                        f"reference commit {OLD}; use a clone with the full history.")
+                        f"reference commit {commit}; use a clone with the full history.")
         (d / n).write_bytes(r.stdout)
     return d
 
@@ -539,6 +544,7 @@ def test_a_malformed_round13_key_is_refused(key, value, tmp_path):
 # ---- backlog 12.2: the plain fields are opt-in, no skip, descriptive pooled contrasts
 
 PLAIN_FIELDS = ("plain_val_nmse", "plain_test_nmse")
+BEFORE_12_2 = "0f6f2eb"  # the commit before the backlog 12.2 changes
 
 
 @pytest.mark.parametrize("guard", [None, "val"])
@@ -610,3 +616,85 @@ def test_a_missing_reference_commit_fails_the_test_and_does_not_skip(monkeypatch
     with pytest.raises(pytest.fail.Exception,
                        match=r"git show 0{40}:tools/gomea/sr_eval.py failed: .*full history"):
         _old_tool(tmp_path, ["sr_eval.py"])
+
+
+def _spec_descriptive(tmp_path: Path, descr=None) -> Path:
+    spec = {"phase": "t", "metrics": {"Con": "test_nmse", "Dow": "test_nmse"}, "primary": [],
+            "pooled_primary": [["tls-vs-base", "BASE-TLS", "BASE", "test_nmse"]],
+            "pooled_secondary": [["g-vs-base", "TLS-G", "BASE", "test_nmse"],
+                                 ["g-vs-tls", "TLS-G", "BASE-TLS", "test_nmse"],
+                                 ["g-vs-base-cpu", "TLS-G", "BASE", "cpu_s"]],
+            "pooled_secondary_families": [["g-vs-base", "g-vs-tls"]], "extend": False}
+    if descr is not None:
+        spec["pooled_descriptive"] = descr
+    p = tmp_path / ("spec.json" if descr is None else "spec-descr.json")
+    p.write_text(json.dumps(spec))
+    return p
+
+
+def test_descriptive_pooled_contrasts_keep_p_holm_and_ratio_but_get_no_verdict(tmp_path):
+    root = tmp_path / "r"
+    _made_up_runs(root, ["BASE", "BASE-TLS", "TLS-G"], ["Con", "Dow"], list(range(51, 61)))
+    out = {}
+    for name, descr in (("plain", None), ("descr", ["g-vs-base", "g-vs-base-cpu"])):
+        out[name] = tmp_path / name
+        assert phase_report.main(["--stage", "1", str(_spec_descriptive(tmp_path, descr)),
+                                  str(out[name]), str(root)]) == 0
+    named = {"g-vs-base", "g-vs-base-cpu"}
+    a = {r["contrast"]: r for r in csv.DictReader((out["plain"] / "contrasts.csv").open())}
+    b = {r["contrast"]: r for r in csv.DictReader((out["descr"] / "contrasts.csv").open())}
+    assert a.keys() == b.keys()
+    for name in a:
+        if name in named:
+            assert a[name]["verdict"] == "A worse"  # a verdict without the key
+            assert b[name]["verdict"] == "descriptive"
+            assert {k: v for k, v in b[name].items() if k != "verdict"} == {
+                k: v for k, v in a[name].items() if k != "verdict"}  # p, p_holm, ratio
+            assert b[name]["p_holm"] and b[name]["ratio"]
+        else:
+            assert b[name] == a[name]
+    va = json.loads((out["plain"] / "verdict.json").read_text())
+    vb = json.loads((out["descr"] / "verdict.json").read_text())
+    assert vb == {k: ("descriptive" if k.split(":", 1)[1] in named else v)
+                  for k, v in va.items()}
+    assert (out["descr"] / "aggregate.csv").read_bytes() == (
+        out["plain"] / "aggregate.csv").read_bytes()
+
+
+@pytest.mark.parametrize("descr", [["g-vs-base", "g-vs-base"], ["nope"], ["tls-vs-base"],
+                                   "g-vs-base", [["g-vs-base"]], [1]])
+def test_a_malformed_pooled_descriptive_key_is_refused(descr, tmp_path, capsys):
+    root = tmp_path / "r"
+    _made_up_runs(root, ["BASE", "BASE-TLS", "TLS-G"], ["Con", "Dow"], [51, 52])
+    assert phase_report.main(["--stage", "1", str(_spec_descriptive(tmp_path, descr)),
+                              str(tmp_path / "o"), str(root)]) == 2
+    assert "bad pooled_descriptive" in capsys.readouterr().err
+
+
+def test_the_round13_spec_gives_the_report_of_0f6f2eb(tmp_path):
+    """The 1bh spec of round 13 has no "pooled_descriptive" (it records what ran): every file
+    and the stdout of the report are those of the report at 0f6f2eb."""
+    spec = REPO / "configs" / "gomea" / "phase1bh" / "spec.json"
+    sj = json.loads(spec.read_text())
+    assert "pooled_descriptive" not in sj
+    arms = list(json.loads((REPO / "configs" / "gomea" / "phase1bh" / "sr.json").read_text())[
+        "arms"])
+    arms += [a for a in json.loads((REPO / "configs" / "gomea" / "phase1bh" /
+                                    "sr-Dow.json").read_text())["arms"] if a not in arms]
+    root = tmp_path / "r"
+    _made_up_runs(root, arms, list(sj["metrics"]), list(range(51, 56)))
+    old = _old_tool(tmp_path, ["phase_report.py", "run_table.py"], commit=BEFORE_12_2)
+    env = {**os.environ, "PYTHONPATH": str(REPO)}
+    outs, stdout = {}, {}
+    for name, tool in (("old", old / "phase_report.py"), ("new", TOOLS / "phase_report.py")):
+        outs[name] = tmp_path / f"out-{name}"
+        r = subprocess.run([sys.executable, str(tool), "--stage", "1", str(spec),
+                            str(outs[name]), str(root)], env=env, capture_output=True, text=True)
+        assert r.returncode == 0, r.stderr
+        stdout[name] = r.stdout
+    files = sorted(p.name for p in outs["old"].iterdir())
+    assert sorted(p.name for p in outs["new"].iterdir()) == files
+    assert {"contrasts.csv", "verdict.json", "runs.csv", "same_search.csv"} <= set(files)
+    for f in files:
+        assert (outs["new"] / f).read_bytes() == (outs["old"] / f).read_bytes(), f
+    assert stdout["new"] == stdout["old"]

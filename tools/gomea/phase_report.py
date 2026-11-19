@@ -25,7 +25,8 @@ SPEC_JSON (one per phase, `configs/gomea/<phase>/spec.json`)::
      "pooled_secondary_families": [[name, ...], ...],  # optional (server round 10, 1bd)
      "size_terms": true,                   # optional (server round 13, 1bh), default false
      "run_table": true,                    # optional (server round 13, 1bh), default false
-     "same_search": [[arm_a, arm_b], ...]}  # optional (server round 13, 1bh)
+     "same_search": [[arm_a, arm_b], ...],  # optional (server round 13, 1bh)
+     "pooled_descriptive": [name, ...]}    # optional (backlog 12.2, after round 13)
 
 A contrast takes its problem's metric, or the optional fifth element (server round 3,
 1ap: program size as the primary metric and test NMSE as the secondary one for the same
@@ -75,6 +76,11 @@ contrast names is a Holm family of its own, and the other pooled secondary contr
 more family. These rows get the column `holm_family`: "pooled_secondary/<names joined by +>"
 or "pooled_secondary". Each name must be a pooled secondary contrast, in one list only.
 Without the key the pooled secondary contrasts are one family, as before.
+With `"pooled_descriptive"` (backlog 12.2, after server round 13) each named pooled secondary
+contrast is descriptive: it keeps its p, its Holm p (in its Holm family, as before) and its
+ratio, but takes no better or worse verdict; its verdict in contrasts.csv and verdict.json is
+"descriptive". Each name must be a pooled secondary contrast, once. Without the key the
+report does not change.
 
 Rule (each look at ALPHA = 0.025): Holm p < ALPHA and a median at least 10 % lower is
 "A better" (mirror: "A worse"); primary contrasts at stage 1 with ALPHA <= Holm p <
@@ -502,6 +508,15 @@ def main(argv: list[str] | None = None) -> int:
             print(f"bad pooled_secondary_families {groups2} (want lists of distinct pooled "
                   f"secondary contrast names from {sorted(names2)})", file=sys.stderr)
             return 2
+    descr = spec.get("pooled_descriptive")
+    if descr is not None:
+        # backlog 12.2: pooled secondary contrasts without a better or worse verdict
+        names2 = [c[0] for c in pooled2]
+        if (not isinstance(descr, list) or not all(isinstance(n, str) for n in descr)
+                or len(descr) != len(set(descr)) or not set(descr) <= set(names2)):
+            print(f"bad pooled_descriptive {descr!r} (want a list of distinct pooled secondary "
+                  f"contrast names from {sorted(names2)})", file=sys.stderr)
+            return 2
     if pooled2:
         prows = [_pooled_contrast(n, a, b, runs, list(metrics), m) for n, a, b, m in pooled2]
         if groups2 is None:
@@ -512,6 +527,9 @@ def main(argv: list[str] | None = None) -> int:
                 r["holm_family"] = label2.get(r["contrast"], "pooled_secondary")
             for fam in dict.fromkeys(r["holm_family"] for r in prows):
                 _decide_pooled([r for r in prows if r["holm_family"] == fam])
+        for r in prows:
+            if descr is not None and r["contrast"] in descr:
+                r["verdict"] = "descriptive"  # backlog 12.2: p, Holm p and ratio stay
         rows["secondary"] += prows
     for r in rows["descriptive"]:
         r["p_holm"], r["verdict"] = None, None
