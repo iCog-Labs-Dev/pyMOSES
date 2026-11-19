@@ -1,0 +1,25 @@
+{
+  "name": "server-round14-2026-11",
+  "description": "SERVER-ROUND14-PREREGISTRATION.md: S0, then 1bi (TLS-LMR against BASE-TLS; TLSNP-LMR against TLS-NP; NP-LMR against NP-NOLM; NP-LMR-PSR against NP-LMR; TLS-NP against BASE-TLS; with HC-LM as the accuracy baseline and the linear baselines LIN-OLS and LIN-RIDGE, on the 10 datasets, fresh splits 61-70, 20,000 evaluations per MOSES run, no time limit). One phase, no Boolean phase. No extension, no choice step, no adoption rule. The Dow manifest (8,192 MB) gets a W of its own. 1bi needs splits 61-70 of every dataset (setup.sh builds them). No chain to or from another round.",
+  "state_dir": "server-run14",
+  "steps": [
+    {
+      "id": "S0",
+      "type": "check",
+      "pytest": {},
+      "repro": {}
+    },
+    {
+      "id": "phase1bi",
+      "type": "phase",
+      "phase": "phase1bi",
+      "requires": [
+        "datasets:Air,Bos,Con,Dow,EnC,EnH,Tow,WiR,WiW,Yac:61-70"
+      ],
+      "per_run_mb": 5120,
+      "manifest_per_run_mb": {
+        "sr-Dow.json": 8192
+      }
+    }
+  ]
+}

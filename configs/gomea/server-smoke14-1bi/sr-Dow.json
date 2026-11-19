@@ -1,0 +1,283 @@
+{
+  "name": "server-smoke14-1bi-sr-Dow",
+  "datasets_dir": "../gomea-results/phase1f/datasets",
+  "datasets": [
+    "Dow"
+  ],
+  "splits": [
+    61,
+    62
+  ],
+  "wall_cap_s": 300,
+  "mem_limit_mb": 8192,
+  "clip_test_nmse": true,
+  "plain_nmse": true,
+  "arms": {
+    "BASE-TLS": {
+      "binary": ".venv/bin/moses",
+      "budget": {
+        "evals": 1000
+      },
+      "argv": [
+        "-a",
+        "gomea",
+        "--gomea-fos",
+        "lt-b",
+        "--gomea-pop-size",
+        "dynamic",
+        "--hc-fraction-of-nn",
+        "0.05",
+        "--gomea-skip-inactive",
+        "0",
+        "--gomea-genotype-memo",
+        "1",
+        "--gomea-contin",
+        "copy",
+        "--knob-probe-baseline",
+        "reduced",
+        "--linear-scaling",
+        "terms",
+        "--const-opt",
+        "none",
+        "--gomea-accept-complexity-ratio",
+        "0.125",
+        "--gomea-deme-store",
+        "accepted"
+      ]
+    },
+    "TLS-NP": {
+      "binary": ".venv/bin/moses",
+      "budget": {
+        "evals": 1000
+      },
+      "argv": [
+        "-a",
+        "gomea",
+        "--gomea-fos",
+        "np",
+        "--gomea-pop-size",
+        "dynamic",
+        "--hc-fraction-of-nn",
+        "0.05",
+        "--gomea-skip-inactive",
+        "0",
+        "--gomea-genotype-memo",
+        "1",
+        "--gomea-contin",
+        "copy",
+        "--knob-probe-baseline",
+        "reduced",
+        "--linear-scaling",
+        "terms",
+        "--const-opt",
+        "none",
+        "--gomea-accept-complexity-ratio",
+        "0.125",
+        "--gomea-deme-store",
+        "accepted"
+      ]
+    },
+    "HC-LM": {
+      "binary": ".venv/bin/moses",
+      "budget": {
+        "evals": 1000
+      },
+      "argv": [
+        "-a",
+        "hc",
+        "--knob-probe-baseline",
+        "reduced",
+        "--linear-scaling",
+        "1",
+        "--const-opt",
+        "lm",
+        "--const-opt-guard",
+        "val"
+      ]
+    },
+    "TLS-LMR": {
+      "binary": ".venv/bin/moses",
+      "budget": {
+        "evals": 1000
+      },
+      "argv": [
+        "-a",
+        "gomea",
+        "--gomea-fos",
+        "lt-b",
+        "--gomea-pop-size",
+        "dynamic",
+        "--hc-fraction-of-nn",
+        "0.05",
+        "--gomea-skip-inactive",
+        "0",
+        "--gomea-genotype-memo",
+        "1",
+        "--gomea-contin",
+        "copy",
+        "--knob-probe-baseline",
+        "reduced",
+        "--linear-scaling",
+        "terms",
+        "--const-opt",
+        "lm",
+        "--const-opt-guard",
+        "val",
+        "--const-opt-reserve",
+        "500",
+        "--gomea-accept-complexity-ratio",
+        "0.125",
+        "--gomea-deme-store",
+        "accepted"
+      ]
+    },
+    "TLSNP-LMR": {
+      "binary": ".venv/bin/moses",
+      "budget": {
+        "evals": 1000
+      },
+      "argv": [
+        "-a",
+        "gomea",
+        "--gomea-fos",
+        "np",
+        "--gomea-pop-size",
+        "dynamic",
+        "--hc-fraction-of-nn",
+        "0.05",
+        "--gomea-skip-inactive",
+        "0",
+        "--gomea-genotype-memo",
+        "1",
+        "--gomea-contin",
+        "copy",
+        "--knob-probe-baseline",
+        "reduced",
+        "--linear-scaling",
+        "terms",
+        "--const-opt",
+        "lm",
+        "--const-opt-guard",
+        "val",
+        "--const-opt-reserve",
+        "500",
+        "--gomea-accept-complexity-ratio",
+        "0.125",
+        "--gomea-deme-store",
+        "accepted"
+      ]
+    },
+    "NP-LMR": {
+      "binary": ".venv/bin/moses",
+      "budget": {
+        "evals": 1000
+      },
+      "argv": [
+        "-a",
+        "gomea",
+        "--gomea-fos",
+        "np",
+        "--gomea-pop-size",
+        "dynamic",
+        "--hc-fraction-of-nn",
+        "0.05",
+        "--gomea-skip-inactive",
+        "0",
+        "--gomea-genotype-memo",
+        "1",
+        "--gomea-contin",
+        "copy",
+        "--knob-probe-baseline",
+        "reduced",
+        "--linear-scaling",
+        "1",
+        "--const-opt",
+        "lm",
+        "--const-opt-guard",
+        "val",
+        "--gomea-accept-complexity-ratio",
+        "0.125",
+        "--gomea-deme-store",
+        "accepted",
+        "--const-opt-reserve",
+        "500"
+      ]
+    },
+    "NP-NOLM": {
+      "binary": ".venv/bin/moses",
+      "budget": {
+        "evals": 1000
+      },
+      "argv": [
+        "-a",
+        "gomea",
+        "--gomea-fos",
+        "np",
+        "--gomea-pop-size",
+        "dynamic",
+        "--hc-fraction-of-nn",
+        "0.05",
+        "--gomea-skip-inactive",
+        "0",
+        "--gomea-genotype-memo",
+        "1",
+        "--gomea-contin",
+        "copy",
+        "--knob-probe-baseline",
+        "reduced",
+        "--linear-scaling",
+        "1",
+        "--const-opt",
+        "none",
+        "--gomea-accept-complexity-ratio",
+        "0.125",
+        "--gomea-deme-store",
+        "accepted"
+      ]
+    },
+    "NP-LMR-PSR": {
+      "binary": ".venv/bin/moses",
+      "budget": {
+        "evals": 1000
+      },
+      "argv": [
+        "-a",
+        "gomea",
+        "--gomea-fos",
+        "np",
+        "--gomea-pop-size",
+        "dynamic",
+        "--hc-fraction-of-nn",
+        "0.05",
+        "--gomea-skip-inactive",
+        "0",
+        "--gomea-genotype-memo",
+        "1",
+        "--gomea-contin",
+        "copy",
+        "--knob-probe-baseline",
+        "reduced",
+        "--linear-scaling",
+        "1",
+        "--const-opt",
+        "lm",
+        "--const-opt-guard",
+        "val",
+        "--gomea-accept-complexity-ratio",
+        "0.125",
+        "--gomea-deme-store",
+        "accepted",
+        "--const-opt-reserve",
+        "500",
+        "--const-opt-pole-check",
+        "box-rel"
+      ]
+    },
+    "LIN-OLS": {
+      "linear": "ols"
+    },
+    "LIN-RIDGE": {
+      "linear": "ridge"
+    }
+  }
+}

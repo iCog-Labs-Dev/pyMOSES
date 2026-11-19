@@ -1006,3 +1006,130 @@ mux11 repro run), then `configs/gomea/server-smoke13-1bh` (the same two manifest
 spec, splits 51 and 52, `-m 1000`, a wall cap of 300 s; 160 runs). The state is in
 `server-run13-smoke/`. The smoke plan has the same `requires`, `per_run_mb` and
 `manifest_per_run_mb` keys.
+
+## Round 14
+
+The fourteenth round (`SERVER-ROUND14-PREREGISTRATION.md`: does LM help when it gets a budget
+(the LM reserve), with per-term scaling and under node-proximity linkage; does a relative pole
+rule keep the good LM tunings; does TLS-NP stay near BASE-TLS on new splits; and how much of the
+BASE-TLS accuracy does a plain linear model reach) has its own plan, `tools/server/plan14.json`:
+S0, then phase 1bi (regression). There is no Boolean phase. Its state is in
+`../gomea-results/server-run14/`.
+
+**One-time server steps before the round:**
+
+1. Make sure that no other round runs (`bash tools/server/status.sh --plan round13` shows
+   "not running"). Round 14 never overlaps with another round.
+2. Update the clone to the branch commit that has this section:
+
+       git pull --ff-only
+
+3. Run the set-up again:
+
+       bash tools/server/setup.sh
+
+   It must end with `SETUP OK`. Round 14 uses the fresh splits 61-70. A dataset set from an
+   earlier round has splits 1-60 only, so set-up rebuilds it (splits 1-60 do not change; Dow and
+   Tow are built again from their raw files). Each dataset then has 560 split files (70 splits x
+   8 files).
+4. Start the round:
+
+       bash tools/server/start.sh --plan round14
+
+That is all. Do not run a separate smoke test on the server: the round runs everything in one
+go. S0 (the full pytest and the reproducibility check) records a failure in the log and in
+`round-summary.md`, but it does not stop the phase. There is no choice step, no extension and no
+adoption rule: the round only reports the results (the reference rule for BASE-TLS is a proposal
+to the user after the round). No plan chains to or from round 14. Bring back the final bundle.
+
+**Phase 1bi: budget.** Each MOSES run gets 20,000 evaluations (`"budget": {"evals": 20000}`, so
+`-m 20000`) and no `--max-time`. LM passes, guard passes and pole-check passes count. The wall cap
+of 36,000 s per run is only a guard against a hung process. The linear fits have no budget.
+
+**Phase 1bi: arms** (`configs/gomea/phase1bi/`, the same ten arms in each manifest):
+
+| Arm | Question | Flags |
+|---|---|---|
+| BASE-TLS | reference | the round 13 BASE-TLS (as in 1bh) |
+| TLS-NP | next in line (Q4) | the round 13 TLS-NP (as in 1bh) |
+| HC-LM | accuracy baseline | the round 13 HC-LM (as in 1bh) |
+| TLS-LMR | T3.1 with an LM budget (Q1) | BASE-TLS with `--const-opt lm --const-opt-guard val --const-opt-reserve 500` in place of `--const-opt none` |
+| TLSNP-LMR | LM under NP, per-term (Q2) | TLS-NP with the same change |
+| NP-LMR | LM under NP, plain (Q2) | the round 12 BASE-NP (as in 1bf) + `--const-opt-reserve 500` |
+| NP-NOLM | LM under NP, plain (Q2) | NP-LMR with `--const-opt none`, no guard and no reserve |
+| NP-LMR-PSR | relative pole rule (Q3) | NP-LMR + `--const-opt-pole-check box-rel` |
+| LIN-OLS | linear baseline (Q5) | the arm key `"linear": "ols"` (runner only, no MOSES run) |
+| LIN-RIDGE | linear baseline (Q5) | the arm key `"linear": "ridge"` (runner only, no MOSES run) |
+
+* The new option `box-rel` is opt-in (`docs/gomea/USAGE.md`). Without it, the output of every
+  existing setting does not change (the identity tests in `tests/gomea/`).
+* BASE-TLS, TLS-NP and NP-NOLM have no LM and no guard, so the runner gives them no
+  `--const-opt-val` (the CLI refuses that table without the guard). HC-LM and the four reserve
+  arms use `--const-opt-guard val`, so the runner gives them `--const-opt-val`. All eight MOSES
+  arms get `--gomea-log RUN_DIR/events.jsonl`.
+* **LIN-OLS and LIN-RIDGE** (`moses_sr_runner.py` with `sr_linear.py`): the runner starts no
+  process. It fits y = w_0 + sum w_i x_i over all inputs of the split (a boolean input, Bos `x4`,
+  is 0 or 1) to the training target scaled as for the MOSES arms, and scores the model's own
+  predictions with the NMSE functions of `sr_eval.py`. So `train_nmse`, `val_nmse`, `test_nmse`
+  and `test_nmse_clipped` mean the same as for the MOSES arms.
+  * OLS: least squares with an intercept (`least_squares.fit_terms`). If the inputs are
+    collinear or constant (for example EnC and EnH, where x4 is a linear function of x2 and x3),
+    the runner drops each aliased input (weight 0) and fits the others; the summary names them
+    (`linear.fallback` "aliased", `linear.dropped_inputs`).
+  * Ridge: inputs standardized with the training mean and sd, lambda from 10^-6 to 10^3, the
+    intercept is not penalized; the lambda with the lowest validation NMSE is used (a tie keeps
+    the larger lambda), fitted on the training rows. The summary has `linear.lambda` and the
+    validation NMSE of each lambda.
+  * The summary has `n_evals` null, `cpu_s` (the CPU time of the fit), the weights, and for the
+    size rule `final_program` `+($x1 ... $xk)` and a `terms` record with `n_terms` k. The report
+    counts "(" plus atoms, so the size is (k + 2) + k = 2k + 2, the size of the same TLS program
+    from MOSES. A fit takes well under a second.
+* Summaries of every arm have `test_nmse_clipped` (the manifests of 1bi have
+  `"clip_test_nmse": true`). The four TLS arms have `plain_val_nmse` and `plain_test_nmse`
+  (`"plain_nmse": true`). The reserve arms report `const_opt.lm_budget` (LM calls with no budget
+  left); NP-LMR-PSR reports `const_opt.lm_pole_checked` and `lm_pole_rejected`.
+* Datasets: all 10, splits 61-70. 1,000 jobs: 800 MOSES runs and 200 linear fits (100 per arm,
+  100 per split, 100 per dataset). The phase needs the datasets with splits 61-70 (requirement
+  `datasets:Air,...,Yac:61-70`). Without them, 1bi is skipped with the reason in the log.
+
+**Phase 1bi: report** (`spec.json` of 1bi; the pooled test of round 8: paired Wilcoxon on
+r = log(A / B) over the 100 pairs, a failed run gets the largest rank against it):
+
+* Primary, pooled, one Holm family (5), test NMSE: TLS-LMR vs BASE-TLS; TLSNP-LMR vs TLS-NP;
+  NP-LMR vs NP-NOLM; NP-LMR-PSR vs NP-LMR; TLS-NP vs BASE-TLS (`pooled_primary`).
+* The gap to HC-LM, pooled, its own Holm family (7): each MOSES GOMEA arm vs HC-LM.
+* Size and CPU, pooled, one Holm family (10): program size and CPU for the 5 primary contrasts
+  (`"size_terms": true`: the size of a final model with the per-term fit is its node count plus
+  `n_terms`; `aggregate.csv` also has `median_nodes`).
+* **Descriptive**, pooled, a Holm family of its own (13), with the verdict "descriptive" (spec key
+  `"pooled_descriptive"`; p, Holm p and ratio stay): BASE-TLS, TLS-NP and HC-LM, each vs LIN-OLS
+  and vs LIN-RIDGE (6); NP-NOLM vs TLS-NP; TLS-LMR vs TLSNP-LMR; the 5 primary contrasts on the
+  clipped test NMSE (`test_nmse_clipped`).
+* Per dataset, descriptive (50): the 5 primary contrasts on each dataset, Holm across the 50, no
+  verdict (`secondary` with `"secondary_verdicts": false`).
+* `report-stage1/runs.csv` and `report-stage1/nmse_above_100.csv` (spec key `"run_table": true`),
+  as in round 13. The linear rows have no evaluations, demes or LM values. There is no
+  same-search check this round.
+
+**Memory and workers:**
+
+| Manifest | `mem_limit_mb` | W on the server (cgroup 65,536 MB, 12 CPUs, reserve 6,553 MB) |
+|---|---|---|
+| `phase1bi/sr-Dow.json` | 8,192 | floor(58,983 / 8,192) = 7 |
+| `phase1bi/sr.json` (the 9 other datasets) | 5,120 | min(11, 11) = 11 |
+
+The 1bi step has `per_run_mb` 5120 and `manifest_per_run_mb` `{"sr-Dow.json": 8192}`.
+`events.jsonl` has one `workers_decision` for the phase and one for the Dow manifest.
+`phase_run.sh` runs one manifest at a time. A linear fit runs in the runner's worker process (no
+child process), so `mem_limit_mb` does not apply to it; it uses a few MB.
+
+**Size and time.** 1bi: 800 MOSES runs, about 125 to 140 CPU-hours, about 12 to 14 hours at
+W = 11 (W = 7 for Dow); the 200 linear fits take a few minutes. S0: about 1.3 hours. About 14 to 16
+hours in total, in one round.
+
+**Local rehearsal only:** `tools/server/plan14-smoke.json` (`--plan smoke14`) runs a limited S0
+(`tests/server`, the split test, the tests of the round 14 runner change, of `box-rel`, of the
+guard fix of backlog 12.1 and of the round 13 runner and report; the mux11 repro run), then
+`configs/gomea/server-smoke14-1bi` (the same two manifests, arms, flags, keys and spec, splits 61
+and 62, `-m 1000`, a wall cap of 300 s; 200 jobs). Its state is in `server-run14-smoke/`. The
+smoke plan is for a local check before a push, not a server step.
