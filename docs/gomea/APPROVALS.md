@@ -449,3 +449,26 @@ user confirms it.
   * User-approved: the round 13 pre-registration as drafted; T3.1 as the arm TLS-LM; the start of
     the implementation by subagents in separate clones (E, F, then G).
   * Not approved by this answer: any push.
+* **Scratch deletion (2026-11-18):** the agent asked to delete 4 old scratch folders to free
+  `/tmp` for the full suite and a new smoke run (the old smoke rig `r13smoke`, 1.2 GB;
+  `r13g/pt-full`; `r13g/dry13`; `../pyMoses-round13g-scratch`). The user answered: "Delete all 4
+  (Recommended)". The agent deleted them.
+* **Round 13 push and server run (2026-11-18):** the agent gave the RV16 findings of the round 13
+  build (no blocking finding, 4 nits), the full-suite, smoke and dry-run evidence, and asked: "Do
+  you approve the push of the 20 commits (706b447..593b600) to `origin
+  experiment/moses-gomea-discrete`?" The user answered: "yes and give me the step by step server
+  instructions".
+  * User-approved: the push of `c26a3c5..593b600`. The user then ran the server steps, and round
+    13 ran at `593b600` (2026-11-18 13:53Z to 2026-11-19 04:21Z).
+  * User instruction on the server steps: "No no no, I want to run everything in one go. What the
+    heck is wrong with you? That's what we have been doing until now, I don't want to remember
+    having to run the next run after the smoke run". The server steps are: check that no round
+    runs, `git pull --ff-only`, `setup.sh`, then `start.sh --plan roundNN`. No separate server
+    smoke run.
+* **Round 13 results (2026-11-19):** before the round the agent wrote that it writes the findings
+  and records the push approval and the review nits when the bundle comes back. The user answered:
+  "That's more like it. Thanks", and later: "Test finished. Result stored in the MOSES folder".
+  * Agent reading, not confirmed: this is the go-ahead for the round 13 findings file and the
+    record updates (findings log, roadmap, backlog, README), committed locally.
+  * Not approved: any push; a change of the reference. The confirmation rule proposes BASE-TLS as
+    the new reference; BASE stays the reference until the user decides.

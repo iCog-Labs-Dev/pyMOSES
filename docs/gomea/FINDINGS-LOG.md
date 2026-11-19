@@ -144,6 +144,7 @@ in `DECISIONS.md`.**
 | 1be | 2026-11-12 (server 11) | Deme count: BASE against BASE-R (LM reserve 500) and deme caps D5, D10, D20; HC-LM as the accuracy baseline; 10 datasets, fresh splits 31–40, results only | **Test NMSE falls with the deme count:** ratios 0.984 (BASE-R), 0.961 (D5), 0.915 (D10), 0.899 (D20, the only "A better"). D10 and D20 tie with HC-LM (59/41, 60/40). D arms: programs 1.46–1.71×, CPU 1.66–2.12×, 4 memory failures on Dow and Tow. BASE-R: same CPU, size +4 %. User: BASE stays the default, HC-LM next in line; BASE-R joins round 12 as an arm (T1.5). [SERVER-ROUND11-FINDINGS.md](SERVER-ROUND11-FINDINGS.md) |
 | 1bf | 2026-11-17 (server 12) | T1.5, T1.6 and T2.1–T2.4 against BASE: BASE-R (LM reserve), BASE-K5 (LM on the top 5 of each deme, vs BASE-R), BASE-NP (node-proximity FOS), BASE-TLS (per-term least squares, no LM), BASE-LME (LM during the search), BASE-DIV (diversity pressure); HC-LM; 10 datasets, fresh splits 41–50, 20,000 evaluations, results only | **BASE-TLS better** (ratio 0.879, 73/27; Dow 0.39, EnH 0.40, Tow 0.44, EnC 0.51; worse on Yac 1.61), programs 1.18× (1.40× with the term weights), same CPU; tie with HC-LM (0.968). **Ties:** BASE-LME 0.929 (73/27, size 1.27×), BASE-R 0.979 (63/11, confirms round 11), BASE-K5 vs BASE-R 0.998, BASE-DIV 1.000 (CPU 2.44×), BASE-NP 1.058 (CPU 0.74×; worse than HC-LM, 1.167). BASE vs HC-LM 1.065. 800 ok, 0 failed. Settings not yet decided by the user. [SERVER-ROUND12-FINDINGS.md](SERVER-ROUND12-FINDINGS.md) |
 | 1bg | 2026-11-17 (server 12) | mux11: node-proximity FOS (NP) against RT, UNI and LT-B, CPU to solve, seeds 3101–3110, 3,600 s | **All 3 contrasts tie** (Holm p 0.041, 0.074, 0.49). All 40 runs solved. Median CPU to solve: NP 424 s, LT-B 547, UNI 815, RT 979. NP needs as many evaluations as LT-B but each costs less (0.0078 against 0.0121 s). [SERVER-ROUND12-FINDINGS.md](SERVER-ROUND12-FINDINGS.md) |
+| 1bh | 2026-11-19 (server 13) | BASE-TLS against BASE again (the confirmation); TLS-NP, TLS-G (validation guard at the final choice) and TLS-LM (T3.1) against BASE-TLS; BASE-LEX (ε-lexicase) and BASE-PS (pole safeguard) against BASE; HC-LM; 10 datasets, fresh splits 51–60, 20,000 evaluations, results only | **BASE-TLS better again** (0.784, 80/20; Dow, EnC, EnH, Tow 10/10; Yac 3/7), size 1.26× with the term weights (1.08× in nodes), same CPU; tie with HC-LM (0.949). **Ties:** TLS-NP 1.023 (CPU 0.843, "A better"), TLS-G 1.000 (100 identical pairs), TLS-LM 1.000 (80 identical; LM wrote back 44 of 239 calls), BASE-LEX 1.012 (26/55), BASE-PS 1.000 (1/12; worse in 12 of the 13 pairs with a rejection). No run above NMSE 100. 799 ok, 1 failed (Dow HC-LM s56, a type bug in the guard's validation loader). Confirmation rule: the agent proposes BASE-TLS as the reference; user decision open. [SERVER-ROUND13-FINDINGS.md](SERVER-ROUND13-FINDINGS.md) |
 
 ## Descriptive comparisons (not pre-registered)
 
@@ -172,8 +173,9 @@ in `DECISIONS.md`.**
 * ~~Does LM-VAL gain from more demes (the cap of 250)?~~ 1bc: better on Tow only; left out. ~~LM
   during the search (A2)~~ 1bf: 7 % lower, a tie, with larger programs.
 * ~~Per-term least squares (B4a), node-proximity linkage (A1), diversity pressure (A4, first
-  arm)~~ Answered by 1bf and 1bg. Open: per-term least squares with LM on the inner constants
-  (B4-split, T3.1), a guard for per-term least squares, and ε-lexicase selection (A4, second arm).
+  arm)~~ Answered by 1bf and 1bg. ~~Per-term least squares with LM on the inner constants
+  (B4-split, T3.1), a guard for per-term least squares, ε-lexicase selection (A4, second arm), a
+  pole safeguard~~ 1bh: all tie; T3.1 had little LM budget, and the pole check rejected good tunings.
 * ~~The dynamic population on other datasets (user, 2026-11-09).~~ 1ba: kept.
 * Does PEN beat unpenalized GOMEA on mux11 at equal time, under a registered test?
 * Cheaper knob building (items 1.x).

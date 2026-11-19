@@ -263,6 +263,20 @@ Round 12 (2026-11-17; [`docs/gomea/SERVER-ROUND12-FINDINGS.md`](docs/gomea/SERVE
   fastest median on mux11, but a tie. **Diversity pressure:** no gain, 2.4 times the CPU.
 * The user has not yet decided whether a setting changes the reference. BASE stays the default.
 
+Round 13 (2026-11-19; [`docs/gomea/SERVER-ROUND13-FINDINGS.md`](docs/gomea/SERVER-ROUND13-FINDINGS.md)),
+10 datasets, fresh splits 51–60:
+
+* **Per-term least squares (`--linear-scaling terms`, no LM) is better than BASE again:** 22 % lower
+  test NMSE (lower in 80 of 100 pairs), with large gains on Dow, EnC, EnH and Tow. Programs are 26 %
+  larger with the term weights; the CPU is the same. It is 5 % lower than HC-LM (a tie).
+* **On top of it:** node-proximity linkage costs 16 % less CPU at 2 % higher NMSE (a tie); a
+  validation guard at the final choice and LM on the inner constants (T3.1) change nothing at this
+  budget.
+* **Against BASE:** ε-lexicase exemplar selection and a pole safeguard after LM tie; the pole check
+  rejected tunings that were better on the test rows.
+* The confirmation rule proposes per-term least squares as the new reference. The user decides;
+  BASE stays the default until then.
+
 ## Run the tests
 
 The test suite is self-contained: it diffs against C++ **golden fixtures committed to

@@ -12,7 +12,7 @@ Use it like this:
 2. Follow the checklist in "How to run an experiment" for that task.
 3. When the task ends, mark it here (date, verdict, findings file) and update the backlog.
 
-## Where we are (2026-11-18)
+## Where we are (2026-11-19)
 
 | Setting | Status | Evidence |
 |---|---|---|
@@ -28,17 +28,20 @@ Use it like this:
 | HC-LM (hill climbing with LM-VAL) | The accuracy baseline, next in line (user, 2026-11-11 and 2026-11-16) | 1bd, 1be |
 | LM reserve (`--const-opt-reserve 500`, BASE-R) | Tie again in round 12 (0.979, 63/11); no user decision yet | 1be, 1bf |
 | Deme caps (`--gomea-deme-share` 5, 10, 20) | Not adopted: lower NMSE, but larger programs and more CPU | 1be |
-| Per-term least squares (`--linear-scaling terms`, no LM, BASE-TLS) | **"A better"** (0.879), programs 1.18× (1.40× with weights), same CPU; no user decision yet | 1bf |
+| Per-term least squares (`--linear-scaling terms`, no LM, BASE-TLS) | **"A better" twice** (0.879, then 0.784 on fresh splits), programs 1.26× with the term weights, same CPU. The confirmation rule proposes it as the new reference; user decision open | 1bf, 1bh |
 | LM during the search (`--const-opt-during elite`, BASE-LME) | Tie (0.929, 73/27), programs 1.27×; no user decision yet | 1bf |
 | LM on the top 5 of a deme (`--const-opt-top-k 5`, BASE-K5) | No gain over the reserve (0.998) | 1bf |
-| Node-proximity linkage (`--gomea-fos np`) | Tie (1.058), CPU 0.74×; mux11 ties | 1bf, 1bg |
+| Node-proximity linkage (`--gomea-fos np`) | Tie (1.058), CPU 0.74×; mux11 ties. On top of BASE-TLS (TLS-NP): tie (1.023), CPU 0.84× ("A better"), same size | 1bf, 1bg, 1bh |
 | Diversity pressure (`--diversity-pressure 6 × rows`) | No gain (1.000), CPU 2.44× | 1bf |
+| Validation guard for per-term least squares at the final choice (TLS-G) | No effect: 100 identical pairs | 1bh |
+| LM on the inner constants of each term (T3.1, TLS-LM) | Tie (1.000, 80 identical pairs); LM had little budget | 1bh |
+| ε-lexicase exemplar selection (`--exemplar-selection lexicase`) | Tie (1.012, 26/55); about one selection per run | 1bh |
+| Pole safeguard after LM (`--const-opt-pole-check box`) | Tie (1.000, 1/12); it rejected tunings that were better on the test rows | 1bh |
 
-**Round 12 is done** (`SERVER-ROUND12-FINDINGS.md`). **Next server round (round 13):** BASE stays
-the reference; BASE-TLS is repeated on fresh splits 51–60, with TLS + NP, TLS + guard, TLS + LM per
-term (T3.1), ε-lexicase selection (A4) and a pole safeguard (backlog 10.1) (user, 2026-11-18). The
-pre-registration draft (`SERVER-ROUND13-PREREGISTRATION.md`) and the T3.1 feasibility note
-(`T3.1-FEASIBILITY.md`) wait for the user's approval.
+**Round 13 is done** (`SERVER-ROUND13-FINDINGS.md`). BASE-TLS is "A better" than BASE again, so
+the confirmation rule applies: the agent proposes BASE-TLS as the new reference (no TLS variant was
+"A better" than BASE-TLS). **Next:** the user's decision on the reference; then the scope of the
+next round (`BACKLOG.md` section 12).
 
 ## Stage 0: done (rounds 6 to 8, 2026-11-06 to 2026-11-08)
 
@@ -140,7 +143,7 @@ is done when the user has decided on them.
 
 | Task | Idea | Prerequisites | Backlog |
 |---|---|---|---|
-| T3.1 | B4-split. LM on each term's inner constants, then least squares for the term weights | T2.2 (done). Feasibility note written (`T3.1-FEASIBILITY.md`); arm TLS-LM of round 13 if the user approves | 8, B4-split |
+| ~~T3.1~~ | ~~B4-split. LM on each term's inner constants, then least squares for the term weights~~ | Done (1bh, round 13, arm TLS-LM): tie with BASE-TLS (1.000, 80 identical pairs); LM had no budget in 99 of 239 calls (`BACKLOG.md` 12.4) | 8, B4-split |
 | T3.2 | B1. GP-RV-GOMEA: real-valued GOMEA on the constants, together with the structure | Stage 2 | 8, B1 |
 | T3.3 | B2. Semantic backpropagation with a subtree library: a new knob type | Stage 2 | 8, B2 |
 | T3.4 | B4b. A full IT representation as a deme type (later TIR) | T2.2, T3.1 | 8, B4b |

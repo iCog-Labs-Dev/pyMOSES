@@ -552,7 +552,8 @@ HC-LM the accuracy baseline; round 12 runs T1.6, BASE-R and T2.1–T2.4 (`ROADMA
    The validation guard cannot see a pole that no validation row comes near. Possible safeguards
    (agent ideas, not tested): a check of the tuned program on a box around the training inputs,
    or a clip of the predictions to a range around the training targets. Report any run with an
-   extreme test NMSE in round 12.
+   extreme test NMSE in round 12. **Round 13 (1bh):** the box check (BASE-PS) ties and rejected
+   good tunings; the clipped test NMSE changed no verdict; no run was above 100 (section 12, item 3).
 2. **Single bad runs (from 1be).** Four runs had a test NMSE above 100 with normal training and
    validation NMSE (Bos BASE-R, WiR and WiW BASE-D10, Con HC-LM). The medians hide them.
 3. **Knob growth on Dow and Tow (from 1be).** With short demes, the knob count of a deme grew to
@@ -592,6 +593,46 @@ Results: `SERVER-ROUND12-FINDINGS.md`. BASE stays the reference (user, 2026-11-1
 8. **Still open from section 10:** item 4 (knob count for HC) and item 6 (the `set_final.py` report
    fix).
 
+## 12. Open items after server round 13 (2026-11-19)
+
+Results: `SERVER-ROUND13-FINDINGS.md`. The confirmation rule proposes BASE-TLS as the new
+reference; the user decides. Round 13 tested items 1, 2, 5 and 6 of section 11 and section 10,
+item 1, and built items 3 and 7 of section 11 (size with the term weights; the report tables).
+
+1. **Bug: the guard loads its validation table with its own column types.** `load_rows`
+   (`pymoses/gomea/const_opt.py`, from round 5) infers the types from the first 20 lines of the
+   validation file. On Dow splits 11 and 56 the first 19 values of `x13` are 0, so `x13` becomes
+   boolean and a later row (801.904) gives `ValueError`. Dow HC-LM split 56 failed in round 13. Fix:
+   load the validation table with the input types of the training table, with an identity test
+   (no change on the other 598 dataset-split pairs, where the types already agree).
+2. **RV16 nits of the round 13 build** (given to the user on 2026-11-18, unchanged):
+   * the plain-scaling fields of the TLS arms (`plain_val_nmse`, `plain_test_nmse`) are not
+     opt-in (`moses_sr_runner.py`);
+   * the runner identity tests skip silently when commit cb1ccfe is missing
+     (`test_round13_runner_report.py:328`); on the server all 48 ran;
+   * the lexicase docstring overstates the pool: the float32 Boltzmann weight underflows to 0 for
+     large score gaps, so the lexicase pool is wider than the pool Boltzmann can use
+     (`metapopulation.py:1150`);
+   * `verdict.json` gives verdicts to the descriptive family (`spec.json` of 1bh).
+3. **The pole safeguard rule.** It rejected 19 of 171 tunings, and BASE-PS was worse in 12 of the
+   13 pairs that differ. In 14 of the 19 rejections the old program already had S > 10R. Ideas:
+   reject only when S(new) > factor × max(S(old), 10R); or probe near the data (training rows with
+   noise) in place of the whole box. Round 13 had no run with a test NMSE above 100.
+4. **T3.1 needs LM budget.** 99 of 239 TLS-LM calls had no budget at the deme end, and 66 had no
+   constant inside the terms. A new test needs a budget for LM, for example with the LM reserve
+   (`--const-opt-reserve`).
+5. **ε-lexicase at this budget.** About one exemplar selection per run (0 on one-deme runs).
+   More runs make sense only with more demes per run.
+6. **A linear-regression baseline (agent idea).** On Dow, BASE-TLS programs are linear regressions
+   on selected inputs (26 terms, 96 % single inputs). Add ordinary least squares and ridge on all
+   inputs as report baselines (no search, little CPU) to show what the search adds.
+7. **TLS-NP as the cheap variant.** 16 % less CPU at 2.3 % higher NMSE, the same size; small
+   linear programs on Tow (26 nodes against 155). A candidate if the user prefers cost.
+8. **S0 is not a gate.** The orchestrator records an S0 failure as a flag and still runs the
+   phase. A hard gate needs an orchestrator change (agent idea; the user decides).
+9. **Still open from section 11:** item 4 (the fallback share of the per-term fit during the
+   search), item 8 (knob count for HC; the `set_final.py` report fix).
+
 ## 8. Future directions from the literature search (2026-11-06)
 
 Source: the literature search of 2026-11-06 (`docs/gomea/LITERATURE-2026-11-06.md`). Start only after rounds 6 to 8 give a
@@ -605,6 +646,8 @@ stable conclusion (user). Order: tier 1 first, then tier 2. Citation counts are 
    evaluations, no runtime cost. Not tested at N 16 or on Boolean. First test: against RT and UNI.
    **Round 12 (1bf, 1bg):** tie against BASE (1.058) with 0.74× the CPU; mux11 ties with RT, UNI
    and LT-B.
+   **Round 13 (1bh, TLS-NP):** on top of BASE-TLS a tie (1.023) with 0.84× the CPU and the same
+   size.
 2. **A2. LM during the search** (Kommenda et al., GPEM 2020, DOI 10.1007/s10710-019-09371-3):
    tune constants on accepted improvements inside the deme, not only at deme end. Test at equal
    CPU against LM-VAL. **Round 12 (1bf):** tie (0.929, lower in 73 of 100 pairs), programs 1.27×.
@@ -616,8 +659,8 @@ stable conclusion (user). Order: tier 1 first, then tier 2. Citation counts are 
    subsampling code (`--ss-*`, `--fs-subsampling-ratio`). Boosting (`--boost`) is related, but
    the regression scorer has no `get_error`, so it needs work first. The evidence is for parent
    selection in population GP, not for MOSES exemplar selection. **Round 12 (1bf):**
-   `--diversity-pressure` (P = 6 × rows) gave no gain (1.000) at 2.44× the CPU. ε-lexicase is not
-   built.
+   `--diversity-pressure` (P = 6 × rows) gave no gain (1.000) at 2.44× the CPU. **Round 13 (1bh):**
+   ε-lexicase exemplar selection ties (1.012, 26/55), with about one selection per run.
 4. **B4a. Least squares on the top-level terms (user, 2026-11-06).** Many MOSES regression programs
    are a sum of terms. Fit one weight per top-level term with least squares in the scorer, in place
    of the single `a + b·f` of linear scaling. It reuses the representation, the scorer and the
@@ -629,7 +672,8 @@ stable conclusion (user). Order: tier 1 first, then tier 2. Citation counts are 
    regularization. Also a candidate **alternative to LM if LM does not scale**: one linear solve per
    evaluation (rows × terms²) against up to 10 LM iterations (rows × constants² each). **Round 12
    (1bf):** "A better" without LM and without a guard (0.879; Dow 0.39, EnH 0.40, Tow 0.44, EnC
-   0.51; Yac 1.61), programs 1.18× in nodes, same CPU. See section 11.
+   0.51; Yac 1.61), programs 1.18× in nodes, same CPU. See section 11. **Round 13 (1bh):** "A
+   better" again on fresh splits (0.784, 80/20), size 1.26× with the term weights. See section 12.
 
 **Low priority: only if we run out of options (user, 2026-11-06)**
 - **A3. Intron-masked MI** (Koch et al. 2026, arXiv 2602.02311): give inactive knob values (under a
@@ -656,7 +700,8 @@ stable conclusion (user). Order: tier 1 first, then tier 2. Citation counts are 
    start values); least squares alone was "a compelling choice" for accuracy against cost. LM+OLS
    gave larger expressions and more run time than least squares alone. The column labels of the
    thesis tables do not match its text in our extracted copy, so use only the text claims. For us:
-   compare against our current joint LM (LM-VAL), after B4a.
+   compare against our current joint LM (LM-VAL), after B4a. **Round 13 (1bh, T3.1, TLS-LM):** tie
+   with BASE-TLS (1.000, 80 identical pairs); LM had little budget (section 12, item 4).
 8. **B4b. A full IT representation as a deme type.** Knobs: one integer power per (term, feature),
    one transformation per term, one on/off per term; weights by least squares. A fixed-length,
    fully discrete genome, where the powers of a term are a natural group for linkage. Invalid terms
