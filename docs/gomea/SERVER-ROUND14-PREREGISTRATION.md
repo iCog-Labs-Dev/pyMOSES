@@ -110,6 +110,10 @@ Each new option is opt-in: without it, the output of every existing setting stay
   plain-scaling LM arm of this round.
 * **Agent choices:** the rule form and the factor 10. "Probes near the data" (the other idea of
   12.3) is not tested.
+* **Origin (added 2026-11-19 at the user's request, after the approval; no design change):** an
+  agent idea, designed after the round 13 rejections (post hoc), not from a paper and not from the
+  user. The full history and the related published methods are in `BACKLOG.md` 12.3. The user
+  approves or rejects the rule after the round 14 results.
 
 ### LIN-OLS and LIN-RIDGE: linear baselines
 

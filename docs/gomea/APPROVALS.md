@@ -508,3 +508,11 @@ user confirms it.
   * User-approved: the round 14 pre-registration as drafted; the implementation by subagents in
     separate clones (H in progress, then I, then J).
   * Not approved by this answer: any push.
+* **Origin of the pole rule (2026-11-19):** the user asked where the idea for PSR (the relative pole
+  rule `box-rel`) came from. The agent answered that it is its own idea, designed after the round 13
+  rejections, not from a paper, and named related published methods. The user answered: "Okay
+  track it's origin so we can approve or rejct it in the future."
+  * Done: the origin is recorded in `BACKLOG.md` 12.3, the round 14 pre-registration (NP-LMR-PSR)
+    and `ROADMAP.md`.
+  * User decision pending: approve or reject the rule after the round 14 results. Until then it
+    is not a setting. The round 14 arm NP-LMR-PSR runs as approved.

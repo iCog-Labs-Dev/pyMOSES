@@ -36,7 +36,7 @@ Use it like this:
 | Validation guard for per-term least squares at the final choice (TLS-G) | No effect: 100 identical pairs | 1bh |
 | LM on the inner constants of each term (T3.1, TLS-LM) | Tie (1.000, 80 identical pairs); LM had little budget | 1bh |
 | ε-lexicase exemplar selection (`--exemplar-selection lexicase`) | Tie (1.012, 26/55); about one selection per run | 1bh |
-| Pole safeguard after LM (`--const-opt-pole-check box`) | Tie (1.000, 1/12); it rejected tunings that were better on the test rows | 1bh |
+| Pole safeguard after LM (`--const-opt-pole-check box`) | Tie (1.000, 1/12); it rejected tunings that were better on the test rows. Agent idea; the relative rule `box-rel` runs in round 14; the user approves or rejects it after that (origin: `BACKLOG.md` 12.3) | 1bh |
 
 **Round 13 is done** (`SERVER-ROUND13-FINDINGS.md`). BASE-TLS was "A better" than BASE again (the
 confirmation rule). **The user made BASE-TLS the reference and the default for now, with TLS-NP

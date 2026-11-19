@@ -617,7 +617,22 @@ item 1, and built items 3 and 7 of section 11 (size with the term weights; the r
 3. **The pole safeguard rule.** It rejected 19 of 171 tunings, and BASE-PS was worse in 12 of the
    13 pairs that differ. In 14 of the 19 rejections the old program already had S > 10R. Ideas:
    reject only when S(new) > factor × max(S(old), 10R); or probe near the data (training rows with
-   noise) in place of the whole box. Round 13 had no run with a test NMSE above 100.
+   noise) in place of the whole box. Round 13 had no run with a test NMSE above 100. Round 14 tests
+   the first idea (`box-rel`, arm NP-LMR-PSR).
+   **Origin (tracked for the user's decision, 2026-11-19):**
+   * Round 11 (2026-11-12): one BASE-R run, Bos split 35, test NMSE 60,309; the agent traced it to
+     an LM pole (a denominator at zero just outside the training range of one input).
+   * 2026-11-16: the agent proposed the box check and the clip (section 10, item 1, "agent ideas,
+     not tested").
+   * 2026-11-18: the user chose "Pole safeguard (Recommended)" for round 13; the agent designed the
+     rule `box` (BASE-PS) and the clipped test NMSE.
+   * 2026-11-19: the agent designed the relative rule `box-rel` from the round 13 rejections
+     (post hoc: shaped on the round 13 data; round 14 tests it on fresh splits 61–70).
+   * Not from a paper and not from the user. Related published methods (agent's knowledge, not
+     checked again): interval arithmetic over the input box (Keijzer, EuroGP 2003) and the analytic
+     quotient a / √(1 + b²) (Ni, Drieberg and Rockett, IEEE TEC 2013).
+   * **Status: not approved as a setting.** The user approves or rejects it after the round 14
+     results (arm NP-LMR-PSR).
 4. **T3.1 needs LM budget.** 99 of 239 TLS-LM calls had no budget at the deme end, and 66 had no
    constant inside the terms. A new test needs a budget for LM, for example with the LM reserve
    (`--const-opt-reserve`).
