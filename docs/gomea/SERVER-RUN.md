@@ -1101,10 +1101,11 @@ r = log(A / B) over the 100 pairs, a failed run gets the largest rank against it
 * Size and CPU, pooled, one Holm family (10): program size and CPU for the 5 primary contrasts
   (`"size_terms": true`: the size of a final model with the per-term fit is its node count plus
   `n_terms`; `aggregate.csv` also has `median_nodes`).
-* **Descriptive**, pooled, a Holm family of its own (13), with the verdict "descriptive" (spec key
+* **Descriptive**, pooled, a Holm family of its own (14), with the verdict "descriptive" (spec key
   `"pooled_descriptive"`; p, Holm p and ratio stay): BASE-TLS, TLS-NP and HC-LM, each vs LIN-OLS
-  and vs LIN-RIDGE (6); NP-NOLM vs TLS-NP; TLS-LMR vs TLSNP-LMR; the 5 primary contrasts on the
-  clipped test NMSE (`test_nmse_clipped`).
+  and vs LIN-RIDGE (6); NP-NOLM vs TLS-NP; TLS-LMR vs TLSNP-LMR; TLSNP-LMR vs BASE-TLS
+  (amendment, the user's decision on RV16 finding 4); the 5 primary contrasts on the clipped test
+  NMSE (`test_nmse_clipped`).
 * Per dataset, descriptive (50): the 5 primary contrasts on each dataset, Holm across the 50, no
   verdict (`secondary` with `"secondary_verdicts": false`).
 * `report-stage1/runs.csv` and `report-stage1/nmse_above_100.csv` (spec key `"run_table": true`),

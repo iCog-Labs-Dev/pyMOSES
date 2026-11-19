@@ -197,6 +197,12 @@
       "test_nmse"
     ],
     [
+      "tlsnplmr-vs-basetls",
+      "TLSNP-LMR",
+      "BASE-TLS",
+      "test_nmse"
+    ],
+    [
       "tlslmr-vs-basetls-clipped",
       "TLS-LMR",
       "BASE-TLS",
@@ -246,6 +252,7 @@
       "hclm-vs-linridge",
       "npnolm-vs-tlsnp",
       "tlslmr-vs-tlsnplmr",
+      "tlsnplmr-vs-basetls",
       "tlslmr-vs-basetls-clipped",
       "tlsnplmr-vs-tlsnp-clipped",
       "nplmr-vs-npnolm-clipped",
@@ -262,6 +269,7 @@
     "hclm-vs-linridge",
     "npnolm-vs-tlsnp",
     "tlslmr-vs-tlsnplmr",
+    "tlsnplmr-vs-basetls",
     "tlslmr-vs-basetls-clipped",
     "tlsnplmr-vs-tlsnp-clipped",
     "nplmr-vs-npnolm-clipped",

@@ -382,7 +382,9 @@ DESCRIPTIVE = ([["basetls-vs-linols", "BASE-TLS", "LIN-OLS", "test_nmse"],
                 ["hclm-vs-linols", "HC-LM", "LIN-OLS", "test_nmse"],
                 ["hclm-vs-linridge", "HC-LM", "LIN-RIDGE", "test_nmse"],
                 ["npnolm-vs-tlsnp", "NP-NOLM", "TLS-NP", "test_nmse"],
-                ["tlslmr-vs-tlsnplmr", "TLS-LMR", "TLSNP-LMR", "test_nmse"]]
+                ["tlslmr-vs-tlsnplmr", "TLS-LMR", "TLSNP-LMR", "test_nmse"],
+                # the amendment of 2026-11-19 (RV16 finding 4, the user's option b)
+                ["tlsnplmr-vs-basetls", "TLSNP-LMR", "BASE-TLS", "test_nmse"]]
                + [[f"{n}-clipped", a, b, "test_nmse_clipped"] for n, a, b in PRIMARY])
 
 
@@ -398,8 +400,8 @@ def test_spec(prefix):
              + [[f"{n}-size", a, b, "program_size"] for n, a, b in PRIMARY]
              + [[f"{n}-cpu", a, b, "cpu_s"] for n, a, b in PRIMARY]
              + DESCRIPTIVE)
-    assert s["pooled_secondary"] == want2 and len(want2) == 7 + 10 + 13
-    # the gap to HC-LM (7) and the descriptive contrasts (13) are families of their own; size
+    assert s["pooled_secondary"] == want2 and len(want2) == 7 + 10 + 14
+    # the gap to HC-LM (7) and the descriptive contrasts (14) are families of their own; size
     # and CPU (10) are the remaining family
     assert s["pooled_secondary_families"] == [[c[0] for c in GAP], [c[0] for c in DESCRIPTIVE]]
     # backlog 12.2: the descriptive contrasts get no better or worse verdict
@@ -415,10 +417,11 @@ def test_spec(prefix):
 
 
 def test_holm_families_at_100_pairs():
-    """With 100 pooled pairs every family that gives verdicts (5, 7, 10) can give one; the 50
+    """With 100 pooled pairs every family that gives verdicts (5, 7, 10) can give one, and the
+    descriptive family (14) can give a Holm p below 0.025 (the amendment uses it); the 50
     per-dataset contrasts (10 pairs each) cannot (50 * 2/1024 > 0.025): they are descriptive."""
     p100 = wilcoxon_signed_rank([float(i + 1) for i in range(100)])[1]
-    for n in (5, 7, 10, 13):
+    for n in (5, 7, 10, 14):
         assert holm([p100] * n)[0] < phase_report.ALPHA
     p10 = wilcoxon_signed_rank([float(i + 1) for i in range(10)])[1]
     assert holm([p10] * 50)[0] > phase_report.ALPHA
@@ -445,10 +448,10 @@ def _summary(task, arm, split, nmse, status="ok"):
 
 
 def test_the_report_of_the_real_spec(tmp_path):
-    """phase_report.py on the 1bi spec with 1,000 made-up runs (800 MOSES, 200 linear): 5 + 30
-    pooled rows and 50 per-dataset rows, the three Holm families, "descriptive" for the 13
-    descriptive contrasts, runs.csv with 1,000 rows (the linear rows: size 2k + 2, no
-    evaluations) and the list above 100."""
+    """phase_report.py on the 1bi spec with 1,000 made-up runs (800 MOSES, 200 linear): 5 + 31
+    pooled rows and 50 per-dataset rows, the three Holm families, "descriptive" for the 14
+    descriptive contrasts (also TLSNP-LMR vs BASE-TLS of the amendment), runs.csv with 1,000 rows
+    (the linear rows: size 2k + 2, no evaluations) and the list above 100."""
     factor = {"BASE-TLS": 1.0, "TLS-NP": 1.0, "HC-LM": 0.5, "TLS-LMR": 0.85, "TLSNP-LMR": 1.0,
               "NP-LMR": 1.0, "NP-NOLM": 1.0, "NP-LMR-PSR": 1.0, "LIN-OLS": 2.0,
               "LIN-RIDGE": 2.0}
@@ -474,7 +477,7 @@ def test_the_report_of_the_real_spec(tmp_path):
     assert rc == 0
     rows = list(csv.DictReader((out / "contrasts.csv").open()))
     pooled = [r for r in rows if r["problem"] == "pooled"]
-    assert len(pooled) == 35 and len(rows) == 85
+    assert len(pooled) == 36 and len(rows) == 86
     assert all(r["pairs"] == "100" for r in pooled)
     fam = {r["contrast"]: (r["family"], r["holm_family"]) for r in pooled}
     assert fam["tlslmr-vs-basetls"] == ("primary", "")
@@ -483,6 +486,11 @@ def test_the_report_of_the_real_spec(tmp_path):
     assert fam["tlslmr-vs-basetls-cpu"] == ("secondary", "pooled_secondary")
     assert fam["hclm-vs-linols"] == ("secondary", "pooled_secondary/" + "+".join(
         c[0] for c in DESCRIPTIVE))
+    # the amendment: TLSNP-LMR vs BASE-TLS on the test NMSE, in the descriptive family
+    assert fam["tlsnplmr-vs-basetls"] == fam["hclm-vs-linols"]
+    new = [r for r in pooled if r["contrast"] == "tlsnplmr-vs-basetls"]
+    assert [(r["a"], r["b"], r["metric"]) for r in new] == [
+        ("TLSNP-LMR", "BASE-TLS", "log_ratio:test_nmse")]
     assert sum(r["holm_family"] == "pooled_secondary" for r in pooled) == 10
     assert sum(r["metric"] == "log_ratio:test_nmse_clipped" for r in pooled) == 5
     v = json.loads((out / "verdict.json").read_text())
@@ -490,6 +498,8 @@ def test_the_report_of_the_real_spec(tmp_path):
     assert v["pooled:nplmr-vs-npnolm"] == "tie"
     assert v["pooled:basetls-vs-hclm"] == "A worse"
     assert all(v[f"pooled:{c[0]}"] == "descriptive" for c in DESCRIPTIVE)
+    # the made-up NMSE of TLSNP-LMR and BASE-TLS are equal, so without the key the verdict is "tie"
+    assert v["pooled:tlsnplmr-vs-basetls"] == "descriptive"
     assert all(v[f"{d}:tlsnp-vs-basetls"] is None for d in DATASETS)
     assert sum(r["verdict"] == "" for r in rows) == 50
     # the size of a TLS arm counts its 2 term weights ("+(*($1 $2) $3)": 7 nodes); a linear
