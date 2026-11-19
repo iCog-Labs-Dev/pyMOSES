@@ -1487,10 +1487,13 @@ class gomea_optimization(optimizer_base):
 
     # NOT A PORT (``--const-opt-guard val``, server round 5).
     def _guard_rows(self, cscorer, rows: RegressionRows) -> RegressionRows:
-        """The validation rows, read once per optimizer."""
+        """The validation rows, read once per optimizer, with the input types of the
+        training table (backlog 12.1, ``load_rows``)."""
         if self._val_rows is None:
-            labels = find_contin_bscore(cscorer)._cti.get_labels()
-            self._val_rows = load_rows(self.gomea_params.const_opt_val, labels, rows.scaled)
+            cti = find_contin_bscore(cscorer)._cti
+            self._val_rows = load_rows(
+                self.gomea_params.const_opt_val, cti.get_labels(), rows.scaled, cti.get_types()
+            )
         return self._val_rows
 
     # GOMEA extension (``--const-opt lm``): elite-only LM at the end of a deme.

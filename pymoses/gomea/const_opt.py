@@ -551,18 +551,100 @@ def pole_check(
     return {"accepted": not reject, "pole_s_old": s_old, "pole_s_new": s_new}
 
 
-def load_rows(path: str, labels: Sequence[str], scaled: bool) -> RegressionRows:
+def load_rows(
+    path: str, labels: Sequence[str], scaled: bool, types: Sequence
+) -> RegressionRows:
     """Validation rows from a table file with the training columns
-    (``labels``, in that order) and target ``y``."""
-    from pymoses.comboreduct.table.table_io import loadTable
+    (``labels``, in that order) and target ``y``.
 
-    t = loadTable(path, "y")
-    if list(t.itable.get_labels()) != list(labels):
+    NOT A PORT, backlog 12.1 (server round 14): the input values take ``types``, the input
+    types of the training table (the table that the scorer uses), not types inferred from
+    this file. The table loader infers the types from the first 20 lines only (as classic
+    MOSES does). So a numeric column whose first 19 validation values were 0 became boolean,
+    and a later value (801.904) raised ``ValueError`` (Dow splits 11 and 56, round 13). The
+    target is read as contin, as the regression scorer reads it. The header, column and format
+    checks are those of ``loadTable``. A value that its training type cannot take raises
+    ``ValueError`` with the file, the row and the column. A sparse file (``key : value``) keeps
+    the types of the loader, which come from all of its rows; they must be the training
+    types."""
+    from pymoses.comboreduct.table.table_io import (
+        _infer_table_attributes,
+        _load_dense_table,
+        _read_data_lines,
+        _tokenize_row_iot,
+        loadTable,
+        tokenize_row,
+    )
+    from pymoses.comboreduct.type_checker.type_signature import ostream_type_node, type_node
+
+    lines = _read_data_lines(path)
+    attrs = _infer_table_attributes(lines, "y", "", ())
+    if attrs.is_sparse:
+        t = loadTable(path, "y")
+        _check_val_labels(path, t.itable.get_labels(), labels)
+        if list(t.itable.get_types()) != list(types):
+            raise ValueError(
+                f"--const-opt-val {path}: input types "
+                f"{[ostream_type_node(x) for x in t.itable.get_types()]} differ from the "
+                f"training types {[ostream_type_node(x) for x in types]}"
+            )
+        return RegressionRows(t.itable, [get_contin(v) for v in t.otable], scaled)
+    if attrs.has_header:  # without a header, _load_dense_table refuses the target "y"
+        head = lines[0]
+        k = tokenize_row(head).index("y")
+        _check_val_labels(path, _tokenize_row_iot(head, [], k, -1)[0], labels)
+    try:
+        t = _load_dense_table(
+            lines, "y", "", (), list(types), type_node.contin_type, attrs.has_header
+        )
+    except ValueError as exc:
+        where = _bad_val_cell(lines, labels, types) if attrs.has_header else None
+        raise ValueError(f"--const-opt-val {path}: {where or exc}") from exc
+    return RegressionRows(t.itable, [get_contin(v) for v in t.otable], scaled)
+
+
+def _check_val_labels(path: str, got: Sequence[str], labels: Sequence[str]) -> None:
+    """The input columns of the validation file must be the training columns, in order."""
+    if list(got) != list(labels):
         raise ValueError(
-            f"--const-opt-val {path}: input columns {t.itable.get_labels()} differ from "
+            f"--const-opt-val {path}: input columns {list(got)} differ from "
             f"the training columns {list(labels)}"
         )
-    return RegressionRows(t.itable, [get_contin(v) for v in t.otable], scaled)
+
+
+def _bad_val_cell(lines: Sequence[str], labels: Sequence[str], types: Sequence) -> str | None:
+    """NOT A PORT, backlog 12.1 (the error path of ``load_rows`` only): a message with the
+    first row of a headed dense table with a value count other than the header's, or the
+    first row and column whose value its training type cannot take (the target: contin);
+    ``None`` if there is no such row."""
+    from pymoses.comboreduct.table.table_io import (
+        _split_dense_row,
+        _tokenize_row_iot,
+        token_to_contin,
+        token_to_vertex,
+        tokenize_row,
+    )
+    from pymoses.comboreduct.type_checker.type_signature import ostream_type_node
+
+    k = tokenize_row(lines[0]).index("y")
+    width = len(_split_dense_row(lines[0]))
+    for i, line in enumerate(lines[1:], start=1):
+        n = len(_split_dense_row(line))
+        if n != width:
+            return f"row {i} has {n} values, the header {width}"
+        inputs, out, _ = _tokenize_row_iot(line, [], k, -1)
+        for lab, tipe, tok in zip(labels, types, inputs, strict=True):
+            try:
+                token_to_vertex(tipe, tok)
+            except ValueError as exc:
+                return (f"row {i}, column {lab}: {exc} (the training table types {lab} as "
+                        f"{ostream_type_node(tipe)})")
+        if out != "":
+            try:
+                token_to_contin(out)
+            except ValueError as exc:
+                return f"row {i}, column y: {exc} (the target is contin)"
+    return None
 
 
 def polish_metapopulation(metapop, cscorer, budget: int, val_path: str) -> dict:
@@ -576,7 +658,8 @@ def polish_metapopulation(metapop, cscorer, budget: int, val_path: str) -> dict:
 
     b = find_contin_bscore(cscorer)
     train = RegressionRows.of_bscore(b)
-    val = load_rows(val_path, b._cti.get_labels(), train.scaled)
+    # backlog 12.1: the input types of the training table
+    val = load_rows(val_path, b._cti.get_labels(), train.scaled, b._cti.get_types())
     trees = list(metapop.get_trees())
     rec: dict = {"accepted": False, "budget_available": budget}
     if not trees:
