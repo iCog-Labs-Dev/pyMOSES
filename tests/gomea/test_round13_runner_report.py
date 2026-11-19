@@ -14,6 +14,12 @@
 * Byte identity: the output of the runner and of the report at cb1ccfe (the commit before
   these changes, from git) is the same as now for an arm or a spec without the new keys,
   apart from the new fields.
+
+Backlog 12.2 (the RV16 review of the round 13 build):
+
+* the plain-scaling fields need the manifest key ``"plain_nmse": true``; without it a
+  ``--linear-scaling terms`` arm (also the BASE-TLS arm of the round 12 manifest) writes the
+  output of cb1ccfe, and TLS-G still compares the plain values;
 """
 
 from __future__ import annotations
@@ -192,7 +198,7 @@ def test_without_the_manifest_key_there_is_no_clipped_test_nmse(argv, guard, tmp
 
 
 def test_a_tls_arm_gets_the_plain_fields(tmp_path):
-    s = runner._run_one(_job(tmp_path, TLS, clip_test_nmse=True))
+    s = runner._run_one(_job(tmp_path, TLS, clip_test_nmse=True, plain_nmse=True))
     train, val, test = _tables(tmp_path)
     for c in _cands(tmp_path):
         assert c["plain_val_nmse"] == sr_eval.evaluate(c["program"], train, val)["test"][
@@ -210,8 +216,9 @@ def test_a_tls_arm_gets_the_plain_fields(tmp_path):
 
 
 def test_the_guard_keeps_the_lower_validation_nmse_and_plain_on_a_tie(tmp_path):
-    ref = runner._run_one(_job(tmp_path / "tls", TLS))
-    s = runner._run_one(_job(tmp_path / "g", TLS, terms_guard="val", clip_test_nmse=True))
+    ref = runner._run_one(_job(tmp_path / "tls", TLS, plain_nmse=True))
+    s = runner._run_one(_job(tmp_path / "g", TLS, terms_guard="val", clip_test_nmse=True,
+                             plain_nmse=True))
     train, val, test = _tables(tmp_path / "g")
     seen = set()
     for c, r in zip(_cands(tmp_path / "g"), _cands(tmp_path / "tls"), strict=True):
@@ -262,7 +269,7 @@ def test_the_guard_chooses_plain_for_the_final_model_when_terms_overfit(tmp_path
 
 def test_the_guard_on_an_unscorable_candidate(tmp_path):
     s = runner._run_one(_job(tmp_path, TLS, programs=["+($1 $9)", PROGRAMS[0]],
-                             terms_guard="val"))
+                             terms_guard="val", plain_nmse=True))
     c0, c1 = _cands(tmp_path)
     assert "eval_error" in c0 and c0["plain_val_nmse"] == math.inf and "terms" not in c0
     assert c1["terms"]["guard"] in ("terms", "plain")
@@ -344,7 +351,9 @@ def _run_in(tool_dir: Path, job: dict) -> None:
 def test_the_runner_output_is_byte_identical_apart_from_the_new_fields(argv, tmp_path):
     old = _old_tool(tmp_path, ["moses_sr_runner.py", "sr_eval.py"])
     progs = PROGRAMS + ["+($1 $9)"]  # with an unscorable candidate
-    jo, jn = _job(tmp_path / "o", argv, programs=progs), _job(tmp_path / "n", argv, programs=progs)
+    # backlog 12.2: the new job asks for the plain fields, which round 13 always wrote
+    jo = _job(tmp_path / "o", argv, programs=progs)
+    jn = _job(tmp_path / "n", argv, programs=progs, plain_nmse=True)
     _run_in(old, jo)
     _run_in(TOOLS, jn)
     co, cn = (Path(j["run_dir"]) / "candidates.json" for j in (jo, jn))
@@ -521,3 +530,72 @@ def test_a_malformed_round13_key_is_refused(key, value, tmp_path):
     p = tmp_path / "bad.json"
     p.write_text(json.dumps(spec))
     assert phase_report.main(["--stage", "1", str(p), str(tmp_path / "o"), str(root)]) == 2
+
+
+# ---- backlog 12.2: the plain fields are opt-in, no skip, descriptive pooled contrasts
+
+PLAIN_FIELDS = ("plain_val_nmse", "plain_test_nmse")
+
+
+@pytest.mark.parametrize("guard", [None, "val"])
+def test_without_the_plain_key_a_tls_arm_writes_no_plain_fields(guard, tmp_path):
+    kw = {"terms_guard": guard} if guard else {}
+    progs = PROGRAMS + ["+($1 $9)"]  # with an unscorable candidate
+    off = runner._run_one(_job(tmp_path / "off", TLS, programs=progs, **kw))
+    on = runner._run_one(_job(tmp_path / "on", TLS, programs=progs, plain_nmse=True, **kw))
+    assert set(on) - set(off) == set(PLAIN_FIELDS) and set(off) <= set(on)
+    for k in set(off) - set(VOLATILE):
+        assert off[k] == on[k], k
+    c_off, c_on = _cands(tmp_path / "off"), _cands(tmp_path / "on")
+    assert all(k in c for c in c_on for k in PLAIN_FIELDS)
+    assert c_off == [{k: v for k, v in c.items() if k not in PLAIN_FIELDS} for c in c_on]
+    if guard:  # TLS-G still compares the plain values: both choices occur
+        assert {c["terms"]["guard"] for c in c_off if "terms" in c} == {"plain", "terms"}
+
+
+@pytest.mark.parametrize("argv", [PLAIN, ["-a", "hc", "--linear-scaling", "1"]])
+def test_the_plain_key_changes_nothing_for_an_arm_without_terms(argv, tmp_path):
+    off = runner._run_one(_job(tmp_path / "off", argv))
+    on = runner._run_one(_job(tmp_path / "on", argv, plain_nmse=True))
+    assert set(off) == set(on) and all(off[k] == on[k] for k in set(off) - set(VOLATILE))
+    assert (tmp_path / "off" / "run" / "candidates.json").read_bytes() == (
+        tmp_path / "on" / "run" / "candidates.json").read_bytes()
+
+
+def test_a_round12_tls_job_writes_no_new_keys(tmp_path):
+    """The BASE-TLS job of the round 12 manifest (phase1bf; no "plain_nmse"), with a fake
+    MOSES: candidates.json is byte-identical to that of the runner at cb1ccfe, and the summary
+    has the same keys and values (apart from the clock and the paths)."""
+    m = json.loads((REPO / "configs" / "gomea" / "phase1bf" / "sr.json").read_text())
+    assert "plain_nmse" not in m and "clip_test_nmse" not in m
+    job = next(j for j in runner.expand(m, tmp_path / "out", REPO) if j["arm"] == "BASE-TLS")
+    assert runner._linear_scaling(job["argv"]) == "terms"
+    old = _old_tool(tmp_path, ["moses_sr_runner.py", "sr_eval.py"])
+    progs = PROGRAMS + ["+($1 $9)"]  # with an unscorable candidate
+    dirs = {}
+    for name, tool in (("o", old), ("n", TOOLS)):
+        fake = _job(tmp_path / name, job["argv"], programs=progs)
+        j = {**job, **{k: fake[k] for k in ("binary", "split_dir", "run_dir")}}
+        _run_in(tool, j)
+        dirs[name] = Path(j["run_dir"])
+    assert (dirs["n"] / "candidates.json").read_bytes() == (
+        dirs["o"] / "candidates.json").read_bytes()
+    so, sn = (json.loads((dirs[n] / "summary.json").read_text()) for n in ("o", "n"))
+    assert set(sn) == set(so)
+    assert not set(sn) & {"plain_val_nmse", "plain_test_nmse", "test_nmse_clipped"}
+    assert {k: v for k, v in sn.items() if k not in VOLATILE} == {
+        k: v for k, v in so.items() if k not in VOLATILE}
+
+
+def test_expand_carries_the_plain_key_and_refuses_a_wrong_one(tmp_path):
+    arm = {"binary": "/x/.venv/bin/moses", "argv": TLS, "budget": {"evals": 10}}
+    m = {"name": "t", "datasets_dir": str(tmp_path), "datasets": ["Con"], "splits": [1],
+         "wall_cap_s": 10, "arms": {"BASE-TLS": arm, "BASE": {**arm, "argv": PLAIN}}}
+    assert all("plain_nmse" not in j for j in runner.expand(m, tmp_path, tmp_path))
+    on = runner.expand({**m, "plain_nmse": True}, tmp_path, tmp_path)
+    assert len(on) == 2 and all(j["plain_nmse"] is True for j in on)
+    off = runner.expand({**m, "plain_nmse": False}, tmp_path, tmp_path)
+    assert all("plain_nmse" not in j for j in off)
+    for v in ("yes", 1, None):
+        with pytest.raises(ValueError, match="plain_nmse must be true or false"):
+            runner.expand({**m, "plain_nmse": v}, tmp_path, tmp_path)

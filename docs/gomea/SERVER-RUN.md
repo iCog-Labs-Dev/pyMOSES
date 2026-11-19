@@ -950,7 +950,8 @@ of 36,000 s per run is only a guard against a hung process.
 * New fields in the summaries (no other value changes): `test_nmse_clipped` for every arm (the
   test NMSE with the predictions clipped to [min − 0.1·R, max + 0.1·R] of the training target;
   the runner writes it because the manifests of 1bh have `"clip_test_nmse": true`);
-  `plain_val_nmse` and `plain_test_nmse` for the four TLS arms (the plain a + b·f, descriptive).
+  `plain_val_nmse` and `plain_test_nmse` for the four TLS arms (the plain a + b·f, descriptive;
+  the runner writes them because the manifests of 1bh have `"plain_nmse": true`).
   BASE-PS summaries have `const_opt.lm_pole_checked` and `lm_pole_rejected`; BASE-LEX summaries
   have the `lexicase` block.
 * Datasets: all 10, splits 51-60. 800 runs. The phase needs the datasets with splits 51-60

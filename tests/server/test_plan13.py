@@ -189,6 +189,19 @@ def test_every_manifest_asks_for_the_clipped_test_nmse(prefix):
         assert jobs and all(j["clip_test_nmse"] is True for j in jobs)
 
 
+@pytest.mark.parametrize("prefix", PREFIXES)
+def test_every_manifest_asks_for_the_plain_scaling_fields(prefix):
+    """Backlog 12.2: the plain-scaling fields of the TLS arms need the manifest key
+    "plain_nmse": true. The round 13 manifests have it, so a rerun writes them as round 13
+    did; expand() gives it to every run."""
+    for f in stage1(CONFIGS / prefix):
+        m = load(f)
+        assert m["plain_nmse"] is True
+        jobs = runner.expand(m, Path("/o"), REPO)
+        assert jobs and all(j["plain_nmse"] is True for j in jobs)
+        assert any(runner._linear_scaling(j["argv"]) == "terms" for j in jobs)
+
+
 def test_budget_is_evaluations_with_no_time_limit():
     for f in stage1(CONFIGS / "phase1bh"):
         m = load(f)

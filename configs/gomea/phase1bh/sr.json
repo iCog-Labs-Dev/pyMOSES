@@ -27,6 +27,7 @@
   "wall_cap_s": 36000,
   "mem_limit_mb": 5120,
   "clip_test_nmse": true,
+  "plain_nmse": true,
   "arms": {
     "BASE": {
       "binary": ".venv/bin/moses",
