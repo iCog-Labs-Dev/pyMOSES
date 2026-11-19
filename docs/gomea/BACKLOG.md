@@ -595,8 +595,8 @@ Results: `SERVER-ROUND12-FINDINGS.md`. BASE stays the reference (user, 2026-11-1
 
 ## 12. Open items after server round 13 (2026-11-19)
 
-Results: `SERVER-ROUND13-FINDINGS.md`. The confirmation rule proposes BASE-TLS as the new
-reference; the user decides. Round 13 tested items 1, 2, 5 and 6 of section 11 and section 10,
+Results: `SERVER-ROUND13-FINDINGS.md`. BASE-TLS is the reference and the default for now, and
+TLS-NP is next in line (user, 2026-11-19). Round 13 tested items 1, 2, 5 and 6 of section 11 and section 10,
 item 1, and built items 3 and 7 of section 11 (size with the term weights; the report tables).
 
 1. **Bug: the guard loads its validation table with its own column types.** `load_rows`

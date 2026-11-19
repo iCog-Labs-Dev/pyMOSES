@@ -3,8 +3,8 @@
 **Pre-registration:** `SERVER-ROUND13-PREREGISTRATION.md` (with its section "Rules that the approved
 text did not cover"). **Results:** bundle `bundle-final-20261119T042106Z.tar.gz` (SHA-256
 `70c3af6e…5b489`; local copy in the MOSES folder, next to the repo). **Code:** `593b600`.
-**Decisions:** `APPROVALS.md`. The confirmation rule gives a proposal to the user (see "User
-decisions"); no decision yet.
+**Decisions:** `APPROVALS.md`. The user made BASE-TLS the reference and the default for now, with
+TLS-NP next in line (2026-11-19; see "User decisions").
 
 Test NMSE in the tables is × 100. "Pairs" is the number of splits where A is lower / where B is
 lower; the remaining pairs are ties. "Ratio" is exp(median of log(A / B)) over the pairs: above 1
@@ -391,7 +391,11 @@ None, in any arm (`report-stage1/nmse_above_100.csv` has no data row).
 
 ## User decisions
 
-**Open (2026-11-19).** The confirmation rule applies: BASE-TLS is "A better" than BASE again (0.784,
-80/20). No TLS variant is "A better" than BASE-TLS. So the agent proposes **BASE-TLS**
-(`--linear-scaling terms --const-opt none`, no LM, no guard) as the new reference. The user
-decides; until then BASE stays the reference.
+* **The proposal (2026-11-19).** The confirmation rule applies: BASE-TLS is "A better" than BASE
+  again (0.784, 80/20). No TLS variant is "A better" than BASE-TLS. So the agent proposed
+  **BASE-TLS** (`--linear-scaling terms --const-opt none`, no LM, no guard) as the new reference,
+  and gave the per-run table of BASE-TLS against TLS-NP.
+* **The decision (2026-11-19):** "I want to make BASE-TLS as a default for now. But the TLS-NP
+  needs to follow it next." BASE-TLS is the reference and the default of later regression
+  experiments; TLS-NP is next in line. The code defaults of the CLI do not change (agent reading,
+  as for BASE before; `APPROVALS.md`).

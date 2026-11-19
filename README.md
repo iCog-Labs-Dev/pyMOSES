@@ -274,8 +274,8 @@ Round 13 (2026-11-19; [`docs/gomea/SERVER-ROUND13-FINDINGS.md`](docs/gomea/SERVE
   budget.
 * **Against BASE:** ε-lexicase exemplar selection and a pole safeguard after LM tie; the pole check
   rejected tunings that were better on the test rows.
-* The confirmation rule proposes per-term least squares as the new reference. The user decides;
-  BASE stays the default until then.
+* The user made per-term least squares (BASE-TLS) the reference and the default of the experiments
+  for now, with its node-proximity variant (TLS-NP) next in line (2026-11-19).
 
 ## Run the tests
 

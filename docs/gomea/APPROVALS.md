@@ -472,3 +472,14 @@ user confirms it.
     record updates (findings log, roadmap, backlog, README), committed locally.
   * Not approved: any push; a change of the reference. The confirmation rule proposes BASE-TLS as
     the new reference; BASE stays the reference until the user decides.
+* **Round 13 decision: the reference (2026-11-19):** the agent gave the round 13 results, the
+  proposal of the confirmation rule (BASE-TLS), the per-run table of BASE-TLS against TLS-NP, and
+  the options (BASE-TLS, keep BASE, TLS-NP). The user answered: "I want to make BASE-TLS as a
+  default for now. But the TLS-NP needs to follow it next."
+  * User-approved: BASE-TLS (the BASE flags with `--linear-scaling terms --const-opt none`) is the
+    reference and the default of later regression experiments, for now. TLS-NP (BASE-TLS with
+    `--gomea-fos np`) is next in line.
+  * Agent reading, not confirmed: "default" means the default of the experiments, as for BASE
+    before; the code defaults of the CLI do not change. "Next in line" for TLS-NP is as HC-LM was
+    before (the first alternative to the reference). HC-LM stays the accuracy baseline.
+  * Not approved by this answer: any push.

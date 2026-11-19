@@ -24,24 +24,24 @@ Use it like this:
 | Dynamic population (`--gomea-pop-size dynamic --hc-fraction-of-nn 0.05`) | The population of later experiments (user, 2026-11-09), against the 1ay rule; to test on other datasets | 1ay, 1aw, 1ax |
 | Learned linkage (LT-B) | No gain over a random tree at our scale, also with no cap | 1g, 1m, 1al, 1ay |
 | Knob caps | Not recommended | 1ak, 1as, 1az |
-| **BASE** = dynamic population + LM-VAL + PEN125 | The reference and the default for the time being (user, 2026-11-11 and 2026-11-16) | 1bd, 1be |
-| HC-LM (hill climbing with LM-VAL) | The accuracy baseline, next in line (user, 2026-11-11 and 2026-11-16) | 1bd, 1be |
+| BASE = dynamic population + LM-VAL + PEN125 | The reference of rounds 10 to 13; replaced by BASE-TLS (user, 2026-11-19) | 1bd, 1be, 1bh |
+| HC-LM (hill climbing with LM-VAL) | The accuracy baseline (user, 2026-11-11 and 2026-11-16) | 1bd, 1be |
 | LM reserve (`--const-opt-reserve 500`, BASE-R) | Tie again in round 12 (0.979, 63/11); no user decision yet | 1be, 1bf |
 | Deme caps (`--gomea-deme-share` 5, 10, 20) | Not adopted: lower NMSE, but larger programs and more CPU | 1be |
-| Per-term least squares (`--linear-scaling terms`, no LM, BASE-TLS) | **"A better" twice** (0.879, then 0.784 on fresh splits), programs 1.26× with the term weights, same CPU. The confirmation rule proposes it as the new reference; user decision open | 1bf, 1bh |
+| **BASE-TLS** = BASE with `--linear-scaling terms --const-opt none` (per-term least squares, no LM) | **The reference and the default of later regression experiments, for now** (user, 2026-11-19). "A better" than BASE twice (0.879, then 0.784 on fresh splits), programs 1.26× with the term weights, same CPU | 1bf, 1bh |
 | LM during the search (`--const-opt-during elite`, BASE-LME) | Tie (0.929, 73/27), programs 1.27×; no user decision yet | 1bf |
 | LM on the top 5 of a deme (`--const-opt-top-k 5`, BASE-K5) | No gain over the reserve (0.998) | 1bf |
-| Node-proximity linkage (`--gomea-fos np`) | Tie (1.058), CPU 0.74×; mux11 ties. On top of BASE-TLS (TLS-NP): tie (1.023), CPU 0.84× ("A better"), same size | 1bf, 1bg, 1bh |
+| Node-proximity linkage (`--gomea-fos np`) | Tie (1.058), CPU 0.74×; mux11 ties. **TLS-NP** (BASE-TLS with NP): tie with BASE-TLS (1.023), CPU 0.84× ("A better"), same size; **next in line after BASE-TLS** (user, 2026-11-19) | 1bf, 1bg, 1bh |
 | Diversity pressure (`--diversity-pressure 6 × rows`) | No gain (1.000), CPU 2.44× | 1bf |
 | Validation guard for per-term least squares at the final choice (TLS-G) | No effect: 100 identical pairs | 1bh |
 | LM on the inner constants of each term (T3.1, TLS-LM) | Tie (1.000, 80 identical pairs); LM had little budget | 1bh |
 | ε-lexicase exemplar selection (`--exemplar-selection lexicase`) | Tie (1.012, 26/55); about one selection per run | 1bh |
 | Pole safeguard after LM (`--const-opt-pole-check box`) | Tie (1.000, 1/12); it rejected tunings that were better on the test rows | 1bh |
 
-**Round 13 is done** (`SERVER-ROUND13-FINDINGS.md`). BASE-TLS is "A better" than BASE again, so
-the confirmation rule applies: the agent proposes BASE-TLS as the new reference (no TLS variant was
-"A better" than BASE-TLS). **Next:** the user's decision on the reference; then the scope of the
-next round (`BACKLOG.md` section 12).
+**Round 13 is done** (`SERVER-ROUND13-FINDINGS.md`). BASE-TLS was "A better" than BASE again (the
+confirmation rule). **The user made BASE-TLS the reference and the default for now, with TLS-NP
+next in line (2026-11-19).** The code defaults of the CLI do not change. **Next:** the scope of the
+next round (`BACKLOG.md` section 12); its arms compare against BASE-TLS.
 
 ## Stage 0: done (rounds 6 to 8, 2026-11-06 to 2026-11-08)
 
