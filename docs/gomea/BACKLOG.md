@@ -632,6 +632,16 @@ item 1, and built items 3 and 7 of section 11 (size with the term weights; the r
    phase. A hard gate needs an orchestrator change (agent idea; the user decides).
 9. **Still open from section 11:** item 4 (the fallback share of the per-term fit during the
    search), item 8 (knob count for HC; the `set_final.py` report fix).
+10. **The effect of LM with node-proximity linkage (user, 2026-11-19).** The user wants to see
+    what LM adds when the FOS is node proximity (`--gomea-fos np`).
+    * Done so far: BASE-NP (round 12, 1bf) had LM-VAL with plain scaling: a tie with BASE (1.058),
+      0.744× the CPU, LM share 0.16 %. TLS-NP (round 13, 1bh) had no LM.
+    * Not tested: (a) NP with plain scaling and no LM (`--const-opt none`), against BASE-NP, for the
+      LM effect under NP; (b) TLS-NP with LM on the inner constants (`--const-opt lm
+      --const-opt-guard val`, the TLS-LM flags with `--gomea-fos np`), against TLS-NP.
+    * No new code is needed. At 20,000 evaluations LM gets little budget (item 4). A fair test
+      needs an LM budget, for example `--const-opt-reserve`; without it, expect many identical
+      pairs, as for TLS-LM.
 
 ## 8. Future directions from the literature search (2026-11-06)
 
