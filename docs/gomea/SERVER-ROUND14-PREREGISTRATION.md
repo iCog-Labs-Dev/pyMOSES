@@ -4,7 +4,10 @@
 9e32ecc. Implemented (2026-11-19): clone H 6d091e3, 2739cba, d816a27, 03d5fc8, c9df0a1, 2f43d75
 (backlog 12.1 and 12.2); clone I c3438bc, e256ef0 (`box-rel`); re-pin ad0c8d8; clone J bd33e45,
 0699ba5, 762c043 (splits 61–70, the linear baselines, the configs of 1bi, `plan14.json`). The
-local pilot gate passed on every item (see "Local pilot"). Not yet pushed or run.
+local pilot gate passed on every item (see "Local pilot"). The full suite at 6572d51 gave 10211
+passed and 6 skipped. The RV16 review found no blocking finding and 5 nits; the user approved the
+corrections and option b of finding 4 (2026-11-19, `APPROVALS.md`), marked below as
+"Correction" or "Amendment". Not yet run.
 
 **The user's frame (2026-11-19, `APPROVALS.md`):**
 
@@ -63,12 +66,23 @@ BASE-TLS is the reference; TLS-NP is next in line; HC-LM is the accuracy baselin
 * Splits 61–70 need `SEEDS = range(1, 71)` in `tools/gomea/sr_datasets.py`, 560 split files in
   `setup.sh`, and the requirement `datasets:...:61-70`. Splits 1–60 stay byte-identical. The
   build checks that the training and validation column types agree on every new split.
+  **Correction (2026-11-19, RV16 finding 1, approved by the user):** the build does not do this
+  check. It ran outside the build, in the build script of clone J and again in the RV16 review:
+  on all 100 new splits (10 datasets × splits 61–70) the types agree. The negative control found
+  Dow splits 11 and 56. With the 12.1 fix the guard loads the validation table with the training
+  types, so a split with other types does not crash.
 * **Statistics:** as in rounds 12 and 13. Failed runs count as infinitely bad. Paired Wilcoxon
   signed-rank on log(A / B), two-sided, Holm, α = 0.025. "Better" or "worse" also needs a ratio at
   least 10 % from 1.
 * **Reference rule (agent-written):** if an arm with `--linear-scaling terms` is "A better" than
   BASE-TLS, the agent proposes it as the new reference. The user decides. Otherwise BASE-TLS stays
   the reference and TLS-NP stays next in line. All other verdicts are descriptive.
+  **Amendment (2026-11-19, before the run; the user chose option b of RV16 finding 4):** TLSNP-LMR
+  also uses `--linear-scaling terms`, but no approved contrast compares it with BASE-TLS. The
+  contrast TLSNP-LMR vs BASE-TLS is added as a descriptive contrast (see "Contrasts"). It gets no
+  verdict, and the primary family stays at 5. If its Holm p (in the descriptive family) is below
+  0.025 and its ratio is at least 10 % below 1, the agent reports it to the user, and the user
+  decides.
 * **Program size:** as in round 13: the node count, plus `n_terms` when the final model uses the
   per-term fit. A linear baseline with k inputs counts as the TLS program `+(x1 … xk)`: k + 1 nodes
   plus k terms, so 2k + 1. The node count is also reported.
@@ -81,6 +95,10 @@ BASE-TLS is the reference; TLS-NP is next in line; HC-LM is the accuracy baselin
   demes, knobs per deme, total knobs, LM calls (improved, no budget, no constants, singular, guard
   rejections), LM share, pole checks and rejections, the runs with a test NMSE above 100, and the
   per-run table (`runs.csv`).
+  **Correction (2026-11-19, RV16 finding 3, approved by the user):** `runs.csv` and
+  `aggregate.csv` have no columns for the LM calls with no budget (`const_opt.lm_budget`) or with
+  no constants (`const_opt.lm_no_constants`). The findings count them from the `summary.json`
+  files, as in round 13. The report code does not change before the run.
 * **S0:** full pytest and the reproducibility check. S0 is not a gate (`BACKLOG.md` 12.8).
 
 ## Arms (800 MOSES runs + 200 linear fits)
@@ -107,6 +125,9 @@ Each new option is opt-in: without it, the output of every existing setting stay
   on the deme's best program, with the validation guard.
 * **Agent choice:** the same reserve for all three LM arms, so that NP-LMR against NP-NOLM measures
   LM with a budget, not the budget accident of round 13.
+  **Correction (2026-11-19, RV16 finding 5):** four arms have the reserve of 500. NP-LMR-PSR is
+  NP-LMR with the pole rule, so it has the reserve too. "Three" here and in the pilot gate means
+  these four arms.
 
 ### NP-LMR-PSR: the relative pole rule
 
@@ -145,7 +166,9 @@ Each new option is opt-in: without it, the output of every existing setting stay
 * **Descriptive (no verdicts; the new spec key of 12.2):** BASE-TLS, TLS-NP and HC-LM each
   against LIN-OLS and LIN-RIDGE (6); NP-NOLM vs TLS-NP (per-term least squares against plain
   scaling, both under NP and without LM); TLS-LMR vs TLSNP-LMR; the 5 primary contrasts on the
-  clipped test NMSE.
+  clipped test NMSE. **Amendment (2026-11-19, before the run, the user's option b):** also
+  TLSNP-LMR vs BASE-TLS (test NMSE), so 14 descriptive contrasts in one Holm family. See the
+  amendment of the reference rule.
 * **Per dataset, descriptive (50):** the 5 primary contrasts on each dataset, no verdicts.
 * **Trade-off table:** for each arm, the NMSE ratio against BASE-TLS and against HC-LM, the size
   and CPU ratios against BASE-TLS, demes, knobs, the LM counts and share, the pole counts.
@@ -160,8 +183,8 @@ Each new option is opt-in: without it, the output of every existing setting stay
   4,096 MB). **The gate passed.** Observation: on Dow the guard rejected 3 of 4 checked LM
   results in TLSNP-LMR, NP-LMR and NP-LMR-PSR. The rough time estimate from the pilot CPU (the
   machine load was 25 to 35) is about 104 CPU-h and 10 to 12 h with S0, below the estimate below.
-* **Gate:** every run ends ok; in the three LM-reserve arms, fewer than half of the LM calls end
-  with no budget; the LM share of each arm is at most 50 %; NP-LMR-PSR rejects at most 50 % of the
+* **Gate:** every run ends ok; in the three (correction: four, RV16 finding 5) LM-reserve arms,
+  fewer than half of the LM calls end with no budget; the LM share of each arm is at most 50 %; NP-LMR-PSR rejects at most 50 % of the
   LM results that it checks; the peak memory of each arm is at most 50 % of its limit. If a check
   fails, the agent reports to the user before the server run.
 

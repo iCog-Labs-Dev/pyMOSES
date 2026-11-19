@@ -619,6 +619,10 @@ item 1, and built items 3 and 7 of section 11 (size with the term weights; the r
    reject only when S(new) > factor × max(S(old), 10R); or probe near the data (training rows with
    noise) in place of the whole box. Round 13 had no run with a test NMSE above 100. Round 14 tests
    the first idea (`box-rel`, arm NP-LMR-PSR).
+   **Correction (2026-11-19, RV16 finding 2):** round 14 tests the rule
+   S(new) > 10 · max(S(old), R) (`const_opt.py` `pole_rejects`, the round 14 pre-registration,
+   USAGE). The form "factor × max(S(old), 10R)" above is the first sketch; with the factor 10 it
+   is max(10·S(old), 100·R), a different rule that does not run.
    **Origin (tracked for the user's decision, 2026-11-19):**
    * Round 11 (2026-11-12): one BASE-R run, Bos split 35, test NMSE 60,309; the agent traced it to
      an LM pole (a denominator at zero just outside the training range of one input).

@@ -516,3 +516,15 @@ user confirms it.
     and `ROADMAP.md`.
   * User decision pending: approve or reject the rule after the round 14 results. Until then it
     is not a setting. The round 14 arm NP-LMR-PSR runs as approved.
+* **Round 14 RV16 findings and push (2026-11-19):** the agent gave the five RV16 nits unchanged
+  (no blocking finding) and recommended: text corrections for findings 1, 2 and 5; the two missing
+  LM counts of finding 3 counted from `summary.json` in the findings; for finding 4 a choice
+  between (a) no change and (b) a descriptive contrast TLSNP-LMR vs BASE-TLS added before the run.
+  The user answered: "Sure let's go wit hthe fixes and option b for the item 4. Then you can push
+  and notify me so we can start a server run".
+  * User-approved: the corrections of findings 1, 2, 3 and 5 as recommended; option b of finding 4
+    (the contrast is descriptive, 14 descriptive contrasts, the primary family stays at 5); the
+    push of the branch with these changes to `origin/experiment/moses-gomea-discrete`; the round
+    14 server run after the push.
+  * Agent reading, not confirmed: the reporting rule for the added contrast (the agent reports it
+    if its Holm p is below 0.025 and its ratio at least 10 % below 1; the user decides).
