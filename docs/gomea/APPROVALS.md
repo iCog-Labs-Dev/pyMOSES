@@ -498,3 +498,13 @@ user confirms it.
     name it); "run sequentially" means that a second round starts by itself after the first (a
     chain), so that the user starts the rounds only once.
   * Not approved by this answer: any push; the round 14 pre-registration (a draft).
+* **Round 14 pre-registration (2026-11-19):** the agent presented the draft
+  (`SERVER-ROUND14-PREREGISTRATION.md`, commit 9e32ecc) with its choices listed (the reserve of 500
+  for the three LM arms; the relative pole rule S(tuned) > 10 · max(S(old), R) on NP-LMR; the ridge
+  grid 10^-6 to 10^3 chosen on the validation rows; the reference rule; the pilot gate; ε-lexicase,
+  12.8, 12.9 and the T3.4 note left out; the four nits in the fix; one round of about 14–16 h). It
+  asked: "Do you approve the round 14 pre-registration
+  (`docs/gomea/SERVER-ROUND14-PREREGISTRATION.md`)?" The user answered: "Yes".
+  * User-approved: the round 14 pre-registration as drafted; the implementation by subagents in
+    separate clones (H in progress, then I, then J).
+  * Not approved by this answer: any push.

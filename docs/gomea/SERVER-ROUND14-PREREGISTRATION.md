@@ -1,6 +1,7 @@
 # Server round 14: pre-registration (2026-11-19)
 
-**Status:** draft, agent-written. It waits for the user's approval. Not implemented.
+**Status:** approved by the user on 2026-11-19 ("Yes", `APPROVALS.md`), with the draft of commit
+9e32ecc. Not yet implemented.
 
 **The user's frame (2026-11-19, `APPROVALS.md`):**
 
