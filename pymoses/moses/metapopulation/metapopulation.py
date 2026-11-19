@@ -1151,10 +1151,14 @@ class metapopulation:
         """NOT A PORT (pyMoses extension, `--exemplar-selection lexicase`, server
         round 13; see `lexicase.py`): the index into `ordered` of the candidate that
         epsilon-lexicase selects. The pool is the candidates whose entry in `probs` is
-        finite: exactly the ones the Boltzmann roulette may select. Their behavioural
-        scores come from `init`, `inject_candidates` or the merge's recompute
-        (`merging.merge_demes`). Draws from the run RNG; the caller updates the visit
-        count, as for the roulette."""
+        finite: the candidates that the Boltzmann roulette considers (a finite penalized
+        score, the revisit rule, and on a reserved turn the empty program's lineage). The
+        pool can be wider than the set that the roulette can select (backlog 12.2): the
+        roulette weight `exp((p - best) * 100 / T)` is a float32 (`score_t`) and becomes 0
+        for a large score gap, so the roulette never selects such a candidate, but the
+        lexicase pool keeps it. Their behavioural scores come from `init`,
+        `inject_candidates` or the merge's recompute (`merging.merge_demes`). Draws from the
+        run RNG; the caller updates the visit count, as for the roulette."""
         pool = [i for i, p in enumerate(probs) if math.isfinite(p)]
         bscores = [ordered[i].get_bscore() for i in pool]
         k, cases_used = lexicase_select(bscores, randGen())

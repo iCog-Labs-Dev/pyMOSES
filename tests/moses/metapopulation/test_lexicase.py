@@ -274,6 +274,31 @@ def test_the_pool_is_the_boltzmann_pool(monkeypatch):
     assert mp._lexicase.report()["pool_size_mean"] == 1.5
 
 
+def test_the_pool_keeps_a_candidate_whose_boltzmann_weight_underflows(monkeypatch):
+    """Backlog 12.2: the float32 Boltzmann weight exp((p - best) * 100 / T) is 0 for a large
+    score gap, so the roulette never picks that candidate; the lexicase pool (the finite
+    entries of ``probs``) still has it."""
+    errors = {**_ERR, _P[2]: [10.0, 10.0, 10.0]}  # a score gap of more than 20
+    seen = {}
+    mod = sys.modules[metapopulation.__module__]
+    real = mod.roulette_select
+
+    def spy(probs, total, rng):
+        seen["probs"] = list(probs)
+        return real(probs, total, rng)
+
+    monkeypatch.setattr(mod, "roulette_select", spy)
+    mp = _mp("boltzmann", errors=errors)
+    order = [_text(sct) for sct in mp._scored_trees]
+    mp.select_exemplar()
+    w = dict(zip(order, seen["probs"], strict=True))
+    assert w[_P[2]] == 0.0 and w[_P[0]] > 0.0 and w[_P[1]] > 0.0
+    monkeypatch.setattr(randGen(), "randint_n", lambda n: 0)
+    mp = _mp(errors=errors)
+    mp.select_exemplar()
+    assert mp._lexicase.report()["pool_size_mean"] == 3.0
+
+
 def test_boltzmann_draws_from_the_roulette_only(monkeypatch):
     def no_draw(*a):
         raise AssertionError("boltzmann draws no case")
