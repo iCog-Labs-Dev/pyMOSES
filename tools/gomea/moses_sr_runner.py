@@ -23,7 +23,10 @@ A manifest (JSON) has these keys:
 * optionally `"plain_nmse": true` (backlog 12.2, after server round 13): every
   `--linear-scaling terms` run of the manifest gets the plain-scaling fields (see below).
   Without the key (or with false) no run gets them. `expand` refuses a value that is not true
-  or false.
+  or false;
+* an arm `{"linear": "ols"}` or `{"linear": "ridge"}` (server round 14, LIN-OLS and LIN-RIDGE;
+  see "Linear baselines" below) has no MOSES run. `expand` refuses another value, and refuses a
+  linear arm with any other key (`argv`, `binary`, `budget`, ...).
 
 **MOSES regression setup** (Phase 1f; see `PHASE1F-PREREGISTRATION.md`). MOSES scores a
 regression candidate by raw squared error (pyMoses: of the least-squares
@@ -66,6 +69,23 @@ So, per run, the runner:
   and `terms_test_nmse`, the values of the per-term model. A one-term program or a fit that
   falls back has the same value both ways, so its guard is `"plain"`. The guard compares the
   plain values also without `"plain_nmse": true`; only the fields need the key.
+
+**Linear baselines (server round 14; `sr_linear.py`).** For a job with `"linear"` the runner
+starts no process. It fits y = w_0 + sum_i w_i x_i over all input columns of the split (a boolean
+input is 0 or 1) to the training target scaled as for the MOSES arms (step 1 above; it also
+writes `train_scaled.csv`), by ordinary least squares (`"ols"`) or by ridge regression with the
+lambda of the grid 10^-6 .. 10^3 that gives the lowest validation NMSE (`"ridge"`; a tie keeps the
+larger lambda). It then scores the model's own predictions (no extra a + b*f fit) with the NMSE
+functions of `sr_eval.py` on the original train, val and test splits, so `train_nmse`,
+`val_nmse`, `test_nmse` and `test_nmse_clipped` (with `"clip_test_nmse": true`) mean what they
+mean for the MOSES arms. The summary has `status`, the NMSE fields, `cpu_s` (the CPU time of the
+fit, in the worker process), `wall_s`, `ru_maxrss_kb` (the worker process), `n_evals` null, and
+`linear` (the method, the inputs, the weights in the units of the original target, and for OLS
+the fallback, for ridge the chosen `lambda` and the validation NMSE of each lambda). For the size
+rule of the report (`phase_report.py`, `"size_terms"`) the summary has `final_program`
+`+($x1 ... $xk)` over the k inputs and a `terms` record with `n_terms` k and `fallback` false.
+`candidates.json` holds the one candidate. A fit that fails gives status "error". The
+manifest's `mem_limit_mb` does not apply (there is no child process; a fit uses a few MB).
 
 **Telemetry.** A pyMoses GOMEA arm (`-a gomea` or `-a hc-gomea` in its argv) also gets
 `--gomea-log RUN_DIR/events.jsonl`, as the Boolean runner (`benchmarks.gomea.manifest`)
@@ -126,6 +146,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import sr_eval  # noqa: E402
+import sr_linear  # noqa: E402
 
 REPO = Path(__file__).resolve().parents[2]
 
@@ -249,6 +270,8 @@ def _run_one(job: dict) -> dict:
     summary_path = run_dir / "summary.json"
     if summary_path.exists():
         return json.loads(summary_path.read_text())
+    if job.get("linear"):
+        return _run_linear(job)  # server round 14: a linear baseline, no MOSES process
     sdir = Path(job["split_dir"])
     n_train, mean, sd = _scale_train(sdir / "train.csv", run_dir / "train_scaled.csv")
     argv = moses_argv(job, run_dir, n_train)
@@ -454,6 +477,91 @@ def _run_one(job: dict) -> dict:
             )
             if summary["n_evals"] is not None:
                 summary["moses_own_evals"] = summary["n_evals"] - rs["reseed_evals"]
+    tmp = summary_path.with_suffix(".tmp")
+    tmp.write_text(json.dumps(summary, indent=2, sort_keys=True))
+    os.replace(tmp, summary_path)
+    return summary
+
+
+def _fit_linear(method: str, train, val, mean: float, sd: float) -> tuple[list[float], dict]:
+    """Server round 14: the weights (w_0, w_1, .., w_k) of the linear baseline `method` in the
+    units of the original target, fitted to the training target scaled as for the MOSES arms
+    (`mean`, `sd`: the training mean and sd), and the method's part of the `linear` record."""
+    y_scaled = [10.0 * (t - mean) / sd for t in train.y]
+    cols = sr_linear.columns(train.X)
+    if method == "ols":
+        w, rec = sr_linear.fit_ols(cols, y_scaled)
+        return sr_linear.to_target_units(w, mean, sd), {
+            "fallback": rec["fallback"], "fit_reason": rec["fit_reason"],
+            "dropped_inputs": [train.labels[j] for j in rec["dropped"]]}
+    fits, constant = sr_linear.fit_ridge(cols, y_scaled)
+    val_cols = sr_linear.columns(val.X)
+    best, by_lambda = None, []
+    for lam, w in zip(sr_linear.RIDGE_LAMBDAS, fits, strict=True):
+        if w is None:
+            by_lambda.append(None)
+            continue
+        w = sr_linear.to_target_units(w, mean, sd)
+        v = sr_eval.nmse(val.y, sr_linear.predict(w, val_cols))
+        by_lambda.append(v)
+        if best is None or v <= best[0]:  # a tie keeps the larger lambda (the grid ascends)
+            best = (v, lam, w)
+    if best is None:
+        raise ValueError("ridge: no lambda of the grid gives a solution")
+    return best[2], {"lambda": best[1], "lambdas": list(sr_linear.RIDGE_LAMBDAS),
+                     "val_nmse_by_lambda": by_lambda,
+                     "constant_inputs": [train.labels[j] for j in constant]}
+
+
+def _run_linear(job: dict) -> dict:
+    """Server round 14 (LIN-OLS, LIN-RIDGE): fit and score the linear baseline of one split in
+    this process, with no MOSES process; write candidates.json and summary.json (see "Linear
+    baselines" in the module docstring)."""
+    run_dir = Path(job["run_dir"])
+    summary_path = run_dir / "summary.json"
+    t0, c0 = time.monotonic(), time.process_time()
+    sdir = Path(job["split_dir"])
+    (run_dir / "config.json").write_text(json.dumps(job, indent=2))
+    summary: dict = {
+        "run_id": job["run_id"], "task": job["task"], "arm": job["arm"], "seed": job["seed"],
+        "status": "ok", "error": None, "exit_code": None, "n_evals": None,
+    }
+    try:
+        n_train, mean, sd = _scale_train(sdir / "train.csv", run_dir / "train_scaled.csv")
+        tables = {p: sr_eval.read_table(str(sdir / f"{p}.csv")) for p in ("train", "val", "test")}
+        train = tables["train"]
+        if not train.labels == tables["val"].labels == tables["test"].labels:
+            raise ValueError("train, val and test feature columns differ")
+        w, rec = _fit_linear(job["linear"], train, tables["val"], mean, sd)
+        q = {p: sr_linear.predict(w, sr_linear.columns(t.X)) for p, t in tables.items()}
+        nm = {p: sr_eval.nmse(t.y, q[p]) for p, t in tables.items()}
+        program = "+(" + " ".join(f"${lab}" for lab in train.labels) + ")"
+        k = len(train.labels)
+        summary.update(
+            n_train=n_train, target_mean=mean, target_sd=sd, n_candidates=1,
+            n_candidates_unscorable=0, train_nmse=nm["train"], val_nmse=nm["val"],
+            test_nmse=nm["test"], final_program=program, first_train_nmse=nm["train"],
+            first_test_nmse=nm["test"],
+            terms={"n_terms": k, "fallback": False, "reason": None, "weights": w},
+            linear={"method": job["linear"], "inputs": list(train.labels),
+                    "bool_inputs": [train.labels[j] for j in sorted(train.bool_cols)],
+                    "target_scaling": "y' = 10 (y - mean) / sd, training mean and sd",
+                    "weights": w, **rec},
+        )
+        if job.get("clip_test_nmse"):
+            lo, hi = sr_eval.clip_range(train.y)
+            summary["test_nmse_clipped"] = sr_eval.nmse_clipped(tables["test"].y, q["test"], lo, hi)
+        cands = [{"program": program, "train_nmse": nm["train"], "val_nmse": nm["val"],
+                  "test_nmse": nm["test"]}]
+    except Exception as exc:  # never let one failed fit kill the pool
+        summary.update(status="error", error=f"{type(exc).__name__}: {exc}"[:300],
+                       train_nmse=None, val_nmse=None, test_nmse=None, final_program=None)
+        if job.get("clip_test_nmse"):
+            summary["test_nmse_clipped"] = None
+        cands = []
+    (run_dir / "candidates.json").write_text(json.dumps(cands, indent=2))
+    summary.update(wall_s=time.monotonic() - t0, cpu_s=time.process_time() - c0,
+                   ru_maxrss_kb=resource.getrusage(resource.RUSAGE_SELF).ru_maxrss)
     tmp = summary_path.with_suffix(".tmp")
     tmp.write_text(json.dumps(summary, indent=2, sort_keys=True))
     os.replace(tmp, summary_path)
@@ -692,10 +800,25 @@ def _check_terms_guard(arm: str, a: dict) -> None:
         raise ValueError(f"arm {arm}: terms_guard needs --linear-scaling terms in the argv")
 
 
+def _check_linear(arm: str, a: dict) -> None:
+    """Server round 14: `"linear"` must be "ols" or "ridge", on an arm with no other key (no
+    `argv`: a linear arm has no MOSES run)."""
+    if "linear" not in a:
+        return
+    if a["linear"] not in sr_linear.METHODS:
+        raise ValueError(f"arm {arm}: linear must be \"ols\" or \"ridge\", got {a['linear']!r}")
+    if "argv" in a:
+        raise ValueError(f"arm {arm}: a linear arm has no argv (no MOSES run)")
+    extra = sorted(set(a) - {"linear"})
+    if extra:
+        raise ValueError(f"arm {arm}: a linear arm has only the key \"linear\", got {extra}")
+
+
 def expand(manifest: dict, out_root: Path, repo: Path) -> list[dict]:
     ddir = (repo / manifest["datasets_dir"]).resolve()
     for arm, a in manifest["arms"].items():
-        _check_terms_guard(arm, a)  # server round 13: refuse the manifest before any run
+        _check_linear(arm, a)  # server round 14: refuse the manifest before any run
+        _check_terms_guard(arm, a)  # server round 13
     clip = manifest.get("clip_test_nmse", False)  # server round 13 (opt-in)
     if not isinstance(clip, bool):
         raise ValueError(f"clip_test_nmse must be true or false, got {clip!r}")
@@ -705,6 +828,19 @@ def expand(manifest: dict, out_root: Path, repo: Path) -> list[dict]:
     jobs = []
     for ds in manifest["datasets"]:
         for arm, a in manifest["arms"].items():
+            if "linear" in a:
+                # server round 14: a linear baseline (no binary, no argv, no budget)
+                jobs += [{
+                    "run_id": f"{ds}__{arm}__s{seed}", "task": ds, "arm": arm, "seed": seed,
+                    "linear": a["linear"],
+                    "split_dir": str(ddir / ds / "splits" / f"s{seed}"),
+                    "wall_cap_s": manifest["wall_cap_s"],
+                    "mem_limit_mb": manifest.get("mem_limit_mb"),
+                    "run_dir": str(out_root / manifest["name"] / "runs" / f"{ds}__{arm}__s{seed}"),
+                    **({"clip_test_nmse": True} if clip else {}),
+                    **({"plain_nmse": True} if plain else {}),
+                } for seed in manifest["splits"]]
+                continue
             binary = a["binary"] if os.path.isabs(a["binary"]) else str(repo / a["binary"])
             for seed in manifest["splits"]:
                 run_id = f"{ds}__{arm}__s{seed}"
