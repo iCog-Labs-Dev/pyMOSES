@@ -14,9 +14,10 @@
 #   3. python   CPython $PY_VERSION exactly, uv-managed, under the toolchain dir
 #   4. venv     .venv from that Python; pip install -e . pytest==9.1.1
 #   5. datasets ../gomea-results/phase1f/datasets/<Abbr>/ for Air Bos Con EnC EnH WiR WiW
-#               Yac, rebuilt from data/gomea-sr/ and verified (splits 1-60; 31-40 are the
-#               fresh splits of round 11, 41-50 those of round 12 and 51-60 those of
-#               round 13, and a set with fewer splits is rebuilt);
+#               Yac, rebuilt from data/gomea-sr/ and verified (splits 1-70; 31-40 are the
+#               fresh splits of round 11, 41-50 those of round 12, 51-60 those of
+#               round 13 and 61-70 those of round 14, and a set with fewer splits is
+#               rebuilt);
 #               and for Dow and Tow (no licence, not committed: data/gomea-sr/README.md),
 #               the raw gpzgd files are
 #               downloaded to <Abbr>/raw/ at a pinned commit, checked against their SHA-256,
@@ -155,12 +156,12 @@ step_venv() {
 }
 
 # ---- 5. datasets
-dataset_ok() {  # dir abbr: full.csv, splits.json and the 480 split files (60 splits x 8) verified
+dataset_ok() {  # dir abbr: full.csv, splits.json and the 560 split files (70 splits x 8) verified
     local D=$1 a=$2
     [ -f "$D/$a/full.csv" ] && [ -f "$D/$a/splits/splits.json" ] \
         && [ "$(sha256sum < "$D/$a/full.csv" | cut -d' ' -f1)" = "$(grep " $a/full.csv" data/gomea-sr/SHA256SUMS | cut -d' ' -f1)" ] \
         && cmp -s "$D/$a/splits/splits.json" "data/gomea-sr/$a/splits.json" \
-        && [ "$(find "$D/$a/splits" -mindepth 2 -type f | wc -l)" -eq 480 ]
+        && [ "$(find "$D/$a/splits" -mindepth 2 -type f | wc -l)" -eq 560 ]
 }
 step_datasets() {
     [ -x .venv/bin/python ] || { record datasets FAILED "no venv"; return 1; }
