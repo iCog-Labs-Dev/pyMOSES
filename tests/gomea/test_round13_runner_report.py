@@ -20,6 +20,7 @@ Backlog 12.2 (the RV16 review of the round 13 build):
 * the plain-scaling fields need the manifest key ``"plain_nmse": true``; without it a
   ``--linear-scaling terms`` arm (also the BASE-TLS arm of the round 12 manifest) writes the
   output of cb1ccfe, and TLS-G still compares the plain values;
+* a missing reference commit fails the byte-identity tests (``_old_tool``); it never skips;
 """
 
 from __future__ import annotations
@@ -332,7 +333,10 @@ def _old_tool(tmp_path: Path, names) -> Path:
         r = subprocess.run(["git", "show", f"{OLD}:tools/gomea/{n}"], cwd=REPO,
                            capture_output=True)
         if r.returncode != 0:
-            pytest.skip(f"no git checkout with commit {OLD}")
+            # backlog 12.2: a missing reference must never let the test pass (no skip)
+            pytest.fail(f"git show {OLD}:tools/gomea/{n} failed: "
+                        f"{r.stderr.decode().strip()!r}. The byte-identity tests need the "
+                        f"reference commit {OLD}; use a clone with the full history.")
         (d / n).write_bytes(r.stdout)
     return d
 
@@ -599,3 +603,10 @@ def test_expand_carries_the_plain_key_and_refuses_a_wrong_one(tmp_path):
     for v in ("yes", 1, None):
         with pytest.raises(ValueError, match="plain_nmse must be true or false"):
             runner.expand({**m, "plain_nmse": v}, tmp_path, tmp_path)
+
+
+def test_a_missing_reference_commit_fails_the_test_and_does_not_skip(monkeypatch, tmp_path):
+    monkeypatch.setitem(globals(), "OLD", "0" * 40)
+    with pytest.raises(pytest.fail.Exception,
+                       match=r"git show 0{40}:tools/gomea/sr_eval.py failed: .*full history"):
+        _old_tool(tmp_path, ["sr_eval.py"])
