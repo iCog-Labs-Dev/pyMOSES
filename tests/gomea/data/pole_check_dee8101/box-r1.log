@@ -1,0 +1,129 @@
+[INFO] moses version "3"."7"."0"
+[WARN] WARNING: This version of MOSES does NOT have MPI support!
+
+[INFO] Command line: moses -i DATA/train.csv -u y -r 1 -n sin -n exp -n log -v 2400 -c 10 -V1 -l INFO -m 3000 -a gomea --gomea-fos lt-b --gomea-pop-size dynamic --hc-fraction-of-nn 0.05 --gomea-skip-inactive 0 --gomea-genotype-memo 1 --gomea-contin copy --knob-probe-baseline reduced --linear-scaling 1 --const-opt lm --const-opt-guard val --gomea-accept-complexity-ratio 0.125 --gomea-deme-store accepted --const-opt-val DATA/train.csv --gomea-max-evals-per-deme 300 --const-opt-pole-check box --gomea-log events.jsonl -f moses.log
+[INFO] Read data file DATA/train.csv
+[INFO] Number of rows in tables = 40
+[INFO] Inferred arity = 2
+[INFO] Table signature ->(contin contin contin)
+[INFO] Inferred output type: contin
+[INFO] Alphabet size = 7 output = contin
+[INFO] BScore complexity ratio = 3.5
+[INFO] Cache composite scores
+[INFO] MOSES starts, max_evals=3000 max_gens=-1 max_time=2147483647
+[INFO] Stats: # 
+Stats: # Stats are tab-separated, ready for graphing.
+Stats: # You can also use the script parse_log.py to extract a CSV file given a moses log file.
+Stats: # Column explanation:
+Stats: # 
+Stats: # gen is the generation number.
+Stats: # num_evals is the number of scoring function evaluations so far.
+Stats: # elapsed is the wall-clock time, in seconds, since start.
+Stats: # metapop_size is the size of the metapopulation.
+Stats: # best_score is the highest raw score seen, of all exemplars.
+Stats: # complexity is in bits, of the highest-composite score exemplar.
+Stats: # field_set_size is the ESTIMATED number of bits in all the knobs.
+Stats: # optim_steps is the number of steps the optimizer took.
+Stats: # over_budget is bool, T if search exceeded scoring func eval budget.
+Stats: # 
+Stats: # gen	num_evals	elapsed	metapop_size	best_score	complexity	field_set_size	optim_steps	over_budget
+[INFO] Start knob building, rep size=1 complexity=1
+[INFO] After knob building, rep size=21 complexity=5
+[INFO] Total number of field specs: 8
+[INFO] Number of contin knobs mapped: 8
+[INFO] Field set, in bytes: 1504
+[INFO] One instance, in bytes: 40
+[INFO] Expansion 1 done
+[INFO] Total number of evaluations so far: 301
+[INFO] The following candidate(s) have the best score [score=-98.81787109375, penalized score=-99.3892974853515625, complexity=2, complexity penalty=0.571428596973419189, uniformity penalty=0]
+[INFO] -98.8179 +($1 $2)
+[INFO] Stats: 1	301	T	49	-98.8179	2	0	1	1
+[INFO] Start knob building, rep size=5 complexity=4
+[INFO] After knob building, rep size=31 complexity=7
+[INFO] Total number of field specs: 11
+[INFO] Number of contin knobs mapped: 11
+[INFO] Field set, in bytes: 1984
+[INFO] One instance, in bytes: 40
+[INFO] Expansion 2 done
+[INFO] Total number of evaluations so far: 649
+[INFO] The following candidate(s) have the best score [score=-98.81787109375, penalized score=-99.3892974853515625, complexity=2, complexity penalty=0.571428596973419189, uniformity penalty=0]
+[INFO] -98.8179 +($1 $2)
+[INFO] Stats: 2	649	T	145	-98.8179	2	0	1	1
+[INFO] Start knob building, rep size=1 complexity=1
+[INFO] After knob building, rep size=21 complexity=5
+[INFO] Total number of field specs: 8
+[INFO] Number of contin knobs mapped: 8
+[INFO] Field set, in bytes: 1504
+[INFO] One instance, in bytes: 40
+[INFO] Expansion 3 done
+[INFO] Total number of evaluations so far: 951
+[INFO] The following candidate(s) have the best score [score=-98.81787109375, penalized score=-99.3892974853515625, complexity=2, complexity penalty=0.571428596973419189, uniformity penalty=0]
+[INFO] -98.8179 +($1 $2)
+[INFO] Stats: 3	951	T	191	-98.8179	2	0	1	1
+[INFO] Start knob building, rep size=16 complexity=10
+[INFO] After knob building, rep size=96 complexity=18
+[INFO] Total number of field specs: 32
+[INFO] Number of contin knobs mapped: 32
+[INFO] Field set, in bytes: 5344
+[INFO] One instance, in bytes: 64
+[INFO] Expansion 4 done
+[INFO] Total number of evaluations so far: 1342
+[INFO] The following candidate(s) have the best score [score=-42.4270439147949219, penalized score=-46.1413307189941406, complexity=13, complexity penalty=3.71428585052490234, uniformity penalty=0]
+[INFO] -42.427 +(1 /(+(2.28142 *(-1.73717 +(*(+(6.11318 *(-0.423416 $1)) $1) $2))) +(0.459201 *(+(-0.483891 $1) $1))))
+[INFO] Stats: 4	1342	T	306	-42.427	13	0	1	1
+[INFO] Start knob building, rep size=78 complexity=46
+[INFO] After knob building, rep size=113 complexity=51
+[INFO] Total number of field specs: 32
+[INFO] Number of contin knobs mapped: 32
+[INFO] Field set, in bytes: 5344
+[INFO] One instance, in bytes: 64
+[INFO] Expansion 5 done
+[INFO] Total number of evaluations so far: 1644
+[INFO] The following candidate(s) have the best score [score=-42.4270439147949219, penalized score=-46.1413307189941406, complexity=13, complexity penalty=3.71428585052490234, uniformity penalty=0]
+[INFO] -42.427 +(1 /(+(2.28142 *(-1.73717 +(*(+(6.11318 *(-0.423416 $1)) $1) $2))) +(0.459201 *(+(-0.483891 $1) $1))))
+[INFO] Stats: 5	1644	T	425	-42.427	13	0	1	1
+[INFO] Start knob building, rep size=23 complexity=13
+[INFO] After knob building, rep size=122 complexity=22
+[INFO] Total number of field specs: 41
+[INFO] Number of contin knobs mapped: 41
+[INFO] Field set, in bytes: 6784
+[INFO] One instance, in bytes: 80
+[INFO] Expansion 6 done
+[INFO] Total number of evaluations so far: 2016
+[INFO] The following candidate(s) have the best score [score=-0.667444467544555664, penalized score=-4.95315933227539062, complexity=15, complexity penalty=4.28571462631225586, uniformity penalty=0]
+[INFO] -0.667444 +(1 /(+(3.15958 *(-1.17252 +(*(+(4.95547 *(+(-0.336891 *(-0.824952 $1)) $1)) $1) $2))) +(5.0615 *(+(0.0407419 $1) $1))))
+[INFO] Stats: 6	2016	T	535	-0.667444	15	0	1	1
+[INFO] Start knob building, rep size=25 complexity=15
+[INFO] After knob building, rep size=110 complexity=23
+[INFO] Total number of field specs: 37
+[INFO] Number of contin knobs mapped: 37
+[INFO] Field set, in bytes: 6144
+[INFO] One instance, in bytes: 72
+[INFO] Expansion 7 done
+[INFO] Total number of evaluations so far: 2422
+[INFO] The following candidate(s) have the best score [score=-0.667444467544555664, penalized score=-4.95315933227539062, complexity=15, complexity penalty=4.28571462631225586, uniformity penalty=0]
+[INFO] -0.667444 +(1 /(+(3.15958 *(-1.17252 +(*(+(4.95547 *(+(-0.336891 *(-0.824952 $1)) $1)) $1) $2))) +(5.0615 *(+(0.0407419 $1) $1))))
+[INFO] Stats: 7	2422	T	639	-0.667444	15	0	1	1
+[INFO] Start knob building, rep size=27 complexity=16
+[INFO] After knob building, rep size=128 complexity=26
+[INFO] Total number of field specs: 43
+[INFO] Number of contin knobs mapped: 43
+[INFO] Field set, in bytes: 7104
+[INFO] One instance, in bytes: 80
+[INFO] Expansion 8 done
+[INFO] Total number of evaluations so far: 2822
+[INFO] The following candidate(s) have the best score [score=-0.667444467544555664, penalized score=-4.95315933227539062, complexity=15, complexity penalty=4.28571462631225586, uniformity penalty=0]
+[INFO] -0.667444 +(1 /(+(3.15958 *(-1.17252 +(*(+(4.95547 *(+(-0.336891 *(-0.824952 $1)) $1)) $1) $2))) +(5.0615 *(+(0.0407419 $1) $1))))
+[INFO] Stats: 8	2822	T	755	-0.667444	15	0	1	1
+[INFO] Start knob building, rep size=19 complexity=11
+[INFO] After knob building, rep size=96 complexity=19
+[INFO] Total number of field specs: 33
+[INFO] Number of contin knobs mapped: 33
+[INFO] Field set, in bytes: 5504
+[INFO] One instance, in bytes: 72
+[INFO] Expansion 9 done
+[INFO] Total number of evaluations so far: 3000
+[INFO] The following candidate(s) have the best score [score=-0.667444467544555664, penalized score=-4.95315933227539062, complexity=15, complexity penalty=4.28571462631225586, uniformity penalty=0]
+[INFO] -0.667444 +(1 /(+(3.15958 *(-1.17252 +(*(+(4.95547 *(+(-0.336891 *(-0.824952 $1)) $1)) $1) $2))) +(5.0615 *(+(0.0407419 $1) $1))))
+[INFO] Stats: 9	3000	T	841	-0.667444	15	0	1	1
+[INFO] Cache composite scores hits=974 misses=1609
