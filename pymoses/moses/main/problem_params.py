@@ -705,6 +705,7 @@ _PORT_OPTIONS = (
         "the deme cap). Not with --const-opt-top-k. Default none.",
     ),
     # NOT A PORT, server round 13, BASE-PS (off by default: a default run is unchanged).
+    # Server round 14 (NP-LMR-PSR) adds box-rel.
     (
         "--const-opt-pole-check",
         "const_opt_pole_check",
@@ -719,8 +720,11 @@ _PORT_OPTIONS = (
         "finite, or if the largest distance of the tuned one from the mean "
         "training target is above 10 times the range of the target and above "
         "that of the old one; runs before the guard; each of its two passes "
-        "counts as one evaluation). Not with --const-opt-top-k, "
-        "--const-opt-during or --linear-scaling terms. Default none.",
+        "counts as one evaluation); box-rel (as box, but the size rule keeps the "
+        "old program if the largest distance of the tuned one is above 10 times "
+        "the larger of that of the old one and the range of the target). Not "
+        "with --const-opt-top-k, --const-opt-during or --linear-scaling terms. "
+        "Default none.",
     ),
 )
 _GOMEA_INIT_CHOICES = ("sampler", "uniform")
@@ -734,7 +738,7 @@ _GOMEA_KNOB_SELECT_CHOICES = ("explore", "static", "random")
 _CONST_OPT_CHOICES = ("none", "lm", "mutate", "polish")
 _CONST_OPT_GUARD_CHOICES = ("none", "val")
 _CONST_OPT_DURING_CHOICES = ("none", "elite")  # server round 12
-_CONST_OPT_POLE_CHECK_CHOICES = ("none", "box")  # server round 13
+_CONST_OPT_POLE_CHECK_CHOICES = ("none", "box", "box-rel")  # server rounds 13 and 14
 _GOMEA_KNOB_RANK0_CHOICES = ("contrast", "entropy", "random")
 
 

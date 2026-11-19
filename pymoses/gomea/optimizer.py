@@ -282,7 +282,14 @@ class gomea_parameters:
     at its first LM call, from a new generator seeded by ``const_opt_pole_seed`` (the run seed,
     ``-r``), so no other random stream changes. ``const_opt_pole_seed`` is left out of
     ``as_dict`` while the check is off. ``-a gomea`` only; not with ``const_opt_top_k`` or
-    ``const_opt_during``."""
+    ``const_opt_during``.
+
+    NOT A PORT, server round 14 (NP-LMR-PSR): ``const_opt_pole_check`` ``"box-rel"`` is
+    ``"box"`` with a relative size rule. The probes, the place, the charges, the non-finite
+    rule, the write-back and the telemetry do not change. The tuned program is rejected if its
+    largest distance from the mean training target is above 10 times the larger of that of
+    the old program and the range of the training target (``const_opt.pole_rejects``). The
+    same refusals as ``"box"`` apply."""
 
     def __init__(
         self,
@@ -1511,9 +1518,9 @@ class gomea_optimization(optimizer_base):
         the validation rows (two charged passes). A worse validation NMSE keeps
         the old program.
 
-        NOT A PORT (``--const-opt-pole-check box``, server round 13): before the guard,
-        ``_pole_accepts`` checks the tuned program on the probe points (two charged passes).
-        A rejection keeps the old program, as a guard rejection does."""
+        NOT A PORT (``--const-opt-pole-check box`` or ``box-rel``, server rounds 13 and 14):
+        before the guard, ``_pole_accepts`` checks the tuned program on the probe points (two
+        charged passes). A rejection keeps the old program, as a guard rejection does."""
         co = self._co
         g = oracle.best_genotype()
         if g is None:
@@ -1565,14 +1572,18 @@ class gomea_optimization(optimizer_base):
                 rec["written_back"] = True
         self._close_tuning(deme, oracle, lm, rec, before)
 
-    # NOT A PORT, server round 13 (``--const-opt-pole-check box``, BASE-PS).
+    # NOT A PORT, server round 13 (``--const-opt-pole-check box``, BASE-PS); server round 14
+    # (``box-rel``, NP-LMR-PSR).
     def _pole_accepts(self, old, new, rows: RegressionRows, charge, rec: dict) -> bool:
         """``const_opt.pole_check`` of the tuned program ``new`` against ``old`` on the run's
         probe points (two passes, each charged by ``charge``; ``BudgetExhausted`` goes to the
-        caller). Adds ``pole`` (``accepted`` or ``rejected``), ``pole_s_old`` and
-        ``pole_s_new`` to the call's record ``rec`` and counts ``lm_pole_checked`` and
-        ``lm_pole_rejected``. Returns whether the tuned program passes."""
-        verdict = pole_check(old, new, rows, self._pole_probes, charge)
+        caller), with the rule of ``const_opt_pole_check`` (``box`` or ``box-rel``). Adds
+        ``pole`` (``accepted`` or ``rejected``), ``pole_s_old`` and ``pole_s_new`` to the
+        call's record ``rec`` and counts ``lm_pole_checked`` and ``lm_pole_rejected``. Returns
+        whether the tuned program passes."""
+        verdict = pole_check(
+            old, new, rows, self._pole_probes, charge, mode=self.gomea_params.const_opt_pole_check
+        )
         rec.update(
             pole="accepted" if verdict["accepted"] else "rejected",
             pole_s_old=verdict["pole_s_old"],

@@ -61,10 +61,11 @@ CONST_OPT_GUARDS = ("none", "val")
 # each offspring that becomes a new deme best, during the search).
 CONST_OPT_DURING_MODES = ("none", "elite")
 # NOT A PORT, server round 13 (BASE-PS, ``--const-opt-pole-check``): ``none`` (off) or
-# ``box`` (the pole check after LM, ``pole_check``). The number of probe points, the margin
-# of the probe box (a share of the range of each input) and the factor of the target range
-# (pre-registration, "BASE-PS").
-POLE_CHECK_MODES = ("none", "box")
+# ``box`` (the pole check after LM, ``pole_check``). Server round 14 (NP-LMR-PSR) adds
+# ``box-rel``: the probes and the charges of ``box``, with a relative size rule
+# (``pole_rejects``). The number of probe points, the margin of the probe box (a share of
+# the range of each input) and the factor of the target range (pre-registration, "BASE-PS").
+POLE_CHECK_MODES = ("none", "box", "box-rel")
 POLE_PROBES = 256
 POLE_MARGIN = 0.1
 POLE_FACTOR = 10.0
@@ -523,6 +524,37 @@ def probe_spread(
     return s, finite
 
 
+def pole_rejects(
+    s_old: float,
+    finite_old: bool,
+    s_new: float,
+    finite_new: bool,
+    r: float,
+    mode: str = "box",
+    factor: float = POLE_FACTOR,
+) -> bool:
+    """NOT A PORT: the rejection rule of the pole check. ``s_old`` and ``s_new`` are the
+    probe spreads ``S`` of the old and the tuned program (``probe_spread``; a prediction that
+    is not finite counts as ``+inf``). ``finite_old`` and ``finite_new`` tell whether all
+    probe predictions of each program are finite. ``r`` is the range of the training target.
+    The tuned program is rejected if (a) one of its predictions is not finite and all of
+    those of the old program are finite, or (b) its spread is too large:
+
+    * ``box`` (server round 13, BASE-PS): ``s_new > factor * r`` and ``s_new > s_old``;
+    * ``box-rel`` (server round 14, NP-LMR-PSR): ``s_new > factor * max(s_old, r)``.
+
+    When both programs have a prediction that is not finite, (a) does not apply and (b)
+    compares ``inf`` with ``inf`` (false) in each mode: the check accepts. ``ValueError``
+    for any other mode."""
+    if mode not in ("box", "box-rel"):
+        raise ValueError(f"the pole check mode must be 'box' or 'box-rel', got {mode!r}")
+    if not finite_new and finite_old:
+        return True
+    if mode == "box":
+        return s_new > factor * r and s_new > s_old
+    return s_new > factor * max(s_old, r)
+
+
 def pole_check(
     old: combo_tree,
     new: combo_tree,
@@ -530,6 +562,7 @@ def pole_check(
     probes: Sequence[Sequence],
     charge: Callable[[], None],
     factor: float = POLE_FACTOR,
+    mode: str = "box",
 ) -> dict:
     """NOT A PORT, server round 13 (``--const-opt-pole-check box``, BASE-PS): does the tuned
     program ``new`` keep away from poles on the probe points? Each of the two probe passes
@@ -541,13 +574,17 @@ def pole_check(
     of ``old`` are finite, or (b) ``S(new) > factor * R`` and ``S(new) > S(old)``. A
     prediction that is not finite counts as ``+inf`` in ``S``; so when both programs have
     one, (a) does not apply and (b) gives ``inf > inf``, false: the check accepts. Returns
-    ``accepted``, ``pole_s_old`` and ``pole_s_new``."""
+    ``accepted``, ``pole_s_old`` and ``pole_s_new``.
+
+    Server round 14 (``--const-opt-pole-check box-rel``, NP-LMR-PSR): with ``mode``
+    ``"box-rel"``, rule (b) is ``S(new) > factor * max(S(old), R)`` (``pole_rejects``). The
+    probes, the two charges and rule (a) do not change."""
     charge()
     s_old, finite_old = probe_spread(old, rows, probes)
     charge()
     s_new, finite_new = probe_spread(new, rows, probes)
     r = max(rows.targets) - min(rows.targets)
-    reject = (not finite_new and finite_old) or (s_new > factor * r and s_new > s_old)
+    reject = pole_rejects(s_old, finite_old, s_new, finite_new, r, mode, factor)
     return {"accepted": not reject, "pole_s_old": s_old, "pole_s_new": s_new}
 
 
