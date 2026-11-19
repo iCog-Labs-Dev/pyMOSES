@@ -1,7 +1,10 @@
 # Server round 14: pre-registration (2026-11-19)
 
 **Status:** approved by the user on 2026-11-19 ("Yes", `APPROVALS.md`), with the draft of commit
-9e32ecc. Not yet implemented.
+9e32ecc. Implemented (2026-11-19): clone H 6d091e3, 2739cba, d816a27, 03d5fc8, c9df0a1, 2f43d75
+(backlog 12.1 and 12.2); clone I c3438bc, e256ef0 (`box-rel`); re-pin ad0c8d8; clone J bd33e45,
+0699ba5, 762c043 (splits 61–70, the linear baselines, the configs of 1bi, `plan14.json`). The
+local pilot gate passed on every item (see "Local pilot"). Not yet pushed or run.
 
 **The user's frame (2026-11-19, `APPROVALS.md`):**
 
@@ -42,7 +45,7 @@ BASE-TLS is the reference; TLS-NP is next in line; HC-LM is the accuracy baselin
 * ε-lexicase (12.5) is left out: about one exemplar selection per run at this budget. A hard S0
   gate (12.8) and the telemetry items (12.9) are not experiments; they stay in the backlog.
 
-## Before the round: the fix (approved, in progress)
+## Before the round: the fix (approved, done)
 
 * Backlog 12.1: the guard loads its validation table with the training table's column types (Dow
   splits 11 and 56 crashed). Backlog 12.2: the four RV16 nits of round 13. Clone H, with identity
@@ -69,6 +72,11 @@ BASE-TLS is the reference; TLS-NP is next in line; HC-LM is the accuracy baselin
 * **Program size:** as in round 13: the node count, plus `n_terms` when the final model uses the
   per-term fit. A linear baseline with k inputs counts as the TLS program `+(x1 … xk)`: k + 1 nodes
   plus k terms, so 2k + 1. The node count is also reported.
+  **Erratum (2026-11-19, found by clone J, before the run; the rule does not change):** the
+  report counts each "(" plus every token, so `+(x1 … xk)` has k + 2 nodes and the size is
+  2k + 2, the same as the identical TLS program from MOSES. "k + 1" and "2k + 1" above are an
+  arithmetic error of the agent. The linear arms are only in descriptive contrasts, so no verdict
+  uses this size.
 * **Reported:** test NMSE, the clipped test NMSE, size, nodes, train–test gap, CPU, evaluations,
   demes, knobs per deme, total knobs, LM calls (improved, no budget, no constants, singular, guard
   rejections), LM share, pole checks and rejections, the runs with a test NMSE above 100, and the
@@ -146,6 +154,12 @@ Each new option is opt-in: without it, the output of every existing setting stay
 
 * The new arms (TLS-LMR, TLSNP-LMR, NP-LMR, NP-NOLM, NP-LMR-PSR, LIN-OLS, LIN-RIDGE) on Con and Dow,
   split 1, 20,000 evaluations, on the clone's code. Do not read the NMSE.
+* **Result (clone J, 2026-11-19; NMSE not read):** 14 of 14 runs ended ok; 0 LM calls with no
+  budget in each reserve arm (4 to 5 calls each); LM share at most 1.48 %; NP-LMR-PSR rejected 0
+  of 3 (Con) and 0 of 5 (Dow) pole checks; peak RSS at most 575 MB (limits 2,560 MB and
+  4,096 MB). **The gate passed.** Observation: on Dow the guard rejected 3 of 4 checked LM
+  results in TLSNP-LMR, NP-LMR and NP-LMR-PSR. The rough time estimate from the pilot CPU (the
+  machine load was 25 to 35) is about 104 CPU-h and 10 to 12 h with S0, below the estimate below.
 * **Gate:** every run ends ok; in the three LM-reserve arms, fewer than half of the LM calls end
   with no budget; the LM share of each arm is at most 50 %; NP-LMR-PSR rejects at most 50 % of the
   LM results that it checks; the peak memory of each arm is at most 50 % of its limit. If a check
@@ -159,7 +173,7 @@ As in rounds 12 and 13: Dow 8,192 MB, all other datasets 5,120 MB.
 
 | Clone | Content |
 |---|---|
-| H | The fix (12.1) and the four nits (12.2). In progress. |
+| H | The fix (12.1) and the four nits (12.2). Done. |
 | I | `--const-opt-pole-check box-rel` under `pymoses` (identity reference first; opt-in; tests; USAGE) |
 | J | After H and I merge: splits 61–70; the linear baselines in the runner; `configs/gomea/phase1bi/`, `plan14.json`, the smoke plan, `test_plan14.py`, the SERVER-RUN section; the pilot; the dry run; the local smoke run |
 
