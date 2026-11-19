@@ -483,3 +483,18 @@ user confirms it.
     before; the code defaults of the CLI do not change. "Next in line" for TLS-NP is as HC-LM was
     before (the first alternative to the reference). HC-LM stays the accuracy baseline.
   * Not approved by this answer: any push.
+* **Round 14 scope and the fix (2026-11-19):** the agent listed the open backlog items (section 12
+  and stage 3) and recommended: fix 12.1 and the four nits first; then a round with T3.1 plus the
+  LM reserve, TLS-NP with LM, NP without LM and linear baselines; the T3.4 note in parallel. It
+  asked: "Do you want me to draft the round 14 frame like this, or do you want a different
+  choice?" The user answered: "Okay let's go with the fix and run all the smaller ideas in more
+  than on round if we have to but the runs if they need to be more than one round, they need to
+  run sequentially."
+  * User-approved: the fix of 12.1 (started in clone H); the smaller ideas of backlog section 12
+    in the next round or rounds; if more than one round is needed, they run one after the other.
+  * Agent reading, not confirmed: "the fix" includes the four RV16 nits (12.2), as in the
+    recommendation; "all the smaller ideas" are 12.3, 12.4, 12.6, 12.7 and 12.10; ε-lexicase
+    (12.5) stays out, as the agent recommended; the T3.4 note is not started (the answer did not
+    name it); "run sequentially" means that a second round starts by itself after the first (a
+    chain), so that the user starts the rounds only once.
+  * Not approved by this answer: any push; the round 14 pre-registration (a draft).
