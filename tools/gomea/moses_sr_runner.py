@@ -97,7 +97,10 @@ runs `python -m pymoses.gomea.standalone` (the runner's own Python, `PYTHONPATH`
 repository, the run directory as its working directory, the manifest's `wall_cap_s` and
 `mem_limit_mb`) on the original train, val and test splits, with the split number as its seed.
 Optional block keys: `template_height`, `it_terms`, `it_factors`, `it_powers` (a list of
-integers), `column_cache` (true or false), `it_cache_max_columns`, `it_cache_max_pairs`. The
+integers), `column_cache` (true or false), `it_cache_max_columns`, `it_cache_max_pairs`, and (server
+round 15) `max_generations` (`--max-generations`: end reason "max_generations") and
+`stall_generations` (`--stall-generations`: end reason "stalled" after K generations in a row
+with no new evaluation), both positive integers. The
 runner writes `train_scaled.csv` as for MOSES (the module scales the training target with the
 same expressions) and `config.json`, and keeps the module's `summary.json`, `candidates.json`
 and `events.jsonl`. A run that ends without a summary (a timeout, a crash) gets a summary with
@@ -599,6 +602,8 @@ STANDALONE_OPTIONAL = {
     "column_cache": "--no-column-cache",
     "it_cache_max_columns": "--it-cache-max-columns",
     "it_cache_max_pairs": "--it-cache-max-pairs",
+    "max_generations": "--max-generations",  # server round 15
+    "stall_generations": "--stall-generations",  # server round 15
 }
 
 
@@ -686,7 +691,8 @@ def _check_standalone(arm: str, a: dict) -> None:
     if spec["fos"] not in STANDALONE_FOS:
         raise ValueError(f"arm {arm}: standalone fos must be one of {STANDALONE_FOS}")
     ints = [k for k in ("pop", "max_evals", "template_height", "it_terms", "it_factors",
-                        "it_cache_max_columns", "it_cache_max_pairs") if k in spec]
+                        "it_cache_max_columns", "it_cache_max_pairs", "max_generations",
+                        "stall_generations") if k in spec]
     for k in ints:
         if not isinstance(spec[k], int) or isinstance(spec[k], bool) or spec[k] < 1:
             raise ValueError(f"arm {arm}: standalone {k} must be a positive integer")

@@ -4,7 +4,9 @@ IT-LINKAGE-STUDY-PLAN.md register them.
 
 1bj: 10 arms = 2 genomes (template, IT) x 5 linkage models (UNI, RT, LT, LT-B, NP), each run a
 stand-alone GOMEA population (the runner arm key "standalone"; no MOSES run), N = 1,000 and
-E = 500,000 evaluations, on the 10 datasets with the fresh splits 71-80: 1,000 jobs. One phase,
+E = 500,000 evaluations, on the 10 datasets with the fresh splits 71-80: 1,000 jobs. A run also
+ends when 10 generations in a row made no new evaluation ("stalled") or after 300 generations
+(the stop rule that the pilot showed to be necessary). One phase,
 no Boolean phase, no extension, no choice step, no adoption rule.
 
 The chain (the pilot showed more than 20 h for one plan): round15 (plan15.json) runs S0 and 1bj on
@@ -46,6 +48,7 @@ ARMS = {f"{g}-{m}": (genome, fos) for g, genome in (("T", "template"), ("IT", "i
 ARM_NAMES = ["T-UNI", "T-RT", "T-LT", "T-LTB", "T-NP", "IT-UNI", "IT-RT", "IT-LT", "IT-LTB",
              "IT-NP"]
 N, E = 1000, 500000  # D1: the start values; the pilot kept them
+STOP = {"max_generations": 300, "stall_generations": 10}  # the stop rule after the pilot
 SMOKE_E = 3000
 SIZES = {"template": {"template_height": 4},  # D3: 31 positions
          "it": {"it_terms": 8, "it_factors": 2, "it_powers": [-2, -1, 1, 2]}}  # 32 positions
@@ -72,7 +75,7 @@ def stage1(q):
 
 def block(arm, e=E):
     genome, fos = ARMS[arm]
-    return {"genome": genome, "fos": fos, "pop": N, "max_evals": e, **SIZES[genome]}
+    return {"genome": genome, "fos": fos, "pop": N, "max_evals": e, **STOP, **SIZES[genome]}
 
 
 # ---- the arms of 1bj
@@ -121,6 +124,7 @@ def test_every_command_line_parses_with_the_real_module_cli(arm, tmp_path):
     genome, fos = ARMS[arm]
     assert (a.genome, a.fos, a.pop, a.max_evals, a.seed) == (genome, fos, N, E, 71)
     assert (a.template_height, a.it_terms, a.it_factors, a.it_powers) == (4, 8, 2, (-2, -1, 1, 2))
+    assert (a.max_generations, a.stall_generations) == (300, 10)  # the stop rule
     assert not a.no_column_cache  # the IT column cache is on (plan 5.5, section 9)
     assert a.train.endswith("s71/train.csv") and a.val.endswith("s71/val.csv")
     assert a.test.endswith("s71/test.csv") and a.target == "y"

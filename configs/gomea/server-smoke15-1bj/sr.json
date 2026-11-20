@@ -26,6 +26,8 @@
         "fos": "uni",
         "pop": 1000,
         "max_evals": 3000,
+        "max_generations": 300,
+        "stall_generations": 10,
         "template_height": 4
       }
     },
@@ -35,6 +37,8 @@
         "fos": "rt",
         "pop": 1000,
         "max_evals": 3000,
+        "max_generations": 300,
+        "stall_generations": 10,
         "template_height": 4
       }
     },
@@ -44,6 +48,8 @@
         "fos": "lt-mi",
         "pop": 1000,
         "max_evals": 3000,
+        "max_generations": 300,
+        "stall_generations": 10,
         "template_height": 4
       }
     },
@@ -53,6 +59,8 @@
         "fos": "lt-b",
         "pop": 1000,
         "max_evals": 3000,
+        "max_generations": 300,
+        "stall_generations": 10,
         "template_height": 4
       }
     },
@@ -62,6 +70,8 @@
         "fos": "np",
         "pop": 1000,
         "max_evals": 3000,
+        "max_generations": 300,
+        "stall_generations": 10,
         "template_height": 4
       }
     },
@@ -71,6 +81,8 @@
         "fos": "uni",
         "pop": 1000,
         "max_evals": 3000,
+        "max_generations": 300,
+        "stall_generations": 10,
         "it_terms": 8,
         "it_factors": 2,
         "it_powers": [
@@ -87,6 +99,8 @@
         "fos": "rt",
         "pop": 1000,
         "max_evals": 3000,
+        "max_generations": 300,
+        "stall_generations": 10,
         "it_terms": 8,
         "it_factors": 2,
         "it_powers": [
@@ -103,6 +117,8 @@
         "fos": "lt-mi",
         "pop": 1000,
         "max_evals": 3000,
+        "max_generations": 300,
+        "stall_generations": 10,
         "it_terms": 8,
         "it_factors": 2,
         "it_powers": [
@@ -119,6 +135,8 @@
         "fos": "lt-b",
         "pop": 1000,
         "max_evals": 3000,
+        "max_generations": 300,
+        "stall_generations": 10,
         "it_terms": 8,
         "it_factors": 2,
         "it_powers": [
@@ -135,6 +153,8 @@
         "fos": "np",
         "pop": 1000,
         "max_evals": 3000,
+        "max_generations": 300,
+        "stall_generations": 10,
         "it_terms": 8,
         "it_factors": 2,
         "it_powers": [
