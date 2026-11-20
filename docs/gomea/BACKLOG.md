@@ -724,7 +724,13 @@ user decides.
    * **Design problems to solve first:** terms can sit in different slots in different genomes (the
      slot-swap problem, which breaks the stable meaning of a position that GOMEA needs); inactive
      boxes (a power next to "none", an empty term) in the linkage statistics; the size of the form.
-   * **Status:** not started. A design note comes first; the user decides on it.
+   * **The user's design (2026-11-20):** both genomes, the IT form and GP-GOMEA's template, each
+     with the linkage models UNI, RT, LT, LT-B and the structural one (node proximity); the
+     objective is to see whether IT is better for linkage learning than the template, and to find
+     linkage models that work better with IT. The implementation plan is
+     `IT-LINKAGE-STUDY-PLAN.md`.
+   * **Status:** not started. The plan is written; the user decides its open decisions (section 12
+     of the plan); then the pre-registration.
 
 ## 8. Future directions from the literature search (2026-11-06)
 

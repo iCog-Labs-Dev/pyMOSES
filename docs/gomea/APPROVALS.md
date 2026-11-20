@@ -575,3 +575,16 @@ user confirms it.
   "Option b."
   * User decision: option (b) for backlog 13.9.
   * Not approved: any design, code or push.
+* **IT linkage study design (2026-11-20):** the agent explained that GP-GOMEA's tree template also
+  has fixed positions and recommended IT only. The user answered: "I want to test the first two
+  options. [...] replace the GOMEA's template with IT to see the linkage learning it uses has an
+  effect, keeping this switch we test it with different type of linkage learning, the UNI, RT, LT,
+  LT-B and the structural [...] and if we don't have the numbers for the GOMEA's performance with
+  the template used alone for those different tests, we also need to run that experiment as well.
+  [...] Don't do any implementation yet, just write a document that another agent can use to start
+  it's implementation in detail from and let me know when you are done."
+  * User decisions: a 2 × 5 design (IT and the template; UNI, RT, LT, LT-B, node proximity); no
+    implementation yet.
+  * Done: `IT-LINKAGE-STUDY-PLAN.md`; `BACKLOG.md` 13.9 points to it.
+  * User decisions pending: D1–D7 of the plan.
+  * Not approved: any implementation, pre-registration or push.
