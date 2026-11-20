@@ -833,10 +833,7 @@ class Round:
                 L += [f"### {phase} stage {stage}", "",
                       "| problem | contrast | family | a lower | b lower | Holm p | verdict |",
                       "|---|---|---|---|---|---|---|"]
-                for r in rows:
-                    L.append(f"| {r.get('problem')} | {r.get('a')} vs {r.get('b')} | {r.get('family')} | "
-                             f"{r.get('a_lower')} | {r.get('b_lower')} | {r.get('p_holm')} | "
-                             f"{r.get('verdict')} |")
+                L += [verdict_row(r) for r in rows]
                 L.append("")
         skips = [e for e in events if e["event"] == "step_skip"]
         if skips:
@@ -848,6 +845,27 @@ class Round:
         n_runs = sum(e["event"] == "run_end" for e in events)
         L += [f"{n_runs} run_end events, {len(events)} events in total."]
         _atomic_write(self.sd / "round-summary.md", "\n".join(L) + "\n")
+
+
+def verdict_row(r: dict) -> str:
+    """One row of the table "Verdicts (contrasts.csv)" of the round summary.
+
+    Server round 15 (RV16 nit 1): a contrasts.csv with the column `a2` can have interaction
+    contrasts. A row with values in `a2` and `b2` shows its contrast name and its four arms.
+    In such a file, each row with a value in `holm_family` shows that Holm family in the family
+    cell, for example "primary (P1)". A file without the column `a2` (each round before 15)
+    gives the same text as before.
+    """
+    pair, family = f"{r.get('a')} vs {r.get('b')}", r.get("family")
+    if "a2" in r:
+        if r.get("a2") and r.get("b2"):
+            pair = (f"{r.get('contrast')}: ({r.get('a')} vs {r.get('b')}) vs "
+                    f"({r['a2']} vs {r['b2']})")
+        if r.get("holm_family"):
+            family = f"{family} ({r['holm_family']})"
+    return (f"| {r.get('problem')} | {pair} | {family} | "
+            f"{r.get('a_lower')} | {r.get('b_lower')} | {r.get('p_holm')} | "
+            f"{r.get('verdict')} |")
 
 
 def plan_state(plan: Path) -> tuple[str, str]:

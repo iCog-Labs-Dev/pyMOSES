@@ -68,6 +68,27 @@ def summaries(phase):
             continue
 
 
+def verdict_line(d):
+    """One stage verdict line of a row `d` of contrasts.csv.
+
+    Server round 15 (RV16 nit 1): a contrasts.csv with the column `a2` can have interaction
+    contrasts. A row with values in `a2` and `b2` shows its contrast name and its four arms.
+    In such a file, each row with a value in `holm_family` adds that Holm family to its family,
+    for example "(primary, P1)". A file without the column `a2` (each round before 15) gives
+    the same text and the same errors as before.
+    """
+    problem = d["problem"]  # read the keys in the old order, for the same KeyError
+    pair, family = f"{d['a']} vs {d['b']}", d["family"]
+    if "a2" in d:
+        if d.get("a2") and d.get("b2"):
+            pair = f"{d.get('contrast')}: ({d['a']} vs {d['b']}) vs ({d['a2']} vs {d['b2']})"
+        if d.get("holm_family"):
+            family = f"{family}, {d['holm_family']}"
+    return (f"    {problem:6} {pair} ({family}): "
+            f"{d['a_lower']}/{d['b_lower']} lower, Holm p {float(d['p_holm']):.3g} "
+            f"-> {d['verdict']}")
+
+
 def table(phase):
     rows = defaultdict(list)
     for s in summaries(phase):
@@ -110,10 +131,7 @@ def table(phase):
             lines = c.read_text().splitlines()
             head = lines[0].split(",")
             for line in lines[1:]:
-                d = dict(zip(head, line.split(",")))
-                print(f"    {d['problem']:6} {d['a']} vs {d['b']} ({d['family']}): "
-                      f"{d['a_lower']}/{d['b_lower']} lower, Holm p {float(d['p_holm']):.3g} "
-                      f"-> {d['verdict']}")
+                print(verdict_line(dict(zip(head, line.split(",")))))
 
 
 def running():
