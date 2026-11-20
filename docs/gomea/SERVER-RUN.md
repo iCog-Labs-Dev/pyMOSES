@@ -1134,3 +1134,162 @@ guard fix of backlog 12.1 and of the round 13 runner and report; the mux11 repro
 `configs/gomea/server-smoke14-1bi` (the same two manifests, arms, flags, keys and spec, splits 61
 and 62, `-m 1000`, a wall cap of 300 s; 200 jobs). Its state is in `server-run14-smoke/`. The
 smoke plan is for a local check before a push, not a server step.
+
+## Round 15
+
+The fifteenth round (`SERVER-ROUND15-PREREGISTRATION.md`, the IT linkage study, BACKLOG 13.9: does
+learned linkage help more on the IT genome than on GP-GOMEA's template; which linkage model works
+best with IT; does our engine reproduce the known template result) is one phase, 1bj
+(regression), in two plans that chain, because the local pilot showed more than 20 h for one plan
+(the user's rule; see "Size and time"):
+
+* `tools/server/plan15.json` (`round15`): S0, then 1bj on the first half of the datasets, Air,
+  Con, Dow, EnH and Tow (the D2 fallback set; `configs/gomea/phase1bj-a`, 500 jobs). Its state is in
+  `../gomea-results/server-run15/`. It has `"then": "round15b"`.
+* `tools/server/plan15b.json` (`round15b`): 1bj with the full manifest of the 10 datasets
+  (`configs/gomea/phase1bj`). It starts by itself when round15 ends. The two manifests have the same
+  name, so the runs of round15 are in the same result directory (`../gomea-results/phase1bj/`) and
+  the runner keeps them; round15b runs the other 500 jobs (Bos, EnC, WiR, WiW, Yac), and its report
+  covers all 1,000 runs. It has no S0 (round15 ran S0 on the same commit). Its state is in
+  `../gomea-results/server-run15b/`.
+
+There is no Boolean phase and no MOSES run. If round15b cannot run, the report of round15
+(`report-stage1` of its phase step, an interim report on 5 datasets) is the D2 fallback design.
+
+**One-time server steps before the round:**
+
+1. Make sure that no other round runs (`bash tools/server/status.sh --plan round14` shows
+   "not running"). Round 15 never overlaps with another round.
+2. Update the clone to the branch commit that has this section:
+
+       git pull --ff-only
+
+3. Run the set-up again:
+
+       bash tools/server/setup.sh
+
+   It must end with `SETUP OK`. Round 15 uses the fresh splits 71-80. A dataset set from an
+   earlier round has splits 1-70 only, so set-up rebuilds it (splits 1-70 do not change; Dow and
+   Tow are built again from their raw files). Each dataset then has 640 split files (80 splits x
+   8 files).
+4. Start the round (one command starts the chain; round15b starts when round15 ends):
+
+       bash tools/server/start.sh --plan round15
+
+That is all. Do not run a separate smoke test on the server. S0 (the full pytest and the
+reproducibility check) records a failure in the log and in `round-summary.md`, but it does not stop
+the phase. There is no choice step, no extension and no adoption rule. Each plan writes its own
+`round-summary.md` and final bundle (as for the chain of rounds 4 and 5): bring back both, from
+`server-run15/` and `server-run15b/`. The report on all 1,000 runs is in the bundle of round15b.
+`status.sh --plan round15` shows the chain.
+
+**Known S0 failures (not from round 15):** 4 tests that check the code commit of old Boolean
+manifests (`test_plan4.py`, `test_plan6.py` and two in `test_plan12.py`) fail since the stand-alone
+harness changed `pymoses/` (commits 99392fa and 2ce26b0, before round 15). They do not affect 1bj.
+
+**Phase 1bj: the runs.** Each job is one stand-alone GOMEA population on a fixed genome
+(`python -m pymoses.gomea.standalone`, started by the runner arm key `"standalone"`;
+`docs/gomea/IT-LINKAGE-STUDY-PLAN.md`, sections 5 and 6), with N = 1,000 and E = 500,000
+evaluations. A score-cache hit is not an evaluation. A run ends at E or when all genomes are equal.
+There is no time limit; the wall cap of 36,000 s per run is only a guard against a hung process.
+The seed of a run is its split number.
+
+**Phase 1bj: arms** (`configs/gomea/phase1bj/sr.json`, one manifest for the 10 datasets):
+
+| Arm | Genome | Linkage model (`--fos`) |
+|---|---|---|
+| T-UNI | template: full binary tree of height 4, 31 positions, `+ - * aq`, no constants, a + b·f | `uni` |
+| T-RT | template | `rt` |
+| T-LT | template | `lt-mi` |
+| T-LTB | template | `lt-b` |
+| T-NP | template | `np` (node proximity on the template tree) |
+| IT-UNI | IT: 8 terms x 2 factors x (input box, power box), 32 positions, powers -2, -1, 1, 2, per-term least squares | `uni` |
+| IT-RT | IT | `rt` |
+| IT-LT | IT | `lt-mi` |
+| IT-LTB | IT | `lt-b` |
+| IT-NP | IT | `np` (proximity on the IT tree: box, factor, term) |
+
+* The arm block gives `genome`, `fos`, `pop` 1000, `max_evals` 500000 and the genome sizes
+  (`template_height` 4; `it_terms` 8, `it_factors` 2, `it_powers` [-2, -1, 1, 2]). The IT column
+  cache is on (the default).
+* The summary is the harness's `summary.json`: status, training, validation, test and clipped
+  test NMSE of the reported model (the best training score of the final population), size, nodes,
+  `n_terms` (IT), `n_evals`, `cpu_s`, `ru_maxrss_kb`, `generations`, `termination_reason`,
+  `cache_hits`, `anytime` (the best training NMSE at 1, 2, 5, 10, 20, 50 and 100 % of E),
+  `crosscheck` (the `sr_eval` cross-check; a failed cross-check fails the run) and a `standalone`
+  block. `events.jsonl` has one record per generation (the linkage telemetry of the plan, section
+  6.3) and an "end" record with the best-so-far trace.
+* Datasets: all 10, splits 71-80. 1,000 jobs (100 per arm, 100 per split, 100 per dataset): 500 in
+  round15 and 500 in round15b. Each phase step needs its datasets with splits 71-80 (requirement
+  `datasets:...:71-80`). Without them, the step is skipped with the reason in the log.
+
+**Phase 1bj: report** (`spec.json` of 1bj; the round 15 spec keys of `tools/gomea/linkage_report.py`;
+a failed run counts as infinitely bad; Holm, alpha = 0.025, and the 10 % band in each family):
+
+* The metric of every dataset is the training NMSE (`train_nmse`, primary). The other metrics are
+  `test_nmse` and `anytime_area` (exp of the trapezoid area under ln(best training NMSE) over
+  log10 of the evaluation fraction, divided by its width of 2 decades).
+* **P1**, primary, a Holm family of its own (4): the interaction contrasts, for f in UNI, LT,
+  LT-B and NP, d = log(IT-f / IT-RT) - log(T-f / T-RT) per (dataset, split) pair, paired Wilcoxon
+  on d, ratio = exp(median d). The verdict "A1 gains more" means that f gains more over RT on IT
+  than on the template; "A2 gains more" means the opposite; else "tie".
+* **P2**, primary, a Holm family of its own (5): IT-UNI, IT-LT, IT-LTB and IT-NP each against IT-RT;
+  IT-NP against IT-LTB (the pooled log-ratio test of round 8; "A better", "A worse", "tie").
+* **S1**, secondary (5): the same five contrasts on the template.
+* **S2**, secondary (2), test NMSE: IT-LTB against T-LTB, IT-NP against T-NP.
+* **S3**, descriptive (18; p and Holm p, the verdict "descriptive"): P1 and P2 on the test NMSE and
+  on the anytime area.
+* **D**, descriptive (90): P1 and P2 on the training NMSE of each dataset.
+* `report-stage1/evals_to_reference.csv`: for each dataset and arm, the evaluations to reach the
+  median final training NMSE of RT on the same genome and dataset (descriptive).
+* `report-stage1/runs.csv` and `nmse_above_100.csv` (`"run_table": true`); the size of an IT model
+  is its node count plus its number of terms (`"size_terms": true`).
+* round15 writes the same report on its 5 datasets (`configs/gomea/phase1bj-a/spec.json`: the full
+  spec with the metrics of those datasets). Both plans write into `../gomea-results/phase1bj/`, so
+  the report of round15b replaces it with the report on all 10 datasets; the bundle of round15
+  keeps the interim report.
+
+**Memory and workers:**
+
+| Manifest | `mem_limit_mb` | W on the server (cgroup 65,536 MB, 12 CPUs, reserve 6,553 MB) |
+|---|---|---|
+| `phase1bj/sr.json` (10 datasets) | 2,048 | min(11, floor(58,983 / 2,048) = 28) = 11 (the CPUs) |
+
+Both 1bj steps have `per_run_mb` 2048. The limit is RLIMIT_AS; a run's virtual size is its
+resident size plus about 11 MB. The pilot's highest peak was 371 MB (IT on Dow, the IT column cache;
+18 % of the limit); the template runs peaked at 108 to 128 MB.
+
+**Size and time (the local pilot, `IT-LINKAGE-STUDY-PLAN.md` section 9; 2026-11-20).** All 10 arms
+on Con and Dow, split 71, N = 1,000, E = 500,000, through the runner, at nice 19 on the shared local
+machine (load 14 to 45 on 22 logical CPUs, so the CPU times can be high). CPU per evaluation:
+template 1.3 to 1.9 ms (Con 516 and Dow 534 training rows), IT 0.24 to 0.29 ms on Con and 0.51 to
+0.75 ms on Dow (57 inputs). The template is 3.5 to 4 times the plan's benchmark; the IT column
+cache makes IT 3 to 10 times faster than the plan's estimate. Scaled by the training rows of each
+dataset (the mean of the two pilot datasets for each arm; every run uses all E):
+
+| Design | CPU hours (this machine) | at W = 11 | server 2x slower: CPU hours | at W = 11 |
+|---|---|---|---|---|
+| 10 datasets | about 258 (template 201, IT 56) | about 23 h | about 515 | about 47 h |
+| round15: Air, Con, Dow, EnH, Tow (the fallback set) | about 138 | about 13 h | about 277 | about 25 h |
+| round15b: Bos, EnC, WiR, WiW, Yac | about 120 | about 11 h | about 240 | about 22 h |
+
+With the higher of the two pilot datasets for each arm, the 10 datasets need about 282 CPU hours
+(about 26 h at W = 11). S0 adds about 1.3 hours to round15.
+
+**A stop-rule problem (found by the pilot; it must be solved before the round).** 3 of the 20 pilot
+runs did not end. In Con T-LT and Con IT-LT the evaluation count stopped at 266,173 and 249,829
+(generations 20 and 18), and the generations went on (to 393 and 343) with no new evaluation: the
+population has one phenotype, but accepted neutral changes of inactive positions keep the
+genotypes different, so "all genomes equal" does not happen, and a score-cache hit does not count
+against E. Dow T-NP added only about 27 evaluations per generation for 800 generations. The agent
+stopped the 3 runs; they count as failed in the pilot. Dow T-LT and Dow IT-LT ended by convergence.
+Without a further stop rule (for example a generation limit or "no new evaluation for G
+generations"), such a run goes on until the wall cap of 36,000 s.
+
+**Local rehearsal only:** `tools/server/plan15-smoke.json` (`--plan smoke15`) runs a limited S0
+(`tests/server`, the split test, the tests of the round 15 report and of the stand-alone harness;
+the mux11 repro run), then `configs/gomea/server-smoke15-1bj-a` (the same manifest, arms and spec on
+the first half of the datasets, splits 71 and 72, E = 3,000, a wall cap of 300 s; 100 jobs), then
+chains to `plan15b-smoke.json` (`smoke15b`: `configs/gomea/server-smoke15-1bj`, the 10 datasets;
+100 jobs kept, 100 new; the report on 200). Its state is in `server-run15-smoke/` and
+`server-run15b-smoke/`. The smoke plans are for a local check before a push, not a server step.

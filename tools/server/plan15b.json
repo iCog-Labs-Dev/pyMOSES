@@ -1,0 +1,16 @@
+{
+  "name": "server-round15b-2026-11",
+  "description": "The second plan of round 15 (SERVER-ROUND15-PREREGISTRATION.md; it starts by itself when round15 ends): 1bj with the full manifest of the 10 datasets (configs/gomea/phase1bj). The runner keeps the 500 runs of round15 (the same result directory) and runs the other 500 (Bos, EnC, WiR, WiW, Yac); the report covers all 1,000 runs. No S0 (round15 ran it on the same commit).",
+  "state_dir": "server-run15b",
+  "steps": [
+    {
+      "id": "phase1bj",
+      "type": "phase",
+      "phase": "phase1bj",
+      "requires": [
+        "datasets:Air,Bos,Con,Dow,EnC,EnH,Tow,WiR,WiW,Yac:71-80"
+      ],
+      "per_run_mb": 2048
+    }
+  ]
+}

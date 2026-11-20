@@ -1,0 +1,144 @@
+{
+  "name": "server-smoke15-1bj-sr",
+  "datasets_dir": "../gomea-results/phase1f/datasets",
+  "datasets": [
+    "Air",
+    "Con",
+    "Dow",
+    "EnH",
+    "Tow"
+  ],
+  "splits": [
+    71,
+    72
+  ],
+  "wall_cap_s": 300,
+  "mem_limit_mb": 2048,
+  "arms": {
+    "T-UNI": {
+      "standalone": {
+        "genome": "template",
+        "fos": "uni",
+        "pop": 1000,
+        "max_evals": 3000,
+        "template_height": 4
+      }
+    },
+    "T-RT": {
+      "standalone": {
+        "genome": "template",
+        "fos": "rt",
+        "pop": 1000,
+        "max_evals": 3000,
+        "template_height": 4
+      }
+    },
+    "T-LT": {
+      "standalone": {
+        "genome": "template",
+        "fos": "lt-mi",
+        "pop": 1000,
+        "max_evals": 3000,
+        "template_height": 4
+      }
+    },
+    "T-LTB": {
+      "standalone": {
+        "genome": "template",
+        "fos": "lt-b",
+        "pop": 1000,
+        "max_evals": 3000,
+        "template_height": 4
+      }
+    },
+    "T-NP": {
+      "standalone": {
+        "genome": "template",
+        "fos": "np",
+        "pop": 1000,
+        "max_evals": 3000,
+        "template_height": 4
+      }
+    },
+    "IT-UNI": {
+      "standalone": {
+        "genome": "it",
+        "fos": "uni",
+        "pop": 1000,
+        "max_evals": 3000,
+        "it_terms": 8,
+        "it_factors": 2,
+        "it_powers": [
+          -2,
+          -1,
+          1,
+          2
+        ]
+      }
+    },
+    "IT-RT": {
+      "standalone": {
+        "genome": "it",
+        "fos": "rt",
+        "pop": 1000,
+        "max_evals": 3000,
+        "it_terms": 8,
+        "it_factors": 2,
+        "it_powers": [
+          -2,
+          -1,
+          1,
+          2
+        ]
+      }
+    },
+    "IT-LT": {
+      "standalone": {
+        "genome": "it",
+        "fos": "lt-mi",
+        "pop": 1000,
+        "max_evals": 3000,
+        "it_terms": 8,
+        "it_factors": 2,
+        "it_powers": [
+          -2,
+          -1,
+          1,
+          2
+        ]
+      }
+    },
+    "IT-LTB": {
+      "standalone": {
+        "genome": "it",
+        "fos": "lt-b",
+        "pop": 1000,
+        "max_evals": 3000,
+        "it_terms": 8,
+        "it_factors": 2,
+        "it_powers": [
+          -2,
+          -1,
+          1,
+          2
+        ]
+      }
+    },
+    "IT-NP": {
+      "standalone": {
+        "genome": "it",
+        "fos": "np",
+        "pop": 1000,
+        "max_evals": 3000,
+        "it_terms": 8,
+        "it_factors": 2,
+        "it_powers": [
+          -2,
+          -1,
+          1,
+          2
+        ]
+      }
+    }
+  }
+}

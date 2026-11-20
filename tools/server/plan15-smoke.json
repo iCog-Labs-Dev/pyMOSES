@@ -1,6 +1,6 @@
 {
   "name": "server-round15-smoke",
-  "description": "Smoke test of the round-15 plan (a local rehearsal): limited pytest (tests/server, the split test, the tests of the round 15 report and of the stand-alone harness), the mux11 repro run, then 1bj in miniature (configs/gomea/server-smoke15-1bj: the same manifest, arms and spec, splits 71 and 72, E = 3,000, a wall cap of 300 s; 200 jobs). No extension. Uses its own state dir, so it never marks real steps done. No chain.",
+  "description": "Smoke test of the round-15 chain (a local rehearsal): limited pytest (tests/server, the split test, the tests of the round 15 report and of the stand-alone harness), the mux11 repro run, then 1bj in miniature on the first half of the datasets (configs/gomea/server-smoke15-1bj-a: the same arms and spec, Air, Con, Dow, EnH and Tow, splits 71 and 72, E = 3,000, a wall cap of 300 s; 100 jobs). Then smoke15b. Uses its own state dir, so it never marks real steps done.",
   "state_dir": "server-run15-smoke",
   "steps": [
     {
@@ -21,13 +21,15 @@
       }
     },
     {
-      "id": "smoke15-1bj",
+      "id": "smoke15-1bj-a",
       "type": "phase",
       "phase": "server-smoke15-1bj",
+      "config_dir": "{repo}/configs/gomea/server-smoke15-1bj-a",
       "requires": [
-        "datasets:Air,Bos,Con,Dow,EnC,EnH,Tow,WiR,WiW,Yac:71-80"
+        "datasets:Air,Con,Dow,EnH,Tow:71-80"
       ],
       "per_run_mb": 2048
     }
-  ]
+  ],
+  "then": "smoke15b"
 }

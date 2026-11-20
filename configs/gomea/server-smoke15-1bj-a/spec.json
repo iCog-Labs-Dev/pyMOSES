@@ -1,0 +1,355 @@
+{
+  "phase": "smoke15-1bj-a",
+  "metrics": {
+    "Air": "train_nmse",
+    "Con": "train_nmse",
+    "Dow": "train_nmse",
+    "EnH": "train_nmse",
+    "Tow": "train_nmse"
+  },
+  "primary": [],
+  "extend": false,
+  "contrast_families": [
+    {
+      "name": "P1",
+      "role": "primary",
+      "contrasts": [
+        [
+          "uni-gain-it-vs-t",
+          "IT-UNI",
+          "IT-RT",
+          "T-UNI",
+          "T-RT",
+          "train_nmse"
+        ],
+        [
+          "lt-gain-it-vs-t",
+          "IT-LT",
+          "IT-RT",
+          "T-LT",
+          "T-RT",
+          "train_nmse"
+        ],
+        [
+          "ltb-gain-it-vs-t",
+          "IT-LTB",
+          "IT-RT",
+          "T-LTB",
+          "T-RT",
+          "train_nmse"
+        ],
+        [
+          "np-gain-it-vs-t",
+          "IT-NP",
+          "IT-RT",
+          "T-NP",
+          "T-RT",
+          "train_nmse"
+        ]
+      ]
+    },
+    {
+      "name": "P2",
+      "role": "primary",
+      "contrasts": [
+        [
+          "it-uni-vs-rt",
+          "IT-UNI",
+          "IT-RT",
+          "train_nmse"
+        ],
+        [
+          "it-lt-vs-rt",
+          "IT-LT",
+          "IT-RT",
+          "train_nmse"
+        ],
+        [
+          "it-ltb-vs-rt",
+          "IT-LTB",
+          "IT-RT",
+          "train_nmse"
+        ],
+        [
+          "it-np-vs-rt",
+          "IT-NP",
+          "IT-RT",
+          "train_nmse"
+        ],
+        [
+          "it-np-vs-ltb",
+          "IT-NP",
+          "IT-LTB",
+          "train_nmse"
+        ]
+      ]
+    },
+    {
+      "name": "S1",
+      "role": "secondary",
+      "contrasts": [
+        [
+          "t-uni-vs-rt",
+          "T-UNI",
+          "T-RT",
+          "train_nmse"
+        ],
+        [
+          "t-lt-vs-rt",
+          "T-LT",
+          "T-RT",
+          "train_nmse"
+        ],
+        [
+          "t-ltb-vs-rt",
+          "T-LTB",
+          "T-RT",
+          "train_nmse"
+        ],
+        [
+          "t-np-vs-rt",
+          "T-NP",
+          "T-RT",
+          "train_nmse"
+        ],
+        [
+          "t-np-vs-ltb",
+          "T-NP",
+          "T-LTB",
+          "train_nmse"
+        ]
+      ]
+    },
+    {
+      "name": "S2",
+      "role": "secondary",
+      "contrasts": [
+        [
+          "ltb-it-vs-t",
+          "IT-LTB",
+          "T-LTB",
+          "test_nmse"
+        ],
+        [
+          "np-it-vs-t",
+          "IT-NP",
+          "T-NP",
+          "test_nmse"
+        ]
+      ]
+    },
+    {
+      "name": "S3",
+      "role": "descriptive",
+      "contrasts": [
+        [
+          "uni-gain-it-vs-t-test",
+          "IT-UNI",
+          "IT-RT",
+          "T-UNI",
+          "T-RT",
+          "test_nmse"
+        ],
+        [
+          "lt-gain-it-vs-t-test",
+          "IT-LT",
+          "IT-RT",
+          "T-LT",
+          "T-RT",
+          "test_nmse"
+        ],
+        [
+          "ltb-gain-it-vs-t-test",
+          "IT-LTB",
+          "IT-RT",
+          "T-LTB",
+          "T-RT",
+          "test_nmse"
+        ],
+        [
+          "np-gain-it-vs-t-test",
+          "IT-NP",
+          "IT-RT",
+          "T-NP",
+          "T-RT",
+          "test_nmse"
+        ],
+        [
+          "it-uni-vs-rt-test",
+          "IT-UNI",
+          "IT-RT",
+          "test_nmse"
+        ],
+        [
+          "it-lt-vs-rt-test",
+          "IT-LT",
+          "IT-RT",
+          "test_nmse"
+        ],
+        [
+          "it-ltb-vs-rt-test",
+          "IT-LTB",
+          "IT-RT",
+          "test_nmse"
+        ],
+        [
+          "it-np-vs-rt-test",
+          "IT-NP",
+          "IT-RT",
+          "test_nmse"
+        ],
+        [
+          "it-np-vs-ltb-test",
+          "IT-NP",
+          "IT-LTB",
+          "test_nmse"
+        ],
+        [
+          "uni-gain-it-vs-t-anytime",
+          "IT-UNI",
+          "IT-RT",
+          "T-UNI",
+          "T-RT",
+          "anytime_area"
+        ],
+        [
+          "lt-gain-it-vs-t-anytime",
+          "IT-LT",
+          "IT-RT",
+          "T-LT",
+          "T-RT",
+          "anytime_area"
+        ],
+        [
+          "ltb-gain-it-vs-t-anytime",
+          "IT-LTB",
+          "IT-RT",
+          "T-LTB",
+          "T-RT",
+          "anytime_area"
+        ],
+        [
+          "np-gain-it-vs-t-anytime",
+          "IT-NP",
+          "IT-RT",
+          "T-NP",
+          "T-RT",
+          "anytime_area"
+        ],
+        [
+          "it-uni-vs-rt-anytime",
+          "IT-UNI",
+          "IT-RT",
+          "anytime_area"
+        ],
+        [
+          "it-lt-vs-rt-anytime",
+          "IT-LT",
+          "IT-RT",
+          "anytime_area"
+        ],
+        [
+          "it-ltb-vs-rt-anytime",
+          "IT-LTB",
+          "IT-RT",
+          "anytime_area"
+        ],
+        [
+          "it-np-vs-rt-anytime",
+          "IT-NP",
+          "IT-RT",
+          "anytime_area"
+        ],
+        [
+          "it-np-vs-ltb-anytime",
+          "IT-NP",
+          "IT-LTB",
+          "anytime_area"
+        ]
+      ]
+    },
+    {
+      "name": "D",
+      "role": "descriptive",
+      "per_dataset": true,
+      "contrasts": [
+        [
+          "uni-gain-it-vs-t",
+          "IT-UNI",
+          "IT-RT",
+          "T-UNI",
+          "T-RT",
+          "train_nmse"
+        ],
+        [
+          "lt-gain-it-vs-t",
+          "IT-LT",
+          "IT-RT",
+          "T-LT",
+          "T-RT",
+          "train_nmse"
+        ],
+        [
+          "ltb-gain-it-vs-t",
+          "IT-LTB",
+          "IT-RT",
+          "T-LTB",
+          "T-RT",
+          "train_nmse"
+        ],
+        [
+          "np-gain-it-vs-t",
+          "IT-NP",
+          "IT-RT",
+          "T-NP",
+          "T-RT",
+          "train_nmse"
+        ],
+        [
+          "it-uni-vs-rt",
+          "IT-UNI",
+          "IT-RT",
+          "train_nmse"
+        ],
+        [
+          "it-lt-vs-rt",
+          "IT-LT",
+          "IT-RT",
+          "train_nmse"
+        ],
+        [
+          "it-ltb-vs-rt",
+          "IT-LTB",
+          "IT-RT",
+          "train_nmse"
+        ],
+        [
+          "it-np-vs-rt",
+          "IT-NP",
+          "IT-RT",
+          "train_nmse"
+        ],
+        [
+          "it-np-vs-ltb",
+          "IT-NP",
+          "IT-LTB",
+          "train_nmse"
+        ]
+      ]
+    }
+  ],
+  "evals_to_reference": {
+    "T-UNI": "T-RT",
+    "T-RT": "T-RT",
+    "T-LT": "T-RT",
+    "T-LTB": "T-RT",
+    "T-NP": "T-RT",
+    "IT-UNI": "IT-RT",
+    "IT-RT": "IT-RT",
+    "IT-LT": "IT-RT",
+    "IT-LTB": "IT-RT",
+    "IT-NP": "IT-RT"
+  },
+  "size_terms": true,
+  "run_table": true
+}

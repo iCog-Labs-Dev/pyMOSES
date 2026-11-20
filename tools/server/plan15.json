@@ -1,6 +1,6 @@
 {
   "name": "server-round15-2026-11",
-  "description": "SERVER-ROUND15-PREREGISTRATION.md (the IT linkage study, BACKLOG 13.9): S0, then 1bj (2 genomes, template and IT, x 5 linkage models, UNI, RT, LT, LT-B and NP: 10 arms; each run is one stand-alone GOMEA population, the runner arm key standalone, no MOSES run; N = 1,000 and E = 500,000 evaluations per run; the 10 datasets, fresh splits 71-80; 1,000 jobs). One phase, no Boolean phase. No extension, no choice step, no adoption rule. 1bj needs splits 71-80 of every dataset (setup.sh builds them). No chain to or from another round.",
+  "description": "SERVER-ROUND15-PREREGISTRATION.md (the IT linkage study, BACKLOG 13.9), the first plan of two (the pilot showed more than 20 h for one plan): S0, then 1bj on the first half of the datasets, Air, Con, Dow, EnH and Tow (the D2 fallback set; configs/gomea/phase1bj-a: 2 genomes, template and IT, x 5 linkage models, UNI, RT, LT, LT-B and NP: 10 arms; each run is one stand-alone GOMEA population, the runner arm key standalone, no MOSES run; N = 1,000 and E = 500,000 evaluations per run; fresh splits 71-80; 500 jobs; an interim report on these 5 datasets). Then round15b runs the other 500 jobs and the report on all 1,000. No extension, no choice step, no adoption rule.",
   "state_dir": "server-run15",
   "steps": [
     {
@@ -10,13 +10,15 @@
       "repro": {}
     },
     {
-      "id": "phase1bj",
+      "id": "phase1bj-a",
       "type": "phase",
       "phase": "phase1bj",
+      "config_dir": "{repo}/configs/gomea/phase1bj-a",
       "requires": [
-        "datasets:Air,Bos,Con,Dow,EnC,EnH,Tow,WiR,WiW,Yac:71-80"
+        "datasets:Air,Con,Dow,EnH,Tow:71-80"
       ],
       "per_run_mb": 2048
     }
-  ]
+  ],
+  "then": "round15b"
 }

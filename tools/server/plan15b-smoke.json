@@ -1,0 +1,16 @@
+{
+  "name": "server-round15b-smoke",
+  "description": "Smoke test of the second plan of round 15: 1bj in miniature with the full manifest (configs/gomea/server-smoke15-1bj: 10 datasets, splits 71 and 72, E = 3,000); the runner keeps the 100 runs of smoke15 and runs the other 100; the report covers all 200. No S0.",
+  "state_dir": "server-run15b-smoke",
+  "steps": [
+    {
+      "id": "smoke15-1bj",
+      "type": "phase",
+      "phase": "server-smoke15-1bj",
+      "requires": [
+        "datasets:Air,Bos,Con,Dow,EnC,EnH,Tow,WiR,WiW,Yac:71-80"
+      ],
+      "per_run_mb": 2048
+    }
+  ]
+}
