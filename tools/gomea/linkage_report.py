@@ -51,8 +51,13 @@ that problem (a failed reference run counts as infinite), and the value of a run
 evaluations at the first point of its best-so-far trace with a training NMSE at most the target
 (times 1 + 1e-9, for rounding). The trace is the `trace` of the "end" record of the run's
 `events.jsonl` (pairs [evaluations, best training NMSE], one at each strict improvement); the
-final training NMSE of a run is the last point of its trace (the search's own NMSE; it equals
-`train_nmse` to about 1e-12, the harness's cross-check). A run that is not ok, or that never
+final training NMSE of a run is the last point of its trace (the search's own NMSE). This value
+can differ a little from `train_nmse` (the `sr_eval` NMSE of the reported model). The harness
+cross-check compares only its own re-scoring of that model with `sr_eval`. It does not compare
+the search's NMSE with `train_nmse`. It only records their relative difference, as
+`crosscheck.search_rel_diff` in summary.json, and no check fails on that value. The measured
+differences are small (at most 1.6e-11 over 3,600 random genomes, at most 7e-14 in real runs),
+but nothing enforces a limit (server round 15, RV16 nit 2). A run that is not ok, or that never
 reaches the target, has an infinite value. The rows give the runs, the failed runs, the runs
 that reached the target, the median over all runs (infinite when more than half did not reach
 it), the median over the runs that reached it and the median evaluations used. One more row for
