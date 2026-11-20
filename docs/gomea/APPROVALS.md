@@ -542,3 +542,12 @@ user confirms it.
   * User decision pending: approve or reject the relative pole rule (`box-rel`; agent
     recommendation: reject); the scope of the next round (`BACKLOG.md` section 13).
   * Not approved: any push.
+* **Round 14 decisions and push (2026-11-20):** the agent asked: (1) approve or reject the relative
+  pole rule (`box-rel`; recommendation: reject); (2) the scope of the next round (`BACKLOG.md`
+  section 13); (3) the push of `b301b17`. The user answered: "1. Yes let's reject it. 2. Don't start
+  any of these 3. Push it yes and we should chat about the next set of ideas."
+  * User decisions: the relative pole rule is rejected as a setting (the code stays opt-in);
+    nothing of `BACKLOG.md` section 13 starts; the next ideas are discussed with the user first.
+  * User-approved: the push of the branch to `origin/experiment/moses-gomea-discrete`.
+  * Agent reading, not confirmed: the push includes this record of the decisions (one commit on
+    top of `b301b17`).

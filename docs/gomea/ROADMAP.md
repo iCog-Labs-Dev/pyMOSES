@@ -40,7 +40,7 @@ Use it like this:
 | Linear baselines (LIN-OLS, LIN-RIDGE; report only) | BASE-TLS is 0.748× the linear NMSE (86/14), but **on Dow ridge is better than every MOSES arm** (BASE-TLS 1.114×, 0/10) | 1bi |
 | ε-lexicase exemplar selection (`--exemplar-selection lexicase`) | Tie (1.012, 26/55); about one selection per run | 1bh |
 | Pole safeguard after LM (`--const-opt-pole-check box`) | Tie (1.000, 1/12); it rejected tunings that were better on the test rows. Agent idea; the relative rule `box-rel` runs in round 14; the user approves or rejects it after that (origin: `BACKLOG.md` 12.3) | 1bh |
-| Relative pole rule (`--const-opt-pole-check box-rel`, NP-LMR-PSR) | Tie (1.000, 7/16); 15 of 386 tunings rejected, worse in 7 of the 10 rejection runs that differ; it missed both runs of its arm with a test NMSE above 100. Agent idea (post hoc); **the user approves or rejects it** (agent recommendation: reject) | 1bi |
+| Relative pole rule (`--const-opt-pole-check box-rel`, NP-LMR-PSR) | Tie (1.000, 7/16); 15 of 386 tunings rejected, worse in 7 of the 10 rejection runs that differ; it missed both runs of its arm with a test NMSE above 100. Agent idea (post hoc); **rejected by the user (2026-11-20)** | 1bi |
 
 **Round 13 is done** (`SERVER-ROUND13-FINDINGS.md`). BASE-TLS was "A better" than BASE again (the
 confirmation rule). **The user made BASE-TLS the reference and the default for now, with TLS-NP
@@ -48,8 +48,9 @@ next in line (2026-11-19).** The code defaults of the CLI do not change.
 
 **Round 14 is done** (`SERVER-ROUND14-FINDINGS.md`). All 5 primary contrasts tie. No arm with
 `--linear-scaling terms` is "A better" than BASE-TLS, so BASE-TLS stays the reference and TLS-NP
-stays next in line (the reference rule). **Next:** the user's decision on the relative pole rule,
-and the scope of the next round (`BACKLOG.md` section 13).
+stays next in line (the reference rule). The user rejected the relative pole rule (2026-11-20).
+**Next:** a discussion of the next ideas with the user; nothing of `BACKLOG.md` section 13 starts
+before that ("Don't start any of these").
 
 ## Stage 0: done (rounds 6 to 8, 2026-11-06 to 2026-11-08)
 

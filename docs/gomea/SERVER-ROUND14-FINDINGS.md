@@ -450,10 +450,11 @@ Pairs A lower / B lower. Holm p is 1 unless given.
 * **Reference (rule result, 2026-11-20):** no arm with `--linear-scaling terms` is "A better" than
   BASE-TLS, and the amendment contrast TLSNP-LMR vs BASE-TLS does not trigger a report. BASE-TLS
   stays the reference and the default; TLS-NP stays next in line.
-* **Pending: the relative pole rule (PSR, `box-rel`).** An agent idea, designed post hoc on the
-  round 13 data (origin: `BACKLOG.md` 12.3). The agent recommends to reject it as a setting
-  (observation 5). The user decides.
+* **The relative pole rule (PSR, `box-rel`): rejected (2026-11-20).** An agent idea, designed post
+  hoc on the round 13 data (origin: `BACKLOG.md` 12.3). The agent recommended to reject it as a
+  setting (observation 5). The user answered: "Yes let's reject it".
 * **Pending: the other agent ideas of this round** (none is a setting until the user decides):
   * the reserve of 500 for the LM arms (an agent choice);
   * the linear baselines as report baselines (`BACKLOG.md` 12.6);
-  * the new ideas of `BACKLOG.md` section 13.
+  * the new ideas of `BACKLOG.md` section 13. The user (2026-11-20): "Don't start any of these";
+    the next ideas are to be discussed first.

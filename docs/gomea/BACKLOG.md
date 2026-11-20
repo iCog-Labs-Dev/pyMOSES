@@ -637,6 +637,8 @@ item 1, and built items 3 and 7 of section 11 (size with the term weights; the r
      quotient a / √(1 + b²) (Ni, Drieberg and Rockett, IEEE TEC 2013).
    * **Status: not approved as a setting.** The user approves or rejects it after the round 14
      results (arm NP-LMR-PSR).
+   * **Rejected by the user (2026-11-20)** after the round 14 results ("Yes let's reject it";
+     `SERVER-ROUND14-FINDINGS.md`, `APPROVALS.md`). It is not a setting. The code stays opt-in.
 4. **T3.1 needs LM budget.** 99 of 239 TLS-LM calls had no budget at the deme end, and 66 had no
    constant inside the terms. A new test needs a budget for LM, for example with the LM reserve
    (`--const-opt-reserve`).
@@ -665,12 +667,13 @@ item 1, and built items 3 and 7 of section 11 (size with the term weights; the r
 ## 13. Open items after server round 14 (2026-11-20)
 
 Results: `SERVER-ROUND14-FINDINGS.md`. BASE-TLS stays the reference and TLS-NP stays next in line
-(the reference rule). Round 14 tested items 3, 4, 6, 7 and 10 of section 12 and built items 1
+(the reference rule). **The user (2026-11-20): "Don't start any of these"; the next ideas are to be
+discussed first.** Round 14 tested items 3, 4, 6, 7 and 10 of section 12 and built items 1
 and 2. All items below are agent ideas unless a line says otherwise; none is a setting until the
 user decides.
 
-1. **The relative pole rule (PSR, `box-rel`): the user's decision.** Origin: 12.3 (agent idea,
-   post hoc). Round 14: a tie (1.000, 7/16); 15 of 386 tunings rejected; in the 12 runs with a
+1. **The relative pole rule (PSR, `box-rel`): rejected by the user (2026-11-20).** Origin: 12.3
+   (agent idea, post hoc). Round 14: a tie (1.000, 7/16); 15 of 386 tunings rejected; in the 12 runs with a
    rejection, 3 lower, 7 higher, 2 identical; it missed both runs of its arm with a test NMSE above
    100. Agent recommendation: reject it as a setting. The code stays opt-in (no change needed).
 2. **The last LM call of a reserve run is lost.** In 74–83 % of the reserve runs, the run's budget
