@@ -155,7 +155,7 @@ is done when the user has decided on them.
 | ~~T3.1~~ | ~~B4-split. LM on each term's inner constants, then least squares for the term weights~~ | Done (1bh, round 13, arm TLS-LM): tie with BASE-TLS (1.000, 80 identical pairs); LM had no budget in 99 of 239 calls (`BACKLOG.md` 12.4) | 8, B4-split |
 | T3.2 | B1. GP-RV-GOMEA: real-valued GOMEA on the constants, together with the structure | Stage 2 | 8, B1 |
 | T3.3 | B2. Semantic backpropagation with a subtree library: a new knob type | Stage 2 | 8, B2 |
-| T3.4 | B4b. A full IT representation as a deme type (later TIR). Feasibility note written (2026-11-20, `T3.4-FEASIBILITY.md`); the user decides on it | T2.2, T3.1 | 8, B4b |
+| T3.4 | B4b. A full IT representation as a deme type (later TIR). Feasibility note written (2026-11-20, `T3.4-FEASIBILITY.md`). **First: IT with GOMEA outside MOSES** (user, 2026-11-20; `BACKLOG.md` 13.9) | T2.2, T3.1, `BACKLOG.md` 13.9 | 8, B4b |
 | T3.5 | B6. Modular GP-GOMEA: hints for several demes in GP-GOMEA | **The user reads and validates the paper first. No experiment before that.** | 8, B6 |
 | T3.6 | B7. Higher-arity GP-GOMEA | Stage 2 | 8, B7 |
 

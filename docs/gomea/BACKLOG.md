@@ -698,6 +698,33 @@ user decides.
    prediction is clipped to the widened training target range).
 8. **Still open:** 12.5 (ε-lexicase), 12.8 (a hard S0 gate), 12.9 (the telemetry items); the T3.4
    feasibility note (offered, not requested).
+9. **IT with GOMEA outside MOSES first, then in pyMOSES (user, 2026-11-20).** The user: "Okay add
+   this to the backlog so we first explore IT with GP-GOMEA before using it in our pyMOSES to reduce
+   noise."
+   * **Origin:** the order is the user's. The IT form is from a paper (de França and Aldeia,
+     Evolutionary Computation 2021). The research question (does learned linkage pay off when every
+     deme has the same genome?) came from the agent's T3.4 discussion with the user
+     (`T3.4-FEASIBILITY.md`); the user chose it as the reason for T3.4. ITEA itself uses mutation
+     only, with no crossover and no linkage model. Two web searches (2026-11-20, one extended) found
+     no paper that combines the IT or TIR form with GOMEA or linkage learning; that is not a full
+     literature check.
+   * **Why first outside MOSES:** inside pyMOSES, the exemplar choice, the demes and the
+     metapopulation add noise to any linkage effect. A GOMEA run on a fixed IT genome, with no MOSES
+     loop, tests the linkage question directly. pyMOSES T3.4 waits for this result.
+   * **Agent proposal for the content (not designed, not approved):** the same IT genome under the
+     FOS options UNI, RT, LT-B and a fixed "one group per term slot" FOS; population sizes up to
+     about 1,024 (the size at which LT-B beat RT in 1h); the round datasets and splits; the term
+     weights by least squares, as `--linear-scaling terms` does.
+   * **Open choice for the user:** which code runs it:
+     (a) the authors' GP-GOMEA C++ code (built on the server since Phase 1F); its genome is a tree
+     template, so an IT genome means changes to third-party code; or
+     (b) the GOMEA engine already ported in `pymoses/gomea` (the GP-GOMEA linkage statistics and FOS
+     builders with golden parity, commit 55cff00), driven by a stand-alone IT harness outside the
+     MOSES loop. Agent reading: (b) is less work and tests the same GOMEA code that pyMOSES uses.
+   * **Design problems to solve first:** terms can sit in different slots in different genomes (the
+     slot-swap problem, which breaks the stable meaning of a position that GOMEA needs); inactive
+     boxes (a power next to "none", an empty term) in the linkage statistics; the size of the form.
+   * **Status:** not started. A design note comes first; the user decides on it.
 
 ## 8. Future directions from the literature search (2026-11-06)
 

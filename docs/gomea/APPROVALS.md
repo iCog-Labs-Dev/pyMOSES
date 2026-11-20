@@ -561,3 +561,12 @@ user confirms it.
     round 14 logs.
   * User decision pending: the choices at the end of the note.
   * Not approved: any design, code or push.
+* **T3.4 order: IT with GOMEA outside MOSES first (2026-11-20):** after the T3.4 note and a
+  discussion, the user said that the linkage research question is the reason for T3.4 ("No I think
+  I like the research question"), then: "Okay add this to the backlog so we first explore IT with
+  GP-GOMEA before using it in our pyMOSES to reduce noise."
+  * User decision: IT is first explored with GOMEA outside the MOSES loop; T3.4 in pyMOSES waits
+    for that result (`BACKLOG.md` 13.9).
+  * Open, for the user: which code runs it (the authors' GP-GOMEA C++, or the GOMEA engine ported
+    in `pymoses/gomea` with a stand-alone IT harness).
+  * Not approved: any design, code or push.
