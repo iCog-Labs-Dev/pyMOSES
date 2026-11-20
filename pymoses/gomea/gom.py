@@ -128,6 +128,7 @@ def gom(
     skip_inactive: bool,
     acceptance: str = "nonworse",
     on_accept: Callable[[tuple[int, ...]], None] | None = None,
+    on_trial: Callable[[int, str], None] | None = None,
 ) -> tuple[Individual, bool, bool]:
     """GP-GOMEA: src/GOMEA/GOMVariator.cpp:22 GOMVariator::GOM
 
@@ -158,6 +159,12 @@ def gom(
     evaluated, so it is never reported. ``None`` (the default) changes
     nothing.
 
+    NOT A PORT, the IT linkage study (BACKLOG 13.9): ``on_trial``, when given,
+    is called as ``on_trial(len(subset), outcome)`` for each trial that is not
+    a no-op: ``outcome`` is ``"skip"`` (a proven phenotype skip),
+    ``"improving"``, ``"neutral"`` or ``"rejected"``. It only observes; ``None``
+    (the default) changes nothing.
+
     Returns ``(offspring, changed, strictly_improved)``. A
     ``BudgetExhausted`` from ``ev.evaluate`` is re-raised as
     ``GomInterrupted`` carrying the last accepted state.
@@ -180,6 +187,8 @@ def gom(
         if skip_inactive and trial_k is not None and trial_k == cur_k:
             stats.phenotype_skips += 1
             ev.record_phenotype_skip()
+            if on_trial is not None:
+                on_trial(len(subset), "skip")
             if strict:
                 stats.rejected += 1
                 continue
@@ -193,12 +202,18 @@ def gom(
         stats.evaluated += 1
         if ev.worse(trial_s, cur_s) or (strict and not ev.worse(cur_s, trial_s)):
             stats.rejected += 1
+            if on_trial is not None:
+                on_trial(len(subset), "rejected")
             continue
         if ev.worse(cur_s, trial_s):
             stats.accepted_improving += 1
             improved = True
+            if on_trial is not None:
+                on_trial(len(subset), "improving")
         else:
             stats.accepted_neutral += 1
+            if on_trial is not None:
+                on_trial(len(subset), "neutral")
         cur_g, cur_s, cur_k = trial, trial_s, trial_k
         if on_accept is not None:
             on_accept(trial)

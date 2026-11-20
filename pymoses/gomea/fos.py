@@ -284,6 +284,9 @@ class LinkageModel:
         self._first_learn: _Calibration | None = None
         # GOMEA extension (``--gomea-fos-topk``): see the class docstring.
         self.last_strengths: list[float | None] = []
+        # NOT A PORT, the IT linkage study (BACKLOG 13.9): read-only telemetry, see ``learn``.
+        self.last_fos: list[list[int]] | None = None
+        self.last_similarity: tuple[tuple[int, ...], list[list[float]]] | None = None
 
     def calibrate(self, pop: Sequence[tuple[int, ...]], domains: Sequence[int]) -> None:
         """Fix the search positions and ``H0`` from the initial population.
@@ -328,7 +331,21 @@ class LinkageModel:
         self._length = length
 
     def learn(self, pop: Sequence[tuple[int, ...]]) -> list[list[int]]:
-        """The FOS for ``pop`` over genotype indices (root excluded)."""
+        """The FOS for ``pop`` over genotype indices (root excluded).
+
+        NOT A PORT, the IT linkage study (BACKLOG 13.9): after the call, ``last_fos`` is the
+        returned FOS, and ``last_similarity`` is ``(positions, S)``: the similarity matrix
+        that the linkage tree used, over those genotype positions (modes ``lt-mi`` and
+        ``lt-b`` only; ``None`` for the other modes and when fewer than two positions are
+        linked). Only telemetry reads them. They draw nothing and do not change the FOS.
+        """
+        self.last_similarity = None
+        fos = self._learn(pop)
+        self.last_fos = fos
+        return fos
+
+    def _learn(self, pop: Sequence[tuple[int, ...]]) -> list[list[int]]:
+        """The body of ``learn``."""
         if self._length is None or self._H0 is None:
             raise RuntimeError("LinkageModel.learn called before calibrate")
         self._check_pop(pop, self._length)
@@ -354,6 +371,7 @@ class LinkageModel:
         else:
             H = self._entropies(pop, first, lambda: entropy_matrix(pop, search))
             S = mi_similarity(H) if self.mode == "lt-mi" else biased_similarity(H, self._H0)
+            self.last_similarity = (search, S)  # the IT linkage study: telemetry only
             local, self.last_strengths = self._tree(S, d)
         return [[search[i] for i in s] for s in local]
 
@@ -395,6 +413,7 @@ class LinkageModel:
         else:
             H = self._entropies(pop, first, lambda: entropy_matrix(self.symbolize(pop), linked))
             S = mi_similarity(H) if self.mode == "lt-mi" else biased_similarity(H, self._H0)
+            self.last_similarity = (linked, S)  # the IT linkage study: telemetry only
             local, strengths = self._tree(S, d)
             fos = [[linked[i] for i in s] for s in local]
         self.last_strengths = strengths + [None] * len(self.unlinked_positions)
