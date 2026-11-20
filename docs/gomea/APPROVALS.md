@@ -551,3 +551,13 @@ user confirms it.
   * User-approved: the push of the branch to `origin/experiment/moses-gomea-discrete`.
   * Agent reading, not confirmed: the push includes this record of the decisions (one commit on
     top of `b301b17`).
+* **T3.4 feasibility note requested (2026-11-20):** the user asked "What happened to the new way of
+  representation building?" The agent answered that T3.4 was not started (its reading of the
+  round 14 scope, not confirmed). The user then wrote: "Let's see the note on the IT first, how it
+  would integrate into our current latest reference and how we should build it? Does our current
+  search also consider non linear programs when searching or only consider linear alone? Can you
+  tell me from the logs if that's the case or not?"
+  * Done: `T3.4-FEASIBILITY.md` (a note only; nothing designed or built), with the answer from the
+    round 14 logs.
+  * User decision pending: the choices at the end of the note.
+  * Not approved: any design, code or push.
