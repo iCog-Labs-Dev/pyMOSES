@@ -609,3 +609,19 @@ user confirms it.
   * Agent reading, not confirmed: "everything you need" includes the pre-registration, written after
     the pilot (plan, section 10; `BACKLOG.md` 13.9), for the user's approval before the server run.
   * Not approved: any push; a server run; the pre-registration itself.
+* **Round 15 decisions, pre-registration and push (2026-11-20):** the agent reported the build
+  (clones K, G and L), the gates (gate 1 passed, 15 of 15 pairs; gate 2 passed by the plan's wording;
+  gates 3 and 4 passed), the full suite (10,419 passed, 6 skipped) and the RV16 review (no blocking
+  finding, 5 nits, given unchanged), and asked five questions with recommendations: (1) accept gate
+  2 as passed by the plan's wording; (2) approve the stop-rule amendment (10 generations with no new
+  evaluation; 300 generations at most); (3) apply the five RV16 recommendations before the push;
+  (4) approve `SERVER-ROUND15-PREREGISTRATION.md`; (5) push. The user answered: "Yes I agree with
+  your recommendations for the above 5 decisions. Go ahead".
+  * User-approved: gate 2 counts as passed by the plan's wording ("finds the true terms"); the stop
+    rule (c) and (d); the five RV16 recommendations (nit 1: the round summary and the scoreboard show
+    the contrast name and all four arms of an interaction row; nit 2: correct the docstring of
+    `linkage_report.py`; nit 3: a warning in `SERVER-RUN.md` to start `round15` only and not to use
+    a partial report; nit 4: correct the stall-rule argument and make the pilot numbers agree; nit 5:
+    a limit line that sizes are not comparable across the genomes); the round 15 pre-registration;
+    the push of the branch after the nit fixes; the server run of round 15 (`round15`, which starts
+    `round15b`).
