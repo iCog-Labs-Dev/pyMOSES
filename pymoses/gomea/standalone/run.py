@@ -8,7 +8,8 @@ Usage (from the repository root)::
         --train train.csv --val val.csv --test test.csv [--target y] \\
         --pop 1000 --max-evals 500000 --seed SPLIT_SEED \\
         [--template-height 4] [--it-terms 8 --it-factors 2 --it-powers=-2,-1,1,2] \\
-        --out RUN_DIR [--arm NAME --task NAME --run-id ID] [--no-column-cache]
+        --out RUN_DIR [--arm NAME --task NAME --run-id ID] [--no-column-cache] \\
+        [--max-generations G]
 
 ``--train``, ``--val`` and ``--test`` are the ORIGINAL split files. The search uses the
 training rows with the target scaled as the runner scales it, y' = 10 (y - mean) / sd (the
@@ -22,6 +23,15 @@ off (GP-GOMEA at 750220c has no forced improvements: ``GOMVariator::GOM`` and
 ``GOMEAGenerationHandler::PerformGeneration`` only do GOM), ``skip_inactive`` on,
 acceptance ``nonworse`` and no generation or stall limit, so only the budget E or convergence
 ends the run.
+
+**The generation limit (opt-in).** NOT A PORT: the IT linkage study (BACKLOG 13.9).
+``--max-generations G`` sets ``EngineParams.max_generations`` to G. The engine then stops after
+G GOM generations after the start population (end reason ``max_generations``), as GP-GOMEA's
+``--generations G`` does (``IMSHandler.cpp``: the start population is not a generation; each
+``macro_generation`` does one ``DoGeneration``). The budget E or convergence can still end the
+run first. Without the option, the limit is ``BIG`` and the outputs do not change. With the
+option, ``max_generations`` is also in the "start" record's ``params`` and in the
+``standalone`` block of ``summary.json``.
 
 **Outputs** in ``RUN_DIR``: ``summary.json`` (the runner's summary keys where they apply, plus a
 ``standalone`` block), ``candidates.json`` (the one reported model) and ``events.jsonl`` (a
@@ -206,12 +216,18 @@ def parse_args(argv=None):
                     help="IT: compute every term column again for each model (same results)")
     ap.add_argument("--it-cache-max-columns", type=int, default=None)
     ap.add_argument("--it-cache-max-pairs", type=int, default=1_000_000)
+    # NOT A PORT: the IT linkage study (BACKLOG 13.9). Opt-in; None keeps the limit BIG.
+    ap.add_argument("--max-generations", type=int, default=None,
+                    help="stop after G GOM generations after the start population "
+                         "(GP-GOMEA --generations); default: no generation limit")
     args = ap.parse_args(argv)
     args.it_powers = tuple(int(x) for x in str(args.it_powers).split(",") if x.strip())
     if args.pop < 2:
         ap.error("--pop must be at least 2")
     if args.max_evals < args.pop:
         ap.error("--max-evals must be at least --pop (the start population is evaluated)")
+    if args.max_generations is not None and args.max_generations < 1:
+        ap.error("--max-generations must be at least 1")
     return args
 
 
@@ -269,6 +285,10 @@ def run(args) -> dict:
         tele = LinkageTelemetry(genome, ev, var_y, related, out=events)
         params = {"genome": genome.kind, "fos": args.fos, "pop": args.pop, "max_evals": E,
                   "seed": args.seed, "length": genome.length, "domains": list(genome.domains)}
+        # The opt-in generation limit (BACKLOG 13.9); without it, no key and the limit BIG.
+        max_gens = getattr(args, "max_generations", None)
+        if max_gens is not None:
+            params["max_generations"] = max_gens
         tele.write({"type": "start", "params": params, "start": start})
         pop = []
         try:
@@ -280,7 +300,8 @@ def run(args) -> dict:
         start["init_evals"] = ev.n_evals
         start["init_cache_hits"] = ev.cache_hits
         eparams = EngineParams(fos_mode=args.fos, forced_improvement=False,
-                               skip_inactive=True, max_generations=BIG,
+                               skip_inactive=True,
+                               max_generations=BIG if max_gens is None else max_gens,
                                stall_generations=BIG, acceptance="nonworse")
         eng = GomeaEngine(genome.domains, eparams, ev, rng_var, rng_link,
                           on_generation=tele.on_generation, distance=distance,
@@ -349,6 +370,8 @@ def run(args) -> dict:
         "noop_skips": ev.noop_skips, "phenotype_skips": ev.phenotype_skips,
         "best_score": best.score,
     }
+    if max_gens is not None:
+        standalone["max_generations"] = max_gens
     summary = {
         "run_id": args.run_id, "task": args.task or Path(args.train).parent.name,
         "arm": args.arm or f"{genome.kind}-{args.fos}", "seed": args.seed,
