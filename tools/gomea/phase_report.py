@@ -26,7 +26,9 @@ SPEC_JSON (one per phase, `configs/gomea/<phase>/spec.json`)::
      "size_terms": true,                   # optional (server round 13, 1bh), default false
      "run_table": true,                    # optional (server round 13, 1bh), default false
      "same_search": [[arm_a, arm_b], ...],  # optional (server round 13, 1bh)
-     "pooled_descriptive": [name, ...]}    # optional (backlog 12.2, after round 13)
+     "pooled_descriptive": [name, ...],    # optional (backlog 12.2, after round 13)
+     "contrast_families": [{...}, ...],    # optional (server round 15, 1bj)
+     "evals_to_reference": {arm: arm, ...}}  # optional (server round 15, 1bj)
 
 A contrast takes its problem's metric, or the optional fifth element (server round 3,
 1ap: program size as the primary metric and test NMSE as the secondary one for the same
@@ -45,7 +47,13 @@ problem). Metrics, paired by seed (a regression run's seed is its split); lower 
   or a run without that value, = infinite;
 * `test_nmse_clipped`: test NMSE of the reported program with its predictions clipped to the
   widened range of the training target (`moses_sr_runner.py`; server round 13); a failed run,
-  or a run without that value, = infinite.
+  or a run without that value, = infinite;
+* `train_nmse`: training NMSE of the reported program (`train_nmse`; server round 15, the IT
+  linkage study); a failed run, or a run without that value, = infinite;
+* `anytime_area`: the area under the best-so-far log training NMSE over the checkpoints 1, 2,
+  5, 10, 20, 50 and 100 % of the evaluation budget (the `anytime` record of a stand-alone GOMEA
+  summary; the exact rule is in `linkage_report.py`); a failed run, or a run without that
+  record, = infinite.
 
 Families: Holm over all primary contrasts, and separately over all secondary ones.
 Descriptive contrasts take no verdict (raw p only). With `"secondary_verdicts": false` the
@@ -125,6 +133,20 @@ not change:
   whether the two arms printed the same candidates (`candidates.json`, the same program strings
   in the same order), and OUT_DIR/same_search.json, the counts for each pair of arms (pairs,
   same, differ, missing).
+
+Server round 15 (1bj, the IT linkage study; `linkage_report.py`). The metrics `train_nmse` and
+`anytime_area`, and two optional spec keys; without them the report does not change:
+
+* `"contrast_families"`: Holm families of their own, each with the role "primary",
+  "secondary" or "descriptive", of pooled contrasts `[name, arm_a, arm_b, metric]` and of pooled
+  interaction contrasts `[name, A1, B1, A2, B2, metric]` (d = log(A1 / B1) - log(A2 / B2) per
+  pair; the verdicts "A1 gains more", "A2 gains more", "tie"); a family with `"per_dataset":
+  true` gives one row for each contrast and dataset. The rows have `holm_family` = the family's
+  name. Descriptive rows keep p and the Holm p of their family and get the verdict
+  "descriptive"; they are not in verdict.json.
+* `"evals_to_reference": {arm: reference arm}`: OUT_DIR/evals_to_reference.csv, for each dataset
+  and arm the evaluations to reach the median final training NMSE of the reference arm on the
+  same dataset (from the best-so-far trace in each run's `events.jsonl`).
 """
 
 from __future__ import annotations
@@ -141,12 +163,14 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 from benchmarks.gomea.stats import holm, wilcoxon_signed_rank  # noqa: E402
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
+import linkage_report  # noqa: E402
 import run_table  # noqa: E402
 
 ALPHA = 0.025
 EXTEND_BELOW = 0.25
 METRICS = ("cpu_to_target", "evals_to_target", "test_nmse", "program_size",
-           "train_test_gap", "cpu_s", "lm_calls", "test_nmse_clipped")
+           "train_test_gap", "cpu_s", "lm_calls", "test_nmse_clipped",
+           "train_nmse", "anytime_area")  # the last two: server round 15
 
 
 def _load(dirs: str, into: dict) -> None:
@@ -179,6 +203,10 @@ def _value(metric: str, s: dict) -> float:
         v = (s.get("const_opt") or {}).get("lm_calls")
     elif metric == "test_nmse_clipped":
         v = s.get("test_nmse_clipped")  # server round 13
+    elif metric == "train_nmse":
+        v = s.get("train_nmse")  # server round 15
+    elif metric == "anytime_area":
+        v = linkage_report.anytime_area(s)  # server round 15
     else:
         v = s.get(metric) if s.get("success") else None
     return math.inf if v is None else float(v)
@@ -469,6 +497,10 @@ def main(argv: list[str] | None = None) -> int:
         if len(c) != 4 or c[3] not in METRICS:
             print(f"bad pooled contrast {c} (want [name, arm_a, arm_b, metric])", file=sys.stderr)
             return 2
+    err = linkage_report.check_spec(spec, METRICS)  # server round 15 (opt-in keys)
+    if err is not None:
+        print(err, file=sys.stderr)
+        return 2
     rows = {k: [_contrast(p, n, a, b, runs.get(p, {}), m[0] if m else metrics[p])
                 for p, n, a, b, *m in f]
             for k, f in families.items()}
@@ -533,6 +565,9 @@ def main(argv: list[str] | None = None) -> int:
         rows["secondary"] += prows
     for r in rows["descriptive"]:
         r["p_holm"], r["verdict"] = None, None
+    for fam, r in linkage_report.family_rows(spec, runs, list(metrics), _value,
+                                             _pooled_contrast, ALPHA):
+        rows[fam].append(r)  # server round 15: Holm families of their own
     for k, rs in rows.items():
         for r in rs:
             r["family"] = k
@@ -550,6 +585,7 @@ def main(argv: list[str] | None = None) -> int:
     for r in agg + allrows:
         print(json.dumps(r))
     _round13_tables(spec, runs, list(metrics), out)
+    linkage_report.write_tables(spec, runs, list(metrics), out, _write_csv)  # server round 15
     return 0
 
 
