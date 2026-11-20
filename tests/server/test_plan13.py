@@ -572,9 +572,10 @@ def test_setup_builds_every_dataset_of_the_plan_with_the_fresh_splits():
     built = text.split("DATASETS=(", 1)[1].split(")", 1)[0].split()
     assert set(DATASETS) - {"Tow", "Dow"} <= set(built)
     assert '"Tow tower ' in text and '"Dow dowchem ' in text
-    # round 14 adds splits 61-70 (SEEDS 1-70); round 13 needs that set-up builds 51-60
-    assert f'-eq {8 * len(sr_datasets.SEEDS)} ]' in text and max(sr_datasets.SEEDS) == 70
-    assert '-type f | wc -l)" -eq 560 ]' in text
+    # round 14 adds splits 61-70 and round 15 adds 71-80 (SEEDS 1-80); round 13 needs that
+    # set-up builds 51-60
+    assert f'-eq {8 * len(sr_datasets.SEEDS)} ]' in text and max(sr_datasets.SEEDS) == 80
+    assert '-type f | wc -l)" -eq 640 ]' in text
     assert set(SPLITS) <= set(sr_datasets.SEEDS)
     assert set(range(61, 71)) <= set(sr_datasets.SEEDS)
 
