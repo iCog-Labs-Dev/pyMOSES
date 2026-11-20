@@ -1183,6 +1183,17 @@ the phase. There is no choice step, no extension and no adoption rule. Each plan
 `server-run15/` and `server-run15b/`. The report on all 1,000 runs is in the bundle of round15b.
 `status.sh --plan round15` shows the chain.
 
+**Warning (RV16 nit 3, approved by the user on 2026-11-20).** Both plans write their report to the
+same folder, `gomea-results/phase1bj/report-stage1`, so the last plan that ends decides which report
+stays there.
+
+* Start `round15` only. Never start `round15b` by itself, and never start `round15` after
+  `round15b`: `round15` would then write its 5-dataset interim report over the full report, and it
+  does not start `round15b` again.
+* If `round15b` stops part way, its report covers the 500 runs of `round15` plus a part of the
+  rest. That is neither the fallback design nor the full design. Do not use it: use the report in
+  the bundle of `round15` (the D2 fallback design), and tell the agent.
+
 **S0 and the Boolean manifests:** the 14 Boolean manifests of rounds 4, 6 and 12 name the code
 commit 3c5bc87 (the harness and its stop rule), so the 4 pin tests (`test_plan4.py`,
 `test_plan6.py` and two in `test_plan12.py`) pass again.
@@ -1270,7 +1281,8 @@ cache makes IT 3 to 10 times faster than the plan's estimate.
 
 **The stop rule (after the pilot).** In the first pilot, 3 of the 20 runs did not end. In Con T-LT
 and Con IT-LT the evaluation count stopped growing after generation 21 and 19, and the generations
-went on (to more than 340) with no new evaluation: the population has one phenotype, but accepted
+went on (to generation 393 and 343, where the agent stopped them) with no new evaluation: the
+population has one phenotype, but accepted
 neutral changes of inactive positions keep the genotypes different, so "all genomes equal" does
 not happen, and a score-cache hit does not count against E. Dow T-NP added only about 27
 evaluations per generation for 800 generations. The harness option `--stall-generations K` (end

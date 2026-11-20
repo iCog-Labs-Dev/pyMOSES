@@ -1,6 +1,8 @@
 # Server round 15: pre-registration (2026-11-20)
 
-**Status:** a draft. Not approved. Built (2026-11-20) at a617702: clone K 99392fa, 2ce26b0,
+**Status:** approved by the user on 2026-11-20 ("Yes I agree with your recommendations for the
+above 5 decisions. Go ahead", `APPROVALS.md`), together with the gate 2 reading, the stop rule and
+the five RV16 corrections (marked "RV16 nit"). Not yet run. Built (2026-11-20) at a617702: clone K 99392fa, 2ce26b0,
 3b18ca6 (the harness and the runner arm); clone G d4c257f (`--max-generations`); clone L e09f779,
 d077826, b978642, d5187f0, 3c5bc87, 70bbf79, 01f3827, a617702 (splits 71–80, the report, the
 configs, the two plans, the stop rule, the re-pin). The pilot is done (no NMSE of split 71 read). All
@@ -79,11 +81,15 @@ Q4 (a global, run-long linkage model for MOSES) is phase B. It is not in this ro
   **Amendment from the pilot (agent proposal, 2026-11-20; the plan had only (a) and (b)):** 3 of
   the 20 pilot runs never ended. Their populations stopped finding new models, but accepted
   neutral changes of inactive positions kept the genotypes different, so (b) never held, and cache
-  hits do not count, so (a) never held. Con T-LT and Con IT-LT made no new evaluation after
-  generation 20 and 18 and ran on for more than 300 generations; Dow T-NP added about 27
-  evaluations per generation for 800 generations. A run that makes no new evaluation cannot find a
-  better model, so (c) loses nothing. The 17 runs that ended used E within 10–70 generations, so
-  (d) is a guard for runs that find new models very slowly. The pilot read no NMSE.
+  hits do not count, so (a) never held. Con T-LT and Con IT-LT made their last new evaluation in
+  generation 21 and 19 (counted from 1) and ran on to generation 393 and 343, where the agent
+  stopped them; Dow T-NP added about 27 evaluations per generation for 800 generations. In the
+  pilot, (c) lost nothing: the stalled populations held one phenotype. **Correction (RV16 nit 4,
+  approved by the user):** in general (c) can lose something. When a population holds several
+  phenotypes, neutral changes of inactive positions can later give a new phenotype, so (c) can end a
+  run that would have found one more model. The 17 runs that ended used E within 10–70 generations
+  and would not have ended earlier under (c) or (d), so (d) is a guard for runs that find new models
+  very slowly. The pilot read no NMSE.
 * **Statistics (D5):** as in rounds 12 to 14. A failed run counts as infinitely bad. Paired
   Wilcoxon signed-rank on log ratios over the (dataset, split) pairs, two-sided, Holm, α = 0.025.
   "Better" or "worse" also needs a ratio at least 10 % from 1. Every contrast also reports its
@@ -241,6 +247,10 @@ CPUs, so the CPU values are on the high side):
 * Each genome has its own scorer (D4). P1 compares gains within each genome, so the scorer
   difference affects it less than S2.
 * The primary metric is training NMSE (an optimization effect); test NMSE is secondary.
+* **Sizes are not comparable across the two genomes (RV16 nit 5, approved by the user).** The
+  template size is GP-GOMEA's count of active nodes. The IT size is the node count of the printed
+  MOSES program plus the number of terms, where x² counts as 3 nodes and a 0/1 input
+  (`impulse($k)`) as 3 nodes. Size is descriptive only, and compared only within one genome.
 * The term slots of IT can hold the same monomial in different slots (the slot-swap problem); the
   telemetry measures it, but the round does not fix it.
 * IT allows the powers −2 and −1. The zero rule keeps every denominator non-zero on the training
