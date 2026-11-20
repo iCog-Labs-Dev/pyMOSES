@@ -570,3 +570,8 @@ user confirms it.
   * Open, for the user: which code runs it (the authors' GP-GOMEA C++, or the GOMEA engine ported
     in `pymoses/gomea` with a stand-alone IT harness).
   * Not approved: any design, code or push.
+* **Backlog 13.9, the code (2026-11-20):** the agent recommended option (b), the GOMEA engine ported
+  in `pymoses/gomea` with a stand-alone IT harness outside the MOSES loop. The user answered:
+  "Option b."
+  * User decision: option (b) for backlog 13.9.
+  * Not approved: any design, code or push.

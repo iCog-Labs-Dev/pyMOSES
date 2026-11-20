@@ -715,7 +715,7 @@ user decides.
      FOS options UNI, RT, LT-B and a fixed "one group per term slot" FOS; population sizes up to
      about 1,024 (the size at which LT-B beat RT in 1h); the round datasets and splits; the term
      weights by least squares, as `--linear-scaling terms` does.
-   * **Open choice for the user:** which code runs it:
+   * **Which code runs it: option (b), chosen by the user (2026-11-20, "Option b.").** The two options were:
      (a) the authors' GP-GOMEA C++ code (built on the server since Phase 1F); its genome is a tree
      template, so an IT genome means changes to third-party code; or
      (b) the GOMEA engine already ported in `pymoses/gomea` (the GP-GOMEA linkage statistics and FOS
