@@ -599,3 +599,13 @@ user confirms it.
   * Agent reading, not confirmed: the push includes this record and the estimate correction (one
     commit on top of the four).
   * Not approved: any implementation start; a server run.
+* **IT linkage study: build (2026-11-20):** after the plan and D1–D7, the user wrote (in this
+  chat): "So I have made a plan on what we need to test next in a different chat. Can you see it?
+  Build everything you need to make the test happen and let me know when you are done so we can set
+  it up on the server."
+  * User-approved: the implementation of `IT-LINKAGE-STUDY-PLAN.md` by subagents in separate clones
+    (clone K, sections 4–6 and 8.1–8.2; clone L, splits 71–80, configs, plan, pilot, gates, dry
+    run, local smoke run), the merge, the full suite and the RV16 review.
+  * Agent reading, not confirmed: "everything you need" includes the pre-registration, written after
+    the pilot (plan, section 10; `BACKLOG.md` 13.9), for the user's approval before the server run.
+  * Not approved: any push; a server run; the pre-registration itself.
