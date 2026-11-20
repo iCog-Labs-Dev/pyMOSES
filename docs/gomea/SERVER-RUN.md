@@ -1183,16 +1183,18 @@ the phase. There is no choice step, no extension and no adoption rule. Each plan
 `server-run15/` and `server-run15b/`. The report on all 1,000 runs is in the bundle of round15b.
 `status.sh --plan round15` shows the chain.
 
-**Known S0 failures (not from round 15):** 4 tests that check the code commit of old Boolean
-manifests (`test_plan4.py`, `test_plan6.py` and two in `test_plan12.py`) fail since the stand-alone
-harness changed `pymoses/` (commits 99392fa and 2ce26b0, before round 15). They do not affect 1bj.
+**S0 and the Boolean manifests:** the 14 Boolean manifests of rounds 4, 6 and 12 name the code
+commit 3c5bc87 (the harness and its stop rule), so the 4 pin tests (`test_plan4.py`,
+`test_plan6.py` and two in `test_plan12.py`) pass again.
 
 **Phase 1bj: the runs.** Each job is one stand-alone GOMEA population on a fixed genome
 (`python -m pymoses.gomea.standalone`, started by the runner arm key `"standalone"`;
 `docs/gomea/IT-LINKAGE-STUDY-PLAN.md`, sections 5 and 6), with N = 1,000 and E = 500,000
-evaluations. A score-cache hit is not an evaluation. A run ends at E or when all genomes are equal.
-There is no time limit; the wall cap of 36,000 s per run is only a guard against a hung process.
-The seed of a run is its split number.
+evaluations. A score-cache hit is not an evaluation. A run ends at the first of: E evaluations
+(end reason `global_budget`); all genomes equal (`converged`); 10 generations in a row with no new
+evaluation (`stalled`, `--stall-generations 10`); 300 generations (`max_generations`,
+`--max-generations 300`). There is no time limit; the wall cap of 36,000 s per run is only a guard
+against a hung process. The seed of a run is its split number.
 
 **Phase 1bj: arms** (`configs/gomea/phase1bj/sr.json`, one manifest for the 10 datasets):
 
@@ -1209,9 +1211,9 @@ The seed of a run is its split number.
 | IT-LTB | IT | `lt-b` |
 | IT-NP | IT | `np` (proximity on the IT tree: box, factor, term) |
 
-* The arm block gives `genome`, `fos`, `pop` 1000, `max_evals` 500000 and the genome sizes
-  (`template_height` 4; `it_terms` 8, `it_factors` 2, `it_powers` [-2, -1, 1, 2]). The IT column
-  cache is on (the default).
+* The arm block gives `genome`, `fos`, `pop` 1000, `max_evals` 500000, `max_generations` 300,
+  `stall_generations` 10 and the genome sizes (`template_height` 4; `it_terms` 8, `it_factors` 2,
+  `it_powers` [-2, -1, 1, 2]). The IT column cache is on (the default).
 * The summary is the harness's `summary.json`: status, training, validation, test and clipped
   test NMSE of the reported model (the best training score of the final population), size, nodes,
   `n_terms` (IT), `n_evals`, `cpu_s`, `ru_maxrss_kb`, `generations`, `termination_reason`,
@@ -1264,27 +1266,42 @@ on Con and Dow, split 71, N = 1,000, E = 500,000, through the runner, at nice 19
 machine (load 14 to 45 on 22 logical CPUs, so the CPU times can be high). CPU per evaluation:
 template 1.3 to 1.9 ms (Con 516 and Dow 534 training rows), IT 0.24 to 0.29 ms on Con and 0.51 to
 0.75 ms on Dow (57 inputs). The template is 3.5 to 4 times the plan's benchmark; the IT column
-cache makes IT 3 to 10 times faster than the plan's estimate. Scaled by the training rows of each
-dataset (the mean of the two pilot datasets for each arm; every run uses all E):
+cache makes IT 3 to 10 times faster than the plan's estimate.
+
+**The stop rule (after the pilot).** In the first pilot, 3 of the 20 runs did not end. In Con T-LT
+and Con IT-LT the evaluation count stopped growing after generation 21 and 19, and the generations
+went on (to more than 340) with no new evaluation: the population has one phenotype, but accepted
+neutral changes of inactive positions keep the genotypes different, so "all genomes equal" does
+not happen, and a score-cache hit does not count against E. Dow T-NP added only about 27
+evaluations per generation for 800 generations. The harness option `--stall-generations K` (end
+reason `stalled`) and the generation limit `--max-generations G` solve this; 1bj uses K = 10 and
+G = 300. The 3 runs again, with the rule:
+
+| Run | End reason | Evaluations | Generations | CPU s | Cross-check | Peak MB |
+|---|---|---|---|---|---|---|
+| Con T-LT | `stalled` | 266,173 | 31 | 354 | passed | 77 |
+| Con IT-LT | `stalled` | 249,829 | 29 | 71 | passed | 80 |
+| Dow T-NP | `max_generations` | 345,971 | 300 | 535 | passed | 91 |
+
+The other 17 pilot runs had at most 70 generations and at most 2 generations in a row with no new
+evaluation, so the rule does not change them (15 ended at E, Dow T-LT and Dow IT-LT by
+convergence). All 20 runs passed the cross-check (gate 3).
+
+**The estimate.** The CPU of each pilot run with the stop rule, per training row, the mean of Con
+and Dow for each arm, scaled by the training rows of each dataset:
 
 | Design | CPU hours (this machine) | at W = 11 | server 2x slower: CPU hours | at W = 11 |
 |---|---|---|---|---|
-| 10 datasets | about 258 (template 201, IT 56) | about 23 h | about 515 | about 47 h |
-| round15: Air, Con, Dow, EnH, Tow (the fallback set) | about 138 | about 13 h | about 277 | about 25 h |
-| round15b: Bos, EnC, WiR, WiW, Yac | about 120 | about 11 h | about 240 | about 22 h |
+| 10 datasets | about 226 (template 174, IT 52) | about 20.5 h | about 451 | about 41 h |
+| round15: Air, Con, Dow, EnH, Tow (the fallback set) | about 121 | about 11 h | about 242 | about 22 h |
+| round15b: Bos, EnC, WiR, WiW, Yac | about 104 | about 9.5 h | about 209 | about 19 h |
 
-With the higher of the two pilot datasets for each arm, the 10 datasets need about 282 CPU hours
-(about 26 h at W = 11). S0 adds about 1.3 hours to round15.
-
-**A stop-rule problem (found by the pilot; it must be solved before the round).** 3 of the 20 pilot
-runs did not end. In Con T-LT and Con IT-LT the evaluation count stopped at 266,173 and 249,829
-(generations 20 and 18), and the generations went on (to 393 and 343) with no new evaluation: the
-population has one phenotype, but accepted neutral changes of inactive positions keep the
-genotypes different, so "all genomes equal" does not happen, and a score-cache hit does not count
-against E. Dow T-NP added only about 27 evaluations per generation for 800 generations. The agent
-stopped the 3 runs; they count as failed in the pilot. Dow T-LT and Dow IT-LT ended by convergence.
-Without a further stop rule (for example a generation limit or "no new evaluation for G
-generations"), such a run goes on until the wall cap of 36,000 s.
+S0 adds about 1.3 hours to round15 (about 2.6 hours on a server 2x slower). Round 14's S0 pytest
+took 1,514 s on the server for 10,217 tests and the local full suite takes 20 to 35 minutes, so
+the server is probably about as fast as this machine for one thread. With the higher of the two
+pilot datasets for each arm, the 10 datasets need about 271 CPU hours (about 25 h at W = 11). The
+stop rule saves CPU only where a run stops early; on a dataset where LT does not stall the run
+uses all E.
 
 **Local rehearsal only:** `tools/server/plan15-smoke.json` (`--plan smoke15`) runs a limited S0
 (`tests/server`, the split test, the tests of the round 15 report and of the stand-alone harness;
