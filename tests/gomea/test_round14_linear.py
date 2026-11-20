@@ -545,10 +545,12 @@ EXPAND = ("import json, sys; from pathlib import Path; sys.path.insert(0, sys.ar
 
 def test_expand_gives_the_jobs_of_ad0c8d8_for_every_committed_manifest(tmp_path):
     """Every regression manifest under configs/gomea that has no linear arm (all manifests before
-    round 14): the jobs of expand() are those of the runner at ad0c8d8."""
+    round 14) and no stand-alone arm (server round 15): the jobs of expand() are those of the
+    runner at ad0c8d8."""
     old = _old_tool(tmp_path, ["moses_sr_runner.py", "sr_eval.py"])
     files = sorted(str(f) for f in (REPO / "configs" / "gomea").glob("*/sr*.json")
-                   if not any("linear" in a for a in json.loads(f.read_text())["arms"].values()))
+                   if not any("linear" in a or "standalone" in a
+                              for a in json.loads(f.read_text())["arms"].values()))
     assert len(files) > 150
     env = {**os.environ, "PYTHONPATH": str(REPO)}
     got = [json.loads(subprocess.run([sys.executable, "-c", EXPAND, str(d), str(REPO), *files],

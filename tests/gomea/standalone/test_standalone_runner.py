@@ -165,9 +165,16 @@ EXPAND = ("import json, sys; from pathlib import Path; sys.path.insert(0, sys.ar
           "print(json.dumps(out, sort_keys=True))")
 
 
+def _has_standalone_arm(f: Path) -> bool:
+    """Server round 15 (1bj) manifests have stand-alone arms; the runner at 5fdd335 cannot
+    expand them (the arm is new), so the identity test leaves them out."""
+    return any("standalone" in a for a in json.loads(f.read_text())["arms"].values())
+
+
 def test_every_committed_manifest_expands_to_the_jobs_of_5fdd335(tmp_path):
     old = _old_runner(tmp_path)
-    files = sorted(str(f) for f in (REPO / "configs" / "gomea").glob("*/sr*.json"))
+    every = sorted((REPO / "configs" / "gomea").glob("*/sr*.json"))
+    files = [str(f) for f in every if not _has_standalone_arm(f)]
     assert len(files) > 150
     env = {**os.environ, "PYTHONPATH": str(REPO)}
     got = [json.loads(subprocess.run([sys.executable, "-c", EXPAND, str(d), str(REPO), *files],
@@ -175,3 +182,8 @@ def test_every_committed_manifest_expands_to_the_jobs_of_5fdd335(tmp_path):
            for d in (old, TOOLS)]
     assert got[0] == got[1]
     assert sum(isinstance(v, list) for v in got[1].values()) == len(files)
+    # server round 15: the manifests with stand-alone arms expand with the current runner
+    for f in every:
+        if _has_standalone_arm(f):
+            jobs = runner.expand(json.loads(f.read_text()), tmp_path, REPO)
+            assert jobs and all("standalone" in j for j in jobs), f
