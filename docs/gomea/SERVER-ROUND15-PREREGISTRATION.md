@@ -3,8 +3,10 @@
 **Status:** a draft. Not approved. Built (2026-11-20) at a617702: clone K 99392fa, 2ce26b0,
 3b18ca6 (the harness and the runner arm); clone G d4c257f (`--max-generations`); clone L e09f779,
 d077826, b978642, d5187f0, 3c5bc87, 70bbf79, 01f3827, a617702 (splits 71–80, the report, the
-configs, the two plans, the stop rule, the re-pin). The pilot is done (no NMSE of split 71 read).
-Gate 1 is still running. Nothing of splits 71–80 is read before the user approves this text.
+configs, the two plans, the stop rule, the re-pin). The pilot is done (no NMSE of split 71 read). All
+four gates are done (see "Gates"). The full suite at a617702: 10,419 passed, 6 skipped. The RV16
+review found no blocking finding and 5 nits (given to the user unchanged). Nothing of splits 71–80
+is read before the user approves this text.
 
 **Plan:** `IT-LINKAGE-STUDY-PLAN.md` (the implementation plan; the user accepted its decisions
 D1–D7 as recommended on 2026-11-20). Backlog item: `BACKLOG.md` 13.9. Background:
@@ -168,14 +170,28 @@ and the count of negative powers made positive.
 
 **Results:**
 
-* Gate 1: running (clone G; about 13 h on the shared local machine). The server run waits for it.
+* Gate 1: **passed.** Training NMSE, splits 1–5, N = 2,000, 20 generations (all 30 runs ended at
+  20 generations and passed the cross-check; 29.3 CPU hours):
+
+  | Dataset | T-LTB median [min, max] | T-RT median [min, max] | T-LTB lower (pairs) | C++ part A, splits 1–5: LT-MIb / RT median; LT-MIb lower |
+  |---|---|---|---|---|
+  | Con | 17.53 [15.16, 17.99] | 18.73 [17.78, 20.28] | 5 of 5 | 18.27 / 19.27; 5 of 5 |
+  | EnH | 6.41 [2.63, 6.73] | 6.76 [4.38, 6.93] | 5 of 5 | 6.49 / 6.66; 4 of 5 |
+  | Tow | 12.41 [11.56, 12.97] | 13.18 [12.13, 13.52] | 5 of 5 | 12.37 / 12.81; 4 of 5 |
+
+  Our engine reproduces the C++ direction on every dataset (15 of 15 pairs; C++ 13 of 15), with
+  medians close to the C++ and paper values (paper LT-MIb / RT: Con 17.5 / 19.0, EnH 6.24 / 6.4,
+  Tow 12.5 / 13.1).
 * Gate 2 (5 seeds): in all 5, the model contains x1·x2 (weight 2.98–3.01) and x3 (4.96–5.00), and
   also 6 extra terms; every model fills all 8 slots. By the plan's wording ("finds the true terms"):
   5 of 5, **pass**. By a strict reading ("exactly these two terms", the agent's brief to clone G):
   0 of 5. By the combined effect of the extra terms (all together below 1 % of sd(y), the noise
   level): 5 of 5. In 3 seeds some extra terms have large weights that cancel. Reason: least squares
   never loses training accuracy with one more term, and nothing penalizes size, so the search fills
-  every slot. This is a property of the IT genome in this study, not a fault.
+  every slot. This is a property of the IT genome in this study, not a fault. A refit with only the
+  two true terms gives the same or lower validation and test NMSE (val 0.01209 against 0.01239–
+  0.01265; test 0.00912 against 0.00913–0.00935), so the extra terms only fit noise. At E = 50,000
+  and N = 1,000 the runs made only 2 generations.
 * Gate 3: passed. All 20 pilot runs pass the cross-check: the 17 runs that ended at first, and the
   3 runs that did not end, run again with the stop rule (Con T-LT `stalled` after 31 generations
   and 266,173 evaluations; Con IT-LT `stalled` after 29 and 249,829; Dow T-NP `max_generations`
@@ -194,7 +210,7 @@ and the count of negative powers made positive.
 | Clone | Content | Status |
 |---|---|---|
 | K | The stand-alone harness (`pymoses/gomea/standalone/`), the runner arm key `"standalone"`, the tests of plan 8.1 and 8.2 | Done |
-| G | `--max-generations`; gates 1 and 2 | Option done; gate 2 done; gate 1 running |
+| G | `--max-generations`; gates 1 and 2 | Done |
 | L | Splits 71–80; the report additions (`train_nmse`, `anytime_area`, interaction contrasts, Holm families, evaluations to RT; opt-in; `tools/gomea/linkage_report.py`); the configs of phase 1bj; the two plans; the pilot; gates 3 and 4; the stop rule (`--stall-generations`) and its runner keys; the re-pin of the 14 Boolean manifests; the dry run (1,000 jobs) and the local smoke run of the chain | Done |
 
 * Then: merge, the full test suite, the RV16 review, and the push only with a fresh approval.
