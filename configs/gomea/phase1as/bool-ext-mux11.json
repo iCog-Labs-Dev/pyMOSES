@@ -2,7 +2,7 @@
   "schema_version": 1,
   "name": "phase1as-bool-ext-mux11",
   "phase": 1,
-  "commit": "e256ef08e53107a54de6a6c9bc791b5dfd519132",
+  "commit": "3c5bc87de43f4ef8154f4425c9c67a2f783d007b",
   "common_argv": [
     "-l",
     "WARN"
