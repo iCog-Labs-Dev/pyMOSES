@@ -398,11 +398,22 @@ class RegressionEvaluator:
 
     ``checkpoints``: evaluation counts at which ``anytime`` records the best score so far.
     ``trace`` lists ``(evaluations, score)`` at each strict improvement of the best score.
+
+    ``stall_generations`` (opt-in; NOT A PORT: the IT linkage study, BACKLOG 13.9, server round
+    15): K, or ``None`` (the default: no stall rule, and ``check`` is as before). The engine calls
+    ``check`` once at the start of each generation (``GomeaEngine._loop``). With K, ``check``
+    counts the generations in a row that made no new evaluation (the evaluation count did not
+    grow from one call to the next; cache hits and skips do not count), and returns
+    ``"stalled"`` when that count reaches K. The budget check comes first. ``stall_count`` is the
+    count at the last call.
     """
 
-    def __init__(self, genome, scorer, max_evals: int, checkpoints: Sequence[int] = ()) -> None:
+    def __init__(self, genome, scorer, max_evals: int, checkpoints: Sequence[int] = (),
+                 stall_generations: int | None = None) -> None:
         if max_evals < 1:
             raise ValueError("max_evals must be at least 1")
+        if stall_generations is not None and stall_generations < 1:
+            raise ValueError("stall_generations must be at least 1")
         self.genome = genome
         self.scorer = scorer
         self.max_evals = int(max_evals)
@@ -420,6 +431,9 @@ class RegressionEvaluator:
         self._last_g: tuple | None = None
         self._last: tuple = (None, None)
         self._it = genome.kind == "it"
+        self.stall_generations = stall_generations
+        self.stall_count = 0
+        self._evals_at_check: int | None = None
 
     def _decode(self, g: tuple):
         if g is self._last_g or g == self._last_g:
@@ -436,7 +450,16 @@ class RegressionEvaluator:
         return self._decode(g)[0]
 
     def check(self) -> str | None:
-        return "global_budget" if self.n_evals >= self.max_evals else None
+        if self.n_evals >= self.max_evals:
+            return "global_budget"
+        if self.stall_generations is None:
+            return None
+        # the opt-in stall rule: one call at the start of each generation
+        if self._evals_at_check is not None:
+            self.stall_count = (self.stall_count + 1 if self.n_evals == self._evals_at_check
+                                else 0)
+        self._evals_at_check = self.n_evals
+        return "stalled" if self.stall_count >= self.stall_generations else None
 
     def evaluate(self, g: tuple) -> float:
         if self.n_evals >= self.max_evals:

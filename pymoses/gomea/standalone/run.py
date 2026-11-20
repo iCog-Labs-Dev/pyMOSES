@@ -9,7 +9,7 @@ Usage (from the repository root)::
         --pop 1000 --max-evals 500000 --seed SPLIT_SEED \\
         [--template-height 4] [--it-terms 8 --it-factors 2 --it-powers=-2,-1,1,2] \\
         --out RUN_DIR [--arm NAME --task NAME --run-id ID] [--no-column-cache] \\
-        [--max-generations G]
+        [--max-generations G] [--stall-generations K]
 
 ``--train``, ``--val`` and ``--test`` are the ORIGINAL split files. The search uses the
 training rows with the target scaled as the runner scales it, y' = 10 (y - mean) / sd (the
@@ -32,6 +32,18 @@ G GOM generations after the start population (end reason ``max_generations``), a
 run first. Without the option, the limit is ``BIG`` and the outputs do not change. With the
 option, ``max_generations`` is also in the "start" record's ``params`` and in the
 ``standalone`` block of ``summary.json``.
+
+**The stall rule (opt-in).** NOT A PORT: the IT linkage study (BACKLOG 13.9, server round 15).
+``--stall-generations K`` ends the run with the end reason ``stalled`` when K generations in a
+row made no new evaluation: the evaluation count did not grow during the generation (score-cache
+hits, no-op skips and phenotype skips do not count). A population with one phenotype can keep
+different genotypes (GOM accepts neutral changes of inactive positions), so "all genomes equal"
+can fail to happen, and cache hits do not use the budget E; without a rule such a run goes on
+until the wall cap. ``RegressionEvaluator.check`` applies the rule; the engine calls it once at
+the start of each generation, after its own checks of the generation before (convergence and the
+generation limit come first). Without the option, ``check`` is as before and the outputs do not
+change. With the option, ``stall_generations`` is also in the "start" record's ``params`` and in
+the ``standalone`` block of ``summary.json``, with ``stall_count`` (the count at the end).
 
 **Outputs** in ``RUN_DIR``: ``summary.json`` (the runner's summary keys where they apply, plus a
 ``standalone`` block), ``candidates.json`` (the one reported model) and ``events.jsonl`` (a
@@ -220,6 +232,10 @@ def parse_args(argv=None):
     ap.add_argument("--max-generations", type=int, default=None,
                     help="stop after G GOM generations after the start population "
                          "(GP-GOMEA --generations); default: no generation limit")
+    # NOT A PORT: the IT linkage study (BACKLOG 13.9, server round 15). Opt-in; None: no rule.
+    ap.add_argument("--stall-generations", type=int, default=None,
+                    help="stop (end reason stalled) when K generations in a row made no new "
+                         "evaluation; default: no stall rule")
     args = ap.parse_args(argv)
     args.it_powers = tuple(int(x) for x in str(args.it_powers).split(",") if x.strip())
     if args.pop < 2:
@@ -228,6 +244,8 @@ def parse_args(argv=None):
         ap.error("--max-evals must be at least --pop (the start population is evaluated)")
     if args.max_generations is not None and args.max_generations < 1:
         ap.error("--max-generations must be at least 1")
+    if args.stall_generations is not None and args.stall_generations < 1:
+        ap.error("--stall-generations must be at least 1")
     return args
 
 
@@ -260,7 +278,9 @@ def run(args) -> dict:
         scorer = TemplateScorer(genome, data)
     E = args.max_evals
     checkpoints = [max(1, round(f * E)) for f in ANYTIME_FRACTIONS]
-    ev = RegressionEvaluator(genome, scorer, E, checkpoints)
+    stall = getattr(args, "stall_generations", None)  # the opt-in stall rule (round 15)
+    ev = (RegressionEvaluator(genome, scorer, E, checkpoints) if stall is None else
+          RegressionEvaluator(genome, scorer, E, checkpoints, stall_generations=stall))
     var_y = variance(y_scaled)  # of the search target: the NMSE of a search score
 
     master = MT19937RandGen(args.seed)
@@ -289,6 +309,8 @@ def run(args) -> dict:
         max_gens = getattr(args, "max_generations", None)
         if max_gens is not None:
             params["max_generations"] = max_gens
+        if stall is not None:
+            params["stall_generations"] = stall
         tele.write({"type": "start", "params": params, "start": start})
         pop = []
         try:
@@ -372,6 +394,9 @@ def run(args) -> dict:
     }
     if max_gens is not None:
         standalone["max_generations"] = max_gens
+    if stall is not None:
+        standalone["stall_generations"] = stall
+        standalone["stall_count"] = ev.stall_count
     summary = {
         "run_id": args.run_id, "task": args.task or Path(args.train).parent.name,
         "arm": args.arm or f"{genome.kind}-{args.fos}", "seed": args.seed,
