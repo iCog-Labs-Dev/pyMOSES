@@ -277,6 +277,20 @@ Round 13 (2026-11-19; [`docs/gomea/SERVER-ROUND13-FINDINGS.md`](docs/gomea/SERVE
 * The user made per-term least squares (BASE-TLS) the reference and the default of the experiments
   for now, with its node-proximity variant (TLS-NP) next in line (2026-11-19).
 
+Round 14 (2026-11-20; [`docs/gomea/SERVER-ROUND14-FINDINGS.md`](docs/gomea/SERVER-ROUND14-FINDINGS.md)),
+10 datasets, fresh splits 61–70:
+
+* **LM with an evaluation reserve helps a little, but less than 10 %:** 2 % lower test NMSE with
+  per-term least squares, 2.6 % under node-proximity linkage, 5 % under node-proximity linkage
+  with plain scaling. The CPU is the same; programs are 4–10 % larger. All ties.
+* **Node-proximity linkage on top of BASE-TLS:** again within 3 % of BASE-TLS (a tie), with 18 %
+  less CPU.
+* **A relative pole rule after LM:** a tie; where it rejected a tuning, the result was mostly
+  worse.
+* **Linear baselines (OLS and ridge on all inputs):** BASE-TLS is 25 % lower overall, but on Dow
+  ridge is better than every MOSES arm.
+* BASE-TLS stays the reference; TLS-NP stays next in line.
+
 ## Run the tests
 
 The test suite is self-contained: it diffs against C++ **golden fixtures committed to

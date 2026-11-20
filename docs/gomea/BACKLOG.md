@@ -662,6 +662,40 @@ item 1, and built items 3 and 7 of section 11 (size with the term weights; the r
       needs an LM budget, for example `--const-opt-reserve`; without it, expect many identical
       pairs, as for TLS-LM.
 
+## 13. Open items after server round 14 (2026-11-20)
+
+Results: `SERVER-ROUND14-FINDINGS.md`. BASE-TLS stays the reference and TLS-NP stays next in line
+(the reference rule). Round 14 tested items 3, 4, 6, 7 and 10 of section 12 and built items 1
+and 2. All items below are agent ideas unless a line says otherwise; none is a setting until the
+user decides.
+
+1. **The relative pole rule (PSR, `box-rel`): the user's decision.** Origin: 12.3 (agent idea,
+   post hoc). Round 14: a tie (1.000, 7/16); 15 of 386 tunings rejected; in the 12 runs with a
+   rejection, 3 lower, 7 higher, 2 identical; it missed both runs of its arm with a test NMSE above
+   100. Agent recommendation: reject it as a setting. The code stays opt-in (no change needed).
+2. **The last LM call of a reserve run is lost.** In 74–83 % of the reserve runs, the run's budget
+   ended during the last LM call, before the guard check, so the tuning was not written back.
+   Idea: end the deme chain when the budget that is left is smaller than one LM call plus the two
+   guard passes. Not tested.
+3. **The reserve adds demes (seen in rounds 11 and 14).** The LM arms have 5 demes against 2 and
+   2.4–2.6 times more knobs per deme. So the round 14 LM contrasts measure LM plus the extra demes.
+   Idea: a control arm that has the reserve and the extra demes, but no LM write-back. Needs code.
+4. **Dow: a plain linear model is better than the search.** Ridge 15.05 and OLS 15.72 against
+   BASE-TLS 17.16 (0/10, ratio 1.114). The TLS program `+($x1 … $xk)` with the per-term fit is
+   the OLS model. Idea: give MOSES this program as an extra start exemplar, so that the search
+   starts from the linear model. Not tested; it is a change of the search start, not of the
+   scorer.
+5. **TLSNP-LMR as a cost variant (not registered).** The accuracy of BASE-TLS (0.996, 52/48) at
+   0.823 of its CPU, with programs 1.038× (nodes 1.057×). A candidate for a registered test on
+   fresh splits if the user prefers cost (see the user's accuracy-against-size preference).
+6. **The linear baselines in later rounds.** They cost seconds and show what the search adds per
+   dataset. Idea: keep LIN-RIDGE as a report baseline in each regression round.
+7. **Runs with a test NMSE above 100.** 9 runs in round 14 (none in round 13); clipping brings each
+   back into range. The clip is a report metric only. Idea: test the clip as a model setting (the
+   prediction is clipped to the widened training target range).
+8. **Still open:** 12.5 (ε-lexicase), 12.8 (a hard S0 gate), 12.9 (the telemetry items); the T3.4
+   feasibility note (offered, not requested).
+
 ## 8. Future directions from the literature search (2026-11-06)
 
 Source: the literature search of 2026-11-06 (`docs/gomea/LITERATURE-2026-11-06.md`). Start only after rounds 6 to 8 give a

@@ -528,3 +528,17 @@ user confirms it.
     14 server run after the push.
   * Agent reading, not confirmed: the reporting rule for the added contrast (the agent reports it
     if its Holm p is below 0.025 and its ratio at least 10 % below 1; the user decides).
+* **Scratch deletion after the round 14 push (2026-11-19):** the agent listed 8 folders with their
+  sizes (the clones `pyMoses-round14h`, `pyMoses-round14i`, `pyMoses-round14j`,
+  `pyMoses-round14j-smoke` and `pyMoses-rv16-r14`; the scratchpad folders `r13smoke2` and `r13g`;
+  the contents of `pyMoses-suite-tmp`) and asked to delete them. The user answered: "Yesssssssss".
+  * Done: the 8 folders are deleted; no running process used them. `/` had 22 GB free after it.
+  * Not approved by this answer: the 19 older clones (rounds 2–13, `pyMoses-dowmem`,
+    `pyMoses-agent-guide`); they stay.
+* **Round 14 results (2026-11-20):** the user wrote "Run finished. Result in MOSES as usual." The
+  agent analyzed the bundle `bundle-final-20261120T003450Z.tar.gz` against the pre-registration
+  (`SERVER-ROUND14-FINDINGS.md`). This message is not a decision.
+  * Rule result: BASE-TLS stays the reference; TLS-NP stays next in line.
+  * User decision pending: approve or reject the relative pole rule (`box-rel`; agent
+    recommendation: reject); the scope of the next round (`BACKLOG.md` section 13).
+  * Not approved: any push.

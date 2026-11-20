@@ -12,7 +12,7 @@ Use it like this:
 2. Follow the checklist in "How to run an experiment" for that task.
 3. When the task ends, mark it here (date, verdict, findings file) and update the backlog.
 
-## Where we are (2026-11-19)
+## Where we are (2026-11-20)
 
 | Setting | Status | Evidence |
 |---|---|---|
@@ -31,17 +31,25 @@ Use it like this:
 | **BASE-TLS** = BASE with `--linear-scaling terms --const-opt none` (per-term least squares, no LM) | **The reference and the default of later regression experiments, for now** (user, 2026-11-19). "A better" than BASE twice (0.879, then 0.784 on fresh splits), programs 1.26× with the term weights, same CPU | 1bf, 1bh |
 | LM during the search (`--const-opt-during elite`, BASE-LME) | Tie (0.929, 73/27), programs 1.27×; no user decision yet | 1bf |
 | LM on the top 5 of a deme (`--const-opt-top-k 5`, BASE-K5) | No gain over the reserve (0.998) | 1bf |
-| Node-proximity linkage (`--gomea-fos np`) | Tie (1.058), CPU 0.74×; mux11 ties. **TLS-NP** (BASE-TLS with NP): tie with BASE-TLS (1.023), CPU 0.84× ("A better"), same size; **next in line after BASE-TLS** (user, 2026-11-19) | 1bf, 1bg, 1bh |
+| Node-proximity linkage (`--gomea-fos np`) | Tie (1.058), CPU 0.74×; mux11 ties. **TLS-NP** (BASE-TLS with NP): tie with BASE-TLS (1.023, then 1.029 on fresh splits), CPU 0.84× and 0.82× ("A better" twice), size 1.000 and 0.920; **next in line after BASE-TLS** (user, 2026-11-19) | 1bf, 1bg, 1bh, 1bi |
 | Diversity pressure (`--diversity-pressure 6 × rows`) | No gain (1.000), CPU 2.44× | 1bf |
 | Validation guard for per-term least squares at the final choice (TLS-G) | No effect: 100 identical pairs | 1bh |
 | LM on the inner constants of each term (T3.1, TLS-LM) | Tie (1.000, 80 identical pairs); LM had little budget | 1bh |
+| T3.1 with the LM reserve (TLS-LMR; TLSNP-LMR under NP) | Ties with small gains: TLS-LMR vs BASE-TLS 0.980 (63/23); TLSNP-LMR vs TLS-NP 0.974 (64/22); same CPU, programs 1.04× and 1.10×. The reserve also adds demes (5 against 2) | 1bi |
+| LM under NP with plain scaling (NP-LMR vs NP-NOLM; the user's question, `BACKLOG.md` 12.10) | Tie with a gain: 0.950 (75/21), same CPU, programs 1.07×; both far behind the TLS arms (1.16× and 1.30× BASE-TLS) | 1bi |
+| Linear baselines (LIN-OLS, LIN-RIDGE; report only) | BASE-TLS is 0.748× the linear NMSE (86/14), but **on Dow ridge is better than every MOSES arm** (BASE-TLS 1.114×, 0/10) | 1bi |
 | ε-lexicase exemplar selection (`--exemplar-selection lexicase`) | Tie (1.012, 26/55); about one selection per run | 1bh |
 | Pole safeguard after LM (`--const-opt-pole-check box`) | Tie (1.000, 1/12); it rejected tunings that were better on the test rows. Agent idea; the relative rule `box-rel` runs in round 14; the user approves or rejects it after that (origin: `BACKLOG.md` 12.3) | 1bh |
+| Relative pole rule (`--const-opt-pole-check box-rel`, NP-LMR-PSR) | Tie (1.000, 7/16); 15 of 386 tunings rejected, worse in 7 of the 10 rejection runs that differ; it missed both runs of its arm with a test NMSE above 100. Agent idea (post hoc); **the user approves or rejects it** (agent recommendation: reject) | 1bi |
 
 **Round 13 is done** (`SERVER-ROUND13-FINDINGS.md`). BASE-TLS was "A better" than BASE again (the
 confirmation rule). **The user made BASE-TLS the reference and the default for now, with TLS-NP
-next in line (2026-11-19).** The code defaults of the CLI do not change. **Next:** the scope of the
-next round (`BACKLOG.md` section 12); its arms compare against BASE-TLS.
+next in line (2026-11-19).** The code defaults of the CLI do not change.
+
+**Round 14 is done** (`SERVER-ROUND14-FINDINGS.md`). All 5 primary contrasts tie. No arm with
+`--linear-scaling terms` is "A better" than BASE-TLS, so BASE-TLS stays the reference and TLS-NP
+stays next in line (the reference rule). **Next:** the user's decision on the relative pole rule,
+and the scope of the next round (`BACKLOG.md` section 13).
 
 ## Stage 0: done (rounds 6 to 8, 2026-11-06 to 2026-11-08)
 
