@@ -27,6 +27,9 @@ A manifest (JSON) has these keys:
 * an arm `{"linear": "ols"}` or `{"linear": "ridge"}` (server round 14, LIN-OLS and LIN-RIDGE;
   see "Linear baselines" below) has no MOSES run. `expand` refuses another value, and refuses a
   linear arm with any other key (`argv`, `binary`, `budget`, ...).
+* an arm `{"standalone": {...}}` (the IT linkage study, BACKLOG 13.9; see "Stand-alone GOMEA"
+  below) has no MOSES run either. `expand` refuses a wrong block, and a stand-alone arm with any
+  other key.
 
 **MOSES regression setup** (Phase 1f; see `PHASE1F-PREREGISTRATION.md`). MOSES scores a
 regression candidate by raw squared error (pyMoses: of the least-squares
@@ -86,6 +89,19 @@ rule of the report (`phase_report.py`, `"size_terms"`) the summary has `final_pr
 `+($x1 ... $xk)` over the k inputs and a `terms` record with `n_terms` k and `fallback` false.
 `candidates.json` holds the one candidate. A fit that fails gives status "error". The
 manifest's `mem_limit_mb` does not apply (there is no child process; a fit uses a few MB).
+
+**Stand-alone GOMEA (NOT A PORT: the IT linkage study, BACKLOG 13.9;
+`docs/gomea/IT-LINKAGE-STUDY-PLAN.md`, section 6.4).** An arm `{"standalone": {"genome":
+"template" | "it", "fos": "uni" | "rt" | "lt-mi" | "lt-b" | "np", "pop": N, "max_evals": E}}`
+runs `python -m pymoses.gomea.standalone` (the runner's own Python, `PYTHONPATH` this
+repository, the run directory as its working directory, the manifest's `wall_cap_s` and
+`mem_limit_mb`) on the original train, val and test splits, with the split number as its seed.
+Optional block keys: `template_height`, `it_terms`, `it_factors`, `it_powers` (a list of
+integers), `column_cache` (true or false), `it_cache_max_columns`, `it_cache_max_pairs`. The
+runner writes `train_scaled.csv` as for MOSES (the module scales the training target with the
+same expressions) and `config.json`, and keeps the module's `summary.json`, `candidates.json`
+and `events.jsonl`. A run that ends without a summary (a timeout, a crash) gets a summary with
+status "timeout" or "error".
 
 **Telemetry.** A pyMoses GOMEA arm (`-a gomea` or `-a hc-gomea` in its argv) also gets
 `--gomea-log RUN_DIR/events.jsonl`, as the Boolean runner (`benchmarks.gomea.manifest`)
@@ -272,6 +288,8 @@ def _run_one(job: dict) -> dict:
         return json.loads(summary_path.read_text())
     if job.get("linear"):
         return _run_linear(job)  # server round 14: a linear baseline, no MOSES process
+    if job.get("standalone"):
+        return _run_standalone(job)  # the IT linkage study: stand-alone GOMEA, no MOSES
     sdir = Path(job["split_dir"])
     n_train, mean, sd = _scale_train(sdir / "train.csv", run_dir / "train_scaled.csv")
     argv = moses_argv(job, run_dir, n_train)
@@ -568,6 +586,123 @@ def _run_linear(job: dict) -> dict:
     return summary
 
 
+# NOT A PORT: the IT linkage study (BACKLOG 13.9), the arm key "standalone".
+STANDALONE_GENOMES = ("template", "it")
+STANDALONE_FOS = ("uni", "rt", "lt-mi", "lt-b", "np")  # pymoses.gomea.fos.LinkageModel.MODES
+STANDALONE_REQUIRED = ("genome", "fos", "pop", "max_evals")
+# optional block key -> the module's option
+STANDALONE_OPTIONAL = {
+    "template_height": "--template-height",
+    "it_terms": "--it-terms",
+    "it_factors": "--it-factors",
+    "it_powers": "--it-powers",
+    "column_cache": "--no-column-cache",
+    "it_cache_max_columns": "--it-cache-max-columns",
+    "it_cache_max_pairs": "--it-cache-max-pairs",
+}
+
+
+def standalone_argv(job: dict, run_dir: Path) -> list[str]:
+    """The command line of a stand-alone job (`python -m pymoses.gomea.standalone ...`)."""
+    spec, sdir = job["standalone"], Path(job["split_dir"])
+    argv = [sys.executable, "-m", "pymoses.gomea.standalone",
+            "--genome", spec["genome"], "--fos", spec["fos"],
+            "--train", str(sdir / "train.csv"), "--val", str(sdir / "val.csv"),
+            "--test", str(sdir / "test.csv"), "--target", "y",
+            "--pop", str(spec["pop"]), "--max-evals", str(spec["max_evals"]),
+            "--seed", str(job["seed"]), "--out", str(run_dir),
+            "--arm", job["arm"], "--task", job["task"], "--run-id", job["run_id"]]
+    for key, opt in STANDALONE_OPTIONAL.items():
+        if key not in spec:
+            continue
+        if key == "column_cache":
+            argv += [] if spec[key] else [opt]
+        elif key == "it_powers":
+            argv.append(f"{opt}=" + ",".join(str(int(p)) for p in spec[key]))
+        else:
+            argv += [opt, str(int(spec[key]))]
+    return argv
+
+
+def _run_standalone(job: dict) -> dict:
+    """The IT linkage study: run one stand-alone GOMEA job (see "Stand-alone GOMEA" in the
+    module docstring) and return its summary."""
+    run_dir = Path(job["run_dir"])
+    summary_path = run_dir / "summary.json"
+    sdir = Path(job["split_dir"])
+    try:
+        _scale_train(sdir / "train.csv", run_dir / "train_scaled.csv")
+    except ZeroDivisionError:
+        pass  # a constant target: the module refuses it and writes the error summary
+    argv = standalone_argv(job, run_dir)
+    (run_dir / "config.json").write_text(json.dumps({**job, "resolved_argv": argv}, indent=2))
+    t0 = time.monotonic()
+    status, exit_code, error = "error", None, None
+    try:
+        proc = subprocess.run(
+            argv, capture_output=True, text=True, timeout=job["wall_cap_s"],
+            env={**os.environ, "OMP_NUM_THREADS": "1", "PYTHONHASHSEED": "0",
+                 "PYTHONPATH": str(REPO)},
+            cwd=run_dir, preexec_fn=_limit(job.get("mem_limit_mb")),
+        )
+        (run_dir / "stdout.txt").write_text(proc.stdout)
+        (run_dir / "stderr.txt").write_text(proc.stderr)
+        exit_code = proc.returncode
+        error = (proc.stderr.strip().splitlines() or ["?"])[-1][:300] if exit_code else None
+    except subprocess.TimeoutExpired:
+        status, error = "timeout", f"wall cap {job['wall_cap_s']} s reached"
+    if status != "timeout" and summary_path.exists():
+        return json.loads(summary_path.read_text())
+    summary = {
+        "run_id": job["run_id"], "task": job["task"], "arm": job["arm"], "seed": job["seed"],
+        "status": status, "error": error or "no summary written", "exit_code": exit_code,
+        "wall_s": time.monotonic() - t0, "train_nmse": None, "val_nmse": None,
+        "test_nmse": None, "test_nmse_clipped": None, "final_program": None, "n_evals": None,
+    }
+    tmp = summary_path.with_suffix(".tmp")
+    tmp.write_text(json.dumps(summary, indent=2, sort_keys=True))
+    os.replace(tmp, summary_path)
+    return summary
+
+
+def _check_standalone(arm: str, a: dict) -> None:
+    """The IT linkage study: `"standalone"` must be a block with the required keys and valid
+    values, on an arm with no other key."""
+    if "standalone" not in a:
+        return
+    spec = a["standalone"]
+    extra = sorted(set(a) - {"standalone"})
+    if extra:
+        raise ValueError(f"arm {arm}: a stand-alone arm has only the key \"standalone\", "
+                         f"got {extra}")
+    if not isinstance(spec, dict):
+        raise ValueError(f"arm {arm}: standalone must be a block (a JSON object)")
+    missing = [k for k in STANDALONE_REQUIRED if k not in spec]
+    unknown = sorted(set(spec) - set(STANDALONE_REQUIRED) - set(STANDALONE_OPTIONAL))
+    if missing or unknown:
+        raise ValueError(f"arm {arm}: standalone block: missing {missing}, unknown {unknown}")
+    if spec["genome"] not in STANDALONE_GENOMES:
+        raise ValueError(f"arm {arm}: standalone genome must be one of {STANDALONE_GENOMES}")
+    if spec["fos"] not in STANDALONE_FOS:
+        raise ValueError(f"arm {arm}: standalone fos must be one of {STANDALONE_FOS}")
+    ints = [k for k in ("pop", "max_evals", "template_height", "it_terms", "it_factors",
+                        "it_cache_max_columns", "it_cache_max_pairs") if k in spec]
+    for k in ints:
+        if not isinstance(spec[k], int) or isinstance(spec[k], bool) or spec[k] < 1:
+            raise ValueError(f"arm {arm}: standalone {k} must be a positive integer")
+    if spec["pop"] < 2 or spec["max_evals"] < spec["pop"]:
+        raise ValueError(f"arm {arm}: standalone needs pop >= 2 and max_evals >= pop")
+    if "column_cache" in spec and not isinstance(spec["column_cache"], bool):
+        raise ValueError(f"arm {arm}: standalone column_cache must be true or false")
+    if "it_powers" in spec:
+        p = spec["it_powers"]
+        if (not isinstance(p, list) or not p
+                or any(not isinstance(x, int) or isinstance(x, bool) or x == 0 for x in p)
+                or len(set(p)) != len(p)):
+            raise ValueError(f"arm {arm}: standalone it_powers must be distinct non-zero "
+                             f"integers")
+
+
 def _terms_guard(c: dict, on_val: dict, on_test: dict, clipped_terms: float) -> float:
     """Server round 13 (TLS-G): keep the per-term model or the plain a + b*f of candidate `c`
     (a scored record of a `--linear-scaling terms` arm), whichever has the lower validation
@@ -818,6 +953,7 @@ def expand(manifest: dict, out_root: Path, repo: Path) -> list[dict]:
     ddir = (repo / manifest["datasets_dir"]).resolve()
     for arm, a in manifest["arms"].items():
         _check_linear(arm, a)  # server round 14: refuse the manifest before any run
+        _check_standalone(arm, a)  # the IT linkage study
         _check_terms_guard(arm, a)  # server round 13
     clip = manifest.get("clip_test_nmse", False)  # server round 13 (opt-in)
     if not isinstance(clip, bool):
@@ -833,6 +969,19 @@ def expand(manifest: dict, out_root: Path, repo: Path) -> list[dict]:
                 jobs += [{
                     "run_id": f"{ds}__{arm}__s{seed}", "task": ds, "arm": arm, "seed": seed,
                     "linear": a["linear"],
+                    "split_dir": str(ddir / ds / "splits" / f"s{seed}"),
+                    "wall_cap_s": manifest["wall_cap_s"],
+                    "mem_limit_mb": manifest.get("mem_limit_mb"),
+                    "run_dir": str(out_root / manifest["name"] / "runs" / f"{ds}__{arm}__s{seed}"),
+                    **({"clip_test_nmse": True} if clip else {}),
+                    **({"plain_nmse": True} if plain else {}),
+                } for seed in manifest["splits"]]
+                continue
+            if "standalone" in a:
+                # the IT linkage study: stand-alone GOMEA (no binary, no argv, no budget)
+                jobs += [{
+                    "run_id": f"{ds}__{arm}__s{seed}", "task": ds, "arm": arm, "seed": seed,
+                    "standalone": dict(a["standalone"]),
                     "split_dir": str(ddir / ds / "splits" / f"s{seed}"),
                     "wall_cap_s": manifest["wall_cap_s"],
                     "mem_limit_mb": manifest.get("mem_limit_mb"),
