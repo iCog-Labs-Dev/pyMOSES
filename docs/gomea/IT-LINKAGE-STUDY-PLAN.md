@@ -365,9 +365,22 @@ from 1 (see decision D5).
   evaluation of an 8-term IT model (2 factors per term) with `fit_terms` took 2.43 ms. The server
   CPU is slower; assume about 2× (template ~1 ms, IT ~5 ms) until the pilot measures it.
 * **Estimate:** CPU per run ≈ E × (cost per evaluation) + the linkage learning per generation.
-  At E = 500,000: template about 8 min, IT about 40 min (before caching). 10 arms × 10 datasets ×
-  10 splits = 1,000 runs ≈ 400 CPU hours ≈ 36 h at W = 11, three chained rounds. With 5 datasets,
-  about 18 h. With the IT column cache 3× faster, about 16 h for 10 datasets.
+  At E = 500,000 and 500 rows: template about 8 min, IT about 40 min (before caching).
+* **Correction (2026-11-20, before any decision on the sizes):** the first estimate assumed 500
+  training rows. The datasets have 154–2,501 training rows (Air 753, Bos 254, Con 516, Dow 534,
+  EnC 384, EnH 384, Tow 2,501, WiR 801, WiW 2,450, Yac 154; mean 873, 1.75× the benchmark), and the
+  cost of an evaluation grows about linearly with the rows. Corrected, at E = 500,000:
+
+  | Design | CPU hours | Server time at W = 11 |
+  |---|---|---|
+  | 10 datasets, no IT cache | about 730 | about 66 h (2.8 days) |
+  | 5 datasets (Air, Con, Dow, Tow, EnH; mean 938 rows), no IT cache | about 390 | about 36 h (1.5 days) |
+  | 10 datasets, IT column cache 3× faster (an assumption) | about 320 | about 29 h (1.2 days) |
+
+  These numbers assume a server 2× slower than the local machine, and that every run uses all E
+  evaluations; the pilot measures both. Under D2, 10 datasets fit only if the pilot shows about two
+  chained rounds (about 30 h); so the IT column cache of section 5.5 is required, not optional,
+  for the 10-dataset design. Other levers: a smaller E, or the 5-dataset fallback.
 * **The pilot (clone, local, at nice 19):** all 10 arms on Con and Dow, split 71, with N = 1,000 and
   E = 500,000. Report: evaluations and CPU per arm; cache hit rate; generations reached; start
   diversity (every position varies); the gate results. From it, the agent proposes E, N and the
@@ -417,6 +430,8 @@ model" for MOSES (Q4), all on the IT genome:
 | Template-free check | IT with more slots (16 × 3) | Tests whether the result depends on the form size |
 
 ## 12. Decisions for the user before the pre-registration
+
+**The user accepted D1–D7 as recommended (2026-11-20: "Accept D1–D7 as recommended").**
 
 | # | Decision | Agent recommendation |
 |---|---|---|

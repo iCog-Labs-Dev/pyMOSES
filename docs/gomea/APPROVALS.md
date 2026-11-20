@@ -588,3 +588,14 @@ user confirms it.
   * Done: `IT-LINKAGE-STUDY-PLAN.md`; `BACKLOG.md` 13.9 points to it.
   * User decisions pending: D1–D7 of the plan.
   * Not approved: any implementation, pre-registration or push.
+* **IT linkage study decisions and push (2026-11-20):** the agent asked whether the user accepts
+  D1–D7 of `IT-LINKAGE-STUDY-PLAN.md` and whether to push the four local commits. The user answered:
+  "Accept D1–D7 as recommended and push the commits and does the 400 CPU hours still a thing? How
+  many days does this estimate take to finish?"
+  * User-approved: D1–D7 as recommended; the push of the branch to
+    `origin/experiment/moses-gomea-discrete`.
+  * Agent correction before the push: the CPU estimate assumed 500 training rows; corrected for the
+    real row counts (plan, section 9).
+  * Agent reading, not confirmed: the push includes this record and the estimate correction (one
+    commit on top of the four).
+  * Not approved: any implementation start; a server run.

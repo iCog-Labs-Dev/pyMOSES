@@ -729,8 +729,9 @@ user decides.
      objective is to see whether IT is better for linkage learning than the template, and to find
      linkage models that work better with IT. The implementation plan is
      `IT-LINKAGE-STUDY-PLAN.md`.
-   * **Status:** not started. The plan is written; the user decides its open decisions (section 12
-     of the plan); then the pre-registration.
+   * **Status:** not started. The plan is written; the user accepted its decisions D1–D7 as
+     recommended (2026-11-20). Next: the implementation by subagents, then the pre-registration
+     after the pilot (plan, section 10).
 
 ## 8. Future directions from the literature search (2026-11-06)
 
