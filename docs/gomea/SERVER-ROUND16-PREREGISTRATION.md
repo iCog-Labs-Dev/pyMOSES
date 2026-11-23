@@ -1,8 +1,16 @@
 # Server round 16: pre-registration (2026-11-23)
 
-**Status:** draft. The user approved the frame on 2026-11-23 ("Yes I agree lets run it on the
-server", `APPROVALS.md`). The agent wrote the details below. The user approves this text before
-the run. Not yet implemented, not yet run.
+**Status:** draft for approval. The user approved the frame on 2026-11-23 ("Yes I agree lets run
+it on the server", `APPROVALS.md`). The agent wrote the details below. The user approves this text
+before the run. Implemented (clones K, L, M and N, commits `0a5a234` to `c299342`); not yet run.
+
+* Full test suite at `dd5401b`: 10,607 passed, 6 skipped, 0 failed.
+* RV16 round 1: 1 blocking finding (the best-so-far checkpoints had generation resolution) and 7
+  nits. All 8 are fixed with the user's approval ("Yes go ahead with the a option and you can fix
+  the Nits"). RV16 round 2: no blocking finding, 2 new nits, not fixed, given to the user.
+* Local pilot (see "Pilot result"): gate items 1, 2, 4 and 5 pass. Item 3 (memory) fails, and its
+  pre-registered remedy is applied. The new estimate is above 20 h, so the round runs as two
+  plans that chain.
 
 **The user's question (2026-11-23):** "Can we test if increasing the number of evaluation for
 everyone has a better effect in the long term? [...] I do want to know how much better the result
@@ -51,6 +59,12 @@ BASE-TLS (20,000 evaluations) stays the reference; TLS-NP stays next in line.
   at most 20 h; else the agent splits it into two plans that chain, so that the second starts by
   itself when the first ends (the user's rule). The server round runs in one go; there is no
   separate server smoke step.
+* **As decided after the pilot (estimate about 36–40 h):** two plans that chain, split by splits.
+  `round16`: S0, then 1bk on splits 81–85 (210 runs, an interim report). `round16b` starts by
+  itself: 1bk on splits 81–90; the runner keeps the 210 runs of `round16` and runs the other 210;
+  the report covers all 420 runs. Each half is a complete design (all arms, all data sets). The
+  verdicts come from the report on all 420 runs only. The interim report is descriptive, and
+  nothing stops or changes the round because of it.
 * **One phase (1bk, regression):** 7 data sets (the paper's five, Air, Con, EnC, EnH, Yac, plus
   Tow and Dow), **fresh splits 81–90**, a budget of 20,000 or 100,000 evaluations for each run
   (`-m`), no time limit, a wall cap of 36,000 s as a guard only.
@@ -162,10 +176,41 @@ The RV option is opt-in: without it, the output of every existing setting stays 
   5. the evaluation count of each run is recorded (a run that ends before its budget is reported).
 * If a check fails, the agent reports to the user before the server run.
 
+## Pilot result (2026-11-24, merged code `f121da0`, clone L)
+
+13 runs, at most 2 at a time, at nice 19, on a loaded local machine (load 10–17 on 22 CPUs).
+Files: `pyMoses-suite-tmp/round16l/pilot/` (`table-final.txt`, `peaks.json`, `watch.jsonl`). No
+NMSE was read for the gate. Clone L saw by mistake the last progress line of the Tow run (one
+training and one test NMSE of old split 1); the agent does not repeat these values.
+
+| Gate item | Result |
+|---|---|
+| 1. Every run ends ok | Pass: 13 of 13 |
+| 2. Same first initial population | Pass: the init record of each of the 8 RV runs equals that of its BASE-TLS run, key for key |
+| 3. Peak RSS ≤ 50 % of the limit | **Fail:** Tow BASE-TLS-100K 3,316 MB, 64.8 % of 5,120 MB. Its RSS grew about linearly with the evaluations to the end. All other runs ≤ 43.3 % (Con BASE-TLS-100K 2,216 MB); the 20,000 runs ≤ 465 MB |
+| 4. RV share ≤ 50 % | Pass: the highest is 0.247 (Con TLS-RV-100K) |
+| 5. Evaluation counts | Every run used its full budget (20,000 or 100,000); the log total equals `n_evals` in 13 of 13 |
+
+* **Remedy for item 3 (pre-registered):** the 100,000 arms of Air, Con, EnC, EnH, Tow and Yac move
+  to a manifest of their own, `sr-100K.json`, with 8,192 MB. The Tow peak is then 40.5 % of the
+  limit. W for this manifest is 7, as for the Dow manifest in round 14.
+* **CPU of each 100,000 run divided by its 20,000 run:** Con 9.34, 8.28, 7.97 (BASE-TLS, TLS-RV,
+  TLS-RVL); Yac 5.08, 5.57, 4.28. The draft assumed 5.
+* **CPU of the RV arms at 20,000, relative to BASE-TLS:** Con 0.65 (TLS-RV) and 1.01 (TLS-RVL);
+  Yac 0.33 and 0.79. Con TLS-RVL at 20,000 made 0 RV evaluations; its demes and log checkpoints
+  are those of Con BASE-TLS.
+* The pilot code had no trace yet, so its best-so-far checkpoints had generation resolution, and
+  the early checkpoints were empty (RV16 finding 1). The trace (`e4541b4`) fixes this. The local
+  chained smoke run of clone N at `c299342` (smoke16, then smoke16b by itself; 84 of 84 runs ok)
+  gave `anytime_source` = trace and a value at each of the 7 checkpoints in 84 of 84 runs.
+
 ## Memory
 
-As in round 14: Dow 8,192 MB, the other data sets 5,120 MB, unless the pilot (gate item 3) needs
-more for the 100,000 arms.
+Dow 8,192 MB for all 6 arms (as in round 14). The 20,000 arms of the other 6 data sets 5,120 MB.
+The 100,000 arms of the other 6 data sets 8,192 MB (pilot gate item 3). Dow did not run at 100,000
+in the pilot. In round 14, BASE-TLS on Dow peaked at 550 MB at 20,000, and the pilot's 100,000 /
+20,000 peak ratios are 2.5–6.0. So the agent expects at most about 3.3 GB (40 %) for Dow at
+100,000 (agent estimate, not measured).
 
 ## Implementation (by subagents, in separate clones)
 
@@ -174,6 +219,7 @@ more for the 100,000 arms.
 | K | The RV core under `pymoses` (from the spike 2 commit `be83e08`), with the seed fix; identity reference first; opt-in; tests; USAGE |
 | L | Splits 81–90; the runner (`rv_summary`, the best-so-far checkpoints); `configs/gomea/phase1bk/`, `plan16.json`, the smoke plan, `test_plan16.py`, the SERVER-RUN section; the dry run; after K merges, the local smoke run and the pilot |
 | M | The RV16 fixes (approved by the user): `--gomea-trace` (finding 1, option a, and nit 8), the refusals (nits 2 and 3), the counters (nits 4 and 5), the tests (nits 6 and 7) |
+| N | After the pilot: the manifest `sr-100K.json` (8,192 MB); the two plans that chain (`plan16.json` with `configs/gomea/phase1bk-a/`, splits 81–85; `plan16b.json`); the same for the smoke plans; tests; the SERVER-RUN section; the local chained smoke run |
 
 * Then: merge, the full test suite, the RV16 review, and the push only with a fresh approval.
 
@@ -181,10 +227,22 @@ more for the 100,000 arms.
 
 * CPU per 100 runs in round 14 (20,000 evaluations, 10 data sets): BASE-TLS 18.7 h. In spike 2
   the RV arms used about 0.6 times the CPU of the reference.
-* Estimate: BASE-TLS 13 h, TLS-RV and TLS-RVL 8 h each, BASE-TLS-100K about 65 h, TLS-RV-100K and
-  TLS-RVL-100K about 39 h each: about 170 CPU-h, about 16 h at W = 11, plus S0 (about 1.3 h).
-* **About 15–25 hours in total.** The cost of a 100,000 run is not known; the pilot gives a better
-  estimate.
+* Draft estimate (before the pilot): BASE-TLS 13 h, TLS-RV and TLS-RVL 8 h each, BASE-TLS-100K
+  about 65 h, TLS-RV-100K and TLS-RVL-100K about 39 h each: about 170 CPU-h, about 16 h at W = 11,
+  plus S0 (about 1.3 h). About 15–25 hours in total.
+* **Estimate after the pilot (2026-11-24, agent):** the round 14 server median CPU of BASE-TLS at
+  20,000 per data set, times the pilot ratios. Con's ratios for Air, EnC, EnH and Dow (low case:
+  Yac's ratios). Tow 100,000 / 20,000 is 8 (range 5.8–10.2: the pilot Tow run against the spike 2
+  and the round 14 Tow costs, with the local machine about 1.2 times slower than the server on Con
+  and Yac). The round 14 mean / median factor is 1.05. Script:
+  `pyMoses-suite-tmp/round16l/pilot/est16.py`.
+  * CPU: about 250 CPU-h (range 160–310): the 20,000 arms of 6 data sets 25, Dow (all arms) 27,
+    the 100,000 arms of 6 data sets 197.
+  * Wall: `sr.json` 2.3 h at W = 11, `sr-100K.json` 28 h at W = 7, `sr-Dow.json` 3.9 h at W = 7,
+    S0 1.3 h, plus the last long runs of each manifest.
+  * **About 36–40 hours in total (range 25–50 h), in two plans of about 18–20 h each.**
+* The draft was too low for two reasons: the 100,000 runs cost 4.3–9.3 times their 20,000 runs,
+  not 5 times, and the 100,000 arms run at W = 7, not 11.
 
 ## Limits
 
