@@ -38,60 +38,11 @@ sys.path.insert(0, str(TOOLS))
 import linkage_report  # noqa: E402
 import moses_sr_runner as runner  # noqa: E402
 import sr_eval  # noqa: E402
+from round16_data import PROGRAMS, TLS, TRAIN, TWO_DEMES, gomea_log, job  # noqa: E402
 
 OLD = "2d407b2"  # the commit before the round 16 runner changes
 SPIKE = REPO / "tests" / "gomea" / "data" / "round16_rv_spike2" / "events.jsonl"
-TRAIN = REPO / "tests" / "gomea" / "data" / "const_opt_none" / "train.csv"
-PROGRAMS = ["+(sin(*(1.3 $1)) *(0.5 $2))", "+(sin($1) $2 *($1 $2))", "*(2.5 sin(*(1.3 $1)))",
-            "$2"]
-TLS = ["-a", "gomea", "--linear-scaling", "terms", "--const-opt", "none"]
 VOLATILE = ("argv", "wall_s", "cpu_s", "ru_maxrss_kb")
-
-
-# ---- made-up GOMEA logs
-
-
-def _rv(evals, **kw) -> dict:
-    return {"mode": "rvg", "budget": "balance", "rv_evals": evals, "evals": evals, **kw}
-
-
-def _log(demes) -> str:
-    """A GOMEA log: `demes` is a list of (generations, end, rv) with generations a list of
-    (requests, best_raw, rv record or None), end (requests, best raw) and rv the "rv" record
-    of the "end" event (or None)."""
-    lines = []
-    for i, (gens, end, rv) in enumerate(demes):
-        lines.append({"type": "invocation_start", "deme_id": str(i + 1)})
-        lines.append({"type": "init", "n": 10})
-        for g, (req, raw, grv) in enumerate(gens):
-            e = {"type": "generation", "generation": g, "best_raw": raw,
-                 "ledger": {"requests": req}}
-            if grv is not None:
-                e["rv"] = grv
-            lines.append(e)
-        e = {"type": "end", "generations": len(gens), "termination_reason": "converged",
-             "best": {"raw": end[1], "penalized": end[1] - 1.0}, "ledger": {"requests": end[0]}}
-        if rv is not None:
-            e["rv"] = rv
-        lines.append(e)
-    return "".join(json.dumps(x) + "\n" for x in lines)
-
-
-TWO_DEMES = [
-    # deme 1: generations end at 30, 120 and 300 evaluations; the end record has a better raw
-    ([(30, -800.0, {"ran": True, "ams1_evals": 5, "ams2_evals": 0}),
-      (120, -600.0, {"ran": True, "ams1_evals": 0, "ams2_evals": 0}),
-      (300, -610.0, {"ran": False})], (300, -590.0),
-     _rv(40, generations=2, improving=10, kept_p=3, rejected=27, ams1_evals=5, ams1_improving=2,
-         fi_triggers=1, fi_evals=4, skip_struct=7, skip_dup=2, skipped_p_rv=1,
-         converged_by="structure", nis_max_seen=3, eval_s=0.5, step_s=0.75)),
-    # deme 2 (starts at 300): generations end at 400 and 1000 (run evaluations)
-    ([(100, -700.0, {"ran": True, "ams1_evals": 4, "ams2_evals": 2}),
-      (700, -500.0, None)], (700, -500.0),
-     _rv(60, generations=1, improving=20, kept_p=4, rejected=36, ams1_evals=4, ams2_evals=2,
-         skip_struct=1, skip_cache=5, converged_by=None, nis_max_seen=5, eval_s=0.25,
-         step_s=0.5)),
-]
 
 
 def _write(tmp_path: Path, text: str) -> Path:
@@ -106,11 +57,11 @@ def _write(tmp_path: Path, text: str) -> Path:
 def test_rv_summary_is_none_without_an_rv_record(tmp_path):
     assert runner.rv_summary(tmp_path / "none.jsonl", 1000) is None
     plain = [(g, e, None) for g, e, _ in TWO_DEMES]
-    assert runner.rv_summary(_write(tmp_path, _log(plain)), 1000) is None
+    assert runner.rv_summary(_write(tmp_path, gomea_log(plain)), 1000) is None
 
 
 def test_rv_summary_sums_the_demes(tmp_path):
-    rv = runner.rv_summary(_write(tmp_path, _log(TWO_DEMES)), 1000)
+    rv = runner.rv_summary(_write(tmp_path, gomea_log(TWO_DEMES)), 1000)
     assert rv["mode"] == "rvg" and rv["budget"] == "balance" and rv["demes"] == 2
     assert rv["rv_evals"] == 100 and rv["rv_share"] == 0.1
     assert rv["generations"] == 3 and rv["improving"] == 30 and rv["kept_p"] == 7
@@ -126,7 +77,7 @@ def test_rv_summary_sums_the_demes(tmp_path):
     assert runner.rv_summary(tmp_path / "events.jsonl", None)["rv_share"] is None
 
 
-def test_rv_summary_of_the_spike_log():
+def test_rv_summary_of_the_spikegomea_log():
     rv = runner.rv_summary(SPIKE, 20000)
     assert rv["demes"] == 2 and rv["rv_evals"] == 2491 + 1118
     assert rv["rv_share"] == pytest.approx(3609 / 20000)
@@ -138,7 +89,7 @@ def test_rv_summary_of_the_spike_log():
 
 
 def test_a_cut_last_line_is_left_out(tmp_path):
-    text = _log(TWO_DEMES) + '{"type": "end", "rv": {"rv_ev'
+    text = gomea_log(TWO_DEMES) + '{"type": "end", "rv": {"rv_ev'
     assert runner.rv_summary(_write(tmp_path, text), 1000)["rv_evals"] == 100
 
 
@@ -146,22 +97,22 @@ def test_a_cut_last_line_is_left_out(tmp_path):
 
 
 def test_deme_summary_of_two_demes(tmp_path):
-    d = runner.deme_summary(_write(tmp_path, _log(TWO_DEMES)))
+    d = runner.deme_summary(_write(tmp_path, gomea_log(TWO_DEMES)))
     assert d == {"count": 2, "start_evals": [0, 300], "requests": [300, 700],
                  "second_start_evals": 300, "evals_total": 1000}
 
 
 def test_a_deme_without_evaluations_is_not_counted(tmp_path):
     demes = TWO_DEMES[:1] + [([], (0, -590.0), None)] + TWO_DEMES[1:]
-    d = runner.deme_summary(_write(tmp_path, _log(demes)))
+    d = runner.deme_summary(_write(tmp_path, gomea_log(demes)))
     assert d["count"] == 2 and d["start_evals"] == [0, 300] and d["evals_total"] == 1000
-    one = runner.deme_summary(_write(tmp_path, _log(TWO_DEMES[:1])))
+    one = runner.deme_summary(_write(tmp_path, gomea_log(TWO_DEMES[:1])))
     assert one["count"] == 1 and one["second_start_evals"] is None
     assert runner.deme_summary(tmp_path / "none.jsonl") is None
 
 
 def test_a_deme_without_an_end_event_counts_its_last_generation(tmp_path):
-    text = _log(TWO_DEMES[:1]) + json.dumps(
+    text = gomea_log(TWO_DEMES[:1]) + json.dumps(
         {"type": "invocation_start"}) + "\n" + json.dumps(
         {"type": "generation", "best_raw": -100.0, "ledger": {"requests": 50}}) + "\n"
     d = runner.deme_summary(_write(tmp_path, text))
@@ -203,7 +154,7 @@ def test_the_conversion_of_a_score_that_is_not_finite():
 
 
 def test_anytime_records_take_the_best_raw_score_up_to_each_checkpoint(tmp_path):
-    ev = _write(tmp_path, _log(TWO_DEMES))
+    ev = _write(tmp_path, gomea_log(TWO_DEMES))
     recs, check = runner.anytime_records(ev, 1000, 10, 100.0, first_score=-500.0,
                                          first_train_nmse=50.0)
     assert [r["evals"] for r in recs] == [10, 20, 50, 100, 200, 500, 1000]
@@ -220,7 +171,7 @@ def test_anytime_records_take_the_best_raw_score_up_to_each_checkpoint(tmp_path)
 
 
 def test_a_run_that_ends_before_the_budget(tmp_path):
-    ev = _write(tmp_path, _log(TWO_DEMES[:1]))  # 300 evaluations of a budget of 1000
+    ev = _write(tmp_path, gomea_log(TWO_DEMES[:1]))  # 300 evaluations of a budget of 1000
     recs, check = runner.anytime_records(ev, 1000, 10, 100.0, first_score=-600.0,
                                          first_train_nmse=60.3)
     assert [r["reached"] for r in recs] == [True] * 5 + [False, False]
@@ -232,7 +183,7 @@ def test_a_run_that_ends_before_the_budget(tmp_path):
 
 
 def test_anytime_area_reads_the_records(tmp_path):
-    ev = _write(tmp_path, _log(TWO_DEMES))
+    ev = _write(tmp_path, gomea_log(TWO_DEMES))
     recs, _ = runner.anytime_records(ev, 1000, 10, 100.0)
     assert linkage_report.anytime_area({"anytime": recs}) is None  # null values at 1 and 2 %
     # a budget of 10,000 for a run of 1,000 evaluations: a value at every checkpoint
@@ -243,7 +194,7 @@ def test_anytime_area_reads_the_records(tmp_path):
     assert a is not None and 50.0 < a < 80.0
 
 
-def test_anytime_of_the_spike_log():
+def test_anytime_of_the_spikegomea_log():
     recs, check = runner.anytime_records(SPIKE, 20000, 516, 100.0,
                                          first_score=-15581.8642578125)
     assert [r["evals"] for r in recs] == [200, 400, 1000, 2000, 4000, 10000, 20000]
@@ -257,47 +208,8 @@ def test_anytime_of_the_spike_log():
 # ---- _run_one with a fake pyMoses
 
 
-def _splits(dst: Path) -> Path:
-    dst.mkdir(parents=True, exist_ok=True)
-    lines = TRAIN.read_text().splitlines()
-    head, rows = lines[0], lines[1:]
-    for name, keep in (("train", (0, 1, 2)), ("val", (3,)), ("test", (4,))):
-        body = [r for i, r in enumerate(rows) if i % 5 in keep]
-        (dst / f"{name}.csv").write_text("\n".join([head, *body]) + "\n")
-    return dst
-
-
-def _fake_pymoses(work: Path, events: str, n_evals: int = 1000) -> Path:
-    """A fake pyMoses (`bin/moses`, run by the runner as `bin/python -c BOOT ...`): it prints
-    PROGRAMS as candidates and writes `events` to the path after `--gomea-log` (or to the run
-    directory, its cwd, when it has no such argument)."""
-    b = work / "bin"
-    b.mkdir(parents=True, exist_ok=True)
-    (b / "moses").write_text("#!/bin/sh\nexit 1\n")
-    (b / "moses").chmod(0o755)
-    (work / "events.src").write_text(events)
-    out = "".join(f"-{i + 10} {p} \n" for i, p in enumerate(PROGRAMS)) + f"n_evals: {n_evals}\n"
-    script = ("#!/bin/sh\nlog=events.jsonl\nprev=\nfor a in \"$@\"; do\n"
-              "  [ \"$prev\" = --gomea-log ] && log=\"$a\"\n  prev=\"$a\"\ndone\n"
-              f"cp '{work / 'events.src'}' \"$log\"\n"
-              "cat <<'EOF'\n" + out + "EOF\n")
-    (b / "python").write_text(script)
-    (b / "python").chmod(0o755)
-    return b / "moses"
-
-
-def _job(work: Path, events: str, argv=TLS, **kw) -> dict:
-    return {
-        "run_id": "T__ARM__s1", "task": "T", "arm": "ARM", "seed": 1,
-        "binary": str(_fake_pymoses(work, events)), "argv": argv,
-        "budget": {"evals": 1000}, "seed_spec": None,
-        "split_dir": str(_splits(work / "splits" / "s1")), "wall_cap_s": 60,
-        "mem_limit_mb": None, "run_dir": str(work / "run"), **kw,
-    }  # fmt: skip
-
-
 def test_run_one_writes_rv_and_with_the_key_the_checkpoints(tmp_path):
-    s = runner._run_one(_job(tmp_path / "a", _log(TWO_DEMES), anytime=True))
+    s = runner._run_one(job(tmp_path / "a", gomea_log(TWO_DEMES), anytime=True))
     assert s["status"] == "ok" and "--gomea-log" in s["argv"]
     assert s["rv"]["rv_evals"] == 100 and s["rv"]["rv_share"] == 0.1
     assert s["demes"]["count"] == 2 and s["demes"]["second_start_evals"] == 300
@@ -313,10 +225,10 @@ def test_run_one_writes_rv_and_with_the_key_the_checkpoints(tmp_path):
 
 
 def test_run_one_without_the_key_writes_only_rv(tmp_path):
-    s = runner._run_one(_job(tmp_path / "b", _log(TWO_DEMES)))
+    s = runner._run_one(job(tmp_path / "b", gomea_log(TWO_DEMES)))
     assert "rv" in s and not {"demes", "anytime", "anytime_check"} & set(s)
     plain = [(g, e, None) for g, e, _ in TWO_DEMES]
-    s = runner._run_one(_job(tmp_path / "c", _log(plain), anytime=True))
+    s = runner._run_one(job(tmp_path / "c", gomea_log(plain), anytime=True))
     assert "rv" not in s and s["demes"]["count"] == 2
 
 
@@ -384,8 +296,8 @@ def _run_in(tool_dir: Path, job: dict) -> dict:
 def test_a_gomea_arm_without_the_key_is_byte_identical(with_rv, keys, tmp_path):
     demes = TWO_DEMES if with_rv else [(g, e, None) for g, e, _ in TWO_DEMES]
     old = _old_tool(tmp_path)
-    jo = _job(tmp_path / "o", _log(demes), **keys)
-    jn = _job(tmp_path / "n", _log(demes), **keys)
+    jo = job(tmp_path / "o", gomea_log(demes), **keys)
+    jn = job(tmp_path / "n", gomea_log(demes), **keys)
     so, sn = _run_in(old, jo), _run_in(TOOLS, jn)
     co, cn = (Path(j["run_dir"]) / "candidates.json" for j in (jo, jn))
     assert cn.read_bytes() == co.read_bytes()

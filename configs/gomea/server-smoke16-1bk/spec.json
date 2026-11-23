@@ -1,0 +1,231 @@
+{
+  "phase": "smoke16-1bk",
+  "metrics": {
+    "Air": "test_nmse",
+    "Con": "test_nmse",
+    "Dow": "test_nmse",
+    "EnC": "test_nmse",
+    "EnH": "test_nmse",
+    "Tow": "test_nmse",
+    "Yac": "test_nmse"
+  },
+  "primary": [],
+  "extend": false,
+  "contrast_families": [
+    {
+      "name": "P",
+      "role": "primary",
+      "contrasts": [
+        [
+          "rv100k-vs-basetls100k",
+          "TLS-RV-100K",
+          "BASE-TLS-100K",
+          "test_nmse"
+        ],
+        [
+          "rvl100k-vs-basetls100k",
+          "TLS-RVL-100K",
+          "BASE-TLS-100K",
+          "test_nmse"
+        ],
+        [
+          "rv-gain-100k-vs-20k",
+          "TLS-RV-100K",
+          "BASE-TLS-100K",
+          "TLS-RV",
+          "BASE-TLS",
+          "test_nmse"
+        ],
+        [
+          "rvl-gain-100k-vs-20k",
+          "TLS-RVL-100K",
+          "BASE-TLS-100K",
+          "TLS-RVL",
+          "BASE-TLS",
+          "test_nmse"
+        ]
+      ]
+    },
+    {
+      "name": "S",
+      "role": "secondary",
+      "contrasts": [
+        [
+          "rv-vs-basetls",
+          "TLS-RV",
+          "BASE-TLS",
+          "test_nmse"
+        ],
+        [
+          "rvl-vs-basetls",
+          "TLS-RVL",
+          "BASE-TLS",
+          "test_nmse"
+        ],
+        [
+          "basetls100k-vs-basetls",
+          "BASE-TLS-100K",
+          "BASE-TLS",
+          "test_nmse"
+        ],
+        [
+          "rv100k-vs-rv",
+          "TLS-RV-100K",
+          "TLS-RV",
+          "test_nmse"
+        ],
+        [
+          "rv100k-vs-basetls100k-train",
+          "TLS-RV-100K",
+          "BASE-TLS-100K",
+          "train_nmse"
+        ],
+        [
+          "rvl100k-vs-basetls100k-train",
+          "TLS-RVL-100K",
+          "BASE-TLS-100K",
+          "train_nmse"
+        ],
+        [
+          "rv-gain-100k-vs-20k-train",
+          "TLS-RV-100K",
+          "BASE-TLS-100K",
+          "TLS-RV",
+          "BASE-TLS",
+          "train_nmse"
+        ],
+        [
+          "rvl-gain-100k-vs-20k-train",
+          "TLS-RVL-100K",
+          "BASE-TLS-100K",
+          "TLS-RVL",
+          "BASE-TLS",
+          "train_nmse"
+        ]
+      ]
+    },
+    {
+      "name": "SC",
+      "role": "secondary",
+      "contrasts": [
+        [
+          "rv100k-vs-basetls100k-size",
+          "TLS-RV-100K",
+          "BASE-TLS-100K",
+          "program_size"
+        ],
+        [
+          "rv100k-vs-basetls100k-cpu",
+          "TLS-RV-100K",
+          "BASE-TLS-100K",
+          "cpu_s"
+        ],
+        [
+          "rvl100k-vs-basetls100k-size",
+          "TLS-RVL-100K",
+          "BASE-TLS-100K",
+          "program_size"
+        ],
+        [
+          "rvl100k-vs-basetls100k-cpu",
+          "TLS-RVL-100K",
+          "BASE-TLS-100K",
+          "cpu_s"
+        ],
+        [
+          "rv-vs-basetls-size",
+          "TLS-RV",
+          "BASE-TLS",
+          "program_size"
+        ],
+        [
+          "rv-vs-basetls-cpu",
+          "TLS-RV",
+          "BASE-TLS",
+          "cpu_s"
+        ],
+        [
+          "rvl-vs-basetls-size",
+          "TLS-RVL",
+          "BASE-TLS",
+          "program_size"
+        ],
+        [
+          "rvl-vs-basetls-cpu",
+          "TLS-RVL",
+          "BASE-TLS",
+          "cpu_s"
+        ]
+      ]
+    },
+    {
+      "name": "D",
+      "role": "descriptive",
+      "per_dataset": true,
+      "contrasts": [
+        [
+          "rv100k-vs-basetls100k",
+          "TLS-RV-100K",
+          "BASE-TLS-100K",
+          "test_nmse"
+        ],
+        [
+          "rvl100k-vs-basetls100k",
+          "TLS-RVL-100K",
+          "BASE-TLS-100K",
+          "test_nmse"
+        ],
+        [
+          "rv-gain-100k-vs-20k",
+          "TLS-RV-100K",
+          "BASE-TLS-100K",
+          "TLS-RV",
+          "BASE-TLS",
+          "test_nmse"
+        ],
+        [
+          "rvl-gain-100k-vs-20k",
+          "TLS-RVL-100K",
+          "BASE-TLS-100K",
+          "TLS-RVL",
+          "BASE-TLS",
+          "test_nmse"
+        ]
+      ]
+    },
+    {
+      "name": "DP",
+      "role": "descriptive",
+      "contrasts": [
+        [
+          "rv100k-vs-basetls100k-clipped",
+          "TLS-RV-100K",
+          "BASE-TLS-100K",
+          "test_nmse_clipped"
+        ],
+        [
+          "rvl100k-vs-basetls100k-clipped",
+          "TLS-RVL-100K",
+          "BASE-TLS-100K",
+          "test_nmse_clipped"
+        ],
+        [
+          "basetls100k-vs-basetls-train",
+          "BASE-TLS-100K",
+          "BASE-TLS",
+          "train_nmse"
+        ]
+      ]
+    }
+  ],
+  "anytime_ratios": {
+    "TLS-RV": "BASE-TLS",
+    "TLS-RVL": "BASE-TLS",
+    "TLS-RV-100K": "BASE-TLS-100K",
+    "TLS-RVL-100K": "BASE-TLS-100K"
+  },
+  "deme_table": true,
+  "rv_table": true,
+  "size_terms": true,
+  "run_table": true
+}

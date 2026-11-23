@@ -28,7 +28,10 @@ SPEC_JSON (one per phase, `configs/gomea/<phase>/spec.json`)::
      "same_search": [[arm_a, arm_b], ...],  # optional (server round 13, 1bh)
      "pooled_descriptive": [name, ...],    # optional (backlog 12.2, after round 13)
      "contrast_families": [{...}, ...],    # optional (server round 15, 1bj)
-     "evals_to_reference": {arm: arm, ...}}  # optional (server round 15, 1bj)
+     "evals_to_reference": {arm: arm, ...},  # optional (server round 15, 1bj)
+     "anytime_ratios": {arm: arm, ...},    # optional (server round 16, 1bk)
+     "deme_table": true,                   # optional (server round 16, 1bk), default false
+     "rv_table": true}                     # optional (server round 16, 1bk), default false
 
 A contrast takes its problem's metric, or the optional fifth element (server round 3,
 1ap: program size as the primary metric and test NMSE as the secondary one for the same
@@ -147,6 +150,18 @@ Server round 15 (1bj, the IT linkage study; `linkage_report.py`). The metrics `t
 * `"evals_to_reference": {arm: reference arm}`: OUT_DIR/evals_to_reference.csv, for each dataset
   and arm the evaluations to reach the median final training NMSE of the reference arm on the
   same dataset (from the best-so-far trace in each run's `events.jsonl`).
+
+Server round 16 (1bk, the budget round; `budget_report.py`). Three optional spec keys for the
+descriptive tables; without them the report does not change. They read the round 16 summary
+fields of `moses_sr_runner.py` and give no verdicts:
+
+* `"anytime_ratios": {arm: reference arm}`: OUT_DIR/anytime_ratios.csv, for each dataset and
+  pooled, each arm and each checkpoint 1, 2, 5, 10, 20, 50 and 100 % of the budget, the median
+  ratio of the arm's best-so-far training NMSE to that of the reference arm (the `anytime`
+  records).
+* `"deme_table": true`: OUT_DIR/demes.csv, the demes per run and the evaluation at which the
+  second deme starts (the `demes` records).
+* `"rv_table": true`: OUT_DIR/rv.csv, the RV counters (the `rv` records).
 """
 
 from __future__ import annotations
@@ -163,6 +178,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 from benchmarks.gomea.stats import holm, wilcoxon_signed_rank  # noqa: E402
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
+import budget_report  # noqa: E402
 import linkage_report  # noqa: E402
 import run_table  # noqa: E402
 
@@ -501,6 +517,10 @@ def main(argv: list[str] | None = None) -> int:
     if err is not None:
         print(err, file=sys.stderr)
         return 2
+    err = budget_report.check_spec(spec)  # server round 16 (opt-in keys)
+    if err is not None:
+        print(err, file=sys.stderr)
+        return 2
     rows = {k: [_contrast(p, n, a, b, runs.get(p, {}), m[0] if m else metrics[p])
                 for p, n, a, b, *m in f]
             for k, f in families.items()}
@@ -586,6 +606,7 @@ def main(argv: list[str] | None = None) -> int:
         print(json.dumps(r))
     _round13_tables(spec, runs, list(metrics), out)
     linkage_report.write_tables(spec, runs, list(metrics), out, _write_csv)  # server round 15
+    budget_report.write_tables(spec, runs, list(metrics), out, _write_csv)  # server round 16
     return 0
 
 
