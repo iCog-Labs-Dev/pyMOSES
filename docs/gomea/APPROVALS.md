@@ -643,3 +643,13 @@ user confirms it.
     started), and T3.2 starts with its feasibility note (`ROADMAP.md`, stage 3 rule); phase B and
     T3.4 are not chosen now (the user did not answer the stop question directly).
   * Not approved: any design or code for T3.2 before the user decides on the note.
+* **T3.2 option (2026-11-23):** the agent presented `T3.2-FEASIBILITY.md` (options A, B and C, and
+  the build order: spike, design note and code pre-registration, clone, pilot, round). The user
+  asked what the other options were, then answered: "Okay let's start from C but we will be trying A
+  later on."
+  * User decisions: T3.2 starts with option C (keep the codes, add RV steps on the non-zero genes);
+    option A (split each gene into an on/off bit and a real value) is tried later.
+  * Agent reading, not confirmed: the answer approves the next step of the note's build order, the
+    code spike (no commit to the branch); the other choices of the note (the real-valued FOS, the
+    guard, the rivals) stay open until the design note and the pre-registration.
+  * Not approved: any code on the branch, a pre-registration, a push.

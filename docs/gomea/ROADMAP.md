@@ -159,7 +159,7 @@ is done when the user has decided on them.
 | Task | Idea | Prerequisites | Backlog |
 |---|---|---|---|
 | ~~T3.1~~ | ~~B4-split. LM on each term's inner constants, then least squares for the term weights~~ | Done (1bh, round 13, arm TLS-LM): tie with BASE-TLS (1.000, 80 identical pairs); LM had no budget in 99 of 239 calls (`BACKLOG.md` 12.4) | 8, B4-split |
-| T3.2 | B1. GP-RV-GOMEA: real-valued GOMEA on the constants, together with the structure. **Next (user, 2026-11-23).** Feasibility note written (2026-11-23, `T3.2-FEASIBILITY.md`); the user decides on it | Stage 2 | 8, B1 |
+| T3.2 | B1. GP-RV-GOMEA: real-valued GOMEA on the constants, together with the structure. **Next (user, 2026-11-23).** Feasibility note written (2026-11-23, `T3.2-FEASIBILITY.md`). **The user chose option C first, option A later** (2026-11-23); next: the code spike | Stage 2 | 8, B1 |
 | T3.3 | B2. Semantic backpropagation with a subtree library: a new knob type | Stage 2 | 8, B2 |
 | T3.4 | B4b. A full IT representation as a deme type (later TIR). Feasibility note written (2026-11-20, `T3.4-FEASIBILITY.md`). **First: IT with GOMEA outside MOSES** (user, 2026-11-20; `BACKLOG.md` 13.9). Done in round 15: no linkage gain from the fixed IT genome; the linkage argument for T3.4 is weak (`SERVER-ROUND15-FINDINGS.md`) | T2.2, T3.1, `BACKLOG.md` 13.9 | 8, B4b |
 | T3.5 | B6. Modular GP-GOMEA: hints for several demes in GP-GOMEA | **The user reads and validates the paper first. No experiment before that.** | 8, B6 |
