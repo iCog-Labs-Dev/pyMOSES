@@ -12,7 +12,11 @@ the report additions of ``phase_report.py`` and ``budget_report.py``.
   the exact trace (``--gomea-trace 1``, the RV16 review, finding 1);
 * byte identity: for every spec.json of ``configs/gomea/`` at 2d407b2 (the commit before these
   changes), the report files and the stdout of the report at 2d407b2 and now are the same, on
-  made-up runs that also have the round 16 summary fields.
+  made-up runs that also have the round 16 summary fields;
+* the three manifests (the local pilot, gate item 3: the 100,000 arms in ``sr-100K.json``) and
+  the chain (round16 on splits 81-85, ``configs/gomea/phase1bk-a``): the report pairs the runs
+  that the jobs of ``sr-100K.json`` and of ``sr.json`` write, when it reads the result
+  directories that ``phase_run.sh`` gives it.
 """
 
 from __future__ import annotations
@@ -22,6 +26,8 @@ import csv
 import json
 import math
 import os
+import shutil
+import statistics
 import subprocess
 import sys
 from pathlib import Path
@@ -269,6 +275,82 @@ def test_the_deme_and_rv_tables_by_hand(template, tmp_path):
     assert r["ams1_rounds"] == "20" and r["fi_triggers"] == "10"
     assert float(r["improving_share"]) == 0.3 and float(r["kept_p_share"]) == 0.07
     assert rv[("pooled", "TLS-RV")]["rv_evals"] == "7000"
+
+
+# ---- the three manifests of 1bk and the chain
+
+
+MANIFESTS = ["sr.json", "sr-100K.json", "sr-Dow.json"]  # the order of phase_run.sh
+
+
+def _place_runs(made: Path, results: Path, config: Path, names=MANIFESTS) -> str:
+    """Copy the made-up summary of each job of the manifests `names` of `config` to the result
+    directory of the job (moses_sr_runner.expand with the output root RESULTS/phase1bk, as
+    phase_run.sh runs the runner). Return the directory list that phase_run.sh gives the
+    report: RESULTS/phase1bk/<manifest name> for each of the three manifests, in its order."""
+    out_root = results / "phase1bk"
+    dirs = []
+    for n in MANIFESTS:
+        m = _load(config / n)
+        dirs.append(str(out_root / m["name"]))
+        if n not in names:
+            continue
+        for j in runner.expand(m, out_root, REPO):
+            rd = Path(j["run_dir"])
+            rd.mkdir(parents=True)
+            shutil.copyfile(made / "runs" / j["run_id"] / "summary.json", rd / "summary.json")
+    return ",".join(dirs)
+
+
+@pytest.mark.parametrize("config, n_splits", [("phase1bk", 10), ("phase1bk-a", 5)])
+def test_the_report_pairs_the_runs_of_the_three_manifests(template_trace, tmp_path, config,
+                                                          n_splits):
+    """The runs of the 100,000 arms come from the jobs of sr-100K.json (and sr-Dow.json), the
+    runs of the 20,000 arms from the jobs of sr.json (and sr-Dow.json). The report of the full
+    config (round16b) and of the first half (round16, splits 81-85) pairs them by dataset and
+    split: 70 (35) pairs in each pooled contrast, also in the interaction contrasts
+    [X-100K, BASE-TLS-100K, X, BASE-TLS], and 10 (5) for each dataset."""
+    made = tmp_path / "made"
+    _make_runs(made, template_trace, _factor)
+    dirs = _place_runs(made, tmp_path / "res", CFG / config)
+    assert len(list((tmp_path / "res").glob("phase1bk/*/runs/*/summary.json"))) == 42 * n_splits
+    out = tmp_path / "out"
+    assert phase_report.main(["--stage", "1", str(CFG / config / "spec.json"), str(out),
+                              dirs]) == 0
+    by = {}
+    for r in _rows(out / "contrasts.csv"):
+        by.setdefault(r["holm_family"], []).append(r)
+    assert {k: len(v) for k, v in by.items()} == {"P": 4, "S": 8, "SC": 8, "D": 28, "DP": 3}
+    assert all(r["pairs"] == str(7 * n_splits) for k in ("P", "S", "SC", "DP") for r in by[k])
+    assert all(r["pairs"] == str(n_splits) for r in by["D"])
+    assert {r["problem"] for r in by["D"]} == set(DATASETS)
+    splits = SPLITS[:n_splits]
+    for name, x in (("rv-gain-100k-vs-20k", "TLS-RV"), ("rvl-gain-100k-vs-20k", "TLS-RVL")):
+        r = next(r for r in by["P"] if r["contrast"] == name)
+        assert (r["a"], r["b"], r["a2"], r["b2"]) == (f"{x}-100K", "BASE-TLS-100K", x,
+                                                      "BASE-TLS")
+        assert r["metric"] == "interaction:test_nmse"
+        want = statistics.median(
+            math.log(_factor(f"{x}-100K", d, k) / _factor("BASE-TLS-100K", d, k))
+            - math.log(_factor(x, d, k) / _factor("BASE-TLS", d, k))
+            for d in DATASETS for k in splits)
+        assert float(r["median_log_ratio"]) == pytest.approx(want, abs=1e-9)
+        assert r["a_lower"] == str(7 * n_splits) and r["verdict"] == "A1 gains more"
+    assert len(_rows(out / "anytime_ratios.csv")) == 4 * 8 * 7
+    assert len(_rows(out / "runs.csv")) == 42 * n_splits
+
+
+def test_without_the_runs_of_sr_100k_only_the_dow_pairs_are_left(template_trace, tmp_path):
+    """A check of the check above: without the runs of the jobs of sr-100K.json, each primary
+    contrast has only the 10 Dow pairs. So the other 60 pairs come from sr-100K.json."""
+    made = tmp_path / "made"
+    _make_runs(made, template_trace, _factor)
+    dirs = _place_runs(made, tmp_path / "res", CFG / "phase1bk",
+                       names=("sr.json", "sr-Dow.json"))
+    out = tmp_path / "out"
+    assert phase_report.main(["--stage", "1", str(SPEC), str(out), dirs]) == 0
+    p = [r for r in _rows(out / "contrasts.csv") if r["holm_family"] == "P"]
+    assert len(p) == 4 and all(r["pairs"] == "10" for r in p)
 
 
 @pytest.mark.parametrize("key,value", [
