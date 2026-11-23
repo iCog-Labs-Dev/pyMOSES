@@ -16,11 +16,12 @@ not change otherwise. The command lines pass the real CLI only with the code of 
 The local pilot (gate item 3): the Tow BASE-TLS-100K run peaked at 3,316 MB RSS, 64.8 % of its
 5,120 MB limit. So the 100,000 arms of the 6 datasets other than Dow have a manifest of their own,
 sr-100K.json, with 8,192 MB. sr.json keeps the 20,000 arms (5,120 MB); sr-Dow.json does not
-change. The jobs (dataset, arm, split, argv, budget, result directory) are the jobs of the two
-manifests before the move (commit 0b48c96); only the memory limit of the 180 moved jobs changes.
-sr-100K.json has the name of sr.json, so its runs keep their result directory. Tow comes first in
-sr-100K.json: the runner starts the jobs in the order of the manifest, and the Tow 100,000 runs
-are the longest.
+change. The jobs (dataset, arm, split, argv, budget, the other fields) are the jobs of the two
+manifests before the move (commit 0b48c96). Only the memory limit and the result directory of
+the 180 moved jobs change: sr-100K.json has a name of its own, phase1bk-sr-100K, so its runs go
+to phase1bk-sr-100K/runs/ and each manifest keeps its own manifest.json (the runner writes
+<name>/manifest.json with no check). Tow comes first in sr-100K.json: the runner starts the jobs
+in the order of the manifest, and the Tow 100,000 runs are the longest.
 
 The chain (the local pilot estimate is about 39 h, more than 20 h for one plan; the rule of the
 pre-registration, "Rules"): round16 (plan16.json) runs S0 and 1bk on splits 81-85
@@ -303,9 +304,7 @@ def test_datasets_and_fresh_splits_and_no_extension():
                                                    "sr.json"]
     for f in stage1(q):
         assert load(f)["datasets"] == DATASETS_OF[f.name], f
-        # sr-100K.json has the name of sr.json, so its runs keep their result directory
-        assert load(f)["name"] == ("phase1bk-sr" if f.name == "sr-100K.json"
-                                   else f"phase1bk-{f.stem}")
+        assert load(f)["name"] == f"phase1bk-{f.stem}"  # a result directory of its own
         assert load(f)["splits"] == SPLITS
     assert set(SPLITS) <= set(sr_datasets.SEEDS)
 
@@ -352,8 +351,10 @@ def _old_manifest(rel: str) -> dict:
 def test_the_100k_arms_moved_and_no_job_changed_but_its_memory_limit(prefix):
     """The jobs of sr.json, sr-100K.json and sr-Dow.json are the jobs of sr.json and sr-Dow.json
     at 0b48c96, field for field (dataset, arm, split, binary, argv, budget, split directory,
-    result directory, wall cap, the manifest keys); only the memory limit of the 180 moved jobs
-    (the 100,000 arms of the 6 datasets other than Dow) changes, from 5,120 to 8,192 MB."""
+    result directory, wall cap, the manifest keys). Only two fields of the 180 moved jobs (the
+    100,000 arms of the 6 datasets other than Dow) change: the memory limit, from 5,120 to
+    8,192 MB, and the result directory, now under <prefix>-sr-100K/runs/ (the name of
+    sr-100K.json)."""
     q = CONFIGS / prefix
     old = {n: _old_manifest(f"configs/gomea/{prefix}/{n}") for n in ("sr.json", "sr-Dow.json")}
     assert list(old["sr.json"]["arms"]) == list(ARMS) and old["sr.json"]["mem_limit_mb"] == 5120
@@ -362,7 +363,8 @@ def test_the_100k_arms_moved_and_no_job_changed_but_its_memory_limit(prefix):
     assert new["sr-Dow.json"] == old["sr-Dow.json"]
     assert new["sr.json"] == {**old["sr.json"],
                               "arms": {a: old["sr.json"]["arms"][a] for a in K20}}
-    assert new["sr-100K.json"] == {**old["sr.json"], "mem_limit_mb": 8192,
+    name100 = f"{prefix}-sr-100K"
+    assert new["sr-100K.json"] == {**old["sr.json"], "name": name100, "mem_limit_mb": 8192,
                                    "datasets": DATASETS_OF["sr-100K.json"],
                                    "arms": {a: old["sr.json"]["arms"][a] for a in K100}}
     # the expanded jobs
@@ -377,7 +379,11 @@ def test_the_100k_arms_moved_and_no_job_changed_but_its_memory_limit(prefix):
         if j["run_id"] in moved:
             assert j["task"] != "Dow" and j["arm"] in K100
             assert (b["mem_limit_mb"], j["mem_limit_mb"]) == (5120, 8192)
-            assert j == {**b, "mem_limit_mb": 8192}
+            assert b["run_dir"] == f"/o/{prefix}-sr/runs/{j['run_id']}"
+            assert j["run_dir"] == f"/o/{name100}/runs/{j['run_id']}"
+            assert {k: v for k, v in j.items() if k not in ("mem_limit_mb", "run_dir")} == {
+                k: v for k, v in b.items() if k not in ("mem_limit_mb", "run_dir")}
+            assert set(j) == set(b)
         else:
             assert j == b
 
@@ -735,15 +741,14 @@ def test_the_phase_runs_with_its_own_workers(tmp_path):
     runs_, reports = [t for t in trace if "manifest" in t], [t for t in trace if "report" in t]
     assert [t["manifest"] for t in runs_] == MANIFESTS * 2
     assert [t["config"] for t in runs_] == ["phase1bk-a"] * 3 + ["phase1bk"] * 3
+    assert [t["name"] for t in runs_] == ["phase1bk-sr", "phase1bk-sr-100K", "phase1bk-sr-Dow"] * 2
     assert [t["splits"] for t in runs_] == [list(range(81, 86))] * 3 + [SPLITS] * 3
     for t in runs_:
         assert t["workers"] == _w(MB.get(t["manifest"], OTHER_MB)), t
         assert t["mem"] == MB.get(t["manifest"], OTHER_MB), t
         assert t["out"] == "../gomea-results/phase1bk"
-    # sr-100K.json has the name of sr.json, so the report reads that directory twice (the
-    # report keys each run by dataset, arm and split, so it counts each run once)
-    dirs = ["../gomea-results/phase1bk/phase1bk-sr"] * 2 + [
-        "../gomea-results/phase1bk/phase1bk-sr-Dow"]
+    # the result directory of each of the three manifests
+    dirs = [f"../gomea-results/phase1bk/phase1bk-{x}" for x in ("sr", "sr-100K", "sr-Dow")]
     assert [t["dirs"] for t in reports] == [dirs, dirs]
     assert [Path(t["report"][2]).parent.name for t in reports] == ["phase1bk-a", "phase1bk"]
     sd = res / "server-run16-t"

@@ -1,5 +1,5 @@
 {
-  "name": "phase1bk-sr",
+  "name": "phase1bk-sr-100K",
   "datasets_dir": "../gomea-results/phase1f/datasets",
   "datasets": [
     "Tow",

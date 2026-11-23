@@ -1446,10 +1446,12 @@ arms and `sr-100K.json` the three 100,000 arms, both on Air, Con, EnC, EnH, Tow 
   BASE-TLS of the same split must have the same value, gate item 2 of the pilot). The four RV arms also have `rv`
   (the RV totals: evaluations and share, RV generations, improving, kept by p_accept, AMS, forced
   improvements, skips).
-* `sr-100K.json` has the name of `sr.json` (`phase1bk-sr`). So the 100,000 runs are in
-  `phase1bk/phase1bk-sr/runs/`, beside the 20,000 runs, as before the move. The runner writes
-  `phase1bk/phase1bk-sr/manifest.json` at the start of each manifest, so that file holds the
-  manifest that ran last (`sr-100K.json`). The git commit in the bundle gives both manifests.
+* Each manifest has a result directory of its own, from its name: `phase1bk/phase1bk-sr/`
+  (the 20,000 runs of the 6 datasets), `phase1bk/phase1bk-sr-100K/` (the 100,000 runs of the 6
+  datasets) and `phase1bk/phase1bk-sr-Dow/` (the Dow runs). Each directory has its own
+  `manifest.json` (the runner writes `<name>/manifest.json` with no check, so a shared name
+  would lose the record of one manifest in the bundle). round16 and round16b use the same
+  names, so each job has the same result directory in both plans.
 * Datasets: Air, Con, Dow, EnC, EnH, Tow, Yac (7), splits 81-90. 420 MOSES runs (70 per arm, 42
   per split, 60 per dataset): 210 in round16 (splits 81-85) and 210 in round16b (splits 86-90).
   Each phase step needs the 7 datasets with splits 81-90 (requirement

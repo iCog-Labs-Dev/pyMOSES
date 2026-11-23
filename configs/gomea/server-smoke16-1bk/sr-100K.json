@@ -1,5 +1,5 @@
 {
-  "name": "server-smoke16-1bk-sr",
+  "name": "server-smoke16-1bk-sr-100K",
   "datasets_dir": "../gomea-results/phase1f/datasets",
   "datasets": [
     "Tow",

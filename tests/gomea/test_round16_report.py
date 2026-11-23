@@ -283,23 +283,21 @@ def test_the_deme_and_rv_tables_by_hand(template, tmp_path):
 MANIFESTS = ["sr.json", "sr-100K.json", "sr-Dow.json"]  # the order of phase_run.sh
 
 
-def _place_runs(made: Path, results: Path, config: Path, names=MANIFESTS) -> str:
-    """Copy the made-up summary of each job of the manifests `names` of `config` to the result
+def _place_runs(made: Path, results: Path, config: Path) -> list[str]:
+    """Copy the made-up summary of each job of the three manifests of `config` to the result
     directory of the job (moses_sr_runner.expand with the output root RESULTS/phase1bk, as
-    phase_run.sh runs the runner). Return the directory list that phase_run.sh gives the
-    report: RESULTS/phase1bk/<manifest name> for each of the three manifests, in its order."""
+    phase_run.sh runs the runner). Return the directories that phase_run.sh gives the report:
+    RESULTS/phase1bk/<manifest name> for each of the three manifests, in its order."""
     out_root = results / "phase1bk"
     dirs = []
     for n in MANIFESTS:
         m = _load(config / n)
         dirs.append(str(out_root / m["name"]))
-        if n not in names:
-            continue
         for j in runner.expand(m, out_root, REPO):
             rd = Path(j["run_dir"])
             rd.mkdir(parents=True)
             shutil.copyfile(made / "runs" / j["run_id"] / "summary.json", rd / "summary.json")
-    return ",".join(dirs)
+    return dirs
 
 
 @pytest.mark.parametrize("config, n_splits", [("phase1bk", 10), ("phase1bk-a", 5)])
@@ -313,10 +311,18 @@ def test_the_report_pairs_the_runs_of_the_three_manifests(template_trace, tmp_pa
     made = tmp_path / "made"
     _make_runs(made, template_trace, _factor)
     dirs = _place_runs(made, tmp_path / "res", CFG / config)
+    # three result directories of their own; the 100,000 runs of the 6 datasets other than Dow
+    # are in phase1bk-sr-100K only
+    assert [Path(d).name for d in dirs] == ["phase1bk-sr", "phase1bk-sr-100K", "phase1bk-sr-Dow"]
+    per_dir = {Path(d).name: {Path(f).parent.name.split("__")[1]
+                              for f in Path(d).glob("runs/*/summary.json")} for d in dirs}
+    assert per_dir == {"phase1bk-sr": {"BASE-TLS", "TLS-RV", "TLS-RVL"},
+                       "phase1bk-sr-100K": {"BASE-TLS-100K", "TLS-RV-100K", "TLS-RVL-100K"},
+                       "phase1bk-sr-Dow": set(ARMS)}
     assert len(list((tmp_path / "res").glob("phase1bk/*/runs/*/summary.json"))) == 42 * n_splits
     out = tmp_path / "out"
     assert phase_report.main(["--stage", "1", str(CFG / config / "spec.json"), str(out),
-                              dirs]) == 0
+                              ",".join(dirs)]) == 0
     by = {}
     for r in _rows(out / "contrasts.csv"):
         by.setdefault(r["holm_family"], []).append(r)
@@ -340,15 +346,17 @@ def test_the_report_pairs_the_runs_of_the_three_manifests(template_trace, tmp_pa
     assert len(_rows(out / "runs.csv")) == 42 * n_splits
 
 
-def test_without_the_runs_of_sr_100k_only_the_dow_pairs_are_left(template_trace, tmp_path):
-    """A check of the check above: without the runs of the jobs of sr-100K.json, each primary
-    contrast has only the 10 Dow pairs. So the other 60 pairs come from sr-100K.json."""
+def test_without_the_directory_of_sr_100k_only_the_dow_pairs_are_left(template_trace,
+                                                                      tmp_path):
+    """A check of the check above: when the report does not read the result directory of
+    sr-100K.json, each primary contrast has only the 10 Dow pairs. So the other 60 pairs come
+    from the runs of sr-100K.json."""
     made = tmp_path / "made"
     _make_runs(made, template_trace, _factor)
-    dirs = _place_runs(made, tmp_path / "res", CFG / "phase1bk",
-                       names=("sr.json", "sr-Dow.json"))
+    dirs = _place_runs(made, tmp_path / "res", CFG / "phase1bk")
     out = tmp_path / "out"
-    assert phase_report.main(["--stage", "1", str(SPEC), str(out), dirs]) == 0
+    assert phase_report.main(["--stage", "1", str(SPEC), str(out),
+                              ",".join(d for d in dirs if not d.endswith("-sr-100K"))]) == 0
     p = [r for r in _rows(out / "contrasts.csv") if r["holm_family"] == "P"]
     assert len(p) == 4 and all(r["pairs"] == "10" for r in p)
 
