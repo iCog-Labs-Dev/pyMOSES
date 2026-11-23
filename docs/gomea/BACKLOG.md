@@ -732,6 +732,36 @@ user decides.
    * **Status:** not started. The plan is written; the user accepted its decisions D1–D7 as
      recommended (2026-11-20). Next: the implementation by subagents, then the pre-registration
      after the pilot (plan, section 10).
+   * **Done (server round 15, 2026-11-21; `SERVER-ROUND15-FINDINGS.md`):** learned linkage does not
+     help more on IT than on the template (the template gains more); node proximity equals LT-B on
+     both genomes. See section 14.
+
+## 14. Open items after server round 15 (2026-11-23)
+
+Results: `SERVER-ROUND15-FINDINGS.md`. All items are agent ideas unless a line says otherwise; none
+is started or approved.
+
+1. **Phase B and T3.4: the user's decision.** The round tested the most favourable case for a
+   learned, run-long linkage model (one genome for the whole run, no MOSES loop, N = 1,000). Learned
+   linkage gave no more than node proximity, a fixed structural model that pyMOSES already has
+   (`--gomea-fos np`). Agent recommendation: do not build phase B's learned global model, and do not
+   start T3.4 for the linkage reason.
+2. **The score fault of the stand-alone harness.** The search scores an IT model with SSE = Syy −
+   explained, which loses all precision for nearly equal columns (WiR IT-RT split 73: score 0.0,
+   exact training NMSE 25,314). Fix if the harness is used again: score from the residuals, or check
+   the identity against the exact SSE and use the exact value when they differ; and make the
+   cross-check fail when `search_rel_diff` is large (RV16 nit 2 of round 15).
+3. **The server's `/tmp`.** S0 of round 15 failed in 1,404 tests and 98 errors with "No space left
+   on device" in `/tmp/pytest-of-jovyan/`. Before the next round, check `df -h /tmp` on the server
+   (the user's server; the agent does not touch it). Agent idea: let S0 put pytest's temporary files
+   on the results disk (as the local suite does with `TMPDIR`).
+4. **Node proximity reaches its result faster on IT** (anytime area 0.987 against LT-B, 74/26;
+   descriptive). If a later round compares FOS models inside MOSES, the anytime metric is worth
+   keeping.
+5. **Plain mutual information (LT) collapses the population** (IT-LT ends with one model; LT stalled
+   or converged in 162 of 200 runs). LT is not a candidate for MOSES.
+6. **The slot-swap problem** (a monomial in 3–3.75 slots, up to 8) is real; a canonical slot order or
+   a set-based IT genome would be needed before any further IT linkage work.
 
 ## 8. Future directions from the literature search (2026-11-06)
 

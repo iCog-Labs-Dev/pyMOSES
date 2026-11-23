@@ -52,6 +52,12 @@ stays next in line (the reference rule). The user rejected the relative pole rul
 **Next:** a discussion of the next ideas with the user; nothing of `BACKLOG.md` section 13 starts
 before that ("Don't start any of these").
 
+**Round 15 is done** (`SERVER-ROUND15-FINDINGS.md`; the IT linkage study, `BACKLOG.md` 13.9). On a
+fixed genome with no MOSES loop, learned linkage does not help more on the IT genome than on
+GP-GOMEA's template; the template gains more (LT-B and NP about 4 % over RT, IT about 1 %), and a
+fixed structural model (node proximity) equals learned LT-B on both genomes. **Next:** the user's
+decision on phase B and T3.4 (`BACKLOG.md` section 14).
+
 ## Stage 0: done (rounds 6 to 8, 2026-11-06 to 2026-11-08)
 
 | Task | Content | Verdict | Findings |
@@ -155,7 +161,7 @@ is done when the user has decided on them.
 | ~~T3.1~~ | ~~B4-split. LM on each term's inner constants, then least squares for the term weights~~ | Done (1bh, round 13, arm TLS-LM): tie with BASE-TLS (1.000, 80 identical pairs); LM had no budget in 99 of 239 calls (`BACKLOG.md` 12.4) | 8, B4-split |
 | T3.2 | B1. GP-RV-GOMEA: real-valued GOMEA on the constants, together with the structure | Stage 2 | 8, B1 |
 | T3.3 | B2. Semantic backpropagation with a subtree library: a new knob type | Stage 2 | 8, B2 |
-| T3.4 | B4b. A full IT representation as a deme type (later TIR). Feasibility note written (2026-11-20, `T3.4-FEASIBILITY.md`). **First: IT with GOMEA outside MOSES** (user, 2026-11-20; `BACKLOG.md` 13.9) | T2.2, T3.1, `BACKLOG.md` 13.9 | 8, B4b |
+| T3.4 | B4b. A full IT representation as a deme type (later TIR). Feasibility note written (2026-11-20, `T3.4-FEASIBILITY.md`). **First: IT with GOMEA outside MOSES** (user, 2026-11-20; `BACKLOG.md` 13.9). Done in round 15: no linkage gain from the fixed IT genome; the linkage argument for T3.4 is weak (`SERVER-ROUND15-FINDINGS.md`) | T2.2, T3.1, `BACKLOG.md` 13.9 | 8, B4b |
 | T3.5 | B6. Modular GP-GOMEA: hints for several demes in GP-GOMEA | **The user reads and validates the paper first. No experiment before that.** | 8, B6 |
 | T3.6 | B7. Higher-arity GP-GOMEA | Stage 2 | 8, B7 |
 

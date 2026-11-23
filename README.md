@@ -291,6 +291,18 @@ Round 14 (2026-11-20; [`docs/gomea/SERVER-ROUND14-FINDINGS.md`](docs/gomea/SERVE
   ridge is better than every MOSES arm.
 * BASE-TLS stays the reference; TLS-NP stays next in line.
 
+Round 15 (2026-11-21; [`docs/gomea/SERVER-ROUND15-FINDINGS.md`](docs/gomea/SERVER-ROUND15-FINDINGS.md)),
+the IT linkage study, outside the MOSES loop, 10 datasets, fresh splits 71–80:
+
+* **Question:** inside MOSES, learned linkage never beat a random tree, because the knobs change in
+  every deme. Does it pay off when the genome is the same for the whole run?
+* **Answer: no.** On GP-GOMEA's tree template, learned linkage (LT-B) and node proximity both lower
+  the training error by about 4 % against a random tree; on the IT genome (a sum of products of
+  inputs with least-squares weights), only by about 1 %. On both genomes, node proximity, a fixed
+  structural model with no learning, is as good as LT-B.
+* So a learned, run-long linkage model for MOSES has no support from this study; pyMOSES already
+  has node proximity (`--gomea-fos np`).
+
 ## Run the tests
 
 The test suite is self-contained: it diffs against C++ **golden fixtures committed to

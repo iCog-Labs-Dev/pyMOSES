@@ -625,3 +625,10 @@ user confirms it.
     a limit line that sizes are not comparable across the genomes); the round 15 pre-registration;
     the push of the branch after the nit fixes; the server run of round 15 (`round15`, which starts
     `round15b`).
+* **Round 15 results (2026-11-23):** the user wrote "All runs have finished, the files have been
+  copied into MOSES's folder. Can you review them and tell me what the findings are along with why
+  we needed to run those experiments in the first place? Thanks." The agent analyzed the two bundles
+  against the pre-registration (`SERVER-ROUND15-FINDINGS.md`). This message is not a decision.
+  * User decisions pending: phase B and T3.4 (`BACKLOG.md` section 14, item 1; agent
+    recommendation: do not build them for the linkage reason).
+  * Not approved: any push.
