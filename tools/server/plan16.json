@@ -1,6 +1,6 @@
 {
   "name": "server-round16-2026-11",
-  "description": "SERVER-ROUND16-PREREGISTRATION.md: S0, then 1bk (the budget round: BASE-TLS, TLS-RV and TLS-RVL at 20,000 and at 100,000 evaluations per run, no time limit; 7 datasets (Air, Con, Dow, EnC, EnH, Tow, Yac), fresh splits 81-90; 420 MOSES runs). One phase, no Boolean phase. No extension, no choice step, no adoption rule. The Dow manifest (8,192 MB) gets a W of its own. 1bk needs splits 81-90 of the 7 datasets (setup.sh builds them). No chain to or from another round.",
+  "description": "SERVER-ROUND16-PREREGISTRATION.md: S0, then 1bk (the budget round: BASE-TLS, TLS-RV and TLS-RVL at 20,000 and at 100,000 evaluations per run, no time limit; 7 datasets (Air, Con, Dow, EnC, EnH, Tow, Yac), fresh splits 81-90; 420 MOSES runs). One phase, no Boolean phase. No extension, no choice step, no adoption rule. Three manifests: sr.json (the 20,000 arms, 5,120 MB), sr-100K.json (the 100,000 arms, 8,192 MB, after the local pilot: gate item 3) and sr-Dow.json (all 6 arms on Dow, 8,192 MB); sr-100K.json and sr-Dow.json get a W of their own. 1bk needs splits 81-90 of the 7 datasets (setup.sh builds them). No chain to or from another round.",
   "state_dir": "server-run16",
   "steps": [
     {
@@ -18,6 +18,7 @@
       ],
       "per_run_mb": 5120,
       "manifest_per_run_mb": {
+        "sr-100K.json": 8192,
         "sr-Dow.json": 8192
       }
     }

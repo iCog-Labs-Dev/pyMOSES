@@ -61,40 +61,6 @@
         "1"
       ]
     },
-    "BASE-TLS-100K": {
-      "binary": ".venv/bin/moses",
-      "budget": {
-        "evals": 100000
-      },
-      "argv": [
-        "-a",
-        "gomea",
-        "--gomea-fos",
-        "lt-b",
-        "--gomea-pop-size",
-        "dynamic",
-        "--hc-fraction-of-nn",
-        "0.05",
-        "--gomea-skip-inactive",
-        "0",
-        "--gomea-genotype-memo",
-        "1",
-        "--gomea-contin",
-        "copy",
-        "--knob-probe-baseline",
-        "reduced",
-        "--linear-scaling",
-        "terms",
-        "--const-opt",
-        "none",
-        "--gomea-accept-complexity-ratio",
-        "0.125",
-        "--gomea-deme-store",
-        "accepted",
-        "--gomea-trace",
-        "1"
-      ]
-    },
     "TLS-RV": {
       "binary": ".venv/bin/moses",
       "budget": {
@@ -133,86 +99,10 @@
         "1"
       ]
     },
-    "TLS-RV-100K": {
-      "binary": ".venv/bin/moses",
-      "budget": {
-        "evals": 100000
-      },
-      "argv": [
-        "-a",
-        "gomea",
-        "--gomea-fos",
-        "lt-b",
-        "--gomea-pop-size",
-        "dynamic",
-        "--hc-fraction-of-nn",
-        "0.05",
-        "--gomea-skip-inactive",
-        "0",
-        "--gomea-genotype-memo",
-        "1",
-        "--gomea-contin",
-        "copy",
-        "--knob-probe-baseline",
-        "reduced",
-        "--linear-scaling",
-        "terms",
-        "--const-opt",
-        "none",
-        "--gomea-accept-complexity-ratio",
-        "0.125",
-        "--gomea-deme-store",
-        "accepted",
-        "--gomea-rv-step",
-        "rvg",
-        "--gomea-rv-budget",
-        "balance",
-        "--gomea-trace",
-        "1"
-      ]
-    },
     "TLS-RVL": {
       "binary": ".venv/bin/moses",
       "budget": {
         "evals": 20000
-      },
-      "argv": [
-        "-a",
-        "gomea",
-        "--gomea-fos",
-        "lt-b",
-        "--gomea-pop-size",
-        "dynamic",
-        "--hc-fraction-of-nn",
-        "0.05",
-        "--gomea-skip-inactive",
-        "0",
-        "--gomea-genotype-memo",
-        "1",
-        "--gomea-contin",
-        "copy",
-        "--knob-probe-baseline",
-        "reduced",
-        "--linear-scaling",
-        "terms",
-        "--const-opt",
-        "none",
-        "--gomea-accept-complexity-ratio",
-        "0.125",
-        "--gomea-deme-store",
-        "accepted",
-        "--gomea-rv-step",
-        "rvg",
-        "--gomea-rv-budget",
-        "late",
-        "--gomea-trace",
-        "1"
-      ]
-    },
-    "TLS-RVL-100K": {
-      "binary": ".venv/bin/moses",
-      "budget": {
-        "evals": 100000
       },
       "argv": [
         "-a",

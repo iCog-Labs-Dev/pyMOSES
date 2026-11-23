@@ -11,7 +11,16 @@ The command lines of the RV arms pass the real CLI only with the code of clone K
 
 The RV16 review (finding 1, option a): every arm also has `--gomea-trace 1` at the end of its
 argv (the exact best-so-far trace in the GOMEA log; the search does not change). The arms do
-not change otherwise. The command lines pass the real CLI only with the code of clone M."""
+not change otherwise. The command lines pass the real CLI only with the code of clone M.
+
+The local pilot (gate item 3): the Tow BASE-TLS-100K run peaked at 3,316 MB RSS, 64.8 % of its
+5,120 MB limit. So the 100,000 arms of the 6 datasets other than Dow have a manifest of their own,
+sr-100K.json, with 8,192 MB. sr.json keeps the 20,000 arms (5,120 MB); sr-Dow.json does not
+change. The jobs (dataset, arm, split, argv, budget, result directory) are the jobs of the two
+manifests before the move (commit 0b48c96); only the memory limit of the 180 moved jobs changes.
+sr-100K.json has the name of sr.json, so its runs keep their result directory. Tow comes first in
+sr-100K.json: the runner starts the jobs in the order of the manifest, and the Tow 100,000 runs
+are the longest."""
 
 import json
 import os
@@ -63,9 +72,16 @@ RV_BUDGET = {"TLS-RV": "balance", "TLS-RV-100K": "balance", "TLS-RVL": "late",
              "TLS-RVL-100K": "late"}
 DATASETS = ["Air", "Con", "Dow", "EnC", "EnH", "Tow", "Yac"]
 SPLITS = list(range(81, 91))
-MANIFESTS = ["sr.json", "sr-Dow.json"]
-MB = {"sr-Dow.json": 8192}  # "Memory"
+MANIFESTS = ["sr.json", "sr-100K.json", "sr-Dow.json"]
+MB = {"sr-100K.json": 8192, "sr-Dow.json": 8192}  # "Memory" and the pilot (gate item 3)
 OTHER_MB = 5120
+K20 = ["BASE-TLS", "TLS-RV", "TLS-RVL"]
+K100 = ["BASE-TLS-100K", "TLS-RV-100K", "TLS-RVL-100K"]
+ARMS_OF = {"sr.json": K20, "sr-100K.json": K100, "sr-Dow.json": list(ARMS)}
+NOT_DOW = [d for d in DATASETS if d != "Dow"]
+DATASETS_OF = {"sr.json": NOT_DOW, "sr-100K.json": ["Tow"] + [d for d in NOT_DOW if d != "Tow"],
+               "sr-Dow.json": ["Dow"]}
+OLD16 = "0b48c96"  # the last commit with the 100,000 arms in sr.json
 PREFIXES = ["phase1bk", "server-smoke16-1bk"]
 REQUIRES = [f"datasets:{','.join(DATASETS)}:81-90"]
 SMOKE_BUDGET = {20000: 1000, 100000: 2000}
@@ -85,13 +101,15 @@ def stage1(q):
 
 
 def runs(ms):
+    """{(dataset, split): [arm, ...]} over the manifests `ms`; no (dataset, split, arm) twice."""
     out = {}
     for f in ms:
         m = load(f)
         for d in m["datasets"]:
             for s in m["splits"]:
-                assert (d, s) not in out, (f, d, s)
-                out[(d, s)] = list(m["arms"])
+                for a in m["arms"]:
+                    assert a not in out.get((d, s), []), (f, d, s, a)
+                    out.setdefault((d, s), []).append(a)
     return out
 
 
@@ -143,7 +161,7 @@ def test_arm_flags_match_the_preregistration(prefix):
     assert [f.name for f in stage1(q)] == MANIFESTS
     for f in stage1(q):
         m = load(f)
-        assert list(m["arms"]) == list(ARMS)
+        assert list(m["arms"]) == ARMS_OF[f.name], f
         for a, s in m["arms"].items():
             assert set(s) == {"binary", "budget", "argv"}, (f, a)  # no seed block
             assert s["argv"] == ARMS[a][0], (f, a)
@@ -151,14 +169,17 @@ def test_arm_flags_match_the_preregistration(prefix):
 
 def test_base_tls_is_the_base_tls_arm_of_round_14():
     """With the trace flag at the end (the RV16 review); the search flags are those of 1bi."""
-    for name in MANIFESTS:
-        bi = load(CONFIGS / "phase1bi" / name)["arms"]["BASE-TLS"]
+    for name, bi_name in (("sr.json", "sr.json"), ("sr-100K.json", "sr.json"),
+                          ("sr-Dow.json", "sr-Dow.json")):
+        bi = load(CONFIGS / "phase1bi" / bi_name)["arms"]["BASE-TLS"]
         m = load(CONFIGS / "phase1bk" / name)["arms"]
         assert bi["argv"] == TLS and bi["binary"] == ".venv/bin/moses"
         for a in ("BASE-TLS", "BASE-TLS-100K"):
-            assert m[a]["argv"] == bi["argv"] + TRACE, (name, a)
-            assert m[a]["binary"] == bi["binary"], (name, a)
-        assert m["BASE-TLS"] == {**bi, "argv": bi["argv"] + TRACE}
+            if a in m:
+                assert m[a]["argv"] == bi["argv"] + TRACE, (name, a)
+                assert m[a]["binary"] == bi["binary"], (name, a)
+        if "BASE-TLS" in m:
+            assert m["BASE-TLS"] == {**bi, "argv": bi["argv"] + TRACE}
 
 
 @pytest.mark.parametrize("prefix", PREFIXES)
@@ -268,11 +289,13 @@ def test_datasets_and_fresh_splits_and_no_extension():
     q = CONFIGS / "phase1bk"
     assert set(runs(stage1(q))) == {(d, s) for d in DATASETS for s in SPLITS}
     assert sorted(q.glob("*-ext-*.json")) == []
-    assert sorted(f.name for f in q.iterdir()) == ["spec.json", "sr-Dow.json", "sr.json"]
-    assert load(q / "sr.json")["datasets"] == [d for d in DATASETS if d != "Dow"]
-    assert load(q / "sr-Dow.json")["datasets"] == ["Dow"]
+    assert sorted(f.name for f in q.iterdir()) == ["spec.json", "sr-100K.json", "sr-Dow.json",
+                                                   "sr.json"]
     for f in stage1(q):
-        assert load(f)["name"] == f"phase1bk-{f.stem}"
+        assert load(f)["datasets"] == DATASETS_OF[f.name], f
+        # sr-100K.json has the name of sr.json, so its runs keep their result directory
+        assert load(f)["name"] == ("phase1bk-sr" if f.name == "sr-100K.json"
+                                   else f"phase1bk-{f.stem}")
         assert load(f)["splits"] == SPLITS
     assert set(SPLITS) <= set(sr_datasets.SEEDS)
 
@@ -305,6 +328,62 @@ def test_run_count_is_420():
 def test_memory_limits(prefix):
     for f in stage1(CONFIGS / prefix):
         assert load(f)["mem_limit_mb"] == MB.get(f.name, OTHER_MB), f
+
+
+def _old_manifest(rel: str) -> dict:
+    r = subprocess.run(["git", "show", f"{OLD16}:{rel}"], cwd=REPO, capture_output=True)
+    if r.returncode != 0:  # a missing reference must never let the test pass (no skip)
+        pytest.fail(f"git show {OLD16}:{rel} failed: {r.stderr.decode().strip()!r}. The test "
+                    f"needs the reference commit {OLD16}; use a clone with the full history.")
+    return json.loads(r.stdout)
+
+
+@pytest.mark.parametrize("prefix", PREFIXES)
+def test_the_100k_arms_moved_and_no_job_changed_but_its_memory_limit(prefix):
+    """The jobs of sr.json, sr-100K.json and sr-Dow.json are the jobs of sr.json and sr-Dow.json
+    at 0b48c96, field for field (dataset, arm, split, binary, argv, budget, split directory,
+    result directory, wall cap, the manifest keys); only the memory limit of the 180 moved jobs
+    (the 100,000 arms of the 6 datasets other than Dow) changes, from 5,120 to 8,192 MB."""
+    q = CONFIGS / prefix
+    old = {n: _old_manifest(f"configs/gomea/{prefix}/{n}") for n in ("sr.json", "sr-Dow.json")}
+    assert list(old["sr.json"]["arms"]) == list(ARMS) and old["sr.json"]["mem_limit_mb"] == 5120
+    # the arms are byte-identical; the other keys of the manifest do not change
+    new = {f.name: load(f) for f in stage1(q)}
+    assert new["sr-Dow.json"] == old["sr-Dow.json"]
+    assert new["sr.json"] == {**old["sr.json"],
+                              "arms": {a: old["sr.json"]["arms"][a] for a in K20}}
+    assert new["sr-100K.json"] == {**old["sr.json"], "mem_limit_mb": 8192,
+                                   "datasets": DATASETS_OF["sr-100K.json"],
+                                   "arms": {a: old["sr.json"]["arms"][a] for a in K100}}
+    # the expanded jobs
+    before = {j["run_id"]: j for m in old.values() for j in runner.expand(m, Path("/o"), REPO)}
+    after = [j for m in new.values() for j in runner.expand(m, Path("/o"), REPO)]
+    assert len(after) == len({j["run_id"] for j in after}) == len(before)
+    moved = {j["run_id"] for j in runner.expand(new["sr-100K.json"], Path("/o"), REPO)}
+    n = len(SPLITS) if prefix == "phase1bk" else 2
+    assert len(moved) == 6 * 3 * n  # 180 in phase 1bk
+    for j in after:
+        b = before[j["run_id"]]
+        if j["run_id"] in moved:
+            assert j["task"] != "Dow" and j["arm"] in K100
+            assert (b["mem_limit_mb"], j["mem_limit_mb"]) == (5120, 8192)
+            assert j == {**b, "mem_limit_mb": 8192}
+        else:
+            assert j == b
+
+
+def test_the_runner_starts_the_jobs_in_the_order_of_the_manifest_so_tow_comes_first():
+    """moses_sr_runner.py gives the jobs to Pool.imap_unordered (chunk size 1) in the order of
+    expand(): dataset, then arm, then split. phase_run.sh does not ask for --split-major (the
+    only other order). So the 30 Tow runs of sr-100K.json (the longest runs) start first."""
+    src = (REPO / "tools" / "gomea" / "moses_sr_runner.py").read_text()
+    assert "pool.imap_unordered(_run_one, jobs)" in src
+    assert "--split-major" not in (REPO / "tools" / "gomea" / "phase_run.sh").read_text()
+    jobs = runner.expand(load(CONFIGS / "phase1bk" / "sr-100K.json"), Path("/o"), REPO)
+    assert [j["task"] for j in jobs[:30]] == ["Tow"] * 30
+    assert {j["arm"] for j in jobs[:30]} == set(K100)
+    assert [j["task"] for j in jobs[30:]] == [d for d in DATASETS_OF["sr-100K.json"][1:]
+                                              for _ in range(30)]
 
 
 # ---- the spec of 1bk (test_round16_report.py checks it in full)
@@ -486,11 +565,14 @@ def _server(tmp_path, cores=12, mem_mb=65536):
                                        env={"PER_RUN_MB": str(mb)})
 
 
-def test_server_workers_are_7_for_dow_and_11_otherwise(tmp_path):
-    """The section "Memory" of the pre-registration, on the 12-CPU 64 GB server."""
+def test_server_workers_are_7_for_dow_and_the_100k_arms_and_11_otherwise(tmp_path):
+    """The section "Memory" of the pre-registration and the pilot (gate item 3), on the 12-CPU
+    64 GB server: sr-100K.json and sr-Dow.json (8,192 MB) W = 7, sr.json (5,120 MB) W = 11."""
     d = _server(tmp_path)
-    assert (d(8192)["workers"], d(8192)["limited_by"]) == (7, "memory")
-    assert (d(OTHER_MB)["workers"], d(OTHER_MB)["limited_by"]) == (11, "cpu")
+    for name in MANIFESTS:
+        w = d(MB.get(name, OTHER_MB))
+        want = (7, "memory") if name in MB else (11, "cpu")
+        assert (w["workers"], w["limited_by"]) == want, name
 
 
 FAKE_SR = r"""import json, os, sys

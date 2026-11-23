@@ -1,6 +1,6 @@
 {
   "name": "server-round16-smoke",
-  "description": "Smoke test of the round-16 plan (a local rehearsal): limited pytest (tests/server, the split test, the tests of the round 16 runner and report, and the tests of the round 13 to 15 runner and report), the mux11 repro run, then 1bk in miniature (configs/gomea/server-smoke16-1bk: the same two manifests, arms, flags, keys and spec, splits 81 and 82, 1,000 and 2,000 evaluations, a wall cap of 300 s; the Dow runs included). No extension. Uses its own state dir, so it never marks real steps done. No chain.",
+  "description": "Smoke test of the round-16 plan (a local rehearsal): limited pytest (tests/server, the split test, the tests of the round 16 runner and report, and the tests of the round 13 to 15 runner and report), the mux11 repro run, then 1bk in miniature (configs/gomea/server-smoke16-1bk: the same three manifests (sr.json, sr-100K.json, sr-Dow.json), arms, flags, keys and spec, splits 81 and 82, 1,000 and 2,000 evaluations, a wall cap of 300 s; the Dow runs included). No extension. Uses its own state dir, so it never marks real steps done. No chain.",
   "state_dir": "server-run16-smoke",
   "steps": [
     {
@@ -37,6 +37,7 @@
       ],
       "per_run_mb": 5120,
       "manifest_per_run_mb": {
+        "sr-100K.json": 8192,
         "sr-Dow.json": 8192
       }
     }
