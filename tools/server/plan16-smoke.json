@@ -1,0 +1,41 @@
+{
+  "name": "server-round16-smoke",
+  "description": "Smoke test of the round-16 plan (a local rehearsal): limited pytest (tests/server, the split test, the tests of the round 16 runner and report, and the tests of the round 13 to 15 runner and report), the mux11 repro run, then 1bk in miniature (configs/gomea/server-smoke16-1bk: the same two manifests, arms, flags, keys and spec, splits 81 and 82, 1,000 and 2,000 evaluations, a wall cap of 300 s; the Dow runs included). No extension. Uses its own state dir, so it never marks real steps done. No chain.",
+  "state_dir": "server-run16-smoke",
+  "steps": [
+    {
+      "id": "S0",
+      "type": "check",
+      "pytest": {
+        "args": [
+          "tests/server",
+          "tests/gomea/test_sr_datasets.py",
+          "tests/gomea/test_round16_runner.py",
+          "tests/gomea/test_round16_report.py",
+          "tests/gomea/test_round15_report.py",
+          "tests/gomea/test_round14_linear.py",
+          "tests/gomea/test_round13_runner_report.py",
+          "tests/gomea/test_sr_eval_terms.py",
+          "tests/gomea/standalone/test_standalone_runner.py"
+        ]
+      },
+      "repro": {
+        "only": [
+          "1ae-mux11-GOMEA-s3001"
+        ]
+      }
+    },
+    {
+      "id": "smoke16-1bk",
+      "type": "phase",
+      "phase": "server-smoke16-1bk",
+      "requires": [
+        "datasets:Air,Con,Dow,EnC,EnH,Tow,Yac:81-90"
+      ],
+      "per_run_mb": 5120,
+      "manifest_per_run_mb": {
+        "sr-Dow.json": 8192
+      }
+    }
+  ]
+}

@@ -1322,3 +1322,122 @@ the first half of the datasets, splits 71 and 72, E = 3,000, a wall cap of 300 s
 chains to `plan15b-smoke.json` (`smoke15b`: `configs/gomea/server-smoke15-1bj`, the 10 datasets;
 100 jobs kept, 100 new; the report on 200). Its state is in `server-run15-smoke/` and
 `server-run15b-smoke/`. The smoke plans are for a local check before a push, not a server step.
+
+## Round 16
+
+The sixteenth round (`SERVER-ROUND16-PREREGISTRATION.md`, the budget round of T3.2: at 100,000
+evaluations, is real-valued GOMEA on the constants better than BASE-TLS; does the ratio of an RV
+arm to BASE-TLS fall when the budget grows from 20,000 to 100,000; how much does BASE-TLS itself
+gain from 5 times the budget) has its own plan, `tools/server/plan16.json`: S0, then phase 1bk
+(regression). There is no Boolean phase. Its state is in `../gomea-results/server-run16/`. The
+plan is one round if the local pilot estimate is at most 20 h; else the agent splits it into two
+plans that chain (the user's rule) and updates this section.
+
+**One-time server steps before the round:**
+
+1. Make sure that no other round runs (`bash tools/server/status.sh --plan round15b` shows
+   "not running"). Round 16 never overlaps with another round.
+2. Update the clone to the branch commit that has this section:
+
+       git pull --ff-only
+
+3. Run the set-up again:
+
+       bash tools/server/setup.sh
+
+   It must end with `SETUP OK`. Round 16 uses the fresh splits 81-90. A dataset set from an
+   earlier round has splits 1-80 only, so set-up rebuilds it (splits 1-80 do not change; Dow and
+   Tow are built again from their raw files). Each dataset then has 720 split files (90 splits x
+   8 files).
+4. Start the round:
+
+       bash tools/server/start.sh --plan round16
+
+That is all. Do not run a separate smoke test on the server: the round runs everything in one
+go. S0 (the full pytest and the reproducibility check) records a failure in the log and in
+`round-summary.md`, but it does not stop the phase. There is no choice step, no extension and no
+adoption rule: the round only reports the results (the proposals after the round go to the
+user). No plan chains to or from round 16. Bring back the final bundle.
+
+**S0 and the Boolean manifests:** before the push, the 14 Boolean manifests of rounds 4, 6 and 12
+must name the newest code commit (the RV option of T3.2), so that the 4 pin tests
+(`test_plan4.py`, `test_plan6.py` and two in `test_plan12.py`) pass.
+
+**Phase 1bk: budget.** Each run gets 20,000 or 100,000 evaluations (`"budget": {"evals": N}`, so
+`-m N`) and no `--max-time`. Every RV evaluation counts in the budget. The wall cap of 36,000 s
+per run is only a guard against a hung process.
+
+**Phase 1bk: arms** (`configs/gomea/phase1bk/`, the same six arms in each manifest):
+
+| Arm | Budget | Flags |
+|---|---|---|
+| BASE-TLS | 20,000 | the round 14 BASE-TLS (as in 1bi) |
+| BASE-TLS-100K | 100,000 | the same |
+| TLS-RV | 20,000 | BASE-TLS + `--gomea-rv-step rvg --gomea-rv-budget balance` |
+| TLS-RV-100K | 100,000 | the same |
+| TLS-RVL | 20,000 | BASE-TLS + `--gomea-rv-step rvg --gomea-rv-budget late` |
+| TLS-RVL-100K | 100,000 | the same |
+
+* The RV option is opt-in (`docs/gomea/USAGE.md`). Without it, the output of every existing
+  setting does not change (the identity tests in `tests/gomea/`). With it, the RV stream gets its
+  seed from the run seed and the deme index, so everything up to the first RV generation is the
+  same as with the option off (the seed fix).
+* No arm has LM or the guard, so the runner gives no `--const-opt-val`. All six arms get
+  `--gomea-log RUN_DIR/events.jsonl`.
+* The manifests have `"clip_test_nmse"`, `"plain_nmse"` and (new in round 16) `"anytime"` true.
+  So each summary has `test_nmse_clipped`, `plain_val_nmse` and `plain_test_nmse`, and from the
+  GOMEA log: `demes` (the demes, the run evaluation at which each starts), `anytime` (the
+  best-so-far training NMSE at 1, 2, 5, 10, 20, 50 and 100 % of the budget; null at a checkpoint
+  before the first generation record) and `anytime_check` (the conversion of the raw score to the
+  training NMSE, checked against the first printed program). The four RV arms also have `rv`
+  (the RV totals: evaluations and share, RV generations, improving, kept by p_accept, AMS, forced
+  improvements, skips).
+* Datasets: Air, Con, Dow, EnC, EnH, Tow, Yac (7), splits 81-90. 420 MOSES runs (70 per arm, 42
+  per split, 60 per dataset). The phase needs the 7 datasets with splits 81-90 (requirement
+  `datasets:Air,Con,Dow,EnC,EnH,Tow,Yac:81-90`). Without them, 1bk is skipped with the reason in
+  the log.
+
+**Phase 1bk: report** (`spec.json` of 1bk; the round 15 key `"contrast_families"`; a failed run
+counts as infinitely bad; paired Wilcoxon on log(A / B) over the 70 pairs, Holm in each family,
+alpha = 0.025, and the 10 % band):
+
+* **P**, primary (4), test NMSE: TLS-RV-100K vs BASE-TLS-100K; TLS-RVL-100K vs BASE-TLS-100K; the
+  interaction contrasts [TLS-RV-100K, BASE-TLS-100K, TLS-RV, BASE-TLS] and [TLS-RVL-100K,
+  BASE-TLS-100K, TLS-RVL, BASE-TLS] (d = log(A1 / B1) - log(A2 / B2); "A1 gains more" means that
+  the ratio of the RV arm to BASE-TLS is at least 10 % lower at 100,000 than at 20,000).
+* **S**, secondary (8): TLS-RV and TLS-RVL vs BASE-TLS; BASE-TLS-100K vs BASE-TLS; TLS-RV-100K vs
+  TLS-RV (test NMSE); the 4 primary contrasts on the training NMSE.
+* **SC**, secondary (8): program size and CPU for primary 1 and 2 and for the two 20,000
+  contrasts (`"size_terms": true`).
+* **D**, descriptive (28): the 4 primary contrasts on each dataset. **DP**, descriptive (3):
+  primary 1 and 2 on the clipped test NMSE; BASE-TLS-100K vs BASE-TLS on the training NMSE.
+* The descriptive tables (round 16 keys of `tools/gomea/budget_report.py`):
+  `report-stage1/anytime_ratios.csv` (the median ratio of each arm's best-so-far training NMSE to
+  BASE-TLS of the same budget at each checkpoint, per dataset and pooled), `demes.csv` (demes per
+  run, the evaluation at which the second deme starts) and `rv.csv` (the RV counters).
+* `report-stage1/runs.csv` and `nmse_above_100.csv` (`"run_table": true`); `aggregate.csv` has
+  the median train-test gap.
+
+**Memory and workers:**
+
+| Manifest | `mem_limit_mb` | W on the server (cgroup 65,536 MB, 12 CPUs, reserve 6,553 MB) |
+|---|---|---|
+| `phase1bk/sr-Dow.json` | 8,192 | floor(58,983 / 8,192) = 7 |
+| `phase1bk/sr.json` (the 6 other datasets) | 5,120 | min(11, 11) = 11 |
+
+The 1bk step has `per_run_mb` 5120 and `manifest_per_run_mb` `{"sr-Dow.json": 8192}`. If the
+local pilot shows a 100,000 run above 50 % of its limit, the 100,000 arms get a manifest of their
+own with a larger limit (the pre-registration, gate item 3), and this table changes.
+
+**Size and time (the pre-registration's estimate; the local pilot gives a better one).**
+BASE-TLS about 13 CPU-h, TLS-RV and TLS-RVL about 8 h each, BASE-TLS-100K about 65 h, TLS-RV-100K
+and TLS-RVL-100K about 39 h each: about 170 CPU-h, about 16 h at W = 11, plus S0 (about 1.3 h).
+About 15 to 25 hours in total.
+
+**Local rehearsal only:** `tools/server/plan16-smoke.json` (`--plan smoke16`) runs a limited S0
+(`tests/server`, the split test, the tests of the round 13 to 16 runner and report, the
+per-term `sr_eval` test and the stand-alone runner test; the mux11 repro run), then
+`configs/gomea/server-smoke16-1bk` (the same
+two manifests, arms, flags, keys and spec, splits 81 and 82, 1,000 evaluations for the 20,000
+arms and 2,000 for the 100,000 arms, a wall cap of 300 s; 84 jobs). Its state is in
+`server-run16-smoke/`. The smoke plan is for a local check before a push, not a server step.
