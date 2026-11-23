@@ -1,10 +1,10 @@
-"""Server round 16: the plans (plan16.json, plan16-smoke.json) and the configuration of 1bk, as
-SERVER-ROUND16-PREREGISTRATION.md registers them.
+"""Server round 16: the plans (plan16.json, plan16b.json and their smoke plans) and the
+configuration of 1bk, as SERVER-ROUND16-PREREGISTRATION.md registers them.
 
 1bk (the budget round): BASE-TLS, TLS-RV and TLS-RVL at 20,000 and at 100,000 evaluations per
 run (6 arms; TLS-RV and TLS-RVL are BASE-TLS with the RV option of T3.2), on 7 datasets (Air,
 Con, Dow, EnC, EnH, Tow, Yac), fresh splits 81-90, no time limit: 420 MOSES runs. One phase
-(regression), no Boolean phase, no extension, no choice step, no adoption rule and no chain.
+(regression), no Boolean phase, no extension, no choice step, no adoption rule.
 
 The command lines of the RV arms pass the real CLI only with the code of clone K (the options
 --gomea-rv-step and --gomea-rv-budget).
@@ -20,7 +20,15 @@ change. The jobs (dataset, arm, split, argv, budget, result directory) are the j
 manifests before the move (commit 0b48c96); only the memory limit of the 180 moved jobs changes.
 sr-100K.json has the name of sr.json, so its runs keep their result directory. Tow comes first in
 sr-100K.json: the runner starts the jobs in the order of the manifest, and the Tow 100,000 runs
-are the longest."""
+are the longest.
+
+The chain (the local pilot estimate is about 39 h, more than 20 h for one plan; the rule of the
+pre-registration, "Rules"): round16 (plan16.json) runs S0 and 1bk on splits 81-85
+(configs/gomea/phase1bk-a: the full spec and the three manifests with splits 81-85 only; 210
+jobs; an interim report), then round16b (plan16b.json) runs 1bk with the full config: the runner
+keeps the 210 runs of round16 (the same manifest names, so the same result directories) and runs
+the other 210; the report covers all 420 runs. round16b has no S0. The smoke plans chain in the
+same way (split 81, then splits 81 and 82)."""
 
 import json
 import os
@@ -83,6 +91,8 @@ DATASETS_OF = {"sr.json": NOT_DOW, "sr-100K.json": ["Tow"] + [d for d in NOT_DOW
                "sr-Dow.json": ["Dow"]}
 OLD16 = "0b48c96"  # the last commit with the 100,000 arms in sr.json
 PREFIXES = ["phase1bk", "server-smoke16-1bk"]
+HALF_PREFIXES = {"phase1bk": "phase1bk-a", "server-smoke16-1bk": "server-smoke16-1bk-a"}
+HALF_SPLITS = {"phase1bk": [81, 82, 83, 84, 85], "server-smoke16-1bk": [81]}
 REQUIRES = [f"datasets:{','.join(DATASETS)}:81-90"]
 SMOKE_BUDGET = {20000: 1000, 100000: 2000}
 # training rows of each dataset (the same for every split: n - 2 * (n // 4))
@@ -303,7 +313,7 @@ def test_datasets_and_fresh_splits_and_no_extension():
 def test_splits_81_to_90_are_new():
     """No earlier regression manifest uses splits 81-90."""
     for f in CONFIGS.glob("*/*.json"):
-        if f.parent.name in PREFIXES:
+        if f.parent.name in PREFIXES or f.parent.name in HALF_PREFIXES.values():
             continue
         m = load(f)
         if isinstance(m, dict) and isinstance(m.get("splits"), list):
@@ -414,28 +424,92 @@ def test_holm_families_at_70_pairs():
 # ---- the plans
 
 
-@pytest.mark.parametrize("plan, name, state_dir, prefix, sid", [
-    ("plan16.json", "server-round16-2026-11", "server-run16", "phase1bk", "phase1bk"),
+def _memory_keys_match_the_manifests(step, q):
+    """per_run_mb and manifest_per_run_mb give each manifest of `q` its mem_limit_mb, so W
+    follows from the limit of the runs it starts; every key names a manifest of `q`."""
+    assert step["per_run_mb"] == OTHER_MB and step["manifest_per_run_mb"] == MB
+    assert [f.name for f in stage1(q)] == MANIFESTS
+    for f in stage1(q):
+        assert step["manifest_per_run_mb"].get(f.name, step["per_run_mb"]) == load(f)[
+            "mem_limit_mb"], f
+    assert all((q / n).exists() for n in step["manifest_per_run_mb"])
+
+
+@pytest.mark.parametrize("plan, name, state_dir, prefix, sid, then", [
+    ("plan16.json", "server-round16-2026-11", "server-run16", "phase1bk", "phase1bk",
+     "round16b"),
     ("plan16-smoke.json", "server-round16-smoke", "server-run16-smoke", "server-smoke16-1bk",
-     "smoke16-1bk"),
+     "smoke16-1bk", "smoke16b"),
 ])
-def test_plan_is_s0_then_1bk(plan, name, state_dir, prefix, sid):
+def test_the_first_plan_is_s0_then_1bk_on_the_first_splits(plan, name, state_dir, prefix, sid,
+                                                           then):
     p = load(SERVER / plan)
-    assert p["name"] == name and p["state_dir"] == state_dir
+    assert p["name"] == name and p["state_dir"] == state_dir and p["then"] == then
     assert [s["type"] for s in p["steps"]] == ["check", "phase"]
     assert [s["id"] for s in p["steps"]] == ["S0", sid]
     assert "per_run_mb" not in p["steps"][0] and "manifest_per_run_mb" not in p["steps"][0]
     a = p["steps"][1]
-    assert a["phase"] == prefix
-    assert "config_dir" not in a and not a.get("pilot") and not a.get("set_commit_in")
-    # no seeded arm, so no GP-GOMEA build; the 7 datasets with the fresh splits 81-90
+    assert a["phase"] == prefix  # the results stay under the full phase
+    assert a["config_dir"] == "{repo}/configs/gomea/" + HALF_PREFIXES[prefix]
+    assert not a.get("pilot") and not a.get("set_commit_in")
+    # no seeded arm, so no GP-GOMEA build; the 7 datasets with the fresh splits 81-90 (set-up
+    # builds all 90 splits at once; so round16b cannot miss a split that round16 had)
     assert a["requires"] == REQUIRES
-    assert a["per_run_mb"] == OTHER_MB and a["manifest_per_run_mb"] == MB
-    for f in stage1(CONFIGS / prefix):
-        assert a["manifest_per_run_mb"].get(f.name, a["per_run_mb"]) == load(f)[
-            "mem_limit_mb"], f
-    assert all((CONFIGS / prefix / n).exists() for n in MB)
-    assert "then" not in p
+    _memory_keys_match_the_manifests(a, CONFIGS / HALF_PREFIXES[prefix])
+
+
+@pytest.mark.parametrize("plan, name, state_dir, prefix, sid", [
+    ("plan16b.json", "server-round16b-2026-11", "server-run16b", "phase1bk", "phase1bk"),
+    ("plan16b-smoke.json", "server-round16b-smoke", "server-run16b-smoke", "server-smoke16-1bk",
+     "smoke16-1bk"),
+])
+def test_the_second_plan_is_1bk_with_the_full_config_and_no_s0(plan, name, state_dir, prefix,
+                                                               sid):
+    p = load(SERVER / plan)
+    assert p["name"] == name and p["state_dir"] == state_dir and "then" not in p
+    assert [s["type"] for s in p["steps"]] == ["phase"]  # no S0: round16 ran it
+    a = p["steps"][0]
+    assert a["id"] == sid and a["phase"] == prefix and "config_dir" not in a
+    assert not a.get("pilot") and not a.get("set_commit_in")
+    assert a["requires"] == REQUIRES
+    _memory_keys_match_the_manifests(a, CONFIGS / prefix)
+
+
+@pytest.mark.parametrize("full, half", list(HALF_PREFIXES.items()))
+def test_the_first_half_is_the_full_config_with_the_first_splits(full, half):
+    """The same spec.json and the same three manifests (the same names, so the same result
+    directories), with the first splits only (81-85; the smoke: 81)."""
+    q, h = CONFIGS / full, CONFIGS / half
+    assert sorted(f.name for f in h.iterdir()) == sorted(f.name for f in q.iterdir())
+    assert sorted(f.name for f in h.iterdir()) == ["spec.json"] + sorted(MANIFESTS)
+    assert (h / "spec.json").read_bytes() == (q / "spec.json").read_bytes()
+    for n in MANIFESTS:
+        m, fm = load(h / n), load(q / n)
+        assert m["splits"] == HALF_SPLITS[full] and set(m["splits"]) < set(fm["splits"])
+        assert fm["splits"][:len(m["splits"])] == m["splits"]
+        assert {k: v for k, v in m.items() if k != "splits"} == {
+            k: v for k, v in fm.items() if k != "splits"}, n
+
+
+@pytest.mark.parametrize("full, half, n_half", [("phase1bk", "phase1bk-a", 210),
+                                                ("server-smoke16-1bk", "server-smoke16-1bk-a",
+                                                 42)])
+def test_the_chain_runs_each_job_once(full, half, n_half):
+    """The jobs of the first plan are the jobs of the full config with the first splits, field
+    for field (the same argv, budget, memory limit and result directory). So the second plan
+    keeps them (the runner skips a run that has a summary.json) and runs the others."""
+    a = [j for f in stage1(CONFIGS / half) for j in runner.expand(load(f), Path("/o"), REPO)]
+    b = [j for f in stage1(CONFIGS / full) for j in runner.expand(load(f), Path("/o"), REPO)]
+    assert len(a) == n_half and len(b) == 2 * n_half
+    assert len({j["run_dir"] for j in a}) == n_half and len({j["run_dir"] for j in b}) == 2 * n_half
+    first = set(HALF_SPLITS[full])
+    assert {j["run_id"]: j for j in a} == {j["run_id"]: j for j in b if j["seed"] in first}
+    assert {j["seed"] for j in a} == first
+    # each plan: every arm on every dataset, and the 100,000 jobs with 8,192 MB
+    for jobs in (a, b):
+        assert {(j["task"], j["arm"]) for j in jobs} == {(d, x) for d in DATASETS for x in ARMS}
+        assert {j["run_id"] for j in jobs if j["mem_limit_mb"] == 8192} == {
+            j["run_id"] for j in jobs if j["task"] == "Dow" or j["arm"] in K100}
 
 
 def test_the_requirement_needs_the_fresh_splits(tmp_path, monkeypatch):
@@ -483,16 +557,34 @@ def test_s0_of_the_smoke_runs_the_new_tests():
     assert s0["repro"] == {"only": ["1ae-mux11-GOMEA-s3001"]}
 
 
-def test_no_plan_chains_to_or_from_round_16():
+@pytest.mark.parametrize("first, second", [("plan16.json", "round16b"),
+                                           ("plan16-smoke.json", "smoke16b")])
+def test_the_real_plans_chain(first, second):
+    sys.path.insert(0, str(SERVER))
+    import chain
+    assert chain.next_plan(SERVER / first) == chain.resolve(second)
+    assert chain.root(chain.resolve(second)) == SERVER / first
+    assert chain.lock_path(SERVER / first) == chain.lock_path(chain.resolve(second))
+    assert chain.stop_marker(SERVER / first) == chain.stop_marker(chain.resolve(second))
+    assert chain.members(chain.resolve(second)) == [SERVER / first, chain.resolve(second)]
+
+
+def test_no_other_plan_chains_to_round_16():
     for f in SERVER.glob("plan*.json"):
-        assert load(f).get("then") not in ("round16", "smoke16"), f
-    for f in ("plan16.json", "plan16-smoke.json"):
+        if f.name in ("plan16.json", "plan16-smoke.json"):
+            continue
+        assert load(f).get("then") not in ("round16", "smoke16", "round16b", "smoke16b"), f
+    for f in ("plan16b.json", "plan16b-smoke.json"):
         assert "then" not in load(SERVER / f)
 
 
-@pytest.mark.parametrize("name, plan", [("round16", "plan16.json"),
-                                        ("smoke16", "plan16-smoke.json")])
-def test_plan_names_resolve(name, plan):
+@pytest.mark.parametrize("name, plan, chain_files", [
+    ("round16", "plan16.json", ["plan16.json", "plan16b.json"]),
+    ("smoke16", "plan16-smoke.json", ["plan16-smoke.json", "plan16b-smoke.json"]),
+    ("round16b", "plan16b.json", ["plan16b.json"]),
+    ("smoke16b", "plan16b-smoke.json", ["plan16b-smoke.json"]),
+])
+def test_plan_names_resolve(name, plan, chain_files):
     r = subprocess.run(
         ["bash", "-c", f'source tools/server/_common.sh --plan {name}; echo "$PLAN"'],
         cwd=REPO, capture_output=True, text=True, check=True)
@@ -501,13 +593,13 @@ def test_plan_names_resolve(name, plan):
     import chain
     assert chain.PLAN_FILES[name] == plan
     assert chain.resolve(name) == SERVER / plan
-    assert [f.name for f in chain.forward(SERVER / plan)] == [plan]
+    assert [f.name for f in chain.forward(SERVER / plan)] == chain_files
 
 
 @pytest.mark.parametrize("script", ["_common.sh", "start.sh", "stop.sh", "status.sh",
                                     "install_autostart.sh"])
 def test_help_text_names_the_plans(script):
-    assert "round16|smoke16" in (SERVER / script).read_text()
+    assert "round16|smoke16|round16b|smoke16b" in (SERVER / script).read_text()
 
 
 def test_setup_builds_every_dataset_of_the_plan_with_the_fresh_splits():
@@ -578,14 +670,20 @@ def test_server_workers_are_7_for_dow_and_the_100k_arms_and_11_otherwise(tmp_pat
 FAKE_SR = r"""import json, os, sys
 from pathlib import Path
 w = sys.argv[sys.argv.index("--workers") + 1]
+m = json.loads(Path(sys.argv[1]).read_text())
 with open(Path(__file__).resolve().parents[3] / "gomea-results" / "trace.jsonl", "a") as fh:
-    fh.write(json.dumps({"manifest": Path(sys.argv[1]).name, "workers": int(w)}) + "\n")
+    fh.write(json.dumps({"manifest": Path(sys.argv[1]).name, "workers": int(w),
+                         "config": Path(sys.argv[1]).parent.name, "name": m["name"],
+                         "splits": m["splits"], "mem": m["mem_limit_mb"],
+                         "out": sys.argv[2]}) + "\n")
 """
 FAKE_REPORT = r"""import json, sys
 from pathlib import Path
 out = Path(sys.argv[4])
 out.mkdir(parents=True, exist_ok=True)
 (out / "verdict.json").write_text("{}")
+with open(Path(__file__).resolve().parents[3] / "gomea-results" / "trace.jsonl", "a") as fh:
+    fh.write(json.dumps({"report": sys.argv[1:4], "dirs": sys.argv[5].split(",")}) + "\n")
 """
 
 
@@ -596,8 +694,12 @@ def _w(mb):
 
 
 def test_the_phase_runs_with_its_own_workers(tmp_path):
-    """The real orchestrate.py and phase_run.sh on the real 1bk configs; the runner and the
-    report are fakes. sr.json, then sr-Dow.json with its own W."""
+    """The real orchestrate.py and phase_run.sh on the real 1bk configs and the phase steps of
+    both plans of the chain; the runner and the report are fakes. The first step runs the three
+    manifests of configs/gomea/phase1bk-a (PHASE_CONFIG_DIR, splits 81-85), the second the three
+    of configs/gomea/phase1bk (splits 81-90): sr.json, then sr-100K.json and sr-Dow.json with
+    their own W, all into the result directories of phase1bk. The report of each step reads the
+    result directories of all three manifests."""
     repo, res = tmp_path / "pyMoses", tmp_path / "gomea-results"
     (repo / "tools" / "server").mkdir(parents=True)
     res.mkdir()
@@ -611,9 +713,13 @@ def test_the_phase_runs_with_its_own_workers(tmp_path):
     (g / "phase_report.py").write_text(FAKE_REPORT)
     (repo / ".venv" / "bin").mkdir(parents=True)
     (repo / ".venv" / "bin" / "python").symlink_to(sys.executable)
-    shutil.copytree(CONFIGS / "phase1bk", repo / "configs" / "gomea" / "phase1bk")
-    steps = [dict(s) for s in load(SERVER / "plan16.json")["steps"][1:]]
-    steps[0].pop("requires")
+    for q in ("phase1bk", "phase1bk-a"):
+        shutil.copytree(CONFIGS / q, repo / "configs" / "gomea" / q)
+    steps = ([dict(s) for s in load(SERVER / "plan16.json")["steps"][1:]]
+             + [dict(s) for s in load(SERVER / "plan16b.json")["steps"]])
+    for i, s in enumerate(steps):
+        s.pop("requires")
+        s["id"] = f"{s['id']}-{i}"  # two steps of one test plan need two ids
     plan = {"name": "t16", "state_dir": "server-run16-t", "steps": steps}
     (repo / "tools" / "server" / "plan-t16.json").write_text(json.dumps(plan))
     env = {k: v for k, v in os.environ.items()
@@ -626,6 +732,23 @@ def test_the_phase_runs_with_its_own_workers(tmp_path):
                     "tools/server/plan-t16.json"], cwd=repo, env=env, capture_output=True,
                    text=True, timeout=120, check=True)
     trace = [json.loads(x) for x in (res / "trace.jsonl").read_text().splitlines()]
-    assert [t["manifest"] for t in trace] == MANIFESTS
-    for t in trace:
+    runs_, reports = [t for t in trace if "manifest" in t], [t for t in trace if "report" in t]
+    assert [t["manifest"] for t in runs_] == MANIFESTS * 2
+    assert [t["config"] for t in runs_] == ["phase1bk-a"] * 3 + ["phase1bk"] * 3
+    assert [t["splits"] for t in runs_] == [list(range(81, 86))] * 3 + [SPLITS] * 3
+    for t in runs_:
         assert t["workers"] == _w(MB.get(t["manifest"], OTHER_MB)), t
+        assert t["mem"] == MB.get(t["manifest"], OTHER_MB), t
+        assert t["out"] == "../gomea-results/phase1bk"
+    # sr-100K.json has the name of sr.json, so the report reads that directory twice (the
+    # report keys each run by dataset, arm and split, so it counts each run once)
+    dirs = ["../gomea-results/phase1bk/phase1bk-sr"] * 2 + [
+        "../gomea-results/phase1bk/phase1bk-sr-Dow"]
+    assert [t["dirs"] for t in reports] == [dirs, dirs]
+    assert [Path(t["report"][2]).parent.name for t in reports] == ["phase1bk-a", "phase1bk"]
+    sd = res / "server-run16-t"
+    events = [json.loads(x) for x in (sd / "events.jsonl").read_text().splitlines()]
+    wd = [(e.get("manifest"), e["per_run_mb"]) for e in events if e["event"] == "workers_decision"]
+    assert wd == [(None, OTHER_MB), ("sr-100K.json", 8192), ("sr-Dow.json", 8192)] * 2
+    st = load(sd / "state.json")["steps"]
+    assert [st[s["id"]]["status"] for s in steps] == ["done", "done"]

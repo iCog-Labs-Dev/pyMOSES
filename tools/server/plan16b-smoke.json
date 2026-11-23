@@ -1,0 +1,20 @@
+{
+  "name": "server-round16b-smoke",
+  "description": "Smoke test of the second plan of round 16: 1bk in miniature with the full smoke config (configs/gomea/server-smoke16-1bk: the three manifests, splits 81 and 82); the runner keeps the 42 runs of smoke16 and runs the other 42; the report covers all 84. No S0.",
+  "state_dir": "server-run16b-smoke",
+  "steps": [
+    {
+      "id": "smoke16-1bk",
+      "type": "phase",
+      "phase": "server-smoke16-1bk",
+      "requires": [
+        "datasets:Air,Con,Dow,EnC,EnH,Tow,Yac:81-90"
+      ],
+      "per_run_mb": 5120,
+      "manifest_per_run_mb": {
+        "sr-100K.json": 8192,
+        "sr-Dow.json": 8192
+      }
+    }
+  ]
+}

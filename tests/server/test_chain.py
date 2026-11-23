@@ -637,7 +637,8 @@ def test_plan_names_of_chain_py_and_common_sh_agree():
 
 
 @pytest.mark.parametrize("first, second",
-                         [("plan4.json", "round5"), ("plan4-smoke.json", "smoke5")])
+                         [("plan4.json", "round5"), ("plan4-smoke.json", "smoke5"),
+                          ("plan16.json", "round16b"), ("plan16-smoke.json", "smoke16b")])
 def test_real_plans_chain(first, second):
     chain = _chain_module()
     assert json.loads((SERVER / first).read_text())["then"] == second
