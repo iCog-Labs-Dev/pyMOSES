@@ -57,6 +57,7 @@ from pymoses.gomea.population import (
     parse_radii,
     top_up_population,
 )
+from pymoses.gomea.rv_core import RV_BUDGETS, RV_MODES, RVCore, rv_stream
 from pymoses.gomea.schema import CONTIN_MODES, FrozenSchema
 from pymoses.gomea.stats import CONTIN_STATS_MODES, contin_symbols
 from pymoses.gomea.telemetry import TelemetrySink
@@ -289,7 +290,19 @@ class gomea_parameters:
     rule, the write-back and the telemetry do not change. The tuned program is rejected if its
     largest distance from the mean training target is above 10 times the larger of that of
     the old program and the range of the training target (``const_opt.pole_rejects``). The
-    same refusals as ``"box"`` apply."""
+    same refusals as ``"box"`` apply.
+
+    NOT A PORT, T3.2 (server round 16, off by default, and then left out of ``as_dict``):
+    with ``rv_step`` ``"rvg"``, after each GOM generation the RV-GOMEA core
+    (``pymoses.gomea.rv_core.RVCore``) can run a real-valued generation on the non-zero
+    constant genes. ``rv_budget`` is its budget rule: ``"balance"`` or ``"late"``. With the
+    hook, the engine's convergence test is the structure-only test of the RV core. Each deme
+    gets its own RV stream, ``rv_core.rv_stream(rv_seed, k)`` for the k-th GOMEA deme of the
+    optimizer (k = 0, 1, ...). ``rv_seed`` is the run seed (``-r``). The stream does not draw
+    from the global ``randGen()``, so everything up to the first RV generation is the same as
+    with ``"off"``. ``rv_step`` ``"rvg"`` needs ``contin`` ``"copy"`` and ``const_opt``
+    ``"none"``. ``rv_budget`` and ``rv_seed`` are left out of ``as_dict`` while ``rv_step``
+    is ``"off"``."""
 
     def __init__(
         self,
@@ -333,6 +346,9 @@ class gomea_parameters:
         const_opt_during: str = "none",
         const_opt_pole_check: str = "none",
         const_opt_pole_seed: int = 0,
+        rv_step: str = "off",
+        rv_budget: str = "balance",
+        rv_seed: int = 0,
     ) -> None:
         if pop_size == DYNAMIC_POP_SIZE:
             if pop_fraction > 0:
@@ -473,6 +489,17 @@ class gomea_parameters:
                 raise ValueError("const_opt_pole_check and const_opt_during exclude each other")
         if not isinstance(const_opt_pole_seed, int) or isinstance(const_opt_pole_seed, bool):
             raise ValueError(f"const_opt_pole_seed must be an integer, got {const_opt_pole_seed!r}")
+        # NOT A PORT, T3.2 (server round 16): the RV core (``--gomea-rv-step``).
+        if rv_step not in RV_MODES:
+            raise ValueError(f"rv_step must be one of {RV_MODES}, got {rv_step!r}")
+        if rv_budget not in RV_BUDGETS:
+            raise ValueError(f"rv_budget must be one of {RV_BUDGETS}, got {rv_budget!r}")
+        if rv_step != "off" and contin != "copy":
+            raise ValueError("rv_step needs contin 'copy' (constants as genes)")
+        if rv_step != "off" and const_opt != "none":
+            raise ValueError("rv_step needs const_opt 'none'")
+        if not isinstance(rv_seed, int) or isinstance(rv_seed, bool):
+            raise ValueError(f"rv_seed must be an integer, got {rv_seed!r}")
         parse_radii(radii)
 
         self.pop_size = pop_size
@@ -515,6 +542,9 @@ class gomea_parameters:
         self.const_opt_during = const_opt_during
         self.const_opt_pole_check = const_opt_pole_check
         self.const_opt_pole_seed = const_opt_pole_seed
+        self.rv_step = rv_step
+        self.rv_budget = rv_budget
+        self.rv_seed = rv_seed
 
     # The opt-in options, left out of ``as_dict`` while at their default
     # (off), so a default run's telemetry is unchanged.
@@ -536,6 +566,7 @@ class gomea_parameters:
         "const_opt_top_k": 0,
         "const_opt_during": "none",
         "const_opt_pole_check": "none",
+        "rv_step": "off",
     }
 
     # The knob-cap options: all left out of ``as_dict`` while ``knob_cap`` is 0
@@ -550,6 +581,10 @@ class gomea_parameters:
     # ``"none"`` (server round 13).
     _POLE_KEYS = ("const_opt_pole_seed",)
 
+    # The RV core options: left out of ``as_dict`` while ``rv_step`` is ``"off"`` (server
+    # round 16).
+    _RV_KEYS = ("rv_budget", "rv_seed")
+
     def as_dict(self) -> dict:
         d = dict(vars(self))
         for k, default in self._OPTIONAL_DEFAULTS.items():
@@ -563,6 +598,9 @@ class gomea_parameters:
                 del d[k]
         if self.const_opt_pole_check == "none":
             for k in self._POLE_KEYS:
+                del d[k]
+        if self.rv_step == "off":
+            for k in self._RV_KEYS:
                 del d[k]
         return d
 
@@ -843,6 +881,12 @@ class gomea_optimization(optimizer_base):
         # NOT A PORT, server round 13 (``const_opt_pole_check``): the probe points of the run,
         # drawn at the first LM call (``None`` before, and always when the check is off).
         self._pole_probes: list[list[float]] | None = None
+        # NOT A PORT, T3.2 (server round 16, ``rv_step``): the current call's RV stream and
+        # RV core (``None`` when off), and the number of GOMEA demes that got an RV stream
+        # (the deme index of the seed rule, ``_rv_stream``).
+        self._rng_rv: MT19937RandGen | None = None
+        self._rv: RVCore | None = None
+        self._rv_demes = 0
 
     def prepare_deme(self, mp, exemplar) -> None:
         """GOMEA extension, Phase 1af: called by ``expand_deme`` once the
@@ -874,6 +918,7 @@ class gomea_optimization(optimizer_base):
         rng_init, rng_link, rng_var = _draw_streams()
         self._rng_knob = _knob_stream(gp)
         self._rng_mut = _mutate_stream(gp)
+        self._rng_rv = self._rv_stream()  # NOT A PORT, T3.2 (None = off)
         self._co = _new_const_opt_counts()
         sink = TelemetrySink(gp.telemetry_path)
         oracle = self._make_oracle(schema, iscorer, deme, max_evals, max_time)
@@ -921,6 +966,7 @@ class gomea_optimization(optimizer_base):
         rng_init, rng_link, rng_var = _draw_streams()
         self._rng_knob = _knob_stream(gp)
         self._rng_mut = _mutate_stream(gp)
+        self._rng_rv = self._rv_stream()  # NOT A PORT, T3.2 (None = off)
         self._co = _new_const_opt_counts()
         sink = TelemetrySink(gp.telemetry_path)
         oracle = self._make_oracle(schema, iscorer, deme, max_evals, max_time)
@@ -1142,6 +1188,7 @@ class gomea_optimization(optimizer_base):
                     mutate=self._mutator(schema, oracle, ev),
                     distance=distance_fn(schema) if gp.fos == "np" else None,
                     tune_elite=self._elite_tuner(schema, oracle, ev),
+                    rv_generation=self._rv_hook(schema, oracle, ev),
                 )
                 reason = engine.run(population).termination_reason
         except KeyboardInterrupt:
@@ -1150,6 +1197,35 @@ class gomea_optimization(optimizer_base):
             )
             raise
         self._finish(deme, oracle, ev, schema, init, engine, reason, init_s, t_start, sink)
+
+    def _rv_stream(self) -> MT19937RandGen | None:
+        """NOT A PORT, T3.2 (server round 16): the RV stream of this call (deme), or ``None``
+        (and no count) when ``rv_step`` is ``"off"``. It also clears the RV core of the
+        previous call.
+
+        The seed rule: the k-th call (k = 0, 1, ...; ``__call__`` and ``run_seeded``) of the
+        optimizer gets ``rv_core.rv_stream(rv_seed, k)``, with ``rv_seed`` the run seed
+        (``-r``). One optimizer serves one run, so k is the deme index of the run. The rule
+        does not draw from, or change, the global ``randGen()``."""
+        self._rv = None
+        gp = self.gomea_params
+        if gp.rv_step == "off":
+            return None
+        k = self._rv_demes
+        self._rv_demes += 1
+        return rv_stream(gp.rv_seed, k)
+
+    def _rv_hook(self, schema: FrozenSchema, oracle: EvaluationOracle, ev: _OracleEvaluator):
+        """NOT A PORT, T3.2 (server round 16): the engine's ``rv_generation`` hook (a new
+        ``RVCore`` on this call's RV stream), or ``None`` (nothing built) when ``rv_step`` is
+        ``"off"``."""
+        gp = self.gomea_params
+        self._rv = None
+        if gp.rv_step == "off":
+            return None
+        keep = oracle.keep if gp.deme_store == "accepted" else None
+        self._rv = RVCore(schema, oracle, ev, self._rng_rv, keep, gp.rv_budget)
+        return self._rv
 
     def _fitness(self):
         """GOMEA extension (``--gomea-knob-cap``): a score's scalar fitness for the
@@ -1278,6 +1354,10 @@ class gomea_optimization(optimizer_base):
                     lm_pole_checked=self._co.get("lm_pole_checked", 0),
                     lm_pole_rejected=self._co.get("lm_pole_rejected", 0),
                 )
+        if self.gomea_params.rv_step != "off":
+            # NOT A PORT, T3.2 (server round 16): the RV totals of this deme (absent when off;
+            # None when the deme ended before the engine ran).
+            self.last_result["rv"] = self._rv.record() if self._rv is not None else None
         if self.gomea_params.const_opt_reserve > 0:
             # NOT A PORT, server round 11: this deme's LM reserve (absent when off).
             self.last_result["const_opt_reserve"] = self._reserve

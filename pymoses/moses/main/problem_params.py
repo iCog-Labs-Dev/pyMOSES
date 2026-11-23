@@ -472,6 +472,29 @@ _GOMEA_OPTIONS = (
         "accepted (the initial population and accepted trials only; every "
         "evaluation is still counted). Default all.",
     ),
+    # NOT A PORT, T3.2 (server round 16): the RV-GOMEA core on the constant genes (off by
+    # default: a default run is unchanged).
+    (
+        "--gomea-rv-step",
+        "gomea_rv_step",
+        str,
+        "off",
+        "NOT A PORT (T3.2, server round 16): off, or rvg: after each GOM generation, "
+        "maybe run a real-valued GOMEA generation (the RV-GOMEA core: univariate models "
+        "of the active constant genes, AMS, SDR-AVS, forced improvements) on the "
+        "non-zero constant genes, with a structure-only convergence test. Needs "
+        "--gomea-contin copy and --const-opt none. Default off.",
+    ),
+    (
+        "--gomea-rv-budget",
+        "gomea_rv_budget",
+        str,
+        "balance",
+        "with --gomea-rv-step rvg: balance (an RV generation runs with probability "
+        "p_RV = 1 - 0.5 x RV evaluations / GOM evaluations of the deme) or late (only "
+        "after a GOM generation that did not improve the deme best, then with p_RV). "
+        "Default balance.",
+    ),
     # Top-K FOS subsets per generation (off by default: a default run is
     # unchanged).
     (
@@ -904,6 +927,11 @@ def _gomea_params_from_args(args: argparse.Namespace) -> gomea_parameters:
         # server round 13: the probes of the pole check come from the run seed (-r)
         const_opt_pole_check=v["const_opt_pole_check"],
         const_opt_pole_seed=getattr(args, "rand_seed", 0),
+        # NOT A PORT, T3.2 (server round 16): the RV core; its streams come from the run
+        # seed (-r) and the deme index, not from the global generator
+        rv_step=v["gomea_rv_step"],
+        rv_budget=v["gomea_rv_budget"],
+        rv_seed=getattr(args, "rand_seed", 0),
         # server round 6: read only by --gomea-pop-size dynamic
         hc_fraction_of_nn=getattr(args, "hc_frac_of_nn", 2.0),
         hc_max_nn_evals=getattr(args, "hc_max_nn", 20000),

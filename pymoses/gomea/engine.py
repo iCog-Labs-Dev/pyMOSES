@@ -114,6 +114,7 @@ class GomeaEngine:
         distance: Callable[[Sequence[int]], list[list[int]]] | None = None,
         tune_elite: Callable[[Individual], Individual] | None = None,
         on_trial: Callable[[int, str], None] | None = None,
+        rv_generation: Callable | None = None,
     ) -> None:
         self.domains = list(domains)
         self.params = params
@@ -157,6 +158,16 @@ class GomeaEngine:
         # NOT A PORT, the IT linkage study (BACKLOG 13.9): ``gom``'s ``on_trial`` observer
         # (``None`` = off). It only observes.
         self.on_trial = on_trial
+        # NOT A PORT, T3.2 (server round 16, ``--gomea-rv-step rvg``): called after each GOM
+        # generation that did not stop the run, as ``rv_generation(engine, population,
+        # generation)``; it returns ``(population, record, stop)``, and ``record`` becomes the
+        # "rv" field of the generation record. If the hook has a ``converged(population)``
+        # method, that test replaces the test on equal genotypes. ``None`` (the default)
+        # changes nothing.
+        self.rv_generation = rv_generation
+        # Whether the last GOM generation improved the deme best (set only when
+        # ``rv_generation`` is set; read by the ``late`` budget rule of the RV core).
+        self.gom_improved = False
 
     def best_of(self, pop: Sequence[Individual]) -> Individual:
         """The best individual; ties go to the lowest index."""
@@ -235,6 +246,11 @@ class GomeaEngine:
                 new_pop, record, stop = perform_generation(self, P, model, nis, self._gens)
             except _Stop as s:
                 return s.reason
+            rv = self.rv_generation
+            if rv is not None and stop is None:
+                # NOT A PORT, T3.2 (server round 16): an RV generation after the GOM one.
+                self.gom_improved = self.ev.worse(best.score, self.best_of(new_pop).score)
+                new_pop, record["rv"], stop = rv(self, new_pop, self._gens)
             P = self._pop = new_pop
             new_best = self.best_of(P)
             improved = self.ev.worse(best.score, new_best.score)
@@ -251,7 +267,14 @@ class GomeaEngine:
             if any(self.target_met(ind) for ind in P):
                 return "target_reached"
             first = P[0].genotype
-            if all(ind.genotype == first for ind in P):
+            # NOT A PORT, T3.2 (server round 16): the RV core's structure-only test
+            # (GP-RV-GOMEA Sec. 4.1) replaces the test on the genotypes when its hook is
+            # set. Without a hook nothing changes.
+            converged = getattr(rv, "converged", None) if rv is not None else None
+            if converged is not None:
+                if converged(P):
+                    return "converged"
+            elif all(ind.genotype == first for ind in P):
                 return "converged"
             if nis >= self.params.stall_generations:
                 return "stagnation"
