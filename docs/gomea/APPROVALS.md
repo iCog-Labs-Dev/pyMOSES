@@ -685,3 +685,13 @@ user confirms it.
     TLS-LMR (the user did not answer these two questions). The pre-registration draft
     (`SERVER-ROUND16-PREREGISTRATION.md`) says so.
   * Not approved: the pre-registration text, a push.
+* **Round 16 RV16 review, finding 1 and the nits (2026-11-23):** the review of 2d407b2..f121da0 (a
+  review subagent that did not write the code) found 1 blocking finding (the `anytime` checkpoints
+  have the resolution of one generation, up to 7,700 evaluations) and 7 nits. The agent gave all
+  findings unchanged and recommended option a (an opt-in exact best-so-far trace for all 6 arms)
+  and fixes for nits 2–7 (no change for nit 8). The user answered: "Yes go ahead with the a option
+  and you can fix the Nits."
+  * User decisions: option a; the nits are fixed.
+  * Agent reading, not confirmed: "the Nits" includes nit 8; the agent fixes it with a digest of
+    the initial genotypes in the same opt-in log option, so the pilot can compare genotypes.
+  * Not approved: the pre-registration text, a push.
