@@ -1,0 +1,515 @@
+"""Server round 16: the plans (plan16.json, plan16-smoke.json) and the configuration of 1bk, as
+SERVER-ROUND16-PREREGISTRATION.md registers them.
+
+1bk (the budget round): BASE-TLS, TLS-RV and TLS-RVL at 20,000 and at 100,000 evaluations per
+run (6 arms; TLS-RV and TLS-RVL are BASE-TLS with the RV option of T3.2), on 7 datasets (Air,
+Con, Dow, EnC, EnH, Tow, Yac), fresh splits 81-90, no time limit: 420 MOSES runs. One phase
+(regression), no Boolean phase, no extension, no choice step, no adoption rule and no chain.
+
+The command lines of the RV arms pass the real CLI only with the code of clone K (the options
+--gomea-rv-step and --gomea-rv-budget)."""
+
+import json
+import os
+import shutil
+import subprocess
+import sys
+from pathlib import Path
+
+import pytest
+
+from benchmarks.gomea.stats import holm, wilcoxon_signed_rank
+
+REPO = Path(__file__).resolve().parents[2]
+CONFIGS = REPO / "configs" / "gomea"
+SERVER = REPO / "tools" / "server"
+sys.path.insert(0, str(REPO / "tools" / "gomea"))
+import moses_sr_runner as runner  # noqa: E402
+import phase_report  # noqa: E402
+import sr_datasets  # noqa: E402
+
+# The arms of the pre-registration, flag for flag. BASE-TLS is the BASE-TLS arm of round 14.
+TLS = ["-a", "gomea", "--gomea-fos", "lt-b", "--gomea-pop-size", "dynamic",
+       "--hc-fraction-of-nn", "0.05", "--gomea-skip-inactive", "0",
+       "--gomea-genotype-memo", "1", "--gomea-contin", "copy",
+       "--knob-probe-baseline", "reduced", "--linear-scaling", "terms",
+       "--const-opt", "none",
+       "--gomea-accept-complexity-ratio", "0.125", "--gomea-deme-store", "accepted"]
+RV = ["--gomea-rv-step", "rvg", "--gomea-rv-budget", "balance"]
+RVL = ["--gomea-rv-step", "rvg", "--gomea-rv-budget", "late"]
+ARMS = {
+    "BASE-TLS": (TLS, 20000),
+    "BASE-TLS-100K": (TLS, 100000),
+    "TLS-RV": (TLS + RV, 20000),
+    "TLS-RV-100K": (TLS + RV, 100000),
+    "TLS-RVL": (TLS + RVL, 20000),
+    "TLS-RVL-100K": (TLS + RVL, 100000),
+}
+RV_BUDGET = {"TLS-RV": "balance", "TLS-RV-100K": "balance", "TLS-RVL": "late",
+             "TLS-RVL-100K": "late"}
+DATASETS = ["Air", "Con", "Dow", "EnC", "EnH", "Tow", "Yac"]
+SPLITS = list(range(81, 91))
+MANIFESTS = ["sr.json", "sr-Dow.json"]
+MB = {"sr-Dow.json": 8192}  # "Memory"
+OTHER_MB = 5120
+PREFIXES = ["phase1bk", "server-smoke16-1bk"]
+REQUIRES = [f"datasets:{','.join(DATASETS)}:81-90"]
+SMOKE_BUDGET = {20000: 1000, 100000: 2000}
+# training rows of each dataset (the same for every split: n - 2 * (n // 4))
+N_TRAIN = {d: json.loads((REPO / "data" / "gomea-sr" / d / "splits.json").read_text())["n_train"]
+           for d in DATASETS}
+
+
+def load(path):
+    return json.loads(path.read_text())
+
+
+def stage1(q):
+    """The stage-1 manifests of phase_run.sh: sr.json, then sr-*.json without sr-ext-*."""
+    return [q / "sr.json"] + sorted(f for f in q.glob("sr-*.json")
+                                    if not f.name.startswith("sr-ext-"))
+
+
+def runs(ms):
+    out = {}
+    for f in ms:
+        m = load(f)
+        for d in m["datasets"]:
+            for s in m["splits"]:
+                assert (d, s) not in out, (f, d, s)
+                out[(d, s)] = list(m["arms"])
+    return out
+
+
+def cli(argv):
+    """Parse `argv` (without the program name) as `moses_exec` does, with every check of
+    `problem_params.parse_options` (also the cross-option ones), and return the parameters."""
+    import argparse
+
+    from pymoses.moses.main.demo_problems import register_demo_problems
+    from pymoses.moses.main.moses_exec import _add_demo_options
+    from pymoses.moses.main.problem import problem_manager
+    from pymoses.moses.main.problem_params import problem_params
+    from pymoses.moses.main.table_problems import ip_problem_params, register_table_problems
+
+    pmr = problem_manager()
+    ippp = ip_problem_params()
+    tpp = register_table_problems(pmr, ippp)
+    register_demo_problems(pmr)
+    pp = problem_params()
+    p = argparse.ArgumentParser(prog="moses", add_help=False)
+    p.add_argument("-h", "--help", dest="help", action="store_true", default=False)
+    pp.add_options(p)
+    tpp.add_options(p)
+    ippp.add_options(p)
+    _add_demo_options(p)
+    pp.add_gomea_options(p)
+    ns = p.parse_args([str(x) for x in argv])
+    pp.parse_options(ns)
+    tpp.parse_options(ns)
+    ippp.parse_options(ns)
+    return pp, ns
+
+
+def run_argv(job, run_dir, n_train):
+    """The command line `moses_sr_runner._run_one` gives MOSES (without the program name):
+    `moses_argv`, then `--const-opt-val` for polish or the guard, as `_run_one` adds it."""
+    argv = runner.moses_argv(job, run_dir, n_train)
+    if runner._const_opt(job["argv"]) == "polish" or runner._const_opt_guard(job["argv"]) == "val":
+        argv += ["--const-opt-val", str(run_dir / "val_scaled.csv")]
+    return argv[1:]
+
+
+# ---- the arms of 1bk
+
+
+@pytest.mark.parametrize("prefix", PREFIXES)
+def test_arm_flags_match_the_preregistration(prefix):
+    q = CONFIGS / prefix
+    assert [f.name for f in stage1(q)] == MANIFESTS
+    for f in stage1(q):
+        m = load(f)
+        assert list(m["arms"]) == list(ARMS)
+        for a, s in m["arms"].items():
+            assert set(s) == {"binary", "budget", "argv"}, (f, a)  # no seed block
+            assert s["argv"] == ARMS[a][0], (f, a)
+
+
+def test_base_tls_is_the_base_tls_arm_of_round_14():
+    for name in MANIFESTS:
+        bi = load(CONFIGS / "phase1bi" / name)["arms"]["BASE-TLS"]
+        m = load(CONFIGS / "phase1bk" / name)["arms"]
+        assert bi["argv"] == TLS and bi["binary"] == ".venv/bin/moses"
+        for a in ("BASE-TLS", "BASE-TLS-100K"):
+            assert m[a]["argv"] == bi["argv"] and m[a]["binary"] == bi["binary"], (name, a)
+        assert m["BASE-TLS"] == bi
+
+
+def test_each_rv_arm_adds_only_its_rv_flags():
+    """The table "Arms": TLS-RV and TLS-RVL are BASE-TLS with --gomea-rv-step rvg and
+    --gomea-rv-budget balance or late; the 100K arms have the flags of their 20K arm."""
+    for a, budget in RV_BUDGET.items():
+        argv = ARMS[a][0]
+        assert argv[:len(TLS)] == TLS
+        assert argv[len(TLS):] == ["--gomea-rv-step", "rvg", "--gomea-rv-budget", budget]
+    for a in ARMS:
+        if a.endswith("-100K"):
+            assert ARMS[a][0] == ARMS[a[:-5]][0]
+    # the RV option needs --gomea-contin copy and --const-opt none (the BASE-TLS flags)
+    assert runner._const_opt(TLS) == "none" and TLS[TLS.index("--gomea-contin") + 1] == "copy"
+
+
+@pytest.mark.parametrize("prefix", PREFIXES)
+def test_every_manifest_asks_for_the_clipped_nmse_the_plain_fields_and_the_checkpoints(prefix):
+    """The manifest keys "clip_test_nmse", "plain_nmse" and "anytime" (round 16): expand()
+    gives them to every run, so every summary has test_nmse_clipped, demes and anytime."""
+    for f in stage1(CONFIGS / prefix):
+        m = load(f)
+        assert m["clip_test_nmse"] is True and m["plain_nmse"] is True and m["anytime"] is True
+        jobs = runner.expand(m, Path("/o"), REPO)
+        assert jobs and all(j["clip_test_nmse"] is True and j["plain_nmse"] is True
+                            and j["anytime"] is True for j in jobs)
+        assert all(runner._linear_scaling(j["argv"]) == "terms" for j in jobs)
+        assert all(runner._wants_anytime(j) for j in jobs)
+
+
+def test_budget_is_evaluations_with_no_time_limit():
+    for f in stage1(CONFIGS / "phase1bk"):
+        m = load(f)
+        assert m["wall_cap_s"] == 36000
+        assert m["datasets_dir"] == "../gomea-results/phase1f/datasets"
+        for a, s in m["arms"].items():
+            assert s["budget"] == {"evals": ARMS[a][1]}, (f, a)
+            assert s["binary"] == ".venv/bin/moses"
+            assert not any(t.startswith(("--max-time", "-m")) for t in s["argv"]), (f, a)
+
+
+@pytest.mark.parametrize("arm", list(ARMS))
+def test_the_runner_gives_each_arm_m_and_the_log_and_no_validation_table(arm, tmp_path):
+    """`-m` (20,000 or 100,000) comes before the arm's flags; `events_argv` adds
+    `--gomea-log`; no arm has the LM guard, so `_run_one` adds no `--const-opt-val`."""
+    argv, budget = ARMS[arm]
+    job = {"binary": ".venv/bin/moses", "seed": 81, "budget": {"evals": budget}, "argv": argv}
+    out = runner.moses_argv(job, tmp_path, 100)
+    assert out[-2:] == ["--gomea-log", str(tmp_path / "events.jsonl")]
+    i = out.index("-m")
+    assert out[i + 1] == str(budget) and out[i + 2:-2] == argv
+    full = run_argv(job, tmp_path, 100)
+    assert runner._const_opt_guard(argv) == "none"
+    assert not any(t.startswith(("--const-opt-val", "--const-opt-guard")) for t in full)
+
+
+@pytest.mark.parametrize("arm", list(ARMS))
+def test_every_command_line_parses_with_the_real_cli(arm, tmp_path):
+    """The command line of each arm on each dataset, as the runner builds it, passes every check
+    of the real pymoses CLI, and gives the options of the pre-registration. The RV arms need
+    the code of clone K (--gomea-rv-step, --gomea-rv-budget)."""
+    argv, budget = ARMS[arm]
+    for d in DATASETS:
+        job = {"binary": ".venv/bin/moses", "seed": 81, "budget": {"evals": budget},
+               "argv": argv}
+        pp, ns = cli(run_argv(job, tmp_path, N_TRAIN[d]))
+        assert ns.max_evals == budget
+        assert pp.linear_scaling == "terms"
+        assert ns.const_opt_val == ""
+        assert pp.meta_params.exemplar_selection == "boltzmann"
+        gp = pp.gomea_params
+        assert ns.opt_algo == "gomea" and gp.dynamic()
+        assert gp.fos == "lt-b" and gp.const_opt == "none" and gp.const_opt_guard == "none"
+        assert gp.max_evals_per_deme is None
+        if arm in RV_BUDGET:
+            assert ns.gomea_rv_step == "rvg" and ns.gomea_rv_budget == RV_BUDGET[arm]
+        else:
+            assert getattr(ns, "gomea_rv_step", "off") == "off"
+
+
+def test_no_arm_uses_the_placeholder():
+    for argv, _ in ARMS.values():
+        assert runner.resolve_argv(argv, 534) == argv
+        assert not any("n_train" in t for t in argv)
+
+
+# ---- datasets, splits, memory
+
+
+def test_datasets_and_fresh_splits_and_no_extension():
+    q = CONFIGS / "phase1bk"
+    assert set(runs(stage1(q))) == {(d, s) for d in DATASETS for s in SPLITS}
+    assert sorted(q.glob("*-ext-*.json")) == []
+    assert sorted(f.name for f in q.iterdir()) == ["spec.json", "sr-Dow.json", "sr.json"]
+    assert load(q / "sr.json")["datasets"] == [d for d in DATASETS if d != "Dow"]
+    assert load(q / "sr-Dow.json")["datasets"] == ["Dow"]
+    for f in stage1(q):
+        assert load(f)["name"] == f"phase1bk-{f.stem}"
+        assert load(f)["splits"] == SPLITS
+    assert set(SPLITS) <= set(sr_datasets.SEEDS)
+
+
+def test_splits_81_to_90_are_new():
+    """No earlier regression manifest uses splits 81-90."""
+    for f in CONFIGS.glob("*/*.json"):
+        if f.parent.name in PREFIXES:
+            continue
+        m = load(f)
+        if isinstance(m, dict) and isinstance(m.get("splits"), list):
+            assert not set(m["splits"]) & set(SPLITS), f
+
+
+def test_run_count_is_420():
+    assert sum(len(a) for a in runs(stage1(CONFIGS / "phase1bk")).values()) == 420
+    jobs = [j for f in stage1(CONFIGS / "phase1bk")
+            for j in runner.expand(load(f), Path("/o"), REPO)]
+    assert len(jobs) == 420 and len({j["run_id"] for j in jobs}) == 420
+    assert len({j["run_dir"] for j in jobs}) == 420
+    for key, n in (("arm", 70), ("seed", 42), ("task", 60)):
+        counts = {}
+        for j in jobs:
+            counts[j[key]] = counts.get(j[key], 0) + 1
+        assert set(counts.values()) == {n}, key
+    assert sum(j["budget"]["evals"] for j in jobs) == 210 * 20000 + 210 * 100000
+
+
+@pytest.mark.parametrize("prefix", PREFIXES)
+def test_memory_limits(prefix):
+    for f in stage1(CONFIGS / prefix):
+        assert load(f)["mem_limit_mb"] == MB.get(f.name, OTHER_MB), f
+
+
+# ---- the spec of 1bk (test_round16_report.py checks it in full)
+
+
+@pytest.mark.parametrize("prefix", PREFIXES)
+def test_the_spec_covers_every_arm(prefix):
+    s = load(CONFIGS / prefix / "spec.json")
+    assert s["phase"] == ("1bk" if prefix == "phase1bk" else "smoke16-1bk")
+    assert s["metrics"] == dict.fromkeys(DATASETS, "test_nmse")
+    arms = {a for f in s["contrast_families"] for c in f["contrasts"] for a in c[1:-1]}
+    assert arms == set(ARMS)
+    assert {f["name"]: len(f["contrasts"]) for f in s["contrast_families"]} == {
+        "P": 4, "S": 8, "SC": 8, "D": 4, "DP": 3}
+    assert set(s["anytime_ratios"]) == set(ARMS) - {"BASE-TLS", "BASE-TLS-100K"}
+
+
+def test_holm_families_at_70_pairs():
+    """With 70 pooled pairs every family that gives verdicts (4, 8, 8) can give one; the 28
+    per-dataset rows (10 pairs each) cannot (28 * 2/1024 > 0.025): they are descriptive."""
+    p70 = wilcoxon_signed_rank([float(i + 1) for i in range(70)])[1]
+    for n in (4, 8):
+        assert holm([p70] * n)[0] < phase_report.ALPHA
+    p10 = wilcoxon_signed_rank([float(i + 1) for i in range(10)])[1]
+    assert holm([p10] * 28)[0] > phase_report.ALPHA
+
+
+# ---- the plans
+
+
+@pytest.mark.parametrize("plan, name, state_dir, prefix, sid", [
+    ("plan16.json", "server-round16-2026-11", "server-run16", "phase1bk", "phase1bk"),
+    ("plan16-smoke.json", "server-round16-smoke", "server-run16-smoke", "server-smoke16-1bk",
+     "smoke16-1bk"),
+])
+def test_plan_is_s0_then_1bk(plan, name, state_dir, prefix, sid):
+    p = load(SERVER / plan)
+    assert p["name"] == name and p["state_dir"] == state_dir
+    assert [s["type"] for s in p["steps"]] == ["check", "phase"]
+    assert [s["id"] for s in p["steps"]] == ["S0", sid]
+    assert "per_run_mb" not in p["steps"][0] and "manifest_per_run_mb" not in p["steps"][0]
+    a = p["steps"][1]
+    assert a["phase"] == prefix
+    assert "config_dir" not in a and not a.get("pilot") and not a.get("set_commit_in")
+    # no seeded arm, so no GP-GOMEA build; the 7 datasets with the fresh splits 81-90
+    assert a["requires"] == REQUIRES
+    assert a["per_run_mb"] == OTHER_MB and a["manifest_per_run_mb"] == MB
+    for f in stage1(CONFIGS / prefix):
+        assert a["manifest_per_run_mb"].get(f.name, a["per_run_mb"]) == load(f)[
+            "mem_limit_mb"], f
+    assert all((CONFIGS / prefix / n).exists() for n in MB)
+    assert "then" not in p
+
+
+def test_the_requirement_needs_the_fresh_splits(tmp_path, monkeypatch):
+    """A dataset set built before round 16 (splits 1-80) does not meet the requirement."""
+    sys.path.insert(0, str(SERVER))
+    import orchestrate
+
+    monkeypatch.setattr(orchestrate, "RES", tmp_path)
+    r = orchestrate.Round(SERVER / "plan16.json")
+    for a in DATASETS:
+        d = tmp_path / "phase1f" / "datasets" / a
+        (d / "splits").mkdir(parents=True)
+        (d / "full.csv").write_text("x1,y\n")
+        (d / "splits" / "splits.json").write_text("{}")
+        for k in range(1, 81):
+            (d / "splits" / f"s{k}").mkdir()
+            for t in ("train", "val", "test"):
+                (d / "splits" / f"s{k}" / f"{t}.csv").write_text("x1,y\n")
+    why = r.requirement(REQUIRES[0])
+    assert why and "81-90" in why
+    for a in DATASETS:
+        for k in SPLITS:
+            s = tmp_path / "phase1f" / "datasets" / a / "splits" / f"s{k}"
+            s.mkdir()
+            for t in ("train", "val", "test"):
+                (s / f"{t}.csv").write_text("x1,y\n")
+    assert r.requirement(REQUIRES[0]) is None
+
+
+def test_s0_of_the_round_is_complete():
+    s0 = load(SERVER / "plan16.json")["steps"][0]
+    assert s0["pytest"] == {} and s0["repro"] == {}
+
+
+def test_s0_of_the_smoke_runs_the_new_tests():
+    s0 = load(SERVER / "plan16-smoke.json")["steps"][0]
+    args = s0["pytest"]["args"]
+    for t in ("tests/server", "tests/gomea/test_sr_datasets.py",
+              "tests/gomea/test_round16_runner.py", "tests/gomea/test_round16_report.py"):
+        assert t in args
+    for t in args:
+        assert (REPO / t).exists(), t
+    assert s0["repro"] == {"only": ["1ae-mux11-GOMEA-s3001"]}
+
+
+def test_no_plan_chains_to_or_from_round_16():
+    for f in SERVER.glob("plan*.json"):
+        assert load(f).get("then") not in ("round16", "smoke16"), f
+    for f in ("plan16.json", "plan16-smoke.json"):
+        assert "then" not in load(SERVER / f)
+
+
+@pytest.mark.parametrize("name, plan", [("round16", "plan16.json"),
+                                        ("smoke16", "plan16-smoke.json")])
+def test_plan_names_resolve(name, plan):
+    r = subprocess.run(
+        ["bash", "-c", f'source tools/server/_common.sh --plan {name}; echo "$PLAN"'],
+        cwd=REPO, capture_output=True, text=True, check=True)
+    assert r.stdout.strip() == str(SERVER / plan)
+    sys.path.insert(0, str(SERVER))
+    import chain
+    assert chain.PLAN_FILES[name] == plan
+    assert chain.resolve(name) == SERVER / plan
+    assert [f.name for f in chain.forward(SERVER / plan)] == [plan]
+
+
+@pytest.mark.parametrize("script", ["_common.sh", "start.sh", "stop.sh", "status.sh",
+                                    "install_autostart.sh"])
+def test_help_text_names_the_plans(script):
+    assert "round16|smoke16" in (SERVER / script).read_text()
+
+
+def test_setup_builds_every_dataset_of_the_plan_with_the_fresh_splits():
+    text = (SERVER / "setup.sh").read_text()
+    built = text.split("DATASETS=(", 1)[1].split(")", 1)[0].split()
+    assert set(DATASETS) - {"Tow", "Dow"} <= set(built)
+    assert '"Tow tower ' in text and '"Dow dowchem ' in text
+    assert f'-eq {8 * len(sr_datasets.SEEDS)} ]' in text and max(sr_datasets.SEEDS) == 90
+    assert '-type f | wc -l)" -eq 720 ]' in text
+    assert set(SPLITS) <= set(sr_datasets.SEEDS)
+
+
+def test_smoke_has_the_same_arms_and_is_small():
+    full, q = CONFIGS / "phase1bk", CONFIGS / "server-smoke16-1bk"
+    assert sorted(q.glob("*-ext-*.json")) == []
+    assert [f.name for f in stage1(q)] == [f.name for f in stage1(full)]
+    for f in stage1(q):
+        m, fm = load(f), load(full / f.name)
+        assert m["name"] == fm["name"].replace("phase1bk", "server-smoke16-1bk")
+        assert m["datasets"] == fm["datasets"] and m["splits"] == [81, 82]
+        assert m["wall_cap_s"] <= 300 and m["mem_limit_mb"] == fm["mem_limit_mb"]
+        assert m["datasets_dir"] == fm["datasets_dir"]
+        for k in ("clip_test_nmse", "plain_nmse", "anytime"):
+            assert m[k] is fm[k] is True
+        assert list(m["arms"]) == list(fm["arms"])
+        for a, s in m["arms"].items():
+            assert {k: v for k, v in s.items() if k != "budget"} == {
+                k: v for k, v in fm["arms"][a].items() if k != "budget"}
+            assert s["budget"] == {"evals": SMOKE_BUDGET[fm["arms"][a]["budget"]["evals"]]}
+    sp, fp = load(q / "spec.json"), load(full / "spec.json")
+    assert {k: v for k, v in sp.items() if k != "phase"} == {
+        k: v for k, v in fp.items() if k != "phase"}
+
+
+# ---- W for each manifest
+
+
+def _server(tmp_path, cores=12, mem_mb=65536):
+    """A fake /sys and /proc: `cores` physical cores, a cgroup memory limit of `mem_mb`."""
+    sys.path.insert(0, str(SERVER))
+    import resources
+    s, pr = tmp_path / "sys", tmp_path / "proc"
+    for c in range(cores):
+        t = s / f"devices/system/cpu/cpu{c}/topology"
+        t.mkdir(parents=True)
+        (t / "core_id").write_text(f"{c}\n")
+        (t / "physical_package_id").write_text("0\n")
+    (s / "fs/cgroup").mkdir(parents=True)
+    (s / "fs/cgroup/memory.max").write_text(f"{mem_mb * 2**20}\n")
+    pr.mkdir()
+    (pr / "meminfo").write_text(f"MemTotal: {4 * mem_mb * 1024} kB\n")
+    (pr / "self").mkdir()
+    (pr / "self/cgroup").write_text("0::/\n")
+    return lambda mb: resources.decide(s, pr, affinity=set(range(cores)),
+                                       env={"PER_RUN_MB": str(mb)})
+
+
+def test_server_workers_are_7_for_dow_and_11_otherwise(tmp_path):
+    """The section "Memory" of the pre-registration, on the 12-CPU 64 GB server."""
+    d = _server(tmp_path)
+    assert (d(8192)["workers"], d(8192)["limited_by"]) == (7, "memory")
+    assert (d(OTHER_MB)["workers"], d(OTHER_MB)["limited_by"]) == (11, "cpu")
+
+
+FAKE_SR = r"""import json, os, sys
+from pathlib import Path
+w = sys.argv[sys.argv.index("--workers") + 1]
+with open(Path(__file__).resolve().parents[3] / "gomea-results" / "trace.jsonl", "a") as fh:
+    fh.write(json.dumps({"manifest": Path(sys.argv[1]).name, "workers": int(w)}) + "\n")
+"""
+FAKE_REPORT = r"""import json, sys
+from pathlib import Path
+out = Path(sys.argv[4])
+out.mkdir(parents=True, exist_ok=True)
+(out / "verdict.json").write_text("{}")
+"""
+
+
+def _w(mb):
+    sys.path.insert(0, str(SERVER))
+    import resources
+    return resources.decide(env={"PER_RUN_MB": str(mb)})["workers"]
+
+
+def test_the_phase_runs_with_its_own_workers(tmp_path):
+    """The real orchestrate.py and phase_run.sh on the real 1bk configs; the runner and the
+    report are fakes. sr.json, then sr-Dow.json with its own W."""
+    repo, res = tmp_path / "pyMoses", tmp_path / "gomea-results"
+    (repo / "tools" / "server").mkdir(parents=True)
+    res.mkdir()
+    for f in SERVER.iterdir():
+        if f.suffix in (".py", ".sh"):
+            shutil.copy(f, repo / "tools" / "server" / f.name)
+    g = repo / "tools" / "gomea"
+    g.mkdir()
+    shutil.copy(REPO / "tools" / "gomea" / "phase_run.sh", g / "phase_run.sh")
+    (g / "moses_sr_runner.py").write_text(FAKE_SR)
+    (g / "phase_report.py").write_text(FAKE_REPORT)
+    (repo / ".venv" / "bin").mkdir(parents=True)
+    (repo / ".venv" / "bin" / "python").symlink_to(sys.executable)
+    shutil.copytree(CONFIGS / "phase1bk", repo / "configs" / "gomea" / "phase1bk")
+    steps = [dict(s) for s in load(SERVER / "plan16.json")["steps"][1:]]
+    steps[0].pop("requires")
+    plan = {"name": "t16", "state_dir": "server-run16-t", "steps": steps}
+    (repo / "tools" / "server" / "plan-t16.json").write_text(json.dumps(plan))
+    env = {k: v for k, v in os.environ.items()
+           if k not in ("RETRY_FAILED", "REPRO_ONLY", "PLAN", "ORCH_CHAINED", "MAX_WORKERS",
+                        "PHASE_CONFIG_DIR", "PER_RUN_MB", "RESERVE_MB", "MANIFEST_WORKERS",
+                        "PYTHONPATH")}
+    env.update(ORCH_NO_CHAIN="1", ORCH_POLL_S="1", ORCH_SCORES_S="100000",
+               ORCH_BUNDLE_S="100000", PER_RUN_MB="1024", MANIFEST_WORKERS="sr.json=99")
+    subprocess.run([sys.executable, "tools/server/orchestrate.py", "--plan",
+                    "tools/server/plan-t16.json"], cwd=repo, env=env, capture_output=True,
+                   text=True, timeout=120, check=True)
+    trace = [json.loads(x) for x in (res / "trace.jsonl").read_text().splitlines()]
+    assert [t["manifest"] for t in trace] == MANIFESTS
+    for t in trace:
+        assert t["workers"] == _w(MB.get(t["manifest"], OTHER_MB)), t

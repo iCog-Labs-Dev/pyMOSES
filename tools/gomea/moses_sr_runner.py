@@ -117,6 +117,55 @@ give `const_opt` (LM calls, guard rejections) and the deme columns of `phase_rep
 (server round 13) the log ends with one "lexicase" event, which the summary copies as
 `lexicase` (`lexicase_summary`).
 
+**Server round 16 (the budget round; `SERVER-ROUND16-PREREGISTRATION.md`; new fields only, the
+other values do not change).**
+
+* `rv` (`rv_summary`): when the GOMEA log has "end" events with an "rv" record (the RV option
+  `--gomea-rv-step`), the RV totals of the run: `rv_evals` and `rv_share` (of `n_evals`), the
+  counters of `RV_COUNTERS` summed over the demes (`generations` is the number of RV
+  generations, `kept_p` the samples kept by p_accept, `fi_*` the forced improvements, `skip_*`
+  and `skipped_*` the skips), `ams1_rounds` and `ams2_rounds` (RV generations with AMS
+  evaluations), `converged_by` (demes by the RV convergence rule), `nis_max_seen`, the times of
+  `RV_TIMES` and `demes` (the demes with an "rv" record). Without an "rv" record (the option
+  is off) the summary has no `rv` key, as for `lexicase`.
+* With the manifest key `"anytime": true`, a pyMoses GOMEA arm (`-a gomea` or `-a hc-gomea`)
+  with an evaluation budget and no `seed` block also gets `demes`, `anytime` and
+  `anytime_check`. Without the key (or with false) the summary does not change. `expand`
+  refuses a value that is not true or false.
+
+  * The run evaluation count of a log record is the sum of the final `ledger.requests` of the
+    earlier demes plus the `ledger.requests` of the record's deme (cumulative in the deme).
+    The sum over the demes is `n_evals` (checked on the 60 runs of the T3.2 spike 2).
+  * `demes` (`deme_summary`): `count` (the demes with evaluations, as `phase_report.py`
+    counts them), `start_evals` (the run evaluation at which each of these demes starts),
+    `requests` (the evaluations of each), `second_start_evals` (null for one deme) and
+    `evals_total`.
+  * `anytime` (`anytime_records`): one record for each checkpoint 1, 2, 5, 10, 20, 50 and
+    100 % of the budget E (`max(1, round(frac * E))` evaluations), in the format of the
+    stand-alone harness (`pymoses/gomea/standalone/run.py`, read by
+    `linkage_report.anytime_area`): `evals`, `frac`, `best_train_nmse`, `reached`, and
+    `log_evals`. The value is the best raw score of the log records at or before the
+    checkpoint: the `best_raw` of each "generation" event and the `best.raw` of each "end"
+    event. `log_evals` is the run evaluation count of the last such record. A checkpoint
+    before the first record has the value null (the log has the resolution of a generation).
+    A checkpoint after the last evaluation of the run has `reached` false and the final best
+    value, as in the harness.
+  * The conversion (`raw_to_train_nmse`). With `--linear-scaling terms` (and 1), the scorer
+    (`pymoses/moses/scoring/bscores.py`, `contin_bscore._terms_bscore`) gives one
+    -(fitted - y')^2 for each training row, on the scaled target y' of `train_scaled.csv`; the
+    raw score is their sum (`bscore_base.sum_bscore`), without the complexity penalty. So
+    the training NMSE of `sr_eval.py` (100 * MSE / var, of the same least-squares fit, which
+    an affine map of the target does not change) is 100 * (-raw / n_train) / var(y'), with
+    var(y') the population variance of the scaled target (100 up to rounding).
+  * `anytime_check`: the conversion of the score of the first printed candidate against
+    `first_train_nmse` (the `sr_eval.py` value of the same program): `search_rel_diff`, their
+    relative difference (float32 scores: at most 5.2e-8 on the spike runs). Also the best raw
+    score of the log, its conversion, whether it is the score of the first printed candidate
+    (`log_best_is_first`; MOSES prints by the penalized score, so the log can have a better
+    raw score) and its relative difference to `first_train_nmse` (`log_best_rel_diff`), and
+    whether the evaluations of the log (`log_evals_total`) are `n_evals`
+    (`log_evals_match_n_evals`). No check fails on these values.
+
 The MOSES seed is the split number. Runs are resumable: an existing `summary.json` is
 kept.
 
@@ -481,6 +530,21 @@ def _run_one(job: dict) -> dict:
     lex = lexicase_summary(run_dir / "events.jsonl")
     if lex is not None:
         summary["lexicase"] = lex  # server round 13 (absent without the option)
+    rv = rv_summary(run_dir / "events.jsonl", summary["n_evals"])
+    if rv is not None:
+        summary["rv"] = rv  # server round 16 (absent without the RV option)
+    if _wants_anytime(job):
+        # server round 16 (opt-in, the manifest key "anytime"): the deme facts and the
+        # best-so-far training NMSE at the checkpoints, from the GOMEA log
+        events = run_dir / "events.jsonl"
+        summary["demes"] = deme_summary(events)
+        summary["anytime"], summary["anytime_check"] = anytime_records(
+            events, int(job["budget"]["evals"]), n_train,
+            _scaled_target_var(run_dir / "train_scaled.csv"),
+            first_score=cands[0][0] if cands else None,
+            first_train_nmse=first.get("train_nmse"),
+            n_evals=summary["n_evals"],
+        ) if events.exists() else (None, None)
     if seed_rec is not None:
         summary["moses_cpu_s"] = summary["cpu_s"]
         summary["cpu_s"] += seed_rec["gpgomea"]["cpu_s"]
@@ -849,6 +913,206 @@ def lexicase_summary(events: Path) -> dict | None:
     return out
 
 
+# ---- server round 16: the RV totals, the deme facts and the best-so-far checkpoints
+
+# The checkpoints of the best-so-far training NMSE, as pymoses/gomea/standalone/run.py has them.
+ANYTIME_FRACTIONS = (0.01, 0.02, 0.05, 0.1, 0.2, 0.5, 1.0)
+# The counters of the "rv" record of a deme's "end" event (the names of the T3.2 spike 2),
+# summed over the demes. A missing counter counts 0.
+RV_COUNTERS = (
+    "generations", "improving", "kept_p", "kept_p_worse", "rejected", "invalid",
+    "ams1_evals", "ams1_improving", "ams1_kept_p", "ams2_evals", "ams2_improving", "ams2_kept_p",
+    "fi_triggers", "fi_evals", "fi_improved", "fi_elite_copies",
+    "skip_struct", "skip_cache", "skip_dup", "skipped_p_rv", "skipped_gom_improved",
+    "models", "sd_degenerate", "near_equal", "cache_marks", "absorbed_cache",
+    "pm1_moves", "pm1_dcomplexity", "pm1_complexity_up",
+)
+RV_TIMES = ("eval_s", "step_s", "analyse_s")
+
+
+def _read_events(events: Path) -> list[dict]:
+    """The records of a GOMEA log in order; a line that is not a JSON object is left out (a
+    run that stopped can leave a cut line). No file gives no records."""
+    if not events.exists():
+        return []
+    out = []
+    for line in events.read_text().splitlines():
+        try:
+            ev = json.loads(line)
+        except ValueError:
+            continue
+        if isinstance(ev, dict):
+            out.append(ev)
+    return out
+
+
+def _count(v) -> int:
+    return int(v) if isinstance(v, (int, float)) and not isinstance(v, bool) else 0
+
+
+def _real(v) -> float | None:
+    if isinstance(v, (int, float)) and not isinstance(v, bool) and math.isfinite(v):
+        return float(v)
+    return None
+
+
+def rv_summary(events: Path, n_evals: int | None) -> dict | None:
+    """Server round 16: the RV totals of a run from its GOMEA log (see the module docstring),
+    or `None` when no "end" event has an "rv" record (the RV option is off)."""
+    evs = _read_events(events)
+    ends = [e["rv"] for e in evs if e.get("type") == "end" and isinstance(e.get("rv"), dict)]
+    if not ends:
+        return None
+    gens = [e["rv"] for e in evs if e.get("type") == "generation"
+            and isinstance(e.get("rv"), dict) and e["rv"].get("ran")]
+    rv_evals = sum(_count(r.get("rv_evals", r.get("evals"))) for r in ends)
+    out: dict = {"mode": ends[0].get("mode"), "budget": ends[0].get("budget"),
+                 "demes": len(ends), "rv_evals": rv_evals,
+                 "rv_share": rv_evals / n_evals if n_evals else None}
+    out.update({k: sum(_count(r.get(k)) for r in ends) for k in RV_COUNTERS})
+    out["ams1_rounds"] = sum(_count(r.get("ams1_evals")) > 0 for r in gens)
+    out["ams2_rounds"] = sum(_count(r.get("ams2_evals")) > 0 for r in gens)
+    conv: dict[str, int] = {}
+    for r in ends:
+        if r.get("converged_by") is not None:
+            k = str(r["converged_by"])
+            conv[k] = conv.get(k, 0) + 1
+    out["converged_by"] = conv
+    out["nis_max_seen"] = max(_count(r.get("nis_max_seen")) for r in ends)
+    out.update({k: math.fsum(_real(r.get(k)) or 0.0 for r in ends) for k in RV_TIMES})
+    return out
+
+
+def _deme_walk(evs: list[dict]) -> list[dict]:
+    """The demes of a GOMEA log in order. Each one has `start` (the run evaluations before
+    it), `requests` (its last `ledger.requests`), `ended` (an "end" event closed it) and
+    `points`, the (run evaluations, raw score) of its "generation" records (`best_raw`) and of
+    its "end" record (`best.raw`)."""
+    demes: list[dict] = []
+    cur, offset = None, 0
+    for e in evs:
+        t = e.get("type")
+        if t == "invocation_start" or (cur is None and t in ("generation", "end")):
+            if cur is not None:  # a deme without an "end" event
+                demes.append(cur)
+                offset += cur["requests"]
+            cur = {"start": offset, "requests": 0, "ended": False, "points": []}
+        if t not in ("generation", "end"):
+            continue
+        req = _count((e.get("ledger") or {}).get("requests"))
+        cur["requests"] = max(cur["requests"], req)
+        raw = _real(e.get("best_raw") if t == "generation" else (e.get("best") or {}).get("raw"))
+        if raw is not None:
+            cur["points"].append((offset + req, raw))
+        if t == "end":
+            cur["ended"] = True
+            demes.append(cur)
+            offset += cur["requests"]
+            cur = None
+    if cur is not None:
+        demes.append(cur)
+    return demes
+
+
+def deme_summary(events: Path) -> dict | None:
+    """Server round 16: the deme facts of a run (see the module docstring), or `None` when the
+    log has no deme with evaluations."""
+    walk = _deme_walk(_read_events(events))
+    demes = [d for d in walk if d["requests"] > 0]
+    if not demes:
+        return None
+    return {
+        "count": len(demes),
+        "start_evals": [d["start"] for d in demes],
+        "requests": [d["requests"] for d in demes],
+        "second_start_evals": demes[1]["start"] if len(demes) > 1 else None,
+        "evals_total": sum(d["requests"] for d in walk),
+    }
+
+
+def raw_to_train_nmse(raw: float | None, n_train: int, var_scaled: float | None) -> float | None:
+    """Server round 16: the training NMSE (in %, as `sr_eval.py`) of a MOSES raw score with
+    linear scaling: 100 * (-raw / n_train) / var(y'), y' the scaled training target (see the
+    module docstring). `None` for a score that is not finite."""
+    raw = _real(raw)
+    if raw is None or not n_train or not var_scaled:
+        return None
+    return 100.0 * (-raw / n_train) / var_scaled
+
+
+def _scaled_target_var(path: Path) -> float | None:
+    """The population variance of the column `y` of `train_scaled.csv` (the target MOSES
+    reads), or `None` when the file is missing."""
+    if not path.exists():
+        return None
+    with path.open() as fh:
+        rows = list(csv.reader(fh))
+    k = rows[0].index("y")
+    ys = [float(r[k]) for r in rows[1:]]
+    if not ys:
+        return None
+    mean = math.fsum(ys) / len(ys)
+    return math.fsum((y - mean) ** 2 for y in ys) / len(ys)
+
+
+def _rel_diff(a: float | None, b: float | None) -> float | None:
+    if a is None or b is None or not math.isfinite(a) or not math.isfinite(b) or b == 0:
+        return None
+    return abs(a - b) / abs(b)
+
+
+def anytime_records(events: Path, budget_evals: int, n_train: int, var_scaled: float | None,
+                    first_score: float | None = None,
+                    first_train_nmse: float | None = None,
+                    n_evals: int | None = None) -> tuple[list[dict], dict]:
+    """Server round 16: the `anytime` records and the `anytime_check` record of a run (see the
+    module docstring). `budget_evals` is the run's evaluation budget E; `n_evals` the run's
+    evaluation count of MOSES's output (null: not known)."""
+    walk = _deme_walk(_read_events(events))
+    points = sorted(p for d in walk for p in d["points"])
+    total = sum(d["requests"] for d in walk)
+    out = []
+    for f in ANYTIME_FRACTIONS:
+        c = max(1, round(f * budget_evals))
+        reached = total >= c
+        seen = [p for p in points if p[0] <= (c if reached else total)]
+        best = max((raw for _, raw in seen), default=None)
+        out.append({
+            "evals": c, "frac": f,
+            "best_train_nmse": raw_to_train_nmse(best, n_train, var_scaled),
+            "reached": reached,
+            "log_evals": seen[-1][0] if seen else None,
+        })
+    log_best = max((raw for _, raw in points), default=None)
+    first = raw_to_train_nmse(first_score, n_train, var_scaled)
+    log_nmse = raw_to_train_nmse(log_best, n_train, var_scaled)
+    check = {
+        "rule": "100 * (-raw / n_train) / var(y_scaled)",
+        "n_train": n_train,
+        "var_scaled_target": var_scaled,
+        "first_score": _real(first_score),
+        "first_score_train_nmse": first,
+        "first_train_nmse": first_train_nmse,
+        "search_rel_diff": _rel_diff(first, first_train_nmse),
+        "log_best_raw": log_best,
+        "log_best_train_nmse": log_nmse,
+        "log_best_is_first": (log_best is not None and _real(first_score) is not None
+                              and log_best == float(first_score)),
+        "log_best_rel_diff": _rel_diff(log_nmse, first_train_nmse),
+        "log_evals_total": total,
+        "log_evals_match_n_evals": None if n_evals is None else total == n_evals,
+    }
+    return out, check
+
+
+def _wants_anytime(job: dict) -> bool:
+    """Server round 16: whether a job gets `demes`, `anytime` and `anytime_check` (the
+    manifest key "anytime", a pyMoses GOMEA arm, an evaluation budget, no seed block)."""
+    return (bool(job.get("anytime")) and _is_pymoses(job["binary"])
+            and _selects_gomea([str(x) for x in job["argv"]])
+            and "evals" in job["budget"] and not job.get("seed_spec"))
+
+
 def _is_pymoses(binary: str) -> bool:
     return Path(binary).parent.name == "bin" and Path(binary).name == "moses"
 
@@ -967,6 +1231,9 @@ def expand(manifest: dict, out_root: Path, repo: Path) -> list[dict]:
     plain = manifest.get("plain_nmse", False)  # backlog 12.2 (opt-in)
     if not isinstance(plain, bool):
         raise ValueError(f"plain_nmse must be true or false, got {plain!r}")
+    anytime = manifest.get("anytime", False)  # server round 16 (opt-in)
+    if not isinstance(anytime, bool):
+        raise ValueError(f"anytime must be true or false, got {anytime!r}")
     jobs = []
     for ds in manifest["datasets"]:
         for arm, a in manifest["arms"].items():
@@ -1017,6 +1284,7 @@ def expand(manifest: dict, out_root: Path, repo: Path) -> list[dict]:
                         **({"terms_guard": a["terms_guard"]} if "terms_guard" in a else {}),
                         **({"clip_test_nmse": True} if clip else {}),
                         **({"plain_nmse": True} if plain else {}),
+                        **({"anytime": True} if anytime else {}),
                     }
                 )
     return jobs

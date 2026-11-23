@@ -171,10 +171,16 @@ def _has_standalone_arm(f: Path) -> bool:
     return any("standalone" in a for a in json.loads(f.read_text())["arms"].values())
 
 
+def _has_anytime_key(f: Path) -> bool:
+    """Server round 16 (1bk) manifests have the key "anytime", which the jobs carry; the runner
+    at 5fdd335 does not know it, so the identity test leaves them out."""
+    return "anytime" in json.loads(f.read_text())
+
+
 def test_every_committed_manifest_expands_to_the_jobs_of_5fdd335(tmp_path):
     old = _old_runner(tmp_path)
     every = sorted((REPO / "configs" / "gomea").glob("*/sr*.json"))
-    files = [str(f) for f in every if not _has_standalone_arm(f)]
+    files = [str(f) for f in every if not _has_standalone_arm(f) and not _has_anytime_key(f)]
     assert len(files) > 150
     env = {**os.environ, "PYTHONPATH": str(REPO)}
     got = [json.loads(subprocess.run([sys.executable, "-c", EXPAND, str(d), str(REPO), *files],
@@ -187,3 +193,13 @@ def test_every_committed_manifest_expands_to_the_jobs_of_5fdd335(tmp_path):
         if _has_standalone_arm(f):
             jobs = runner.expand(json.loads(f.read_text()), tmp_path, REPO)
             assert jobs and all("standalone" in j for j in jobs), f
+    # server round 16: the manifests with the key "anytime" expand with the current runner, and
+    # without the key their jobs are those of the runner at 5fdd335
+    for f in every:
+        if _has_anytime_key(f):
+            m = json.loads(f.read_text())
+            jobs = runner.expand(m, tmp_path, REPO)
+            assert jobs and all(j.get("anytime") is True for j in jobs), f
+            m.pop("anytime")
+            assert [{k: v for k, v in j.items() if k != "anytime"} for j in jobs] == \
+                runner.expand(m, tmp_path, REPO)
