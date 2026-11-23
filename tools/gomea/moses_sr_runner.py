@@ -1166,17 +1166,15 @@ def anytime_records(events: Path, budget_evals: int, n_train: int, var_scaled: f
         "log_evals_match_n_evals": None if n_evals is None else total == n_evals,
     }
     if traced:
-        check.update(_trace_check(traced, log_points, log_best, first_train_nmse, n_train,
-                                  var_scaled))
+        check.update(_trace_check(traced, log_best, first_train_nmse, n_train, var_scaled))
     return out, check
 
 
-def _trace_check(traced: list[dict], log_points: list, log_best: float | None,
-                 first_train_nmse: float | None, n_train: int,
-                 var_scaled: float | None) -> dict:
+def _trace_check(traced: list[dict], log_best: float | None, first_train_nmse: float | None,
+                 n_train: int, var_scaled: float | None) -> dict:
     """Server round 16 (the RV16 review, finding 1): the trace fields of `anytime_check` (see
-    the module docstring). `traced` are the demes of `_deme_walk` with a trace, `log_points`
-    the (run evaluations, raw score) of all "generation" and "end" records."""
+    the module docstring). `traced` are the demes of `_deme_walk` with a trace, `log_best` the
+    best raw score of all "generation" and "end" records."""
     tpoints = sorted(p for d in traced for p in d["trace"])
     best = max((raw for _, raw in tpoints), default=None)
     nmse = raw_to_train_nmse(best, n_train, var_scaled)
