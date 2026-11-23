@@ -194,12 +194,24 @@ def test_every_committed_manifest_expands_to_the_jobs_of_5fdd335(tmp_path):
             jobs = runner.expand(json.loads(f.read_text()), tmp_path, REPO)
             assert jobs and all("standalone" in j for j in jobs), f
     # server round 16: the manifests with the key "anytime" expand with the current runner, and
-    # without the key their jobs are those of the runner at 5fdd335
+    # without the key their jobs are those of the current runner without the key and (the RV16
+    # review, nit 7) those of the runner at 5fdd335
+    stripped = []
     for f in every:
         if _has_anytime_key(f):
             m = json.loads(f.read_text())
-            jobs = runner.expand(m, tmp_path, REPO)
+            jobs = runner.expand(m, Path("/o"), REPO)
             assert jobs and all(j.get("anytime") is True for j in jobs), f
             m.pop("anytime")
-            assert [{k: v for k, v in j.items() if k != "anytime"} for j in jobs] == \
-                runner.expand(m, tmp_path, REPO)
+            want = [{k: v for k, v in j.items() if k != "anytime"} for j in jobs]
+            assert want == runner.expand(m, Path("/o"), REPO)
+            t = tmp_path / "without-anytime" / f.parent.name / f.name
+            t.parent.mkdir(parents=True, exist_ok=True)
+            t.write_text(json.dumps(m))
+            stripped.append((str(t), json.loads(json.dumps(want))))
+    assert len(stripped) >= 4
+    old_jobs = json.loads(subprocess.run(
+        [sys.executable, "-c", EXPAND, str(old), str(REPO), *(t for t, _ in stripped)],
+        env=env, check=True, capture_output=True, text=True).stdout)
+    for t, want in stripped:
+        assert old_jobs[t] == want, t

@@ -560,3 +560,26 @@ def test_expand_gives_the_jobs_of_ad0c8d8_for_every_committed_manifest(tmp_path)
            for d in (old, TOOLS)]
     assert got[0] == got[1]
     assert sum(isinstance(v, list) for v in got[1].values()) == len(files)
+    # the RV16 review, nit 7: a manifest with the key "anytime" (and no linear or stand-alone
+    # arm), with the key removed, expands at ad0c8d8 to the jobs of the current runner without
+    # the key
+    stripped = []
+    for f in sorted((REPO / "configs" / "gomea").glob("*/sr*.json")):
+        m = json.loads(f.read_text())
+        if "anytime" not in m or any("linear" in a or "standalone" in a
+                                     for a in m["arms"].values()):
+            continue
+        jobs = runner.expand(m, Path("/o"), REPO)
+        assert jobs and all(j.get("anytime") is True for j in jobs), f
+        m.pop("anytime")
+        t = tmp_path / "without-anytime" / f.parent.name / f.name
+        t.parent.mkdir(parents=True, exist_ok=True)
+        t.write_text(json.dumps(m))
+        stripped.append((str(t), json.loads(json.dumps(
+            [{k: v for k, v in j.items() if k != "anytime"} for j in jobs]))))
+    assert len(stripped) >= 4
+    old_jobs = json.loads(subprocess.run(
+        [sys.executable, "-c", EXPAND, str(old), str(REPO), *(t for t, _ in stripped)],
+        env=env, check=True, capture_output=True, text=True).stdout)
+    for t, want in stripped:
+        assert old_jobs[t] == want, t
