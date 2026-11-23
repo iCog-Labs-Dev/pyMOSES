@@ -20,14 +20,20 @@ def rv_record(evals, **kw) -> dict:
     return {"mode": "rvg", "budget": "balance", "rv_evals": evals, "evals": evals, **kw}
 
 
-def gomea_log(demes) -> str:
+def gomea_log(demes, traces=None, digest=None) -> str:
     """A GOMEA log: `demes` is a list of (generations, end, rv) with generations a list of
     (requests, best_raw, rv record or None), end (requests, best raw) and rv the "rv" record
-    of the "end" event (or None)."""
+    of the "end" event (or None). The RV16 review (`--gomea-trace 1`): `traces`, when given,
+    has for each deme the `trace` of its "end" event (a list of [deme evaluation, raw] pairs,
+    or None for no `trace` key); `digest`, when given, is the `genotypes_sha256` of each
+    "init" event (the same for each deme)."""
     lines = []
     for i, (gens, end, rv) in enumerate(demes):
         lines.append({"type": "invocation_start", "deme_id": str(i + 1)})
-        lines.append({"type": "init", "n": 10})
+        init = {"type": "init", "n": 10}
+        if digest is not None:
+            init["genotypes_sha256"] = digest
+        lines.append(init)
         for g, (req, raw, grv) in enumerate(gens):
             e = {"type": "generation", "generation": g, "best_raw": raw,
                  "ledger": {"requests": req}}
@@ -38,6 +44,8 @@ def gomea_log(demes) -> str:
              "best": {"raw": end[1], "penalized": end[1] - 1.0}, "ledger": {"requests": end[0]}}
         if rv is not None:
             e["rv"] = rv
+        if traces is not None and traces[i] is not None:
+            e["trace"] = traces[i]
         lines.append(e)
     return "".join(json.dumps(x) + "\n" for x in lines)
 
@@ -58,6 +66,16 @@ TWO_DEMES = [
                ams2_evals=2, skip_struct=1, skip_cache=5, converged_by=None, nis_max_seen=5,
                eval_s=0.25, step_s=0.5)),
 ]
+
+
+# The RV16 review (finding 1): the best-so-far traces of TWO_DEMES (deme-local evaluations).
+# Deme 1: the trace has a better raw score (-580) than its records (MOSES ranks by the penalized
+# score). Deme 2 starts at 300, so its pairs are at the run evaluations 301, 360 and 950.
+TWO_DEMES_TRACE = [
+    [[1, -900.0], [5, -850.0], [25, -800.0], [100, -600.0], [250, -590.0], [280, -580.0]],
+    [[1, -950.0], [60, -700.0], [650, -500.0]],
+]
+DIGEST = "ab" * 32  # a made-up genotypes_sha256
 
 
 # ---- a fake pyMoses

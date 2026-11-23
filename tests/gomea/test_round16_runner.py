@@ -11,6 +11,10 @@
 * Byte identity against 2d407b2 (the commit before this change, from git): a GOMEA arm with a
   log and without the key gives the same candidates and summary; with an RV log the summary
   only gains ``rv``.
+* The RV16 review: with a trace in the "end" events (``--gomea-trace 1``), ``anytime`` comes
+  from the trace (``anytime_source`` "trace"; finding 1), the summary gets
+  ``init_genotypes_sha256`` (nit 8), and ``expand`` refuses the key "anytime" for an arm that
+  is not plain ``-a gomea`` (nit 2).
 
 The real log ``data/round16_rv_spike2/events.jsonl`` is the GOMEA log of the T3.2 spike 2 run
 ``rvg`` on Con, old split 1, 20,000 evaluations (the path of the log is replaced by its name).
@@ -38,7 +42,16 @@ sys.path.insert(0, str(TOOLS))
 import linkage_report  # noqa: E402
 import moses_sr_runner as runner  # noqa: E402
 import sr_eval  # noqa: E402
-from round16_data import PROGRAMS, TLS, TRAIN, TWO_DEMES, gomea_log, job  # noqa: E402
+from round16_data import (  # noqa: E402
+    DIGEST,
+    PROGRAMS,
+    TLS,
+    TRAIN,
+    TWO_DEMES,
+    TWO_DEMES_TRACE,
+    gomea_log,
+    job,
+)
 
 OLD = "2d407b2"  # the commit before the round 16 runner changes
 SPIKE = REPO / "tests" / "gomea" / "data" / "round16_rv_spike2" / "events.jsonl"
@@ -239,6 +252,9 @@ def test_run_one_without_the_key_writes_only_rv(tmp_path):
 
 @pytest.mark.parametrize("job", [
     {"argv": ["-a", "hc", "--linear-scaling", "1"]},  # not a GOMEA arm
+    {"argv": ["-a", "hc-gomea", "--linear-scaling", "terms"]},  # the RV16 review, nit 2
+    {"argv": ["--opt-algo=hc-gomea", "--linear-scaling", "terms"]},
+    {"argv": ["-a", "gomea", "-a", "hc-gomea"]},  # the last -a counts, as in argparse
     {"budget": {"time_s": 10}},  # no evaluation budget
     {"seed_spec": {"binary": "x"}},  # a seed block
     {"binary": "/x/build/moses/moses/main/moses-exec"},  # classic MOSES
@@ -263,6 +279,152 @@ def test_expand_carries_the_anytime_key_and_refuses_a_wrong_one(tmp_path):
     for v in ("yes", 1, None):
         with pytest.raises(ValueError, match="anytime must be true or false"):
             runner.expand({**m, "anytime": v}, tmp_path, tmp_path)
+
+
+# ---- the RV16 review, nit 2: the key "anytime" needs plain -a gomea
+
+
+@pytest.mark.parametrize("argv,algo", [
+    (["-a", "gomea"], "gomea"), (["-a", "hc-gomea"], "hc-gomea"), (["-agomea"], "gomea"),
+    (["--opt-algo", "hc"], "hc"), (["--opt-algo=hc-capped"], "hc-capped"), ([], None),
+    (["-a", "gomea", "--gomea-fos", "lt-b", "-a", "hc-gomea"], "hc-gomea"), (TLS, "gomea"),
+])
+def test_opt_algo(argv, algo):
+    assert runner._opt_algo(argv) == algo
+
+
+@pytest.mark.parametrize("argv", [
+    ["-a", "hc-gomea", "--linear-scaling", "terms"],
+    ["-a", "hc", "--linear-scaling", "1"],
+    ["-a", "hc-capped"],
+    ["--linear-scaling", "terms"],  # no -a: MOSES uses hc
+])
+def test_expand_refuses_the_anytime_key_for_an_arm_that_is_not_plain_gomea(argv, tmp_path):
+    arm = {"binary": "/x/.venv/bin/moses", "argv": argv, "budget": {"evals": 10}}
+    m = {"name": "t", "datasets_dir": str(tmp_path), "datasets": ["Con"], "splits": [1],
+         "wall_cap_s": 10, "anytime": True,
+         "arms": {"BASE-TLS": {**arm, "argv": TLS}, "X": arm, "LIN": {"linear": "ols"}}}
+    with pytest.raises(ValueError, match=r"arm X: the manifest key anytime needs -a gomea"):
+        runner.expand(m, tmp_path, tmp_path)
+    # without the key, or with false, the arm is accepted as before
+    for v in (False, None):
+        mm = {**m, "anytime": v} if v is not None else {k: x for k, x in m.items()
+                                                       if k != "anytime"}
+        assert len(runner.expand(mm, tmp_path, tmp_path)) == 3
+    # plain -a gomea arms and the linear arm pass with the key
+    ok = {**m, "arms": {"BASE-TLS": m["arms"]["BASE-TLS"], "LIN": {"linear": "ols"}}}
+    assert [j.get("anytime") for j in runner.expand(ok, tmp_path, tmp_path)] == [True, None]
+
+
+def test_the_docstring_no_longer_claims_hc_gomea_checkpoints():
+    doc = runner.__doc__
+    assert "a pyMoses GOMEA arm (`-a gomea` or `-a hc-gomea`)\n  with an evaluation" not in doc
+    assert "a pyMoses `-a gomea` arm with an evaluation budget" in doc
+
+
+# ---- the RV16 review, finding 1: anytime from the exact trace
+
+
+def test_anytime_records_from_the_trace(tmp_path):
+    ev = _write(tmp_path, gomea_log(TWO_DEMES, traces=TWO_DEMES_TRACE))
+    recs, check = runner.anytime_records(ev, 1000, 10, 100.0, first_score=-500.0,
+                                         first_train_nmse=50.0, n_evals=1000)
+    assert check["anytime_source"] == "trace"
+    assert [r["evals"] for r in recs] == [10, 20, 50, 100, 200, 500, 1000]
+    assert all(r["reached"] for r in recs)
+    # 10, 20: deme 1 at 5 (-850); 50: at 25 (-800); 100, 200: at 100 (-600); 500: deme 1 at
+    # 280 (-580; deme 2 at 301 and 360 is worse); 1000: deme 2 at 300 + 650 (-500)
+    assert [r["best_train_nmse"] for r in recs] == [85.0, 85.0, 80.0, 60.0, 60.0, 58.0, 50.0]
+    assert [r["log_evals"] for r in recs] == [5, 5, 25, 100, 100, 360, 950]
+    # the checks of the generation records do not change
+    assert check["log_best_raw"] == -500.0 and check["log_best_is_first"] is True
+    assert check["search_rel_diff"] == 0.0 and check["log_best_rel_diff"] == 0.0
+    assert check["log_evals_total"] == 1000 and check["log_evals_match_n_evals"] is True
+    # the trace checks
+    assert check["trace_points"] == 9 and check["trace_first_evals"] == 1
+    assert check["trace_best_raw"] == -500.0 and check["trace_best_train_nmse"] == 50.0
+    assert check["trace_best_rel_diff"] == 0.0 and check["trace_best_is_log_best"] is True
+    assert check["trace_dominates_log"] is True and check["trace_well_formed"] is True
+
+
+def test_the_trace_gives_a_value_at_each_checkpoint_after_the_first_evaluation(tmp_path):
+    """The spike log made the first checkpoints null (a GOM generation costs up to 7,700
+    evaluations); with a trace, only a checkpoint before the first evaluation is null."""
+    ev = _write(tmp_path, gomea_log(TWO_DEMES, traces=TWO_DEMES_TRACE))
+    recs, _ = runner.anytime_records(ev, 100, 10, 100.0)  # checkpoints 1, 2, 5, ... 100
+    assert [r["evals"] for r in recs] == [1, 2, 5, 10, 20, 50, 100]
+    assert [r["best_train_nmse"] for r in recs] == [90.0, 90.0, 85.0, 85.0, 85.0, 80.0, 60.0]
+    late = [[[3, -900.0]], [[1, -950.0]]]  # the first charged evaluation with a score is 3
+    recs, check = runner.anytime_records(_write(tmp_path, gomea_log(TWO_DEMES, traces=late)),
+                                         100, 10, 100.0)
+    assert [r["best_train_nmse"] for r in recs][:3] == [None, None, 90.0]
+    assert check["trace_first_evals"] == 3
+
+
+def test_a_trace_worse_than_the_records_fails_the_check(tmp_path):
+    bad = [TWO_DEMES_TRACE[0][:3], TWO_DEMES_TRACE[1]]  # deme 1 stops at -800 (records: -600)
+    _, check = runner.anytime_records(_write(tmp_path, gomea_log(TWO_DEMES, traces=bad)),
+                                      1000, 10, 100.0)
+    assert check["trace_dominates_log"] is False and check["trace_well_formed"] is True
+    _, check = runner.anytime_records(
+        _write(tmp_path, gomea_log(TWO_DEMES, traces=[[[5, -1.0], [3, -2.0]], [[701, -1.0]]])),
+        1000, 10, 100.0)
+    assert check["trace_well_formed"] is False
+
+
+def test_a_log_without_a_trace_keeps_the_generation_method(tmp_path):
+    """The fallback: the values and the check of a log without a trace do not change (see
+    test_anytime_records_take_the_best_raw_score_up_to_each_checkpoint)."""
+    ev = _write(tmp_path, gomea_log(TWO_DEMES))
+    recs, check = runner.anytime_records(ev, 1000, 10, 100.0)
+    assert check["anytime_source"] == "generations"
+    assert [r["best_train_nmse"] for r in recs] == [None, None, 80.0, 80.0, 60.0, 59.0, 50.0]
+    assert not [k for k in check if k.startswith("trace_")]
+    recs, check = runner.anytime_records(SPIKE, 20000, 516, 100.0)
+    assert check["anytime_source"] == "generations"
+    assert [r["log_evals"] for r in recs] == [None, None, None, 1768, 3702, 9754, 20000]
+
+
+def test_mixed_sources(tmp_path):
+    """A deme without a trace (here the second) gives its generation records."""
+    ev = _write(tmp_path, gomea_log(TWO_DEMES, traces=[TWO_DEMES_TRACE[0], None]))
+    recs, check = runner.anytime_records(ev, 1000, 10, 100.0)
+    assert check["anytime_source"] == "mixed" and check["trace_points"] == 6
+    assert [r["log_evals"] for r in recs] == [5, 5, 25, 100, 100, 400, 1000]
+    # a run cut in its second deme (no "end" event): the trace of deme 1, then the records
+    cut = gomea_log(TWO_DEMES[:1], traces=TWO_DEMES_TRACE[:1]) + json.dumps(
+        {"type": "invocation_start"}) + "\n" + json.dumps(
+        {"type": "generation", "best_raw": -100.0, "ledger": {"requests": 50}}) + "\n"
+    recs, check = runner.anytime_records(_write(tmp_path, cut), 1000, 10, 100.0)
+    assert check["anytime_source"] == "mixed" and recs[-1]["reached"] is False
+    assert recs[-1]["best_train_nmse"] == 10.0 and recs[-1]["log_evals"] == 350
+    only = gomea_log(TWO_DEMES[:1], traces=TWO_DEMES_TRACE[:1]) + json.dumps(
+        {"type": "invocation_start"}) + "\n"  # a last deme without evaluations
+    _, check = runner.anytime_records(_write(tmp_path, only), 1000, 10, 100.0)
+    assert check["anytime_source"] == "trace"
+
+
+def test_init_digest(tmp_path):
+    assert runner.init_digest(_write(tmp_path, gomea_log(TWO_DEMES, digest=DIGEST))) == DIGEST
+    assert runner.init_digest(_write(tmp_path, gomea_log(TWO_DEMES))) is None
+    assert runner.init_digest(tmp_path / "none.jsonl") is None
+
+
+def test_run_one_with_a_trace(tmp_path):
+    log = gomea_log(TWO_DEMES, traces=TWO_DEMES_TRACE, digest=DIGEST)
+    s = runner._run_one(job(tmp_path / "a", log, anytime=True))
+    assert s["status"] == "ok" and s["anytime_source"] == "trace"
+    assert s["anytime_check"]["anytime_source"] == "trace"
+    assert s["init_genotypes_sha256"] == DIGEST
+    assert all(r["best_train_nmse"] is not None for r in s["anytime"])
+    assert s["anytime_check"]["trace_dominates_log"] is True
+    # without the key: the digest, but no checkpoints
+    s = runner._run_one(job(tmp_path / "b", log))
+    assert s["init_genotypes_sha256"] == DIGEST
+    assert not {"demes", "anytime", "anytime_check", "anytime_source"} & set(s)
+    # a log without the trace option: no digest; the source is "generations"
+    s = runner._run_one(job(tmp_path / "c", gomea_log(TWO_DEMES), anytime=True))
+    assert "init_genotypes_sha256" not in s and s["anytime_source"] == "generations"
 
 
 # ---- byte identity against 2d407b2 (git)

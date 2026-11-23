@@ -128,10 +128,18 @@ other values do not change).**
   evaluations), `converged_by` (demes by the RV convergence rule), `nis_max_seen`, the times of
   `RV_TIMES` and `demes` (the demes with an "rv" record). Without an "rv" record (the option
   is off) the summary has no `rv` key, as for `lexicase`.
-* With the manifest key `"anytime": true`, a pyMoses GOMEA arm (`-a gomea` or `-a hc-gomea`)
-  with an evaluation budget and no `seed` block also gets `demes`, `anytime` and
-  `anytime_check`. Without the key (or with false) the summary does not change. `expand`
-  refuses a value that is not true or false.
+* `init_genotypes_sha256`: when the GOMEA log has the trace option (`--gomea-trace 1`; the
+  RV16 review, nit 8), the `genotypes_sha256` of its first "init" event (the SHA-256 of the
+  initial genotypes of the first deme, `pymoses.gomea.optimizer.init_digest`). With the seed fix
+  of the RV option, an RV arm and its BASE-TLS run on the same split have the same value.
+  Without it the summary has no such key.
+* With the manifest key `"anytime": true`, a pyMoses `-a gomea` arm with an evaluation budget
+  and no `seed` block also gets `demes`, `anytime`, `anytime_source` and `anytime_check`.
+  Without the key (or with false) the summary does not change. `expand` refuses a value that is
+  not true or false, and (the RV16 review, nit 2) refuses the key when an arm with a binary has
+  an algorithm other than plain `-a gomea`: the GOMEA log of `-a hc-gomea` has only the GOMEA
+  phase of each deme, not its hill climbing evaluations, so the deme starts and checkpoints
+  would be wrong. (Linear and stand-alone arms have no algorithm and get no checkpoints.)
 
   * The run evaluation count of a log record is the sum of the final `ledger.requests` of the
     earlier demes plus the `ledger.requests` of the record's deme (cumulative in the deme).
@@ -144,12 +152,21 @@ other values do not change).**
     100 % of the budget E (`max(1, round(frac * E))` evaluations), in the format of the
     stand-alone harness (`pymoses/gomea/standalone/run.py`, read by
     `linkage_report.anytime_area`): `evals`, `frac`, `best_train_nmse`, `reached`, and
-    `log_evals`. The value is the best raw score of the log records at or before the
-    checkpoint: the `best_raw` of each "generation" event and the `best.raw` of each "end"
-    event. `log_evals` is the run evaluation count of the last such record. A checkpoint
-    before the first record has the value null (the log has the resolution of a generation).
-    A checkpoint after the last evaluation of the run has `reached` false and the final best
-    value, as in the harness.
+    `log_evals`. The value is the best raw score of the points at or before the checkpoint,
+    and `log_evals` is the run evaluation count of the last such point. A checkpoint after the
+    last evaluation of the run has `reached` false and the final best value, as in the
+    harness. The points of a deme (`anytime_source`, the RV16 review, finding 1):
+    * `"trace"`: when the "end" event of every deme with evaluations has a `trace` (the
+      option `--gomea-trace 1`), the points are the trace pairs: one for each charged
+      evaluation that gave a new best raw score of its deme, at the run evaluation count
+      (the deme's start plus the deme-local count). So the value at a checkpoint X is the
+      best training NMSE of all charged evaluations up to X (exact), and it is null only if
+      no charged evaluation with a finite score happened before X.
+    * `"generations"` (the fallback for a log without a trace): the `best_raw` of each
+      "generation" event and the `best.raw` of each "end" event. A checkpoint before the
+      first record has the value null (the log has the resolution of a generation).
+    * `"mixed"`: some demes have a trace and some do not (for example, a run that stopped
+      before the "end" event of its last deme): each deme gives the points of its own kind.
   * The conversion (`raw_to_train_nmse`). With `--linear-scaling terms` (and 1), the scorer
     (`pymoses/moses/scoring/bscores.py`, `contin_bscore._terms_bscore`) gives one
     -(fitted - y')^2 for each training row, on the scaled target y' of `train_scaled.csv`; the
@@ -164,7 +181,16 @@ other values do not change).**
     (`log_best_is_first`; MOSES prints by the penalized score, so the log can have a better
     raw score) and its relative difference to `first_train_nmse` (`log_best_rel_diff`), and
     whether the evaluations of the log (`log_evals_total`) are `n_evals`
-    (`log_evals_match_n_evals`). No check fails on these values.
+    (`log_evals_match_n_evals`). `anytime_source` repeats the source of the points. With a
+    trace (source "trace" or "mixed") also: `trace_points`, `trace_first_evals` (the run
+    evaluation of the first trace point), `trace_best_raw` (the best raw score of all trace
+    points) and its conversion `trace_best_train_nmse`, its relative difference to
+    `first_train_nmse` (`trace_best_rel_diff`), `trace_best_is_log_best` (it equals
+    `log_best_raw`), `trace_dominates_log` (at the run evaluation of each "generation" and
+    "end" record, the trace best so far of the same deme is at least the raw score of that
+    record: the trace sees every evaluation that the records see) and `trace_well_formed` (in
+    each deme the counts and the raw scores of the pairs rise strictly, and each count is
+    between 1 and the deme's requests). No check fails on these values.
 
 The MOSES seed is the split number. Runs are resumable: an existing `summary.json` is
 kept.
@@ -303,6 +329,22 @@ def _selects_gomea(argv: list[str]) -> bool:
         if tok.startswith("-a") and len(tok) > 2 and tok[2:] in algos:
             return True
     return False
+
+
+def _opt_algo(argv: list) -> str | None:
+    """Server round 16 (the RV16 review, nit 2): the algorithm that `argv` selects (the last
+    `-a`/`--opt-algo` value, as argparse takes it), or `None` when `argv` has none (MOSES then
+    uses its default, `hc`)."""
+    argv = [str(x) for x in argv]
+    algo = None
+    for i, tok in enumerate(argv):
+        if tok in ("-a", "--opt-algo") and i + 1 < len(argv):
+            algo = argv[i + 1]
+        elif tok.startswith("--opt-algo="):
+            algo = tok.split("=", 1)[1]
+        elif tok.startswith("-a") and len(tok) > 2 and not tok.startswith("--"):
+            algo = tok[2:]
+    return algo
 
 
 def _selects_hc(argv: list[str]) -> bool:
@@ -533,6 +575,9 @@ def _run_one(job: dict) -> dict:
     rv = rv_summary(run_dir / "events.jsonl", summary["n_evals"])
     if rv is not None:
         summary["rv"] = rv  # server round 16 (absent without the RV option)
+    digest = init_digest(run_dir / "events.jsonl")
+    if digest is not None:
+        summary["init_genotypes_sha256"] = digest  # server round 16 (absent without the trace)
     if _wants_anytime(job):
         # server round 16 (opt-in, the manifest key "anytime"): the deme facts and the
         # best-so-far training NMSE at the checkpoints, from the GOMEA log
@@ -545,6 +590,8 @@ def _run_one(job: dict) -> dict:
             first_train_nmse=first.get("train_nmse"),
             n_evals=summary["n_evals"],
         ) if events.exists() else (None, None)
+        # the RV16 review, finding 1: "trace" (exact) or "generations" (the fallback)
+        summary["anytime_source"] = (summary["anytime_check"] or {}).get("anytime_source")
     if seed_rec is not None:
         summary["moses_cpu_s"] = summary["cpu_s"]
         summary["cpu_s"] += seed_rec["gpgomea"]["cpu_s"]
@@ -985,9 +1032,11 @@ def rv_summary(events: Path, n_evals: int | None) -> dict | None:
 
 def _deme_walk(evs: list[dict]) -> list[dict]:
     """The demes of a GOMEA log in order. Each one has `start` (the run evaluations before
-    it), `requests` (its last `ledger.requests`), `ended` (an "end" event closed it) and
+    it), `requests` (its last `ledger.requests`), `ended` (an "end" event closed it),
     `points`, the (run evaluations, raw score) of its "generation" records (`best_raw`) and of
-    its "end" record (`best.raw`)."""
+    its "end" record (`best.raw`), and `trace` (server round 16, `--gomea-trace`): the
+    (run evaluations, raw score) of the `trace` pairs of its "end" record, or `None` when the
+    deme has no such record. A pair that is not two numbers is left out."""
     demes: list[dict] = []
     cur, offset = None, 0
     for e in evs:
@@ -996,7 +1045,7 @@ def _deme_walk(evs: list[dict]) -> list[dict]:
             if cur is not None:  # a deme without an "end" event
                 demes.append(cur)
                 offset += cur["requests"]
-            cur = {"start": offset, "requests": 0, "ended": False, "points": []}
+            cur = {"start": offset, "requests": 0, "ended": False, "points": [], "trace": None}
         if t not in ("generation", "end"):
             continue
         req = _count((e.get("ledger") or {}).get("requests"))
@@ -1005,6 +1054,12 @@ def _deme_walk(evs: list[dict]) -> list[dict]:
         if raw is not None:
             cur["points"].append((offset + req, raw))
         if t == "end":
+            if isinstance(e.get("trace"), list):
+                cur["trace"] = [
+                    (offset + _count(p[0]), _real(p[1])) for p in e["trace"]
+                    if isinstance(p, list) and len(p) == 2 and _count(p[0]) > 0
+                    and _real(p[1]) is not None
+                ]
             cur["ended"] = True
             demes.append(cur)
             offset += cur["requests"]
@@ -1069,8 +1124,15 @@ def anytime_records(events: Path, budget_evals: int, n_train: int, var_scaled: f
     module docstring). `budget_evals` is the run's evaluation budget E; `n_evals` the run's
     evaluation count of MOSES's output (null: not known)."""
     walk = _deme_walk(_read_events(events))
-    points = sorted(p for d in walk for p in d["points"])
+    log_points = sorted(p for d in walk for p in d["points"])
     total = sum(d["requests"] for d in walk)
+    # the RV16 review, finding 1: the exact trace of each deme when the log has one, else the
+    # generation records (the fallback)
+    traced = [d for d in walk if d["trace"] is not None]
+    untraced = [d for d in walk if d["trace"] is None and d["requests"] > 0]
+    source = ("trace" if not untraced else "mixed") if traced else "generations"
+    points = sorted(p for d in walk
+                    for p in (d["trace"] if d["trace"] is not None else d["points"]))
     out = []
     for f in ANYTIME_FRACTIONS:
         c = max(1, round(f * budget_evals))
@@ -1083,10 +1145,11 @@ def anytime_records(events: Path, budget_evals: int, n_train: int, var_scaled: f
             "reached": reached,
             "log_evals": seen[-1][0] if seen else None,
         })
-    log_best = max((raw for _, raw in points), default=None)
+    log_best = max((raw for _, raw in log_points), default=None)
     first = raw_to_train_nmse(first_score, n_train, var_scaled)
     log_nmse = raw_to_train_nmse(log_best, n_train, var_scaled)
     check = {
+        "anytime_source": source,
         "rule": "100 * (-raw / n_train) / var(y_scaled)",
         "n_train": n_train,
         "var_scaled_target": var_scaled,
@@ -1102,14 +1165,60 @@ def anytime_records(events: Path, budget_evals: int, n_train: int, var_scaled: f
         "log_evals_total": total,
         "log_evals_match_n_evals": None if n_evals is None else total == n_evals,
     }
+    if traced:
+        check.update(_trace_check(traced, log_points, log_best, first_train_nmse, n_train,
+                                  var_scaled))
     return out, check
 
 
+def _trace_check(traced: list[dict], log_points: list, log_best: float | None,
+                 first_train_nmse: float | None, n_train: int,
+                 var_scaled: float | None) -> dict:
+    """Server round 16 (the RV16 review, finding 1): the trace fields of `anytime_check` (see
+    the module docstring). `traced` are the demes of `_deme_walk` with a trace, `log_points`
+    the (run evaluations, raw score) of all "generation" and "end" records."""
+    tpoints = sorted(p for d in traced for p in d["trace"])
+    best = max((raw for _, raw in tpoints), default=None)
+    nmse = raw_to_train_nmse(best, n_train, var_scaled)
+    well = dominates = True
+    for d in traced:
+        tr = d["trace"]
+        if any(not 1 <= e - d["start"] <= d["requests"] for e, _ in tr) or any(
+                a[0] >= b[0] or a[1] >= b[1] for a, b in zip(tr, tr[1:], strict=False)):
+            well = False
+        # the deme's trace best so far at the run evaluation of each of its records
+        for at, r in d["points"]:
+            if max((raw for e, raw in tr if e <= at), default=-math.inf) < r:
+                dominates = False
+    return {
+        "trace_points": len(tpoints),
+        "trace_first_evals": tpoints[0][0] if tpoints else None,
+        "trace_best_raw": best,
+        "trace_best_train_nmse": nmse,
+        "trace_best_rel_diff": _rel_diff(nmse, first_train_nmse),
+        "trace_best_is_log_best": best is not None and best == log_best,
+        "trace_dominates_log": dominates,
+        "trace_well_formed": well,
+    }
+
+
+def init_digest(events: Path) -> str | None:
+    """Server round 16 (the RV16 review, nit 8): the `genotypes_sha256` of the first "init"
+    event of a GOMEA log (the option `--gomea-trace 1`), or `None` without one."""
+    for e in _read_events(events):
+        if e.get("type") == "init":
+            v = e.get("genotypes_sha256")
+            return v if isinstance(v, str) else None
+    return None
+
+
 def _wants_anytime(job: dict) -> bool:
-    """Server round 16: whether a job gets `demes`, `anytime` and `anytime_check` (the
-    manifest key "anytime", a pyMoses GOMEA arm, an evaluation budget, no seed block)."""
+    """Server round 16: whether a job gets `demes`, `anytime`, `anytime_source` and
+    `anytime_check` (the manifest key "anytime", a pyMoses `-a gomea` arm, an evaluation
+    budget, no seed block). The RV16 review, nit 2: `-a hc-gomea` does not (its GOMEA log has
+    only the GOMEA phase of each deme); `expand` refuses it."""
     return (bool(job.get("anytime")) and _is_pymoses(job["binary"])
-            and _selects_gomea([str(x) for x in job["argv"]])
+            and _opt_algo(job["argv"]) == "gomea"
             and "evals" in job["budget"] and not job.get("seed_spec"))
 
 
@@ -1234,6 +1343,17 @@ def expand(manifest: dict, out_root: Path, repo: Path) -> list[dict]:
     anytime = manifest.get("anytime", False)  # server round 16 (opt-in)
     if not isinstance(anytime, bool):
         raise ValueError(f"anytime must be true or false, got {anytime!r}")
+    if anytime:
+        # the RV16 review, nit 2: the checkpoints need the GOMEA log of every evaluation of
+        # each deme, which only plain -a gomea writes
+        for arm, a in manifest["arms"].items():
+            if "linear" in a or "standalone" in a:
+                continue
+            algo = _opt_algo(a.get("argv", []))
+            if algo != "gomea":
+                raise ValueError(
+                    f"arm {arm}: the manifest key anytime needs -a gomea, got -a {algo} (the "
+                    "GOMEA log of another algorithm does not have every evaluation of a deme)")
     jobs = []
     for ds in manifest["datasets"]:
         for arm, a in manifest["arms"].items():
