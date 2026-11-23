@@ -653,3 +653,15 @@ user confirms it.
     code spike (no commit to the branch); the other choices of the note (the real-valued FOS, the
     guard, the rivals) stay open until the design note and the pre-registration.
   * Not approved: any code on the branch, a pre-registration, a push.
+* **T3.2 spike 2 (2026-11-23):** after the first spike, the agent recommended a second spike with
+  controls, and said that the first spike had no AMS and AVS because its brief made them optional.
+  The user asked about the structure-only convergence rule, how GP-RV-GOMEA handles it, the absorbed
+  constants, and whether the spike started from GP-RV-GOMEA code (none is public), then wrote: "Then
+  you might benefit from using the RV-GOMEA paper to draw inspiration of how these features are
+  implemented because I don't think the GP-RV-GOMEA reliably explains that piece of the algorithm."
+  * Done: the RV-GOMEA core (Bouter et al. 2017, Algorithms 1–4) is in `T3.2-FEASIBILITY.md` (appendix).
+  * Agent reading, not confirmed: the message approves the second spike with the RV-GOMEA core and the
+    controls. The agent started it, and fixed its gate before the runs (old splits s1–s3 of Con, EnH,
+    Yac, Dow, Tow; training NMSE only; an arm passes if its median ratio against `off` is at most
+    1.00 and it is lower in at least 8 of 15 runs). The user can stop or change it.
+  * Not approved: any code on the branch, a pre-registration, a push.
