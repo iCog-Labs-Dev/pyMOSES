@@ -1371,12 +1371,17 @@ per run is only a guard against a hung process.
 
 | Arm | Budget | Flags |
 |---|---|---|
-| BASE-TLS | 20,000 | the round 14 BASE-TLS (as in 1bi) |
+| BASE-TLS | 20,000 | the round 14 BASE-TLS (as in 1bi) + `--gomea-trace 1` |
 | BASE-TLS-100K | 100,000 | the same |
-| TLS-RV | 20,000 | BASE-TLS + `--gomea-rv-step rvg --gomea-rv-budget balance` |
+| TLS-RV | 20,000 | BASE-TLS + `--gomea-rv-step rvg --gomea-rv-budget balance` (before `--gomea-trace 1`) |
 | TLS-RV-100K | 100,000 | the same |
-| TLS-RVL | 20,000 | BASE-TLS + `--gomea-rv-step rvg --gomea-rv-budget late` |
+| TLS-RVL | 20,000 | BASE-TLS + `--gomea-rv-step rvg --gomea-rv-budget late` (before `--gomea-trace 1`) |
 | TLS-RVL-100K | 100,000 | the same |
+
+* `--gomea-trace 1` (the RV16 review, finding 1, option a; the user's decision) is on every arm
+  and changes only the GOMEA log: the "end" event of each deme gets the exact best-so-far trace
+  of the training score, and the "init" event the SHA-256 of the initial genotypes. The search,
+  stdout and the MOSES log do not change (`tests/gomea/test_rv_step_identity.py`).
 
 * The RV option is opt-in (`docs/gomea/USAGE.md`). Without it, the output of every existing
   setting does not change (the identity tests in `tests/gomea/`). With it, the RV stream gets its
@@ -1387,9 +1392,12 @@ per run is only a guard against a hung process.
 * The manifests have `"clip_test_nmse"`, `"plain_nmse"` and (new in round 16) `"anytime"` true.
   So each summary has `test_nmse_clipped`, `plain_val_nmse` and `plain_test_nmse`, and from the
   GOMEA log: `demes` (the demes, the run evaluation at which each starts), `anytime` (the
-  best-so-far training NMSE at 1, 2, 5, 10, 20, 50 and 100 % of the budget; null at a checkpoint
-  before the first generation record) and `anytime_check` (the conversion of the raw score to the
-  training NMSE, checked against the first printed program). The four RV arms also have `rv`
+  best-so-far training NMSE at 1, 2, 5, 10, 20, 50 and 100 % of the budget, exact, from the trace
+  of `--gomea-trace 1`: `anytime_source` "trace"; null only before the first evaluation),
+  `anytime_check` (the conversion of the raw score to the training NMSE, checked against the
+  first printed program, and the checks of the trace against the generation records) and
+  `init_genotypes_sha256` (the digest of the first deme's initial genotypes: an RV arm and
+  BASE-TLS of the same split must have the same value, gate item 2 of the pilot). The four RV arms also have `rv`
   (the RV totals: evaluations and share, RV generations, improving, kept by p_accept, AMS, forced
   improvements, skips).
 * Datasets: Air, Con, Dow, EnC, EnH, Tow, Yac (7), splits 81-90. 420 MOSES runs (70 per arm, 42

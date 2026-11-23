@@ -14,6 +14,7 @@
           "tests/gomea/test_round16_report.py",
           "tests/gomea/test_rv_core.py",
           "tests/gomea/test_rv_step_identity.py",
+          "tests/gomea/test_gomea_trace.py",
           "tests/gomea/test_round15_report.py",
           "tests/gomea/test_round14_linear.py",
           "tests/gomea/test_round13_runner_report.py",

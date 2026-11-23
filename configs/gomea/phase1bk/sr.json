@@ -56,7 +56,9 @@
         "--gomea-accept-complexity-ratio",
         "0.125",
         "--gomea-deme-store",
-        "accepted"
+        "accepted",
+        "--gomea-trace",
+        "1"
       ]
     },
     "BASE-TLS-100K": {
@@ -88,7 +90,9 @@
         "--gomea-accept-complexity-ratio",
         "0.125",
         "--gomea-deme-store",
-        "accepted"
+        "accepted",
+        "--gomea-trace",
+        "1"
       ]
     },
     "TLS-RV": {
@@ -124,7 +128,9 @@
         "--gomea-rv-step",
         "rvg",
         "--gomea-rv-budget",
-        "balance"
+        "balance",
+        "--gomea-trace",
+        "1"
       ]
     },
     "TLS-RV-100K": {
@@ -160,7 +166,9 @@
         "--gomea-rv-step",
         "rvg",
         "--gomea-rv-budget",
-        "balance"
+        "balance",
+        "--gomea-trace",
+        "1"
       ]
     },
     "TLS-RVL": {
@@ -196,7 +204,9 @@
         "--gomea-rv-step",
         "rvg",
         "--gomea-rv-budget",
-        "late"
+        "late",
+        "--gomea-trace",
+        "1"
       ]
     },
     "TLS-RVL-100K": {
@@ -232,7 +242,9 @@
         "--gomea-rv-step",
         "rvg",
         "--gomea-rv-budget",
-        "late"
+        "late",
+        "--gomea-trace",
+        "1"
       ]
     }
   }

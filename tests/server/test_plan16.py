@@ -7,7 +7,11 @@ Con, Dow, EnC, EnH, Tow, Yac), fresh splits 81-90, no time limit: 420 MOSES runs
 (regression), no Boolean phase, no extension, no choice step, no adoption rule and no chain.
 
 The command lines of the RV arms pass the real CLI only with the code of clone K (the options
---gomea-rv-step and --gomea-rv-budget)."""
+--gomea-rv-step and --gomea-rv-budget).
+
+The RV16 review (finding 1, option a): every arm also has `--gomea-trace 1` at the end of its
+argv (the exact best-so-far trace in the GOMEA log; the search does not change). The arms do
+not change otherwise. The command lines pass the real CLI only with the code of clone M."""
 
 import json
 import os
@@ -37,13 +41,23 @@ TLS = ["-a", "gomea", "--gomea-fos", "lt-b", "--gomea-pop-size", "dynamic",
        "--gomea-accept-complexity-ratio", "0.125", "--gomea-deme-store", "accepted"]
 RV = ["--gomea-rv-step", "rvg", "--gomea-rv-budget", "balance"]
 RVL = ["--gomea-rv-step", "rvg", "--gomea-rv-budget", "late"]
+TRACE = ["--gomea-trace", "1"]  # the RV16 review, finding 1 (option a)
+# The flags of each arm without the trace (the arms of the pre-registration).
+SEARCH = {
+    "BASE-TLS": TLS,
+    "BASE-TLS-100K": TLS,
+    "TLS-RV": TLS + RV,
+    "TLS-RV-100K": TLS + RV,
+    "TLS-RVL": TLS + RVL,
+    "TLS-RVL-100K": TLS + RVL,
+}
 ARMS = {
-    "BASE-TLS": (TLS, 20000),
-    "BASE-TLS-100K": (TLS, 100000),
-    "TLS-RV": (TLS + RV, 20000),
-    "TLS-RV-100K": (TLS + RV, 100000),
-    "TLS-RVL": (TLS + RVL, 20000),
-    "TLS-RVL-100K": (TLS + RVL, 100000),
+    "BASE-TLS": (TLS + TRACE, 20000),
+    "BASE-TLS-100K": (TLS + TRACE, 100000),
+    "TLS-RV": (TLS + RV + TRACE, 20000),
+    "TLS-RV-100K": (TLS + RV + TRACE, 100000),
+    "TLS-RVL": (TLS + RVL + TRACE, 20000),
+    "TLS-RVL-100K": (TLS + RVL + TRACE, 100000),
 }
 RV_BUDGET = {"TLS-RV": "balance", "TLS-RV-100K": "balance", "TLS-RVL": "late",
              "TLS-RVL-100K": "late"}
@@ -136,13 +150,25 @@ def test_arm_flags_match_the_preregistration(prefix):
 
 
 def test_base_tls_is_the_base_tls_arm_of_round_14():
+    """With the trace flag at the end (the RV16 review); the search flags are those of 1bi."""
     for name in MANIFESTS:
         bi = load(CONFIGS / "phase1bi" / name)["arms"]["BASE-TLS"]
         m = load(CONFIGS / "phase1bk" / name)["arms"]
         assert bi["argv"] == TLS and bi["binary"] == ".venv/bin/moses"
         for a in ("BASE-TLS", "BASE-TLS-100K"):
-            assert m[a]["argv"] == bi["argv"] and m[a]["binary"] == bi["binary"], (name, a)
-        assert m["BASE-TLS"] == bi
+            assert m[a]["argv"] == bi["argv"] + TRACE, (name, a)
+            assert m[a]["binary"] == bi["binary"], (name, a)
+        assert m["BASE-TLS"] == {**bi, "argv": bi["argv"] + TRACE}
+
+
+@pytest.mark.parametrize("prefix", PREFIXES)
+def test_every_arm_adds_only_the_trace_at_the_end(prefix):
+    """The RV16 review (finding 1, option a): each arm is its arm of the pre-registration
+    (`SEARCH`) with `--gomea-trace 1` at the end, and nothing else changes."""
+    for f in stage1(CONFIGS / prefix):
+        for a, s in load(f)["arms"].items():
+            assert s["argv"][-2:] == TRACE and s["argv"][:-2] == SEARCH[a], (f, a)
+            assert s["argv"].count("--gomea-trace") == 1, (f, a)
 
 
 def test_each_rv_arm_adds_only_its_rv_flags():
@@ -151,7 +177,7 @@ def test_each_rv_arm_adds_only_its_rv_flags():
     for a, budget in RV_BUDGET.items():
         argv = ARMS[a][0]
         assert argv[:len(TLS)] == TLS
-        assert argv[len(TLS):] == ["--gomea-rv-step", "rvg", "--gomea-rv-budget", budget]
+        assert argv[len(TLS):] == ["--gomea-rv-step", "rvg", "--gomea-rv-budget", budget] + TRACE
     for a in ARMS:
         if a.endswith("-100K"):
             assert ARMS[a][0] == ARMS[a[:-5]][0]
@@ -221,6 +247,12 @@ def test_every_command_line_parses_with_the_real_cli(arm, tmp_path):
             assert ns.gomea_rv_step == "rvg" and ns.gomea_rv_budget == RV_BUDGET[arm]
         else:
             assert getattr(ns, "gomea_rv_step", "off") == "off"
+        # the RV16 review (finding 1): the trace on every arm, and nothing else changes
+        assert ns.gomea_trace == 1 and gp.trace is True
+        assert {k: v for k, v in gp.as_dict().items() if k not in ("trace", "telemetry_path")} \
+            == {k: v for k, v in cli(run_argv({**job, "argv": SEARCH[arm]}, tmp_path,
+                                              N_TRAIN[d]))[0].gomea_params.as_dict().items()
+                if k != "telemetry_path"}
 
 
 def test_no_arm_uses_the_placeholder():
@@ -364,7 +396,8 @@ def test_s0_of_the_smoke_runs_the_new_tests():
     args = s0["pytest"]["args"]
     for t in ("tests/server", "tests/gomea/test_sr_datasets.py",
               "tests/gomea/test_round16_runner.py", "tests/gomea/test_round16_report.py",
-              "tests/gomea/test_rv_core.py", "tests/gomea/test_rv_step_identity.py"):
+              "tests/gomea/test_rv_core.py", "tests/gomea/test_rv_step_identity.py",
+              "tests/gomea/test_gomea_trace.py"):  # the RV16 review: the trace option
         assert t in args
     for t in args:
         assert (REPO / t).exists(), t
