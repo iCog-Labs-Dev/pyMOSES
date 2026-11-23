@@ -632,3 +632,14 @@ user confirms it.
   * User decisions pending: phase B and T3.4 (`BACKLOG.md` section 14, item 1; agent
     recommendation: do not build them for the linkage reason).
   * Not approved: any push.
+* **Round 15 push and the next direction (2026-11-23):** the agent asked whether to push the round 15
+  findings (`97b4ea6`) and whether to stop the linkage line, and proposed two tracks for the next
+  work (track 1: a small round 16 on the round 14 gaps, backlog 13.2–13.5; track 2: a feasibility
+  note for T3.2, real-valued GOMEA on the constants). The user answered: "Push it, and let's go
+  straight to the real-valued GOMEA please."
+  * User-approved: the push of the branch to `origin/experiment/moses-gomea-discrete`; track 2:
+    T3.2 is next.
+  * Agent reading, not confirmed: "go straight to" means T3.2 before track 1 (round 16 is not
+    started), and T3.2 starts with its feasibility note (`ROADMAP.md`, stage 3 rule); phase B and
+    T3.4 are not chosen now (the user did not answer the stop question directly).
+  * Not approved: any design or code for T3.2 before the user decides on the note.
