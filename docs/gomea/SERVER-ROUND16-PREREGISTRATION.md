@@ -74,6 +74,10 @@ BASE-TLS (20,000 evaluations) stays the reference; TLS-NP stays next in line.
   the same as with the flag off.
 * Check: a test, and the pilot (the first deme's initial population of each RV run is identical
   to that of the BASE-TLS run with the same split, seed and budget).
+* **As built (clone K, 2d97c3c):** deme k of a run (k = 0, 1, …) gets `MT19937RandGen(s_k)`, where
+  s_k is draw k + 1 of `randint()` of `MT19937RandGen((run_seed XOR 0x52564731) mod 2^32)`, and
+  run_seed is `-r`. The global generator is never used. Clone K found that the spike's one draw
+  had changed the first deme's initial population in 13 of 15 `rvg` runs of spike 2.
 
 ## Arms (420 MOSES runs)
 
@@ -82,7 +86,7 @@ The RV option is opt-in: without it, the output of every existing setting stays 
 
 | Arm | Budget | Flags |
 |---|---|---|
-| **BASE-TLS** | 20,000 | the round 14 BASE-TLS flags |
+| **BASE-TLS** | 20,000 | the round 14 BASE-TLS flags (with `--gomea-trace 1`, see below) |
 | **BASE-TLS-100K** | 100,000 | the same |
 | **TLS-RV** | 20,000 | BASE-TLS with `--gomea-rv-step rvg --gomea-rv-budget balance` |
 | **TLS-RV-100K** | 100,000 | the same |
@@ -100,6 +104,15 @@ The RV option is opt-in: without it, the output of every existing setting stays 
   elitist; structure-only convergence (the same zero/non-zero pattern, or no new evaluation in a
   full generation). Every RV evaluation counts in the budget.
 * `rvg-cap` of spike 2 is left out (it was the worst arm).
+* **All 6 arms add `--gomea-trace 1`** (added after RV16 finding 1, approved by the user on
+  2026-11-23). It is a log option only: the search, stdout and the MOSES log do not change (tests
+  and real runs). Each deme's "end" record gets the pair [deme-local charged evaluation, raw score]
+  for each charged evaluation that gives a new best raw score of the deme (initial population, GOM,
+  forced improvements and RV; memo hits are not charged). The "init" record gets the SHA-256 of the
+  initial genotypes (`genotypes_sha256`).
+* **Refusals (RV16 nit 3):** `--gomea-rv-step rvg` needs `-a gomea` and `--linear-scaling terms`;
+  `--gomea-trace 1` needs `-a gomea` and is refused with `--const-opt lm`. The round 16 arms meet
+  these rules.
 
 ## Contrasts (70 pairs each: 7 data sets × 10 splits)
 
@@ -117,7 +130,11 @@ The RV option is opt-in: without it, the output of every existing setting stays 
 * **Descriptive (no verdicts):** the 4 primary contrasts per data set; the primary 1 and 2 on the
   clipped test NMSE; BASE-TLS-100K vs BASE-TLS on the training NMSE.
 * **Descriptive tables:** the best-so-far training NMSE of each run at 1, 2, 5, 10, 20, 50 and
-  100 % of its budget (median ratio of each arm to BASE-TLS of the same budget, pooled and per data
+  100 % of its budget (from the trace of `--gomea-trace`: the best over all trace points of all
+  demes with a run evaluation, the deme's start plus the local count, at most the checkpoint;
+  training NMSE % = 100 · (−raw / n_train) / var(y′) of the scaled training target; a run whose
+  first evaluated programs are all invalid can have a very large value at the 1 % point, and the
+  tables use medians) (median ratio of each arm to BASE-TLS of the same budget, pooled and per data
   set); demes per run and the evaluation at which the second deme starts; the RV counters (RV
   evaluations and share, improving, kept by p_accept, AMS, forced improvements, skips); the
   train–test gap; the runs with a test NMSE above 100.
@@ -156,6 +173,7 @@ more for the 100,000 arms.
 |---|---|
 | K | The RV core under `pymoses` (from the spike 2 commit `be83e08`), with the seed fix; identity reference first; opt-in; tests; USAGE |
 | L | Splits 81–90; the runner (`rv_summary`, the best-so-far checkpoints); `configs/gomea/phase1bk/`, `plan16.json`, the smoke plan, `test_plan16.py`, the SERVER-RUN section; the dry run; after K merges, the local smoke run and the pilot |
+| M | The RV16 fixes (approved by the user): `--gomea-trace` (finding 1, option a, and nit 8), the refusals (nits 2 and 3), the counters (nits 4 and 5), the tests (nits 6 and 7) |
 
 * Then: merge, the full test suite, the RV16 review, and the push only with a fresh approval.
 
