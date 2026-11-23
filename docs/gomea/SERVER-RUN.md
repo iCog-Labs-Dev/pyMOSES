@@ -1328,10 +1328,22 @@ chains to `plan15b-smoke.json` (`smoke15b`: `configs/gomea/server-smoke15-1bj`, 
 The sixteenth round (`SERVER-ROUND16-PREREGISTRATION.md`, the budget round of T3.2: at 100,000
 evaluations, is real-valued GOMEA on the constants better than BASE-TLS; does the ratio of an RV
 arm to BASE-TLS fall when the budget grows from 20,000 to 100,000; how much does BASE-TLS itself
-gain from 5 times the budget) has its own plan, `tools/server/plan16.json`: S0, then phase 1bk
-(regression). There is no Boolean phase. Its state is in `../gomea-results/server-run16/`. The
-plan is one round if the local pilot estimate is at most 20 h; else the agent splits it into two
-plans that chain (the user's rule) and updates this section.
+gain from 5 times the budget) is one phase, 1bk (regression), in two plans that chain. The local
+pilot estimate is about 39 h, more than 20 h for one plan, so the round has two plans (the user's
+rule; see "Size and time"). The two plans split the round by splits:
+
+* `tools/server/plan16.json` (`round16`): S0, then 1bk on splits 81-85
+  (`configs/gomea/phase1bk-a`: the spec and the three manifests of 1bk with splits 81-85 only;
+  210 runs; an interim report). Its state is in `../gomea-results/server-run16/`. It has
+  `"then": "round16b"`.
+* `tools/server/plan16b.json` (`round16b`): 1bk with the full config (`configs/gomea/phase1bk`,
+  splits 81-90). It starts by itself when round16 ends. The manifests of the two config folders
+  have the same names, so the runs of round16 are in the same result directories
+  (`../gomea-results/phase1bk/`), and the runner keeps them. round16b runs the other 210 runs
+  (splits 86-90), and its report covers all 420 runs. It has no S0 (round16 ran S0 on the same
+  commit). Its state is in `../gomea-results/server-run16b/`.
+
+There is no Boolean phase.
 
 **One-time server steps before the round:**
 
@@ -1349,7 +1361,7 @@ plans that chain (the user's rule) and updates this section.
    earlier round has splits 1-80 only, so set-up rebuilds it (splits 1-80 do not change; Dow and
    Tow are built again from their raw files). Each dataset then has 720 split files (90 splits x
    8 files).
-4. Start the round:
+4. Start the round. One command starts the chain; round16b starts by itself when round16 ends:
 
        bash tools/server/start.sh --plan round16
 
@@ -1357,7 +1369,39 @@ That is all. Do not run a separate smoke test on the server: the round runs ever
 go. S0 (the full pytest and the reproducibility check) records a failure in the log and in
 `round-summary.md`, but it does not stop the phase. There is no choice step, no extension and no
 adoption rule: the round only reports the results (the proposals after the round go to the
-user). No plan chains to or from round 16. Bring back the final bundle.
+user). Each plan writes its own `round-summary.md` and final bundle (as for the chain of rounds
+4 and 5). Bring back both, from `server-run16/` and `server-run16b/`. The report on all 420 runs
+is in the bundle of round16b.
+
+**Following and stopping the chain** (the chain rules of "Round 5 and the chain from round 4"):
+
+* `bash tools/server/status.sh --plan round16` shows the round. Its `chain:` section gives the
+  state of round16 and of round16b (not started, RUNNING with the pid and the process group,
+  stopped, or DONE) and where the bundle of each plan is. `status.sh --plan round16b` shows the
+  same chain.
+* `tail -f ../gomea-results/server-run16/run.log` follows round16. When round16 ends, its log
+  shows the `chain: started round16b` line; then follow `server-run16b/run.log`.
+* `bash tools/server/stop.sh --plan round16` stops the running orchestrator of the chain,
+  whichever plan it runs (`--plan round16b` does the same). It writes `server-run16/chain.stop`,
+  so a stopped round16 does not start round16b.
+* `bash tools/server/start.sh --plan round16` after a stop resumes the chain: it starts or
+  resumes the first plan that is not DONE (round16, else round16b), and it removes the stop
+  marker. When both plans are DONE, it only tells where the two bundles are.
+* Never two at once: each orchestrator of the chain holds `server-run16/chain.lock`, whichever
+  plan it runs. A second `start.sh` refuses.
+* Autostart: run `uninstall_autostart.sh`, then `install_autostart.sh --plan round16`. The block
+  does nothing only when both plans are DONE.
+
+**Warning (as in round 15).** Both plans write their report to the same folder,
+`gomea-results/phase1bk/report-stage1`, so the last plan that ends decides which report stays
+there.
+
+* Start `round16` only. Never start `round16b` by itself, and never start `round16` after
+  `round16b`: `round16` would then write its interim report (splits 81-85) over the full report,
+  and it does not start `round16b` again.
+* If `round16b` stops part way, the report folder does not have the report on all 420 runs. Do
+  not use that folder: use the report in the bundle of `round16` (the interim report on splits
+  81-85), and tell the agent.
 
 **S0 and the Boolean manifests:** before the push, the 14 Boolean manifests of rounds 4, 6 and 12
 must name the newest code commit (the RV option of T3.2), so that the 4 pin tests
@@ -1367,7 +1411,9 @@ must name the newest code commit (the RV option of T3.2), so that the 4 pin test
 `-m N`) and no `--max-time`. Every RV evaluation counts in the budget. The wall cap of 36,000 s
 per run is only a guard against a hung process.
 
-**Phase 1bk: arms** (`configs/gomea/phase1bk/`, the same six arms in each manifest):
+**Phase 1bk: arms** (`configs/gomea/phase1bk/`, three manifests: `sr.json` has the three 20,000
+arms and `sr-100K.json` the three 100,000 arms, both on Air, Con, EnC, EnH, Tow and Yac;
+`sr-Dow.json` has all six arms on Dow):
 
 | Arm | Budget | Flags |
 |---|---|---|
@@ -1400,10 +1446,15 @@ per run is only a guard against a hung process.
   BASE-TLS of the same split must have the same value, gate item 2 of the pilot). The four RV arms also have `rv`
   (the RV totals: evaluations and share, RV generations, improving, kept by p_accept, AMS, forced
   improvements, skips).
+* `sr-100K.json` has the name of `sr.json` (`phase1bk-sr`). So the 100,000 runs are in
+  `phase1bk/phase1bk-sr/runs/`, beside the 20,000 runs, as before the move. The runner writes
+  `phase1bk/phase1bk-sr/manifest.json` at the start of each manifest, so that file holds the
+  manifest that ran last (`sr-100K.json`). The git commit in the bundle gives both manifests.
 * Datasets: Air, Con, Dow, EnC, EnH, Tow, Yac (7), splits 81-90. 420 MOSES runs (70 per arm, 42
-  per split, 60 per dataset). The phase needs the 7 datasets with splits 81-90 (requirement
-  `datasets:Air,Con,Dow,EnC,EnH,Tow,Yac:81-90`). Without them, 1bk is skipped with the reason in
-  the log.
+  per split, 60 per dataset): 210 in round16 (splits 81-85) and 210 in round16b (splits 86-90).
+  Each phase step needs the 7 datasets with splits 81-90 (requirement
+  `datasets:Air,Con,Dow,EnC,EnH,Tow,Yac:81-90`; set-up builds all 90 splits at once). Without
+  them, the step is skipped with the reason in the log.
 
 **Phase 1bk: report** (`spec.json` of 1bk; the round 15 key `"contrast_families"`; a failed run
 counts as infinitely bad; paired Wilcoxon on log(A / B) over the 70 pairs, Holm in each family,
@@ -1425,27 +1476,44 @@ alpha = 0.025, and the 10 % band):
   run, the evaluation at which the second deme starts) and `rv.csv` (the RV counters).
 * `report-stage1/runs.csv` and `nmse_above_100.csv` (`"run_table": true`); `aggregate.csv` has
   the median train-test gap.
+* The report reads the result directories of all three manifests (`phase_run.sh` gives them) and
+  pairs the runs by dataset and split. So an interaction contrast pairs a 100,000 run of
+  `sr-100K.json` with a 20,000 run of `sr.json` (`tests/gomea/test_round16_report.py`).
+* round16 writes the same report on splits 81-85 (the spec of `configs/gomea/phase1bk-a` is the
+  spec of 1bk): 35 pairs in each pooled contrast and 5 for each dataset. round16b writes the
+  report on all 420 runs into the same folder; the bundle of round16 keeps the interim report.
 
 **Memory and workers:**
 
 | Manifest | `mem_limit_mb` | W on the server (cgroup 65,536 MB, 12 CPUs, reserve 6,553 MB) |
 |---|---|---|
-| `phase1bk/sr-Dow.json` | 8,192 | floor(58,983 / 8,192) = 7 |
-| `phase1bk/sr.json` (the 6 other datasets) | 5,120 | min(11, 11) = 11 |
+| `phase1bk/sr.json` (the 20,000 arms, 6 datasets) | 5,120 | min(11, 11) = 11 |
+| `phase1bk/sr-100K.json` (the 100,000 arms, 6 datasets) | 8,192 | floor(58,983 / 8,192) = 7 |
+| `phase1bk/sr-Dow.json` (all 6 arms on Dow) | 8,192 | floor(58,983 / 8,192) = 7 |
 
-The 1bk step has `per_run_mb` 5120 and `manifest_per_run_mb` `{"sr-Dow.json": 8192}`. If the
-local pilot shows a 100,000 run above 50 % of its limit, the 100,000 arms get a manifest of their
-own with a larger limit (the pre-registration, gate item 3), and this table changes.
+Both 1bk steps (round16 and round16b) have `per_run_mb` 5120 and `manifest_per_run_mb`
+`{"sr-100K.json": 8192, "sr-Dow.json": 8192}`. `phase_run.sh` runs the manifests one at a time:
+`sr.json`, then `sr-100K.json`, then `sr-Dow.json`. The limit is RLIMIT_AS.
 
-**Size and time (the pre-registration's estimate; the local pilot gives a better one).**
-BASE-TLS about 13 CPU-h, TLS-RV and TLS-RVL about 8 h each, BASE-TLS-100K about 65 h, TLS-RV-100K
-and TLS-RVL-100K about 39 h each: about 170 CPU-h, about 16 h at W = 11, plus S0 (about 1.3 h).
-About 15 to 25 hours in total.
+* The local pilot (gate item 3): the Tow BASE-TLS-100K run peaked at 3,316 MB RSS, 64.8 % of
+  5,120 MB. So the 100,000 arms have a manifest of their own with 8,192 MB (the Tow peak is then
+  40.5 %).
+* The runner starts the jobs of a manifest in its order (dataset, then arm, then split). Tow is
+  first in `sr-100K.json`, so the Tow 100,000 runs (the longest, about 3 to 5 h each) start
+  first.
+
+**Size and time.** The pre-registration's estimate: BASE-TLS about 13 CPU-h, TLS-RV and TLS-RVL
+about 8 h each, BASE-TLS-100K about 65 h, TLS-RV-100K and TLS-RVL-100K about 39 h each: about 170
+CPU-h, about 16 h at W = 11, plus S0 (about 1.3 h). The local pilot gives a new estimate of about
+39 h for the round, more than 20 h. So the round has two plans. Each plan has half of the splits
+of each arm and dataset; round16 also runs S0.
 
 **Local rehearsal only:** `tools/server/plan16-smoke.json` (`--plan smoke16`) runs a limited S0
 (`tests/server`, the split test, the tests of the round 13 to 16 runner and report, the
 per-term `sr_eval` test and the stand-alone runner test; the mux11 repro run), then
-`configs/gomea/server-smoke16-1bk` (the same
-two manifests, arms, flags, keys and spec, splits 81 and 82, 1,000 evaluations for the 20,000
-arms and 2,000 for the 100,000 arms, a wall cap of 300 s; 84 jobs). Its state is in
-`server-run16-smoke/`. The smoke plan is for a local check before a push, not a server step.
+`configs/gomea/server-smoke16-1bk-a` (the same three manifests, arms, flags, keys and spec,
+split 81 only, 1,000 evaluations for the 20,000 arms and 2,000 for the 100,000 arms, a wall cap
+of 300 s; 42 jobs), then it chains to `plan16b-smoke.json` (`smoke16b`:
+`configs/gomea/server-smoke16-1bk`, splits 81 and 82; 42 runs kept, 42 new; the report on 84).
+The state is in `server-run16-smoke/` and `server-run16b-smoke/`. The smoke plans are for a
+local check before a push, not a server step.
