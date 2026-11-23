@@ -17,6 +17,8 @@ hill climbing's.
 from __future__ import annotations
 
 import copy
+import hashlib
+import json
 import math
 import operator
 import time
@@ -303,7 +305,15 @@ class gomea_parameters:
     with ``"off"``. ``rv_step`` ``"rvg"`` needs ``contin`` ``"copy"`` and ``const_opt``
     ``"none"``. The CLI also refuses it without ``-a gomea`` and ``--linear-scaling terms``,
     and ``hc_gomea_optimization`` refuses it (the RV16 review). ``rv_budget`` and ``rv_seed``
-    are left out of ``as_dict`` while ``rv_step`` is ``"off"``."""
+    are left out of ``as_dict`` while ``rv_step`` is ``"off"``.
+
+    NOT A PORT, server round 16 (the RV16 review, finding 1; off by default, and then left
+    out of ``as_dict``): with ``trace`` on, the oracle of each deme
+    (``EvaluationOracle.trace``) records an ``[evaluation, raw score]`` pair for each charged
+    evaluation that gives a new best raw score of the deme. The "end" event gets the pairs as
+    ``trace``, and the "init" event gets ``genotypes_sha256`` (``init_digest``). The search
+    does not change. Not with ``const_opt`` ``"lm"``: LM charges its passes without a score.
+    The CLI also refuses it without ``-a gomea``, and ``hc_gomea_optimization`` refuses it."""
 
     def __init__(
         self,
@@ -350,6 +360,7 @@ class gomea_parameters:
         rv_step: str = "off",
         rv_budget: str = "balance",
         rv_seed: int = 0,
+        trace: bool = False,
     ) -> None:
         if pop_size == DYNAMIC_POP_SIZE:
             if pop_fraction > 0:
@@ -501,6 +512,11 @@ class gomea_parameters:
             raise ValueError("rv_step needs const_opt 'none'")
         if not isinstance(rv_seed, int) or isinstance(rv_seed, bool):
             raise ValueError(f"rv_seed must be an integer, got {rv_seed!r}")
+        # NOT A PORT, server round 16 (the RV16 review): the best-so-far trace.
+        if not isinstance(trace, bool):
+            raise ValueError(f"trace must be True or False, got {trace!r}")
+        if trace and const_opt == "lm":
+            raise ValueError("trace does not support const_opt 'lm' (LM passes have no score)")
         parse_radii(radii)
 
         self.pop_size = pop_size
@@ -546,6 +562,7 @@ class gomea_parameters:
         self.rv_step = rv_step
         self.rv_budget = rv_budget
         self.rv_seed = rv_seed
+        self.trace = trace
 
     # The opt-in options, left out of ``as_dict`` while at their default
     # (off), so a default run's telemetry is unchanged.
@@ -568,6 +585,7 @@ class gomea_parameters:
         "const_opt_during": "none",
         "const_opt_pole_check": "none",
         "rv_step": "off",
+        "trace": False,
     }
 
     # The knob-cap options: all left out of ``as_dict`` while ``knob_cap`` is 0
@@ -834,6 +852,15 @@ def _mutate_stream(gp: gomea_parameters) -> MT19937RandGen | None:
     return MT19937RandGen(randGen().randint())
 
 
+def init_digest(genotypes: Sequence[tuple[int, ...]]) -> str:
+    """NOT A PORT, server round 16 (``--gomea-trace``, the RV16 review): the SHA-256 (hex) of
+    the initial genotypes in their order, as the compact JSON list of lists of their codes
+    (``json.dumps([list(g) for g in genotypes], separators=(",", ":"))``). Two runs with the
+    same initial population have the same digest."""
+    text = json.dumps([[int(c) for c in g] for g in genotypes], separators=(",", ":"))
+    return hashlib.sha256(text.encode("ascii")).hexdigest()
+
+
 def _score_fields(score: composite_score) -> dict:
     return {
         "raw": score.get_score(),
@@ -1038,6 +1065,7 @@ class gomea_optimization(optimizer_base):
             stall_evals=gp.stall_evals,
             stall_worse=self._accept_worse(),
             store_accepted=gp.deme_store == "accepted",
+            trace=gp.trace,
         )
 
     def _accept_worse(self):
@@ -1095,6 +1123,9 @@ class gomea_optimization(optimizer_base):
     def _emit_init(
         self, sink: TelemetrySink, schema: FrozenSchema, init_mode: str, init: InitResult, **extra
     ) -> None:
+        if self.gomea_params.trace and sink.path is not None:
+            # NOT A PORT, server round 16 (``--gomea-trace``; absent when off).
+            extra["genotypes_sha256"] = init_digest(init.genotypes)
         sink.emit(
             "init",
             schema_id=schema.schema_id,
@@ -1361,6 +1392,10 @@ class gomea_optimization(optimizer_base):
             # NOT A PORT, T3.2 (server round 16): the RV totals of this deme (absent when off;
             # None when the deme ended before the engine ran).
             self.last_result["rv"] = self._rv.record() if self._rv is not None else None
+        if self.gomea_params.trace:
+            # NOT A PORT, server round 16 (``--gomea-trace``; absent when off): the best-so-far
+            # trace of the deme's raw score, [deme evaluation, raw score] pairs.
+            self.last_result["trace"] = list(oracle.trace)
         if self.gomea_params.const_opt_reserve > 0:
             # NOT A PORT, server round 11: this deme's LM reserve (absent when off).
             self.last_result["const_opt_reserve"] = self._reserve

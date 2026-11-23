@@ -495,6 +495,19 @@ _GOMEA_OPTIONS = (
         "after a GOM generation that did not improve the deme best, then with p_RV). "
         "Default balance.",
     ),
+    # NOT A PORT, server round 16 (the RV16 review, finding 1): the best-so-far trace of each
+    # deme in the GOMEA log (off by default: a default run is unchanged).
+    (
+        "--gomea-trace",
+        "gomea_trace",
+        int,
+        0,
+        "NOT A PORT (server round 16): 1 = the --gomea-log file also gets, in the \"end\" "
+        "event of each deme, the trace of its best raw score (an [evaluation, raw score] "
+        "pair for each charged evaluation that gave a new best raw score), and in the "
+        "\"init\" event the SHA-256 of the initial genotypes. The search does not change. "
+        "-a gomea only; not with --const-opt lm. Default 0.",
+    ),
     # Top-K FOS subsets per generation (off by default: a default run is
     # unchanged).
     (
@@ -843,7 +856,7 @@ def _gomea_params_from_args(args: argparse.Namespace) -> gomea_parameters:
             raise ValueError(
                 f"{flag} {v[dest]} is not recognized. Supported: {', '.join(choices)}."
             )
-    for dest in ("gomea_fi", "gomea_skip_inactive", "gomea_genotype_memo"):
+    for dest in ("gomea_fi", "gomea_skip_inactive", "gomea_genotype_memo", "gomea_trace"):
         if v[dest] not in (0, 1):
             raise ValueError(f"--{dest.replace('_', '-')} must be 0 or 1, got {v[dest]}")
     if v["gomea_max_evals_per_deme"] < 0:
@@ -933,6 +946,8 @@ def _gomea_params_from_args(args: argparse.Namespace) -> gomea_parameters:
         rv_step=v["gomea_rv_step"],
         rv_budget=v["gomea_rv_budget"],
         rv_seed=getattr(args, "rand_seed", 0),
+        # NOT A PORT, server round 16 (the RV16 review): the best-so-far trace of each deme
+        trace=bool(v["gomea_trace"]),
         # server round 6: read only by --gomea-pop-size dynamic
         hc_fraction_of_nn=getattr(args, "hc_frac_of_nn", 2.0),
         hc_max_nn_evals=getattr(args, "hc_max_nn", 20000),
@@ -1027,14 +1042,26 @@ def _check_const_opt(v: dict, opt_algo: str | None) -> None:
 
 
 def _check_round16(v: dict, opt_algo: str | None) -> None:
-    """NOT A PORT, server round 16 (the RV16 review): validate `--gomea-rv-step` against the
-    algorithm. `--linear-scaling` is checked where it is read (`problem_params.parse_options`).
+    """NOT A PORT, server round 16 (the RV16 review): validate `--gomea-rv-step` and
+    `--gomea-trace` against the algorithm and `--const-opt`. `--linear-scaling` is checked
+    where it is read (`problem_params.parse_options`).
 
     * The RV core is defined for the demes of `-a gomea` only: `-a hc` and `-a hc-capped`
-      would ignore it, and in `-a hc-gomea` its deme index would count the GOMEA phases."""
+      would ignore it, and in `-a hc-gomea` its deme index would count the GOMEA phases.
+    * The trace must see every charged evaluation of a deme. In `-a hc-gomea` the hill
+      climbing evaluations are not in the GOMEA log, and LM (`--const-opt lm`) charges its
+      passes without a score."""
     step = v["gomea_rv_step"]
     if step != "off" and opt_algo != "gomea":
         raise ValueError(f"--gomea-rv-step {step} needs -a gomea, got -a {opt_algo}")
+    if v["gomea_trace"]:
+        if opt_algo != "gomea":
+            raise ValueError(f"--gomea-trace 1 needs -a gomea, got -a {opt_algo}")
+        if v["const_opt"] == "lm":
+            raise ValueError(
+                "--gomea-trace 1 does not support --const-opt lm "
+                "(LM passes are charged without a score)"
+            )
 
 
 def _check_knob_cap(v: dict) -> int | None:

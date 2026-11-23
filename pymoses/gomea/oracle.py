@@ -154,6 +154,18 @@ class EvaluationOracle:
     (the initial population and the trials GOM/FI accepted). Entries that
     were in the deme before this oracle (``preload``) are always kept.
     ``deme.n_evals`` still counts every evaluation.
+
+    NOT A PORT, server round 16 (``--gomea-trace``, the RV16 review): with ``trace`` on,
+    ``trace`` is the best-so-far trace of the raw score (``get_score``, the training score
+    without the complexity penalty). ``evaluate`` appends ``[requests, raw]`` after each
+    charged evaluation whose raw score is finite and strictly higher than every finite raw
+    score before it in this oracle; ``requests`` is the 1-based count of charged evaluations
+    of this oracle (the deme). NaN and infinity are left out; the worst score
+    (``very_worst_score``, -FLT_MAX) is finite. A memo hit is not charged, so it adds
+    nothing. ``preload`` adds nothing (the preloaded genotypes were not evaluated here).
+    ``charge_tuning`` and ``charge_search_tuning`` charge without a score, so the trace
+    cannot see them (the options that use them refuse the trace). With ``trace`` off,
+    ``trace`` is ``None`` and nothing changes.
     """
 
     def __init__(
@@ -169,6 +181,7 @@ class EvaluationOracle:
         stall_evals: int = 0,
         stall_worse: Callable[[composite_score, composite_score], bool] | None = None,
         store_accepted: bool = False,
+        trace: bool = False,
     ) -> None:
         self.schema = schema
         self.iscorer = iscorer
@@ -203,6 +216,10 @@ class EvaluationOracle:
         self._store_start: int | None = len(deme) if store_accepted else None
         self._last_index: dict[tuple[int, ...], int] | None = {} if store_accepted else None
         self._kept: set[int] | None = set() if store_accepted else None
+        # NOT A PORT, server round 16 (``--gomea-trace``): the best-so-far trace of the raw
+        # score and its best raw score so far (both ``None`` when off).
+        self.trace: list[list] | None = [] if trace else None
+        self._trace_best: float | None = None
 
     def check(self) -> str | None:
         """The budget reason that would stop evaluation right now, or
@@ -315,8 +332,19 @@ class EvaluationOracle:
             self._best_evals = self.ledger.requests
             self._best_g = key
         self._offer_stall_best(score, self.ledger.requests)
+        if self.trace is not None:
+            self._trace_point(score)
 
         return copy.copy(score)
+
+    def _trace_point(self, score: composite_score) -> None:
+        """NOT A PORT, server round 16 (``--gomea-trace``): append ``[requests, raw]`` when
+        the raw score of the charged evaluation just counted is a new best (see the class
+        docstring)."""
+        raw = float(score.get_score())
+        if math.isfinite(raw) and (self._trace_best is None or raw > self._trace_best):
+            self._trace_best = raw
+            self.trace.append([self.ledger.requests, raw])
 
     def _score_free(self, g: tuple[int, ...]):
         """GOMEA extension (``--const-opt mutate``): ``(program, score)`` of a

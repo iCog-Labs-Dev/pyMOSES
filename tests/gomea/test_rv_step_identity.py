@@ -29,6 +29,13 @@ Each case runs with the new options absent and at their off values (``--gomea-rv
 alone and with ``--gomea-rv-budget late``, which ``off`` ignores). Only the command line in
 the INFO log names the options. Before the code exists, only the "absent" runs pass (the off
 values are unknown flags).
+
+The RV16 review (finding 1 and nit 8): ``--gomea-trace 0`` is one more off value. With
+``--gomea-trace 1`` (``-a gomea`` only, so not the case ``hc-gomea``) the search does not
+change: stdout and the MOSES log (without the command line) are the references, and the GOMEA
+log is the reference after the added fields are removed (``trace`` of each "end" event,
+``genotypes_sha256`` of each "init" event, ``trace`` of the parameters). The same holds for a
+run with ``--gomea-rv-step rvg``, against the same run without the trace.
 """
 
 from __future__ import annotations
@@ -126,7 +133,9 @@ OFF = {
     "absent": [],
     "rv-off": ["--gomea-rv-step", "off"],
     "rv-off-late": ["--gomea-rv-step", "off", "--gomea-rv-budget", "late"],
+    "trace-off": ["--gomea-trace", "0"],  # the RV16 review
 }
+TRACE = ["--gomea-trace", "1"]
 
 CLOCK_KEYS = frozenset({"linkage_s", "variation_s", "timings", "max_time"})
 _MAIN = (
@@ -220,6 +229,61 @@ def test_settings_without_the_rv_option_are_byte_identical_to_2d407b2(case, off,
         log = log.replace(" " + " ".join(extra), "")
     assert log == (REF / f"{case}.log").read_text()
     assert events == (REF / f"{case}.events.jsonl").read_text()
+
+
+def strip_trace(events: str) -> str:
+    """The canonical ``--gomea-log`` text of a run with ``--gomea-trace 1`` without the fields
+    that the option adds. Each "end" and "init" event must have its field."""
+    lines = []
+    for line in events.splitlines():
+        ev = json.loads(line)
+        if ev["type"] == "end":
+            trace = ev.pop("trace")
+            assert isinstance(trace, list)
+            if ev["ledger"]["requests"] > 0:
+                assert trace and trace[0][0] >= 1 and trace[-1][0] <= ev["ledger"]["requests"]
+        elif ev["type"] == "init":
+            digest = ev.pop("genotypes_sha256")
+            assert isinstance(digest, str) and len(digest) == 64
+        elif ev["type"] == "invocation_start":
+            assert ev["params"].pop("trace") is True
+        lines.append(json.dumps(ev, sort_keys=True))
+    return "\n".join(lines) + "\n" if lines else ""
+
+
+@pytest.mark.parametrize("case", sorted(c for c in CASES if c != "hc-gomea"))
+def test_the_trace_option_adds_only_its_fields(case, tmp_path):
+    stdout, log, events = run_case(CASES[case] + TRACE, tmp_path)
+    assert stdout == (REF / f"{case}.out").read_text()
+    assert log.replace(" " + " ".join(TRACE), "") == (REF / f"{case}.log").read_text()
+    assert strip_trace(events) == (REF / f"{case}.events.jsonl").read_text()
+
+
+RV_CLOCK_KEYS = frozenset({"eval_s", "step_s", "analyse_s"})
+
+
+def _without_rv_clocks(events: str) -> str:
+    """The canonical log without the wall-clock fields of the "rv" records."""
+    lines = []
+    for line in events.splitlines():
+        ev = json.loads(line)
+        if isinstance(ev.get("rv"), dict):
+            ev["rv"] = {k: v for k, v in ev["rv"].items() if k not in RV_CLOCK_KEYS}
+        lines.append(json.dumps(ev, sort_keys=True))
+    return "\n".join(lines) + "\n"
+
+
+def test_the_trace_option_does_not_change_an_rv_run(tmp_path):
+    rv = ["--gomea-rv-step", "rvg", "--gomea-rv-budget", "balance"]
+    argv = CASES["base-tls-m3000-r2"] + rv
+    (tmp_path / "off").mkdir()
+    (tmp_path / "on").mkdir()
+    off = run_case(argv, tmp_path / "off")
+    on = run_case(argv + TRACE, tmp_path / "on")
+    assert on[0] == off[0]
+    assert on[1].replace(" " + " ".join(TRACE), "") == off[1]
+    assert _without_rv_clocks(strip_trace(on[2])) == _without_rv_clocks(off[2])
+    assert '"rv": {' in off[2]  # RV ran
 
 
 if __name__ == "__main__":
