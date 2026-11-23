@@ -67,6 +67,10 @@ class hc_gomea_optimization(optimizer_base):
         if gp is not None and gp.const_opt_pole_check != "none":
             # server round 13: the pole check is defined for -a gomea demes only
             raise ValueError("const_opt_pole_check needs -a gomea, not the hc-gomea hybrid")
+        if gp is not None and gp.rv_step != "off":
+            # NOT A PORT, server round 16 (the RV16 review): the RV core is defined for -a gomea
+            # demes only (its deme index would count the GOMEA phases)
+            raise ValueError("rv_step needs -a gomea, not the hc-gomea hybrid")
         self.hc = hill_climbing(self.opt_params, hc if hc is not None else hc_parameters())
         self.gomea = gomea_optimization(self.opt_params, gp)
         self.gomea_params = self.gomea.gomea_params

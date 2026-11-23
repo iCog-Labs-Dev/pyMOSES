@@ -301,8 +301,9 @@ class gomea_parameters:
     optimizer (k = 0, 1, ...). ``rv_seed`` is the run seed (``-r``). The stream does not draw
     from the global ``randGen()``, so everything up to the first RV generation is the same as
     with ``"off"``. ``rv_step`` ``"rvg"`` needs ``contin`` ``"copy"`` and ``const_opt``
-    ``"none"``. ``rv_budget`` and ``rv_seed`` are left out of ``as_dict`` while ``rv_step``
-    is ``"off"``."""
+    ``"none"``. The CLI also refuses it without ``-a gomea`` and ``--linear-scaling terms``,
+    and ``hc_gomea_optimization`` refuses it (the RV16 review). ``rv_budget`` and ``rv_seed``
+    are left out of ``as_dict`` while ``rv_step`` is ``"off"``."""
 
     def __init__(
         self,
@@ -1203,10 +1204,12 @@ class gomea_optimization(optimizer_base):
         (and no count) when ``rv_step`` is ``"off"``. It also clears the RV core of the
         previous call.
 
-        The seed rule: the k-th call (k = 0, 1, ...; ``__call__`` and ``run_seeded``) of the
-        optimizer gets ``rv_core.rv_stream(rv_seed, k)``, with ``rv_seed`` the run seed
-        (``-r``). One optimizer serves one run, so k is the deme index of the run. The rule
-        does not draw from, or change, the global ``randGen()``."""
+        The seed rule: the k-th call (k = 0, 1, ...) of the optimizer gets
+        ``rv_core.rv_stream(rv_seed, k)``, with ``rv_seed`` the run seed (``-r``). Only
+        ``-a gomea`` can use the RV option (the CLI and ``hc_gomea_optimization`` refuse it
+        otherwise, the RV16 review), each ``__call__`` is one deme, and one optimizer serves
+        one run, so k is the deme index of the run. The rule does not draw from, or change,
+        the global ``randGen()``."""
         self._rv = None
         gp = self.gomea_params
         if gp.rv_step == "off":

@@ -164,6 +164,9 @@ class RVCore:
         self.prev_mu: dict[int, float] = {}  # the model mean of the previous RV generation
         self.pop_nis = 0  # AVS: the population no-improvement stretch
         self.nis: list[int] | None = None  # Algorithm 2: NIS per individual (index)
+        # The highest NIS of any individual at any time in the deme (a running maximum; the
+        # RV16 review, nit 4: ``max(self.nis)`` at the end missed the values before a reset).
+        self.nis_max_seen = 0
         self.absorbed: set[tuple[int, tuple]] = set()  # online cache: (gene, structure)
         self.init_requests = oracle.ledger.requests
         self.rv_evals = 0
@@ -518,11 +521,8 @@ class RVCore:
             for i in non_elite:
                 if not visited[i]:
                     continue  # DEPARTURE: no RV trial in this generation, no count
-                if improved_any[i] or self.ev.worse(start_scores[i], P[i].score):
-                    self.nis[i] = 0
-                else:
-                    self.nis[i] += 1
-                if self.nis[i] > NIS_MAX:
+                improved = improved_any[i] or self.ev.worse(start_scores[i], P[i].score)
+                if self._step_nis(i, improved):
                     self._forced_improvement(eng, P, i, live, nonzero, cnt)
                     self.nis[i] = 0
         except BudgetExhausted as exc:
@@ -546,6 +546,19 @@ class RVCore:
             **_c_stats(self.c, genes),
         )
         return P, rec, stop
+
+    def _step_nis(self, i: int, improved: bool) -> bool:
+        """Algorithm 2: the no-improvement stretch of individual ``i`` after an RV generation
+        (0 after an improvement, else one more), and the running maximum
+        ``nis_max_seen``. True when the stretch is above NIS_MAX (a forced improvement is
+        due)."""
+        if improved:
+            self.nis[i] = 0
+        else:
+            self.nis[i] += 1
+            if self.nis[i] > self.nis_max_seen:
+                self.nis_max_seen = self.nis[i]
+        return self.nis[i] > NIS_MAX
 
     def _adapt(self, p: int, mu: float, sd: float, improvers: list[float]) -> None:
         """Algorithm 3, AdaptMultiplier (SDR-AVS) for the univariate element ``p``."""
@@ -588,13 +601,17 @@ class RVCore:
                 if y == v or y == 0.0:
                     continue
                 trial, new = self._trial(g, {p: y})
+                r0 = self.rv_evals
                 try:
                     score = self._evaluate(trial)
                 except BaseException:
                     self._rollback(trial, new)
                     raise
-                cnt["fi_evals"] += 1
-                cnt["evals"] += 1
+                # Only charged evaluations count, as in ``_try`` (the RV16 review, nit 5: a
+                # memo hit charges 0).
+                charged = self.rv_evals - r0
+                cnt["fi_evals"] += charged
+                cnt["evals"] += charged
                 if self.ev.worse(P[i].score, score):
                     cnt["fi_improved"] += 1
                     ind = Individual(trial, score, self.ev.phenotype_key(trial))
@@ -621,5 +638,5 @@ class RVCore:
         d["absorbed_cache"] = len(self.absorbed)
         d["free_values"] = self.schema._n_free
         d["c_final"] = _c_stats(self.c, list(self.c))
-        d["nis_max_seen"] = max(self.nis) if self.nis else 0
+        d["nis_max_seen"] = self.nis_max_seen
         return d

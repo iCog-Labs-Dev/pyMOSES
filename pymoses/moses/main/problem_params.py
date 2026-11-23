@@ -887,6 +887,7 @@ def _gomea_params_from_args(args: argparse.Namespace) -> gomea_parameters:
         raise ValueError("--gomea-fos np does not support --gomea-knob-cap")
     _check_long_deme(v, cap, getattr(args, "opt_algo", None))
     _check_const_opt(v, getattr(args, "opt_algo", None))
+    _check_round16(v, getattr(args, "opt_algo", None))
     knob_explore = _check_knob_cap(v)
     return gomea_parameters(
         pop_size=v["gomea_pop_size"],
@@ -1023,6 +1024,17 @@ def _check_const_opt(v: dict, opt_algo: str | None) -> None:
         raise ValueError(
             f"--const-opt-pole-check {pole} and --const-opt-during {during} exclude each other"
         )
+
+
+def _check_round16(v: dict, opt_algo: str | None) -> None:
+    """NOT A PORT, server round 16 (the RV16 review): validate `--gomea-rv-step` against the
+    algorithm. `--linear-scaling` is checked where it is read (`problem_params.parse_options`).
+
+    * The RV core is defined for the demes of `-a gomea` only: `-a hc` and `-a hc-capped`
+      would ignore it, and in `-a hc-gomea` its deme index would count the GOMEA phases."""
+    step = v["gomea_rv_step"]
+    if step != "off" and opt_algo != "gomea":
+        raise ValueError(f"--gomea-rv-step {step} needs -a gomea, got -a {opt_algo}")
 
 
 def _check_knob_cap(v: dict) -> int | None:
@@ -1849,6 +1861,14 @@ class problem_params:
                 raise ValueError(
                     f"--linear-scaling terms does not support --const-opt-pole-check {pole}"
                 )
+        # NOT A PORT, server round 16 (the RV16 review): the inert rule of the RV core
+        # (`rv_inert.analyse`) assumes the per-term fit, so it would skip live genes as
+        # "absorbed" with --linear-scaling 0 or 1.
+        step = getattr(args, "gomea_rv_step", "off")
+        if step != "off" and ls != LINEAR_SCALING_TERMS:
+            raise ValueError(
+                f"--gomea-rv-step {step} needs --linear-scaling terms, got --linear-scaling {ls}"
+            )
         self.linear_scaling = ls
 
         # -- Set depth (C++: :2371-2372 `set_depth(contin_depth)`) --

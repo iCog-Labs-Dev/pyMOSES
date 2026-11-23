@@ -301,3 +301,155 @@ def test_the_first_deme_starts_as_in_the_off_run(budget, seed, tmp_path, monkeyp
     n_demes = sum(1 for e in ev_on if e["type"] == "invocation_start")
     assert st_on == [(int(seed), k) for k in range(n_demes)]
     assert st_off == []
+
+
+# -- the RV16 review (nits 3 to 6) -----------------------------------------------------------
+
+
+@pytest.mark.parametrize("algo", ["hc", "hc-capped", "hc-gomea", "sa", "un", "ps"])
+def test_the_cli_refuses_rvg_without_gomea(algo, tmp_path):
+    """Nit 3: -a hc and hc-capped ignored the flag; -a hc-gomea ran RV with a deme index that
+    counts the GOMEA phases. Every algorithm other than gomea is refused."""
+    argv = list(_ARGV)
+    argv[argv.index("-a") + 1] = algo
+    with pytest.raises(ValueError, match=f"--gomea-rv-step rvg needs -a gomea, got -a {algo}"):
+        _run(argv + ["--gomea-rv-step", "rvg"], tmp_path)
+
+
+@pytest.mark.parametrize("ls", ["0", "1"])
+def test_the_cli_refuses_rvg_without_linear_scaling_terms(ls, tmp_path):
+    """Nit 3: the inert rule assumes the per-term fit (it skipped live genes as "absorbed")."""
+    argv = list(_ARGV)
+    argv[argv.index("--linear-scaling") + 1] = ls
+    want = f"needs --linear-scaling terms, got --linear-scaling {ls}"
+    with pytest.raises(ValueError, match=want):
+        _run(argv + ["--gomea-rv-step", "rvg"], tmp_path)
+    # the off value is accepted as before
+    out, _ = _run(argv + ["--gomea-rv-step", "off", "-m", "200"], tmp_path)
+    assert "n_evals:" in out
+
+
+def test_the_hybrid_refuses_rvg():
+    from pymoses.gomea.hybrid import hc_gomea_optimization
+
+    gp = gomea_optimizer.gomea_parameters(contin="copy", rv_step="rvg")
+    with pytest.raises(ValueError, match="rv_step needs -a gomea, not the hc-gomea hybrid"):
+        hc_gomea_optimization(None, None, gp)
+    hc_gomea_optimization(None, None, gomea_optimizer.gomea_parameters(contin="copy"))
+
+
+def test_nis_max_seen_is_a_running_maximum():
+    """Nit 4: NIS goes back to 0 after an improvement (and after a forced improvement), so the
+    highest NIS seen can be above max(nis) at the end of the deme."""
+    core = _core()
+    assert core.record()["nis_max_seen"] == 0
+    core.nis = [0, 0, 0]
+    for _ in range(3):
+        assert core._step_nis(1, False) is False
+    assert core._step_nis(1, True) is False and core.nis == [0, 0, 0]
+    core._step_nis(2, False)
+    assert core.record()["nis_max_seen"] == 3  # max(self.nis) gives 1
+    core.nis = [NIS_MAX, 0]  # the population size changed: the maximum stays
+    assert core._step_nis(0, False) is True  # NIS_MAX + 1: a forced improvement is due
+    core.nis[0] = 0  # as _generation does after the forced improvement
+    assert core.record()["nis_max_seen"] == NIS_MAX + 1
+
+
+class _FISchema(_Schema):
+    """``_Schema`` with a decoder: a code below 4**depth is its own value."""
+
+    def contin_value(self, p, code):
+        base = 4 ** self.contin_depths[p]
+        return self._free_values[p][code - base] if code >= base else float(code)
+
+
+class _FIEv:
+    """An evaluator over ``_Oracle``: each trial is worse than the recipient; every second call
+    is a memo hit (charged 0), like the oracle's memo."""
+
+    def __init__(self, oracle):
+        self.oracle = oracle
+        self.calls = 0
+
+    def evaluate(self, g):
+        self.calls += 1
+        if self.calls % 2:
+            self.oracle.ledger.requests += 1
+        return -100.0
+
+    def worse(self, a, b):
+        return a < b
+
+    def phenotype_key(self, g):
+        return None
+
+
+class _FIEngine:
+    def __init__(self, elite):
+        self.elite = elite
+
+    def offer_elite(self, ind):
+        pass
+
+
+def test_forced_improvement_counts_only_charged_evaluations():
+    """Nit 5: fi_evals and evals counted each trial, also a memo hit; now they count the
+    charged evaluations, as _try does. rv_evals does not change."""
+    from collections import Counter
+
+    from pymoses.gomea.gom import Individual
+
+    oracle = _Oracle()
+    ev = _FIEv(oracle)
+    core = RVCore(_FISchema(), oracle, ev, MT19937RandGen(1), None)
+    elite = Individual((3, 5), -1.0, None)
+    P = [elite, Individual((1, 1), -50.0, None)]
+    cnt = Counter()
+    core._forced_improvement(_FIEngine(elite), P, 1, [{0, 1}, {0, 1}], [{0, 1}, {0, 1}], cnt)
+    # 6 blend factors (0.5 down to 0.015625) x 2 genes, none improves: P_1 becomes the elite
+    assert ev.calls == 12 and oracle.ledger.requests == 6 and core.rv_evals == 6
+    assert cnt["fi_triggers"] == 1 and cnt["fi_improved"] == 0 and cnt["fi_elite_copies"] == 1
+    assert cnt["fi_evals"] == 6 and cnt["evals"] == 6  # was 12 and 12
+    assert P[1] is elite
+    # every trial was rolled back: no free code is left
+    assert core.schema._n_free == 0
+
+
+def test_a_deme_that_ends_before_the_engine_has_no_rv_record(tmp_path):
+    """Nit 6 (the stale record fix of clone K): a deme that ends in its initial population
+    (here the budget runs out) gets "rv": null, not the totals of the deme before it."""
+    (tmp_path / "full").mkdir()
+    _, events = _run(_ARGV + ["--gomea-rv-step", "rvg"], tmp_path / "full")
+    first = next(e for e in events if e["type"] == "end")
+    assert isinstance(first["rv"], dict) and first["rv"]["generations"] > 0
+    used = first["ledger"]["requests"]
+    # the same run with a budget 5 evaluations above the first deme: the second deme stops
+    # after 5 evaluations of its initial population of 24
+    argv = _ARGV + ["--gomea-rv-step", "rvg"]
+    argv[argv.index("-m") + 1] = str(used + 5)
+    (tmp_path / "cut").mkdir()
+    out, events = _run(argv, tmp_path / "cut")
+    ends = [e for e in events if e["type"] == "end"]
+    assert len(ends) == 2 and _same_but_clocks(ends[0]["rv"], first["rv"])
+    assert ends[0]["ledger"] == first["ledger"]
+    assert ends[1]["termination_reason"] == "global_budget" and ends[1]["generations"] == 0
+    assert ends[1]["ledger"]["requests"] == 5 and ends[1]["rv"] is None
+    assert int(out.rsplit("n_evals:", 1)[1]) == used + 5
+    # the unit view of the fix: a new call clears the core of the call before it
+    gp = gomea_optimizer.gomea_parameters(contin="copy", rv_step="rvg", rv_seed=1)
+    opt = gomea_optimizer.gomea_optimization(None, gp)
+    opt._rv = "stale"
+    opt._rv_stream()
+    assert opt._rv is None
+
+
+_CLOCKS = frozenset({"eval_s", "step_s", "analyse_s", "timings"})
+
+
+def _same_but_clocks(a: dict, b: dict) -> bool:
+    def strip(x):
+        if isinstance(x, dict):
+            return {k: strip(v) for k, v in x.items() if k not in _CLOCKS}
+        return x
+
+    return strip(a) == strip(b)
