@@ -1,20 +1,23 @@
-"""Server rounds 11, 12, 13, 14 and 15: the fresh splits 31-40, 41-50, 51-60, 61-70 and 71-80
-(``SERVER-ROUND11-PREREGISTRATION.md`` to ``SERVER-ROUND15-PREREGISTRATION.md``, "Rules").
+"""Server rounds 11 to 16: the fresh splits 31-40, 41-50, 51-60, 61-70, 71-80 and 81-90
+(``SERVER-ROUND11-PREREGISTRATION.md`` to ``SERVER-ROUND16-PREREGISTRATION.md``, "Rules").
 
-``tools/gomea/sr_datasets.py`` writes splits 1-80, with the same split rule as before. Splits
-1-70 must stay byte-identical: the committed ``data/gomea-sr/<Abbr>/splits.json`` without the
-entries s31-s80 is the file of commit 5da6731, without the entries s41-s80 it is the file of
-commit ae876e7 (round 11), without the entries s51-s80 it is the file of commit cb1ccfe
-(round 12), without the entries s61-s80 it is the file of commit ad0c8d8 (round 13), and without
-the entries s71-s80 it is the file of commit 3b18ca6 (round 14). The rebuilt split files of
-s1-s30 of each committed dataset have the digest of a build at 5da6731, those of s31-s40 the
-digest of a build at ae876e7, those of s41-s50 the digest of a build at cb1ccfe, those of s51-s60
-the digest of a build at ad0c8d8, and those of s61-s70 the digest of a build at 3b18ca6.
-``tools/server/setup.sh`` verifies the 640 split files (80 splits x 8 files) of each dataset.
+``tools/gomea/sr_datasets.py`` writes splits 1-90, with the same split rule as before. Splits
+1-80 must stay byte-identical: the committed ``data/gomea-sr/<Abbr>/splits.json`` without the
+entries s31-s90 is the file of commit 5da6731, without the entries s41-s90 it is the file of
+commit ae876e7 (round 11), without the entries s51-s90 it is the file of commit cb1ccfe
+(round 12), without the entries s61-s90 it is the file of commit ad0c8d8 (round 13), without
+the entries s71-s90 it is the file of commit 3b18ca6 (round 14), and without the entries
+s81-s90 it is the file of commit 2d407b2 (round 15). The rebuilt split files of s1-s30 of each
+committed dataset have the digest of a build at 5da6731, those of s31-s40 the digest of a build
+at ae876e7, those of s41-s50 the digest of a build at cb1ccfe, those of s51-s60 the digest of a
+build at ad0c8d8, those of s61-s70 the digest of a build at 3b18ca6, and those of s71-s80 the
+digest of a build at 2d407b2. ``tools/server/setup.sh`` verifies the 720 split files (90
+splits x 8 files) of each dataset.
 
-Server round 15 also checks the column types of the new splits (``check_split_types.py``): for
-each committed dataset and split 71-80, the validation and test tables have the input types of
-the training table (``loadTable`` of pymoses and ``sr_eval.read_table``)."""
+Server rounds 15 and 16 also check the column types of the new splits
+(``check_split_types.py``): for each committed dataset and split 71-90, the validation and test
+tables have the input types of the training table (``loadTable`` of pymoses and
+``sr_eval.read_table``)."""
 
 from __future__ import annotations
 
@@ -100,6 +103,20 @@ ROUND14_SPLITS_JSON = {
     "WiW": "b5092efa712fde6063d780371a3d7751b23f4af165907b3acc65ca3251d12ddb",
     "Yac": "5d37f129955d7414bf54e9b06962cc588b0065bc84c4d4835466b9853a5d0ccf",
 }
+# SHA-256 of data/gomea-sr/<Abbr>/splits.json at commit 2d407b2 (splits 1-80, round 15; the
+# file of e09f779).
+ROUND15_SPLITS_JSON = {
+    "Air": "71da5d08c02a6b57f44c572b952e369080acae2945444d4464228614e0a7bc66",
+    "Bos": "2614224b27de93ca58016feaab8cb6a3a491de2584f4720670543e18be41ca6c",
+    "Con": "5627faa869b84ae9f5ab6a0fb7174ab2c19005341ddf8fac41fb304b0abb2b53",
+    "Dow": "b250cf78f199298fb911b0c04e1d99ae9023cb28fdf191be0fad177f63fa0c8b",
+    "EnC": "483508d575906bf1ec77c68438d282a6b89eb88df239ea1beee0907b806ef1bf",
+    "EnH": "dfc952199b0ffce71f90b5e38b12b9000498358e696fe650c6013a5b92f0795c",
+    "Tow": "d57597f8b2cb9674a8d1933281668832afa4734f439ab59ab5980d3e46ffc025",
+    "WiR": "0c9877d641bb00feb872069f21febc07cc3f66489604610a50d1058fbe16c7c3",
+    "WiW": "2e49f70b5be3c46d501a89fb8a276c8fafdf6ba4230bb5207578b05badf0bb7c",
+    "Yac": "00f0956ec2c7dec74bd37aadf8066233dd196e60f5b22e3f9e208d11a78ee560",
+}
 # _digest(<build>/<Abbr>, range(1, 31)) of a build with sr_datasets.py at commit 5da6731
 # (``sr_datasets.py OUT ABBR --from-full data/gomea-sr``).
 OLD_FILES = {
@@ -170,6 +187,20 @@ ROUND14_FILES = {
 }
 
 
+# _digest(<build>/<Abbr>, range(71, 81)) of a build with sr_datasets.py at commit 2d407b2
+# (round 15, splits 1-80; ``sr_datasets.build(OUT, ABBR, True, from_full=data/gomea-sr)``).
+ROUND15_FILES = {
+    "Air": "9d78fc02c7dc0d11cc28ea1d08fbe4aa44747d30cd8b623fef0c7b35011528e0",
+    "Bos": "1d9791e512441f3f80bd86fe8950bf15a1cb433385e0731b453a78c651b6fce4",
+    "Con": "76171241ba5277c84d48317768e83a704abcdbf40841b09c5462b99989d90051",
+    "EnC": "4b9c9f07e372c71e266f6a8ac11900ca145d02de29a37f8476b232fb19c3598c",
+    "EnH": "9322ee403df7fe78ed5d294c8f259191253694b1f777ea7b03c46561665afccb",
+    "WiR": "cf38075227350b7c021a0176b031854bb2cabeb69669c6169eb2c5311ac3261c",
+    "WiW": "55524dbd2fae263d67a44577bb28e9a221459f268c3b6a9bc4179bf00913fc71",
+    "Yac": "5f5e18e99fbb7226de134a50ab8b8319a03fe90ee33780023f4ffe4c990be1bd",
+}
+
+
 def _digest(ddir: Path, seeds) -> str:
     """SHA-256 over the name and the bytes of every split file of ``seeds``, in order."""
     h = hashlib.sha256()
@@ -180,8 +211,8 @@ def _digest(ddir: Path, seeds) -> str:
     return h.hexdigest()
 
 
-def test_split_seeds_are_1_to_80():
-    assert sd.SEEDS == range(1, 81)
+def test_split_seeds_are_1_to_90():
+    assert sd.SEEDS == range(1, 91)
 
 
 def _sha_without_splits_above(d: dict, last: int) -> str:
@@ -190,31 +221,32 @@ def _sha_without_splits_above(d: dict, last: int) -> str:
 
 
 @pytest.mark.parametrize("abbr", list(sd.DATASETS))
-def test_committed_splits_json_keeps_splits_1_to_70(abbr):
+def test_committed_splits_json_keeps_splits_1_to_80(abbr):
     d = json.loads((SRC / abbr / "splits.json").read_text())
-    assert list(d["splits"]) == [f"s{k}" for k in range(1, 81)]
+    assert list(d["splits"]) == [f"s{k}" for k in range(1, 91)]
     assert _sha_without_splits_above(d, 30) == OLD_SPLITS_JSON[abbr]
     assert _sha_without_splits_above(d, 40) == ROUND11_SPLITS_JSON[abbr]
     assert _sha_without_splits_above(d, 50) == ROUND12_SPLITS_JSON[abbr]
     assert _sha_without_splits_above(d, 60) == ROUND13_SPLITS_JSON[abbr]
     assert _sha_without_splits_above(d, 70) == ROUND14_SPLITS_JSON[abbr]
+    assert _sha_without_splits_above(d, 80) == ROUND15_SPLITS_JSON[abbr]
 
 
 @pytest.mark.parametrize("abbr", list(sd.DATASETS))
-def test_splits_31_to_80_are_new_rows_orders(abbr):
-    """Each fresh split has its own row order: no test set of s31-s80 is one of another
+def test_splits_31_to_90_are_new_rows_orders(abbr):
+    """Each fresh split has its own row order: no test set of s31-s90 is one of another
     split."""
     s = json.loads((SRC / abbr / "splits.json").read_text())["splits"]
-    tests = [s[f"s{k}"]["row_indices_sha256"]["test"] for k in range(1, 81)]
-    assert len(set(tests)) == 80
-    for k in (31, 41, 51, 61, 71):
+    tests = [s[f"s{k}"]["row_indices_sha256"]["test"] for k in range(1, 91)]
+    assert len(set(tests)) == 90
+    for k in (31, 41, 51, 61, 71, 81):
         assert s[f"s{k}"]["rng"] == s["s1"]["rng"].replace(f'"{abbr}-s1"', f'"{abbr}-s{k}"')
         assert f'"{abbr}-s{k}"' in s[f"s{k}"]["rng"]
-    assert all(s[f"s{k}"]["sizes"] == s["s1"]["sizes"] for k in range(31, 81))
+    assert all(s[f"s{k}"]["sizes"] == s["s1"]["sizes"] for k in range(31, 91))
 
 
 @pytest.mark.parametrize("abbr", COMMITTED)
-def test_rebuilt_split_files_1_to_70_are_byte_identical(abbr, tmp_path):
+def test_rebuilt_split_files_1_to_80_are_byte_identical(abbr, tmp_path):
     info = sd.build(tmp_path, abbr, True, from_full=SRC)
     assert info["splits_json_matches"] == str(SRC / abbr / "splits.json")
     assert _digest(tmp_path / abbr, range(1, 31)) == OLD_FILES[abbr]
@@ -222,12 +254,13 @@ def test_rebuilt_split_files_1_to_70_are_byte_identical(abbr, tmp_path):
     assert _digest(tmp_path / abbr, range(41, 51)) == ROUND12_FILES[abbr]
     assert _digest(tmp_path / abbr, range(51, 61)) == ROUND13_FILES[abbr]
     assert _digest(tmp_path / abbr, range(61, 71)) == ROUND14_FILES[abbr]
-    for seed in range(71, 81):
+    assert _digest(tmp_path / abbr, range(71, 81)) == ROUND15_FILES[abbr]
+    for seed in range(81, 91):
         assert sorted(p.name for p in (tmp_path / abbr / "splits" / f"s{seed}").iterdir()) == \
             sorted(FILES)
-    # server round 15: the new splits have the column types of their training table
-    report = check_split_types.check(tmp_path, [abbr], range(71, 81))
-    assert report["splits_checked"] == 10
+    # server rounds 15 and 16: the new splits have the column types of their training table
+    report = check_split_types.check(tmp_path, [abbr], range(71, 91))
+    assert report["splits_checked"] == 20
     assert report["passed"] and report["val_differ"] == [] and report["test_differ"] == []
 
 
@@ -245,7 +278,7 @@ def test_the_type_check_finds_a_validation_table_with_other_types(tmp_path):
     assert report["details"]["X/s1"]["bool_cols"] == {"train": [1], "val": [0, 1], "test": [1]}
 
 
-def test_setup_verifies_the_files_of_80_splits():
+def test_setup_verifies_the_files_of_90_splits():
     text = (REPO / "tools" / "server" / "setup.sh").read_text()
     body = text.split("dataset_ok() {", 1)[1].split("\n}\n", 1)[0]
     assert f'-type f | wc -l)" -eq {8 * len(sd.SEEDS)} ]' in body

@@ -1205,6 +1205,156 @@
     "test": "25bb15e436bc4711b1e9a16768a7175620713495a7ac9fe77298c7a96f2f2e88",
     "trainval": "4d5ed0282ef1f333bd3c2997b3e95725feb1daca7d870072227e67b78c9fff20"
    }
+  },
+  "s81": {
+   "rng": "random.Random(\"Tow-s81\").shuffle(range(4999))",
+   "sizes": {
+    "train": 2501,
+    "val": 1249,
+    "test": 1249,
+    "trainval": 3750
+   },
+   "row_indices_sha256": {
+    "train": "eab85239789ac658468e1c38c61db4ab121ec0f2dbc8e2bcfcc4a4108f28316e",
+    "val": "55045eb7a32e23aaf351ef26109b68f6c11630772ad03b53c4141df7d25648c8",
+    "test": "485b6d3c789dd8edb2535ddb59f93ebfd2c82dae7e91dbaa915c6863925520c4",
+    "trainval": "f715deb7cbddb80f3211a409eca40b4436c386516f0ef2088bbbcf9e28614037"
+   }
+  },
+  "s82": {
+   "rng": "random.Random(\"Tow-s82\").shuffle(range(4999))",
+   "sizes": {
+    "train": 2501,
+    "val": 1249,
+    "test": 1249,
+    "trainval": 3750
+   },
+   "row_indices_sha256": {
+    "train": "071227af4c77b8142bba1bb01e8cfba27804c68fd3d8dfe597347ef9071ae9b9",
+    "val": "dc3c99cd59d3162baef3702cce85f86f033a6bd95f590fb3a1ad32e96d19bb4d",
+    "test": "50126b0be0d308b612efeaa93bd7ba3f704af5d4f135018a98d470a2ce741ad8",
+    "trainval": "1faaaeebd69a58161ca04cb4f2387dc2bca5ae8fb2fa2c0483c284c4b955a8aa"
+   }
+  },
+  "s83": {
+   "rng": "random.Random(\"Tow-s83\").shuffle(range(4999))",
+   "sizes": {
+    "train": 2501,
+    "val": 1249,
+    "test": 1249,
+    "trainval": 3750
+   },
+   "row_indices_sha256": {
+    "train": "15f496c20aee9a74c7aa4e42036935aac10f5865fb4b1e17e9226e7b8f3e7d67",
+    "val": "36d9eb6f793d5435e1623c585d861ccc49c2e661a00f339eabc950f4906cb1cb",
+    "test": "699cf348b45fee4d43367e9ee8bc48dfce6dcd5306e7682825640abe0631a76c",
+    "trainval": "5f80463141ffeb88e5ed3c3a4c113ff1a826766e1c37316864f1a59bce7779bc"
+   }
+  },
+  "s84": {
+   "rng": "random.Random(\"Tow-s84\").shuffle(range(4999))",
+   "sizes": {
+    "train": 2501,
+    "val": 1249,
+    "test": 1249,
+    "trainval": 3750
+   },
+   "row_indices_sha256": {
+    "train": "777afdbd8b1a2299d2c3a8c05b8258ce5739d051d12a72ff5f3987389c1c4394",
+    "val": "c8174315988b1035f1f067767900d0b4b62b1057fcbec3bb975ef2191b51d8c1",
+    "test": "da19f5481415fc7d3596fc07a09134fa76837f2dfefa196458d56939f257b34b",
+    "trainval": "c631716e9a88c2899221ff54ffb968894f26fb7c4648978c596bd28613d93762"
+   }
+  },
+  "s85": {
+   "rng": "random.Random(\"Tow-s85\").shuffle(range(4999))",
+   "sizes": {
+    "train": 2501,
+    "val": 1249,
+    "test": 1249,
+    "trainval": 3750
+   },
+   "row_indices_sha256": {
+    "train": "40a3b31f07d8db9f8cf4aaded8471e1fe7eb13f89554b431adea97c924e4d23b",
+    "val": "e57a58c59dce3113fad9369aa3fe0bb26c4db6cf2c6851c4ed750bb288dc1b33",
+    "test": "6c07bec03d8ac5c927d5fa247247da1b15ddfe74222094a169e79e80b5c2dcb3",
+    "trainval": "2df4988760af494c1372c6e2d8190b193cb18cc1a5f2f97a1b3afcc33d70af43"
+   }
+  },
+  "s86": {
+   "rng": "random.Random(\"Tow-s86\").shuffle(range(4999))",
+   "sizes": {
+    "train": 2501,
+    "val": 1249,
+    "test": 1249,
+    "trainval": 3750
+   },
+   "row_indices_sha256": {
+    "train": "d8f2126fc7760103add9a62847d5f117303963bc15335252e12bd2a4f8e540d0",
+    "val": "1997ad93e3ce8af570062dd84090cfea42c4dad83047e5c374198889edd584f6",
+    "test": "9572a209ed075f7582148758a53a2b3b9e3c3472ba57dc33c175b34c63a81ea7",
+    "trainval": "45855625f78dcd7fde60a4f1e3b108c4266e177c5d7a5a10248c20ae97b6249f"
+   }
+  },
+  "s87": {
+   "rng": "random.Random(\"Tow-s87\").shuffle(range(4999))",
+   "sizes": {
+    "train": 2501,
+    "val": 1249,
+    "test": 1249,
+    "trainval": 3750
+   },
+   "row_indices_sha256": {
+    "train": "e4dc180dfefa8f416f89c7e388d20c7b55d5597318c5bf918ddf7a7e6e577e06",
+    "val": "20378d46e0d70ba21f68f0413a55e7a077bda9891a6d10a62afd0d3add22796f",
+    "test": "5e8fb269fd979f9526172174ab519a0b3671c33acee7f6b7cfb94184d1d7ca5a",
+    "trainval": "8a3a579aa44bb68cfbd3ac5012bdb3f1783ec4667ea59d51491b2391611015ee"
+   }
+  },
+  "s88": {
+   "rng": "random.Random(\"Tow-s88\").shuffle(range(4999))",
+   "sizes": {
+    "train": 2501,
+    "val": 1249,
+    "test": 1249,
+    "trainval": 3750
+   },
+   "row_indices_sha256": {
+    "train": "ee9e81a28e5be2a96680ba3704b60db9e50282c563e4e99685d49c52f08bab42",
+    "val": "b79eaed3743f2cfd3c3be921c338515aa8b7d523d4da129273dbce8470b0b88e",
+    "test": "e14b0e4c47e21a03725ebef6f700da6998df5cfa21801a3266505568d7bb1b4d",
+    "trainval": "2b77875f61fd0878ace5905da65bc4f34c526705a46b4e40c8b8841dbfca26cf"
+   }
+  },
+  "s89": {
+   "rng": "random.Random(\"Tow-s89\").shuffle(range(4999))",
+   "sizes": {
+    "train": 2501,
+    "val": 1249,
+    "test": 1249,
+    "trainval": 3750
+   },
+   "row_indices_sha256": {
+    "train": "1cd8b3aa5fc3596ac1fceb27f5ae8eab6a4a2da81ee484e16acd11dc1672a245",
+    "val": "b2feb6c4d2428e040cbf4c7b774b9850d155eea35670a5fec6c5b018056f9b4e",
+    "test": "4b8f81b94ce4fecb435e45f409fbc11c80e9b5f3c680d5bcf5b291c36c0d8d45",
+    "trainval": "86ce6b2aebcad851d35e688df36c45d9c8a418e7dcdf49497c0f890615e4088e"
+   }
+  },
+  "s90": {
+   "rng": "random.Random(\"Tow-s90\").shuffle(range(4999))",
+   "sizes": {
+    "train": 2501,
+    "val": 1249,
+    "test": 1249,
+    "trainval": 3750
+   },
+   "row_indices_sha256": {
+    "train": "41fcdd2e24e77ca60c7395b1885fee5a61045ca7c069951fe2f396887be1678d",
+    "val": "ccbd43e44c9cf43e752449d2a66946888b7228e4c8783a7ba48bb617c639bbcf",
+    "test": "24a1fb49e189d42ff1d7d7d7adc94e18aa3961df998e12eedbea809fe483f38d",
+    "trainval": "bd5f8212da7e2e4dc80ef0da4897d736bcf34f147296da5feea529c6c988a28a"
+   }
   }
  }
 }

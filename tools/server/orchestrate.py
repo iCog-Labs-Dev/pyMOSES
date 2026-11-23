@@ -483,8 +483,8 @@ class Round:
         if req.startswith("datasets:"):
             # round 3: datasets that setup.sh builds (Dow and Tow are downloaded). Round 11:
             # "datasets:A,B,...:LO-HI" also needs the splits sLO..sHI of each dataset (their
-            # train, val and test tables); setup.sh builds splits 1-80 (41-50: round 12,
-            # 51-60: round 13, 61-70: round 14, 71-80: round 15).
+            # train, val and test tables); setup.sh builds splits 1-90 (41-50: round 12,
+            # 51-60: round 13, 61-70: round 14, 71-80: round 15, 81-90: round 16).
             names, _, span = req.split(":", 1)[1].partition(":")
             splits = []
             if span:
