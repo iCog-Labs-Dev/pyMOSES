@@ -8,7 +8,8 @@ the report additions of ``phase_report.py`` and ``budget_report.py``.
   program_size, cpu_s) from summaries of ``moses_sr_runner.py`` (a real summary of the runner
   with a fake pyMoses is the template of the made-up runs);
 * the descriptive tables of the new spec keys ``"anytime_ratios"``, ``"deme_table"`` and
-  ``"rv_table"``, by hand;
+  ``"rv_table"``, by hand; ``anytime_ratios`` also on summaries whose ``anytime`` comes from
+  the exact trace (``--gomea-trace 1``, the RV16 review, finding 1);
 * byte identity: for every spec.json of ``configs/gomea/`` at 2d407b2 (the commit before these
   changes), the report files and the stdout of the report at 2d407b2 and now are the same, on
   made-up runs that also have the round 16 summary fields.
@@ -33,7 +34,7 @@ sys.path.insert(0, str(TOOLS))
 import budget_report as br  # noqa: E402
 import moses_sr_runner as runner  # noqa: E402
 import phase_report  # noqa: E402
-from round16_data import TWO_DEMES, gomea_log, job  # noqa: E402
+from round16_data import DIGEST, TWO_DEMES, TWO_DEMES_TRACE, gomea_log, job  # noqa: E402
 
 OLD = "2d407b2"  # the commit before the round 16 report changes
 CFG = REPO / "configs" / "gomea"
@@ -111,6 +112,17 @@ def template(tmp_path_factory) -> dict:
                             plain_nmse=True))
     assert s["status"] == "ok" and {"rv", "demes", "anytime", "terms"} <= set(s)
     assert s["terms"]["n_terms"] == 2 and s["terms"]["fallback"] is False
+    return s
+
+
+@pytest.fixture(scope="module")
+def template_trace(tmp_path_factory) -> dict:
+    """`template`, but the log has the trace of `--gomea-trace 1` (the RV16 review)."""
+    work = tmp_path_factory.mktemp("template_trace")
+    log = gomea_log(TWO_DEMES, traces=TWO_DEMES_TRACE, digest=DIGEST)
+    s = runner._run_one(job(work, log, anytime=True, clip_test_nmse=True, plain_nmse=True))
+    assert s["status"] == "ok" and s["anytime_source"] == "trace"
+    assert s["init_genotypes_sha256"] == DIGEST
     return s
 
 
@@ -206,6 +218,36 @@ def test_the_anytime_ratios_by_hand(template, tmp_path):
     con = rows[("Con", "TLS-RV", 0.5)]
     assert con["pairs"] == "9" and con["missing"] == "1"  # the failed run
     assert float(con["median_ratio"]) == pytest.approx(1.1, rel=1e-3)
+
+
+def test_the_anytime_ratios_on_trace_summaries(template_trace, tmp_path):
+    """The RV16 review (finding 1): `budget_report.py` does not change; with summaries whose
+    `anytime` comes from the trace, every checkpoint has a value, so the 1 and 2 % rows have
+    pairs (with the generation records they had none, see the test above)."""
+    root = tmp_path / "r"
+    _make_runs(root, template_trace, _factor, fail={("Con", "TLS-RV", 81)})
+    out = tmp_path / "out"
+    assert phase_report.main(["--stage", "1", str(SPEC), str(out), str(root)]) == 0
+    rows = {(r["problem"], r["arm"], float(r["frac"])): r
+            for r in _rows(out / "anytime_ratios.csv")}
+    assert len(rows) == 4 * 8 * 7
+    # the template: the trace raw scores of TWO_DEMES_TRACE at the checkpoints of 1,000
+    raws = [-850.0, -850.0, -800.0, -600.0, -600.0, -580.0, -500.0]
+    n, var = template_trace["n_train"], template_trace["anytime_check"]["var_scaled_target"]
+    assert [p["best_train_nmse"] for p in template_trace["anytime"]] == pytest.approx(
+        [100.0 * (-r / n) / var for r in raws], rel=1e-12)
+    for frac, evals in zip(FRACS, (10, 20, 50, 100, 200, 500, 1000), strict=True):
+        r = rows[("pooled", "TLS-RV-100K", frac)]
+        assert r["pairs"] == "70" and r["missing"] == "0", frac
+        assert float(r["evals"]) == evals
+        assert float(r["median_ratio"]) == pytest.approx(0.7 / 0.9, rel=1e-3)
+        assert r["arm_lower"] == "70" and r["reference_lower"] == "0"
+        con = rows[("Con", "TLS-RV", frac)]
+        assert con["pairs"] == "9" and con["missing"] == "1"  # the failed run
+        assert float(con["median_ratio"]) == pytest.approx(1.1, rel=1e-3)
+    r = rows[("pooled", "TLS-RV-100K", 0.01)]
+    assert float(r["median_arm"]) / float(r["median_reference"]) == pytest.approx(0.7 / 0.9,
+                                                                                   rel=1e-3)
 
 
 def test_the_deme_and_rv_tables_by_hand(template, tmp_path):

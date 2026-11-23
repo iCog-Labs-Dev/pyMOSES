@@ -9,8 +9,12 @@ the same budget). It writes OUT_DIR/anytime_ratios.csv (`ANYTIME_FIELDS`): for e
 `metrics`, then for all problems together (problem "pooled"), each arm and each checkpoint
 `frac` of `ANYTIME_FRACTIONS`, the pairs (problem, seed) where both runs are ok and both have a
 value `best_train_nmse` at that checkpoint (the `anytime` record of the summary). `missing`
-counts the other pairs (a failed run, or no value: the GOMEA log has no record before the
-checkpoint). `median_ratio` is the median over the pairs of arm / reference (a reference value
+counts the other pairs (a failed run, or no value). With the trace of `--gomea-trace 1` (the RV16
+review, finding 1; the summary's `anytime_source` is "trace") the value is the exact best-so-far
+training NMSE, and it is missing only before the first evaluation of the run. Without the trace
+(`anytime_source` "generations") the value is missing when the GOMEA log has no record before
+the checkpoint. The table reads only `best_train_nmse` and `evals`, so it is the same code for
+both sources. `median_ratio` is the median over the pairs of arm / reference (a reference value
 0 gives 1 when the arm value is also 0, else infinity); `arm_lower`, `reference_lower` and
 `ties` count the pairs; `median_arm` and `median_reference` are the medians of the two values
 over the pairs; `evals` is the median checkpoint of the arm's runs (in evaluations).
