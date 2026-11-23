@@ -363,7 +363,8 @@ def test_s0_of_the_smoke_runs_the_new_tests():
     s0 = load(SERVER / "plan16-smoke.json")["steps"][0]
     args = s0["pytest"]["args"]
     for t in ("tests/server", "tests/gomea/test_sr_datasets.py",
-              "tests/gomea/test_round16_runner.py", "tests/gomea/test_round16_report.py"):
+              "tests/gomea/test_round16_runner.py", "tests/gomea/test_round16_report.py",
+              "tests/gomea/test_rv_core.py", "tests/gomea/test_rv_step_identity.py"):
         assert t in args
     for t in args:
         assert (REPO / t).exists(), t
