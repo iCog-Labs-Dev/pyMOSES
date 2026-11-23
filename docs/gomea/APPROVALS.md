@@ -665,3 +665,23 @@ user confirms it.
     Yac, Dow, Tow; training NMSE only; an arm passes if its median ratio against `off` is at most
     1.00 and it is lower in at least 8 of 15 runs). The user can stop or change it.
   * Not approved: any code on the branch, a pre-registration, a push.
+* **T3.2 spike 2 result and the budget round (2026-11-23):** the agent reported that all three arms
+  of spike 2 failed the gate (`rvg` 1.234, `rvg-cap` 1.285, `rvg-late` 1.027), the seed confound,
+  the deme counts and the progression of the best-so-far training error, and recommended to stop
+  T3.2. The user asked whether the fixed problems would give a better result, how GP-RV-GOMEA
+  compares with GP-GOMEA, whether the per-generation cap was set (the agreed cap was per deme, 15 %,
+  in `rvg-cap` only; it held), and how many demes the RV arms had. Then the user asked: "Can we test
+  if increasing the number of evaluation for everyone has a better effect in the long term? [...] I
+  don't want to run this on the local machine if you think it would take longer but I do want to
+  know how much better the result is going to be in the end and make sure we cover all of our bases
+  so that we can understand this better." The agent proposed a server round (arms `off`, `rvg`,
+  `rvg-late`; 20,000 and 100,000 evaluations; 7 data sets; 10 fresh splits; the seed fix first) and
+  asked about 7 or 10 data sets and TLS-LMR. The user answered: "Yes I agree lets run it on the
+  server, let me know when you are done with all the fixes you need to do so I can start setting it
+  up on the server."
+  * User decisions: server round 16 with 20,000 and 100,000 evaluations for every arm (the user's
+    idea); the agent builds everything first.
+  * Agent reading, not confirmed: "I agree" approves the proposal as written: 7 data sets, no
+    TLS-LMR (the user did not answer these two questions). The pre-registration draft
+    (`SERVER-ROUND16-PREREGISTRATION.md`) says so.
+  * Not approved: the pre-registration text, a push.
