@@ -98,7 +98,7 @@ def anytime_rows(spec: dict, runs: dict, problems: list[str]) -> list[dict]:
                 ratios, va, vb, evals, missing = [], [], [], [], 0
                 for p in probs:
                     ra, rb = runs.get(p, {}).get(arm, {}), runs.get(p, {}).get(ref, {})
-                    for k in sorted(set(ra) & set(rb), key=str):
+                    for k in sorted(set(ra) & set(rb)):
                         a, ea = _checkpoint(ra[k], frac)
                         b, _ = _checkpoint(rb[k], frac)
                         if ea is not None:

@@ -167,6 +167,10 @@ def test_anytime_records_take_the_best_raw_score_up_to_each_checkpoint(tmp_path)
     assert check["first_score_train_nmse"] == 50.0 and check["search_rel_diff"] == 0.0
     assert check["log_best_raw"] == -500.0 and check["log_best_is_first"] is True
     assert check["log_best_rel_diff"] == 0.0 and check["log_evals_total"] == 1000
+    assert check["log_evals_match_n_evals"] is None  # n_evals not given
+    _, c2 = runner.anytime_records(ev, 1000, 10, 100.0, n_evals=1000)
+    _, c3 = runner.anytime_records(ev, 1000, 10, 100.0, n_evals=999)
+    assert c2["log_evals_match_n_evals"] is True and c3["log_evals_match_n_evals"] is False
     assert check["rule"] == "100 * (-raw / n_train) / var(y_scaled)"
 
 
@@ -220,6 +224,7 @@ def test_run_one_writes_rv_and_with_the_key_the_checkpoints(tmp_path):
     assert chk["first_score_train_nmse"] == pytest.approx(100.0 * 10.0 / s["n_train"] / 100.0)
     assert chk["search_rel_diff"] == pytest.approx(
         abs(chk["first_score_train_nmse"] - s["first_train_nmse"]) / s["first_train_nmse"])
+    assert s["n_evals"] == 1000 and chk["log_evals_match_n_evals"] is True
     disk = json.loads((tmp_path / "a" / "run" / "summary.json").read_text())
     assert disk["anytime"] == s["anytime"] and disk["demes"] == s["demes"]
 

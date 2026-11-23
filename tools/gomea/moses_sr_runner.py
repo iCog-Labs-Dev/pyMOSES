@@ -162,8 +162,9 @@ other values do not change).**
     relative difference (float32 scores: at most 5.2e-8 on the spike runs). Also the best raw
     score of the log, its conversion, whether it is the score of the first printed candidate
     (`log_best_is_first`; MOSES prints by the penalized score, so the log can have a better
-    raw score) and its relative difference to `first_train_nmse` (`log_best_rel_diff`). No
-    check fails on these values.
+    raw score) and its relative difference to `first_train_nmse` (`log_best_rel_diff`), and
+    whether the evaluations of the log (`log_evals_total`) are `n_evals`
+    (`log_evals_match_n_evals`). No check fails on these values.
 
 The MOSES seed is the split number. Runs are resumable: an existing `summary.json` is
 kept.
@@ -542,6 +543,7 @@ def _run_one(job: dict) -> dict:
             _scaled_target_var(run_dir / "train_scaled.csv"),
             first_score=cands[0][0] if cands else None,
             first_train_nmse=first.get("train_nmse"),
+            n_evals=summary["n_evals"],
         ) if events.exists() else (None, None)
     if seed_rec is not None:
         summary["moses_cpu_s"] = summary["cpu_s"]
@@ -1061,9 +1063,11 @@ def _rel_diff(a: float | None, b: float | None) -> float | None:
 
 def anytime_records(events: Path, budget_evals: int, n_train: int, var_scaled: float | None,
                     first_score: float | None = None,
-                    first_train_nmse: float | None = None) -> tuple[list[dict], dict]:
+                    first_train_nmse: float | None = None,
+                    n_evals: int | None = None) -> tuple[list[dict], dict]:
     """Server round 16: the `anytime` records and the `anytime_check` record of a run (see the
-    module docstring). `budget_evals` is the run's evaluation budget E."""
+    module docstring). `budget_evals` is the run's evaluation budget E; `n_evals` the run's
+    evaluation count of MOSES's output (null: not known)."""
     walk = _deme_walk(_read_events(events))
     points = sorted(p for d in walk for p in d["points"])
     total = sum(d["requests"] for d in walk)
@@ -1096,6 +1100,7 @@ def anytime_records(events: Path, budget_evals: int, n_train: int, var_scaled: f
                               and log_best == float(first_score)),
         "log_best_rel_diff": _rel_diff(log_nmse, first_train_nmse),
         "log_evals_total": total,
+        "log_evals_match_n_evals": None if n_evals is None else total == n_evals,
     }
     return out, check
 
