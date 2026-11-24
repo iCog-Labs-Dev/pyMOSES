@@ -718,3 +718,10 @@ user confirms it.
   * Agent reading, not confirmed: the reserve of 500 is part of TLS-LMR as named; the reserve as a
     setting of its own stays undecided.
   * Not changed: round 16 (pushed, its arms stay) and the CLI defaults.
+* **HC-LM at 100,000 evaluations as the round after round 16 (2026-11-24):** the user asked whether
+  more evaluations can show the difference between BASE-TLS and HC-LM. The agent showed the late
+  progress per dataset (rounds 13 and 14), said that round 16 has no HC-LM arm, and proposed a
+  follow-up round paired with round 16. The user answered: "Yes".
+  * User decision: the follow-up round goes in the backlog as the next round after round 16
+    (`BACKLOG.md` 15.2, `ROADMAP.md`).
+  * Not approved: its design, a pre-registration, any code.

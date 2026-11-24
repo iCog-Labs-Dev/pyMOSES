@@ -789,6 +789,28 @@ is started or approved.
      * A check first: no run and no test has used `--linear-scaling terms` with HC. The CLI does not
        refuse it. Run a small test before any round.
 
+2. **The round after round 16: HC-LM (and HC-TLS) at 20,000 and 100,000 evaluations.** Origin: the
+   user's question (2026-11-24: "Do you think more evaluation can show the difference in the
+   BASE-TLS and HC-LM? Because on most of the dataset where HC-LM won, it's accuracy stagnates while
+   the BASE-TLS still shows some type of progress?"); the user asked to add it as the next round
+   after round 16. The design is agent-written. Not started; no pre-registration yet.
+   * **Evidence (rounds 13 and 14, training curves, median per dataset; post hoc, agent analysis):**
+     on Boston, HC-LM stalls (gain from 15,000 to 20,000: 0.2 % and 1.9 %) while BASE-TLS still
+     gains (14.4 % and 7.8 %), and the gap closes in both rounds (HC-LM / BASE-TLS 0.69 → 0.85 and
+     0.67 → 0.76). Concrete: the rounds disagree. Yacht and Airfoil: HC-LM keeps pace and the gap
+     stays (about 0.39–0.44 and 0.9). On Dow, Energy and Tower, HC-LM stalls (0–6 %) and BASE-TLS
+     gains 20–49 %, so the gaps there grow. Round 16 has no HC-LM arm, so it cannot show this.
+   * **Sketch:** HC-LM (the round 14 flags) at 20,000 and 100,000 evaluations; HC-TLS (15.1) at both
+     budgets if its check passes; the 7 datasets and splits 81–90 of round 16, so that each run pairs
+     with the round 16 BASE-TLS and BASE-TLS-100K run of the same split and seed. The HC code must
+     not change between the two rounds (or the pairing is lost).
+   * **Questions:** does the HC-LM / BASE-TLS ratio change from 20,000 to 100,000 (the interaction
+     contrast of round 16)? Per dataset, descriptive: does BASE-TLS catch up on Boston and Concrete?
+   * **Cost (agent estimate, not measured):** HC-LM about 13 CPU-h at 20,000 and about 65 CPU-h at
+     100,000, so about 7–8 h on the server. A local pilot first (memory and time), as in round 16.
+   * **Open:** the HC deme cap (the user's rule of 2026-10-15; HC-LM so far ran with no cap as the
+     accuracy baseline); whether HC-TLS joins (15.1).
+
 ## 8. Future directions from the literature search (2026-11-06)
 
 Source: the literature search of 2026-11-06 (`docs/gomea/LITERATURE-2026-11-06.md`). Start only after rounds 6 to 8 give a

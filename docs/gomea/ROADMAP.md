@@ -169,6 +169,9 @@ is done when the user has decided on them.
 
 * Each tier 2 task starts with a feasibility note: what code exists, what is new, what it breaks,
   and the estimated effort. The user decides on the note before any design.
+* **After round 16 (user, 2026-11-24):** the next round runs HC-LM, and HC-TLS if it is ready, at
+  20,000 and 100,000 evaluations on the round 16 datasets and splits 81–90, paired with the round 16
+  runs (`BACKLOG.md` 15.2).
 
 ## Control and low priority
 
