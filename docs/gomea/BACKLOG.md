@@ -763,6 +763,32 @@ is started or approved.
 6. **The slot-swap problem** (a monomial in 3–3.75 slots, up to 8) is real; a canonical slot order or
    a set-based IT genome would be needed before any further IT linkage work.
 
+## 15. Open items during server round 16 (2026-11-24)
+
+1. **HC-TLS: GOMEA against HC with the reference's settings.** Origin: the user's question
+   (2026-11-24: "Did we use similar settings and test it against HC?"); the user asked to add it to
+   the backlog. The arm design is agent-written. Not started, not approved.
+   * **The gap:** since round 11, the HC arm is HC-LM (`-a hc --linear-scaling 1 --const-opt lm
+     --const-opt-guard val`, no deme cap). It is an accuracy baseline, not a matched control.
+     BASE-TLS ties it (0.949 in round 13, 0.947 in round 14). No HC arm has used `--linear-scaling
+     terms`. The last matched comparisons used plain scaling on both sides: GOMEA-LS against HC-LS
+     at equal CPU (round 3, 1ao and 1ar: better on Air, ties on the other 7 datasets) and FINAL
+     against HC-LS (round 8, 1ax: a tie, 0.925).
+   * **Question:** with the same scaling and constant settings, does GOMEA's search beat HC?
+   * **Sketch:** HC-TLS = `-a hc-capped --knob-probe-baseline reduced --linear-scaling terms
+     --const-opt none`, against BASE-TLS; 20,000 evaluations; 10 datasets; fresh splits; HC-LM as an
+     extra reference arm.
+   * **Open design points:**
+     * The deme cap. The user's rule (2026-10-15): HC gets the same per-deme cap as the GOMEA arm.
+       BASE-TLS has no explicit cap (`--gomea-pop-size dynamic`; its demes end by convergence). A
+       matched cap is needed, for example the median evaluations per deme of BASE-TLS per dataset in
+       round 14, or `--gomea-deme-share`.
+     * The complexity penalty (`--gomea-accept-complexity-ratio 0.125`) acts only through GOMEA's
+       acceptance, so HC's search does not use it (1t, `FINDINGS-LOG.md`). The report gives the
+       program size of both arms.
+     * A check first: no run and no test has used `--linear-scaling terms` with HC. The CLI does not
+       refuse it. Run a small test before any round.
+
 ## 8. Future directions from the literature search (2026-11-06)
 
 Source: the literature search of 2026-11-06 (`docs/gomea/LITERATURE-2026-11-06.md`). Start only after rounds 6 to 8 give a
