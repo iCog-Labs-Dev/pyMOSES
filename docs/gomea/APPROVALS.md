@@ -695,3 +695,26 @@ user confirms it.
   * Agent reading, not confirmed: "the Nits" includes nit 8; the agent fixes it with a digest of
     the initial genotypes in the same opt-in log option, so the pilot can compare genotypes.
   * Not approved: the pre-registration text, a push.
+* **Round 16 hand-over and push (2026-11-24):** the agent reported the pilot result (gate item 3
+  failed; the 100,000 arms get 8,192 MB), the new estimate (about 36–40 h, two plans that chain) and
+  the RV16 findings of rounds 2 and 3 unchanged (6 nits, no blocking finding), and asked to approve
+  the pre-registration and the push. The user answered: "Leave out the nits please. Just tell me the
+  exact steps left to set it up on the server.", then "Yes" to the push.
+  * User decisions: the 6 nits are not fixed now.
+  * User-approved: the push of the branch to `origin/experiment/moses-gomea-discrete`
+    (`45d5ca5..6dc84b3`).
+  * Not confirmed: an explicit approval of the pre-registration text (the user asked for the set-up
+    steps and approved the push).
+* **HC-TLS to the backlog (2026-11-24):** the user asked: "Did we use similar settings and test it
+  against HC?" The agent answered that every HC comparison since round 11 used HC-LM (plain scaling,
+  LM, no deme cap) and proposed HC-TLS. The user answered: "Yes add it to the backlog".
+  * Done: `BACKLOG.md` 15.1 (`cb4d25b`). Not started, not approved as a round.
+* **TLS-LMR next in line (2026-11-24):** the user asked: "Why did we pick the BASE-TLS over the
+  TLS-LMR if TLS-LMR was still a lot better?" The agent explained the reference rule (TLS-LMR 0.980,
+  63/23, Holm p 2.6e-6, inside the 10 % band: a tie) and recommended to name TLS-LMR next in line
+  with TLS-NP. The user answered: "Name TLS-LMR next in line with TLS-NP".
+  * User decision: TLS-LMR (the round 14 arm: BASE-TLS + `--const-opt lm --const-opt-guard val
+    --const-opt-reserve 500`) is next in line with TLS-NP. BASE-TLS stays the reference.
+  * Agent reading, not confirmed: the reserve of 500 is part of TLS-LMR as named; the reserve as a
+    setting of its own stays undecided.
+  * Not changed: round 16 (pushed, its arms stay) and the CLI defaults.
