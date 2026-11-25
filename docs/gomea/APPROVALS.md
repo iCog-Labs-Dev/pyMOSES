@@ -725,3 +725,10 @@ user confirms it.
   * User decision: the follow-up round goes in the backlog as the next round after round 16
     (`BACKLOG.md` 15.2, `ROADMAP.md`).
   * Not approved: its design, a pre-registration, any code.
+* **The SRBench 2025 comparison to the backlog (2026-11-25):** the user gave a task text ("MOSES
+  Continuous Domain Benchmarking": MOSES, MOSES with GOMEA, and MOSES with GOMEA and constant
+  optimization, against GP-RV-GOMEA, Operon and PySR on SRBench 2025) and wrote: "Add it in the
+  backlog for future experimentation".
+  * Done: `BACKLOG.md` 15.3 (the user's text unchanged, then agent notes) and a line in
+    `ROADMAP.md`.
+  * Not approved: the arm mapping, GP-GOMEA as an extra arm, the budget, any design or code.

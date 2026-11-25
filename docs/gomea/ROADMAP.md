@@ -172,6 +172,9 @@ is done when the user has decided on them.
 * **After round 16 (user, 2026-11-24):** the next round runs HC-LM, and HC-TLS if it is ready, at
   20,000 and 100,000 evaluations on the round 16 datasets and splits 81–90, paired with the round 16
   runs (`BACKLOG.md` 15.2).
+* **Later (user, 2026-11-25): MOSES against the state of the art on SRBench 2025** (`BACKLOG.md`
+  15.3). Not before the MOSES arms are frozen. It needs a SymPy export and an sklearn-style
+  estimator first.
 
 ## Control and low priority
 

@@ -811,6 +811,118 @@ is started or approved.
    * **Open:** the HC deme cap (the user's rule of 2026-10-15; HC-LM so far ran with no cap as the
      accuracy baseline); whether HC-TLS joins (15.1).
 
+3. **MOSES against state-of-the-art symbolic regression on SRBench 2025.** Origin: the user
+   (2026-11-25: "I am thinking to run something like the following to see the relevance of MOSES as
+   compared to the state of the art gp algorithms", then "Add it in the backlog for future
+   experimentation"). The user's task text is below, unchanged. The notes after it are
+   agent-written (2026-11-25) and not approved. Not started; no design, no pre-registration.
+   * **The user's task text:**
+
+     > **Backlog Task: MOSES Continuous Domain Benchmarking**
+     >
+     > Evaluate MOSES against state-of-the-art symbolic regression algorithms using SRBench 2025.
+     >
+     > Compare the following configurations:
+     > - Existing MOSES implementation.
+     > - MOSES with GOMEA.
+     > - MOSES with GOMEA and continuous constant optimization.
+     > - Standalone GP-RV-GOMEA, Operon and PySR.
+     >
+     > Measure prediction accuracy, exact equation recovery, program complexity, computational
+     > effort, runtime and distributed scalability under comparable computational budgets.
+     >
+     > The primary research objective is to determine whether MOSES's representation building,
+     > knob-based search and deme decomposition provide measurable advantages beyond its choice of
+     > optimizer.
+     >
+     > Preserve MOSES's core architecture throughout the experiments. Document performance
+     > bottlenecks and recommend improvements based on empirical evidence.
+     >
+     > **Prerequisite:** Complete MOSES's continuous-domain support and GOMEA integration before
+     > running the full comparison.
+
+   * **SRBench 2025** (Aldeia et al., "Call for Action: Towards the Next Generation of Symbolic
+     Regression Benchmark", GECCO 2025 SR workshop, arXiv 2505.03977; code: `cavalab/srbench`,
+     branch `srbench_2025`). Read on 2026-11-25 from the arXiv HTML. Check it against the PDF
+     before a design.
+     * 24 data sets in two tracks. Black box: 12 PMLB sets (for example 1028_SWD, 192_vineyard,
+       1193_BNG_lowbwt). Phenomenological and first-principles: 12 sets with a known form (for
+       example kepler, planck, hubble, ideal_gas; noise of 1–20 % on the generated sets). Feynman
+       and Strogatz are not in it. None of our 9 data sets is in it, so it also tests our tuning on
+       new data.
+     * Protocol: 30 runs per data set; a 75/25 train/test split; 3-fold CV for the hyperparameters.
+       The budget is time, not evaluations: 6 h for the hyperparameter search and 1 h for the
+       training (the digits in the HTML are not clear); one core and 10 GB RAM per job.
+     * Metrics: R² (performance profiles); size = the node count of the SymPy form; the median
+       training time; energy (eco2AI, approximate). The text that we read does not define a check
+       for exact recovery. SRBench 2021 (La Cava et al., NeurIPS 2021) had one, on Feynman and
+       Strogatz.
+     * 25 methods, among them GPGomea, Operon and PySR. GP-RV-GOMEA is not in it.
+     * The paper says that the scripts and parameters are released. It does not say that the
+       per-run results are released.
+   * **The arms (agent mapping to the current names):**
+
+     | Task text | Arm | Note |
+     |---|---|---|
+     | Existing MOSES | pyMoses with HC (HC-LM; HC-TLS if 15.1 passes) | The same code as the GOMEA arms; only the optimizer changes. C++ MOSES as an extra anchor: the user decides |
+     | MOSES with GOMEA | BASE-TLS (or the reference at that time) | |
+     | MOSES with GOMEA and constant optimization | TLS-LMR (next in line), or an RV arm if round 16 shows a gain | |
+     | Standalone GP-RV-GOMEA | the authors' code (Koch et al., PPSN 2024; `T3.2-FEASIBILITY.md`) | Not in SRBench 2025: it needs a wrapper of our own |
+     | Operon, PySR | the SRBench 2025 wrappers | |
+     | Standalone GP-GOMEA (agent addition) | the C++ GP-GOMEA (on the server since Phase 1f) | In SRBench 2025 as GPGomea. The matched control for BASE-TLS |
+
+   * **The main question needs matched contrasts (agent).** "Beyond its choice of optimizer" means
+     that the optimizer stays the same and only MOSES's parts change:
+     1. The optimizer inside MOSES: BASE-TLS against HC. Rounds 13 and 14 give it at 20,000
+        evaluations (a tie: 0.949 and 0.947). 15.2 gives it at 100,000.
+     2. MOSES's parts with the same optimizer family: BASE-TLS against GP-GOMEA, and the constant
+        arm against GP-RV-GOMEA. Match the function set, the linear scaling, the size limit and the
+        unit of the budget. If not, the contrast also measures these differences.
+     3. One MOSES part at a time (open): for example one deme only, against the normal deme
+        sequence. These ablations need no external code.
+     4. The position against the state of the art: all arms against Operon and PySR. This is a
+        ranking, not an attribution.
+   * **The budget (agent): two views.**
+     * SRBench's time budget gives results that compare with the published ones. But it also
+       measures the language: pyMoses is Python; GP-GOMEA and Operon are C++; PySR is Julia. In 1ai
+       (10,000 evaluations), GP-GOMEA used less than 1 s of CPU per run and pyMoses GOMEA
+       592–1,942 s. In round 14, a BASE-TLS run at 20,000 evaluations used about 11 CPU-min (18.7
+       CPU-h per 100 runs). A run at 100,000 costs 4.3–9.3 times that (the round 16 pilot). Thus
+       1 h is about 60,000–130,000 evaluations for pyMoses on our data sets, and fewer on large sets.
+     * An equal-evaluation budget for contrasts 1–3 removes the language effect. All arms must
+       count evaluations in the same way: count the LM iterations and the local-search steps
+       (Operon, PySR), or report them separately.
+   * **Earlier evidence (not on SRBench):** stand-alone GP-GOMEA beat C++ MOSES on all 10
+     regression data sets at equal wall time (1f, part B). Integrated GOMEA with plain scaling tied
+     GP-GOMEA at 10,000 evaluations on 4 data sets (1ai). No run compares GP-GOMEA with the current
+     settings (TLS, since round 13).
+   * **Prerequisites (agent; the code facts checked on 2026-11-25):**
+     1. Frozen MOSES arms: after round 16, 15.2 and the T3.2 decision. This is the agent's reading
+        of the task's prerequisite.
+     2. An sklearn-style estimator (`fit`, `predict`, a model string) around the SR runner, with a
+        time limit and one core. None exists now (the `predict` functions in `tools/gomea/` are
+        not an estimator).
+     3. A SymPy export of the best program, with the scaling terms written in. None exists now (no
+        `sympy` import in `pymoses/` or `tools/`). SRBench's size and any recovery check need it.
+     4. A check of the function set against the first-principles track (for example the powers,
+        `exp` and `log` that kepler and planck need).
+     5. Memory: SRBench 2025 gives 10 GB per job. Our 100,000 arms needed 8,192 MB (round 16).
+     6. Distributed runs: pyMoses has none. `run_moses` raises `NotImplementedError` for its `mpi`
+        and `distributed` branches (`pymoses/moses/moses/moses_main.py`). SRBench 2025 also allows
+        only one core per job. Agent recommendation: distributed scalability is a separate item,
+        after the first comparison.
+   * **Size and cost (agent estimate, not measured):** the full protocol is up to 7 h per run, and
+     24 × 30 = 720 runs. That is up to about 5,000 CPU-h per method, about 20–30 days per method on
+     the server. A first stage that fits: no tuning (the frozen settings, reported as a change to
+     the protocol), 10 runs per data set (then 10 more if a result is close), 1 h per run. That is
+     240 runs and at most 240 CPU-h per MOSES arm, about 1–1.5 days each. For the external methods,
+     use the published runs if the `srbench_2025` branch has them. If not, run them with the same
+     settings (also up to 240 CPU-h each).
+   * **Open points for the user:** which "existing MOSES" (pyMoses HC, C++ MOSES or both);
+     GP-GOMEA as an extra arm; the time budget, the evaluation budget or both; the ablations of
+     contrast 3; the data for exact recovery (the SRBench 2025 first-principles track or the
+     SRBench 2021 Feynman and Strogatz sets); distributed scalability now or later.
+
 ## 8. Future directions from the literature search (2026-11-06)
 
 Source: the literature search of 2026-11-06 (`docs/gomea/LITERATURE-2026-11-06.md`). Start only after rounds 6 to 8 give a
