@@ -103,7 +103,8 @@ BUNDLE_S = int(os.environ.get("ORCH_BUNDLE_S", 3600))
 BUNDLE_SKIP = {"moses.log", "train_scaled.csv"}
 RUN_FILES = {"summary.json", "manifest.json", "events.jsonl", "environment.json",
              "run_order.json", "seeds.json", "lineage.json", "reseed.json",
-             "longrand-p.json", "knob-cap.json", "const-opt-choice.json"}
+             "longrand-p.json", "knob-cap.json", "const-opt-choice.json",
+             "hc_progress.jsonl"}  # round 17: the HC progress lines (one per deme)
 # What one plan's environment must not give to the next plan of a chain.
 CHAIN_ENV_DROP = ("RETRY_FAILED", "REPRO_ONLY", "PLAN", "ORCH_CHAINED", "ORCH_NO_CHAIN")
 CHAIN_START_WAIT_S = 120

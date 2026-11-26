@@ -490,6 +490,25 @@ def test_a_failed_partner_requirement_skips_the_step_with_the_reason(tmp_path, m
     assert "SKIP phase1bl:" in (r.sd / "run.log").read_text()
 
 
+def test_the_bundle_holds_the_hc_progress_lines(tmp_path, monkeypatch):
+    """The lines of the expansion hook (one per deme) go into the bundle beside the summary,
+    so the curve at deme resolution comes back from the server too; moses.log does not."""
+    import tarfile
+
+    import orchestrate
+
+    monkeypatch.setattr(orchestrate, "RES", tmp_path)
+    r = orchestrate.Round(SERVER / "plan17b.json")
+    run = tmp_path / "phase1bl" / "phase1bl-sr" / "runs" / "Con__HC-TLS__s81"
+    run.mkdir(parents=True)
+    for f in ("summary.json", "hc_progress.jsonl", "moses.log", "train_scaled.csv",
+              "candidates.json"):
+        (run / f).write_text("{}\n")
+    with tarfile.open(orchestrate.make_bundle(r)) as tf:
+        names = {n.rsplit("/", 1)[1] for n in tf.getnames() if "/runs/" in n}
+    assert names == {"summary.json", "hc_progress.jsonl"}
+
+
 def test_s0_of_the_round_is_complete():
     s0 = load(SERVER / "plan17.json")["steps"][0]
     assert s0["pytest"] == {} and s0["repro"] == {}
