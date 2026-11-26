@@ -44,6 +44,19 @@ of that dataset only), and the Holm family is all these rows. The names of the p
 (those of `pooled_primary` and `pooled_secondary` too) must be distinct; the names in the
 per-dataset families must be distinct, and different from the per-problem contrasts of the spec.
 
+**Server round 17 (1bl): two opt-in keys for the problems of the families.** Without them the
+report does not change.
+
+* `"pooled_problems": [problem, ...]` (top level): the problems that a family without its own
+  `"problems"` uses, in place of all problems of `metrics`. A pooled family pools the pairs of
+  these problems; a per-dataset family gives one row for each of them. Round 17: the 6 datasets
+  without Dow, so that every family with verdicts has the same 60 pairs.
+  `budget_report.py` also pools these problems only (the rows "pooled").
+* `"problems": [problem, ...]` (in one family): the problems of that family only. Round 17: the
+  Dow family `{"per_dataset": true, "problems": ["Dow"], ...}` (descriptive).
+
+Each list is a non-empty list of distinct problems of `metrics`.
+
 **The spec key `"evals_to_reference"`**: `{arm: reference arm}` (round 15: each arm to the RT arm
 of its genome). It writes OUT_DIR/evals_to_reference.csv (`EVALS_FIELDS`), descriptive: for each
 problem and arm, the target is the median final training NMSE of the reference arm's runs on
@@ -79,7 +92,7 @@ ANYTIME_FRACTIONS = (0.01, 0.02, 0.05, 0.1, 0.2, 0.5, 1.0)  # run.py ANYTIME_FRA
 BIG = 1e12  # as phase_report.BIG
 REACH_RTOL = 1e-9
 ROLES = ("primary", "secondary", "descriptive")
-FAMILY_KEYS = {"name", "role", "contrasts", "per_dataset"}
+FAMILY_KEYS = {"name", "role", "contrasts", "per_dataset", "problems"}  # problems: round 17
 EVALS_FIELDS = ("problem", "arm", "reference", "target_train_nmse", "runs", "failed", "reached",
                 "median_evals_to_reference", "median_evals_reached", "median_evals_used")
 
@@ -185,9 +198,24 @@ def _shape_error(c, metrics) -> str | None:
     return None
 
 
+def _problem_list_error(what: str, value, spec: dict) -> str | None:
+    """Server round 17: an error message when `value` is not a non-empty list of distinct
+    problems of the spec's `metrics`, else `None`."""
+    known = spec.get("metrics") or {}
+    if (not isinstance(value, list) or not value or not all(isinstance(p, str) for p in value)
+            or len(value) != len(set(value)) or not set(value) <= set(known)):
+        return (f"bad {what} {value!r} (want a non-empty list of distinct problems of metrics: "
+                f"{sorted(known)})")
+    return None
+
+
 def check_spec(spec: dict, metrics) -> str | None:
-    """An error message for a malformed `"contrast_families"` or `"evals_to_reference"`, else
-    `None`. A spec without the keys gives `None`."""
+    """An error message for a malformed `"contrast_families"`, `"evals_to_reference"` or
+    `"pooled_problems"` (server round 17), else `None`. A spec without the keys gives `None`."""
+    if "pooled_problems" in spec:
+        err = _problem_list_error("pooled_problems", spec["pooled_problems"], spec)
+        if err:
+            return err
     fams = spec.get("contrast_families")
     if fams is not None:
         if not isinstance(fams, list) or not fams:
@@ -208,6 +236,10 @@ def check_spec(spec: dict, metrics) -> str | None:
                 return f"bad role {f['role']!r} of family {f['name']} (choose from {ROLES})"
             if not isinstance(f.get("per_dataset", False), bool):
                 return f"per_dataset of family {f['name']} must be true or false"
+            if "problems" in f:  # server round 17
+                err = _problem_list_error(f"problems of family {f['name']}", f["problems"], spec)
+                if err:
+                    return err
             if not isinstance(f["contrasts"], list) or not f["contrasts"]:
                 return f"family {f['name']} has no contrasts"
             for c in f["contrasts"]:
@@ -230,12 +262,14 @@ def check_spec(spec: dict, metrics) -> str | None:
 def family_rows(spec: dict, runs: dict, problems: list[str], value, pooled_contrast,
                 alpha: float) -> list[tuple[str, dict]]:
     """The rows of `"contrast_families"` as (contrasts.csv family, row), decided in their Holm
-    families. `pooled_contrast` is `phase_report._pooled_contrast`."""
+    families. `pooled_contrast` is `phase_report._pooled_contrast`. A family uses its own
+    `"problems"`, else the spec's `"pooled_problems"`, else `problems` (server round 17)."""
     out = []
     for f in spec.get("contrast_families") or []:
         rows = []
-        units = ([([p], p) for p in problems] if f.get("per_dataset")
-                 else [(problems, "pooled")])
+        probs = f.get("problems") or spec.get("pooled_problems") or problems
+        units = ([([p], p) for p in probs] if f.get("per_dataset")
+                 else [(probs, "pooled")])
         for c in f["contrasts"]:
             for problem_set, label in units:
                 if len(c) == 6:

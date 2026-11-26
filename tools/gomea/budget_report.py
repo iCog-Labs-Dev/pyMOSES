@@ -32,6 +32,10 @@ of RV generations, the sums of the RV counters over the runs (`RV_SUMS`), and th
 RV evaluations that improved (`improving_share`) and that were kept by p_accept
 (`kept_p_share`).
 
+**Server round 17 (1bl):** with the spec key `"pooled_problems"` (checked by
+`linkage_report.check_spec`), the rows "pooled" of the three tables pool these problems only;
+the rows of each problem do not change. Without the key the tables do not change.
+
 NOT A PORT: server round 16 (the budget round).
 """
 
@@ -95,7 +99,7 @@ def _ratio(a: float, b: float) -> float:
 def anytime_rows(spec: dict, runs: dict, problems: list[str]) -> list[dict]:
     """The rows of anytime_ratios.csv (see the module docstring)."""
     rows = []
-    units = [([p], p) for p in problems] + [(problems, "pooled")]
+    units = [([p], p) for p in problems] + [(spec.get("pooled_problems") or problems, "pooled")]
     for arm, ref in spec["anytime_ratios"].items():
         for probs, label in units:
             for frac in ANYTIME_FRACTIONS:
@@ -164,24 +168,29 @@ def _rv_row(problem: str, arm: str, v: list[dict]) -> dict:
     return row
 
 
-def _by_arm(runs: dict, problems: list[str]):
-    """(problem, arm, summaries) for each problem and arm, then ("pooled", arm, summaries)."""
+def _by_arm(runs: dict, problems: list[str], pooled_problems: list[str] | None = None):
+    """(problem, arm, summaries) for each problem and arm, then ("pooled", arm, summaries) over
+    `pooled_problems` (server round 17; default: all `problems`)."""
     pooled: dict[str, list[dict]] = {}
+    keep = set(problems if pooled_problems is None else pooled_problems)
     for p in problems:
         for arm in sorted(runs.get(p, {})):
             v = list(runs[p][arm].values())
-            pooled.setdefault(arm, []).extend(v)
+            if p in keep:
+                pooled.setdefault(arm, []).extend(v)
             yield p, arm, v
     for arm in sorted(pooled):
         yield "pooled", arm, pooled[arm]
 
 
-def deme_rows(runs: dict, problems: list[str]) -> list[dict]:
-    return [_deme_row(p, arm, v) for p, arm, v in _by_arm(runs, problems)]
+def deme_rows(runs: dict, problems: list[str],
+              pooled_problems: list[str] | None = None) -> list[dict]:
+    return [_deme_row(p, arm, v) for p, arm, v in _by_arm(runs, problems, pooled_problems)]
 
 
-def rv_rows(runs: dict, problems: list[str]) -> list[dict]:
-    return [_rv_row(p, arm, v) for p, arm, v in _by_arm(runs, problems)
+def rv_rows(runs: dict, problems: list[str],
+            pooled_problems: list[str] | None = None) -> list[dict]:
+    return [_rv_row(p, arm, v) for p, arm, v in _by_arm(runs, problems, pooled_problems)
             if any(isinstance(s.get("rv"), dict) for s in v)]
 
 
@@ -192,10 +201,10 @@ def write_tables(spec: dict, runs: dict, problems: list[str], out: Path, write_c
         write_csv(out / "anytime_ratios.csv", rows, list(ANYTIME_FIELDS))
         print(json.dumps({"anytime_ratio_rows": len(rows)}))
     if spec.get("deme_table"):
-        rows = deme_rows(runs, problems)
+        rows = deme_rows(runs, problems, spec.get("pooled_problems"))
         write_csv(out / "demes.csv", rows, list(DEME_FIELDS))
         print(json.dumps({"deme_rows": len(rows)}))
     if spec.get("rv_table"):
-        rows = rv_rows(runs, problems)
+        rows = rv_rows(runs, problems, spec.get("pooled_problems"))
         write_csv(out / "rv.csv", rows, list(RV_FIELDS))
         print(json.dumps({"rv_rows": len(rows)}))

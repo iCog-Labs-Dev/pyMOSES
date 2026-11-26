@@ -31,7 +31,9 @@ SPEC_JSON (one per phase, `configs/gomea/<phase>/spec.json`)::
      "evals_to_reference": {arm: arm, ...},  # optional (server round 15, 1bj)
      "anytime_ratios": {arm: arm, ...},    # optional (server round 16, 1bk)
      "deme_table": true,                   # optional (server round 16, 1bk), default false
-     "rv_table": true}                     # optional (server round 16, 1bk), default false
+     "rv_table": true,                     # optional (server round 16, 1bk), default false
+     "pooled_problems": [problem, ...],    # optional (server round 17, 1bl)
+     "partners": {"dirs": [...], "pairs": {arm: arm, ...}}}  # optional (server round 17, 1bl)
 
 A contrast takes its problem's metric, or the optional fifth element (server round 3,
 1ap: program size as the primary metric and test NMSE as the secondary one for the same
@@ -162,6 +164,17 @@ fields of `moses_sr_runner.py` and give no verdicts:
 * `"deme_table": true`: OUT_DIR/demes.csv, the demes per run and the evaluation at which the
   second deme starts (the `demes` records).
 * `"rv_table": true`: OUT_DIR/rv.csv, the RV counters (the `rv` records).
+
+Server round 17 (1bl, HC against BASE-TLS of round 16). Two optional spec keys; without them
+the report does not change:
+
+* `"pooled_problems"` (and `"problems"` in a family of `"contrast_families"`;
+  `linkage_report.py`): the problems of the families, in place of all problems of `metrics`
+  (round 17: the 6 datasets without Dow for every family with verdicts, Dow in a descriptive
+  family of its own). The rows "pooled" of the round 16 tables pool these problems only.
+* `"partners"` (`partner_report.py`): result directories of another round, from which the
+  report loads the partner runs of its own runs (round 17: BASE-TLS and BASE-TLS-100K of round
+  16). OUT_DIR/partners.csv and partners.json list each partner run and the missing ones.
 """
 
 from __future__ import annotations
@@ -180,6 +193,7 @@ from benchmarks.gomea.stats import holm, wilcoxon_signed_rank  # noqa: E402
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import budget_report  # noqa: E402
 import linkage_report  # noqa: E402
+import partner_report  # noqa: E402
 import run_table  # noqa: E402
 
 ALPHA = 0.025
@@ -478,6 +492,12 @@ def main(argv: list[str] | None = None) -> int:
     if extra is not None:
         print(extra, file=sys.stderr)
         return 2
+    err = partner_report.check_spec(spec)  # server round 17 (opt-in key)
+    if err is not None:
+        print(err, file=sys.stderr)
+        return 2
+    # server round 17: the partner runs of another round, beside the own runs
+    loaded = partner_report.load(spec, runs) if spec.get("partners") else {}
     if spec.get("size_terms"):
         # server round 13: the program size of a TLS arm counts the term weights
         for arms in runs.values():
@@ -607,6 +627,7 @@ def main(argv: list[str] | None = None) -> int:
     _round13_tables(spec, runs, list(metrics), out)
     linkage_report.write_tables(spec, runs, list(metrics), out, _write_csv)  # server round 15
     budget_report.write_tables(spec, runs, list(metrics), out, _write_csv)  # server round 16
+    partner_report.write_tables(spec, runs, loaded, out, _write_csv)  # server round 17
     return 0
 
 

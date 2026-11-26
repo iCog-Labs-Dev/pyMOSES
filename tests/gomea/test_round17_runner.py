@@ -30,28 +30,25 @@ sys.path.insert(0, str(TOOLS))
 import moses_sr_runner as runner  # noqa: E402
 from round16_data import (  # noqa: E402
     DIGEST,
-    PROGRAMS,
     TWO_DEMES,
     TWO_DEMES_TRACE,
     gomea_log,
     job,
-    splits,
+)
+from round17_data import (  # noqa: E402
+    EVENTS,
+    HC_ENDS,
+    HC_LM,
+    HC_TLS,
+    LINES,
+    hc_job,
+    hc_lines,
 )
 
 OLD = "88a5e02"  # the commit before the round 17 runner changes
 VOLATILE = ("argv", "wall_s", "cpu_s", "ru_maxrss_kb")
 NEW = {"demes", "anytime", "anytime_source", "anytime_check"}
-HC_LM = ["-a", "hc", "--knob-probe-baseline", "reduced", "--linear-scaling", "1",
-         "--const-opt", "lm", "--const-opt-guard", "val"]
-HC_TLS = ["-a", "hc", "--knob-probe-baseline", "reduced", "--linear-scaling", "terms",
-          "--const-opt", "none"]
 N, VAR = 100, 100.0  # made-up n_train and var(y')
-
-
-def _lines(*pts) -> str:
-    """Hook lines from (n_evals, best_raw) pairs."""
-    return "".join(json.dumps({"expansion": i + 1, "n_evals": n, "best_raw": r}) + "\n"
-                   for i, (n, r) in enumerate(pts))
 
 
 def _nmse(raw):
@@ -68,7 +65,7 @@ def _write(tmp_path: Path, name: str, text: str) -> Path:
 
 
 def test_the_checkpoints_take_the_best_of_the_expansions_that_ended_before(tmp_path):
-    p = _write(tmp_path, "p.jsonl", _lines((250, -900.0), (520, -700.0), (800, -650.0),
+    p = _write(tmp_path, "p.jsonl", hc_lines((250, -900.0), (520, -700.0), (800, -650.0),
                                            (1000, -650.0)))
     demes, recs, chk = runner.hc_anytime_records(p, 1000, N, VAR, n_evals=1000)
     assert demes == {"count": 4, "start_evals": [0, 250, 520, 800],
@@ -89,7 +86,7 @@ def test_the_checkpoints_take_the_best_of_the_expansions_that_ended_before(tmp_p
 
 
 def test_a_run_that_ends_before_the_budget_and_a_cut_line(tmp_path):
-    text = _lines((300, None), (600, -500.0)) + '{"expansion": 3, "n_ev'
+    text = hc_lines((300, None), (600, -500.0)) + '{"expansion": 3, "n_ev'
     p = _write(tmp_path, "p.jsonl", text)
     demes, recs, chk = runner.hc_anytime_records(p, 1000, N, VAR, first_score=-500.0,
                                                  first_train_nmse=_nmse(-500.0) * 1.01,
@@ -111,22 +108,8 @@ def test_no_lines(tmp_path):
     assert chk["log_evals_match_n_evals"] is None
 
 
-def _hc_end(max_evals, hc_evals, tuning, lm) -> dict:
-    return {"type": "end", "optimizer": "hc", "max_evals": max_evals, "hc_evals": hc_evals,
-            "ledger": {"requests": hc_evals + tuning, "tuning_requests": tuning},
-            "const_opt": {"mode": "lm", "tuning_evals": tuning, "lm": lm}}
-
-
-HC_ENDS = [  # a budget of 1000: demes of 250 (LM kept), 270 (guard rejected), 480 (budget)
-    _hc_end(1000, 230, 20, {"status": "improved", "mse0": 9.5, "mse": 9.0, "written_back": True}),
-    _hc_end(750, 260, 10, {"status": "improved", "mse0": 7.0, "mse": 6.5, "written_back": False,
-                           "guard": "rejected"}),
-    _hc_end(480, 480, 0, {"status": "budget", "mse0": float("inf"), "mse": float("inf")}),
-]
-
-
 def test_the_rule_of_the_hc_end_events(tmp_path):
-    p = _write(tmp_path, "p.jsonl", _lines((250, -900.0), (520, -700.0), (1000, -700.0)))
+    p = _write(tmp_path, "p.jsonl", hc_lines((250, -900.0), (520, -700.0), (1000, -700.0)))
     ev = _write(tmp_path, "events.jsonl", "".join(json.dumps(e) + "\n" for e in HC_ENDS))
     _, _, chk = runner.hc_anytime_records(p, 1000, N, VAR, events=ev)
     assert chk["hc_end_events"] == 3 and chk["hc_end_evals_match"] is True
@@ -134,7 +117,7 @@ def test_the_rule_of_the_hc_end_events(tmp_path):
     assert chk["hc_end_best_train_nmse"] == pytest.approx(100.0 * 7.0 / VAR)
     assert chk["hc_end_rel_diff"] == pytest.approx(abs(7.0 - _nmse(-700.0)) / _nmse(-700.0))
     # a line at another evaluation, or a missing event, breaks the match
-    bad = _write(tmp_path, "q.jsonl", _lines((250, -900.0), (521, -700.0), (1000, -700.0)))
+    bad = _write(tmp_path, "q.jsonl", hc_lines((250, -900.0), (521, -700.0), (1000, -700.0)))
     assert runner.hc_anytime_records(bad, 1000, N, VAR, events=ev)[2]["hc_end_evals_match"] \
         is False
     two = _write(tmp_path, "e2.jsonl", "".join(json.dumps(e) + "\n" for e in HC_ENDS[:2]))
@@ -204,43 +187,8 @@ def test_expand_carries_the_key_and_refuses_a_wrong_one(tmp_path):
 # ---- _run_one with a fake pyMoses
 
 
-def _fake_hc(work: Path, lines: str, events: str | None, n_evals: int = 1000) -> Path:
-    """A fake pyMoses for an HC arm: it prints PROGRAMS, writes `events` (if any) to the path
-    after `--gomea-log`, and writes `lines` to the path in the boot when the boot installs the
-    hook."""
-    b = work / "bin"
-    b.mkdir(parents=True, exist_ok=True)
-    (b / "moses").write_text("#!/bin/sh\nexit 1\n")
-    (work / "lines.src").write_text(lines)
-    (work / "events.src").write_text(events or "")
-    out = "".join(f"-{i + 10} {p} \n" for i, p in enumerate(PROGRAMS)) + f"n_evals: {n_evals}\n"
-    script = (
-        "#!/bin/sh\nboot=\"$2\"\nprev=\nfor a in \"$@\"; do\n"
-        f"  [ \"$prev\" = --gomea-log ] && cp '{work / 'events.src'}' \"$a\"\n"
-        "  prev=\"$a\"\ndone\n"
-        "case \"$boot\" in *hc_progress.install*)\n"
-        "  p=$(printf '%s' \"$boot\" | sed -n \"s/.*hc_progress.install('\\([^']*\\)').*/\\1/p\")\n"
-        f"  cp '{work / 'lines.src'}' \"$p\" ;;\nesac\n"
-        "cat <<'EOF'\n" + out + "EOF\n")
-    (b / "python").write_text(script)
-    (b / "python").chmod(0o755)
-    return b / "moses"
-
-
-def _hc_job(work: Path, lines: str, events: str | None = None, argv=HC_LM, **kw) -> dict:
-    return {"run_id": "T__ARM__s1", "task": "T", "arm": "ARM", "seed": 1,
-            "binary": str(_fake_hc(work, lines, events)), "argv": argv,
-            "budget": {"evals": 1000}, "seed_spec": None,
-            "split_dir": str(splits(work / "splits" / "s1")), "wall_cap_s": 60,
-            "mem_limit_mb": None, "run_dir": str(work / "run"), **kw}
-
-
-LINES = _lines((250, -900.0), (520, -700.0), (1000, -10.0))
-EVENTS = "".join(json.dumps(e) + "\n" for e in HC_ENDS)
-
-
 def test_run_one_with_the_key_installs_the_hook_and_writes_the_fields(tmp_path):
-    s = runner._run_one(_hc_job(tmp_path / "a", LINES, EVENTS, hc_anytime=True))
+    s = runner._run_one(hc_job(tmp_path / "a", LINES, EVENTS, hc_anytime=True))
     assert s["status"] == "ok" and NEW <= set(s)
     assert "hc_progress.install(" + repr(str(tmp_path / "a" / "run" / "hc_progress.jsonl")) \
         in s["argv"][2]
@@ -253,23 +201,23 @@ def test_run_one_with_the_key_installs_the_hook_and_writes_the_fields(tmp_path):
     disk = json.loads((tmp_path / "a" / "run" / "summary.json").read_text())
     assert disk["anytime"] == s["anytime"] and disk["demes"] == s["demes"]
     # HC-TLS: no GOMEA log, so no "end" events to compare
-    s = runner._run_one(_hc_job(tmp_path / "b", LINES, argv=HC_TLS, hc_anytime=True))
+    s = runner._run_one(hc_job(tmp_path / "b", LINES, argv=HC_TLS, hc_anytime=True))
     assert s["anytime_source"] == "hc-demes" and "hc_end_events" not in s["anytime_check"]
     assert "--gomea-log" not in s["argv"]
 
 
 def test_run_one_without_the_key_has_no_hook_and_no_fields(tmp_path):
-    s = runner._run_one(_hc_job(tmp_path / "a", LINES, EVENTS))
+    s = runner._run_one(hc_job(tmp_path / "a", LINES, EVENTS))
     assert not NEW & set(s) and "hc_progress" not in s["argv"][2]
     assert not (tmp_path / "a" / "run" / "hc_progress.jsonl").exists()
     assert s["const_opt"]["tuning_evals"] == 30  # the HC "end" events are still read
 
 
 def test_a_line_left_by_an_earlier_attempt_is_removed(tmp_path):
-    j = _hc_job(tmp_path / "a", "", EVENTS, hc_anytime=True)
+    j = hc_job(tmp_path / "a", "", EVENTS, hc_anytime=True)
     rd = Path(j["run_dir"])
     rd.mkdir(parents=True)
-    (rd / "hc_progress.jsonl").write_text(_lines((5, -1.0)))  # no summary.json: a rerun
+    (rd / "hc_progress.jsonl").write_text(hc_lines((5, -1.0)))  # no summary.json: a rerun
     s = runner._run_one(j)
     assert s["anytime_check"]["expansions"] == 0 and s["demes"] is None
 
@@ -309,8 +257,8 @@ CASES = {
                                                       digest=DIGEST),
                                          anytime=True, clip_test_nmse=True, plain_nmse=True),
     "gomea-no-key": lambda w: job(w, gomea_log(TWO_DEMES), clip_test_nmse=True),
-    "hc-lm-no-key": lambda w: _hc_job(w, LINES, EVENTS, clip_test_nmse=True, plain_nmse=True),
-    "hc-tls-no-key": lambda w: _hc_job(w, LINES, argv=HC_TLS, clip_test_nmse=True,
+    "hc-lm-no-key": lambda w: hc_job(w, LINES, EVENTS, clip_test_nmse=True, plain_nmse=True),
+    "hc-tls-no-key": lambda w: hc_job(w, LINES, argv=HC_TLS, clip_test_nmse=True,
                                        plain_nmse=True),
 }
 
