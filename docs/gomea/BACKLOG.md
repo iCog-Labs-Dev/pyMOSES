@@ -953,7 +953,8 @@ is started or approved.
    to change the knobs to work with a format that is more suitable and leverages the distribution
    like the GP-RV-GOMEA paper says it would?" The user asked to add D1–D3 to the backlog and not to
    start D1 yet: "Don't start D1 yet. Specially if it uses more memory as memory is busy right
-   now." D1–D3 are agent-written. Not started.
+   now." D1–D3 are agent-written. D1 ran on 2026-11-26 (the user: "run the full D1 but keep memory
+   low"; result below). D2 and D3 are not started.
    * **The facts (code):** a contin knob is centered on the exemplar's constant, with step size 1.0,
      expansion 2.0 and depth 5 (`build_knobs.py`, `knobs.py`, `field_set.contin_stepper`). So each
      constant gene has 63 values on an uneven grid: a range of ±31 and a finest step of about 0.06
@@ -1000,6 +1001,56 @@ is started or approved.
        Yacht (0.732). LM measures the distance to the local optimum, so it cannot tell the grid's
        limit apart from too few evaluations; the RV step (continuous values, round 16) did not
        close the gap either.
+   * **D1, full result (2026-11-26, local runs, agent analysis).** Arm BASE-TLS-D1 (the round 16
+     BASE-TLS argv plus `--gomea-trace 1 --gomea-log-best-genes 1`), 20,000 evaluations, 7 data
+     sets, old splits 1–3: 21 of 21 runs ok, 58 deme bests, 5,354 constant genes. Run list
+     `configs/gomea/d1/sr.json`; analysis `tools/gomea/d1_grid_report.py`; output in
+     `pyMoses-d1/.d1work/d1-report/` (not in git). Checks: `reduce_match` 1, `leaves_match` 1,
+     max `raw_rel_diff` 5.5e-08 (the logged genes give the logged programs and scores).
+     * Live genes (a change moves the training error): 488 (9 %). The others: absorbed by the
+       per-term fit 504, zero 4,357, dead 5. Dow has no live gene in its 3 deme bests.
+     * **Every gene of every deme best has a path of length 0 or 1.** Live genes: 240 at the center
+       (the exemplar's constant c), 248 at c ± 1.0, none at the edge (± 31), none at length 2 or
+       more.
+     * Cause (code): the default sampler start (`--gomea-init sampler`) steps a contin knob with
+       `generate_contin_neighbor(..., 1, ...)` (`neighborhood_sampling.py:874`): one step from
+       code 0, so c − 1 or c + 1. `--gomea-contin copy` only copies genes. So a deme holds at most
+       3 values per constant: c − 1, c and c + 1. The other 60 values of the 63-value grid (the fine
+       steps ± 0.5 … ± 0.06 and the wide steps ± 3 … ± 31) never occur. A constant moves at most
+       1.0 per deme.
+     * LM probe (offline, training MSE, LM settings of `--const-opt lm`). Gene LM: only the live
+       genes, the term weights refit at each pass. Program LM: all constants of the reduced program,
+       as in rounds 13 and 14. Median gain per deme best (share above 5 %); the gene LM counts only
+       the deme bests with live genes:
+
+       | data set | deme bests (with live genes) | gene LM | program LM | LM value inside ± 31 |
+       |---|---|---|---|---|
+       | Yacht | 18 (18) | 29.4 % (83 %) | 12.7 % (72 %) | 100 % |
+       | Tower | 6 (3) | 2.5 % (33 %) | 1.6 % (33 %) | 78 % |
+       | Energy heating | 8 (5) | 0.9 % (0 %) | 1.0 % (38 %) | 82 % |
+       | Energy cooling | 9 (6) | 0.0 % (17 %) | 0.1 % (22 %) | 96 % |
+       | Concrete | 6 (3) | 0.0 % (33 %) | 0.0 % (17 %) | 66 % |
+       | Airfoil | 8 (5) | 0.0 % (0 %) | 0.0 % (0 %) | 96 % |
+       | Dow | 3 (0) | – | 0.0 % (0 %) | – |
+
+     * Yacht: the LM value is near c (median 0.5 steps, 90th percentile 3 steps), but only 67 % are
+       within 1 step. Its distance to the nearest value of the full grid is a median 0.225 of the
+       local spacing (a random position gives 0.25).
+     * The LM values outside ± 31 (Concrete, Tower, Energy heating) come with very large moves
+       (90th percentile 108–1,860 steps) and small gains: flat directions (agent reading).
+     * Reading (agent): **the range is not the limit** (no edge hits; 89 % of the LM values inside
+       ± 31). **The limit is narrower than the grid: the start population gives each constant only
+       c and c ± 1.** It costs accuracy mainly on Yacht, a little on Tower and Energy heating, and
+       not on Airfoil, Concrete, Energy cooling and Dow. This matches the first D1 result and the
+       Yacht-only gain of TLS-LMR (0.732 on Yacht, 0.980 overall).
+     * Consequence for D2 (agent): a scale-aware step or one more depth level does not help while
+       the start population uses only the first step. A direct test is a contin start over more
+       paths (for example `FrozenSchema.sample_contin_code`, uniform over the 63 values, which the
+       uniform start already uses), with the sampler start for the discrete knobs. Origin: agent,
+       from D1; post hoc. Expected gain: mainly Yacht.
+     * Limits: 3 splits, 20,000 evaluations, one arm (BASE-TLS); few deme bests outside Yacht (3–6
+       with live genes); training MSE only; LM is local (at most 10 iterations); deme bests, not
+       the final models.
 
 5. **RV16 nits of the round 17 build, for later (the user, 2026-11-26: "Put the Nits for later I
    will tell you when the round 16b finishes and we will go from there").** The full report is in
