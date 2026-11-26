@@ -10,7 +10,10 @@ each expansion (one deme for `-a hc`) the hook appends one JSON line to `path`:
   output);
 * `best_raw`: `mp.best_score()`, the best raw score (no complexity penalty) of all candidates
   that the metapopulation has merged so far (`metapopulation.update_best_candidates`), or null
-  before the first candidate. It never goes down.
+  before the first candidate. It never goes down: the metapopulation replaces its best
+  candidate only for a higher raw score (`csc.get_score()`), or the same score with a lower
+  complexity. It is read at each deme end, so it lags by up to one deme, and it is not the
+  quantity of the GOMEA trace of round 16 (the best raw score over every evaluation).
 
 These are the values that the "Stats:" row of the MOSES log prints after each expansion
 (`local_moses.py`) when the log level is INFO. The runner uses `-l WARN`, so the log does not

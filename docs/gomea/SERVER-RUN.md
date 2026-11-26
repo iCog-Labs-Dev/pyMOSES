@@ -1590,8 +1590,16 @@ that task, arm and seed. The status of a run does not matter (a failed partner c
 infinitely bad in the report). When a summary is missing, the step is skipped as for a missing
 dataset: the state, `events.jsonl` (`step_skip`), `run.log` (`SKIP phase1bl: N of M BASE-TLS
 summaries missing under ...`) and `round-summary.md` give the reason, and the round goes on. Then
-round17b starts and skips its step for the same reason. After the round 16 results are in place,
-run `RETRY_FAILED=1 bash tools/server/start.sh --plan round17`.
+round17b starts and skips its step for the same reason, and both plans end DONE. A plain
+`RETRY_FAILED=1 bash tools/server/start.sh --plan round17` then does nothing ("The round is
+DONE"). After the round 16 results are in place, run the two plans again, one at a time and
+without the chain:
+
+    RETRY_FAILED=1 bash tools/server/start.sh --plan round17 --force
+
+and, when it is DONE:
+
+    RETRY_FAILED=1 bash tools/server/start.sh --plan round17b --force
 
 **Phase 1bl: budget.** Each run gets 20,000 or 100,000 evaluations (`-m N`) and no
 `--max-time`. The wall cap of 36,000 s per run is only a guard against a hung process.
@@ -1618,7 +1626,11 @@ run `RETRY_FAILED=1 bash tools/server/start.sh --plan round17`.
   summary gets `demes`, `anytime` (the checkpoints 1, 2, 5, 10, 20, 50 and 100 % of the budget;
   null before the end of the first deme), `anytime_source` "hc-demes" and `anytime_check`
   (for HC-LM also the check against the rule of its "end" events). The lines of the hook
-  (`hc_progress.jsonl`, one per deme) are in the bundle.
+  (`hc_progress.jsonl`, one per deme) are in the bundle. The HC value is the best raw score of
+  the candidates that the demes passed to the metapopulation, read at each deme end. The GOMEA
+  trace of round 16 is the best raw score over every evaluation, at each new best. So an HC
+  checkpoint lags by up to one deme, and the 1 % and 2 % checkpoints are often null for HC;
+  read the HC/BASE-TLS progress ratios with this in mind.
 * Each manifest has a result directory of its own: `phase1bl/phase1bl-sr/`,
   `phase1bl/phase1bl-sr-100K/` and `phase1bl/phase1bl-sr-Dow/`.
 

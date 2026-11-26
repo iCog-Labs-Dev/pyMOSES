@@ -207,7 +207,10 @@ win, for a memory fault that has nothing to do with the search. So:
   (largest relative difference about 5.6e-8). Corrections: two earlier tests had run HC with
   `--linear-scaling terms` without a score check; HC-LM and HC-TLS differ in three flags, not two.
   The runner writes no events log for HC-TLS (`--const-opt none`), so the HC progress curves and
-  deme counts come from the MOSES log, as "Contrasts" already says.
+  deme counts come from the MOSES process, as "Contrasts" already says. More exactly (RV16 F3): a
+  hook in the MOSES process writes, after each deme, the two values of the "Stats:" row of the
+  MOSES log (evaluations and best raw score); the runs keep `-l WARN`, so the log itself has no
+  such row (`tools/gomea/hc_progress.py`).
 * **A2 (proposed 2026-11-26, not approved).** The descriptive item "the per-term fit counters
   (HC-TLS)" cannot be built without new output code: the counters are not written anywhere, for
   GOMEA or for HC. Proposal: report the `terms` record of the final model instead (n_terms and the
