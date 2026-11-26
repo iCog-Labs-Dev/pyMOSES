@@ -983,6 +983,22 @@ is started or approved.
      constant). A feasibility note and the user's decision come first, and only with evidence from
      D1–D3.
 
+5. **RV16 nits of the round 17 build, for later (the user, 2026-11-26: "Put the Nits for later I
+   will tell you when the round 16b finishes and we will go from there").** The full report is in
+   `pyMoses-suite-tmp/rv16-r17/REVIEW-2026-11-26.md`. F1–F4 and F9 are done or decided.
+   * F5: the smoke ran at clone-B commit `961a5a6`; the last commits had no smoke. Rerun a short
+     smoke on the final commit with the pilot.
+   * F6: the plan text says "about 23 h at 11 runs at a time", but the 8,192 MB placeholder gives
+     7 runs at a time for the 100,000 arms; after the pilot, update the memory limit, W, the
+     estimate and the plan split.
+   * F7: nothing in the code checks that round 16b has ended before round 17 starts (only step 1 of
+     the SERVER-RUN procedure). Idea: a requirement on `server-run16b/DONE`.
+   * F8: `tools/gomea/hc_progress.py` has no guard around its file write; an `OSError` kills the
+     MOSES run, which then counts as a failure in a primary contrast. Idea: catch it, stop writing
+     and mark the file.
+   * F10: `tests/gomea/test_round17_report.py:201` (`n = 130 if design.HC_TLS else 130`) and an
+     unused parameter at line 151.
+
 ## 8. Future directions from the literature search (2026-11-06)
 
 Source: the literature search of 2026-11-06 (`docs/gomea/LITERATURE-2026-11-06.md`). Start only after rounds 6 to 8 give a
