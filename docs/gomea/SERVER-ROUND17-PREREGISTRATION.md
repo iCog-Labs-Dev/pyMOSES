@@ -211,7 +211,8 @@ win, for a memory fault that has nothing to do with the search. So:
   hook in the MOSES process writes, after each deme, the two values of the "Stats:" row of the
   MOSES log (evaluations and best raw score); the runs keep `-l WARN`, so the log itself has no
   such row (`tools/gomea/hc_progress.py`).
-* **A2 (proposed 2026-11-26, not approved).** The descriptive item "the per-term fit counters
+* **A2 (approved by the user, 2026-11-26).** The descriptive item "the per-term fit counters
   (HC-TLS)" cannot be built without new output code: the counters are not written anywhere, for
   GOMEA or for HC. Proposal: report the `terms` record of the final model instead (n_terms and the
   fallback share), which the runner already writes for every arm with `--linear-scaling terms`.
+  The user chose this version ("A2: terms record") over the counters.

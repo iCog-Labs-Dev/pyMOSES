@@ -772,3 +772,13 @@ user confirms it.
   answered: "Yes, add them to the backlog. Don't start D1 yet. Specially if it uses more memory as
   memory is busy right now."
   * Done: `BACKLOG.md` 15.4, a line in `ROADMAP.md`. Not started; D1 waits for free local memory.
+* **Round 17 RV16 findings and amendment A2 (2026-11-26):** the agent gave the user the full RV16
+  report (2 blocking findings: F1, the recovery command; F2, amendment A2; nits F3–F10). The user
+  answered: "Yes go with the approved version and fix the doc fixes as well. Anything else ?" Asked
+  which version "the approved version" means, the user chose "A2: terms record".
+  * User decisions: A2 is approved (the `terms` record of the final model in place of the per-term
+    fit counters); the doc fixes are made (F1, F3, F4 in part, F9; commit `75200e4`).
+  * Agent check of F4: its first point is refuted by the code (`update_best_candidates` replaces
+    the best candidate only for a higher raw score), so only its other points were fixed.
+  * Not decided: the nits F7 (a check that round 16b is DONE), F8 (a guard on the hook's file
+    write) and F10 (test cosmetics).
