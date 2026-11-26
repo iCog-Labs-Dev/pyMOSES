@@ -171,7 +171,9 @@ is done when the user has decided on them.
   and the estimated effort. The user decides on the note before any design.
 * **After round 16 (user, 2026-11-24):** the next round runs HC-LM, and HC-TLS if it is ready, at
   20,000 and 100,000 evaluations on the round 16 datasets and splits 81–90, paired with the round 16
-  runs (`BACKLOG.md` 15.2).
+  runs (`BACKLOG.md` 15.2). Round 17: pre-registration draft written (2026-11-26,
+  `SERVER-ROUND17-PREREGISTRATION.md`); HC-LM is the normal HC and HC has no deme cap (user,
+  2026-11-26). Not approved, not implemented.
 * **Later (user, 2026-11-25): MOSES against the state of the art on SRBench 2025** (`BACKLOG.md`
   15.3). Not before the MOSES arms are frozen. It needs a SymPy export and an sklearn-style
   estimator first.
@@ -211,7 +213,7 @@ is done when the user has decided on them.
   seeds, 10 more only by the extension rule.
 * **Budget:** say what is equal across arms, CPU time or evaluations, and why. Report both
   evaluations and CPU in the results. Round 4: the cap saved evaluations but cost CPU.
-* **Fair comparisons:** HC gets the same per-deme cap as GOMEA. Seeding counts against the same
+* **Fair comparisons:** HC has no deme cap (the user, 2026-11-26; until then HC had the GOMEA arm's per-deme cap). Seeding counts against the same
   budget. A selection step and its confirmation use different data (splits 21–30, 31–40 and 41–50
   are used by rounds 8, 11 and 12; no later splits exist yet).
 * **Statistics:** paired Wilcoxon signed-rank, Holm across the primary contrasts of a phase,

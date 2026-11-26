@@ -749,3 +749,12 @@ user confirms it.
     2026-10-15 (HC with the GOMEA arm's per-deme cap).
   * Done: `BACKLOG.md` 15.1 and 15.2. Not approved yet: the design and the pre-registration of the
     round.
+* **Round 17 pre-registration (2026-11-26):** the agent asked whether "normal HC" means HC-LM or
+  classic HC, and whether to write the pre-registration of the HC round now. The user answered:
+  "HC-LM, and write the pre-registration now."
+  * User decisions: "normal HC" is HC-LM; the pre-registration is written now
+    (`SERVER-ROUND17-PREREGISTRATION.md`, draft).
+  * Agent-written, not approved: the questions and contrasts, the Dow rule (Dow out of every
+    verdict), the proposal to leave out HC on Dow at 100,000, the HC-TLS check, the pilot gate,
+    the memory limits and the estimate (about 250 CPU-h).
+  * Not approved yet: the text of the pre-registration, any code.

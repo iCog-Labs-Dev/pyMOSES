@@ -809,8 +809,9 @@ is started or approved.
    * **Cost (agent estimate, not measured):** HC-LM about 13 CPU-h at 20,000 and about 65 CPU-h at
      100,000, so about 7–8 h on the server. A local pilot first (memory and time), as in round 16.
    * **Decided (user, 2026-11-26):** HC-LM and HC-TLS run with no deme cap (see 15.1).
-   * **Open:** whether HC-TLS joins (15.1, after its check); by "normal HC", HC-LM or classic HC
-     with no scaling and no LM (asked 2026-11-26).
+   * **Decided (user, 2026-11-26):** "normal HC" is HC-LM. Pre-registration draft:
+     `SERVER-ROUND17-PREREGISTRATION.md` (round 17, phase 1bl; not approved yet).
+   * **Open:** whether HC-TLS joins (15.1, after its check).
 
 3. **MOSES against state-of-the-art symbolic regression on SRBench 2025.** Origin: the user
    (2026-11-25: "I am thinking to run something like the following to see the relevance of MOSES as
