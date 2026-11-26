@@ -171,10 +171,16 @@ def _has_standalone_arm(f: Path) -> bool:
     return any("standalone" in a for a in json.loads(f.read_text())["arms"].values())
 
 
+def _anytime_key(f: Path) -> str | None:
+    """Server round 16 (1bk) manifests have the key "anytime", and server round 17 (1bl)
+    manifests the key "hc_anytime", which the jobs carry; the runner at 5fdd335 does not know
+    them, so the identity test leaves them out. The key of the manifest, or None."""
+    m = json.loads(f.read_text())
+    return next((k for k in ("anytime", "hc_anytime") if k in m), None)
+
+
 def _has_anytime_key(f: Path) -> bool:
-    """Server round 16 (1bk) manifests have the key "anytime", which the jobs carry; the runner
-    at 5fdd335 does not know it, so the identity test leaves them out."""
-    return "anytime" in json.loads(f.read_text())
+    return _anytime_key(f) is not None
 
 
 def test_every_committed_manifest_expands_to_the_jobs_of_5fdd335(tmp_path):
@@ -195,15 +201,17 @@ def test_every_committed_manifest_expands_to_the_jobs_of_5fdd335(tmp_path):
             assert jobs and all("standalone" in j for j in jobs), f
     # server round 16: the manifests with the key "anytime" expand with the current runner, and
     # without the key their jobs are those of the current runner without the key and (the RV16
-    # review, nit 7) those of the runner at 5fdd335
+    # review, nit 7) those of the runner at 5fdd335. Server round 17: the same for the key
+    # "hc_anytime".
     stripped = []
     for f in every:
-        if _has_anytime_key(f):
+        key = _anytime_key(f)
+        if key is not None:
             m = json.loads(f.read_text())
             jobs = runner.expand(m, Path("/o"), REPO)
-            assert jobs and all(j.get("anytime") is True for j in jobs), f
-            m.pop("anytime")
-            want = [{k: v for k, v in j.items() if k != "anytime"} for j in jobs]
+            assert jobs and all(j.get(key) is True for j in jobs), f
+            m.pop(key)
+            want = [{k: v for k, v in j.items() if k != key} for j in jobs]
             assert want == runner.expand(m, Path("/o"), REPO)
             t = tmp_path / "without-anytime" / f.parent.name / f.name
             t.parent.mkdir(parents=True, exist_ok=True)
