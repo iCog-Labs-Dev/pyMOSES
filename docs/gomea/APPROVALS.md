@@ -758,3 +758,10 @@ user confirms it.
     verdict), the proposal to leave out HC on Dow at 100,000, the HC-TLS check, the pilot gate,
     the memory limits and the estimate (about 250 CPU-h).
   * Not approved yet: the text of the pre-registration, any code.
+* **Round 17 approved (2026-11-26):** the agent asked for approval of the pre-registration and
+  recommended to leave out HC on Dow at 100,000. The user answered: "Approved, leave out Dow at
+  100K".
+  * User decisions: the pre-registration text is approved (`SERVER-ROUND17-PREREGISTRATION.md`);
+    HC does not run on Dow at 100,000 (260 runs).
+  * Next: the implementation by subagents in separate clones, the pilot, the RV16 review, and the
+    push only with a fresh approval. Round 17 starts on the server only after round 16b has ended.

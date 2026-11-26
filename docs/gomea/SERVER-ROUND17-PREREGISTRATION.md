@@ -1,8 +1,9 @@
 # Server round 17: pre-registration (2026-11-26)
 
-**Status:** draft for approval. Not implemented, not run. The user asked for this round and for
-this text: "HC-LM, and write the pre-registration now" (2026-11-26, `APPROVALS.md`). The agent
-wrote the details below. The user approves this text before any code.
+**Status:** approved by the user on 2026-11-26: "Approved, leave out Dow at 100K"
+(`APPROVALS.md`). Not implemented, not run. The user asked for this round and for this text: "HC-LM,
+and write the pre-registration now" (2026-11-26). The agent wrote the details below; the user
+approved them as a whole.
 
 **The user's question (2026-11-24):** "Do you think more evaluation can show the difference in the
 BASE-TLS and HC-LM? Because on most of the dataset where HC-LM won, it's accuracy stagnates while
@@ -53,8 +54,8 @@ BASE-TLS (20,000 evaluations) stays the reference. TLS-NP and TLS-LMR stay next 
   round. One plan if the pilot estimate is at most 20 h; else two plans that chain, split by
   splits (81–85, then 86–90), as in round 16. The round runs in one go, with no separate server
   smoke step.
-* **One phase (1bl, regression):** the 7 data sets of round 16 (Air, Con, EnC, EnH, Yac, Tow, Dow),
-  splits 81–90 (already built on the server for round 16), a budget of 20,000 or 100,000
+* **One phase (1bl, regression):** the 7 data sets of round 16 (Air, Con, EnC, EnH, Yac, Tow, Dow;
+  Dow at 20,000 only), splits 81–90 (already built on the server for round 16), a budget of 20,000 or 100,000
   evaluations for each run (`-m`), no time limit, a wall cap of 36,000 s as a guard only.
 * **Pairing with round 16:** each HC run pairs with the round 16 run of the same data set, split,
   seed and budget (BASE-TLS or BASE-TLS-100K). The report reads the round 16 results from
@@ -78,19 +79,19 @@ win, for a memory fault that has nothing to do with the search. So:
 
 * **Every contrast with a verdict uses the 6 data sets without Dow:** 6 × 10 = 60 pairs, the same
   pairs for each contrast and at both budgets.
-* **Dow is descriptive:** its 20,000 pairs (BASE-TLS against HC-LM and HC-TLS), and a view of P1,
-  P2 and P4 with the pre-registered failure rule (the failed GOMEA runs counted as infinitely bad).
-* **Proposal (the user decides):** do not run HC on Dow at 100,000. These runs have no partner and
-  cost about 45 CPU-h. With this proposal, the round has 260 runs; without it, 280.
+* **Dow is descriptive:** its 20,000 pairs (BASE-TLS against HC-LM and HC-TLS).
+* **Decided (user, 2026-11-26): HC does not run on Dow at 100,000.** These runs have no partner and
+  would cost about 45 CPU-h. The round has 260 runs. The Dow view of P1, P2 and P4 with the failure
+  rule is then not possible (no HC run on Dow at 100,000), so Dow is described at 20,000 only.
 
-## Arms (260 or 280 new runs; the GOMEA partners come from round 16)
+## Arms (260 new runs; the GOMEA partners come from round 16)
 
 | Arm | Budget | Flags | Runs |
 |---|---|---|---|
 | **HC-LM** | 20,000 | `-a hc --knob-probe-baseline reduced --linear-scaling 1 --const-opt lm --const-opt-guard val` (the round 13 and 14 flags) | 70 |
-| **HC-LM-100K** | 100,000 | the same | 60 (70 with Dow) |
+| **HC-LM-100K** | 100,000 | the same | 60 (no Dow) |
 | **HC-TLS** | 20,000 | `-a hc --knob-probe-baseline reduced --linear-scaling terms --const-opt none` | 70 |
-| **HC-TLS-100K** | 100,000 | the same | 60 (70 with Dow) |
+| **HC-TLS-100K** | 100,000 | the same | 60 (no Dow) |
 | BASE-TLS (round 16) | 20,000 | the round 16 flags (`configs/gomea/phase1bk/sr.json`) | — |
 | BASE-TLS-100K (round 16) | 100,000 | the same | — |
 
