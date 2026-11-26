@@ -782,3 +782,13 @@ user confirms it.
     the best candidate only for a higher raw score), so only its other points were fixed.
   * Not decided: the nits F7 (a check that round 16b is DONE), F8 (a guard on the hook's file
     write) and F10 (test cosmetics).
+* **Round 16 final results, the pilot and F8 (2026-11-26):** the user wrote "Btw the round 16b has
+  finished, what was we supposed to do when that is done?" The agent listed the planned steps (the
+  final round 16 analysis, the page update, the round 17 pilot with F5 and F6, the nits, RV16 round
+  2, the push). The user answered: "Yes start step 1, go for the pilot and F8. Using subagents
+  please spead up the rest of the work as I will be reading the result after you update it I don't
+  want you to wait for me building stuff".
+  * User-approved: the final analysis (`SERVER-ROUND16-FINDINGS.md`); the round 17 local pilot; the
+    F8 fix (a guard on the HC progress file write); subagents for the other work.
+  * Not decided: F7 and F10; stopping T3.2 (the pre-registered proposal of round 16); the Dow
+    memory item in the backlog. Not approved: any push.
