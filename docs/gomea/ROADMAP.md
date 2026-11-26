@@ -173,7 +173,8 @@ is done when the user has decided on them.
   20,000 and 100,000 evaluations on the round 16 datasets and splits 81–90, paired with the round 16
   runs (`BACKLOG.md` 15.2). Round 17: pre-registration draft written (2026-11-26,
   `SERVER-ROUND17-PREREGISTRATION.md`); HC-LM is the normal HC and HC has no deme cap (user,
-  2026-11-26). Not approved, not implemented.
+  2026-11-26). Approved by the user (2026-11-26, without HC on Dow at 100,000); implementation
+  started.
 * **Later (user, 2026-11-25): MOSES against the state of the art on SRBench 2025** (`BACKLOG.md`
   15.3). Not before the MOSES arms are frozen. It needs a SymPy export and an sklearn-style
   estimator first.
