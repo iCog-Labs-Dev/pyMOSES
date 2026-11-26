@@ -1,0 +1,33 @@
+{
+  "name": "d1b-check-hc",
+  "datasets_dir": "../gomea-results/phase1f/datasets",
+  "datasets": [
+    "Yac"
+  ],
+  "splits": [
+    91
+  ],
+  "wall_cap_s": 36000,
+  "mem_limit_mb": 2048,
+  "clip_test_nmse": true,
+  "plain_nmse": true,
+  "hc_anytime": true,
+  "arms": {
+    "HC-TLS": {
+      "binary": ".venv/bin/moses",
+      "budget": {
+        "evals": 2000
+      },
+      "argv": [
+        "-a",
+        "hc",
+        "--knob-probe-baseline",
+        "reduced",
+        "--linear-scaling",
+        "terms",
+        "--const-opt",
+        "none"
+      ]
+    }
+  }
+}
