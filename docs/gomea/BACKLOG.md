@@ -1120,6 +1120,26 @@ is started or approved.
      64 GB; fewer runs at a time for that list); (c) a clear error record when the limit is hit;
      (d) a fix of the largest memory user, if the probe finds one.
 
+7. **T3.2 continues: RV at the deme end (`--gomea-rv-budget end`).** Origin: the user, 2026-11-26
+   ("No we are not giving up on the T3.2 yet. I want us to keep pushing."); the design is agent-written
+   from the round 16 data (post hoc). Status: the option is being built (opt-in); no run until the
+   user approves a plan.
+   * **Round 16 evidence (agent analysis of the `rv` records, no Dow):** TLS-RV spends 13–26 % of the
+     evaluations on RV generations (Tower 5–8 %). About 20–30 % of the RV evaluations improve their
+     reference. The RV demes end mostly by structure convergence (48–66 %), the BASE-TLS demes by
+     stagnation (54–86 %). An RV deme costs more evaluations: the second deme starts later (Yacht
+     6.6K against 2.2K; Concrete 12.3K against 5.5K at 20,000), so TLS-RV-100K has about half the
+     demes of BASE-TLS-100K (Yacht 12.5 against 22; Energy heating 3 against 7). Fewer demes means
+     less structure search; this fits the lower accuracy and the smaller programs.
+   * **The idea:** keep the GOM demes as in BASE-TLS, and run the RV step only as a short polish of
+     the final population when a deme ends by convergence or stagnation, with a cap of a fixed share
+     of the deme's evaluations (default 10 %). Then the number of demes stays close to BASE-TLS,
+     and RV still gives the constants real values, the "new samples during the optimization" that
+     the user asked for (2026-11-26).
+   * **A first local test (proposal, not approved):** BASE-TLS against TLS-RVE at 20,000 on Yacht,
+     Energy heating and Tower (the data sets with room in the constants, D1), splits 91–100, with
+     the D1b BASE-TLS Yacht runs as the shared control. Decide after D1b.
+
 ## 8. Future directions from the literature search (2026-11-06)
 
 Source: the literature search of 2026-11-06 (`docs/gomea/LITERATURE-2026-11-06.md`). Start only after rounds 6 to 8 give a
