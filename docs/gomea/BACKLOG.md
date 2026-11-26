@@ -599,7 +599,7 @@ Results: `SERVER-ROUND13-FINDINGS.md`. BASE-TLS is the reference and the default
 TLS-NP is next in line (user, 2026-11-19). Round 13 tested items 1, 2, 5 and 6 of section 11 and section 10,
 item 1, and built items 3 and 7 of section 11 (size with the term weights; the report tables).
 
-1. **Bug: the guard loads its validation table with its own column types.** `load_rows`
+1. **Fixed (`2739cba`, round 14).** **Bug: the guard loads its validation table with its own column types.** `load_rows`
    (`pymoses/gomea/const_opt.py`, from round 5) infers the types from the first 20 lines of the
    validation file. On Dow splits 11 and 56 the first 19 values of `x13` are 0, so `x13` becomes
    boolean and a later row (801.904) gives `ValueError`. Dow HC-LM split 56 failed in round 13. Fix:
