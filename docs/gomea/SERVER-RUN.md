@@ -1617,7 +1617,8 @@ run `RETRY_FAILED=1 bash tools/server/start.sh --plan round17`.
   "Stats:" row of the MOSES log; the log level stays WARN; the search does not change). The
   summary gets `demes`, `anytime` (the checkpoints 1, 2, 5, 10, 20, 50 and 100 % of the budget;
   null before the end of the first deme), `anytime_source` "hc-demes" and `anytime_check`
-  (for HC-LM also the check against the rule of its "end" events).
+  (for HC-LM also the check against the rule of its "end" events). The lines of the hook
+  (`hc_progress.jsonl`, one per deme) are in the bundle.
 * Each manifest has a result directory of its own: `phase1bl/phase1bl-sr/`,
   `phase1bl/phase1bl-sr-100K/` and `phase1bl/phase1bl-sr-Dow/`.
 
