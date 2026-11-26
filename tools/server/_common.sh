@@ -1,5 +1,5 @@
 # Sourced by start.sh, stop.sh and status.sh: REPO, RES, PLAN, SD from
-# "--plan round|smoke|round2|smoke2|round3|smoke3|round4|smoke4|round5|smoke5|round6|smoke6|round7|smoke7|round8|smoke8|round9|smoke9|round10|smoke10|round11|smoke11|round12|smoke12|round13|smoke13|round14|smoke14|round15|smoke15|round15b|smoke15b|round16|smoke16|round16b|smoke16b|FILE" (default round; env PLAN
+# "--plan round|smoke|round2|smoke2|round3|smoke3|round4|smoke4|round5|smoke5|round6|smoke6|round7|smoke7|round8|smoke8|round9|smoke9|round10|smoke10|round11|smoke11|round12|smoke12|round13|smoke13|round14|smoke14|round15|smoke15|round15b|smoke15b|round16|smoke16|round16b|smoke16b|round17|smoke17|round17b|smoke17b|FILE" (default round; env PLAN
 # works too, e.g. PLAN=round2 or PLAN=tools/server/plan2.json).
 REPO=$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)
 RES=$REPO/../gomea-results
@@ -50,6 +50,10 @@ case "$PLAN_ARG" in
     smoke16) PLAN=$REPO/tools/server/plan16-smoke.json ;;
     round16b) PLAN=$REPO/tools/server/plan16b.json ;;
     smoke16b) PLAN=$REPO/tools/server/plan16b-smoke.json ;;
+    round17) PLAN=$REPO/tools/server/plan17.json ;;
+    smoke17) PLAN=$REPO/tools/server/plan17-smoke.json ;;
+    round17b) PLAN=$REPO/tools/server/plan17b.json ;;
+    smoke17b) PLAN=$REPO/tools/server/plan17b-smoke.json ;;
     *) PLAN=$(realpath "$PLAN_ARG") ;;
 esac
 [ -f "$PLAN" ] || { echo "no plan file $PLAN" >&2; exit 2; }

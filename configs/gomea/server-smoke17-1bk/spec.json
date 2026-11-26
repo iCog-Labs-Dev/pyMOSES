@@ -1,0 +1,28 @@
+{
+  "phase": "smoke17-1bk",
+  "metrics": {
+    "Air": "test_nmse",
+    "Con": "test_nmse",
+    "Dow": "test_nmse",
+    "EnC": "test_nmse",
+    "EnH": "test_nmse",
+    "Tow": "test_nmse",
+    "Yac": "test_nmse"
+  },
+  "primary": [],
+  "extend": false,
+  "contrast_families": [
+    {
+      "name": "D",
+      "role": "descriptive",
+      "contrasts": [
+        [
+          "basetls100k-vs-basetls",
+          "BASE-TLS-100K",
+          "BASE-TLS",
+          "test_nmse"
+        ]
+      ]
+    }
+  ]
+}

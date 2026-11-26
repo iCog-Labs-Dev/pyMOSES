@@ -1,0 +1,56 @@
+{
+  "name": "server-smoke17-1bl-sr",
+  "datasets_dir": "../gomea-results/phase1f/datasets",
+  "datasets": [
+    "Air",
+    "Con",
+    "EnC",
+    "EnH",
+    "Tow",
+    "Yac"
+  ],
+  "splits": [
+    1
+  ],
+  "wall_cap_s": 300,
+  "mem_limit_mb": 2048,
+  "clip_test_nmse": true,
+  "plain_nmse": true,
+  "hc_anytime": true,
+  "arms": {
+    "HC-LM": {
+      "binary": ".venv/bin/moses",
+      "budget": {
+        "evals": 1000
+      },
+      "argv": [
+        "-a",
+        "hc",
+        "--knob-probe-baseline",
+        "reduced",
+        "--linear-scaling",
+        "1",
+        "--const-opt",
+        "lm",
+        "--const-opt-guard",
+        "val"
+      ]
+    },
+    "HC-TLS": {
+      "binary": ".venv/bin/moses",
+      "budget": {
+        "evals": 1000
+      },
+      "argv": [
+        "-a",
+        "hc",
+        "--knob-probe-baseline",
+        "reduced",
+        "--linear-scaling",
+        "terms",
+        "--const-opt",
+        "none"
+      ]
+    }
+  }
+}

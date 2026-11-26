@@ -1,0 +1,23 @@
+{
+  "name": "server-round17b-2026-11",
+  "description": "The second plan of round 17 (SERVER-ROUND17-PREREGISTRATION.md; it starts by itself when round17 ends): 1bl with the full config (configs/gomea/phase1bl: the three manifests with splits 81-90). The runner keeps the 130 runs of round17 (the same result directories) and runs the other 130 (splits 86-90); the report covers all 260 runs and their round 16 partners. The same requirements as round17 (the splits and the 130 partner summaries). No S0 (round17 ran it on the same commit).",
+  "state_dir": "server-run17b",
+  "steps": [
+    {
+      "id": "phase1bl",
+      "type": "phase",
+      "phase": "phase1bl",
+      "requires": [
+        "datasets:Air,Con,Dow,EnC,EnH,Tow,Yac:81-90",
+        "summaries:phase1bk/phase1bk-sr:BASE-TLS:Air,Con,EnC,EnH,Tow,Yac:81-90",
+        "summaries:phase1bk/phase1bk-sr-100K:BASE-TLS-100K:Air,Con,EnC,EnH,Tow,Yac:81-90",
+        "summaries:phase1bk/phase1bk-sr-Dow:BASE-TLS:Dow:81-90"
+      ],
+      "per_run_mb": 2048,
+      "manifest_per_run_mb": {
+        "sr-Dow.json": 4096,
+        "sr-100K.json": 8192
+      }
+    }
+  ]
+}

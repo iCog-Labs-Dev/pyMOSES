@@ -1,0 +1,63 @@
+{
+  "name": "server-round17-smoke",
+  "description": "Smoke test of the round-17 chain (a local rehearsal): limited pytest (tests/server, the tests of the round 17 runner, hook and report, and the tests of the round 13 to 16 runner and report), the mux11 repro run, then smoke17-1bk: the GOMEA partners in miniature (configs/gomea/server-smoke17-1bk: BASE-TLS and BASE-TLS-100K of round 16, the same three manifests, old splits 1 and 2, 1,000 and 2,000 evaluations; 26 jobs), so the smoke needs no round 16 results; then 1bl in miniature on old split 1 (configs/gomea/server-smoke17-1bl-a: the same three manifests, arms, flags, keys and spec as 1bl, split 1 only, 1,000 and 2,000 evaluations, a wall cap of 300 s; the spec reads the partners of smoke17-1bk; 26 jobs). The smoke uses old splits 1 and 2, never splits 81-90, so it needs the datasets with splits 1-2 and the 26 partner summaries of smoke17-1bk. No extension. Then smoke17b. Uses its own state dir, so it never marks real steps done.",
+  "state_dir": "server-run17-smoke",
+  "steps": [
+    {
+      "id": "S0",
+      "type": "check",
+      "pytest": {
+        "args": [
+          "tests/server",
+          "tests/gomea/test_round17_runner.py",
+          "tests/gomea/test_hc_progress.py",
+          "tests/gomea/test_round17_report.py",
+          "tests/gomea/test_round16_runner.py",
+          "tests/gomea/test_round16_report.py",
+          "tests/gomea/test_round15_report.py",
+          "tests/gomea/test_round14_linear.py",
+          "tests/gomea/test_round13_runner_report.py",
+          "tests/gomea/test_hc_lm.py",
+          "tests/gomea/test_hc_lm_identity.py",
+          "tests/gomea/test_sr_eval_terms.py"
+        ]
+      },
+      "repro": {
+        "only": [
+          "1ae-mux11-GOMEA-s3001"
+        ]
+      }
+    },
+    {
+      "id": "smoke17-1bk",
+      "type": "phase",
+      "phase": "server-smoke17-1bk",
+      "requires": [
+        "datasets:Air,Con,Dow,EnC,EnH,Tow,Yac:1-2"
+      ],
+      "per_run_mb": 5120,
+      "manifest_per_run_mb": {
+        "sr-100K.json": 8192,
+        "sr-Dow.json": 8192
+      }
+    },
+    {
+      "id": "smoke17-1bl",
+      "type": "phase",
+      "phase": "server-smoke17-1bl",
+      "config_dir": "{repo}/configs/gomea/server-smoke17-1bl-a",
+      "requires": [
+        "datasets:Air,Con,Dow,EnC,EnH,Tow,Yac:1-2",
+        "summaries:server-smoke17-1bk/server-smoke17-1bk-sr:BASE-TLS:Air,Con,EnC,EnH,Tow,Yac:1-2",
+        "summaries:server-smoke17-1bk/server-smoke17-1bk-sr-100K:BASE-TLS-100K:Air,Con,EnC,EnH,Tow,Yac:1-2",
+        "summaries:server-smoke17-1bk/server-smoke17-1bk-sr-Dow:BASE-TLS:Dow:1-2"
+      ],
+      "per_run_mb": 2048,
+      "manifest_per_run_mb": {
+        "sr-Dow.json": 4096,
+        "sr-100K.json": 8192
+      }
+    }
+  ],
+  "then": "smoke17b"
+}

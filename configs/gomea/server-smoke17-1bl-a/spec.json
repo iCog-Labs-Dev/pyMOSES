@@ -1,0 +1,263 @@
+{
+  "phase": "smoke17-1bl",
+  "metrics": {
+    "Air": "test_nmse",
+    "Con": "test_nmse",
+    "Dow": "test_nmse",
+    "EnC": "test_nmse",
+    "EnH": "test_nmse",
+    "Tow": "test_nmse",
+    "Yac": "test_nmse"
+  },
+  "primary": [],
+  "extend": false,
+  "pooled_problems": [
+    "Air",
+    "Con",
+    "EnC",
+    "EnH",
+    "Tow",
+    "Yac"
+  ],
+  "partners": {
+    "dirs": [
+      "../gomea-results/server-smoke17-1bk/server-smoke17-1bk-sr",
+      "../gomea-results/server-smoke17-1bk/server-smoke17-1bk-sr-100K",
+      "../gomea-results/server-smoke17-1bk/server-smoke17-1bk-sr-Dow"
+    ],
+    "pairs": {
+      "HC-LM": "BASE-TLS",
+      "HC-TLS": "BASE-TLS",
+      "HC-LM-100K": "BASE-TLS-100K",
+      "HC-TLS-100K": "BASE-TLS-100K"
+    }
+  },
+  "contrast_families": [
+    {
+      "name": "P",
+      "role": "primary",
+      "contrasts": [
+        [
+          "basetls-vs-hclm-gain-100k-vs-20k",
+          "BASE-TLS-100K",
+          "HC-LM-100K",
+          "BASE-TLS",
+          "HC-LM",
+          "test_nmse"
+        ],
+        [
+          "basetls100k-vs-hclm100k",
+          "BASE-TLS-100K",
+          "HC-LM-100K",
+          "test_nmse"
+        ],
+        [
+          "basetls-vs-hctls",
+          "BASE-TLS",
+          "HC-TLS",
+          "test_nmse"
+        ],
+        [
+          "basetls100k-vs-hctls100k",
+          "BASE-TLS-100K",
+          "HC-TLS-100K",
+          "test_nmse"
+        ]
+      ]
+    },
+    {
+      "name": "S",
+      "role": "secondary",
+      "contrasts": [
+        [
+          "basetls-vs-hclm",
+          "BASE-TLS",
+          "HC-LM",
+          "test_nmse"
+        ],
+        [
+          "hclm100k-vs-hclm",
+          "HC-LM-100K",
+          "HC-LM",
+          "test_nmse"
+        ],
+        [
+          "hctls-vs-hclm",
+          "HC-TLS",
+          "HC-LM",
+          "test_nmse"
+        ],
+        [
+          "hctls100k-vs-hclm100k",
+          "HC-TLS-100K",
+          "HC-LM-100K",
+          "test_nmse"
+        ],
+        [
+          "basetls-vs-hctls-gain-100k-vs-20k",
+          "BASE-TLS-100K",
+          "HC-TLS-100K",
+          "BASE-TLS",
+          "HC-TLS",
+          "test_nmse"
+        ],
+        [
+          "basetls-vs-hclm-gain-100k-vs-20k-train",
+          "BASE-TLS-100K",
+          "HC-LM-100K",
+          "BASE-TLS",
+          "HC-LM",
+          "train_nmse"
+        ],
+        [
+          "basetls100k-vs-hclm100k-train",
+          "BASE-TLS-100K",
+          "HC-LM-100K",
+          "train_nmse"
+        ],
+        [
+          "basetls-vs-hctls-train",
+          "BASE-TLS",
+          "HC-TLS",
+          "train_nmse"
+        ],
+        [
+          "basetls100k-vs-hctls100k-train",
+          "BASE-TLS-100K",
+          "HC-TLS-100K",
+          "train_nmse"
+        ]
+      ]
+    },
+    {
+      "name": "SC",
+      "role": "secondary",
+      "contrasts": [
+        [
+          "basetls100k-vs-hclm100k-size",
+          "BASE-TLS-100K",
+          "HC-LM-100K",
+          "program_size"
+        ],
+        [
+          "basetls100k-vs-hclm100k-cpu",
+          "BASE-TLS-100K",
+          "HC-LM-100K",
+          "cpu_s"
+        ],
+        [
+          "basetls-vs-hctls-size",
+          "BASE-TLS",
+          "HC-TLS",
+          "program_size"
+        ],
+        [
+          "basetls-vs-hctls-cpu",
+          "BASE-TLS",
+          "HC-TLS",
+          "cpu_s"
+        ],
+        [
+          "basetls100k-vs-hctls100k-size",
+          "BASE-TLS-100K",
+          "HC-TLS-100K",
+          "program_size"
+        ],
+        [
+          "basetls100k-vs-hctls100k-cpu",
+          "BASE-TLS-100K",
+          "HC-TLS-100K",
+          "cpu_s"
+        ],
+        [
+          "basetls-vs-hclm-size",
+          "BASE-TLS",
+          "HC-LM",
+          "program_size"
+        ],
+        [
+          "basetls-vs-hclm-cpu",
+          "BASE-TLS",
+          "HC-LM",
+          "cpu_s"
+        ]
+      ]
+    },
+    {
+      "name": "D",
+      "role": "descriptive",
+      "per_dataset": true,
+      "contrasts": [
+        [
+          "basetls-vs-hclm-gain-100k-vs-20k",
+          "BASE-TLS-100K",
+          "HC-LM-100K",
+          "BASE-TLS",
+          "HC-LM",
+          "test_nmse"
+        ],
+        [
+          "basetls100k-vs-hclm100k",
+          "BASE-TLS-100K",
+          "HC-LM-100K",
+          "test_nmse"
+        ],
+        [
+          "basetls-vs-hctls",
+          "BASE-TLS",
+          "HC-TLS",
+          "test_nmse"
+        ],
+        [
+          "basetls100k-vs-hctls100k",
+          "BASE-TLS-100K",
+          "HC-TLS-100K",
+          "test_nmse"
+        ]
+      ]
+    },
+    {
+      "name": "DD",
+      "role": "descriptive",
+      "per_dataset": true,
+      "problems": [
+        "Dow"
+      ],
+      "contrasts": [
+        [
+          "dow-basetls-vs-hclm",
+          "BASE-TLS",
+          "HC-LM",
+          "test_nmse"
+        ],
+        [
+          "dow-basetls-vs-hctls",
+          "BASE-TLS",
+          "HC-TLS",
+          "test_nmse"
+        ]
+      ]
+    },
+    {
+      "name": "DP",
+      "role": "descriptive",
+      "contrasts": [
+        [
+          "hctls100k-vs-hctls",
+          "HC-TLS-100K",
+          "HC-TLS",
+          "test_nmse"
+        ]
+      ]
+    }
+  ],
+  "anytime_ratios": {
+    "HC-LM": "BASE-TLS",
+    "HC-TLS": "BASE-TLS",
+    "HC-LM-100K": "BASE-TLS-100K",
+    "HC-TLS-100K": "BASE-TLS-100K"
+  },
+  "deme_table": true,
+  "size_terms": true,
+  "run_table": true
+}

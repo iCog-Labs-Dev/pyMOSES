@@ -49,6 +49,8 @@ PLAN_FILES = {
     "round15b": "plan15b.json", "smoke15b": "plan15b-smoke.json",
     "round16": "plan16.json", "smoke16": "plan16-smoke.json",
     "round16b": "plan16b.json", "smoke16b": "plan16b-smoke.json",
+    "round17": "plan17.json", "smoke17": "plan17-smoke.json",
+    "round17b": "plan17b.json", "smoke17b": "plan17b-smoke.json",
 }
 
 

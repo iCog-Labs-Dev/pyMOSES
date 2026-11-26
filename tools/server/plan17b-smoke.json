@@ -1,0 +1,23 @@
+{
+  "name": "server-round17b-smoke",
+  "description": "Smoke test of the second plan of round 17: 1bl in miniature with the full smoke config (configs/gomea/server-smoke17-1bl: the three manifests, old splits 1 and 2); the runner keeps the 26 runs of smoke17 and runs the other 26; the report covers all 52 and their partners of smoke17-1bk. No S0.",
+  "state_dir": "server-run17b-smoke",
+  "steps": [
+    {
+      "id": "smoke17-1bl",
+      "type": "phase",
+      "phase": "server-smoke17-1bl",
+      "requires": [
+        "datasets:Air,Con,Dow,EnC,EnH,Tow,Yac:1-2",
+        "summaries:server-smoke17-1bk/server-smoke17-1bk-sr:BASE-TLS:Air,Con,EnC,EnH,Tow,Yac:1-2",
+        "summaries:server-smoke17-1bk/server-smoke17-1bk-sr-100K:BASE-TLS-100K:Air,Con,EnC,EnH,Tow,Yac:1-2",
+        "summaries:server-smoke17-1bk/server-smoke17-1bk-sr-Dow:BASE-TLS:Dow:1-2"
+      ],
+      "per_run_mb": 2048,
+      "manifest_per_run_mb": {
+        "sr-Dow.json": 4096,
+        "sr-100K.json": 8192
+      }
+    }
+  ]
+}

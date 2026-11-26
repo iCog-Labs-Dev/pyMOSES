@@ -309,10 +309,17 @@ def test_datasets_and_fresh_splits_and_no_extension():
     assert set(SPLITS) <= set(sr_datasets.SEEDS)
 
 
+# Server round 17 (1bl) pairs each run with the round 16 run of the same dataset and split
+# (SERVER-ROUND17-PREREGISTRATION.md, "Pairing with round 16"), so it uses splits 81-90 by
+# design. It is a later round, not an earlier one.
+LATER = ("phase1bl", "phase1bl-a")
+
+
 def test_splits_81_to_90_are_new():
     """No earlier regression manifest uses splits 81-90."""
     for f in CONFIGS.glob("*/*.json"):
-        if f.parent.name in PREFIXES or f.parent.name in HALF_PREFIXES.values():
+        if (f.parent.name in PREFIXES or f.parent.name in HALF_PREFIXES.values()
+                or f.parent.name in LATER):
             continue
         m = load(f)
         if isinstance(m, dict) and isinstance(m.get("splits"), list):

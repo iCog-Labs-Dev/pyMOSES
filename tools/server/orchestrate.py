@@ -43,7 +43,10 @@ fatal), `choice` (server round 8: `argv`, a command run once from the repository
 PHASE's `const-opt-choice.json`, written by tools/gomea/set_const_opt.py) or
 `["datasets:A,B,..."]` (round 3: each dataset built and verified by setup.sh under
 phase1f/datasets/; round 11: `"datasets:A,B,...:LO-HI"` also needs the splits LO to HI of
-each dataset), and a `pilot` phase plus an
+each dataset) or `["summaries:DIR:ARM:A,B,...:LO-HI"]` (round 17: the runs of another round
+that the phase's report reads; each of DIR/runs/A__ARM__sK/summary.json under
+../gomea-results, for each dataset and each split K from LO to HI, is a JSON object with that
+task, arm and seed), and a `pilot` phase plus an
 `after_pilot` command that must succeed before the phase). A phase step's `set_commit_in`
 manifests get the current HEAD as `commit` before its pilot and phase run. A phase step's optional
 `config_dir` (round 8; `{state}` and `{results}` replaced) is passed to phase_run.sh as
@@ -505,7 +508,45 @@ class Round:
                 return (f"dataset(s) {', '.join(short)} under {RES / 'phase1f' / 'datasets'} have "
                         f"not all splits {span} (run setup.sh again; see server-run/setup.log)")
             return None
+        if req.startswith("summaries:"):
+            return self.summaries_requirement(req)
         return f"unknown requirement {req!r}"
+
+    @staticmethod
+    def summaries_requirement(req: str) -> str | None:
+        """Server round 17: "summaries:DIR:ARM:A,B,...:LO-HI" (the partner runs of another round
+        that the phase's report reads, for example round 16's BASE-TLS). None when each run
+        DIR/runs/<dataset>__ARM__s<K>/summary.json under ../gomea-results exists and is a JSON
+        object with that task, arm and seed (the runner's names), for each dataset and each
+        split K from LO to HI; else the reason. The status of a run does not matter: a failed
+        partner run counts as infinitely bad in the report."""
+        parts = req.split(":")
+        if len(parts) != 5 or not all(parts[1:]):
+            return f"bad requirement {req!r} (want summaries:DIR:ARM:A,B,...:LO-HI)"
+        _, rel, arm, names, span = parts
+        lo, _, hi = span.partition("-")
+        try:
+            splits = range(int(lo), int(hi or lo) + 1)
+        except ValueError:
+            return f"bad requirement {req!r} (want summaries:DIR:ARM:A,B,...:LO-HI)"
+        d = RES / rel
+        missing = []
+        for a in names.split(","):
+            for k in splits:
+                f = d / "runs" / f"{a}__{arm}__s{k}" / "summary.json"
+                try:
+                    s = json.loads(f.read_text())
+                    ok = isinstance(s, dict) and (s.get("task"), s.get("arm"), s.get("seed")) \
+                        == (a, arm, k)
+                except (OSError, ValueError):
+                    ok = False
+                if not ok:
+                    missing.append(f"{a}__{arm}__s{k}")
+        if missing:
+            n = len(names.split(",")) * len(splits)
+            return (f"{len(missing)} of {n} {arm} summaries missing under {d} (the partner runs "
+                    f"of the report; first: {', '.join(missing[:5])})")
+        return None
 
     def skip(self, sid: str, st: dict, reason: str) -> None:
         st.update(status="skipped", reason=reason, end=utc())

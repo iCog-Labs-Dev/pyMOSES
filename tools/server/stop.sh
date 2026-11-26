@@ -4,7 +4,7 @@
 # bundle-latest.tar.gz. No pattern kills. Restart with start.sh; it resumes.
 # In a chain (round4, then round5) this stops the running orchestrator of the chain, whichever
 # it is, and a stopped round does not start the next one.
-#   bash tools/server/stop.sh [--plan round|smoke|round2|smoke2|round3|smoke3|round4|smoke4|round5|smoke5|round6|smoke6|round7|smoke7|round8|smoke8|round9|smoke9|round10|smoke10|round11|smoke11|round12|smoke12|round13|smoke13|round14|smoke14|round15|smoke15|round15b|smoke15b|round16|smoke16|round16b|smoke16b|FILE]
+#   bash tools/server/stop.sh [--plan round|smoke|round2|smoke2|round3|smoke3|round4|smoke4|round5|smoke5|round6|smoke6|round7|smoke7|round8|smoke8|round9|smoke9|round10|smoke10|round11|smoke11|round12|smoke12|round13|smoke13|round14|smoke14|round15|smoke15|round15b|smoke15b|round16|smoke16|round16b|smoke16b|round17|smoke17|round17b|smoke17b|FILE]
 set -u
 source "$(dirname "${BASH_SOURCE[0]}")/_common.sh"
 GRACE=${GRACE:-60}
