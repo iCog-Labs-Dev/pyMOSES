@@ -15,7 +15,9 @@ more" needs Holm p < 0.025 and a ratio at least 10 % from 1.
 **Dow is left out of every arm in the main tables** (the user, 2026-11-26: "Without dow for neither
 BASE-TLS nor RV based one. I want to see a fair analysis."). All 30 Dow runs at 100,000 failed (see
 "Run health"), so a report with Dow counts them as infinitely bad on both sides. The server report
-with Dow is in the round16b bundle (`phase1bk/report-stage1`); its verdicts are the same as below.
+with Dow is in the round16b bundle (`phase1bk/report-stage1`). With Dow, one verdict differs: TLS-RV-100K
+against BASE-TLS-100K on training error is a tie (1.076, 16/44/10), not "worse"; the 10 Dow pairs
+where both arms failed are ties.
 The no-Dow report: `tools/gomea/phase_report.py --stage 1` with the round 16 spec less Dow, on the
 360 runs of the 6 other data sets (agent analysis, 2026-11-26).
 
@@ -78,9 +80,9 @@ The no-Dow report: `tools/gomea/phase_report.py --stage 1` with the round 16 spe
 | TLS-RV-100K vs BASE-TLS-100K, training | secondary | 1.115 | 16/44/0 | 0.0014 | A worse |
 | BASE-TLS-100K vs BASE-TLS, training | descriptive | 0.780 | 58/0/2 | 1.1e-10 | – |
 
-The ties of TLS-RVL: when no RV generation runs in a run (the "late" rule never fires, or no gene
-is active), TLS-RVL does the same as BASE-TLS (Tower at 100,000: 10 of 10 pairs equal). The cause
-per run is not yet checked.
+The ties of TLS-RVL: a run with no RV evaluation is the same as its BASE-TLS run. On Tower,
+TLS-RVL made 0 RV evaluations in all 20 runs (`rv.rv_evals` 0; the GOM generations improved, so the
+"late" rule skipped the RV step), so Tower gives 10 of 10 equal pairs at both budgets.
 
 ## Per data set (test NMSE ratio, pairs A/B; descriptive)
 
@@ -131,9 +133,10 @@ Train–test gap (test NMSE − training NMSE, × 100, median per data set, `agg
 ## Run health
 
 * 420 runs: 390 ok, 30 failed. **All 30 failures are Dow at 100,000** (10 per arm), with the
-  error "lost sys.stderr". The interim analysis of the first 15 found the cause: the run hit its
-  8,192 MB address-space limit when its second deme started (2,322 genes, population 539; the first
-  deme had 118 genes). The other 15 have the same error. No other run failed.
+  error "lost sys.stderr". Each run finished one deme (34,096–64,538 evaluations) and failed when
+  the second deme started (in the interim analysis: 2,322 genes, population 539; the first deme had
+  118 genes). The peak resident memory (`ru_maxrss`) was 8,045–8,160 MB, at the 8,192 MB limit.
+  "Out of memory" is an inference: the recorded error is "lost sys.stderr". No other run failed.
 * Dow at 20,000 (30 runs) ran ok; it is left out of this summary as the user asked.
 * Active time: `round16` 29.3 h for 1bk plus 1.3 h for S0; `round16b` 30.4 h; 11 runs at a time
   for the 20,000 lists, 7 for the 100,000 lists (the 8,192 MB limit).

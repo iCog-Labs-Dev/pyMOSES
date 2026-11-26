@@ -1105,14 +1105,16 @@ is started or approved.
    "Run health"); the user asked to keep it in the backlog (2026-11-26: "yes keep the Dow memory
    item in the backlog"). Not started.
    * **The facts:** all 30 Dow runs at 100,000 failed (BASE-TLS-100K, TLS-RV-100K, TLS-RVL-100K, 10
-     each) with the error "lost sys.stderr". The interim analysis found the cause: the run hit its
-     8,192 MB address-space limit (`RLIMIT_AS`, the run list's `mem_limit_mb`) when its second deme
-     started (2,322 genes, population 539; the first deme had 118 genes). Dow at 20,000 runs ok (one
-     deme of 118 genes takes the whole budget, D1). Round 17 leaves HC on Dow at 100,000 out.
+     each) with the error "lost sys.stderr". Each run finished one deme (34,096–64,538 evaluations)
+     and failed when the second deme started (interim analysis: 2,322 genes, population 539; the
+     first deme had 118 genes). The limit is the run list's `mem_limit_mb` (8,192 MB, `RLIMIT_AS`).
+     The peak resident memory (`ru_maxrss`) was 8,045–8,160 MB, so the memory is really in use, not
+     only reserved address space. Dow at 20,000 runs ok (one deme of 118 genes takes the whole
+     budget, D1). Round 17 leaves HC on Dow at 100,000 out.
    * **Open questions (agent):** what fills the memory in a large deme (the knob set, the GOMEA
      population, the genotype memo `--gomea-genotype-memo 1`, the scorer caches, the deme store);
-     how much of the 8,192 MB is address space and how much is resident memory (`RLIMIT_AS` counts
-     address space); why the error is "lost sys.stderr" and not a clear memory error.
+     whether it grows during the long first deme (34,000–65,000 evaluations) or jumps when the
+     second deme is built; why the error is "lost sys.stderr" and not a clear memory error.
    * **Options (agent, not decided):** (a) a memory probe of one Dow 100,000 run (peak RSS and
      address space per deme); (b) a larger limit for the Dow 100,000 list only (the server has
      64 GB; fewer runs at a time for that list); (c) a clear error record when the limit is hit;
