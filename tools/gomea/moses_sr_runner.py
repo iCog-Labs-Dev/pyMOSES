@@ -208,6 +208,12 @@ binary is not a pyMoses `-a hc` arm.
   the runner keeps `-l WARN`. `-a hc` without `--const-opt` writes no GOMEA log, so this is the
   only source for HC-TLS; HC-LM uses it too, so the two HC arms have the same rule. The hook
   only reads, so the search and stdout do not change (`tests/gomea/test_hc_progress.py`).
+* A write error of the hook (the RV16 review, F8) does not stop the run: the hook catches the
+  `OSError`, writes no more lines, and writes one line to stderr that starts with
+  `hc_progress.ERROR_PREFIX`. Only then the summary gets the key `hc_progress_error` (that
+  line, `hc_progress_error()`); the summary of a run without such an error does not change.
+  The checkpoints then end at the last deme with a line, and
+  `anytime_check.log_evals_match_n_evals` is false.
 * `anytime` (`hc_anytime_records`): the records of the round 16 format. The points are
   (`n_evals`, `best_raw`) at the end of each expansion. The value at a checkpoint X is the best
   raw score of the expansions that ended at or before X, so it is null before the end of the
@@ -275,6 +281,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import sr_eval  # noqa: E402
 import sr_linear  # noqa: E402
+from hc_progress import ERROR_PREFIX as HC_PROGRESS_ERROR_PREFIX  # noqa: E402
 
 REPO = Path(__file__).resolve().parents[2]
 
@@ -488,6 +495,7 @@ def _run_one(job: dict) -> dict:
     before = resource.getrusage(resource.RUSAGE_CHILDREN)
     t0 = time.monotonic()
     status, exit_code, error = "ok", None, None
+    stderr_text = None  # server round 17 (F8): read for the write-error line of hc_progress.py
     try:
         proc = subprocess.run(
             argv,
@@ -507,10 +515,13 @@ def _run_one(job: dict) -> dict:
         )
         out, exit_code = proc.stdout, proc.returncode
         (run_dir / "stderr.txt").write_text(proc.stderr)
+        stderr_text = proc.stderr
         if exit_code != 0:
             status, error = "error", (proc.stderr.strip().splitlines() or ["?"])[-1][:300]
     except subprocess.TimeoutExpired as exc:
         out = exc.stdout.decode() if isinstance(exc.stdout, bytes) else (exc.stdout or "")
+        stderr_text = (exc.stderr.decode(errors="replace") if isinstance(exc.stderr, bytes)
+                       else exc.stderr)
         status = "timeout"
     wall = time.monotonic() - t0
     after = resource.getrusage(resource.RUSAGE_CHILDREN)
@@ -647,6 +658,12 @@ def _run_one(job: dict) -> dict:
             n_evals=summary["n_evals"], events=run_dir / "events.jsonl",
         ) if progress.exists() else (None, None, None)
         summary["anytime_source"] = (summary["anytime_check"] or {}).get("anytime_source")
+        hook_error = hc_progress_error(stderr_text)
+        if hook_error is not None:
+            # the RV16 review of round 17, F8: the hook could not write its lines and stopped
+            # writing; the run went on (only on such an error, so a normal summary does not
+            # change)
+            summary["hc_progress_error"] = hook_error
     if seed_rec is not None:
         summary["moses_cpu_s"] = summary["cpu_s"]
         summary["cpu_s"] += seed_rec["gpgomea"]["cpu_s"]
@@ -1287,6 +1304,16 @@ def _wants_hc_anytime(job: dict) -> bool:
     return (bool(job.get("hc_anytime")) and _is_pymoses(job["binary"])
             and _opt_algo(job["argv"]) == "hc"
             and "evals" in job["budget"] and not job.get("seed_spec"))
+
+
+def hc_progress_error(stderr: str | None) -> str | None:
+    """Server round 17 (the RV16 review, F8): the first line of a run's stderr that starts with
+    `hc_progress.ERROR_PREFIX` (the expansion hook could not write `hc_progress.jsonl` and
+    stopped writing), cut to 300 characters, or `None` when there is no such line."""
+    for line in (stderr or "").splitlines():
+        if line.startswith(HC_PROGRESS_ERROR_PREFIX):
+            return line.strip()[:300]
+    return None
 
 
 def _read_progress(path: Path) -> list[tuple[int, float | None]]:

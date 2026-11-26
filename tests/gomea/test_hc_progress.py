@@ -11,6 +11,10 @@ expansion hook of ``tools/gomea/hc_progress.py`` on real pyMoses ``-a hc`` runs.
   candidates and stdout are the same with and without the key, and the summary only gains
   ``demes``, ``anytime``, ``anytime_source`` and ``anytime_check``. For HC-LM the rule of the
   HC "end" events (``budget - max_evals + ledger.requests``) gives the ``n_evals`` of the hook.
+* A write error (the RV16 review of round 17, F8) does not stop the run: the hook writes no
+  more lines, writes one line to stderr (``hc_progress.ERROR_PREFIX``) and a marker line, and
+  the runner records the stderr line in ``hc_progress_error``. A run without an error does not
+  get the key (``test_the_runner_key_adds_only_the_new_fields``).
 
 The data is ``data/const_opt_none/train.csv`` (40 rows), with the fixed regression setup of the
 runner and 800 evaluations.
@@ -30,6 +34,7 @@ import pytest
 REPO = Path(__file__).resolve().parents[2]
 TOOLS = REPO / "tools" / "gomea"
 sys.path.insert(0, str(TOOLS))
+import hc_progress  # noqa: E402
 import moses_sr_runner as runner  # noqa: E402
 from round16_data import TRAIN, splits  # noqa: E402
 
@@ -133,3 +138,102 @@ def test_the_runner_key_adds_only_the_new_fields(arm, tmp_path):
     else:
         assert "hc_end_events" not in chk  # -a hc without --const-opt writes no GOMEA log
         assert not (rn / "events.jsonl").exists()
+
+
+# ---- F8 (the RV16 review of round 17): a write error does not stop the run
+
+
+class _Mp:
+    def __init__(self, raw: float) -> None:
+        self.raw = raw
+
+    def best_score(self) -> float:
+        return self.raw
+
+
+class _Stats:
+    def __init__(self, n: int) -> None:
+        self.n_expansions, self.n_evals = n, 100 * n
+
+
+def _expand(hook, n: int) -> None:
+    for k in range(1, n + 1):
+        hook(_Mp(-10.0 / k), None, None, _Stats(k))
+
+
+def test_the_lines_without_an_error_do_not_change(tmp_path, capsys):
+    hook = hc_progress.HcProgress(tmp_path / "p.jsonl")
+    _expand(hook, 3)
+    assert (tmp_path / "p.jsonl").read_text() == "".join(
+        json.dumps({"expansion": k, "n_evals": 100 * k, "best_raw": -10.0 / k}) + "\n"
+        for k in (1, 2, 3))
+    assert hook.lines == 3 and not hook.failed and hook.error is None
+    assert capsys.readouterr().err == ""
+
+
+def test_a_write_error_stops_the_lines_and_marks_them(tmp_path, capsys, monkeypatch):
+    path = tmp_path / "p.jsonl"
+    hook = hc_progress.HcProgress(path)
+    real_open, opens = Path.open, []
+
+    def open_3rd_fails(self, *a, **kw):
+        opens.append(self)
+        if self == path and len(opens) == 3:
+            raise OSError(28, "No space left on device")
+        return real_open(self, *a, **kw)
+
+    monkeypatch.setattr(Path, "open", open_3rd_fails)
+    _expand(hook, 5)  # no exception: the run goes on
+    assert hook.failed and hook.lines == 2 and hook.error.startswith("OSError: [Errno 28]")
+    assert len(opens) == 4  # 2 lines, the failed write, the marker; nothing after the error
+    rows = path.read_text().splitlines()
+    assert [json.loads(x) for x in rows if x][:2] == [
+        {"expansion": k, "n_evals": 100 * k, "best_raw": -10.0 / k} for k in (1, 2)]
+    assert json.loads(rows[-1]) == {"hc_progress_error": hook.error, "expansion": 3}
+    err = capsys.readouterr().err.splitlines()
+    assert err == [f"{hc_progress.ERROR_PREFIX} at expansion 3: {hook.error}; no more lines"]
+    # the runner: the marker is not a point, and the stderr line is the summary value
+    assert runner._read_progress(path) == [(100, -10.0), (200, -5.0)]
+    assert runner.hc_progress_error("x\n" + err[0] + "\ny") == err[0]
+    assert runner.hc_progress_error("x\ny") is None and runner.hc_progress_error(None) is None
+    assert runner.HC_PROGRESS_ERROR_PREFIX == hc_progress.ERROR_PREFIX
+
+
+def test_an_unwritable_path_does_not_raise(tmp_path, capsys):
+    path = tmp_path / "missing" / "p.jsonl"  # its directory does not exist
+    hook = hc_progress.HcProgress(path)
+    _expand(hook, 2)
+    assert hook.failed and hook.lines == 0 and hook.error.startswith("FileNotFoundError")
+    assert not path.exists()
+    assert capsys.readouterr().err.splitlines() == [
+        f"{hc_progress.ERROR_PREFIX} at expansion 1: {hook.error}; no more lines"]
+
+
+def test_the_run_goes_on_after_a_write_error(tmp_path, monkeypatch):
+    """A real HC-TLS run through the runner, where the MOSES process cannot open
+    ``hc_progress.jsonl`` (a link to a file in a directory that does not exist): the run ends
+    ok with the candidates and stdout of a run without the key, and the summary has
+    ``hc_progress_error``."""
+    so = runner._run_one(_job(tmp_path / "o", "HC-TLS", clip_test_nmse=True, plain_nmse=True))
+    real_unlink = Path.unlink
+
+    def unlink_then_link(self, missing_ok=False):
+        real_unlink(self, missing_ok=missing_ok)
+        if self.name == "hc_progress.jsonl":
+            self.symlink_to(tmp_path / "missing" / "p.jsonl")
+
+    monkeypatch.setattr(Path, "unlink", unlink_then_link)
+    sn = runner._run_one(_job(tmp_path / "n", "HC-TLS", clip_test_nmse=True, plain_nmse=True,
+                              hc_anytime=True))
+    monkeypatch.undo()
+    assert so["status"] == sn["status"] == "ok" and sn["error"] is None
+    ro, rn = (Path(tmp_path / x / "run") for x in ("o", "n"))
+    assert (rn / "candidates.json").read_bytes() == (ro / "candidates.json").read_bytes()
+    assert (rn / "stdout.txt").read_bytes() == (ro / "stdout.txt").read_bytes()
+    assert sn["hc_progress_error"].startswith(
+        f"{hc_progress.ERROR_PREFIX} at expansion 1: FileNotFoundError")
+    assert sn["hc_progress_error"] in (rn / "stderr.txt").read_text().splitlines()
+    assert set(sn) - set(so) == NEW | {"hc_progress_error"}
+    assert sn["demes"] is None and sn["anytime"] is None and sn["anytime_check"] is None
+    assert ({k: v for k, v in sn.items() if k not in NEW | {"hc_progress_error"}
+             and k not in VOLATILE} == {k: v for k, v in so.items() if k not in VOLATILE})

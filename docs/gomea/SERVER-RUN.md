@@ -1631,6 +1631,13 @@ and, when it is DONE:
   trace of round 16 is the best raw score over every evaluation, at each new best. So an HC
   checkpoint lags by up to one deme, and the 1 % and 2 % checkpoints are often null for HC;
   read the HC/BASE-TLS progress ratios with this in mind.
+* A write error of the hook (for example a full disk) does not stop the run (the RV16 review,
+  F8): the hook writes no more lines, writes one line to stderr (`hc_progress: write error at
+  expansion N: ...; no more lines`) and tries to add a marker line `{"hc_progress_error": ...}`
+  to `hc_progress.jsonl`. MOSES ends normally. Only such a run has the summary key
+  `hc_progress_error` (the stderr line); its checkpoints end at its last line, and
+  `anytime_check.log_evals_match_n_evals` is false. To find these runs, look for the key in the
+  summaries (`grep -l hc_progress_error .../runs/*/summary.json`).
 * Each manifest has a result directory of its own: `phase1bl/phase1bl-sr/`,
   `phase1bl/phase1bl-sr-100K/` and `phase1bl/phase1bl-sr-Dow/`.
 
