@@ -192,6 +192,40 @@ other values do not change).**
     each deme the counts and the raw scores of the pairs rise strictly, and each count is
     between 1 and the deme's requests). No check fails on these values.
 
+**Server round 17 (HC against BASE-TLS; `SERVER-ROUND17-PREREGISTRATION.md`; new fields only,
+the other values do not change).** With the manifest key `"hc_anytime": true`, a pyMoses `-a hc`
+arm with an evaluation budget and no `seed` block also gets `demes`, `anytime`,
+`anytime_source` ("hc-demes") and `anytime_check`: the best-so-far training NMSE at deme
+resolution. Without the key (or with false) the command line and the summary do not change.
+`expand` refuses a value that is not true or false, and refuses the key when an arm with a
+binary is not a pyMoses `-a hc` arm.
+
+* The source (`hc_progress.py`): the runner installs a hook of `local_moses.expansion_hooks` in
+  the MOSES process. After each expansion (one deme for `-a hc`) it writes one line to
+  `RUN_DIR/hc_progress.jsonl`: `n_evals` (MOSES's evaluations so far) and `best_raw`
+  (`mp.best_score()`, the best raw score of the candidates that the metapopulation has merged
+  so far). These are the two values of the "Stats:" row of the MOSES log at the log level INFO;
+  the runner keeps `-l WARN`. `-a hc` without `--const-opt` writes no GOMEA log, so this is the
+  only source for HC-TLS; HC-LM uses it too, so the two HC arms have the same rule. The hook
+  only reads, so the search and stdout do not change (`tests/gomea/test_hc_progress.py`).
+* `anytime` (`hc_anytime_records`): the records of the round 16 format. The points are
+  (`n_evals`, `best_raw`) at the end of each expansion. The value at a checkpoint X is the best
+  raw score of the expansions that ended at or before X, so it is null before the end of the
+  first deme. A checkpoint after the last evaluation has `reached` false and the final value.
+* `demes`: the format of `deme_summary`, from the expansions with evaluations (the requests of
+  an expansion are its `n_evals` minus that of the expansion before it).
+* `anytime_check`: the conversion check of round 16 (the first printed candidate against
+  `first_train_nmse`; the final `best_raw` against `first_train_nmse`), `log_evals_total` (the
+  last `n_evals`) and whether it is `n_evals`, `expansions` (the lines) and `best_raw_monotone`.
+  When the run has a GOMEA log with HC "end" events (`-a hc --const-opt lm`) it also compares
+  the rule of the HC "end" events: `hc_end_events` (their number), `hc_end_evals_match` (one
+  event for each expansion, and at each one, budget - `max_evals` + `ledger.requests` is the
+  `n_evals` of the hook and `ledger.requests` is `hc_evals` + `const_opt.tuning_evals`),
+  `hc_end_best_train_nmse` (the lowest training NMSE of the deme's best program after LM:
+  `const_opt.lm.mse` when `written_back`, else `mse0`, as 100 * MSE / var(y')) and
+  `hc_end_rel_diff` (its relative difference to the final value of the hook). No check fails on
+  these values.
+
 The MOSES seed is the split number. Runs are resumable: an existing `summary.json` is
 kept.
 
@@ -421,6 +455,15 @@ def _run_one(job: dict) -> dict:
                 f"atexit.register(seed_lineage.install({labels!r}).write, "
                 f"{str(run_dir / 'lineage.json')!r}); "
             )
+        if _wants_hc_anytime(job):
+            # server round 17 (opt-in, the manifest key "hc_anytime"): the expansion hook of
+            # hc_progress.py; a line left by an earlier attempt of this run is removed first
+            progress = run_dir / "hc_progress.jsonl"
+            progress.unlink(missing_ok=True)
+            lineage += (
+                f"sys.path.insert(0, {str(Path(__file__).resolve().parent)!r}); "
+                f"import hc_progress; hc_progress.install({str(progress)!r}); "
+            )
         if seed_rec is not None and job["seed_spec"].get("reseed_after"):
             # a re-seed is never given less than the initial seeding was
             spec = {"reseed_min_budget": seed_rec["seed_budget"], **job["seed_spec"]}
@@ -591,6 +634,18 @@ def _run_one(job: dict) -> dict:
             n_evals=summary["n_evals"],
         ) if events.exists() else (None, None)
         # the RV16 review, finding 1: "trace" (exact) or "generations" (the fallback)
+        summary["anytime_source"] = (summary["anytime_check"] or {}).get("anytime_source")
+    if _wants_hc_anytime(job):
+        # server round 17 (opt-in, the manifest key "hc_anytime"): the same fields for an HC
+        # arm, from the lines of the expansion hook (deme resolution)
+        progress = run_dir / "hc_progress.jsonl"
+        summary["demes"], summary["anytime"], summary["anytime_check"] = hc_anytime_records(
+            progress, int(job["budget"]["evals"]), n_train,
+            _scaled_target_var(run_dir / "train_scaled.csv"),
+            first_score=cands[0][0] if cands else None,
+            first_train_nmse=first.get("train_nmse"),
+            n_evals=summary["n_evals"], events=run_dir / "events.jsonl",
+        ) if progress.exists() else (None, None, None)
         summary["anytime_source"] = (summary["anytime_check"] or {}).get("anytime_source")
     if seed_rec is not None:
         summary["moses_cpu_s"] = summary["cpu_s"]
@@ -1220,6 +1275,121 @@ def _wants_anytime(job: dict) -> bool:
             and "evals" in job["budget"] and not job.get("seed_spec"))
 
 
+# ---- server round 17: the best-so-far training NMSE of an HC run at deme resolution
+
+HC_ANYTIME_SOURCE = "hc-demes"
+
+
+def _wants_hc_anytime(job: dict) -> bool:
+    """Server round 17: whether a job gets the expansion hook of `hc_progress.py` and the fields
+    `demes`, `anytime`, `anytime_source` and `anytime_check` from it (the manifest key
+    "hc_anytime", a pyMoses `-a hc` arm, an evaluation budget, no seed block)."""
+    return (bool(job.get("hc_anytime")) and _is_pymoses(job["binary"])
+            and _opt_algo(job["argv"]) == "hc"
+            and "evals" in job["budget"] and not job.get("seed_spec"))
+
+
+def _read_progress(path: Path) -> list[tuple[int, float | None]]:
+    """The (n_evals, best_raw) of each line of `hc_progress.jsonl` in order. A line that is not
+    a JSON object with an integer `n_evals` is left out (a run that stopped can leave a cut
+    line)."""
+    out = []
+    for ev in _read_events(path):
+        n = ev.get("n_evals")
+        if isinstance(n, int) and not isinstance(n, bool):
+            out.append((n, _real(ev.get("best_raw"))))
+    return out
+
+
+def _hc_end_check(events: Path, budget_evals: int, lines: list, n_train: int,
+                  var_scaled: float | None) -> dict | None:
+    """Server round 17: the fields of `anytime_check` that compare the HC "end" events of the
+    GOMEA log (`-a hc --const-opt lm`, `hc_lm.py`) with the lines of the hook (see the module
+    docstring), or `None` when the log has no HC "end" event."""
+    ends = [e for e in _read_events(events)
+            if e.get("type") == "end" and e.get("optimizer") == "hc"]
+    if not ends:
+        return None
+    match = len(ends) == len(lines)
+    best = None
+    for k, e in enumerate(ends):
+        req = _count((e.get("ledger") or {}).get("requests"))
+        co = e.get("const_opt") or {}
+        if req != _count(e.get("hc_evals")) + _count(co.get("tuning_evals")):
+            match = False
+        if k < len(lines) and budget_evals - _count(e.get("max_evals")) + req != lines[k][0]:
+            match = False
+        lm = co.get("lm") if isinstance(co.get("lm"), dict) else {}
+        mse = _real(lm.get("mse") if lm.get("written_back") else lm.get("mse0"))
+        if mse is not None and var_scaled:
+            v = 100.0 * mse / var_scaled
+            best = v if best is None else min(best, v)
+    final = raw_to_train_nmse(lines[-1][1], n_train, var_scaled) if lines else None
+    return {"hc_end_events": len(ends), "hc_end_evals_match": match,
+            "hc_end_best_train_nmse": best, "hc_end_rel_diff": _rel_diff(best, final)}
+
+
+def hc_anytime_records(progress: Path, budget_evals: int, n_train: int,
+                       var_scaled: float | None, first_score: float | None = None,
+                       first_train_nmse: float | None = None, n_evals: int | None = None,
+                       events: Path | None = None) -> tuple[dict | None, list[dict], dict]:
+    """Server round 17: the `demes`, `anytime` and `anytime_check` records of an HC run from
+    the lines of its expansion hook (see the module docstring). `budget_evals` is the run's
+    evaluation budget E; `n_evals` the run's evaluation count of MOSES's output (null: not
+    known); `events` the run's GOMEA log, if any."""
+    lines = _read_progress(progress)
+    total = lines[-1][0] if lines else 0
+    starts, reqs, prev = [], [], 0
+    for n, _ in lines:
+        if n > prev:
+            starts.append(prev)
+            reqs.append(n - prev)
+        prev = max(prev, n)
+    demes = None if not reqs else {
+        "count": len(reqs), "start_evals": starts, "requests": reqs,
+        "second_start_evals": starts[1] if len(starts) > 1 else None, "evals_total": total,
+    }
+    points = [(n, raw) for n, raw in lines if raw is not None]
+    out = []
+    for f in ANYTIME_FRACTIONS:
+        c = max(1, round(f * budget_evals))
+        reached = total >= c
+        seen = [p for p in points if p[0] <= (c if reached else total)]
+        best = max((raw for _, raw in seen), default=None)
+        out.append({
+            "evals": c, "frac": f,
+            "best_train_nmse": raw_to_train_nmse(best, n_train, var_scaled),
+            "reached": reached,
+            "log_evals": seen[-1][0] if seen else None,
+        })
+    final = points[-1][1] if points else None
+    first = raw_to_train_nmse(first_score, n_train, var_scaled)
+    final_nmse = raw_to_train_nmse(final, n_train, var_scaled)
+    check = {
+        "anytime_source": HC_ANYTIME_SOURCE,
+        "rule": "100 * (-raw / n_train) / var(y_scaled)",
+        "n_train": n_train,
+        "var_scaled_target": var_scaled,
+        "first_score": _real(first_score),
+        "first_score_train_nmse": first,
+        "first_train_nmse": first_train_nmse,
+        "search_rel_diff": _rel_diff(first, first_train_nmse),
+        "log_best_raw": final,
+        "log_best_train_nmse": final_nmse,
+        "log_best_is_first": (final is not None and _real(first_score) is not None
+                              and final == float(first_score)),
+        "log_best_rel_diff": _rel_diff(final_nmse, first_train_nmse),
+        "log_evals_total": total,
+        "log_evals_match_n_evals": None if n_evals is None else total == n_evals,
+        "expansions": len(lines),
+        "best_raw_monotone": all(a[1] <= b[1] for a, b in zip(points, points[1:],
+                                                                strict=False)),
+    }
+    if events is not None:
+        check.update(_hc_end_check(events, budget_evals, lines, n_train, var_scaled) or {})
+    return demes, out, check
+
+
 def _is_pymoses(binary: str) -> bool:
     return Path(binary).parent.name == "bin" and Path(binary).name == "moses"
 
@@ -1352,6 +1522,20 @@ def expand(manifest: dict, out_root: Path, repo: Path) -> list[dict]:
                 raise ValueError(
                     f"arm {arm}: the manifest key anytime needs -a gomea, got -a {algo} (the "
                     "GOMEA log of another algorithm does not have every evaluation of a deme)")
+    hc_anytime = manifest.get("hc_anytime", False)  # server round 17 (opt-in)
+    if not isinstance(hc_anytime, bool):
+        raise ValueError(f"hc_anytime must be true or false, got {hc_anytime!r}")
+    if hc_anytime:
+        # the expansion hook needs pyMoses, and its rule is the rule of -a hc (one deme per
+        # expansion)
+        for arm, a in manifest["arms"].items():
+            if "linear" in a or "standalone" in a:
+                continue
+            algo = _opt_algo(a.get("argv", []))
+            if algo != "hc" or not _is_pymoses(a.get("binary", "")):
+                raise ValueError(
+                    f"arm {arm}: the manifest key hc_anytime needs a pyMoses -a hc arm, got "
+                    f"-a {algo} with the binary {a.get('binary')!r}")
     jobs = []
     for ds in manifest["datasets"]:
         for arm, a in manifest["arms"].items():
@@ -1403,6 +1587,7 @@ def expand(manifest: dict, out_root: Path, repo: Path) -> list[dict]:
                         **({"clip_test_nmse": True} if clip else {}),
                         **({"plain_nmse": True} if plain else {}),
                         **({"anytime": True} if anytime else {}),
+                        **({"hc_anytime": True} if hc_anytime else {}),
                     }
                 )
     return jobs
