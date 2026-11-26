@@ -1101,6 +1101,23 @@ is started or approved.
    * F10: `tests/gomea/test_round17_report.py:201` (`n = 130 if design.HC_TLS else 130`) and an
      unused parameter at line 151.
 
+6. **Dow at 100,000 evaluations runs out of memory.** Origin: round 16 (`SERVER-ROUND16-FINDINGS.md`,
+   "Run health"); the user asked to keep it in the backlog (2026-11-26: "yes keep the Dow memory
+   item in the backlog"). Not started.
+   * **The facts:** all 30 Dow runs at 100,000 failed (BASE-TLS-100K, TLS-RV-100K, TLS-RVL-100K, 10
+     each) with the error "lost sys.stderr". The interim analysis found the cause: the run hit its
+     8,192 MB address-space limit (`RLIMIT_AS`, the run list's `mem_limit_mb`) when its second deme
+     started (2,322 genes, population 539; the first deme had 118 genes). Dow at 20,000 runs ok (one
+     deme of 118 genes takes the whole budget, D1). Round 17 leaves HC on Dow at 100,000 out.
+   * **Open questions (agent):** what fills the memory in a large deme (the knob set, the GOMEA
+     population, the genotype memo `--gomea-genotype-memo 1`, the scorer caches, the deme store);
+     how much of the 8,192 MB is address space and how much is resident memory (`RLIMIT_AS` counts
+     address space); why the error is "lost sys.stderr" and not a clear memory error.
+   * **Options (agent, not decided):** (a) a memory probe of one Dow 100,000 run (peak RSS and
+     address space per deme); (b) a larger limit for the Dow 100,000 list only (the server has
+     64 GB; fewer runs at a time for that list); (c) a clear error record when the limit is hit;
+     (d) a fix of the largest memory user, if the probe finds one.
+
 ## 8. Future directions from the literature search (2026-11-06)
 
 Source: the literature search of 2026-11-06 (`docs/gomea/LITERATURE-2026-11-06.md`). Start only after rounds 6 to 8 give a

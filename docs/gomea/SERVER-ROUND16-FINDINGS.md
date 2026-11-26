@@ -33,8 +33,11 @@ The no-Dow report: `tools/gomea/phase_report.py --stage 1` with the round 16 spe
   1. At 100,000 evaluations, is the RV step (option C) better than BASE-TLS?
   2. Does the ratio of the RV arm to BASE-TLS fall when the budget grows from 20,000 to 100,000?
   3. How much does BASE-TLS itself gain from 5 times the budget?
-* **Arms:** BASE-TLS (the reference), TLS-RV (the RV step on every contin gene), TLS-RVL (the RV
-  step on the live genes only), each at 20,000 and 100,000 evaluations; 7 data sets, splits 81–90.
+* **Arms:** BASE-TLS (the reference); TLS-RV (`--gomea-rv-step rvg --gomea-rv-budget balance`:
+  after each GOM generation, an RV generation with probability p_RV); TLS-RVL (`--gomea-rv-budget
+  late`: an RV generation only after a GOM generation that did not improve the deme's best). Both
+  RV arms model the active genes (non-zero, not absorbed by the per-term fit). Each arm at 20,000
+  and 100,000 evaluations; 7 data sets, splits 81–90.
 
 ## Summary
 
@@ -75,8 +78,9 @@ The no-Dow report: `tools/gomea/phase_report.py --stage 1` with the round 16 spe
 | TLS-RV-100K vs BASE-TLS-100K, training | secondary | 1.115 | 16/44/0 | 0.0014 | A worse |
 | BASE-TLS-100K vs BASE-TLS, training | descriptive | 0.780 | 58/0/2 | 1.1e-10 | – |
 
-The ties of TLS-RVL: on a data set or deme with no live gene, TLS-RVL does the same as BASE-TLS
-(Tower at 100,000: 10 of 10 pairs equal).
+The ties of TLS-RVL: when no RV generation runs in a run (the "late" rule never fires, or no gene
+is active), TLS-RVL does the same as BASE-TLS (Tower at 100,000: 10 of 10 pairs equal). The cause
+per run is not yet checked.
 
 ## Per data set (test NMSE ratio, pairs A/B; descriptive)
 
@@ -160,6 +164,9 @@ The interim summary (splits 81–85, a snapshot of 317 runs) and the final resul
 
 ## User decisions
 
-* Whether to stop T3.2 (the pre-registered proposal), keep TLS-RV as a small-program option, or
-  test more budget.
-* Whether to add the Dow memory failure to the backlog.
+* **T3.2 continues** (the user, 2026-11-26: "No we are not giving up on the T3.2 yet. I want us to
+  keep pushing."). The pre-registered proposal to stop T3.2 is not taken.
+* **The Dow memory failure is a backlog item** (the user, 2026-11-26; `BACKLOG.md` 15.6).
+* **Correction (2026-11-26):** the first version of this file described TLS-RV as "the RV step on
+  every contin gene" and TLS-RVL as "on the live genes only". That was wrong; the arms differ in the
+  RV budget rule (`balance` against `late`), as the pre-registration says.

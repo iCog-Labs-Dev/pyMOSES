@@ -792,3 +792,11 @@ user confirms it.
     F8 fix (a guard on the HC progress file write); subagents for the other work.
   * Not decided: F7 and F10; stopping T3.2 (the pre-registered proposal of round 16); the Dow
     memory item in the backlog. Not approved: any push.
+* **T3.2 continues; the Dow memory item (2026-11-26):** after the round 16 findings (the
+  pre-registered proposal: stop T3.2), the user wrote: "No we are not giving up on the T3.2 yet. I
+  want us to keep pushing. What is F7 and F10 and yes keep the Dow memory item in the backlog".
+  * User decisions: T3.2 continues (the proposal to stop it is not taken); the Dow memory failure is
+    a backlog item (`BACKLOG.md` 15.6).
+  * Asked: what F7 and F10 are (not a decision).
+  * Agent correction: the round 16 findings and a chat answer described TLS-RVL wrongly; fixed in
+    `SERVER-ROUND16-FINDINGS.md`.
