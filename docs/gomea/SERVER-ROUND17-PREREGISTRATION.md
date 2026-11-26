@@ -43,7 +43,8 @@ BASE-TLS (20,000 evaluations) stays the reference. TLS-NP and TLS-LMR stay next 
   times as large and 12.2 times the CPU. Most of the gain comes before 50,000 evaluations.
 * **Matched HC comparisons with plain scaling** (round 3, 1ao and 1ar; round 8, 1ax): GOMEA-LS
   against HC-LS and FINAL against HC-LS were ties, with GOMEA better on Air in round 3.
-* **No run and no test has used `--linear-scaling terms` with HC.** The CLI does not refuse it.
+* **No benchmark run has used `--linear-scaling terms` with HC.** Two earlier tests ran it, but
+  neither checked the scores (corrected 2026-11-26, see "Amendments").
 * **Round 16, Dow at 100,000:** all 15 GOMEA runs ran out of memory (8,192 MB) in their second
   deme (2,322 genes). Round 16b runs 15 more; the agent expects them to fail in the same way.
 
@@ -98,7 +99,8 @@ win, for a memory fault that has nothing to do with the search. So:
 * **No deme cap** for either HC arm (`-a hc`, not `-a hc-capped`): the user's decision of
   2026-11-26.
 * HC-TLS has the constant settings of BASE-TLS (`--linear-scaling terms --const-opt none`). HC-LM
-  and HC-TLS differ only in these two flags. Both keep HC's own default for `--hc-fraction-of-nn`
+  and HC-TLS differ in three flags: HC-LM also has `--const-opt-guard val`, so the runner gives it
+  the validation file and an events log (corrected 2026-11-26). Both keep HC's own default for `--hc-fraction-of-nn`
   (2.0), as HC-LM since round 11. In BASE-TLS, `--hc-fraction-of-nn 0.05` sizes the GOMEA
   population (`--gomea-pop-size dynamic`), so it is a GOMEA setting.
 * The complexity penalty of BASE-TLS (`--gomea-accept-complexity-ratio 0.125`) acts only through
@@ -195,3 +197,18 @@ win, for a memory fault that has nothing to do with the search. So:
 * Dow is out of every verdict (see "The Dow rule").
 * Two budgets only (20,000 and 100,000).
 * HC-TLS has no earlier result; its check can remove it from the round.
+
+## Amendments
+
+* **A1 (2026-11-26, facts, no design change).** The HC-TLS check passed with no code change (clone
+  A; tests `tests/gomea/test_hc_tls.py`, commit `092901a`): 6 probe runs (Con and Yac, old splits
+  1–3, 2,000 evaluations) ended ok; the final model used the per-term fit in all 6 (n_terms 2–10,
+  no fallback); the printed scores of 60 candidates equal their per-term-fit scores computed again
+  (largest relative difference about 5.6e-8). Corrections: two earlier tests had run HC with
+  `--linear-scaling terms` without a score check; HC-LM and HC-TLS differ in three flags, not two.
+  The runner writes no events log for HC-TLS (`--const-opt none`), so the HC progress curves and
+  deme counts come from the MOSES log, as "Contrasts" already says.
+* **A2 (proposed 2026-11-26, not approved).** The descriptive item "the per-term fit counters
+  (HC-TLS)" cannot be built without new output code: the counters are not written anywhere, for
+  GOMEA or for HC. Proposal: report the `terms` record of the final model instead (n_terms and the
+  fallback share), which the runner already writes for every arm with `--linear-scaling terms`.
