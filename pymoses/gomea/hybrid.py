@@ -78,6 +78,10 @@ class hc_gomea_optimization(optimizer_base):
         if gp is not None and gp.log_best_genes:
             # NOT A PORT, backlog 15.4 (D1): the field is defined for -a gomea demes only
             raise ValueError("log_best_genes needs -a gomea, not the hc-gomea hybrid")
+        if gp is not None and gp.contin_start != "step":
+            # NOT A PORT, backlog 15.4 (D1b): the seeded start of the hybrid does not use the
+            # sampler start that the option changes
+            raise ValueError("contin_start 'wide' needs -a gomea, not the hc-gomea hybrid")
         self.hc = hill_climbing(self.opt_params, hc if hc is not None else hc_parameters())
         self.gomea = gomea_optimization(self.opt_params, gp)
         self.gomea_params = self.gomea.gomea_params

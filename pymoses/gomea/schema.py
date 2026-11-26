@@ -233,7 +233,9 @@ class FrozenSchema:
             self._contin_values[key] = value
         return value
 
-    def sample_contin_code(self, pos: int, rng: MT19937RandGen) -> int:
+    def sample_contin_code(
+        self, pos: int, rng: MT19937RandGen, exclude_center: bool = False
+    ) -> int:
         """A code drawn uniformly over contin gene ``pos``'s legal step paths.
 
         A legal path is ``L`` Left/Right steps followed by Stops, for
@@ -242,9 +244,18 @@ class FrozenSchema:
         path number ``j``; ``L`` is the largest length with ``2 ** L - 1 <=
         j`` and the bits of ``j - (2 ** L - 1)`` choose Left (0) or Right
         (1) step by step.
+
+        NOT A PORT, backlog 15.4 (D1b, ``--gomea-contin-start wide``): with
+        ``exclude_center`` the draw is uniform over the ``2 ** (depth + 1) -
+        2`` paths other than path 0 (code 0, the exemplar's constant). It is
+        still one ``rng.randint_n`` draw: ``j = 1 + randint_n(paths - 1)``.
+        The default draw does not change.
         """
         depth = self.contin_depths[pos]
-        j = rng.randint_n((1 << (depth + 1)) - 1)
+        if exclude_center:
+            j = 1 + rng.randint_n((1 << (depth + 1)) - 2)
+        else:
+            j = rng.randint_n((1 << (depth + 1)) - 1)
         length = (j + 1).bit_length() - 1
         bits = j - ((1 << length) - 1)
         code = 0

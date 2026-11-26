@@ -19,7 +19,9 @@ that module's own docstring), while every OTHER random decision this module
 makes -- which radius to draw at, the coverage-pass field order, which
 population member a coverage fix replaces -- goes through the ``rng``
 argument ``build_population`` is explicitly given. A caller that wants a
-fully reproducible run seeds both.
+fully reproducible run seeds both. (NOT A PORT, backlog 15.4, D1b: with
+``contin_start="wide"`` the new codes of the contin genes that the sampler
+changed are drawn from ``rng`` too.)
 
 ``build_uniform_population`` is the one exception to "around the
 exemplar": the Phase 1d ``--gomea-init uniform`` ablation, which draws the
@@ -245,6 +247,34 @@ def field_diagnostics(genotypes: Sequence[tuple[int, ...]], domains: Sequence[in
     }
 
 
+# NOT A PORT, backlog 15.4 (D1b): how the sampler start sets the new value of a contin gene
+# that the sampler changed (``--gomea-contin-start``). ``step`` keeps the sampler's one step
+# (the default); ``wide`` draws the new code over the knob's non-center legal paths.
+CONTIN_START_MODES = ("step", "wide")
+
+
+def widen_contin_genes(
+    schema: FrozenSchema, g: tuple[int, ...], rng: MT19937RandGen
+) -> tuple[int, ...]:
+    """NOT A PORT, backlog 15.4 (D1b, ``--gomea-contin-start wide``): ``g`` with each contin
+    gene that is not code 0 (the exemplar's constant) replaced by a code drawn uniformly over
+    the knob's ``2 ** (depth + 1) - 2`` non-center legal paths
+    (``FrozenSchema.sample_contin_code`` with ``exclude_center``).
+
+    The genes at code 0 and the discrete genes do not change, so the set of genes that differ
+    from the exemplar stays the sampler's choice. One ``rng`` draw for each changed contin
+    gene, in gene order. No draw when no contin gene changed (for example on a schema without
+    contin genes): then ``g`` itself is returned."""
+    contin = schema.contin_positions
+    if not any(g[p] != 0 for p in contin):
+        return g
+    out = list(g)
+    for p in contin:
+        if out[p] != 0:
+            out[p] = schema.sample_contin_code(p, rng, exclude_center=True)
+    return tuple(out)
+
+
 def build_population(
     schema: FrozenSchema,
     n: int,
@@ -253,6 +283,7 @@ def build_population(
     dedupe: bool = True,
     attempt_cap_multiple: int = 20,
     coverage_cap_multiple: int = 2,
+    contin_start: str = "step",
 ) -> InitResult:
     """Draw an ``n``-member GOMEA initial population around ``schema``'s
     default (exemplar) genotype, using MOSES's own neighbourhood sampler.
@@ -298,8 +329,25 @@ def build_population(
     counts as one field toward the radius, and a draw may step its constant
     to a neighbouring value (``generate_contin_neighbor``).
 
+    NOT A PORT, backlog 15.4 (D1b; GOMEA extension, origin: the agent, from
+    the D1 result; the user approved the Yacht check on 2026-11-26):
+    ``contin_start`` sets the new value of a contin gene that the sampler
+    changed. ``"step"`` (the default) keeps the sampler's one step from code
+    0, so the constant is c - 1 or c + 1 (``generate_contin_neighbor`` with
+    distance 1). ``"wide"`` passes each sampler draw, in the fill phase and
+    in the coverage pass, through ``widen_contin_genes`` before the coverage
+    test and the duplicate check: each contin gene that is not at code 0
+    gets a new code, uniform over the knob's non-center legal paths (62 for
+    depth 5). The sampler still chooses which genes change; the genes at
+    code 0 and the discrete genes do not change. The extra draws come from
+    ``rng``, so the radii and coverage draws that follow differ from a
+    ``"step"`` population of the same seeds. ``"step"`` makes no extra draw:
+    its population is bit for bit that of the code before the option.
+
     Never scores anything: no scorer is imported, called, or referenced.
     """
+    if contin_start not in CONTIN_START_MODES:
+        raise ValueError(f"contin_start must be one of {CONTIN_START_MODES}, got {contin_start!r}")
     g0 = schema.default_genotype()
 
     if schema.dim == 0:
@@ -319,6 +367,8 @@ def build_population(
 
     resolved = resolve_radii(mix, schema.dim)
     center_inst = schema.to_instance(g0)
+    # NOT A PORT, backlog 15.4 (D1b): False for "step" and for a schema without contin genes.
+    wide = contin_start == "wide" and bool(schema.contin_positions)
 
     population: list[tuple[int, ...]] = [g0]
     radii: list[int] = [0]
@@ -334,6 +384,8 @@ def build_population(
         sample_from_neighborhood(schema.fields, r, 1, draw, 1, center_inst)
         attempts += 1
         g = schema.to_genotype(draw[0])
+        if wide:
+            g = widen_contin_genes(schema, g, rng)
         if dedupe and g in seen:
             duplicates_rejected += 1
             continue
@@ -364,6 +416,8 @@ def build_population(
                 attempts += 1
                 coverage_budget -= 1
                 g = schema.to_genotype(draw[0])
+                if wide:
+                    g = widen_contin_genes(schema, g, rng)
                 if g[field_idx] == target_value:
                     continue
                 if dedupe and g in seen:

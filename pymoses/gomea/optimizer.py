@@ -53,6 +53,7 @@ from pymoses.gomea.long_deme import LONG_DEME_RULES, LongDemePolicy
 from pymoses.gomea.node_proximity import distance_fn
 from pymoses.gomea.oracle import BudgetExhausted, EvaluationOracle
 from pymoses.gomea.population import (
+    CONTIN_START_MODES,
     INIT_MODES,
     InitResult,
     build_population,
@@ -321,7 +322,18 @@ class gomea_parameters:
     gets ``best_genes``: the programs and the contin genes of the deme's best individual (the
     one that ``best`` describes; ``pymoses.gomea.best_genes``). It only reads, so the search,
     ``last_result`` and every other event do not change. The CLI refuses it without ``-a
-    gomea`` or without ``--gomea-log``, and ``hc_gomea_optimization`` refuses it."""
+    gomea`` or without ``--gomea-log``, and ``hc_gomea_optimization`` refuses it.
+
+    NOT A PORT, backlog 15.4 (D1b; a GOMEA extension, origin: the agent, from the D1 result; the
+    user approved the Yacht check on 2026-11-26; off by default, and then left out of
+    ``as_dict``): ``contin_start`` ``"wide"`` makes the sampler start
+    (``build_population``) draw the new code of each contin gene that the sampler changed
+    uniformly over the knob's non-center legal paths, not one step from code 0. The sampler
+    still chooses which genes change. ``"step"`` (the default) is the code before the option,
+    bit for bit. ``"wide"`` needs ``init_mode`` ``"sampler"`` and ``contin`` ``"copy"``; the
+    CLI also refuses it without ``-a gomea``, and ``hc_gomea_optimization`` refuses it (its
+    seeded start does not use ``build_population``). With ``"wide"`` the "init" event gets
+    ``contin_start``."""
 
     def __init__(
         self,
@@ -370,6 +382,7 @@ class gomea_parameters:
         rv_seed: int = 0,
         trace: bool = False,
         log_best_genes: bool = False,
+        contin_start: str = "step",
     ) -> None:
         if pop_size == DYNAMIC_POP_SIZE:
             if pop_fraction > 0:
@@ -529,6 +542,18 @@ class gomea_parameters:
         # NOT A PORT, backlog 15.4 (D1): the genes of each deme's best program in the log.
         if not isinstance(log_best_genes, bool):
             raise ValueError(f"log_best_genes must be True or False, got {log_best_genes!r}")
+        # NOT A PORT, backlog 15.4 (D1b): the new value of a contin gene in the sampler start.
+        if contin_start not in CONTIN_START_MODES:
+            raise ValueError(
+                f"contin_start must be one of {CONTIN_START_MODES}, got {contin_start!r}"
+            )
+        if contin_start == "wide" and init_mode != "sampler":
+            raise ValueError(
+                f"contin_start 'wide' needs init_mode 'sampler', got {init_mode!r} "
+                "(the uniform start already draws each contin gene over all its paths)"
+            )
+        if contin_start == "wide" and contin != "copy":
+            raise ValueError(f"contin_start 'wide' needs contin 'copy', got {contin!r}")
         parse_radii(radii)
 
         self.pop_size = pop_size
@@ -576,6 +601,7 @@ class gomea_parameters:
         self.rv_seed = rv_seed
         self.trace = trace
         self.log_best_genes = log_best_genes
+        self.contin_start = contin_start
 
     # The opt-in options, left out of ``as_dict`` while at their default
     # (off), so a default run's telemetry is unchanged.
@@ -599,6 +625,7 @@ class gomea_parameters:
         "const_opt_pole_check": "none",
         "rv_step": "off",
         "trace": False,
+        "contin_start": "step",  # NOT A PORT, backlog 15.4 (D1b)
     }
 
     # The knob-cap options: all left out of ``as_dict`` while ``knob_cap`` is 0
@@ -979,7 +1006,14 @@ class gomea_optimization(optimizer_base):
         if gp.init_mode == "uniform":
             init = build_uniform_population(schema, n, rng_init, gp.dedupe)
         else:
-            init = build_population(schema, n, parse_radii(gp.radii), rng_init, gp.dedupe)
+            init = build_population(
+                schema,
+                n,
+                parse_radii(gp.radii),
+                rng_init,
+                gp.dedupe,
+                contin_start=gp.contin_start,
+            )
         init_s = time.perf_counter() - t0
         self._emit_init(sink, schema, gp.init_mode, init)
         self._evolve(deme, oracle, ev, schema, init, [], rng_var, rng_link, init_s, t_start, sink)
@@ -1146,6 +1180,9 @@ class gomea_optimization(optimizer_base):
         if self.gomea_params.trace and sink.path is not None:
             # NOT A PORT, server round 16 (``--gomea-trace``; absent when off).
             extra["genotypes_sha256"] = init_digest(init.genotypes)
+        if self.gomea_params.contin_start != "step" and init_mode == "sampler":
+            # NOT A PORT, backlog 15.4 (D1b, ``--gomea-contin-start``; absent with "step").
+            extra["contin_start"] = self.gomea_params.contin_start
         sink.emit(
             "init",
             schema_id=schema.schema_id,

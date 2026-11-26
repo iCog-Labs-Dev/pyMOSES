@@ -521,6 +521,20 @@ _GOMEA_OPTIONS = (
         "step path, edge and free flags and its inert class. Nothing else changes. "
         "-a gomea only; needs --gomea-log. Default 0.",
     ),
+    # NOT A PORT, backlog 15.4 (D1b): the new value of a contin gene in the sampler start (off
+    # by default: a default run is unchanged).
+    (
+        "--gomea-contin-start",
+        "gomea_contin_start",
+        str,
+        "step",
+        "NOT A PORT (backlog 15.4, D1b): how the sampler start sets the new value of a "
+        "contin gene that the sampler changed: step (one step from the exemplar's "
+        "constant, c - 1 or c + 1) or wide (a code drawn uniformly over the knob's "
+        "non-center legal paths, 62 for depth 5). The sampler still chooses which genes "
+        "change. -a gomea only; needs --gomea-init sampler and --gomea-contin copy. "
+        "Default step.",
+    ),
     # Top-K FOS subsets per generation (off by default: a default run is
     # unchanged).
     (
@@ -780,6 +794,7 @@ _GOMEA_INIT_CHOICES = ("sampler", "uniform")
 _GOMEA_ACCEPT_CHOICES = ("nonworse", "strict")
 _GOMEA_CONTIN_CHOICES = ("reject", "copy")
 _GOMEA_CONTIN_STATS_CHOICES = ("bin", "all", "none")
+_GOMEA_CONTIN_START_CHOICES = ("step", "wide")  # NOT A PORT, backlog 15.4 (D1b)
 _GOMEA_DEME_STORE_CHOICES = ("all", "accepted")
 _GOMEA_FOS_TOPK_MODE_CHOICES = ("linkage", "random")
 _GOMEA_LONG_DEME_RULE_CHOICES = ("top", "random")
@@ -859,6 +874,7 @@ def _gomea_params_from_args(args: argparse.Namespace) -> gomea_parameters:
         ("--gomea-accept", "gomea_accept", _GOMEA_ACCEPT_CHOICES),
         ("--gomea-contin", "gomea_contin", _GOMEA_CONTIN_CHOICES),
         ("--gomea-contin-stats", "gomea_contin_stats", _GOMEA_CONTIN_STATS_CHOICES),
+        ("--gomea-contin-start", "gomea_contin_start", _GOMEA_CONTIN_START_CHOICES),
         ("--gomea-deme-store", "gomea_deme_store", _GOMEA_DEME_STORE_CHOICES),
         ("--gomea-fos-topk-mode", "gomea_fos_topk_mode", _GOMEA_FOS_TOPK_MODE_CHOICES),
         ("--gomea-long-deme-rule", "gomea_long_deme_rule", _GOMEA_LONG_DEME_RULE_CHOICES),
@@ -921,6 +937,7 @@ def _gomea_params_from_args(args: argparse.Namespace) -> gomea_parameters:
     _check_const_opt(v, getattr(args, "opt_algo", None))
     _check_round16(v, getattr(args, "opt_algo", None))
     _check_best_genes(v, getattr(args, "opt_algo", None))
+    _check_contin_start(v, getattr(args, "opt_algo", None))
     knob_explore = _check_knob_cap(v)
     return gomea_parameters(
         pop_size=v["gomea_pop_size"],
@@ -970,6 +987,8 @@ def _gomea_params_from_args(args: argparse.Namespace) -> gomea_parameters:
         trace=bool(v["gomea_trace"]),
         # NOT A PORT, backlog 15.4 (D1): the genes of each deme's best program in the log
         log_best_genes=bool(v["gomea_log_best_genes"]),
+        # NOT A PORT, backlog 15.4 (D1b): the new value of a contin gene in the sampler start
+        contin_start=v["gomea_contin_start"],
         # server round 6: read only by --gomea-pop-size dynamic
         hc_fraction_of_nn=getattr(args, "hc_frac_of_nn", 2.0),
         hc_max_nn_evals=getattr(args, "hc_max_nn", 20000),
@@ -1095,6 +1114,24 @@ def _check_best_genes(v: dict, opt_algo: str | None) -> None:
             raise ValueError(f"--gomea-log-best-genes 1 needs -a gomea, got -a {opt_algo}")
         if not v["gomea_log"]:
             raise ValueError("--gomea-log-best-genes 1 needs --gomea-log FILE")
+
+
+def _check_contin_start(v: dict, opt_algo: str | None) -> None:
+    """NOT A PORT, backlog 15.4 (D1b): validate `--gomea-contin-start`. `wide` changes the
+    sampler start of `-a gomea` (`population.build_population`) only: the uniform start
+    already draws each contin gene over all its paths, the hybrid start (`-a hc-gomea`) does
+    not use the sampler start, and without `--gomea-contin copy` there is no contin gene."""
+    if v["gomea_contin_start"] == "wide":
+        if opt_algo != "gomea":
+            raise ValueError(f"--gomea-contin-start wide needs -a gomea, got -a {opt_algo}")
+        if v["gomea_init"] != "sampler":
+            raise ValueError(
+                f"--gomea-contin-start wide needs --gomea-init sampler, got {v['gomea_init']}"
+            )
+        if v["gomea_contin"] != "copy":
+            raise ValueError(
+                f"--gomea-contin-start wide needs --gomea-contin copy, got {v['gomea_contin']}"
+            )
 
 
 def _check_knob_cap(v: dict) -> int | None:
