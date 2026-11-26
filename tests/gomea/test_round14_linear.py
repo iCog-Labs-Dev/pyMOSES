@@ -546,13 +546,13 @@ EXPAND = ("import json, sys; from pathlib import Path; sys.path.insert(0, sys.ar
 def test_expand_gives_the_jobs_of_ad0c8d8_for_every_committed_manifest(tmp_path):
     """Every regression manifest under configs/gomea that has no linear arm (all manifests before
     round 14), no stand-alone arm (server round 15) and no key "anytime" (server round 16: the
-    job carries the key, which the runner at ad0c8d8 does not know): the jobs of expand() are
-    those of the runner at ad0c8d8."""
+    job carries the key, which the runner at ad0c8d8 does not know) or "hc_anytime" (server
+    round 17, the same reason): the jobs of expand() are those of the runner at ad0c8d8."""
     old = _old_tool(tmp_path, ["moses_sr_runner.py", "sr_eval.py"])
     files = sorted(str(f) for f in (REPO / "configs" / "gomea").glob("*/sr*.json")
                    if not any("linear" in a or "standalone" in a
                               for a in json.loads(f.read_text())["arms"].values())
-                   and "anytime" not in json.loads(f.read_text()))
+                   and not {"anytime", "hc_anytime"} & set(json.loads(f.read_text())))
     assert len(files) > 150
     env = {**os.environ, "PYTHONPATH": str(REPO)}
     got = [json.loads(subprocess.run([sys.executable, "-c", EXPAND, str(d), str(REPO), *files],
@@ -562,22 +562,23 @@ def test_expand_gives_the_jobs_of_ad0c8d8_for_every_committed_manifest(tmp_path)
     assert sum(isinstance(v, list) for v in got[1].values()) == len(files)
     # the RV16 review, nit 7: a manifest with the key "anytime" (and no linear or stand-alone
     # arm), with the key removed, expands at ad0c8d8 to the jobs of the current runner without
-    # the key
+    # the key. Server round 17: the same for the key "hc_anytime".
     stripped = []
     for f in sorted((REPO / "configs" / "gomea").glob("*/sr*.json")):
         m = json.loads(f.read_text())
-        if "anytime" not in m or any("linear" in a or "standalone" in a
-                                     for a in m["arms"].values()):
+        key = next((k for k in ("anytime", "hc_anytime") if k in m), None)
+        if key is None or any("linear" in a or "standalone" in a for a in m["arms"].values()):
             continue
         jobs = runner.expand(m, Path("/o"), REPO)
-        assert jobs and all(j.get("anytime") is True for j in jobs), f
-        m.pop("anytime")
+        assert jobs and all(j.get(key) is True for j in jobs), f
+        m.pop(key)
         t = tmp_path / "without-anytime" / f.parent.name / f.name
         t.parent.mkdir(parents=True, exist_ok=True)
         t.write_text(json.dumps(m))
         stripped.append((str(t), json.loads(json.dumps(
-            [{k: v for k, v in j.items() if k != "anytime"} for j in jobs]))))
+            [{k: v for k, v in j.items() if k != key} for j in jobs]))))
     assert len(stripped) >= 4
+    assert sum("phase1bl" in t or "smoke17-1bl" in t for t, _ in stripped) >= 12  # round 17
     old_jobs = json.loads(subprocess.run(
         [sys.executable, "-c", EXPAND, str(old), str(REPO), *(t for t, _ in stripped)],
         env=env, check=True, capture_output=True, text=True).stdout)
