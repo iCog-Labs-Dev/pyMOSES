@@ -26,6 +26,7 @@ from collections import Counter
 from collections.abc import Hashable, Sequence
 from fractions import Fraction
 
+from pymoses.gomea.best_genes import best_genes_record, scorer_fit
 from pymoses.gomea.const_opt import (
     CONST_OPT_DURING_MODES,
     CONST_OPT_GUARDS,
@@ -313,7 +314,14 @@ class gomea_parameters:
     evaluation that gives a new best raw score of the deme. The "end" event gets the pairs as
     ``trace``, and the "init" event gets ``genotypes_sha256`` (``init_digest``). The search
     does not change. Not with ``const_opt`` ``"lm"``: LM charges its passes without a score.
-    The CLI also refuses it without ``-a gomea``, and ``hc_gomea_optimization`` refuses it."""
+    The CLI also refuses it without ``-a gomea``, and ``hc_gomea_optimization`` refuses it.
+
+    NOT A PORT, backlog 15.4 (diagnostic D1; off by default, and always left out of
+    ``as_dict``): with ``log_best_genes`` on and a telemetry file, the "end" event of each deme
+    gets ``best_genes``: the programs and the contin genes of the deme's best individual (the
+    one that ``best`` describes; ``pymoses.gomea.best_genes``). It only reads, so the search,
+    ``last_result`` and every other event do not change. The CLI refuses it without ``-a
+    gomea`` or without ``--gomea-log``, and ``hc_gomea_optimization`` refuses it."""
 
     def __init__(
         self,
@@ -361,6 +369,7 @@ class gomea_parameters:
         rv_budget: str = "balance",
         rv_seed: int = 0,
         trace: bool = False,
+        log_best_genes: bool = False,
     ) -> None:
         if pop_size == DYNAMIC_POP_SIZE:
             if pop_fraction > 0:
@@ -517,6 +526,9 @@ class gomea_parameters:
             raise ValueError(f"trace must be True or False, got {trace!r}")
         if trace and const_opt == "lm":
             raise ValueError("trace does not support const_opt 'lm' (LM passes have no score)")
+        # NOT A PORT, backlog 15.4 (D1): the genes of each deme's best program in the log.
+        if not isinstance(log_best_genes, bool):
+            raise ValueError(f"log_best_genes must be True or False, got {log_best_genes!r}")
         parse_radii(radii)
 
         self.pop_size = pop_size
@@ -563,6 +575,7 @@ class gomea_parameters:
         self.rv_budget = rv_budget
         self.rv_seed = rv_seed
         self.trace = trace
+        self.log_best_genes = log_best_genes
 
     # The opt-in options, left out of ``as_dict`` while at their default
     # (off), so a default run's telemetry is unchanged.
@@ -604,8 +617,15 @@ class gomea_parameters:
     # round 16).
     _RV_KEYS = ("rv_budget", "rv_seed")
 
+    # NOT A PORT, backlog 15.4 (D1): options that only add a field to the log. They are always
+    # left out of ``as_dict``, so that the log of a run with the option differs from the log
+    # of the run without it only by the added field (``best_genes`` of each "end" event).
+    _LOG_ONLY_KEYS = ("log_best_genes",)
+
     def as_dict(self) -> dict:
         d = dict(vars(self))
+        for k in self._LOG_ONLY_KEYS:
+            del d[k]
         for k, default in self._OPTIONAL_DEFAULTS.items():
             if d[k] == default:
                 del d[k]
@@ -1408,7 +1428,31 @@ class gomea_optimization(optimizer_base):
             for k in ELITE_COUNT_KEYS:
                 self.last_result["const_opt"].setdefault(k, 0)
             self.last_result["const_opt"].setdefault("lm_elite", [])
-        sink.emit("end", **self.last_result)
+        extra = {}
+        if self.gomea_params.log_best_genes and sink.path is not None:
+            # NOT A PORT, backlog 15.4 (D1; absent when off): the genes of the deme's best
+            # program, the one that ``best`` describes. Only in the event: ``last_result`` and
+            # the search do not change.
+            extra["best_genes"] = self._best_genes(oracle, schema, requests)
+        sink.emit("end", **self.last_result, **extra)
+
+    def _best_genes(self, oracle: EvaluationOracle, schema: FrozenSchema, requests: int):
+        """NOT A PORT, backlog 15.4 (D1): the field ``best_genes`` of the "end" event
+        (``best_genes.best_genes_record`` of ``oracle.best_genotype()``), ``None`` when the
+        deme has no evaluation (``best`` is then ``None`` too). The record only reads; an
+        error gives ``{"error": text}`` and the run goes on."""
+        g = oracle.best_genotype() if requests > 0 else None
+        if g is None:
+            return None
+        try:
+            return best_genes_record(
+                schema,
+                g,
+                scorer_fit(oracle.iscorer),
+                getattr(oracle.iscorer, "_reduce", True),
+            )
+        except Exception as exc:  # a log field must never stop the run
+            return {"error": f"{type(exc).__name__}: {exc}"[:300]}
 
     # GOMEA extension (``--const-opt mutate``): coefficient mutation.
     def _mutator(self, schema: FrozenSchema, oracle: EvaluationOracle, ev: _OracleEvaluator):

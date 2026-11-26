@@ -195,14 +195,22 @@ def _walk(leaf, chain: set[int], mode: str, memo: dict) -> str:
     return "absorbed" if A else "live"
 
 
-def analyse(schema, g: Sequence[int], reduce: bool = True) -> dict:
+def analyse(schema, g: Sequence[int], reduce: bool = True, mode: str | None = None) -> dict:
     """The structural analysis of genotype ``g``: ``{"mode": fit mode, "genes": {gene:
     "zero" | "dead" | "absorbed" | "live"}, "reduced": the reduced program}`` for each
     contin gene of the unreduced program. ``dead`` and ``absorbed`` are the structurally
-    inert genes."""
+    inert genes.
+
+    NOT A PORT, backlog 15.4 (D1, ``best_genes.gene_classes``): ``mode`` (``PLAIN`` or
+    ``TERMS``), when given, is the fit mode in place of ``fit_mode`` of the reduced program
+    (``PLAIN`` for ``--linear-scaling 1``). ``None`` (the default) keeps the rule of the RV
+    core."""
+    if mode not in (None, PLAIN, TERMS):
+        raise ValueError(f"mode must be None, {PLAIN!r} or {TERMS!r}, got {mode!r}")
     tree, genes = schema.candidate_genes(g)
     reduced = schema.candidate(g, reduce)
-    mode = fit_mode(reduced)
+    if mode is None:
+        mode = fit_mode(reduced)
     memo: dict = {}
     chain = _chain_nodes(tree.begin(), memo) if mode == TERMS else set()
     leaves = [n for n in tree if is_contin(n.data)]

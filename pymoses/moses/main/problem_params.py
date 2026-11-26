@@ -508,6 +508,19 @@ _GOMEA_OPTIONS = (
         "\"init\" event the SHA-256 of the initial genotypes. The search does not change. "
         "-a gomea only; not with --const-opt lm. Default 0.",
     ),
+    # NOT A PORT, backlog 15.4 (diagnostic D1): the genes of each deme's best program in the
+    # GOMEA log (off by default: a default run is unchanged).
+    (
+        "--gomea-log-best-genes",
+        "gomea_log_best_genes",
+        int,
+        0,
+        "NOT A PORT (backlog 15.4, D1): 1 = the --gomea-log file also gets, in the \"end\" "
+        "event of each deme, the field best_genes: the unreduced and the reduced program of "
+        "the deme's best individual and, for each contin gene, its code, value, knob spec, "
+        "step path, edge and free flags and its inert class. Nothing else changes. "
+        "-a gomea only; needs --gomea-log. Default 0.",
+    ),
     # Top-K FOS subsets per generation (off by default: a default run is
     # unchanged).
     (
@@ -856,7 +869,13 @@ def _gomea_params_from_args(args: argparse.Namespace) -> gomea_parameters:
             raise ValueError(
                 f"{flag} {v[dest]} is not recognized. Supported: {', '.join(choices)}."
             )
-    for dest in ("gomea_fi", "gomea_skip_inactive", "gomea_genotype_memo", "gomea_trace"):
+    for dest in (
+        "gomea_fi",
+        "gomea_skip_inactive",
+        "gomea_genotype_memo",
+        "gomea_trace",
+        "gomea_log_best_genes",
+    ):
         if v[dest] not in (0, 1):
             raise ValueError(f"--{dest.replace('_', '-')} must be 0 or 1, got {v[dest]}")
     if v["gomea_max_evals_per_deme"] < 0:
@@ -901,6 +920,7 @@ def _gomea_params_from_args(args: argparse.Namespace) -> gomea_parameters:
     _check_long_deme(v, cap, getattr(args, "opt_algo", None))
     _check_const_opt(v, getattr(args, "opt_algo", None))
     _check_round16(v, getattr(args, "opt_algo", None))
+    _check_best_genes(v, getattr(args, "opt_algo", None))
     knob_explore = _check_knob_cap(v)
     return gomea_parameters(
         pop_size=v["gomea_pop_size"],
@@ -948,6 +968,8 @@ def _gomea_params_from_args(args: argparse.Namespace) -> gomea_parameters:
         rv_seed=getattr(args, "rand_seed", 0),
         # NOT A PORT, server round 16 (the RV16 review): the best-so-far trace of each deme
         trace=bool(v["gomea_trace"]),
+        # NOT A PORT, backlog 15.4 (D1): the genes of each deme's best program in the log
+        log_best_genes=bool(v["gomea_log_best_genes"]),
         # server round 6: read only by --gomea-pop-size dynamic
         hc_fraction_of_nn=getattr(args, "hc_frac_of_nn", 2.0),
         hc_max_nn_evals=getattr(args, "hc_max_nn", 20000),
@@ -1062,6 +1084,17 @@ def _check_round16(v: dict, opt_algo: str | None) -> None:
                 "--gomea-trace 1 does not support --const-opt lm "
                 "(LM passes are charged without a score)"
             )
+
+
+def _check_best_genes(v: dict, opt_algo: str | None) -> None:
+    """NOT A PORT, backlog 15.4 (diagnostic D1): validate `--gomea-log-best-genes`. The field
+    goes to the "end" events of the GOMEA log, so it needs `--gomea-log`; it describes the
+    demes of `-a gomea` (in `-a hc-gomea` the GOMEA phase does not see the whole deme)."""
+    if v["gomea_log_best_genes"]:
+        if opt_algo != "gomea":
+            raise ValueError(f"--gomea-log-best-genes 1 needs -a gomea, got -a {opt_algo}")
+        if not v["gomea_log"]:
+            raise ValueError("--gomea-log-best-genes 1 needs --gomea-log FILE")
 
 
 def _check_knob_cap(v: dict) -> int | None:

@@ -75,6 +75,9 @@ class hc_gomea_optimization(optimizer_base):
             # NOT A PORT, server round 16 (the RV16 review): the trace cannot see the hill
             # climbing evaluations of the deme
             raise ValueError("trace needs -a gomea, not the hc-gomea hybrid")
+        if gp is not None and gp.log_best_genes:
+            # NOT A PORT, backlog 15.4 (D1): the field is defined for -a gomea demes only
+            raise ValueError("log_best_genes needs -a gomea, not the hc-gomea hybrid")
         self.hc = hill_climbing(self.opt_params, hc if hc is not None else hc_parameters())
         self.gomea = gomea_optimization(self.opt_params, gp)
         self.gomea_params = self.gomea.gomea_params
