@@ -864,12 +864,12 @@ is started or approved.
 
      | Task text | Arm | Note |
      |---|---|---|
-     | Existing MOSES | pyMoses with HC (HC-LM; HC-TLS if 15.1 passes) | The same code as the GOMEA arms; only the optimizer changes. C++ MOSES as an extra anchor: the user decides |
+     | Existing MOSES | **C++ MOSES (user, 2026-11-26).** pyMoses with HC (HC-LM; HC-TLS if 15.1 passes) if the run-time comparison with C++ MOSES is not fair | pyMoses HC has the same code as the GOMEA arms, so only the optimizer changes |
      | MOSES with GOMEA | BASE-TLS (or the reference at that time) | |
      | MOSES with GOMEA and constant optimization | TLS-LMR (next in line), or an RV arm if round 16 shows a gain | |
      | Standalone GP-RV-GOMEA | the authors' code (Koch et al., PPSN 2024; `T3.2-FEASIBILITY.md`) | Not in SRBench 2025: it needs a wrapper of our own |
      | Operon, PySR | the SRBench 2025 wrappers | |
-     | Standalone GP-GOMEA (agent addition) | the C++ GP-GOMEA (on the server since Phase 1f) | In SRBench 2025 as GPGomea. The matched control for BASE-TLS |
+     | Standalone GP-GOMEA (agent proposal; **the user: it joins, 2026-11-26**) | the C++ GP-GOMEA (on the server since Phase 1f) | In SRBench 2025 as GPGomea. The matched control for BASE-TLS |
 
    * **The main question needs matched contrasts (agent).** "Beyond its choice of optimizer" means
      that the optimizer stays the same and only MOSES's parts change:
@@ -901,9 +901,10 @@ is started or approved.
         of the task's prerequisite.
      2. An sklearn-style estimator (`fit`, `predict`, a model string) around the SR runner, with a
         time limit and one core. None exists now (the `predict` functions in `tools/gomea/` are
-        not an estimator).
+        not an estimator). C++ MOSES needs one too (the Phase 1f tools parse its output).
      3. A SymPy export of the best program, with the scaling terms written in. None exists now (no
         `sympy` import in `pymoses/` or `tools/`). SRBench's size and any recovery check need it.
+        The same for the combo output of C++ MOSES.
      4. A check of the function set against the first-principles track (for example the powers,
         `exp` and `log` that kepler and planck need).
      5. Memory: SRBench 2025 gives 10 GB per job. Our 100,000 arms needed 8,192 MB (round 16).
@@ -918,10 +919,29 @@ is started or approved.
      240 runs and at most 240 CPU-h per MOSES arm, about 1–1.5 days each. For the external methods,
      use the published runs if the `srbench_2025` branch has them. If not, run them with the same
      settings (also up to 240 CPU-h each).
-   * **Open points for the user:** which "existing MOSES" (pyMoses HC, C++ MOSES or both);
-     GP-GOMEA as an extra arm; the time budget, the evaluation budget or both; the ablations of
-     contrast 3; the data for exact recovery (the SRBench 2025 first-principles track or the
-     SRBench 2021 Feynman and Strogatz sets); distributed scalability now or later.
+   * **The user's decisions (2026-11-26), in the user's words:**
+     * Existing MOSES: "existing MOSES is C++ MOSES but if comparison of run time isn't fair with
+       that we can go with pyMoses."
+     * GP-GOMEA: "yes gp-gomea should join as an extra arm."
+     * The budget: "ideally time and evaluation both but if comparing time isn't fair we can resort
+       to evalaution"
+     * The data (the answer to the question on the data for exact recovery): "SRBench data is
+       better imo."
+   * **The agent's reading of these decisions (not confirmed by the user):**
+     * Time is not fair between pyMoses (Python) and the compiled methods (C++ MOSES, GP-GOMEA,
+       Operon, PySR): see 1ai above. Thus each contrast with a pyMoses arm uses equal evaluations.
+       The runs still record the wall time and the CPU time, as a description.
+     * Time is fair among the compiled methods. Thus C++ MOSES gets both budgets against GP-GOMEA,
+       Operon and PySR.
+     * Contrast 1 (HC against GOMEA) stays inside pyMoses, with pyMoses HC. C++ MOSES and pyMoses
+       HC differ in more than the language (pyMoses adds linear scaling, TLS and LM).
+     * "SRBench data": the SRBench 2025 data sets, both tracks; the first-principles track for
+       exact recovery. No Feynman or Strogatz sets.
+     * Equal evaluations need an evaluation limit in each method. Check each counter before a
+       design: C++ MOSES (`-m`), GP-GOMEA, GP-RV-GOMEA, Operon and PySR.
+   * **Still open:** the ablations of contrast 3; distributed scalability now or later (agent
+     recommendation: later, as a separate item); the C++ MOSES set-up for SRBench (prerequisites 2
+     and 3).
 
 ## 8. Future directions from the literature search (2026-11-06)
 

@@ -732,3 +732,13 @@ user confirms it.
   * Done: `BACKLOG.md` 15.3 (the user's text unchanged, then agent notes) and a line in
     `ROADMAP.md`.
   * Not approved: the arm mapping, GP-GOMEA as an extra arm, the budget, any design or code.
+* **The open points of backlog 15.3 (2026-11-26):** the user answered: "existing MOSES is C++ MOSES
+  but if comparison of run time isn't fair with that we can go with pyMoses." / "yes gp-gomea should
+  join as an extra arm." / "ideally time and evaluation both but if comparing time isn't fair we can
+  resort to evalaution" / "SRBench data is better imo."
+  * User decisions: existing MOSES = C++ MOSES (pyMoses HC if the run-time comparison is not fair);
+    GP-GOMEA joins; both budgets, or evaluations only if time is not fair; SRBench data.
+  * Agent reading, not confirmed: the pyMoses contrasts use equal evaluations; C++ MOSES gets both
+    budgets against the compiled methods; contrast 1 uses pyMoses HC; "SRBench data" means the
+    SRBench 2025 sets (both tracks).
+  * Done: `BACKLOG.md` 15.3. Still not approved: a design, a pre-registration, any code.
