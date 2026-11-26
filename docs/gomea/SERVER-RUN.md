@@ -1519,3 +1519,159 @@ of 300 s; 42 jobs), then it chains to `plan16b-smoke.json` (`smoke16b`:
 `configs/gomea/server-smoke16-1bk`, splits 81 and 82; 42 runs kept, 42 new; the report on 84).
 The state is in `server-run16-smoke/` and `server-run16b-smoke/`. The smoke plans are for a
 local check before a push, not a server step.
+
+## Round 17
+
+The seventeenth round (`SERVER-ROUND17-PREREGISTRATION.md`, HC against BASE-TLS at two budgets:
+does BASE-TLS gain more than HC-LM from 20,000 to 100,000 evaluations; is BASE-TLS better than
+HC-LM at 100,000; with the same constant tuning, is GOMEA's search better than HC's) is one
+phase, 1bl (regression), in two plans that chain. The GOMEA partners do not run again: the report
+pairs each HC run with the round 16 run of the same dataset, split, seed and budget (BASE-TLS or
+BASE-TLS-100K). The agent estimate before the pilot is about 250 CPU-h, about 23 h at 11 runs at a
+time, more than 20 h for one plan, so the round has two plans (the user's rule). The local pilot
+sets the final memory limit of the 100,000 arms and the time estimate. The two plans split the
+round by splits:
+
+* `tools/server/plan17.json` (`round17`): S0, then 1bl on splits 81-85
+  (`configs/gomea/phase1bl-a`: the spec and the three manifests of 1bl with splits 81-85 only;
+  130 runs; an interim report). Its state is in `../gomea-results/server-run17/`. It has
+  `"then": "round17b"`.
+* `tools/server/plan17b.json` (`round17b`): 1bl with the full config (`configs/gomea/phase1bl`,
+  splits 81-90). It starts by itself when round17 ends. The runner keeps the 130 runs of
+  round17 and runs the other 130 (splits 86-90). Its report covers all 260 runs. It has no S0.
+  Its state is in `../gomea-results/server-run17b/`.
+
+There is no Boolean phase.
+
+**One-time server steps before the round:**
+
+1. Make sure that round 16b has ended. Round 17 needs its results, and two rounds never run at
+   the same time:
+
+       bash tools/server/status.sh --plan round16
+
+   The `chain:` section must show round16 and round16b DONE.
+2. Update the clone to the branch commit that has this section:
+
+       git pull --ff-only
+
+3. Run the set-up again:
+
+       bash tools/server/setup.sh
+
+   It must end with `SETUP OK`. The splits 81-90 of round 16 are already built; set-up checks
+   them again.
+4. Start the round. One command starts the chain; round17b starts by itself when round17 ends:
+
+       bash tools/server/start.sh --plan round17
+
+That is all. Do not run a separate smoke test on the server. S0 records a failure in the log and
+in `round-summary.md`, but it does not stop the phase. There is no choice step, no extension and
+no adoption rule. Each plan writes its own `round-summary.md` and final bundle. **Bring back
+both final bundles, from `server-run17/` and `server-run17b/`.** The report on all 260 runs is in
+the bundle of round17b.
+
+**Following and stopping the chain:** as in round 16, with `--plan round17`
+(`status.sh`, `stop.sh`, `start.sh`, `tail -f ../gomea-results/server-run17/run.log`, then
+`server-run17b/run.log`). The lock and the stop marker are in `server-run17/`. Autostart: run
+`uninstall_autostart.sh`, then `install_autostart.sh --plan round17`.
+
+**Warning (as in rounds 15 and 16).** Both plans write their report to the same folder,
+`gomea-results/phase1bl/report-stage1`. Start `round17` only. Never start `round17b` by itself,
+and never start `round17` after `round17b`.
+
+**The partner requirement.** Each 1bl step needs the 130 summaries of its round 16 partners:
+BASE-TLS of the 6 datasets other than Dow (`phase1bk/phase1bk-sr`, 60), BASE-TLS-100K of the same
+6 datasets (`phase1bk/phase1bk-sr-100K`, 60) and BASE-TLS on Dow (`phase1bk/phase1bk-sr-Dow`,
+10), splits 81-90. The requirement kind is new in this round:
+`summaries:DIR:ARM:A,B,...:LO-HI` (`orchestrate.py`). It is met when each
+`../gomea-results/DIR/runs/<dataset>__ARM__s<K>/summary.json` exists and is a JSON object with
+that task, arm and seed. The status of a run does not matter (a failed partner counts as
+infinitely bad in the report). When a summary is missing, the step is skipped as for a missing
+dataset: the state, `events.jsonl` (`step_skip`), `run.log` (`SKIP phase1bl: N of M BASE-TLS
+summaries missing under ...`) and `round-summary.md` give the reason, and the round goes on. Then
+round17b starts and skips its step for the same reason. After the round 16 results are in place,
+run `RETRY_FAILED=1 bash tools/server/start.sh --plan round17`.
+
+**Phase 1bl: budget.** Each run gets 20,000 or 100,000 evaluations (`-m N`) and no
+`--max-time`. The wall cap of 36,000 s per run is only a guard against a hung process.
+
+**Phase 1bl: arms** (`configs/gomea/phase1bl/`, three manifests):
+
+| Arm | Budget | Flags | Manifest |
+|---|---|---|---|
+| HC-LM | 20,000 | `-a hc --knob-probe-baseline reduced --linear-scaling 1 --const-opt lm --const-opt-guard val` (as in 1bh and 1bi) | `sr.json` (6 datasets), `sr-Dow.json` (Dow) |
+| HC-TLS | 20,000 | `-a hc --knob-probe-baseline reduced --linear-scaling terms --const-opt none` | `sr.json`, `sr-Dow.json` |
+| HC-LM-100K | 100,000 | as HC-LM | `sr-100K.json` (6 datasets) |
+| HC-TLS-100K | 100,000 | as HC-TLS | `sr-100K.json` |
+
+* No deme cap (`-a hc`, not `-a hc-capped`): the user's decision of 2026-11-26. HC does not run
+  on Dow at 100,000 (the user's decision). 260 runs: 70 for each 20,000 arm, 60 for each
+  100,000 arm.
+* HC-LM gets `--gomea-log RUN_DIR/events.jsonl` and `--const-opt-val` (the guard), as in rounds
+  13 and 14. HC-TLS gets neither.
+* The manifests have `"clip_test_nmse"`, `"plain_nmse"` and (new in round 17) `"hc_anytime"`
+  true. So each summary has the best-so-far training NMSE at deme resolution: the runner
+  installs an expansion hook (`tools/gomea/hc_progress.py`) that writes, after each deme,
+  MOSES's evaluation count and the best raw score of the metapopulation (the two values of the
+  "Stats:" row of the MOSES log; the log level stays WARN; the search does not change). The
+  summary gets `demes`, `anytime` (the checkpoints 1, 2, 5, 10, 20, 50 and 100 % of the budget;
+  null before the end of the first deme), `anytime_source` "hc-demes" and `anytime_check`
+  (for HC-LM also the check against the rule of its "end" events).
+* Each manifest has a result directory of its own: `phase1bl/phase1bl-sr/`,
+  `phase1bl/phase1bl-sr-100K/` and `phase1bl/phase1bl-sr-Dow/`.
+
+**HC-TLS left out (only if the HC-TLS check fails).** Run
+`.venv/bin/python tools/gomea/drop_arms.py configs/gomea/phase1bl configs/gomea/phase1bl-a
+configs/gomea/server-smoke17-1bl configs/gomea/server-smoke17-1bl-a --arms HC-TLS HC-TLS-100K`,
+set `HC_TLS = False` in `tests/gomea/round17_design.py`, run the tests and commit. The manifests
+then have HC-LM only, and the spec loses P3, P4 and the HC-TLS contrasts (primary Holm across 2).
+
+**Phase 1bl: report** (`spec.json` of 1bl; a failed run counts as infinitely bad; paired
+Wilcoxon on log(A / B), Holm in each family, alpha = 0.025, and the 10 % band):
+
+* The report reads its own three result directories (`phase_run.sh` gives them) and, with the new
+  spec key `"partners"` (`tools/gomea/partner_report.py`), the three round 16 directories
+  `../gomea-results/phase1bk/phase1bk-sr`, `phase1bk-sr-100K` and `phase1bk-sr-Dow`. It loads
+  only the partners of its own runs (BASE-TLS for HC-LM and HC-TLS, BASE-TLS-100K for the 100,000
+  arms; not the RV arms, not the failed BASE-TLS-100K runs on Dow). `report-stage1/partners.csv`
+  lists each own run with its partner's status, and `partners.json` the counts and the missing
+  partners. A missing partner is not paired; the report warns and goes on.
+* The Dow rule (the new spec key `"pooled_problems"`): every family with verdicts uses the 6
+  datasets without Dow, 60 pairs.
+* **P**, primary (4), test NMSE: the interaction [BASE-TLS-100K, HC-LM-100K, BASE-TLS, HC-LM];
+  BASE-TLS-100K vs HC-LM-100K; BASE-TLS vs HC-TLS; BASE-TLS-100K vs HC-TLS-100K.
+* **S**, secondary (9): BASE-TLS vs HC-LM; HC-LM-100K vs HC-LM; HC-TLS vs HC-LM at 20,000 and at
+  100,000; the interaction [BASE-TLS-100K, HC-TLS-100K, BASE-TLS, HC-TLS]; the 4 primary
+  contrasts on the training NMSE.
+* **SC**, secondary (8): program size and CPU for primary 2, 3 and 4 and for BASE-TLS vs HC-LM.
+* **D**, descriptive (24): the 4 primary contrasts on each of the 6 datasets. **DD**,
+  descriptive (2): Dow at 20,000, BASE-TLS vs HC-LM and vs HC-TLS. **DP**, descriptive (1):
+  HC-TLS-100K vs HC-TLS.
+* `anytime_ratios.csv` (each HC arm to BASE-TLS of the same budget; the rows "pooled" pool the 6
+  datasets), `demes.csv`, `runs.csv`, `nmse_above_100.csv`; `aggregate.csv` has the train-test
+  gap, the LM calls and the guard rejections (HC-LM). The per-term fit of HC-TLS is in the
+  columns `n_terms` and `fallback` of `runs.csv` (HC-TLS writes no GOMEA log).
+
+**Memory and workers:**
+
+| Manifest | `mem_limit_mb` | W on the server (cgroup 65,536 MB, 12 CPUs, reserve 6,553 MB) |
+|---|---|---|
+| `phase1bl/sr.json` (the 20,000 arms, 6 datasets) | 2,048 | min(11, 28) = 11 |
+| `phase1bl/sr-100K.json` (the 100,000 arms, 6 datasets) | 8,192 (a placeholder: the pilot sets it) | floor(58,983 / 8,192) = 7 |
+| `phase1bl/sr-Dow.json` (the 20,000 arms on Dow) | 4,096 | min(11, 14) = 11 |
+
+Both 1bl steps have `per_run_mb` 2048 and `manifest_per_run_mb`
+`{"sr-Dow.json": 4096, "sr-100K.json": 8192}`. `phase_run.sh` runs `sr.json`, then
+`sr-100K.json` (Tow first), then `sr-Dow.json`. The limit is RLIMIT_AS (address space, not
+RSS).
+
+**Local rehearsal only:** `tools/server/plan17-smoke.json` (`--plan smoke17`) runs a limited S0,
+then `smoke17-1bk` (`configs/gomea/server-smoke17-1bk`: the BASE-TLS arms of round 16 in
+miniature, old splits 1 and 2, 26 jobs; so the smoke needs no round 16 results), then
+`configs/gomea/server-smoke17-1bl-a` (the same three manifests, arms, flags, keys and spec as
+1bl, old split 1, 1,000 and 2,000 evaluations, a wall cap of 300 s; the spec reads the partners
+of `smoke17-1bk`; 26 jobs), then it chains to `plan17b-smoke.json` (`smoke17b`: old splits 1
+and 2; 26 runs kept, 26 new). The smoke never uses splits 81-90. The state is in
+`server-run17-smoke/` and `server-run17b-smoke/`. The smoke plans are for a local check before a
+push, not a server step.
