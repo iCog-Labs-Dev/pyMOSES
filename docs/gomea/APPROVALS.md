@@ -742,3 +742,10 @@ user confirms it.
     budgets against the compiled methods; contrast 1 uses pyMoses HC; "SRBench data" means the
     SRBench 2025 sets (both tracks).
   * Done: `BACKLOG.md` 15.3. Still not approved: a design, a pre-registration, any code.
+* **HC with no deme cap (2026-11-26):** the agent listed the HC deme cap as an open point of the
+  round after round 16 (backlog 15.2). The user answered: "I don't want HC to have a deme cap that
+  was a limitation created because of the other algorithms and HC doesn't seem to need it."
+  * User decision: HC arms (HC-LM, HC-TLS) run with no deme cap. This replaces the rule of
+    2026-10-15 (HC with the GOMEA arm's per-deme cap).
+  * Done: `BACKLOG.md` 15.1 and 15.2. Not approved yet: the design and the pre-registration of the
+    round.

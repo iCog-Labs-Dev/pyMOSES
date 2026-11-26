@@ -775,14 +775,14 @@ is started or approved.
      at equal CPU (round 3, 1ao and 1ar: better on Air, ties on the other 7 datasets) and FINAL
      against HC-LS (round 8, 1ax: a tie, 0.925).
    * **Question:** with the same scaling and constant settings, does GOMEA's search beat HC?
-   * **Sketch:** HC-TLS = `-a hc-capped --knob-probe-baseline reduced --linear-scaling terms
-     --const-opt none`, against BASE-TLS; 20,000 evaluations; 10 datasets; fresh splits; HC-LM as an
+   * **Sketch:** HC-TLS = `-a hc --knob-probe-baseline reduced --linear-scaling terms
+     --const-opt none` (no deme cap, the user's decision of 2026-11-26), against BASE-TLS; 20,000 evaluations; 10 datasets; fresh splits; HC-LM as an
      extra reference arm.
    * **Open design points:**
-     * The deme cap. The user's rule (2026-10-15): HC gets the same per-deme cap as the GOMEA arm.
-       BASE-TLS has no explicit cap (`--gomea-pop-size dynamic`; its demes end by convergence). A
-       matched cap is needed, for example the median evaluations per deme of BASE-TLS per dataset in
-       round 14, or `--gomea-deme-share`.
+     * The deme cap: **decided (user, 2026-11-26): HC has no deme cap.** The user: "I don't want
+       HC to have a deme cap that was a limitation created because of the other algorithms and HC
+       doesn't seem to need it." This replaces the rule of 2026-10-15 (HC with the GOMEA arm's
+       per-deme cap).
      * The complexity penalty (`--gomea-accept-complexity-ratio 0.125`) acts only through GOMEA's
        acceptance, so HC's search does not use it (1t, `FINDINGS-LOG.md`). The report gives the
        program size of both arms.
@@ -808,8 +808,9 @@ is started or approved.
      contrast of round 16)? Per dataset, descriptive: does BASE-TLS catch up on Boston and Concrete?
    * **Cost (agent estimate, not measured):** HC-LM about 13 CPU-h at 20,000 and about 65 CPU-h at
      100,000, so about 7–8 h on the server. A local pilot first (memory and time), as in round 16.
-   * **Open:** the HC deme cap (the user's rule of 2026-10-15; HC-LM so far ran with no cap as the
-     accuracy baseline); whether HC-TLS joins (15.1).
+   * **Decided (user, 2026-11-26):** HC-LM and HC-TLS run with no deme cap (see 15.1).
+   * **Open:** whether HC-TLS joins (15.1, after its check); by "normal HC", HC-LM or classic HC
+     with no scaling and no LM (asked 2026-11-26).
 
 3. **MOSES against state-of-the-art symbolic regression on SRBench 2025.** Origin: the user
    (2026-11-25: "I am thinking to run something like the following to see the relevance of MOSES as
