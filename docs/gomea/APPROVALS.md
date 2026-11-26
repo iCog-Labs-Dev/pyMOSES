@@ -765,3 +765,10 @@ user confirms it.
     HC does not run on Dow at 100,000 (260 runs).
   * Next: the implementation by subagents in separate clones, the pilot, the RV16 review, and the
     push only with a fresh approval. Round 17 starts on the server only after round 16b has ended.
+* **Knob diagnostics D1–D3 to the backlog (2026-11-26):** the user asked whether the knob format is
+  the bottleneck and whether the knobs can take a format that uses a distribution, as in the
+  GP-RV-GOMEA paper. The agent proposed D1 (grid statistics, no new runs), D2 (scale-aware contin
+  knobs) and D3 (the constant distribution carried across demes) before option A. The user
+  answered: "Yes, add them to the backlog. Don't start D1 yet. Specially if it uses more memory as
+  memory is busy right now."
+  * Done: `BACKLOG.md` 15.4, a line in `ROADMAP.md`. Not started; D1 waits for free local memory.

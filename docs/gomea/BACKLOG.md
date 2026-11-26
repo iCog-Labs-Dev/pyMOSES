@@ -945,6 +945,42 @@ is started or approved.
      recommendation: later, as a separate item); the C++ MOSES set-up for SRBench (prerequisites 2
      and 3).
 
+4. **Is the knob format the bottleneck? Diagnostics D1–D3.** Origin: the user's question
+   (2026-11-26): "So I wonder if the bottleneck is coming from the way we use knobs instead of the
+   optimizations which might be why we are not getting a lot of improvement. Is it possible for us
+   to change the knobs to work with a format that is more suitable and leverages the distribution
+   like the GP-RV-GOMEA paper says it would?" The user asked to add D1–D3 to the backlog and not to
+   start D1 yet: "Don't start D1 yet. Specially if it uses more memory as memory is busy right
+   now." D1–D3 are agent-written. Not started.
+   * **The facts (code):** a contin knob is centered on the exemplar's constant, with step size 1.0,
+     expansion 2.0 and depth 5 (`build_knobs.py`, `knobs.py`, `field_set.contin_stepper`). So each
+     constant gene has 63 values on an uneven grid: a range of ±31 and a finest step of about 0.06
+     near the center, the same for every constant, whatever its size. The grid is rebuilt around
+     each new exemplar. A deme lasts a few thousand evaluations and about 5–15 generations. The
+     GP-RV-GOMEA paper uses a fixed template, one population for the whole run and about
+     10,000,000 evaluations.
+   * **Evidence against the constants as the main limit (agent reading):** exact constant tuning
+     never gave a clear gain after the per-term least squares came in: LM with a guard (rounds
+     5–7), LM during the search (round 12, 0.929), LM inside the terms (rounds 13 and 14, 1.000 and
+     0.980), the RV step (round 16, interim: no gain). More evaluations help (round 16, interim:
+     0.808 at 5 times the budget). So the structure search may limit more than the constant values.
+   * **D1. Grid statistics (no new runs):** for the best program of each deme, the share of active
+     constant genes at the edge of the grid (a full path in one direction), how far the constants
+     move from deme to deme over a run, and, with the LM records of round 14 (TLS-LMR), how far LM
+     moves a constant compared with the grid's finest step. First check that the logs hold the codes
+     of the deme bests; if not, D1 needs a log option and a few local runs. Run it only when the
+     local memory is free (the user, 2026-11-26).
+   * **D2. Scale-aware contin knobs:** an opt-in step size relative to the constant's size (for
+     example max(|c| × s, s_min)), or one more depth level. One round against BASE-TLS. HC uses the
+     same knobs, so HC changes too. Only if D1 shows that the grid limits the constants.
+   * **D3. Carry the constant distribution across demes:** center and spread the next deme's grid
+     (or the RV model) from the values of the best programs of the earlier demes. It needs a stable
+     identity for a constant across demes; today the knobs are rebuilt by tree position. Medium
+     code. Only if D1 or D2 shows an effect.
+   * **Option A (T3.2)** stays the large option (discrete structure plus a real value per
+     constant). A feasibility note and the user's decision come first, and only with evidence from
+     D1–D3.
+
 ## 8. Future directions from the literature search (2026-11-06)
 
 Source: the literature search of 2026-11-06 (`docs/gomea/LITERATURE-2026-11-06.md`). Start only after rounds 6 to 8 give a
