@@ -16,16 +16,25 @@
   cases), stdout and the MOSES log are the references, and the GOMEA log is the reference
   after the field ``best_genes`` of each "end" event is removed. The same for the D1 arm (the
   round 16 BASE-TLS argv with ``--gomea-trace 1``).
+* Identity through the runner (``moses_sr_runner.py``, the D1 arm argv of
+  ``configs/gomea/d1/sr.json`` at 1,500 evaluations, with and without the option): the same
+  stdout, ``candidates.json`` and summary (without the clock fields), and the same GOMEA log
+  after the field is removed (and the clock fields).
+* The analysis script ``tools/gomea/d1_grid_report.py`` on the runner output: the reduction
+  and the leaf checks hold, ``mse0`` is the raw score of the log, and LM does not make the
+  training MSE worse.
 * Refusals: the CLI (``-a gomea`` only, ``--gomea-log`` needed, the values 0 and 1),
   ``gomea_parameters`` and the hybrid.
 """
 
 from __future__ import annotations
 
+import csv
 import io
 import json
 import math
 import os
+import subprocess
 import sys
 from contextlib import redirect_stdout
 from pathlib import Path
@@ -44,13 +53,17 @@ from pymoses.util.rng import randGen
 REPO = Path(__file__).resolve().parents[2]
 TESTS = Path(__file__).resolve().parent
 sys.path.insert(0, str(TESTS))
+sys.path.insert(0, str(REPO / "tools" / "gomea"))
+import moses_sr_runner as runner  # noqa: E402
 import test_rv_step_identity as ident  # noqa: E402
+from round16_data import splits  # noqa: E402
 
 DATA = TESTS / "data" / "const_opt_none"
 TRAIN = DATA / "train.csv"
 ON = ["--gomea-log-best-genes", "1"]
 OFF = ["--gomea-log-best-genes", "0"]
 CLASSES = {"zero", "dead", "absorbed", "live", "absent"}
+D1 = json.loads((REPO / "configs" / "gomea" / "d1" / "sr.json").read_text())
 
 
 # ---- the grid helpers
@@ -280,6 +293,91 @@ def test_the_d1_arm_adds_only_its_field(tmp_path):
     assert log.replace(flags, "") == (ident.REF / f"{ref}.log").read_text()
     assert ident.strip_trace(strip_best_genes(events)) == (
         ident.REF / f"{ref}.events.jsonl").read_text()  # fmt: skip
+
+
+# ---- identity through the runner, and the analysis script
+
+
+def _job(work: Path, argv: list[str]) -> dict:
+    return {
+        "run_id": "T__D1__s1", "task": "T", "arm": "D1", "seed": 1,
+        "binary": str(REPO / ".venv" / "bin" / "moses"), "argv": argv,
+        "budget": {"evals": 1500}, "seed_spec": None,
+        "split_dir": str(splits(work / "splits" / "s1")), "wall_cap_s": 900,
+        "mem_limit_mb": None, "run_dir": str(work / "run"),
+        "clip_test_nmse": True, "plain_nmse": True, "anytime": True,
+    }  # fmt: skip
+
+
+CLOCK = ("argv", "wall_s", "cpu_s", "ru_maxrss_kb")
+
+
+def _canonical_events(text: str) -> str:
+    return ident.canonical_events(text).replace(str(Path.cwd()), "CWD")
+
+
+def _summary(run: Path) -> dict:
+    s = json.loads((run / "summary.json").read_text())
+    return {k: v for k, v in s.items() if k not in CLOCK}
+
+
+@pytest.mark.skipif(not (REPO / ".venv" / "bin" / "moses").exists(), reason="no .venv/bin/moses")
+def test_the_runner_and_the_report(tmp_path):
+    argv_on = D1["arms"]["BASE-TLS-D1"]["argv"]
+    assert argv_on[-2:] == ON
+    argv_off = argv_on[:-2]
+    runs = {}
+    for name, argv in (("off", argv_off), ("on", argv_on)):
+        work = tmp_path / name
+        s = runner._run_one(_job(work, argv))
+        assert s["status"] == "ok", s.get("error")
+        runs[name] = work / "run"
+    off, on = runs["off"], runs["on"]
+    for f in ("stdout.txt", "candidates.json"):
+        assert (on / f).read_bytes() == (off / f).read_bytes(), f
+    assert _summary(on) == _summary(off)
+    ev_on = (on / "events.jsonl").read_text().replace(str(on), "RUN")
+    ev_off = (off / "events.jsonl").read_text().replace(str(off), "RUN")
+    assert strip_best_genes(ident.canonical_events(ev_on)) == ident.canonical_events(ev_off)
+    # the analysis script (python -I) on the run with the option; it writes only into --out
+    before = sorted((p.name, p.stat().st_mtime_ns) for p in on.iterdir())
+    out = tmp_path / "report"
+    r = subprocess.run(
+        [sys.executable, "-I", str(REPO / "tools" / "gomea" / "d1_grid_report.py"), str(on),
+         "--out", str(out)],
+        capture_output=True, text=True, timeout=900,
+    )  # fmt: skip
+    assert r.returncode == 0, r.stderr[-2000:]
+    assert sorted((p.name, p.stat().st_mtime_ns) for p in on.iterdir()) == before
+    demes = list(csv.DictReader((out / "demes.csv").open()))
+    ends = [json.loads(x) for x in (on / "events.jsonl").read_text().splitlines()]
+    ends = [e for e in ends if e["type"] == "end" and e.get("best_genes")]
+    assert len(demes) == len(ends) > 0
+    for d in demes:
+        assert d["reduce_match"] == "True" and d["leaves_match"] == "True"
+        assert float(d["raw_rel_diff"]) < 1e-6
+        assert float(d["mse_lm_genes"]) <= float(d["mse0"])
+        assert float(d["mse_lm_program"]) <= float(d["mse0_program"])
+        assert math.isclose(float(d["mse0"]), float(d["mse0_program"]), rel_tol=1e-9)
+    genes = list(csv.DictReader((out / "genes.csv").open()))
+    assert len(genes) == sum(len(e["best_genes"]["genes"]) for e in ends)
+    live = [g for g in genes if g["class"] == "live"]
+    assert all(g["lm_value"] != "" for g in live)
+    for name in ("summary.csv", "distributions.csv", "summary.txt"):
+        assert (out / name).stat().st_size > 0
+
+
+def test_the_report_grid_position():
+    import d1_grid_report as rep
+
+    grid = bgm.grid_values(contin_spec(0.0, 1.0, 2.0, 5))
+    p = rep.grid_position(0.95, grid, 1.0)
+    assert p["in_range"] and p["nearest"] == 0.9375 and p["spacing"] == 0.0625
+    assert math.isclose(p["dist_rel"], 0.0125 / 0.0625)
+    q = rep.grid_position(33.0, grid, 1.0)
+    assert not q["in_range"] and q["outside_steps"] == 2.0 and q["dist_rel"] is None
+    e = rep.grid_position(-31.0, grid, 1.0)
+    assert e["in_range"] and e["dist"] == 0.0 and e["dist_rel"] == 0.0
 
 
 # ---- refusals
