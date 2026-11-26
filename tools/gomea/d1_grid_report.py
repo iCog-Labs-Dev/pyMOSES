@@ -49,6 +49,10 @@ step size), whether it is at the center (code 0: the exemplar's constant), its p
   compares ``mse0`` with the deme's ``best.raw`` (``-raw / n_train``, the raw score of
   MOSES).
 
+A deme best can be the deme's exemplar (``exemplar``: the all-zero genotype; every gene is then
+at the center); ``demes.csv`` has the flag and ``summary.csv`` counts these demes
+(``demes_exemplar``).
+
 **Output** (in ``OUT_DIR``): ``demes.csv`` (one row per deme best), ``genes.csv`` (one row per
 contin gene of a deme best), ``summary.csv`` (per data set and ``ALL``),
 ``distributions.csv`` (counts per bin, per data set and ``ALL``) and ``summary.txt`` (a short
@@ -326,7 +330,7 @@ def probe(bg: dict, rows: RegressionRows | None, reduce, n_train: int, raw: floa
 
 DEME_FIELDS = [
     "dataset", "arm", "split", "run_id", "deme", "termination_reason", "requests", "raw",
-    "n_genes", "n_live", "n_absorbed", "n_dead", "n_zero", "n_absent", "n_free",
+    "exemplar", "n_genes", "n_live", "n_absorbed", "n_dead", "n_zero", "n_absent", "n_free",
     "n_live_edge", "n_live_center", "linear_scaling", "fit", "leaves", "leaves_match",
     "reduce_match", "mse_log", "mse0", "raw_rel_diff", "lm_genes_status",
     "lm_genes_iterations", "lm_genes_evals", "lm_genes_inert", "mse_lm_genes",
@@ -391,6 +395,7 @@ def collect(dirs: list[Path], arm: str | None, lm: bool, log=print):
                 "run_id": run["run_id"], "deme": k,
                 "termination_reason": e.get("termination_reason"),
                 "requests": (e.get("ledger") or {}).get("requests"), "raw": raw,
+                "exemplar": bg.get("exemplar"),
                 "n_genes": len(classes), "n_live": classes.count("live"),
                 "n_absorbed": classes.count("absorbed"), "n_dead": classes.count("dead"),
                 "n_zero": classes.count("zero"), "n_absent": classes.count("absent"),
@@ -465,6 +470,7 @@ def summarize(demes: list[dict], genes: list[dict], runs: list[dict]):
             "demes": len(D),
             "demes_left_out": sum(r["demes_without_field"] + r["demes_with_error"] for r in R),
             "demes_with_live": sum(1 for d in D if d["n_live"]),
+            "demes_exemplar": sum(1 for d in D if d.get("exemplar")),
             "genes": len(G), "live": len(live),
             "absorbed": sum(g["class"] == "absorbed" for g in G),
             "dead": sum(g["class"] == "dead" for g in G),

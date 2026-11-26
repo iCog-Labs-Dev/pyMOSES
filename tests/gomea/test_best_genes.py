@@ -201,6 +201,7 @@ def test_the_field_in_process(tmp_path, monkeypatch):
         assert rec["linear_scaling"] == "terms"
         _check_record(schema, g, rec)
         assert rec["program_reduced"] == tree_to_stream_str(schema.candidate(g, True), 17)
+        assert rec["exemplar"] == (g == schema.default_genotype())
         a = analyse(schema, g, True)
         assert rec["fit"] == a["mode"]
         assert {r["gene"]: r["class"] for r in rec["genes"] if r["class"] != "absent"} == a["genes"]

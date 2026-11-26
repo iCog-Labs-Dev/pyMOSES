@@ -21,7 +21,9 @@ The field (keys sorted in the log):
   1``) or ``none``; ``None`` for a scorer that is not a ``contin_bscore``;
 * ``fit``: the fit mode of ``rv_inert.analyse`` for this program (``terms`` or ``plain``);
   ``None`` when the schema has no contin genes;
-* ``genes``: one record for each contin gene of the schema, in gene order (``gene_record``).
+* ``genes``: one record for each contin gene of the schema, in gene order (``gene_record``);
+* ``exemplar``: whether the genotype is all zeros, so that the program is the deme's exemplar
+  (then every gene is at the center because the deme found nothing better).
 
 A gene record: ``gene``, ``code``, ``value`` (the constant that the code decodes to), the knob
 spec (``mean``, ``step_size``, ``expansion``, ``depth``), ``free`` (a free code of
@@ -191,6 +193,7 @@ def best_genes_record(schema, g: Sequence[int], linear_scaling: str | None, redu
         "linear_scaling": linear_scaling,
         "fit": fit,
         "genes": genes,
+        "exemplar": all(int(v) == 0 for v in g),
     }
 
 
