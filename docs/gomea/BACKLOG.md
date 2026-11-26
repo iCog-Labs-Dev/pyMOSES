@@ -982,6 +982,24 @@ is started or approved.
    * **Option A (T3.2)** stays the large option (discrete structure plus a real value per
      constant). A feasibility note and the user's decision come first, and only with evidence from
      D1–D3.
+   * **D1, first result (2026-11-26, post hoc, agent analysis, no new runs; the user asked to run
+     D1).** The logs of rounds 13–16 hold neither the gene codes of the deme bests nor the
+     constant values before and after LM, so the edge, movement and resolution parts need a log
+     option and new runs. A substitute from the LM records at the deme ends (rounds 13 and 14):
+     how much LM lowers the training MSE of the deme's best program, with the constants that the
+     grid search found as the start.
+     * TLS arms (TLS-LM, TLS-LMR, TLSNP-LMR): 13–28 % of the deme bests have no constant that LM can
+       tune (the per-term fit absorbs all of them).
+     * Where LM ran: median gain 1.7–2.4 %; about a third of the calls gain more than 5 %; a tenth
+       gain 19–49 %. The same in the plain-scaling arms (BASE, NP-LMR).
+     * By data set (median gain): Yacht 10–19 %, Energy heating up to 9.5 %, Airfoil and Tower up
+       to 8 % in some arms; Dow, Wine and Concrete below 2 %.
+     * Reading (agent): the grid search often leaves the constants of a deme's best program away
+       from their local optimum, but the gain is concentrated in a few data sets. This matches the
+       test results: TLS-LMR against BASE-TLS was a tie overall (0.980) with most of its gain on
+       Yacht (0.732). LM measures the distance to the local optimum, so it cannot tell the grid's
+       limit apart from too few evaluations; the RV step (continuous values, round 16) did not
+       close the gap either.
 
 5. **RV16 nits of the round 17 build, for later (the user, 2026-11-26: "Put the Nits for later I
    will tell you when the round 16b finishes and we will go from there").** The full report is in
