@@ -150,9 +150,11 @@ def test_hc_lm_is_the_hc_lm_arm_of_rounds_13_and_14():
             assert load(CONFIGS / ph / n)["arms"]["HC-LM"]["argv"] == design.HC_LM_ARGV, (ph, n)
 
 
-def test_hc_lm_and_hc_tls_differ_only_in_the_two_constant_flags():
-    """HC-TLS has the constant settings of BASE-TLS (--linear-scaling terms --const-opt none);
-    LM's guard (--const-opt-guard val) belongs to LM. No deme cap: -a hc, not -a hc-capped."""
+def test_hc_lm_and_hc_tls_differ_only_in_the_constant_flags():
+    """The table "Arms": HC-TLS has the constant settings of BASE-TLS (--linear-scaling terms
+    --const-opt none). HC-LM has three constant flags (--linear-scaling 1 --const-opt lm
+    --const-opt-guard val), so the two arms differ in three flags, not in the two that the text
+    under the table names; the configs follow the table. No deme cap: -a hc, not -a hc-capped."""
     lm, tls = design.HC_LM_ARGV, design.HC_TLS_ARGV
     assert lm[:4] == tls[:4] == ["-a", "hc", "--knob-probe-baseline", "reduced"]
     assert lm[4:] == ["--linear-scaling", "1", "--const-opt", "lm", "--const-opt-guard", "val"]
