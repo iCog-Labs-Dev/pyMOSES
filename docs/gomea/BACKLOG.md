@@ -1051,6 +1051,39 @@ is started or approved.
      * Limits: 3 splits, 20,000 evaluations, one arm (BASE-TLS); few deme bests outside Yacht (3–6
        with live genes); training MSE only; LM is local (at most 10 iterations); deme bests, not
        the final models.
+   * **D1b. Wide contin start, a Yacht check (plan written before the runs, 2026-11-26).** Origin:
+     the agent's D1 suggestion; the user: "Okay let's try what you are suggesting for this dataset
+     as a validation before moving onto larger scale solutions. If this isn't the way maybe we
+     should try a more flexible stepping function that can help generate new samples during the
+     optimization or before the optimization so that we can compete with HC like number of
+     populations. Or population size comparable to HC."
+     * **Design fact (D1 logs):** in these programs the structure is also in contin knobs. 81 % of
+       the genes of the deme bests are zero (an absent term `*(0 $x)`); a step 0 → ± 1 adds the
+       term. So a start that draws every contin gene over all 63 values also adds almost every
+       absent term. The wide start must keep the sampler's choice of which knobs change.
+     * **New option** `--gomea-contin-start step|wide` (default `step`: no change). `wide`: when the
+       sampler start changes a contin knob, its new code is drawn uniformly over the knob's 62
+       non-center legal paths (`FrozenSchema.sample_contin_code` without code 0), not one step.
+       Same knobs change; only the new value differs. GOMEA still only copies.
+     * **Arms** (20,000 evaluations, Yacht only, fresh splits 91–100, local, under the memory cap):
+       BASE-TLS (control, the round 16 argv), TLS-CW (BASE-TLS plus `--gomea-contin-start wide`),
+       HC-TLS (reference, the round 17 argv, no deme cap). Both GOMEA arms log the deme-best genes
+       (`--gomea-trace 1 --gomea-log-best-genes 1`); first check that the log does not change a
+       run.
+     * **Primary:** test NMSE, TLS-CW against BASE-TLS, paired over the 10 splits. Pass: median
+       ratio ≤ 0.90 and two-sided Wilcoxon p < 0.025 (the project rule). Promising: median ratio
+       ≤ 0.95 and lower training NMSE in at least 7 of 10 splits; then 10 more splits (101–110)
+       before a decision. Otherwise: no.
+     * **Mechanism check** (D1 analysis on both GOMEA arms): TLS-CW must have live genes at path
+       length 2 or more, and a gene-LM gain on Yacht well below the control's. If the mechanism
+       holds but the test error does not improve, the constants are not the Yacht limit.
+     * **Secondary and descriptive:** training NMSE, size, CPU time, demes per run. HC-TLS against
+       BASE-TLS (descriptive). Deme statistics: for GOMEA, the population size, generations and
+       evaluations per deme; for HC, the evaluations per deme and the instances that the deme
+       keeps (code: HC moves its center to each improvement and keeps every evaluated instance).
+     * **Next step if TLS-CW fails (the user's idea, not decided):** a step that makes new contin
+       values during a deme, as HC does at each center move, or a larger start population. The
+       deme statistics of this check come first.
 
 5. **RV16 nits of the round 17 build, for later (the user, 2026-11-26: "Put the Nits for later I
    will tell you when the round 16b finishes and we will go from there").** The full report is in
