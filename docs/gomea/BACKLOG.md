@@ -1097,7 +1097,11 @@ is started or approved.
      the SERVER-RUN procedure). Idea: a requirement on `server-run16b/DONE`.
    * F8: `tools/gomea/hc_progress.py` has no guard around its file write; an `OSError` kills the
      MOSES run, which then counts as a failure in a primary contrast. Idea: catch it, stop writing
-     and mark the file.
+     and mark the file. **Done (2026-11-26, approved by the user, commit `5fb1da1`):** the hook
+     catches the `OSError`, writes no more lines, writes one line to stderr and a marker line to
+     the file; the runner copies the stderr line into the summary key `hc_progress_error` (only
+     on such an error). Tests: `tests/gomea/test_hc_progress.py` (a write that raises, a path
+     that cannot be written, a real HC-TLS run through the runner that ends ok).
    * F10: `tests/gomea/test_round17_report.py:201` (`n = 130 if design.HC_TLS else 130`) and an
      unused parameter at line 151.
 
