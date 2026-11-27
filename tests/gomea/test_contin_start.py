@@ -19,6 +19,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import math
 import sys
 from collections import Counter
 from pathlib import Path
@@ -27,6 +28,7 @@ import pytest
 
 from pymoses.comboreduct.combo.iostream_combo import str_to_combo_tree
 from pymoses.comboreduct.reduct.logical_reduction import logical_reduction
+from pymoses.comboreduct.table.table_io import loadTable
 from pymoses.comboreduct.type_checker.type_signature import gen_signature, type_node
 from pymoses.gomea import population as popmod
 from pymoses.gomea.optimizer import gomea_optimization, gomea_parameters
@@ -40,6 +42,7 @@ from pymoses.gomea.schema import FrozenSchema
 from pymoses.moses.moses.types import composite_score
 from pymoses.moses.representation.instance_set import instance_set
 from pymoses.moses.representation.representation import representation
+from pymoses.moses.scoring.bscores import contin_bscore
 from pymoses.util.rng import MT19937RandGen, randGen
 
 TESTS = Path(__file__).resolve().parent
@@ -426,8 +429,11 @@ def test_the_cli_accepts_step_and_wide_and_refuses_the_rest(tmp_path):
 
 def test_the_cli_runs_wide(tmp_path):
     """BASE-TLS with ``--gomea-trace 1 --gomea-log-best-genes 1 --gomea-contin-start wide`` at
-    600 evaluations: the run ends, each "init" event has ``contin_start`` and codes with long
-    paths, and the deme bests decode to the logged programs (the best_genes record)."""
+    600 evaluations: the run ends, and each "init" event has ``contin_start`` and codes with long
+    paths. Each "end" event of a deme with evaluations has a ``best_genes`` record (``None``
+    only for a deme without evaluations), and the reduced program of the record has the raw
+    score of the event's ``best`` under the run's scorer (``--linear-scaling terms``): the
+    record describes the deme best (the check of ``test_best_genes.py``)."""
     argv = ident._reg("600") + ident._BASE_TLS + ["--gomea-trace", "1"]
     argv += ["--gomea-log-best-genes", "1"] + WIDE
     stdout, _log, events = ident.run_case(argv, tmp_path)
@@ -442,5 +448,15 @@ def test_the_cli_runs_wide(tmp_path):
             long_codes += sum(len(_path(c, 5)) >= 2 for c in f["observed"])
     assert long_codes > 0
     ends = [e for e in evs if e["type"] == "end"]
-    assert ends and all("error" not in (e.get("best_genes") or {}) for e in ends)
+    assert any(e["ledger"]["requests"] > 0 for e in ends)
+    scorer = contin_bscore(loadTable(str(ident.TRAIN), "y"))
+    scorer.set_linear_scaling_terms(True)
+    for e in ends:
+        bg = e["best_genes"]
+        if e["ledger"]["requests"] == 0:
+            assert bg is None
+            continue
+        assert isinstance(bg, dict) and "error" not in bg and bg["linear_scaling"] == "terms"
+        raw = math.fsum(scorer(str_to_combo_tree(bg["program_reduced"])))
+        assert math.isclose(raw, e["best"]["raw"], rel_tol=1e-6), (bg["program_reduced"], e)
     assert stdout.strip()
