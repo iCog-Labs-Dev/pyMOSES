@@ -212,8 +212,9 @@ binary is not a pyMoses `-a hc` arm.
   `OSError`, writes no more lines, and writes one line to stderr that starts with
   `hc_progress.ERROR_PREFIX`. Only then the summary gets the key `hc_progress_error` (that
   line, `hc_progress_error()`); the summary of a run without such an error does not change.
-  The checkpoints then end at the last deme with a line, and
-  `anytime_check.log_evals_match_n_evals` is false.
+  Then `anytime_check.log_evals_match_n_evals` is false, `demes` has only the demes up to the
+  last line, and the checkpoints after the last line have `reached` false and the value of that
+  line (not the value of the run). `budget_report.py` (the RV16 review G1) does not use them.
 * `anytime` (`hc_anytime_records`): the records of the round 16 format. The points are
   (`n_evals`, `best_raw`) at the end of each expansion. The value at a checkpoint X is the best
   raw score of the expansions that ended at or before X, so it is null before the end of the

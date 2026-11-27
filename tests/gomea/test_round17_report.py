@@ -16,6 +16,11 @@ rule", "Contrasts"): the report of phase 1bl, which reads two rounds.
 * ``drop_arms.py`` gives the design without HC-TLS (``round17_design.spec(..., hc_tls=False)``).
 * Byte identity: for every spec.json of ``configs/gomea/`` at 88a5e02 (the commit before these
   changes), the report files and the stdout of the report at 88a5e02 and now are the same.
+* A run with ``hc_progress_error`` (the RV16 review of round 17, G1): the hook stopped writing
+  after 6,000 of 20,000 evaluations. Its checkpoints at 10,000 and 20,000 have no value (not
+  the 6,000 value), its deme count is not used, and hc_progress_errors.csv and a stdout line
+  name it. Without such a run, the round 17 report at b6d7618 (the commit before G1) and now
+  give the same files and stdout.
 """
 
 from __future__ import annotations
@@ -39,15 +44,17 @@ CFG = REPO / "configs" / "gomea"
 sys.path.insert(0, str(TOOLS))
 import budget_report as br  # noqa: E402
 import drop_arms  # noqa: E402
+import hc_progress  # noqa: E402
 import linkage_report  # noqa: E402
 import moses_sr_runner as runner  # noqa: E402
 import partner_report  # noqa: E402
 import phase_report  # noqa: E402
 import round17_design as design  # noqa: E402
 from round16_data import DIGEST, TWO_DEMES, TWO_DEMES_TRACE, gomea_log, job  # noqa: E402
-from round17_data import EVENTS, HC_LM, HC_TLS, LINES, hc_job  # noqa: E402
+from round17_data import EVENTS, HC_LM, HC_TLS, LINES, hc_job, hc_lines  # noqa: E402
 
 OLD = "88a5e02"  # the commit before the round 17 report changes
+PRE_G1 = "b6d7618"  # the commit before the G1 fix (the RV16 review of round 17)
 SPEC = CFG / "phase1bl" / "spec.json"
 OWN = {"sr": design.DS6, "sr-100K": design.DS6, "sr-Dow": ["Dow"]}
 R16_ARMS = {"sr": ["BASE-TLS", "TLS-RV"], "sr-100K": ["BASE-TLS-100K", "TLS-RV-100K"],
@@ -264,6 +271,91 @@ def test_the_anytime_and_deme_tables_pool_the_6_datasets(templates, tmp_path):
     assert float(dm[("Con", "HC-TLS" if design.HC_TLS else "HC-LM")]["median_demes"]) == 3
 
 
+# ---- a run with a write error of the HC progress hook (the RV16 review of round 17, G1)
+
+CUT_ERROR = (f"{hc_progress.ERROR_PREFIX} at expansion 3: OSError: [Errno 122] Disk quota "
+             f"exceeded; no more lines")
+
+
+def _cut_summary(templates: dict, tmp_path: Path, d: str = "Con", k: int = 81) -> dict:
+    """The HC-LM run (d, k) of a budget of 20,000, whose hook wrote the lines of the demes that
+    end at 2,500 and 6,000 evaluations and then stopped (the marker line of the hook). MOSES
+    went on to 20,000 evaluations. The records come from the runner (`hc_anytime_records`)."""
+    s = _summary(templates, "HC-LM", d, k)
+    chk = s["anytime_check"]
+    path = tmp_path / f"hc_progress-{d}-{k}.jsonl"
+    path.write_text(hc_lines((2500, -300.0), (6000, -200.0)) + "\n"
+                    + json.dumps({"hc_progress_error": "OSError: [Errno 122] Disk quota exceeded",
+                                  "expansion": 3}) + "\n")
+    s["demes"], s["anytime"], s["anytime_check"] = runner.hc_anytime_records(
+        path, 20000, chk["n_train"], chk["var_scaled_target"], n_evals=20000)
+    s.update(n_evals=20000, hc_progress_error=CUT_ERROR)
+    return s
+
+
+def test_a_cut_run_has_no_value_after_its_last_line(templates, tmp_path):
+    """The probe of the review: the runner gives the checkpoints at 10,000 and 20,000 the 6,000
+    value with `reached` false; the report does not use them."""
+    s = _cut_summary(templates, tmp_path)
+    chk = s["anytime_check"]
+    v25, v60 = (runner.raw_to_train_nmse(r, chk["n_train"], chk["var_scaled_target"])
+                for r in (-300.0, -200.0))
+    rec = {p["evals"]: p for p in s["anytime"]}
+    assert chk["log_evals_total"] == 6000 and chk["log_evals_match_n_evals"] is False
+    assert [(rec[c]["reached"], rec[c]["best_train_nmse"]) for c in (10000, 20000)] == [
+        (False, v60), (False, v60)]
+    assert br._checkpoint(s, 0.5) == (None, 10000) and br._checkpoint(s, 1.0) == (None, 20000)
+    assert br._checkpoint(s, 0.2) == (v25, 4000)  # reached: before the error, a valid value
+    assert br._checkpoint(s, 0.1) == (None, 2000)  # before the end of the first deme
+    # the same records without the key (a run that ended): the value stays
+    whole = {k: v for k, v in s.items() if k != "hc_progress_error"}
+    assert br._checkpoint(whole, 1.0) == (v60, 20000)
+    assert s["demes"]["count"] == 2
+    assert br._deme_row("Con", "HC-LM", [s])["with_record"] == 0
+    assert br._deme_row("Con", "HC-LM", [whole])["with_record"] == 1
+    assert br.error_rows({"Con": {"HC-LM": {81: s}}}, ["Con"]) == [{
+        "problem": "Con", "arm": "HC-LM", "seed": 81, "run_id": "Con__HC-LM__s81",
+        "status": "ok", "n_evals": 20000, "log_evals_total": 6000,
+        "hc_progress_error": CUT_ERROR}]
+
+
+def test_the_report_counts_and_names_a_cut_run(templates, tmp_path, capsys):
+    own, r16 = _make(tmp_path / "res", templates)
+    out0, out1 = tmp_path / "out0", tmp_path / "out1"
+    assert _report(_spec(tmp_path, r16), out0, own) == 0
+    cap0 = capsys.readouterr().out
+    cut = _cut_summary(templates, tmp_path)
+    _put(Path(own[0]), cut)
+    assert _report(_spec(tmp_path, r16), out1, own) == 0
+    cap1 = capsys.readouterr().out
+    assert not (out0 / "hc_progress_errors.csv").exists()
+    assert "hc_progress_error_runs" not in cap0
+    assert json.dumps({"hc_progress_error_runs": 1, "run_ids": ["Con__HC-LM__s81"]}) in cap1
+    assert _rows(out1 / "hc_progress_errors.csv") == [{
+        "problem": "Con", "arm": "HC-LM", "seed": "81", "run_id": "Con__HC-LM__s81",
+        "status": "ok", "n_evals": "20000", "log_evals_total": "6000",
+        "hc_progress_error": CUT_ERROR}]
+    a0, a1 = ({(r["problem"], r["arm"], r["frac"]): r for r in _rows(o / "anytime_ratios.csv")}
+              for o in (out0, out1))
+    for frac in ("0.5", "1.0"):
+        for prob in ("Con", "pooled"):
+            r0, r1 = a0[(prob, "HC-LM", frac)], a1[(prob, "HC-LM", frac)]
+            assert int(r1["pairs"]) == int(r0["pairs"]) - 1, (prob, frac)
+            assert int(r1["missing"]) == int(r0["missing"]) + 1, (prob, frac)
+        # the arm's median is that of the other 9 runs: the 6,000 value is not in it
+        rest = [br._checkpoint(_summary(templates, "HC-LM", "Con", j), float(frac))[0]
+                for j in design.SPLITS if j != 81]
+        assert float(a1[("Con", "HC-LM", frac)]["median_arm"]) == pytest.approx(
+            statistics.median(rest))
+    assert {k: r for k, r in a1.items() if k[0] not in ("Con", "pooled")} == {
+        k: r for k, r in a0.items() if k[0] not in ("Con", "pooled")}
+    d0, d1 = ({(r["problem"], r["arm"]): r for r in _rows(o / "demes.csv")} for o in (out0, out1))
+    for prob in ("Con", "pooled"):
+        r0, r1 = d0[(prob, "HC-LM")], d1[(prob, "HC-LM")]
+        assert r1["runs"] == r0["runs"]
+        assert int(r1["with_record"]) == int(r0["with_record"]) - 1
+
+
 # ---- missing partners
 
 
@@ -393,16 +485,18 @@ def test_drop_arms_gives_the_design_without_hc_tls(templates, tmp_path):
 # ---- byte identity against 88a5e02 (git)
 
 
-def _old_tools(tmp_path: Path) -> Path:
-    d = tmp_path / f"old-{OLD}"
+def _old_tools(tmp_path: Path, commit: str = OLD,
+               names=("phase_report.py", "run_table.py", "linkage_report.py",
+                      "budget_report.py")) -> Path:
+    d = tmp_path / f"old-{commit}"
     d.mkdir(exist_ok=True)
-    for n in ("phase_report.py", "run_table.py", "linkage_report.py", "budget_report.py"):
-        r = subprocess.run(["git", "show", f"{OLD}:tools/gomea/{n}"], cwd=REPO,
+    for n in names:
+        r = subprocess.run(["git", "show", f"{commit}:tools/gomea/{n}"], cwd=REPO,
                            capture_output=True)
         if r.returncode != 0:  # a missing reference must never let the test pass (no skip)
-            pytest.fail(f"git show {OLD}:tools/gomea/{n} failed: {r.stderr.decode().strip()!r}. "
-                        f"The byte-identity test needs the reference commit {OLD}; use a clone "
-                        f"with the full history.")
+            pytest.fail(f"git show {commit}:tools/gomea/{n} failed: "
+                        f"{r.stderr.decode().strip()!r}. The byte-identity test needs the "
+                        f"reference commit {commit}; use a clone with the full history.")
         (d / n).write_bytes(r.stdout)
     return d
 
@@ -533,3 +627,40 @@ def test_every_old_spec_gives_a_byte_identical_report(templates, tmp_path):
             if stage == "1":
                 assert lo["rc"] == 0, (o_out, lo["stderr"])
     assert compared >= 3 * 2 * len(specs)
+
+
+def test_the_round17_report_without_a_cut_run_is_byte_identical_to_pre_g1(templates, tmp_path):
+    """G1 changes the report only for a run with `hc_progress_error`. The round 17 spec on the
+    made-up runs of both rounds, with one HC run that ended before its budget (`reached` false
+    at 100 %, no key): the files and the stdout at b6d7618 and now are the same, at stage 1 and
+    stage 2."""
+    own, r16 = _make(tmp_path / "res", templates)
+    f = Path(own[0]) / "runs" / "Air__HC-LM__s82" / "summary.json"
+    s = _load(f)
+    s["anytime"][-1]["reached"] = False
+    assert s["anytime"][-1]["frac"] == 1.0 and s["anytime"][-1]["best_train_nmse"] is not None
+    f.write_text(json.dumps(s))
+    spec = _spec(tmp_path, r16)
+    old = _old_tools(tmp_path, PRE_G1, ("phase_report.py", "run_table.py", "linkage_report.py",
+                                        "budget_report.py", "partner_report.py"))
+    env = {**os.environ, "PYTHONPATH": str(REPO)}
+    for tag, tool in (("old", old), ("new", TOOLS)):
+        jf = tmp_path / f"{tag}-jobs.json"
+        jf.write_text(json.dumps([[str(spec), str(tmp_path / tag / "out"), ",".join(own),
+                                   str(tmp_path / f"{tag}.log")]]))
+        (tmp_path / tag).mkdir()
+        subprocess.run([sys.executable, "-c", DRIVER, str(tool), str(jf)], env=env, check=True,
+                       cwd=tmp_path)
+    compared = 0
+    for stage in ("1", "2"):
+        lo = json.loads((tmp_path / f"old.log-stage{stage}").read_text())
+        ln = json.loads((tmp_path / f"new.log-stage{stage}").read_text())
+        assert ln == lo and lo["rc"] == 0, lo["stderr"]
+        od, nd = tmp_path / "old" / f"out-stage{stage}", tmp_path / "new" / f"out-stage{stage}"
+        files = sorted(p.name for p in od.iterdir())
+        assert sorted(p.name for p in nd.iterdir()) == files
+        assert {"anytime_ratios.csv", "demes.csv"} <= set(files)
+        for name in files:
+            assert (nd / name).read_bytes() == (od / name).read_bytes(), (stage, name)
+            compared += 1
+    assert compared >= 2 * 8

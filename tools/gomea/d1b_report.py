@@ -45,6 +45,9 @@ losses (A higher) and the ties.
   per-deme row, and no log gives the number of instances that an HC deme keeps at its end.
   (By the code, HC keeps every evaluated instance in the deme, so that number is the deme's
   evaluations before the merge; this report does not measure it.)
+* An HC run with the summary key ``hc_progress_error`` (the hook stopped writing after a write
+  error; the RV16 review of round 17, G1): its file has only the first demes, so the run has no
+  demes (as a run without the file), and ``summary.txt`` names it in a note.
 
 **Output** (in ``OUT_DIR``): ``runs.csv``, ``contrasts.csv``, ``ratios.csv``, ``demes.csv``,
 ``deme_stats.csv`` and ``summary.txt``.
@@ -241,7 +244,10 @@ def hc_demes(progress: Path) -> list[dict]:
 
 
 def run_demes(s: dict) -> list[dict] | None:
-    """The demes of a run, or ``None`` when its source file is missing."""
+    """The demes of a run, or ``None`` when its source file is missing or cut (a run with
+    ``hc_progress_error``)."""
+    if s.get("hc_progress_error"):
+        return None  # G1: the hook stopped writing, so the file does not have every deme
     rdir = Path(s["_events_path"]).parent
     if (rdir / "hc_progress.jsonl").is_file():
         return hc_demes(rdir / "hc_progress.jsonl")
@@ -427,13 +433,16 @@ def main(argv: list[str] | None = None) -> int:
     order += sorted(a for a in arms if a not in order)
     args.out.mkdir(parents=True, exist_ok=True)
 
-    run_rows, deme_rows, stats = [], [], []
+    run_rows, deme_rows, stats, notes = [], [], [], []
     for arm in order:
         per_run = {}
         for split in sorted(arms[arm]):
             s = arms[arm][split]
             d = run_demes(s)
             per_run[split] = d
+            if s.get("hc_progress_error"):  # G1
+                notes.append(f"{arm} split {split}: hc_progress_error (the HC progress hook "
+                             f"stopped writing); its demes are left out")
             run_rows.append(run_row(args.task, arm, split, s, d))
             for i, x in enumerate(d or [], 1):
                 deme_rows.append({"arm": arm, "split": split, "deme": i, **x})
@@ -442,7 +451,7 @@ def main(argv: list[str] | None = None) -> int:
     _write_csv(args.out / "demes.csv", deme_rows, DEME_FIELDS)
     _write_csv(args.out / "deme_stats.csv", stats, STAT_FIELDS)
 
-    contrasts, ratios, notes = [], [], []
+    contrasts, ratios = [], []
     pairs = ((args.treatment, "primary"), (args.reference, "descriptive"))
     for a, kind in pairs:
         if a not in arms or args.control not in arms:

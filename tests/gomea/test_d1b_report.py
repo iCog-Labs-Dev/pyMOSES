@@ -6,12 +6,17 @@
   Wilcoxon test (10 wins of 10: p = 2 / 1024).
 * The deme statistics: GOMEA from ``events.jsonl`` (a deme with 0 requests is left out), HC
   from ``hc_progress.jsonl``; the size is the node count plus ``n_terms``.
+* An HC run with ``hc_progress_error`` (the RV16 review of round 17, G1) has no demes, and
+  ``summary.txt`` names it. Without such a run, the report at b6d7618 (the commit before G1)
+  and now give the same files and stdout.
 """
 
 from __future__ import annotations
 
 import csv
 import json
+import os
+import subprocess
 import sys
 from pathlib import Path
 
@@ -22,6 +27,7 @@ sys.path.insert(0, str(REPO / "tools" / "gomea"))
 import d1b_report as rep  # noqa: E402
 
 SPLITS = range(91, 101)
+PRE_G1 = "b6d7618"  # the commit before the G1 fix (the RV16 review of round 17)
 
 
 def _summary(arm, split, test, train, status="ok"):
@@ -132,6 +138,49 @@ def test_the_report_on_made_up_runs(results, tmp_path, capsys):
     assert num("HC-TLS", "evals_per_deme_max") == 1000
     assert len(_rows(out / "ratios.csv")) == 40
     assert "PASS" in capsys.readouterr().out
+
+
+def test_a_cut_hc_run_has_no_demes(results, tmp_path):
+    """G1: the hook of HC-TLS split 95 stopped writing (the summary key ``hc_progress_error``),
+    so its file does not have every deme."""
+    f = results / "d1b-yac-hc" / "runs" / "Yac__HC-TLS__s95" / "summary.json"
+    s = json.loads(f.read_text())
+    s["hc_progress_error"] = "hc_progress: write error at expansion 4: OSError: x; no more lines"
+    f.write_text(json.dumps(s))
+    out = tmp_path / "report"
+    assert rep.main([str(results), "--out", str(out)]) == 0
+    runs = {(r["arm"], r["split"]): r for r in _rows(out / "runs.csv")}
+    assert runs[("HC-TLS", "95")]["demes"] == "" and runs[("HC-TLS", "94")]["demes"] == "3"
+    assert runs[("HC-TLS", "95")]["status"] == "ok" and runs[("HC-TLS", "95")]["test_nmse"]
+    assert not [r for r in _rows(out / "demes.csv") if (r["arm"], r["split"]) == ("HC-TLS", "95")]
+    st = {r["arm"]: r for r in _rows(out / "deme_stats.csv")}
+    assert st["HC-TLS"]["runs"] == "9" and st["BASE-TLS"]["runs"] == "10"
+    assert ("HC-TLS split 95: hc_progress_error (the HC progress hook stopped writing); its "
+            "demes are left out") in (out / "summary.txt").read_text().splitlines()
+
+
+def test_without_a_cut_run_the_report_is_byte_identical_to_pre_g1(results, tmp_path):
+    old = tmp_path / "old"
+    old.mkdir()
+    for n in ("d1b_report.py", "phase_report.py", "run_table.py", "linkage_report.py",
+              "budget_report.py", "partner_report.py"):
+        r = subprocess.run(["git", "show", f"{PRE_G1}:tools/gomea/{n}"], cwd=REPO,
+                           capture_output=True)
+        if r.returncode != 0:  # a missing reference must never let the test pass (no skip)
+            pytest.fail(f"git show {PRE_G1}:tools/gomea/{n} failed: {r.stderr.decode()!r}; "
+                        f"use a clone with the full history")
+        (old / n).write_bytes(r.stdout)
+    env = {**os.environ, "PYTHONPATH": str(REPO)}
+    got = {}
+    for tag, script in (("old", old / "d1b_report.py"),
+                        ("new", REPO / "tools" / "gomea" / "d1b_report.py")):
+        out = tmp_path / f"out-{tag}"
+        r = subprocess.run([sys.executable, str(script), str(results), "--out", str(out)],
+                           env=env, capture_output=True, text=True, cwd=tmp_path)
+        assert r.returncode == 0, r.stderr[-2000:]
+        got[tag] = (r.stdout, r.stderr, {p.name: p.read_bytes() for p in out.iterdir()})
+    assert got["new"] == got["old"]
+    assert len(got["new"][2]) == 6 and "PASS" in got["new"][0]
 
 
 def _c(ratio, p, wins):

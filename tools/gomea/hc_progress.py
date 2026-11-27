@@ -39,9 +39,11 @@ error), the hook:
   `path`, after a newline that ends a cut line. The marker has no `n_evals`, so the runner does
   not read it as a point. If this write also fails, the hook ignores it.
 
-MOSES then goes on and ends normally. The lines written before the error stay in the file, so
-the summary has the checkpoints up to that deme, and `anytime_check.log_evals_match_n_evals` is
-false.
+MOSES then goes on and ends normally. The lines written before the error stay in the file, and
+`anytime_check.log_evals_match_n_evals` is false. The summary's `demes` record has only the
+demes up to the last line. Its `anytime` records after the last line have `reached` false and
+the value of the last line, which is not the value of the run there; `budget_report.py` (the
+RV16 review G1) does not use these records or the deme count of such a run, and lists the run.
 
 `moses_sr_runner.py` installs it for a pyMoses `-a hc` job of a manifest with
 `"hc_anytime": true` and turns the lines into the summary fields `demes`, `anytime`,

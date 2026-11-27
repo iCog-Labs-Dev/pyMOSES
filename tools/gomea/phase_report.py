@@ -175,6 +175,11 @@ the report does not change:
 * `"partners"` (`partner_report.py`): result directories of another round, from which the
   report loads the partner runs of its own runs (round 17: BASE-TLS and BASE-TLS-100K of round
   16). OUT_DIR/partners.csv and partners.json list each partner run and the missing ones.
+
+A run with the summary key `hc_progress_error` (round 17: the HC progress hook stopped writing
+after a write error; the RV16 review of round 17, G1): the round 16 tables do not use its
+checkpoints after its last written line or its deme count, and OUT_DIR/hc_progress_errors.csv
+and a stdout line list it (`budget_report.py`). Without such a run the report does not change.
 """
 
 from __future__ import annotations

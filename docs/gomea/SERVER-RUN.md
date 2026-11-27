@@ -1635,9 +1635,14 @@ and, when it is DONE:
   F8): the hook writes no more lines, writes one line to stderr (`hc_progress: write error at
   expansion N: ...; no more lines`) and tries to add a marker line `{"hc_progress_error": ...}`
   to `hc_progress.jsonl`. MOSES ends normally. Only such a run has the summary key
-  `hc_progress_error` (the stderr line); its checkpoints end at its last line, and
-  `anytime_check.log_evals_match_n_evals` is false. To find these runs, look for the key in the
-  summaries (`grep -l hc_progress_error .../runs/*/summary.json`).
+  `hc_progress_error` (the stderr line), and its `anytime_check.log_evals_match_n_evals` is
+  false. Its `demes` record has only the demes up to its last line. Its `anytime` records after
+  its last line have `reached` false and the value of that line (not the value of the run). The
+  report (`budget_report.py`, the RV16 review G1) does not use these records or its deme count,
+  and lists the run in `hc_progress_errors.csv` and in a stdout line
+  (`{"hc_progress_error_runs": N, ...}`); without such a run that file and line do not exist.
+  To find these runs in the results, look for the key in the summaries
+  (`grep -l hc_progress_error .../runs/*/summary.json`).
 * Each manifest has a result directory of its own: `phase1bl/phase1bl-sr/`,
   `phase1bl/phase1bl-sr-100K/` and `phase1bl/phase1bl-sr-Dow/`.
 
