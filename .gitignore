@@ -21,3 +21,8 @@ tools/gomea_golden/build/
 # which links libcogutil and calls loadTable()/istreamSparseITable().
 opencog.log
 moses.log
+
+# local work folders of the D1/D1b check and the RV deme-end check (data splits and run
+# results; tools/gomea/extra_splits.py writes the splits, see docs/gomea/BACKLOG.md 15.4)
+.d1work/
+.rvework/

@@ -1070,6 +1070,11 @@ is started or approved.
        HC-TLS (reference, the round 17 argv, no deme cap). Both GOMEA arms log the deme-best genes
        (`--gomea-trace 1 --gomea-log-best-genes 1`); first check that the log does not change a
        run.
+     * **Data:** the run lists (`configs/gomea/d1b/`) read the Yacht splits 91–100 from
+       `.d1work/datasets` (`datasets_dir`; git ignores `.d1work/`). To make them, run this
+       command from the repo root (the rows come from `data/gomea-sr/Yac/full.csv`, in git):
+       `.venv/bin/python tools/gomea/extra_splits.py .d1work/datasets Yac --seeds 91-100 --from-full data/gomea-sr`.
+       The 80 files are the same as the D1b inputs in `pyMoses-d1/.d1work/datasets`.
      * **Primary:** test NMSE, TLS-CW against BASE-TLS, paired over the 10 splits. Pass: median
        ratio ≤ 0.90 and two-sided Wilcoxon p < 0.025 (the project rule). Promising: median ratio
        ≤ 0.95 and lower training NMSE in at least 7 of 10 splits; then 10 more splits (101–110)
