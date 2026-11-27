@@ -16,7 +16,9 @@ Usage: .venv/bin/python tools/gomea/extra_splits.py DATASETS ABBR [ABBR ...] --s
 * It writes `DATASETS/<Abbr>/splits/s<seed>/` with `train`, `val`, `test` and `trainval`, each
   as `.csv` and `.dat`. It never writes `full.csv` or `splits.json`.
 * It does not change a file that exists with other content: it stops with an error. A file
-  with the same content is left as it is.
+  with the same content is left as it is. It checks every target file of every dataset and
+  seed first, and writes only when all pass, so a refusal writes nothing (no folder written in
+  part; the RV16 review of round 17, G5). It creates each file only if it does not exist.
 * It prints, as JSON, the sizes and the SHA-256 of the row indices of each split (the fields
   of `splits.json`).
 """
@@ -47,31 +49,43 @@ def parse_seeds(text: str) -> list[int]:
     return seeds
 
 
-def _write(path: Path, text: str) -> str:
-    """Write `text` to `path`; "same" if the file has it already; an error for other content."""
+def _check(path: Path, text: str) -> str:
+    """"new" if `path` does not exist; "same" if the file has `text` already; an error for
+    other content. It writes nothing."""
     if path.exists():
         if path.read_text() != text:
             raise SystemExit(f"{path} exists with other content; not changed")
         return "same"
-    path.write_text(text)
     return "new"
 
 
-def write_splits(root: Path, abbr: str, seeds: list[int], src: Path) -> dict:
-    """Write the split folders of `seeds` for `abbr` under `root`; return their meta."""
+def _write_new(todo: list[tuple[Path, str]]) -> None:
+    """Create each file of `todo` (all passed `_check`). Mode "x" never replaces a file."""
+    for path, text in todo:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        with path.open("x") as fh:
+            fh.write(text)
+
+
+def plan_splits(root: Path, abbr: str, seeds: list[int], src: Path):
+    """The meta of the split folders of `seeds` for `abbr` under `root`, and the files to
+    create. It checks every target file first (`_check`) and writes nothing."""
     k, n = srd.DATASETS[abbr][3], srd.DATASETS[abbr][4]
     rows, _full = srd.load_full(src, abbr)
-    meta = {}
+    meta, todo = {}, []
     for seed in seeds:
         tr, va, te = srd.split_indices(abbr, seed, n)
         out = root / abbr / "splits" / f"s{seed}"
-        out.mkdir(parents=True, exist_ok=True)
         parts = {"train": tr, "val": va, "test": te, "trainval": tr + va}
         status = set()
         for name, ix in parts.items():
             sub = [rows[i] for i in ix]
-            status.add(_write(out / f"{name}.csv", srd.csv_text(sub, k)))
-            status.add(_write(out / f"{name}.dat", srd.dat_text(sub)))
+            for path, text in ((out / f"{name}.csv", srd.csv_text(sub, k)),
+                               (out / f"{name}.dat", srd.dat_text(sub))):
+                st = _check(path, text)
+                status.add(st)
+                if st == "new":
+                    todo.append((path, text))
         meta[f"s{seed}"] = {
             "rng": f'random.Random("{abbr}-s{seed}").shuffle(range({n}))',
             "sizes": {name: len(ix) for name, ix in parts.items()},
@@ -80,6 +94,14 @@ def write_splits(root: Path, abbr: str, seeds: list[int], src: Path) -> dict:
             },
             "files": "/".join(sorted(status)),
         }
+    return meta, todo
+
+
+def write_splits(root: Path, abbr: str, seeds: list[int], src: Path) -> dict:
+    """Write the split folders of `seeds` for `abbr` under `root`; return their meta. Nothing
+    is written when a target file exists with other content."""
+    meta, todo = plan_splits(root, abbr, seeds, src)
+    _write_new(todo)
     return meta
 
 
@@ -101,7 +123,10 @@ def main(argv: list[str]) -> int:
         raise SystemExit(f"unknown dataset(s) {unknown}; known: {list(srd.DATASETS)}")
     seeds = parse_seeds(opts["--seeds"])
     src = Path(opts.get("--from-full", root))
-    report = {abbr: write_splits(root, abbr, seeds, src) for abbr in wanted}
+    plans = {abbr: plan_splits(root, abbr, seeds, src) for abbr in wanted}  # checks first
+    for _meta, todo in plans.values():
+        _write_new(todo)
+    report = {abbr: meta for abbr, (meta, _todo) in plans.items()}
     print(json.dumps(report, indent=1))
     return 0
 
