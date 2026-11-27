@@ -1144,9 +1144,19 @@ is started or approved.
      of the deme's evaluations (default 10 %). Then the number of demes stays close to BASE-TLS,
      and RV still gives the constants real values, the "new samples during the optimization" that
      the user asked for (2026-11-26).
-   * **A first local test (proposal, not approved):** BASE-TLS against TLS-RVE at 20,000 on Yacht,
-     Energy heating and Tower (the data sets with room in the constants, D1), splits 91–100, with
-     the D1b BASE-TLS Yacht runs as the shared control. Decide after D1b.
+   * **The local test (plan written before the runs, 2026-11-27; go: the agent's reading of the
+     user's "ok", see APPROVALS):** run list `configs/gomea/t32e/sr.json` of `pyMoses-rve`: BASE-TLS
+     and TLS-RVE (BASE-TLS plus `--gomea-rv-step rvg --gomea-rv-budget end`, F = 0.10), 20,000
+     evaluations, Yacht, Energy heating and Tower (the data sets with room in the constants, D1),
+     fresh splits 91–100 (60 runs), one at a time under the memory cap, after D1b.
+     * **Primary:** test NMSE, TLS-RVE against BASE-TLS, 30 pairs. Pass: ratio (exp of the median log
+       ratio) ≤ 0.90 and two-sided Wilcoxon p < 0.025. Promising: ratio ≤ 0.95 and lower training
+       NMSE in at least 20 of 30 pairs; then 10 more splits (101–110) before a decision. Else: no.
+     * **Mechanism check:** polishes run and some improve the deme best; the median number of demes
+       per run is at least 90 % of BASE-TLS's (the point of the design). If the demes drop more, the
+       design did not work as meant, whatever the test error.
+     * **Secondary and descriptive:** per data set ratios (Yacht expected to gain most), training
+       NMSE, size, CPU, polish evaluations and their share of the budget.
 
 ## 8. Future directions from the literature search (2026-11-06)
 
