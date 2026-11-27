@@ -1122,8 +1122,12 @@ is started or approved.
 
 7. **T3.2 continues: RV at the deme end (`--gomea-rv-budget end`).** Origin: the user, 2026-11-26
    ("No we are not giving up on the T3.2 yet. I want us to keep pushing."); the design is agent-written
-   from the round 16 data (post hoc). Status: the option is being built (opt-in); no run until the
-   user approves a plan.
+   from the round 16 data (post hoc). Status (2026-11-27): built and tested in the clone `pyMoses-rve`
+   (`9dda2b5..d0eaf43`: `--gomea-rv-budget end`, `--gomea-rv-end-frac`, default 0.10; run list
+   `configs/gomea/t32e/`); not on this branch yet, not reviewed (RV16); no run until the user approves
+   the plan. Agent note: a deme that ends by GOM convergence (all genotypes equal) gets at most one
+   polish generation, because its population has no spread in the constants; the BASE-TLS demes end
+   mostly by stagnation (54–86 %), where the polish has a spread to sample from.
    * **Round 16 evidence (agent analysis of the `rv` records, no Dow):** TLS-RV spends 13–26 % of the
      evaluations on RV generations (Tower 5–8 %). About 20–30 % of the RV evaluations improve their
      reference. The RV demes end mostly by structure convergence (48–66 %), the BASE-TLS demes by
