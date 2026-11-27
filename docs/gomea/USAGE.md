@@ -489,8 +489,9 @@ and no coefficient mutation; that is Phase 2.
 * **Initial population.** `--gomea-init sampler` (the default) keeps MOSES's own
   neighbourhood sampler, which may step a constant to a neighbouring value.
   With `--gomea-contin-start wide` (backlog 15.4, D1b; not a port) a constant that the
-  sampler changes gets a value drawn uniformly over the knob's other 62 legal values, not a
-  neighbour; the sampler still chooses which constants change.
+  sampler changes gets a value drawn uniformly over the knob's other 62 legal values, not only
+  a neighbour (the 62 values include the two neighbours c ± 1); the sampler still chooses which
+  constants change.
   `--gomea-init uniform` draws each constant uniformly over the knob's legal step paths,
   i.e. over the constants it can represent. (Keeping the exemplar's constant would leave
   the gene the same in every individual, and mixing could then never change it.)
