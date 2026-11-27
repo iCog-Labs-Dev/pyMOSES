@@ -800,3 +800,11 @@ user confirms it.
   * Asked: what F7 and F10 are (not a decision).
   * Agent correction: the round 16 findings and a chat answer described TLS-RVL wrongly; fixed in
     `SERVER-ROUND16-FINDINGS.md`.
+* **RV16 round 2 findings and the RV deme-end test (2026-11-27):** the agent gave the user the full
+  RV16 round 2 report unchanged (no blocking finding; nits G1–G5; record
+  `../agent-reviews/self-experiment-moses-gomea-discrete-2026-11-26-r2.md`) with its recommendations
+  (fix G1–G4, G5 optional; skip F7; F10 the user's choice) and asked for a go for the TLS-RVE test
+  (backlog 15.7). The user answered: "ok let me know when it's ready to push".
+  * Agent reading, stated to the user: fix G1–G5; F7 skipped; F10 left as it is; the TLS-RVE test may
+    run after D1b. The user can correct this reading.
+  * Not approved: any push (the user asked to be told when it is ready).
