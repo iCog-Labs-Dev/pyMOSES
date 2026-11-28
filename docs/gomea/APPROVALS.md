@@ -808,3 +808,22 @@ user confirms it.
   * Agent reading, stated to the user: fix G1–G5; F7 skipped; F10 left as it is; the TLS-RVE test may
     run after D1b. The user can correct this reading.
   * Not approved: any push (the user asked to be told when it is ready).
+* **Round 17: F8 and the local pilot, done (the approval of 2026-11-26 is the entry "Round 16
+  final results, the pilot and F8" above):**
+  * Done: F8 (clone commit `5fb1da1`, `9c87e4e` on this branch; origin: the RV16 review, agent);
+    the smoke F5 on the clone commit `f82ee91` (`74faa4f` on this branch; origin: the RV16 review,
+    agent); the pilot run list `configs/gomea/phase1bl-pilot/` (clone `8dda181`, `b16eee2` here).
+* **Round 17 pilot: no time limit on the memory wait, and the full pilot (2026-11-27, relayed by
+  the main agent):** the agent's pilot script stopped after 60 min of low free memory (a stop rule
+  that the agent wrote into the script). The user asked for a memory wait with no time limit, and
+  chose "Full pilot" (all 6 runs at 100,000, not fewer).
+  * User decisions: no 60-min stop on the memory wait; the full pilot.
+  * Agent action (the main agent): a supervisor service (`r17-pilot-supervisor`,
+    `pilot_supervisor.sh` in the agent's scratchpad) that waited until the script ended and then
+    ran the 4 remaining runs (Yac and Tow at 100,000) with the same command and memory caps. It
+    ended on 2026-11-28 at 08:28Z. The reason: the user's request, without a change to the
+    running script.
+  * Result: the gate passed (`SERVER-ROUND17-PREREGISTRATION.md`, amendment A3).
+  * Agent-written, not approved (A3): the new memory limits (4,096, 6,144 and 8,192 MB) and W
+    (11, 9 and 7), the estimate (about 433 CPU-h, about 49 h in two plans), and the proposal of a
+    wall cap of 72,000 s for the 100,000 arms.
