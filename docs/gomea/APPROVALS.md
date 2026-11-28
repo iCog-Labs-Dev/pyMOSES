@@ -815,11 +815,12 @@ user confirms it.
     agent); the pilot run list `configs/gomea/phase1bl-pilot/` (clone `8dda181`, `b16eee2` here).
 * **Round 17 pilot: no time limit on the memory wait, and the full pilot (2026-11-27, relayed by
   the main agent):** the agent's pilot script stopped after 60 min of low free memory (a stop rule
-  that the agent wrote into the script). The user asked for a memory wait with no time limit, and
-  chose "Full pilot" (all 6 runs at 100,000, not fewer).
+  that the agent wrote into the script). The user asked for a memory wait with no time limit: "I
+  want you to fix the pilot restart if it's script stops after 60mins of waiting. Can you make that
+  waiting infinit?" The user chose "Full pilot" (all 6 runs at 100,000, not fewer).
   * User decisions: no 60-min stop on the memory wait; the full pilot.
   * Agent action (the main agent): a supervisor service (`r17-pilot-supervisor`,
-    `pilot_supervisor.sh` in the agent's scratchpad) that waited until the script ended and then
+    `pilot_supervisor.sh`; a copy is in `pyMoses-suite-tmp/round17/pilot/`) that waited until the script ended and then
     ran the 4 remaining runs (Yac and Tow at 100,000) with the same command and memory caps. It
     ended on 2026-11-28 at 08:28Z. The reason: the user's request, without a change to the
     running script.
@@ -827,3 +828,18 @@ user confirms it.
   * Agent-written, not approved (A3): the new memory limits (4,096, 6,144 and 8,192 MB) and W
     (11, 9 and 7), the estimate (about 433 CPU-h, about 49 h in two plans), and the proposal of a
     wall cap of 72,000 s for the 100,000 arms.
+* **Round 17, amendment A3 decided (2026-11-28):** the RV16 review, round 4, of the pilot values
+  (`agent-reviews/self-experiment-moses-gomea-discrete-2026-11-28-r4.md`) had no blocker. The main
+  agent recommended a fix for each finding. The user answered: "Fix your recommendation then
+  finish it."
+  * R1: `sr-100K.json` 6,553 MB, W stays 9 (the draft had 6,144 MB). Origin: the RV16 round 4
+    reviewer (agent).
+  * R2: `wall_cap_s` 72,000 s for `sr-100K.json` in `phase1bl` and `phase1bl-a` only; `sr.json`
+    and `sr-Dow.json` keep 36,000 s; the smoke sets keep 300 s. Origin: the agent proposal in A3.
+  * R5: `sr-Dow.json` keeps 8,192 MB. Origin: the agent (A3); the reviewer offered a larger limit.
+  * R3: run smoke17 and smoke17b again on the head, after the fixes. Origin: the reviewer (agent).
+  * R14: the 14 Boolean manifests name the newest code commit (`1f01c3a`), as in rounds 15 and
+    16, so the 4 pin tests pass. Origin: the reviewer (agent).
+  * R4, R6–R13, R15: fix all (text, traceability, lint). Origin: the reviewer (agent).
+  * Done in the clone `pyMoses-r17f`: `152ecdc` (R1, R2, R12), `80a307a` (R14) and the docs commit
+    (A3, SERVER-RUN, BACKLOG, ROADMAP, this entry). The smoke on the head follows (R3).

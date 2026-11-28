@@ -1602,11 +1602,18 @@ and, when it is DONE:
 
     RETRY_FAILED=1 bash tools/server/start.sh --plan round17b --force
 
+**S0 and the Boolean manifests:** the 14 Boolean manifests of rounds 4, 6 and 12 name the newest
+code commit, `1f01c3a` (the D1b option `--gomea-contin-start`; commit `80a307a`), so the 4 pin
+tests (`test_plan4.py`, `test_plan6.py` and two in `test_plan12.py`) pass. If `pymoses`,
+`benchmarks` or `pyproject.toml` change again before the push, set the `commit` of these 14
+files to the new code commit.
+
 **Phase 1bl: budget.** Each run gets 20,000 or 100,000 evaluations (`-m N`) and no
-`--max-time`. The wall cap of 36,000 s per run is only a guard against a hung process.
-In the local pilot, Tow HC-TLS-100K used 31,904 s, 89 % of the cap. A run that reaches the cap
-ends with status "timeout" and counts as infinitely bad. A larger cap for the 100,000 arms is an
-open agent proposal (amendment A3, not approved); the configs keep 36,000 s.
+`--max-time`. The wall cap per run is only a guard against a hung process: 36,000 s for the
+20,000 arms (`sr.json`, `sr-Dow.json`) and 72,000 s for the 100,000 arms (`sr-100K.json`;
+amendment A3, the user's decision of 2026-11-28). In the local pilot, Tow HC-TLS-100K used
+31,904 s, 89 % of 36,000 s. A run that reaches its cap ends with status "timeout" and counts as
+infinitely bad.
 
 **Phase 1bl: arms** (`configs/gomea/phase1bl/`, three manifests):
 
@@ -1687,14 +1694,15 @@ Wilcoxon on log(A / B), Holm in each family, alpha = 0.025, and the 10 % band):
 | Manifest | `mem_limit_mb` | W on the server (cgroup 65,536 MB, 12 CPUs, reserve 6,553 MB) |
 |---|---|---|
 | `phase1bl/sr.json` (the 20,000 arms, 6 datasets) | 4,096 | min(11, 14) = 11 |
-| `phase1bl/sr-100K.json` (the 100,000 arms, 6 datasets) | 6,144 | min(11, floor(58,983 / 6,144)) = 9 |
+| `phase1bl/sr-100K.json` (the 100,000 arms, 6 datasets) | 6,553 | min(11, floor(58,983 / 6,553)) = 9 |
 | `phase1bl/sr-Dow.json` (the 20,000 arms on Dow) | 8,192 | min(11, floor(58,983 / 8,192)) = 7 |
 
 Both 1bl steps have `per_run_mb` 4096 and `manifest_per_run_mb`
-`{"sr-Dow.json": 8192, "sr-100K.json": 6144}`. `phase_run.sh` runs `sr.json`, then
+`{"sr-Dow.json": 8192, "sr-100K.json": 6553}`. `phase_run.sh` runs `sr.json`, then
 `sr-100K.json` (Tow first), then `sr-Dow.json`. The limit is RLIMIT_AS (address space, not
-RSS). The limits come from the local pilot (amendment A3): the highest peak RSS at 100,000 was
-2,837 MB (Tow HC-TLS-100K, 46 % of 6,144 MB); the 20,000 arms of Air, EnC, EnH and Tow and the
+RSS). The limits come from the local pilot (amendment A3, decided by the user on 2026-11-28):
+the highest peak at 100,000 was 2,837 MB (the scope peak of Tow HC-TLS-100K; its peak RSS was
+2,802 MB), 43 % of 6,553 MB. 6,553 MB is the largest limit with W = 9. The 20,000 arms of Air, EnC, EnH and Tow and the
 Dow arms have no pilot peak, so they get room for HC-TLS (about 2 times the HC-LM peak in the
 pilot). W of the 20,000 list stays 11 (the CPUs).
 

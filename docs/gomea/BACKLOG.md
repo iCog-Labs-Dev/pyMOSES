@@ -1094,17 +1094,20 @@ is started or approved.
    will tell you when the round 16b finishes and we will go from there").** The full report is in
    `pyMoses-suite-tmp/rv16-r17/REVIEW-2026-11-26.md`. F1–F4 and F9 are done or decided.
    * F5: the smoke ran at clone-B commit `961a5a6`; the last commits had no smoke. Rerun a short
-     smoke on the final commit with the pilot. **Done (2026-11-27):** smoke17 and smoke17b at
-     `f82ee91` (after F8), in a separate rig (`pyMoses-r17p/.rig17p/`): S0 repro 1 of 1 match;
-     smoke17-1bk 26 of 26 ok, smoke17-1bl 26 of 26 ok, smoke17b 52 of 52 ok; 26 of 26 partners
-     found. S0 pytest had 4 failures that already exist at `ddace3a`: the Boolean `commit` checks
-     (`test_plan4`, `test_plan6`, `test_plan12` x2) fail because the D1 commits (`30af413`,
-     `abb6e45`) changed `pymoses` after the manifest commit `e4541b4`. They do not touch round 17.
+     smoke on the final commit with the pilot. **Smoke at the clone commit `f82ee91`
+     (2026-11-27; the tree of `ddace3a` plus `9c87e4e` and `74faa4f` of this branch), not the
+     head:** smoke17 and smoke17b in a separate rig (`pyMoses-r17p/.rig17p/`): S0 repro 1 of 1
+     match; smoke17-1bk 26 of 26 ok, smoke17-1bl 26 of 26 ok, smoke17b 52 of 52 ok; 26 of 26
+     partners found. S0 pytest had 4 failures that already existed at `ddace3a`: the Boolean
+     `commit` checks (`test_plan4`, `test_plan6`, `test_plan12` x2), because `30af413` and
+     `abb6e45` changed `pymoses` after the manifest commit `e4541b4` (fixed in `80a307a`, R14).
+     **Rerun on the head: in progress** (RV16 round 4, R3, approved by the user on 2026-11-28).
    * F6: the plan text says "about 23 h at 11 runs at a time", but the 8,192 MB placeholder gives
      7 runs at a time for the 100,000 arms; after the pilot, update the memory limit, W, the
-     estimate and the plan split. **Done as a draft (2026-11-28, amendment A3, not approved):**
-     limits 4,096 / 6,144 / 8,192 MB, W 11 / 9 / 7, about 433 CPU-h and 49 h, two plans; open:
-     the wall cap of the 100,000 arms (A3 proposal).
+     estimate and the plan split. **Done (2026-11-28, amendment A3, with the user's decisions):**
+     limits 4,096 / 6,553 / 8,192 MB (the draft had 6,144 MB for the 100,000 arms; R1), W 11 / 9 /
+     7, about 433 CPU-h and 49 h, two plans; the wall cap of the 100,000 arms 72,000 s (R2). Commits
+     `bb61f5a`, `575d8f9`, `152ecdc` and the docs commit of the decision.
    * F7: nothing in the code checks that round 16b has ended before round 17 starts (only step 1 of
      the SERVER-RUN procedure). Idea: a requirement on `server-run16b/DONE`.
    * F8: `tools/gomea/hc_progress.py` has no guard around its file write; an `OSError` kills the

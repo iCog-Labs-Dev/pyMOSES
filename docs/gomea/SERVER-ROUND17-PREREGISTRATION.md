@@ -1,8 +1,9 @@
 # Server round 17: pre-registration (2026-11-26)
 
 **Status:** approved by the user on 2026-11-26: "Approved, leave out Dow at 100K"
-(`APPROVALS.md`). Not implemented, not run. The user asked for this round and for this text: "HC-LM,
-and write the pre-registration now" (2026-11-26). The agent wrote the details below; the user
+(`APPROVALS.md`). Implemented and merged; the local pilot passed its gate, and the user decided the
+pilot values on 2026-11-28 (amendment A3); not run on the server yet. The user asked for this
+round and for this text: "HC-LM, and write the pre-registration now" (2026-11-26). The agent wrote the details below; the user
 approved them as a whole.
 
 **The user's question (2026-11-24):** "Do you think more evaluation can show the difference in the
@@ -216,10 +217,13 @@ win, for a memory fault that has nothing to do with the search. So:
   GOMEA or for HC. Proposal: report the `terms` record of the final model instead (n_terms and the
   fallback share), which the runner already writes for every arm with `--linear-scaling terms`.
   The user chose this version ("A2: terms record") over the counters.
-* **A3 (2026-11-28, agent-written, waiting for the user): the pilot values.** The local pilot of
-  "Local pilot before the server" ran at commit `8dda181` (the F8 fix `5fb1da1` and the pilot run
-  list `configs/gomea/phase1bl-pilot/`: the arms, flags, keys, wall cap and limits of
-  `configs/gomea/phase1bl/`, old split 1). One run at a time, nice 19, each in a systemd scope
+* **A3 (2026-11-28, agent-written; decided by the user on 2026-11-28, see "User decision" at the
+  end): the pilot values.** The local pilot of "Local pilot before the server" ran at the clone
+  commit `8dda181`: the tree of `ddace3a` plus `9c87e4e` (the F8 fix, clone `5fb1da1`),
+  `74faa4f` and `b16eee2` (the pilot run list `configs/gomea/phase1bl-pilot/`, clone `8dda181`)
+  of this branch. It does not have the later `1f01c3a` (a GOMEA option, default bit-identical)
+  or `1672c44` (the report). The pilot run list has the arms, flags, keys, wall cap and limits of
+  `configs/gomea/phase1bl/` at that time, old split 1. One run at a time, nice 19, each in a systemd scope
   (20,000: MemoryMax 2,200 MB; 100,000: MemoryMax 4,600 MB), started only with free memory
   (2,500 MB and 5,500 MB). The agent's script `run_pilot.sh` ran the first 6 runs and stopped on
   2026-11-27 at 11:33Z, after 60 min of low memory (a stop rule of the script). The user then
@@ -232,7 +236,7 @@ win, for a memory fault that has nothing to do with the search. So:
   |---|---|---|---|---|---|---|---|---|---|---|---|
   | Con HC-LM | ok | 20,000 | 338 | 340 | 181 | 211 | 2,048 | 8.8 % | 21 | 921, 1,556 | – |
   | Con HC-TLS | ok | 20,000 | 890 | 895 | 333 | 361 | 2,048 | 16.3 % | 20 | 1,021, 1,485 | 8 |
-  | Yac HC-LM | ok | 20,000 | 244 | 245 | 146 | 173 | 2,048 | 7.1 % | 28 | 683, 1,500 | – |
+  | Yac HC-LM | ok | 20,000 | 243 | 245 | 146 | 173 | 2,048 | 7.1 % | 28 | 683, 1,500 | – |
   | Yac HC-TLS | ok | 20,000 | 339 | 341 | 324 | 351 | 2,048 | 15.8 % | 16 | 916, 7,218 | 8 |
   | Con HC-LM-100K | ok | 100,000 | 2,962 | 2,986 | 679 | 709 | 8,192 | 8.3 % | 96 | 997, 1,647 | – |
   | Con HC-TLS-100K | ok | 100,000 | 11,276 | 11,324 | 1,586 | 1,620 | 8,192 | 19.4 % | 83 | 1,211, 1,689 | 11 |
@@ -262,26 +266,36 @@ win, for a memory fault that has nothing to do with the search. So:
 
     | Run list | Old | New | W old → new | Reason |
     |---|---|---|---|---|
-    | `sr-100K.json` (6 data sets, 100,000) | 8,192 (placeholder) | 6,144 | 7 → 9 | Highest pilot peak 2,837 MB (Tow HC-TLS-100K) = 46 % of 6,144 MB. Tow is the largest data set (2,501 training rows, 25 inputs; Air 753 and 5, EnC and EnH 384 and 8), so its peak also covers Air, EnC and EnH, which have no pilot run |
+    | `sr-100K.json` (6 data sets, 100,000) | 8,192 (placeholder) | 6,553 (the draft had 6,144; R1 changed it) | 7 → 9 | Highest pilot peak 2,837 MB (scope peak of Tow HC-TLS-100K; peak RSS 2,802 MB) = 43 % of 6,553 MB. Tow is the largest data set (2,501 training rows, 25 inputs; Air 753 and 5, EnC and EnH 384 and 8), so its peak also covers Air, EnC and EnH, which have no pilot run |
     | `sr.json` (6 data sets, 20,000) | 2,048 | 4,096 | 11 → 11 | Air, EnC, EnH and Tow have no pilot run at 20,000. Round 14 HC-LM peaked at most 635 MB on the data sets other than Dow; in the pilot, HC-TLS peaked 1.8–2.2 times HC-LM at 20,000, so about 1,400 MB is possible, above 50 % of 2,048 MB. 4,096 MB costs no W (the CPUs limit W) |
     | `sr-Dow.json` (Dow, 20,000) | 4,096 | 8,192 | 11 → 7 | No pilot run on Dow. Round 14 HC-LM peaked at 1,983 MB on Dow (48 % of 4,096 MB). With the pilot HC-TLS / HC-LM peak ratios (1.3–2.3), HC-TLS can reach about 2,600–4,600 MB. 8,192 MB keeps the central value (about 3,600 MB) at 44 %; the high value is 56 %. Dow is descriptive only |
 
-    * Why not the smallest limit for 10 runs at a time (5,888 MB, W = 10, peak 48 %, about 4 h
-      shorter): in round 16 the highest server peak at 100,000 (about 5.3 GB) was about 1.6 times
-      the pilot peak of Tow (3.3 GB). With the same growth, Tow HC-TLS-100K can reach about
-      4.5 GB. An address-space failure counts as infinitely bad in P2 or P4, so the agent chose
-      the larger margin. The user can choose 5,888 MB.
-    * Applied in the clone: the four config sets (`phase1bl`, `phase1bl-a`,
+    * The choice of the `sr-100K.json` limit. Every limit from 5,899 to 6,553 MB gives W = 9;
+      5,898 MB is the largest limit for W = 10 (peak 48 %, about 4 h shorter). In round 16, the
+      highest server peak at 100,000 (about 5.3 GB, from the "Memory" text above; the agent found
+      no round 16 server value on disk to check it) was about 1.6 times the Tow peak of the
+      round 16 GOMEA pilot (Tow BASE-TLS-100K, 3,316 MB). This pilot is HC, and its Tow peak is
+      2.8 GB. If HC grows in the same way, Tow HC-TLS-100K can reach about 4.5 GB: 73 % of
+      6,144 MB, 69 % of 6,553 MB. The limit is RLIMIT_AS, which is larger than the RSS, and the
+      pilot did not record the address-space peak. An address-space failure counts as infinitely
+      bad in P2 or P4. The draft had 6,144 MB; R1 of the RV16 review, round 4, proposed 6,553 MB
+      (the same W, about 400 MB more margin), and the user approved it.
+    * Applied on this branch: the four config sets (`phase1bl`, `phase1bl-a`,
       `server-smoke17-1bl`, `server-smoke17-1bl-a`), the 1bl steps of the four plans, the
-      SERVER-RUN section and the tests. The pilot run list keeps the values it ran with.
-  * **Estimate (method of round 16, script `est17.py` in the agent's scratchpad):** server CPU of
+      SERVER-RUN section and the tests (`bb61f5a`; 6,553 MB and the wall cap in `152ecdc`). The
+      pilot run list keeps the values it ran with.
+  * **Estimate (method of round 16; the script and the pilot files are in
+    `pyMoses-suite-tmp/round17/pilot/`: `est17.py`, `pilot_table.json`, `pilot_table.py`,
+    `pilot.log`, `supervisor.log`, `run_pilot.sh`, `pilot_supervisor.sh`, `capped.sh`,
+    `run_f6_tests.sh`, `t-f6.log`, `smoke-start.log`; not in git):** server CPU of
     a run = the round 14 server median CPU of HC-LM at 20,000 on its data set (Air 886, Con 343,
     Dow 831, EnC 402, EnH 476, Tow 1,396, Yac 283 s) × the pilot CPU ratio of the arm to HC-LM at
-    20,000 on the same data set. The local speed cancels in the ratio. Air, EnC, EnH and Dow
-    use the mean of the Con and Yac ratios (low: the lower, high: the higher). Tow at 100,000 =
-    the pilot CPU / the local speed (central: the mean, 0.92; low: 0.99; high: 0.86). Each arm × 10 splits × 1.05 (the round 14
-    mean / median factor); the high case × 1.1 more. Wall = CPU-h / W of each run list, plus S0
-    (1.3 h), plus a tail of at most one long run per plan.
+    20,000 on the same data set. The local speed cancels in the ratio. Air, EnC, EnH and Dow,
+    and Tow HC-TLS at 20,000, use the mean of the Con and Yac ratios (low: the lower, high: the
+    higher). Tow at 100,000 = the pilot CPU / the local speed (central: the mean, 0.92; low:
+    0.99; high: 0.86). Each arm × 10 splits × 1.05 (the round 14 mean / median factor); the high
+    case × 1.1 more. Wall = CPU-h / W of each run list, plus S0 (1.3 h). The table does not
+    include the tail (at most one long run per plan).
 
     | | HC-LM | HC-TLS | HC-LM-100K | HC-TLS-100K | Total CPU-h | Wall (two plans) |
     |---|---|---|---|---|---|---|
@@ -294,16 +308,40 @@ win, for a memory fault that has nothing to do with the search. So:
     (9.0–11.3 h), Air HC-TLS-100K about 6.6 h (5.0–9.0 h). The estimate before the pilot was
     about 250 CPU-h (range 100–400) and 23 h; the difference comes from HC-TLS (about 316 of
     the 433 CPU-h) and from W = 9, not 11, for the 100,000 arms.
+    * The decision of 2026-11-28 does not change the estimate: 6,553 MB gives the same W (9) as
+      6,144 MB, and the wall cap does not change the CPU. The tail: in `sr-100K.json` the Tow
+      runs start first (`phase_run.sh`, the runner order). Their central time (9.6 h) is below
+      both caps; the high time (11.3 h, about 40,700 s) passes 36,000 s by about 1.3 h. With a
+      plan's half of `sr-100K.json` at about 22 h (central), a Tow run that starts first ends
+      long before the other runs, so the 72,000 s cap delays the plan end only if a run takes
+      more than about 20 h. The worst case changes: a hung run can now hold a slot for up to
+      20 h, not 10 h.
   * **Plan split:** the estimate is more than 20 h, so the round keeps two plans that chain, split
     by splits (81–85, then 86–90), as registered. Each plan is about 25 h (21–31 h) plus its
     tail, more than the 20 h of one plan. The rule has no third plan; a split into more plans
     is a design change for the user.
-  * **Agent proposal, not approved: a larger wall cap for the 100,000 arms.** The pilot Tow
+  * **A larger wall cap for the 100,000 arms (agent proposal; approved by the user on
+    2026-11-28).** The pilot Tow
     HC-TLS-100K run used 31,904 s, 89 % of the wall cap of 36,000 s. The server estimate for
     this arm is 9.0–11.3 h (about 32,000–41,000 s), so some of its 10 runs can reach the cap.
     A run at the cap ends as "timeout" and counts as infinitely bad, so P4 and the HC-TLS
     secondaries would count a time guard against HC-TLS. The pre-registration calls the cap "a
     guard only". Proposal: `wall_cap_s` 72,000 s in `sr-100K.json` of `phase1bl` and
     `phase1bl-a` (the smoke keeps 300 s). The CPU estimate does not change; a plan can end up to
-    about 10 h later only if a run is longer than 36,000 s. The configs keep 36,000 s until the
-    user decides.
+    about 10 h later only if a run is longer than 36,000 s. Applied in `152ecdc`; `sr.json` and
+    `sr-Dow.json` keep 36,000 s. This changes the wall cap of "Rules" for the 100,000 arms only.
+  * **User decision (2026-11-28).** After the RV16 review, round 4, of these values, the main
+    agent recommended a fix for each finding. The user answered: "Fix your recommendation then
+    finish it." The decisions:
+
+    | Item | Decision | Origin |
+    |---|---|---|
+    | R1 | `sr-100K.json` 6,553 MB (W stays 9) | The RV16 round 4 reviewer (agent) |
+    | R2 | `wall_cap_s` 72,000 s for `sr-100K.json` in `phase1bl` and `phase1bl-a` only; `sr.json` and `sr-Dow.json` keep 36,000 s; the smoke sets keep 300 s | Agent proposal in this amendment |
+    | R5 | `sr-Dow.json` keeps 8,192 MB | Agent (this amendment); the reviewer offered a larger limit |
+    | R3 | Run smoke17 and smoke17b again on the head, after the fixes | The RV16 round 4 reviewer (agent) |
+    | R14 | The 14 Boolean manifests name the newest code commit (`1f01c3a`), as in rounds 15 and 16 | The RV16 round 4 reviewer (agent) |
+    | R4, R6–R13, R15 | Fix all (text, traceability, lint) | The RV16 round 4 reviewer (agent) |
+
+    No finding asked to change the other values of this amendment (`sr.json` 4,096 MB, the
+    estimate, the two plans); they stay as the agent wrote them.
