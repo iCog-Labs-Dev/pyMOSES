@@ -37,7 +37,9 @@ ALL_ARMS = {
 PARTNER = {"HC-LM": "BASE-TLS", "HC-TLS": "BASE-TLS", "HC-LM-100K": "BASE-TLS-100K",
            "HC-TLS-100K": "BASE-TLS-100K"}
 MANIFESTS = ["sr.json", "sr-100K.json", "sr-Dow.json"]  # the order of phase_run.sh
-MB = {"sr.json": 2048, "sr-Dow.json": 4096, "sr-100K.json": 8192}  # 8,192: a placeholder
+# the local pilot (SERVER-ROUND17-PREREGISTRATION.md, amendment A3): each measured peak at most
+# 50 % of its limit; the data sets without a pilot peak get room for HC-TLS (A3)
+MB = {"sr.json": 4096, "sr-Dow.json": 8192, "sr-100K.json": 6144}
 DATASETS_OF = {"sr.json": DS6, "sr-Dow.json": ["Dow"],
                "sr-100K.json": ["Tow"] + [d for d in DS6 if d != "Tow"]}
 REAL_PARTNER_DIRS = [f"../gomea-results/phase1bk/phase1bk-{x}"

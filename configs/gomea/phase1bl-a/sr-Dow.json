@@ -12,7 +12,7 @@
     85
   ],
   "wall_cap_s": 36000,
-  "mem_limit_mb": 4096,
+  "mem_limit_mb": 8192,
   "clip_test_nmse": true,
   "plain_nmse": true,
   "hc_anytime": true,

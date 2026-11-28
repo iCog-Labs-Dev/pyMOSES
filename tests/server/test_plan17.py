@@ -14,8 +14,8 @@ The design (arms, flags, families, memory) is in tests/gomea/round17_design.py. 
 design while its check (clone A) has not failed; tools/gomea/drop_arms.py and the flag
 `HC_TLS` of that module leave it out (see its docstring).
 
-The chain (the agent estimate before the pilot, about 23 h at 11 runs at a time, is more than
-20 h for one plan; the rule of the pre-registration, "Rules"): round17 (plan17.json) runs S0 and
+The chain (the agent estimate after the local pilot, about 49 h, range 43-61 h, is more than
+20 h for one plan; the rule of the pre-registration, "Rules"; amendment A3): round17 (plan17.json) runs S0 and
 1bl on splits 81-85 (configs/gomea/phase1bl-a), then round17b (plan17b.json) runs 1bl with the
 full config; the runner keeps the runs of round17 and runs the others. round17b has no S0.
 
@@ -63,7 +63,7 @@ REQUIRES = [f"datasets:{D7}:81-90"] + partners("phase1bk", "81-90")
 SMOKE_REQUIRES = [f"datasets:{D7}:1-2"] + partners("server-smoke17-1bk", "1-2")
 SMOKE_BUDGET = {20000: 1000, 100000: 2000}
 OTHER_MB = design.MB["sr.json"]
-MANIFEST_MB = {"sr-Dow.json": 4096, "sr-100K.json": 8192}
+MANIFEST_MB = {"sr-Dow.json": 8192, "sr-100K.json": 6144}  # the local pilot (A3)
 N_TRAIN = {d: json.loads((REPO / "data" / "gomea-sr" / d / "splits.json").read_text())["n_train"]
            for d in design.DS7}
 
@@ -338,8 +338,8 @@ def test_the_first_plan_is_s0_then_1bl_on_the_first_splits(plan, name, state_dir
     assert not a.get("pilot") and not a.get("set_commit_in")
     assert a["requires"] == requires
     _memory_keys_match_the_manifests(a, CONFIGS / HALF_PREFIXES[prefix])
-    assert "8,192 MB: a placeholder; the local pilot sets the final value" in p["description"] \
-        or plan != "plan17.json"
+    assert ("6,144 MB); the limits come from the local pilot (amendment A3)" in p["description"]
+            and "placeholder" not in p["description"]) or plan != "plan17.json"
 
 
 @pytest.mark.parametrize("plan, name, state_dir, prefix, sid, requires", [
@@ -573,8 +573,8 @@ def test_help_text_names_the_plans(script):
 
 
 def test_server_workers(tmp_path):
-    """On the 12-CPU 64 GB server (reserve 6,553 MB): sr.json (2,048 MB) and sr-Dow.json
-    (4,096 MB) W = 11 (the CPUs), sr-100K.json (8,192 MB) W = 7 (the memory)."""
+    """On the 12-CPU 64 GB server (reserve 6,553 MB): sr.json (4,096 MB) W = 11 (the CPUs),
+    sr-100K.json (6,144 MB) W = 9 and sr-Dow.json (8,192 MB) W = 7 (the memory; amendment A3)."""
     import resources
     s, pr = tmp_path / "sys", tmp_path / "proc"
     for c in range(12):
@@ -588,8 +588,8 @@ def test_server_workers(tmp_path):
     (pr / "meminfo").write_text(f"MemTotal: {4 * 65536 * 1024} kB\n")
     (pr / "self").mkdir()
     (pr / "self/cgroup").write_text("0::/\n")
-    for name, want in (("sr.json", (11, "cpu")), ("sr-Dow.json", (11, "cpu")),
-                       ("sr-100K.json", (7, "memory"))):
+    for name, want in (("sr.json", (11, "cpu")), ("sr-Dow.json", (7, "memory")),
+                       ("sr-100K.json", (9, "memory"))):
         w = resources.decide(s, pr, affinity=set(range(12)),
                              env={"PER_RUN_MB": str(design.MB[name])})
         assert (w["workers"], w["limited_by"]) == want, name
@@ -687,6 +687,6 @@ def test_the_phase_runs_with_its_own_workers_and_the_partner_requirement(tmp_pat
                    and (repo / d).is_dir() for d in t["partners"])
     events = [json.loads(x) for x in (sd / "events.jsonl").read_text().splitlines()]
     wd = [(e.get("manifest"), e["per_run_mb"]) for e in events if e["event"] == "workers_decision"]
-    assert wd == [(None, 2048), ("sr-Dow.json", 4096), ("sr-100K.json", 8192)] * 2
+    assert wd == [(None, 4096), ("sr-Dow.json", 8192), ("sr-100K.json", 6144)] * 2
     st = load(sd / "state.json")["steps"]
     assert [st[s["id"]]["status"] for s in steps] == ["done", "done"]

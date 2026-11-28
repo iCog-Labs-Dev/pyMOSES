@@ -1,6 +1,6 @@
 {
   "name": "server-round17-2026-11",
-  "description": "SERVER-ROUND17-PREREGISTRATION.md, the first plan of two (the agent estimate before the pilot is about 250 CPU-h, about 23 h at 11 runs at a time, more than 20 h for one plan; the rule \"Rules\"): S0, then 1bl on splits 81-85 (configs/gomea/phase1bl-a: the full spec and the three manifests with splits 81-85 only; HC-LM and HC-TLS at 20,000 and at 100,000 evaluations per run, no deme cap, no time limit; 6 datasets (Air, Con, EnC, EnH, Tow, Yac) at both budgets and Dow at 20,000 only; 130 MOSES runs; an interim report on these runs). Three manifests: sr.json (the 20,000 arms, 2,048 MB), sr-Dow.json (the 20,000 arms on Dow, 4,096 MB) and sr-100K.json (the 100,000 arms, 8,192 MB: a placeholder; the local pilot sets the final value). sr-Dow.json and sr-100K.json get a W of their own. The GOMEA partners (BASE-TLS and BASE-TLS-100K, BASE-TLS on Dow) are the round 16 runs: the report reads them from ../gomea-results/phase1bk/ (spec key \"partners\"), and the step needs their 130 summaries (the \"summaries:\" requirements; else the step is skipped with the reason in the log). 1bl needs splits 81-90 of the 7 datasets (setup.sh builds them). Round 16b must have ended. No extension, no choice step, no adoption rule. Then round17b runs the other 130 runs (splits 86-90) and the report on all 260.",
+  "description": "SERVER-ROUND17-PREREGISTRATION.md, the first plan of two (the agent estimate after the local pilot, amendment A3, is about 430 CPU-h (range 380-540) and about 49 h (range 43-61 h) at 11, 9 and 7 runs at a time, more than 20 h for one plan; the rule \"Rules\"): S0, then 1bl on splits 81-85 (configs/gomea/phase1bl-a: the full spec and the three manifests with splits 81-85 only; HC-LM and HC-TLS at 20,000 and at 100,000 evaluations per run, no deme cap, no time limit; 6 datasets (Air, Con, EnC, EnH, Tow, Yac) at both budgets and Dow at 20,000 only; 130 MOSES runs; an interim report on these runs). Three manifests: sr.json (the 20,000 arms, 4,096 MB), sr-Dow.json (the 20,000 arms on Dow, 8,192 MB) and sr-100K.json (the 100,000 arms, 6,144 MB); the limits come from the local pilot (amendment A3). sr-Dow.json and sr-100K.json get a W of their own. The GOMEA partners (BASE-TLS and BASE-TLS-100K, BASE-TLS on Dow) are the round 16 runs: the report reads them from ../gomea-results/phase1bk/ (spec key \"partners\"), and the step needs their 130 summaries (the \"summaries:\" requirements; else the step is skipped with the reason in the log). 1bl needs splits 81-90 of the 7 datasets (setup.sh builds them). Round 16b must have ended. No extension, no choice step, no adoption rule. Then round17b runs the other 130 runs (splits 86-90) and the report on all 260.",
   "state_dir": "server-run17",
   "steps": [
     {
@@ -20,10 +20,10 @@
         "summaries:phase1bk/phase1bk-sr-100K:BASE-TLS-100K:Air,Con,EnC,EnH,Tow,Yac:81-90",
         "summaries:phase1bk/phase1bk-sr-Dow:BASE-TLS:Dow:81-90"
       ],
-      "per_run_mb": 2048,
+      "per_run_mb": 4096,
       "manifest_per_run_mb": {
-        "sr-Dow.json": 4096,
-        "sr-100K.json": 8192
+        "sr-Dow.json": 8192,
+        "sr-100K.json": 6144
       }
     }
   ],

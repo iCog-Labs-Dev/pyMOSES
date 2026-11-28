@@ -13,10 +13,10 @@
         "summaries:server-smoke17-1bk/server-smoke17-1bk-sr-100K:BASE-TLS-100K:Air,Con,EnC,EnH,Tow,Yac:1-2",
         "summaries:server-smoke17-1bk/server-smoke17-1bk-sr-Dow:BASE-TLS:Dow:1-2"
       ],
-      "per_run_mb": 2048,
+      "per_run_mb": 4096,
       "manifest_per_run_mb": {
-        "sr-Dow.json": 4096,
-        "sr-100K.json": 8192
+        "sr-Dow.json": 8192,
+        "sr-100K.json": 6144
       }
     }
   ]
