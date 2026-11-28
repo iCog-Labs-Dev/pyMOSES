@@ -176,7 +176,7 @@ is done when the user has decided on them.
   2026-11-26). Approved by the user (2026-11-26, without HC on Dow at 100,000); implemented and
   merged. The local pilot passed its gate (2026-11-28); the user decided its values (amendment A3,
   2026-11-28: 4,096 / 6,553 / 8,192 MB, a wall cap of 72,000 s for the 100,000 arms, two plans).
-  Next: the smoke on the head, then the push only with a fresh approval.
+  The smoke on the head passed (2026-11-28). Next: the push only with a fresh approval.
 * **Later (user, 2026-11-26): is the knob format the bottleneck?** Diagnostics D1–D3
   (`BACKLOG.md` 15.4). D1 (no new runs) first, but not before the local memory is free (the user).
 * **Later (user, 2026-11-25): MOSES against the state of the art on SRBench 2025** (`BACKLOG.md`

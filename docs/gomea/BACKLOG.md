@@ -1101,7 +1101,12 @@ is started or approved.
      partners found. S0 pytest had 4 failures that already existed at `ddace3a`: the Boolean
      `commit` checks (`test_plan4`, `test_plan6`, `test_plan12` x2), because `30af413` and
      `abb6e45` changed `pymoses` after the manifest commit `e4541b4` (fixed in `80a307a`, R14).
-     **Rerun on the head: in progress** (RV16 round 4, R3, approved by the user on 2026-11-28).
+     **Done on the head `815763a` (2026-11-28; RV16 round 4, R3, approved by the user):** smoke17
+     and smoke17b in a new rig (`pyMoses-r17f/.rig17f/`), both DONE. S0 pytest 1006 passed, 0
+     failed; S0 repro 1 of 1 match; smoke17-1bk 26 of 26 ok, smoke17-1bl 26 of 26 ok, smoke17b 52
+     of 52 ok; 26 of 26 partners found; in the 52 HC summaries, the log evaluations equal `n_evals`
+     and `anytime_source` is "hc-demes" in 52, `hc_end_evals_match` is true in 26 of 26 HC-LM runs,
+     no `hc_progress_error`; the final bundle has 52 `hc_progress.jsonl` files.
    * F6: the plan text says "about 23 h at 11 runs at a time", but the 8,192 MB placeholder gives
      7 runs at a time for the 100,000 arms; after the pilot, update the memory limit, W, the
      estimate and the plan split. **Done (2026-11-28, amendment A3, with the user's decisions):**
