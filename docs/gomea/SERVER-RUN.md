@@ -1527,10 +1527,11 @@ does BASE-TLS gain more than HC-LM from 20,000 to 100,000 evaluations; is BASE-T
 HC-LM at 100,000; with the same constant tuning, is GOMEA's search better than HC's) is one
 phase, 1bl (regression), in two plans that chain. The GOMEA partners do not run again: the report
 pairs each HC run with the round 16 run of the same dataset, split, seed and budget (BASE-TLS or
-BASE-TLS-100K). The agent estimate before the pilot is about 250 CPU-h, about 23 h at 11 runs at a
-time, more than 20 h for one plan, so the round has two plans (the user's rule). The local pilot
-sets the final memory limit of the 100,000 arms and the time estimate. The two plans split the
-round by splits:
+BASE-TLS-100K). The agent estimate after the local pilot (`SERVER-ROUND17-PREREGISTRATION.md`,
+amendment A3) is about 430 CPU-h (range 380-540) and about 49 h (range 43-61 h) at 11, 9 and 7
+runs at a time (see "Memory and workers"). That is more than 20 h for one plan, so the round has
+two plans (the user's rule), each about 25 h (21-31 h) plus its last long runs. The two plans
+split the round by splits:
 
 * `tools/server/plan17.json` (`round17`): S0, then 1bl on splits 81-85
   (`configs/gomea/phase1bl-a`: the spec and the three manifests of 1bl with splits 81-85 only;
@@ -1603,6 +1604,9 @@ and, when it is DONE:
 
 **Phase 1bl: budget.** Each run gets 20,000 or 100,000 evaluations (`-m N`) and no
 `--max-time`. The wall cap of 36,000 s per run is only a guard against a hung process.
+In the local pilot, Tow HC-TLS-100K used 31,904 s, 89 % of the cap. A run that reaches the cap
+ends with status "timeout" and counts as infinitely bad. A larger cap for the 100,000 arms is an
+open agent proposal (amendment A3, not approved); the configs keep 36,000 s.
 
 **Phase 1bl: arms** (`configs/gomea/phase1bl/`, three manifests):
 
@@ -1682,14 +1686,17 @@ Wilcoxon on log(A / B), Holm in each family, alpha = 0.025, and the 10 % band):
 
 | Manifest | `mem_limit_mb` | W on the server (cgroup 65,536 MB, 12 CPUs, reserve 6,553 MB) |
 |---|---|---|
-| `phase1bl/sr.json` (the 20,000 arms, 6 datasets) | 2,048 | min(11, 28) = 11 |
-| `phase1bl/sr-100K.json` (the 100,000 arms, 6 datasets) | 8,192 (a placeholder: the pilot sets it) | floor(58,983 / 8,192) = 7 |
-| `phase1bl/sr-Dow.json` (the 20,000 arms on Dow) | 4,096 | min(11, 14) = 11 |
+| `phase1bl/sr.json` (the 20,000 arms, 6 datasets) | 4,096 | min(11, 14) = 11 |
+| `phase1bl/sr-100K.json` (the 100,000 arms, 6 datasets) | 6,144 | min(11, floor(58,983 / 6,144)) = 9 |
+| `phase1bl/sr-Dow.json` (the 20,000 arms on Dow) | 8,192 | min(11, floor(58,983 / 8,192)) = 7 |
 
-Both 1bl steps have `per_run_mb` 2048 and `manifest_per_run_mb`
-`{"sr-Dow.json": 4096, "sr-100K.json": 8192}`. `phase_run.sh` runs `sr.json`, then
+Both 1bl steps have `per_run_mb` 4096 and `manifest_per_run_mb`
+`{"sr-Dow.json": 8192, "sr-100K.json": 6144}`. `phase_run.sh` runs `sr.json`, then
 `sr-100K.json` (Tow first), then `sr-Dow.json`. The limit is RLIMIT_AS (address space, not
-RSS).
+RSS). The limits come from the local pilot (amendment A3): the highest peak RSS at 100,000 was
+2,837 MB (Tow HC-TLS-100K, 46 % of 6,144 MB); the 20,000 arms of Air, EnC, EnH and Tow and the
+Dow arms have no pilot peak, so they get room for HC-TLS (about 2 times the HC-LM peak in the
+pilot). W of the 20,000 list stays 11 (the CPUs).
 
 **Local rehearsal only:** `tools/server/plan17-smoke.json` (`--plan smoke17`) runs a limited S0,
 then `smoke17-1bk` (`configs/gomea/server-smoke17-1bk`: the BASE-TLS arms of round 16 in

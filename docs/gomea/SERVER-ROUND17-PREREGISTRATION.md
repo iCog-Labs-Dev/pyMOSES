@@ -216,3 +216,94 @@ win, for a memory fault that has nothing to do with the search. So:
   GOMEA or for HC. Proposal: report the `terms` record of the final model instead (n_terms and the
   fallback share), which the runner already writes for every arm with `--linear-scaling terms`.
   The user chose this version ("A2: terms record") over the counters.
+* **A3 (2026-11-28, agent-written, waiting for the user): the pilot values.** The local pilot of
+  "Local pilot before the server" ran at commit `8dda181` (the F8 fix `5fb1da1` and the pilot run
+  list `configs/gomea/phase1bl-pilot/`: the arms, flags, keys, wall cap and limits of
+  `configs/gomea/phase1bl/`, old split 1). One run at a time, nice 19, each in a systemd scope
+  (20,000: MemoryMax 2,200 MB; 100,000: MemoryMax 4,600 MB), started only with free memory
+  (2,500 MB and 5,500 MB). The agent's script `run_pilot.sh` ran the first 6 runs and stopped on
+  2026-11-27 at 11:33Z, after 60 min of low memory (a stop rule of the script). The user then
+  asked for a memory wait without a time limit (relayed by the main agent), so the main agent
+  started a supervisor service (`pilot_supervisor.sh`). It ran the other 4 runs (Yac and Tow at
+  100,000) with the same command and caps, and ended on 2026-11-28 at 08:28Z. The user chose the
+  full pilot (all 6 runs at 100,000). Nobody read an NMSE for the gate.
+
+  | Run | Status | Evals | CPU s | Wall s | Peak RSS MB | Scope peak MB | Limit MB | Peak / limit | Demes | Evals per deme (median, max) | n_terms |
+  |---|---|---|---|---|---|---|---|---|---|---|---|
+  | Con HC-LM | ok | 20,000 | 338 | 340 | 181 | 211 | 2,048 | 8.8 % | 21 | 921, 1,556 | – |
+  | Con HC-TLS | ok | 20,000 | 890 | 895 | 333 | 361 | 2,048 | 16.3 % | 20 | 1,021, 1,485 | 8 |
+  | Yac HC-LM | ok | 20,000 | 244 | 245 | 146 | 173 | 2,048 | 7.1 % | 28 | 683, 1,500 | – |
+  | Yac HC-TLS | ok | 20,000 | 339 | 341 | 324 | 351 | 2,048 | 15.8 % | 16 | 916, 7,218 | 8 |
+  | Con HC-LM-100K | ok | 100,000 | 2,962 | 2,986 | 679 | 709 | 8,192 | 8.3 % | 96 | 997, 1,647 | – |
+  | Con HC-TLS-100K | ok | 100,000 | 11,276 | 11,324 | 1,586 | 1,620 | 8,192 | 19.4 % | 83 | 1,211, 1,689 | 11 |
+  | Yac HC-LM-100K | ok | 100,000 | 2,643 | 2,650 | 705 | 737 | 8,192 | 8.6 % | 132 | 746, 1,500 | – |
+  | Yac HC-TLS-100K | ok | 100,000 | 4,951 | 4,964 | 935 | 964 | 8,192 | 11.4 % | 107 | 877, 7,218 | 8 |
+  | Tow HC-LM-100K | ok | 100,000 | 11,123 | 11,160 | 1,983 | 2,020 | 8,192 | 24.2 % | 47 | 2,356, 2,796 | – |
+  | Tow HC-TLS-100K | ok | 100,000 | 31,751 | 31,904 | 2,802 | 2,837 | 8,192 | 34.2 % | 39 | 2,707, 3,413 | 23 |
+
+  Peak RSS is `ru_maxrss_kb` of the summary (the MOSES process, as in rounds 10 to 16); the scope
+  peak (`memory.peak`) also counts the runner. Demes and evaluations per deme come from
+  `hc_progress.jsonl`.
+
+  | Gate item | Result |
+  |---|---|
+  | 1. Every run ends ok | Pass: 10 of 10 (exit 0, no OOM kill, no error, no `hc_progress_error`) |
+  | 2. Peak RSS ≤ 50 % of the limit | Pass: at most 34.2 % (34.6 % with the scope peak; Tow HC-TLS-100K); the 20,000 runs at most 16.3 % (18 %) |
+  | 3. Evaluation counts | Pass: every run used its full budget; the last line of the hook equals `n_evals` in 10 of 10 |
+  | 4. HC-TLS per-term fit active | Pass: `n_terms` 8 to 23 in 5 of 5 HC-TLS runs, no fallback |
+
+  * **CPU ratios (pilot, same data set and split):** HC-LM 100,000 / 20,000: Con 8.8, Yac 10.9
+    (the estimate used 10, range 5–13). HC-TLS / HC-LM: at 20,000 Con 2.6, Yac 1.4; at 100,000
+    Con 3.8, Yac 1.9, Tow 2.9 (the estimate used 0.5–1.5, so HC-TLS costs more than registered).
+    Local speed: the pilot HC-LM 20,000 runs used 0.99 (Con) and 0.86 (Yac) times the round 14
+    server median CPU.
+  * **New memory limits (`mem_limit_mb`, RLIMIT_AS) and W on the server** (cgroup 65,536 MB,
+    12 CPUs, reserve 6,553 MB; W = min(11, floor(58,983 / limit)), `resources.py`):
+
+    | Run list | Old | New | W old → new | Reason |
+    |---|---|---|---|---|
+    | `sr-100K.json` (6 data sets, 100,000) | 8,192 (placeholder) | 6,144 | 7 → 9 | Highest pilot peak 2,837 MB (Tow HC-TLS-100K) = 46 % of 6,144 MB. Tow is the largest data set (2,501 training rows, 25 inputs; Air 753 and 5, EnC and EnH 384 and 8), so its peak also covers Air, EnC and EnH, which have no pilot run |
+    | `sr.json` (6 data sets, 20,000) | 2,048 | 4,096 | 11 → 11 | Air, EnC, EnH and Tow have no pilot run at 20,000. Round 14 HC-LM peaked at most 635 MB on the data sets other than Dow; in the pilot, HC-TLS peaked 1.8–2.2 times HC-LM at 20,000, so about 1,400 MB is possible, above 50 % of 2,048 MB. 4,096 MB costs no W (the CPUs limit W) |
+    | `sr-Dow.json` (Dow, 20,000) | 4,096 | 8,192 | 11 → 7 | No pilot run on Dow. Round 14 HC-LM peaked at 1,983 MB on Dow (48 % of 4,096 MB). With the pilot HC-TLS / HC-LM peak ratios (1.3–2.3), HC-TLS can reach about 2,600–4,600 MB. 8,192 MB keeps the central value (about 3,600 MB) at 44 %; the high value is 56 %. Dow is descriptive only |
+
+    * Why not the smallest limit for 10 runs at a time (5,888 MB, W = 10, peak 48 %, about 4 h
+      shorter): in round 16 the highest server peak at 100,000 (about 5.3 GB) was about 1.6 times
+      the pilot peak of Tow (3.3 GB). With the same growth, Tow HC-TLS-100K can reach about
+      4.5 GB. An address-space failure counts as infinitely bad in P2 or P4, so the agent chose
+      the larger margin. The user can choose 5,888 MB.
+    * Applied in the clone: the four config sets (`phase1bl`, `phase1bl-a`,
+      `server-smoke17-1bl`, `server-smoke17-1bl-a`), the 1bl steps of the four plans, the
+      SERVER-RUN section and the tests. The pilot run list keeps the values it ran with.
+  * **Estimate (method of round 16, script `est17.py` in the agent's scratchpad):** server CPU of
+    a run = the round 14 server median CPU of HC-LM at 20,000 on its data set (Air 886, Con 343,
+    Dow 831, EnC 402, EnH 476, Tow 1,396, Yac 283 s) × the pilot CPU ratio of the arm to HC-LM at
+    20,000 on the same data set. The local speed cancels in the ratio. Air, EnC, EnH and Dow
+    use the mean of the Con and Yac ratios (low: the lower, high: the higher). Tow at 100,000 =
+    the pilot CPU / the local speed (central: the mean, 0.92; low: 0.99; high: 0.86). Each arm × 10 splits × 1.05 (the round 14
+    mean / median factor); the high case × 1.1 more. Wall = CPU-h / W of each run list, plus S0
+    (1.3 h), plus a tail of at most one long run per plan.
+
+    | | HC-LM | HC-TLS | HC-LM-100K | HC-TLS-100K | Total CPU-h | Wall (two plans) |
+    |---|---|---|---|---|---|---|
+    | Low | 13.5 | 20.0 | 95.8 | 248.8 | 378 | 22.1 h + 20.8 h = 42.9 h |
+    | **Central** | **13.5** | **27.2** | **103.4** | **288.7** | **433** | **25.1 h + 23.8 h = 48.9 h** |
+    | High | 14.8 | 37.9 | 122.4 | 362.4 | 538 | 30.9 h + 29.6 h = 60.5 h |
+
+    Central wall per run list: `sr.json` 33.4 CPU-h / 11 = 3.0 h, `sr-100K.json` 392.0 / 9 =
+    43.6 h, `sr-Dow.json` 7.3 / 7 = 1.0 h. The longest single runs: Tow HC-TLS-100K about 9.6 h
+    (9.0–11.3 h), Air HC-TLS-100K about 6.6 h (5.0–9.0 h). The estimate before the pilot was
+    about 250 CPU-h (range 100–400) and 23 h; the difference comes from HC-TLS (about 316 of
+    the 433 CPU-h) and from W = 9, not 11, for the 100,000 arms.
+  * **Plan split:** the estimate is more than 20 h, so the round keeps two plans that chain, split
+    by splits (81–85, then 86–90), as registered. Each plan is about 25 h (21–31 h) plus its
+    tail, more than the 20 h of one plan. The rule has no third plan; a split into more plans
+    is a design change for the user.
+  * **Agent proposal, not approved: a larger wall cap for the 100,000 arms.** The pilot Tow
+    HC-TLS-100K run used 31,904 s, 89 % of the wall cap of 36,000 s. The server estimate for
+    this arm is 9.0–11.3 h (about 32,000–41,000 s), so some of its 10 runs can reach the cap.
+    A run at the cap ends as "timeout" and counts as infinitely bad, so P4 and the HC-TLS
+    secondaries would count a time guard against HC-TLS. The pre-registration calls the cap "a
+    guard only". Proposal: `wall_cap_s` 72,000 s in `sr-100K.json` of `phase1bl` and
+    `phase1bl-a` (the smoke keeps 300 s). The CPU estimate does not change; a plan can end up to
+    about 10 h later only if a run is longer than 36,000 s. The configs keep 36,000 s until the
+    user decides.
