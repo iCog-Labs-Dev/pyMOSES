@@ -37,9 +37,13 @@ ALL_ARMS = {
 PARTNER = {"HC-LM": "BASE-TLS", "HC-TLS": "BASE-TLS", "HC-LM-100K": "BASE-TLS-100K",
            "HC-TLS-100K": "BASE-TLS-100K"}
 MANIFESTS = ["sr.json", "sr-100K.json", "sr-Dow.json"]  # the order of phase_run.sh
-# the local pilot (SERVER-ROUND17-PREREGISTRATION.md, amendment A3): each measured peak at most
-# 50 % of its limit; the data sets without a pilot peak get room for HC-TLS (A3)
-MB = {"sr.json": 4096, "sr-Dow.json": 8192, "sr-100K.json": 6144}
+# the local pilot (SERVER-ROUND17-PREREGISTRATION.md, amendment A3, decided by the user on
+# 2026-11-28): each measured peak at most 50 % of its limit; the data sets without a pilot peak
+# get room for HC-TLS; sr-100K.json 6,553 MB, the largest limit for W 9 on the server
+MB = {"sr.json": 4096, "sr-Dow.json": 8192, "sr-100K.json": 6553}
+# the wall cap, a guard only (A3, the user's decision of 2026-11-28): 72,000 s for the 100,000
+# arms (the pilot Tow HC-TLS-100K run used 89 % of 36,000 s), 36,000 s for the 20,000 arms
+WALL_CAP_S = {"sr.json": 36000, "sr-Dow.json": 36000, "sr-100K.json": 72000}
 DATASETS_OF = {"sr.json": DS6, "sr-Dow.json": ["Dow"],
                "sr-100K.json": ["Tow"] + [d for d in DS6 if d != "Tow"]}
 REAL_PARTNER_DIRS = [f"../gomea-results/phase1bk/phase1bk-{x}"

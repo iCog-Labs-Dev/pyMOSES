@@ -15,9 +15,10 @@ design while its check (clone A) has not failed; tools/gomea/drop_arms.py and th
 `HC_TLS` of that module leave it out (see its docstring).
 
 The chain (the agent estimate after the local pilot, about 49 h, range 43-61 h, is more than
-20 h for one plan; the rule of the pre-registration, "Rules"; amendment A3): round17 (plan17.json) runs S0 and
-1bl on splits 81-85 (configs/gomea/phase1bl-a), then round17b (plan17b.json) runs 1bl with the
-full config; the runner keeps the runs of round17 and runs the others. round17b has no S0.
+20 h for one plan; the rule of the pre-registration, "Rules"; amendment A3): round17
+(plan17.json) runs S0 and 1bl on splits 81-85 (configs/gomea/phase1bl-a), then round17b
+(plan17b.json) runs 1bl with the full config; the runner keeps the runs of round17 and runs
+the others. round17b has no S0.
 
 The smoke plans chain in the same way, on OLD splits 1 and 2 (never 81-90). smoke17 first runs
 smoke17-1bk, the GOMEA partners in miniature (the BASE-TLS arms of round 16), so the smoke needs
@@ -63,7 +64,7 @@ REQUIRES = [f"datasets:{D7}:81-90"] + partners("phase1bk", "81-90")
 SMOKE_REQUIRES = [f"datasets:{D7}:1-2"] + partners("server-smoke17-1bk", "1-2")
 SMOKE_BUDGET = {20000: 1000, 100000: 2000}
 OTHER_MB = design.MB["sr.json"]
-MANIFEST_MB = {"sr-Dow.json": 8192, "sr-100K.json": 6144}  # the local pilot (A3)
+MANIFEST_MB = {"sr-Dow.json": 8192, "sr-100K.json": 6553}  # the local pilot (A3)
 N_TRAIN = {d: json.loads((REPO / "data" / "gomea-sr" / d / "splits.json").read_text())["n_train"]
            for d in design.DS7}
 
@@ -185,7 +186,7 @@ def test_every_manifest_has_the_keys_of_round_16_and_the_hc_progress_key(prefix)
 def test_budget_is_evaluations_with_no_time_limit():
     for f in stage1(CONFIGS / "phase1bl"):
         m = load(f)
-        assert m["wall_cap_s"] == 36000
+        assert m["wall_cap_s"] == design.WALL_CAP_S[f.name], f  # A3: 72,000 s for sr-100K.json
         assert m["datasets_dir"] == "../gomea-results/phase1f/datasets"
         for a, s in m["arms"].items():
             assert s["budget"] == {"evals": ARMS[a][1]}, (f, a)
@@ -338,8 +339,8 @@ def test_the_first_plan_is_s0_then_1bl_on_the_first_splits(plan, name, state_dir
     assert not a.get("pilot") and not a.get("set_commit_in")
     assert a["requires"] == requires
     _memory_keys_match_the_manifests(a, CONFIGS / HALF_PREFIXES[prefix])
-    assert ("6,144 MB); the limits come from the local pilot (amendment A3)" in p["description"]
-            and "placeholder" not in p["description"]) or plan != "plan17.json"
+    assert ("6,553 MB, wall cap 72,000 s); the limits come from the local pilot (amendment A3"
+            in p["description"] and "placeholder" not in p["description"]) or plan != "plan17.json"
 
 
 @pytest.mark.parametrize("plan, name, state_dir, prefix, sid, requires", [
@@ -574,7 +575,8 @@ def test_help_text_names_the_plans(script):
 
 def test_server_workers(tmp_path):
     """On the 12-CPU 64 GB server (reserve 6,553 MB): sr.json (4,096 MB) W = 11 (the CPUs),
-    sr-100K.json (6,144 MB) W = 9 and sr-Dow.json (8,192 MB) W = 7 (the memory; amendment A3)."""
+    sr-100K.json (6,553 MB, the largest limit for W = 9) W = 9 and sr-Dow.json (8,192 MB) W = 7
+    (the memory; amendment A3)."""
     import resources
     s, pr = tmp_path / "sys", tmp_path / "proc"
     for c in range(12):
@@ -593,6 +595,10 @@ def test_server_workers(tmp_path):
         w = resources.decide(s, pr, affinity=set(range(12)),
                              env={"PER_RUN_MB": str(design.MB[name])})
         assert (w["workers"], w["limited_by"]) == want, name
+    # A3 (R1 of the RV16 review, round 4): 6,553 MB is the largest limit with W = 9
+    more = resources.decide(s, pr, affinity=set(range(12)),
+                            env={"PER_RUN_MB": str(design.MB["sr-100K.json"] + 1)})
+    assert more["workers"] == 8
 
 
 FAKE_SR = r"""import json, os, sys
@@ -687,6 +693,6 @@ def test_the_phase_runs_with_its_own_workers_and_the_partner_requirement(tmp_pat
                    and (repo / d).is_dir() for d in t["partners"])
     events = [json.loads(x) for x in (sd / "events.jsonl").read_text().splitlines()]
     wd = [(e.get("manifest"), e["per_run_mb"]) for e in events if e["event"] == "workers_decision"]
-    assert wd == [(None, 4096), ("sr-Dow.json", 8192), ("sr-100K.json", 6144)] * 2
+    assert wd == [(None, 4096), ("sr-Dow.json", 8192), ("sr-100K.json", 6553)] * 2
     st = load(sd / "state.json")["steps"]
     assert [st[s["id"]]["status"] for s in steps] == ["done", "done"]
